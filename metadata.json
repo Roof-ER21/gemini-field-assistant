@@ -1,0 +1,8 @@
+{
+  "name": "Gemini Field Assistant",
+  "description": "An all-in-one assistant powered by Gemini. Features include an advanced chatbot, image analysis, live audio transcription, location-based information, and text-to-speech capabilities to help you with company information, document templates, and email generation on the go.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
