@@ -302,6 +302,9 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* Push content to bottom */
 }
 
 .roof-er-message-container {
@@ -310,6 +313,8 @@ body {
   gap: 16px;
   max-width: 1000px;
   margin: 0 auto;
+  width: 100%;
+  min-height: min-content; /* Allow container to shrink */
 }
 
 /* Message Bubbles */
