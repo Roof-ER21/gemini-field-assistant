@@ -1,20 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createChat, connectTranscriptionStream } from '../services/geminiService';
-import { Chat, LiveSession, LiveServerMessage } from '@google/genai';
+import { motion, AnimatePresence } from 'framer-motion';
+import { connectTranscriptionStream } from '../services/geminiService';
+import { LiveSession, LiveServerMessage } from '@google/genai';
 import { Message } from '../types';
 import Spinner from './Spinner';
-import TypingIndicator from './TypingIndicator';
-import { MicIcon } from './icons/MicIcon';
 import { encode } from '../utils/audio';
+import { ragService } from '../services/ragService';
+import { multiAI, AIProvider } from '../services/multiProviderAI';
+import { Send, Mic, Paperclip } from 'lucide-react';
+import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 
 const ChatPanel: React.FC = () => {
-  const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [voiceError, setVoiceError] = useState('');
+  const [currentProvider, setCurrentProvider] = useState<string>('Auto');
+  const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
+  const [showWelcome, setShowWelcome] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Refs for voice transcription
   const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
@@ -23,31 +29,60 @@ const ChatPanel: React.FC = () => {
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  // Effect to initialize chat and load messages from localStorage
+  // Quick command suggestions
+  const quickCommands = [
+    'GAF Specs',
+    'Price Objection',
+    'VA Claim Docs',
+    'Measurements',
+    'Safety',
+    'Warranties'
+  ];
+
+  // Effect to initialize and load messages from localStorage
   useEffect(() => {
-    const newChat = createChat('gemini-2.5-flash');
-    setChat(newChat);
+    multiAI.getAvailableProviders().then(providers => {
+      setAvailableProviders(providers);
+      console.log('Available AI providers:', providers.length);
+    });
 
     try {
       const savedMessages = localStorage.getItem('chatHistory');
-      const welcomeMessage = { id: 'initial', text: 'S21 online. How can I assist you, doc?', sender: 'bot' };
       if (savedMessages) {
         const parsedMessages: Message[] = JSON.parse(savedMessages);
         if (parsedMessages.length > 0) {
           setMessages(parsedMessages);
+          setShowWelcome(false);
         } else {
-          setMessages([welcomeMessage]);
+          const welcomeMessage = personalityHelpers.getWelcomeMessage(false);
+          setMessages([{
+            id: 'initial',
+            text: welcomeMessage.text,
+            sender: 'bot'
+          }]);
+          setShowWelcome(true);
         }
       } else {
-        setMessages([welcomeMessage]);
+        const welcomeMessage = personalityHelpers.getWelcomeMessage(false);
+        setMessages([{
+          id: 'initial',
+          text: welcomeMessage.text,
+          sender: 'bot'
+        }]);
+        setShowWelcome(true);
       }
     } catch (error) {
       console.error("Failed to load chat history:", error);
-      setMessages([{ id: 'initial', text: 'S21 online. How can I assist you, doc?', sender: 'bot' }]);
+      const welcomeMessage = personalityHelpers.getWelcomeMessage(false);
+      setMessages([{
+        id: 'initial',
+        text: welcomeMessage.text,
+        sender: 'bot'
+      }]);
+      setShowWelcome(true);
     }
   }, []);
 
-  // Effect to save messages to localStorage whenever they change
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('chatHistory', JSON.stringify(messages));
@@ -60,9 +95,22 @@ const ChatPanel: React.FC = () => {
 
   useEffect(scrollToBottom, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userInput.trim() || !chat || isLoading) return;
+  // Auto-resize textarea
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setUserInput(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!userInput.trim() || isLoading) return;
+
+    if (showWelcome) {
+      setShowWelcome(false);
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -70,14 +118,55 @@ const ChatPanel: React.FC = () => {
       sender: 'user',
     };
     setMessages(prev => [...prev, userMessage]);
+    const originalQuery = userInput;
     setUserInput('');
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     setIsLoading(true);
 
     try {
-      const response = await chat.sendMessage({ message: userInput });
+      const queryType = personalityHelpers.detectQueryType(originalQuery);
+      const useRAG = ragService.shouldUseRAG(originalQuery);
+      let systemPrompt = SYSTEM_PROMPT;
+      let userPrompt = originalQuery;
+      let sources: any[] = [];
+
+      if (useRAG) {
+        console.log('[RAG] Enhancing query with knowledge base...');
+        const ragContext = await ragService.buildRAGContext(originalQuery, 3);
+        systemPrompt = ragContext.enhancedPrompt.split('USER QUESTION:')[0];
+        userPrompt = originalQuery;
+        sources = ragContext.sources;
+        console.log(`[RAG] Found ${sources.length} relevant documents`);
+      }
+
+      const conversationMessages = [
+        { role: 'system' as const, content: systemPrompt },
+        ...messages
+          .filter(m => m.sender !== 'bot' || !m.text.includes('Hey there!') && !m.text.includes('Welcome back'))
+          .slice(-10)
+          .map(m => ({
+            role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
+            content: m.text,
+          })),
+        { role: 'user' as const, content: userPrompt },
+      ];
+
+      const response = await multiAI.generate(conversationMessages);
+      setCurrentProvider(response.provider);
+
+      let responseText = response.content;
+      if (useRAG && sources.length > 0) {
+        responseText += ragService.formatSourcesCitation(sources);
+      }
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.text,
+        text: responseText,
         sender: 'bot',
       };
       setMessages(prev => [...prev, botMessage]);
@@ -85,7 +174,7 @@ const ChatPanel: React.FC = () => {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: 'Sorry, I encountered an error. Please try again.',
+        text: `Sorry, I encountered an error: ${(error as Error).message}\n\nPlease check your API keys in .env.local or install Ollama for local AI.`,
         sender: 'bot',
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -93,29 +182,28 @@ const ChatPanel: React.FC = () => {
       setIsLoading(false);
     }
   };
-  
-  // --- Voice Input Logic ---
 
+  // Voice Input Logic
   const stopVoiceInputResources = useCallback(() => {
     if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
     }
     if (scriptProcessorRef.current) {
-        scriptProcessorRef.current.disconnect();
-        scriptProcessorRef.current = null;
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
     }
     if (mediaStreamSourceRef.current) {
-        mediaStreamSourceRef.current.disconnect();
-        mediaStreamSourceRef.current = null;
+      mediaStreamSourceRef.current.disconnect();
+      mediaStreamSourceRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(console.error);
-        audioContextRef.current = null;
+      audioContextRef.current.close().catch(console.error);
+      audioContextRef.current = null;
     }
-    if(sessionPromiseRef.current) {
-        sessionPromiseRef.current.then(session => session.close()).catch(console.error);
-        sessionPromiseRef.current = null;
+    if (sessionPromiseRef.current) {
+      sessionPromiseRef.current.then(session => session.close()).catch(console.error);
+      sessionPromiseRef.current = null;
     }
   }, []);
 
@@ -127,12 +215,12 @@ const ChatPanel: React.FC = () => {
   const startVoiceInput = async () => {
     setVoiceError('');
     if (isVoiceRecording) return;
-    
+
     setIsVoiceRecording(true);
     try {
       mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      
+
       sessionPromiseRef.current = connectTranscriptionStream({
         onopen: () => console.log("Voice input connection opened."),
         onclose: () => console.log("Voice input connection closed."),
@@ -150,7 +238,7 @@ const ChatPanel: React.FC = () => {
 
       mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
       scriptProcessorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-      
+
       scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
         const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
         const l = inputData.length;
@@ -159,14 +247,14 @@ const ChatPanel: React.FC = () => {
           int16[i] = inputData[i] * 32768;
         }
         const base64 = encode(new Uint8Array(int16.buffer));
-        
+
         sessionPromiseRef.current?.then(session => {
-           session.sendRealtimeInput({ media: { data: base64, mimeType: 'audio/pcm;rate=16000' } });
+          session.sendRealtimeInput({ media: { data: base64, mimeType: 'audio/pcm;rate=16000' } });
         }).catch(e => {
-            console.error("Error sending audio data:", e);
+          console.error("Error sending audio data:", e);
         });
       };
-      
+
       mediaStreamSourceRef.current.connect(scriptProcessorRef.current);
       scriptProcessorRef.current.connect(audioContextRef.current.destination);
 
@@ -185,69 +273,141 @@ const ChatPanel: React.FC = () => {
       startVoiceInput();
     }
   };
-  
+
   useEffect(() => {
     return () => {
       stopVoiceInputResources();
     };
   }, [stopVoiceInputResources]);
 
+  const handleQuickCommand = (command: string) => {
+    setUserInput(command);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-800 p-4">
-      <h2 className="text-xl font-bold text-white border-b border-zinc-600 pb-2 mb-4">S21 Chat</h2>
-      <div className="flex-1 overflow-y-auto mb-4 pr-2">
-        <div className="flex flex-col space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-lg lg:max-w-xl px-4 py-2 rounded-lg shadow ${
-                  msg.sender === 'user'
-                    ? 'bg-red-700 text-white rounded-br-none'
-                    : 'bg-zinc-700 text-zinc-200 rounded-bl-none'
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{msg.text}</p>
+    <div className="roof-er-content-area">
+      {/* Messages Area */}
+      <div className="roof-er-content-scroll">
+        {showWelcome ? (
+          <div className="roof-er-welcome-screen">
+            <div className="roof-er-welcome-icon">🏠</div>
+            <div className="roof-er-welcome-title">Hey there! I'm S21, your AI-powered roofing expert.</div>
+            <div className="roof-er-welcome-subtitle">
+              I've got instant access to 123+ industry documents and I'm running on 4 different AI systems working together to give you the best answers. Whether it's GAF product specs, sales scripts, or handling tough customer questions - I've got your back.
+            </div>
+            <div className="roof-er-welcome-stats">
+              <div className="roof-er-stat-item">
+                <span className="roof-er-stat-number">123+</span>
+                <span className="roof-er-stat-label">Documents</span>
+              </div>
+              <div className="roof-er-stat-item">
+                <span className="roof-er-stat-number">4</span>
+                <span className="roof-er-stat-label">AI Systems</span>
+              </div>
+              <div className="roof-er-stat-item">
+                <span className="roof-er-stat-number">24/7</span>
+                <span className="roof-er-stat-label">Available</span>
               </div>
             </div>
-          ))}
-          {isLoading && <TypingIndicator />}
-          <div ref={messagesEndRef} />
-        </div>
+          </div>
+        ) : (
+          <div className="roof-er-message-container">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`roof-er-message ${msg.sender === 'user' ? 'user' : 'ai'}`}>
+                <div className="roof-er-message-avatar">
+                  {msg.sender === 'user' ? 'YOU' : 'S21'}
+                </div>
+                <div className="roof-er-message-content">
+                  <div className="roof-er-message-text">{msg.text}</div>
+                  <div className="roof-er-message-time">
+                    {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="roof-er-message ai">
+                <div className="roof-er-message-avatar">S21</div>
+                <div className="roof-er-message-content">
+                  <div className="roof-er-typing-indicator">
+                    <div className="roof-er-typing-dot"></div>
+                    <div className="roof-er-typing-dot"></div>
+                    <div className="roof-er-typing-dot"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </div>
-       {voiceError && <p className="text-red-400 text-sm text-center mb-2">{voiceError}</p>}
-      <form onSubmit={handleSendMessage} className="flex items-center">
-        <input
-          type="text"
-          value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
-          placeholder={isVoiceRecording ? "Listening..." : "Type your message..."}
-          className="flex-1 p-3 bg-zinc-900 border border-zinc-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-red-600 text-white"
-          disabled={isLoading || isVoiceRecording}
-        />
-         <button
-          type="button"
-          onClick={handleToggleVoiceRecording}
-          className={`p-3 border-y border-zinc-600 ${
-            isVoiceRecording 
-              ? 'bg-red-700 text-white animate-pulse' 
-              : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-          } transition-colors disabled:bg-zinc-800 disabled:cursor-not-allowed`}
-          disabled={isLoading}
-        >
-          <MicIcon className="h-6 w-6" />
-        </button>
-        <button
-          type="submit"
-          disabled={!userInput.trim() || isLoading || isVoiceRecording}
-          className="bg-red-700 text-white px-6 py-3 rounded-r-lg hover:bg-red-800 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          {isLoading ? <Spinner /> : 'Send'}
-        </button>
-      </form>
+
+      {/* Input Area */}
+      <div className="roof-er-input-area">
+        {/* Quick Commands */}
+        <div className="roof-er-quick-commands">
+          {quickCommands.map((cmd, index) => (
+            <div
+              key={index}
+              className="roof-er-quick-cmd"
+              onClick={() => handleQuickCommand(cmd)}
+            >
+              {cmd}
+            </div>
+          ))}
+        </div>
+
+        {/* Input Wrapper */}
+        <form onSubmit={handleSendMessage} className="roof-er-input-wrapper">
+          <textarea
+            ref={textareaRef}
+            className="roof-er-input-field"
+            placeholder="Ask me anything about roofing, sales, products, or field work..."
+            value={userInput}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyPress}
+            rows={1}
+            disabled={isLoading || isVoiceRecording}
+          />
+          <div className="roof-er-input-actions">
+            <button
+              type="button"
+              className="roof-er-action-btn"
+              title="Attach Photo"
+              onClick={() => alert('Photo attachment feature - connects to camera/gallery')}
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className={`roof-er-action-btn ${isVoiceRecording ? 'roof-er-bg-red roof-er-text-primary' : ''}`}
+              title="Voice Input"
+              onClick={handleToggleVoiceRecording}
+              disabled={isLoading}
+            >
+              <Mic className="w-5 h-5" />
+            </button>
+            <button
+              type="submit"
+              className="roof-er-action-btn roof-er-send-btn"
+              title="Send Message"
+              disabled={!userInput.trim() || isLoading || isVoiceRecording}
+            >
+              {isLoading ? <Spinner /> : <Send className="w-5 h-5" />}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

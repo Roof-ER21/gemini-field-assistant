@@ -1,0 +1,848 @@
+/*
+ * ROOF ER S21 FIELD AI - Design System
+ * Dark theme with Roof ER red accent
+ */
+
+:root {
+  /* Color Palette */
+  --roof-red: #c41e3a;
+  --roof-red-dark: #a01830;
+  --roof-red-darker: #8a1528;
+
+  /* Background Colors */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #0f0f0f;
+  --bg-tertiary: #161616;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #252525;
+  --bg-card: #1e1e1e;
+
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #888888;
+  --text-disabled: #666666;
+
+  /* Border Colors */
+  --border-subtle: #2a2a2a;
+  --border-default: #3a3a3a;
+  --border-strong: #4a4a4a;
+
+  /* Status Colors */
+  --success: #4ade80;
+  --success-dark: #1e3a1e;
+  --warning: #fbbf24;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* User Message Colors */
+  --user-bg: #1e2a3a;
+  --user-border: #2a3a4a;
+  --user-avatar: #2a5a8a;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-red: 0 2px 10px rgba(196, 30, 58, 0.2);
+  --shadow-red-lg: 0 8px 24px rgba(196, 30, 58, 0.3);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  /* Z-index */
+  --z-header: 100;
+  --z-sidebar: 90;
+  --z-modal: 200;
+  --z-tooltip: 300;
+}
+
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Header Styles */
+.roof-er-header {
+  background: var(--bg-elevated);
+  border-bottom: 2px solid var(--roof-red);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-red);
+  z-index: var(--z-header);
+  position: relative;
+}
+
+.roof-er-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.roof-er-logo {
+  background: var(--roof-red);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  font-weight: 700;
+  font-size: 18px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 1px;
+}
+
+.roof-er-app-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.roof-er-page-subtitle {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding-left: 16px;
+  border-left: 2px solid var(--border-default);
+}
+
+.roof-er-header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.roof-er-status-badge {
+  background: var(--success-dark);
+  color: var(--success);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--success);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.roof-er-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.roof-er-header-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-header-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--roof-red);
+}
+
+/* Sidebar Styles */
+.roof-er-sidebar {
+  width: 280px;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-subtle);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.roof-er-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roof-er-sidebar-title {
+  color: var(--roof-red);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.roof-er-nav-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roof-er-nav-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--roof-red);
+  transform: translateX(4px);
+}
+
+.roof-er-nav-item.active {
+  background: var(--roof-red);
+  border-color: var(--roof-red);
+}
+
+.roof-er-nav-item-icon {
+  font-size: 20px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.roof-er-nav-item-content {
+  flex: 1;
+}
+
+.roof-er-nav-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.roof-er-nav-item-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.roof-er-nav-item.active .roof-er-nav-item-desc {
+  color: var(--text-secondary);
+}
+
+/* Quick Action Cards */
+.roof-er-action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-action-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--roof-red);
+  transform: translateX(4px);
+}
+
+.roof-er-action-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.roof-er-action-card-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Chat/Content Area */
+.roof-er-content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.roof-er-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.roof-er-message-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Message Bubbles */
+.roof-er-message {
+  display: flex;
+  gap: 12px;
+  max-width: 85%;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.roof-er-message.user {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.roof-er-message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.roof-er-message.ai .roof-er-message-avatar {
+  background: linear-gradient(135deg, var(--roof-red) 0%, var(--roof-red-darker) 100%);
+  color: var(--text-primary);
+}
+
+.roof-er-message.user .roof-er-message-avatar {
+  background: var(--user-avatar);
+  color: var(--text-primary);
+}
+
+.roof-er-message-content {
+  background: var(--bg-elevated);
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  flex: 1;
+}
+
+.roof-er-message.user .roof-er-message-content {
+  background: var(--user-bg);
+  border-color: var(--user-border);
+}
+
+.roof-er-message-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.roof-er-message-time {
+  font-size: 11px;
+  color: var(--text-disabled);
+  margin-top: 6px;
+}
+
+/* Input Area */
+.roof-er-input-area {
+  background: var(--bg-elevated);
+  border-top: 2px solid var(--border-subtle);
+  padding: 20px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.roof-er-quick-commands {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.roof-er-quick-cmd {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-quick-cmd:hover {
+  background: var(--bg-elevated);
+  border-color: var(--roof-red);
+  color: var(--text-primary);
+}
+
+.roof-er-input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.roof-er-input-field {
+  flex: 1;
+  background: var(--bg-hover);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  color: var(--text-primary);
+  font-size: 15px;
+  resize: none;
+  max-height: 120px;
+  font-family: inherit;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-input-field:focus {
+  outline: none;
+  border-color: var(--roof-red);
+  background: var(--bg-elevated);
+}
+
+.roof-er-input-field::placeholder {
+  color: var(--text-disabled);
+}
+
+.roof-er-input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.roof-er-action-btn {
+  background: var(--bg-hover);
+  border: 2px solid var(--border-default);
+  color: var(--text-primary);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-action-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.roof-er-send-btn {
+  background: var(--roof-red);
+  border-color: var(--roof-red);
+}
+
+.roof-er-send-btn:hover {
+  background: var(--roof-red-dark);
+  border-color: var(--roof-red-dark);
+  transform: scale(1.05);
+}
+
+.roof-er-send-btn:active {
+  transform: scale(0.95);
+}
+
+/* Welcome Screen */
+.roof-er-welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
+}
+
+.roof-er-welcome-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  opacity: 0.3;
+}
+
+.roof-er-welcome-title {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.roof-er-welcome-subtitle {
+  font-size: 16px;
+  color: var(--text-tertiary);
+  max-width: 500px;
+  line-height: 1.6;
+  margin-bottom: 30px;
+}
+
+.roof-er-welcome-stats {
+  display: flex;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.roof-er-stat-item {
+  text-align: center;
+}
+
+.roof-er-stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--roof-red);
+  display: block;
+}
+
+.roof-er-stat-label {
+  font-size: 12px;
+  color: var(--text-disabled);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 5px;
+}
+
+/* Knowledge Base Cards */
+.roof-er-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.roof-er-doc-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-doc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--roof-red);
+}
+
+.roof-er-doc-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.roof-er-doc-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.roof-er-doc-desc {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+/* Upload Zone */
+.roof-er-upload-zone {
+  background: var(--bg-elevated);
+  border: 2px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 60px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  margin-bottom: 20px;
+}
+
+.roof-er-upload-zone:hover {
+  border-color: var(--roof-red);
+  background: var(--bg-hover);
+}
+
+.roof-er-upload-icon {
+  font-size: 64px;
+  color: var(--roof-red);
+  margin-bottom: 16px;
+}
+
+.roof-er-upload-text {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.roof-er-upload-subtext {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
+/* Record Button */
+.roof-er-record-button {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--roof-red);
+  border: 4px solid var(--roof-red-dark);
+  color: var(--text-primary);
+  font-size: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  margin: 40px auto;
+}
+
+.roof-er-record-button:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-red-lg);
+}
+
+.roof-er-record-button.recording {
+  animation: recording-pulse 1.5s infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 30, 58, 0.7); }
+  50% { box-shadow: 0 0 0 20px rgba(196, 30, 58, 0); }
+}
+
+/* Location Cards */
+.roof-er-location-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-location-card:hover {
+  transform: translateX(4px);
+  border-color: var(--roof-red);
+}
+
+.roof-er-location-name {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.roof-er-location-address {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.roof-er-location-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.roof-er-location-btn {
+  padding: 8px 16px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-location-btn:hover {
+  background: var(--roof-red);
+  border-color: var(--roof-red);
+}
+
+/* Page Title */
+.roof-er-page-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+/* Search Bar */
+.roof-er-search-bar {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto 24px auto;
+}
+
+.roof-er-search-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  color: var(--text-primary);
+  font-size: 16px;
+  transition: all var(--transition-normal);
+}
+
+.roof-er-search-input:focus {
+  outline: none;
+  border-color: var(--roof-red);
+}
+
+.roof-er-search-input::placeholder {
+  color: var(--text-disabled);
+}
+
+/* Typing Indicator */
+.roof-er-typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.roof-er-typing-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--text-disabled);
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.roof-er-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.roof-er-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-elevated);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .roof-er-sidebar {
+    display: none;
+  }
+
+  .roof-er-header {
+    padding: 10px 15px;
+  }
+
+  .roof-er-logo {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+
+  .roof-er-app-title {
+    font-size: 16px;
+  }
+
+  .roof-er-page-subtitle {
+    display: none;
+  }
+
+  .roof-er-header-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .roof-er-message {
+    max-width: 95%;
+  }
+
+  .roof-er-input-area {
+    padding: 15px;
+  }
+
+  .roof-er-quick-commands {
+    overflow-x: scroll;
+    scrollbar-width: none;
+  }
+
+  .roof-er-quick-commands::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Utility Classes */
+.roof-er-flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.roof-er-text-red {
+  color: var(--roof-red);
+}
+
+.roof-er-bg-red {
+  background: var(--roof-red);
+}
+
+.roof-er-border-red {
+  border-color: var(--roof-red);
+}

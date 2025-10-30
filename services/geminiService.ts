@@ -7,11 +7,29 @@ import {
 } from '@google/genai';
 import { GroundingChunk } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// Only initialize Gemini if API key is provided and valid
+const getGeminiClient = () => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+const ai = getGeminiClient();
+
+// Helper to check if Gemini is available
+const ensureGemini = () => {
+  if (!ai) {
+    throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to .env.local or use alternative AI providers (Ollama, Groq, etc.)');
+  }
+  return ai;
+};
 
 // --- Chat ---
 export function createChat(model: string): Chat {
-  return ai.chats.create({
+  const client = ensureGemini();
+  return client.chats.create({
     model,
   });
 }
@@ -22,6 +40,7 @@ export async function analyzeImage(
   mimeType: string,
   prompt: string
 ): Promise<string> {
+  const client = ensureGemini();
   const imagePart = {
     inlineData: {
       data: base64Image,
@@ -30,7 +49,7 @@ export async function analyzeImage(
   };
   const textPart = { text: prompt };
 
-  const response = await ai.models.generateContent({
+  const response = await client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: { parts: [imagePart, textPart] },
   });
@@ -44,42 +63,43 @@ export async function generateEmail(
   subject: string,
   keyPoints: string
 ): Promise<string> {
+  const client = ensureGemini();
   const prompt = `
     Generate a professional email with the following details:
     To: ${recipient}
     Subject: ${subject}
-    
+
     Key points to include in the body:
     ${keyPoints}
 
     Please write only the body of the email. Do not include the "To" or "Subject" lines in your response.
   `;
-  const response = await ai.models.generateContent({
+  const response = await client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
   });
   return response.text;
 }
 
-// Fix: Implement and export the summarizeText function to resolve the import error in UtilityPanel.tsx.
 // --- Text Summarization ---
 export async function summarizeText(textToSummarize: string): Promise<string> {
+  const client = ensureGemini();
   const prompt = `Summarize the following text concisely:\n\n${textToSummarize}`;
-  const response = await ai.models.generateContent({
+  const response = await client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
   });
   return response.text;
 }
 
-// Fix: Implement and export the getComplexAnswer function to resolve the import error in ThinkingPanel.tsx.
 // --- Complex Reasoning (Thinking) ---
 export async function getComplexAnswer(
   prompt: string,
   thinkingBudget: number,
   model: 'gemini-2.5-pro' | 'gemini-2.5-flash'
 ): Promise<string> {
-  const response = await ai.models.generateContent({
+  const client = ensureGemini();
+  const response = await client.models.generateContent({
     model: model,
     contents: prompt,
     config: {
@@ -98,7 +118,8 @@ export function connectTranscriptionStream(callbacks: {
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
 }): Promise<LiveSession> {
-  return ai.live.connect({
+  const client = ensureGemini();
+  return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     callbacks,
     config: {
@@ -114,7 +135,8 @@ export function connectLiveConversation(callbacks: {
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
 }): Promise<LiveSession> {
-  return ai.live.connect({
+  const client = ensureGemini();
+  return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     callbacks,
     config: {
@@ -135,7 +157,8 @@ export async function searchMaps(
   query: string,
   location?: { latitude: number; longitude: number }
 ): Promise<{ text: string; chunks: GroundingChunk[] }> {
-  const response = await ai.models.generateContent({
+  const client = ensureGemini();
+  const response = await client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: query,
     config: {
