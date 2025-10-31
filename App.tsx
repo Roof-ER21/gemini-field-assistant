@@ -7,7 +7,7 @@ import EmailPanel from './components/EmailPanel';
 import MapsPanel from './components/MapsPanel';
 import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
-import { Settings, History } from 'lucide-react';
+import { Settings, History, Menu, X } from 'lucide-react';
 
 type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
 
@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [activePanel, setActivePanel] = useState<PanelType>('chat');
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitles: Record<PanelType, string> = {
     chat: 'Chat',
@@ -62,6 +63,15 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">
+          {/* Mobile Menu Button */}
+          <button
+            className="roof-er-mobile-menu-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+
           <div className="roof-er-logo">
             <span>ROOF ER</span>
           </div>
@@ -86,7 +96,25 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex flex-1">
-        <Sidebar activePanel={activePanel} setActivePanel={setActivePanel} />
+        {/* Mobile Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className="roof-er-mobile-overlay"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Sidebar with mobile support */}
+        <div className={`roof-er-sidebar-wrapper ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+          <Sidebar
+            activePanel={activePanel}
+            setActivePanel={(panel) => {
+              setActivePanel(panel);
+              setIsMobileMenuOpen(false); // Close menu when item is selected
+            }}
+          />
+        </div>
+
         <main className="flex-1">
           {renderPanel()}
         </main>
