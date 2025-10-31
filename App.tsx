@@ -46,7 +46,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+    <div className="flex flex-col h-screen" style={{ background: 'var(--bg-primary)' }}>
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">
@@ -73,9 +73,9 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         <Sidebar activePanel={activePanel} setActivePanel={setActivePanel} />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1">
           {renderPanel()}
         </main>
       </div>
