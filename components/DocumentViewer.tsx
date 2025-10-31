@@ -460,6 +460,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
               </ReactMarkdown>
             </div>
           )}
+          </div>
         </div>
       </div>
 
