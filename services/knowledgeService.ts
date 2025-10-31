@@ -22,11 +22,14 @@ export interface SearchResult {
   content?: string;
 }
 
-// Documents are in /extracted_content in the public folder
-const DOCS_BASE = '/extracted_content';
+// Documents are in /docs in the public folder
+const DOCS_BASE = '/docs';
 
 export const knowledgeService = {
-  // Get list of all 50+ key documents (subset of 123 total)
+  // Get list of all 73 key documents (60% of 123 total) - Phase 1 Complete
+  // Now includes: Sales Scripts (7), Email Templates (11), Insurance Arguments (15),
+  // Training (2), Agreements (9), Quick Reference (2), Procedures (1),
+  // Product Information & Warranties (13), Licenses & Certifications (13)
   async getDocumentIndex(): Promise<Document[]> {
     return [
       // Sales Scripts (7)
@@ -88,7 +91,37 @@ export const knowledgeService = {
       { name: 'Roof-ER Quick Cheat Sheet', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Quick Cheat Sheet.md`, type: 'md', category: 'Quick Reference' },
 
       // Procedures (1)
-      { name: 'How to do a Repair Attempt [EXAMPLE]', path: `${DOCS_BASE}/Sales Rep Resources 2/How to do a Repair Attempt [EXAMPLE].md`, type: 'md', category: 'Procedures' }
+      { name: 'How to do a Repair Attempt [EXAMPLE]', path: `${DOCS_BASE}/Sales Rep Resources 2/How to do a Repair Attempt [EXAMPLE].md`, type: 'md', category: 'Procedures' },
+
+      // Product Information & Warranties (13)
+      { name: 'GAF Standard Warranty', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/GAF Standard Warranty.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'GAF Timberline HDZ Presentation', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/GAF Timberline HDZ Presentation.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'GAF Warranty Comparison', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/GAF Warranty Comparison.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Golden Pledge Limited Warranty Legal Sample', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Golden_Pledge_Limited_RESWT161_Legal_Sample.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Silver Pledge Legalese', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Silver Pledge Legalese.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Silver Pledge Warranty Brochure', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Silver Pledge Warranty Brochure.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Warranty Comparison Presentation', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Warranty Comparison Prsentation.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Workmanship Warranty', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Workmanship Warranty.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'What is a Deductible', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/What is a Deductible_.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'RoofER Standard Materials', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/RoofER Standard Materials.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Roof-ER Company Overview', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Roof-ER.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'SP Exclusion Form', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/SP Exclusion Form.md`, type: 'md', category: 'Product Information & Warranties' },
+      { name: 'Post Sign Up Timeline', path: `${DOCS_BASE}/Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/Post Sign Up Timeline.md`, type: 'md', category: 'Product Information & Warranties' },
+
+      // Licenses & Certifications (13)
+      { name: 'GAF Master Elite 2025', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/GAF Master Elite 2025.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Master Elite Reference Letter for Customers', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Master Elite Reference Letter for Customers.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Maryland License Valid through 2027', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Maryland License Valid through 2027.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Pennsylvania License Valid Through 2027', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Pennsylvania License Valid Through 2027.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'PA License 2025 - 2027', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/PA license 2025 - 2027.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'VA License 2025 - 2027', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/VA License 2025 - 2027.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'COI - General Liability', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/COI - General Liability.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'COI - Workers Compensation 2026', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/COI - workers comp 2026.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'MD License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/MD License.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'VA Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Roof-ER CertainTeed ShingleMaster', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Roof-ER CertainTeed ShingleMaster.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Certified Certificate', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/CERTIFIED_CERTIFICATE.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'TAX ID Information', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/TAX ID Information.md`, type: 'md', category: 'Licenses & Certifications' }
     ];
   },
 
