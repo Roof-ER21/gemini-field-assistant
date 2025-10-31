@@ -26,11 +26,11 @@ export interface SearchResult {
 const DOCS_BASE = '/docs';
 
 export const knowledgeService = {
-  // Get list of all 86 key documents (70% of 123 total) - Phase 1 & 2A Complete
-  // Categories: Sales Scripts (7), Email Templates (11), Insurance Arguments (15),
-  // Training (2), Agreements (9), Quick Reference (2), Procedures (1),
+  // Get list of all 107 key documents (87% of 123 total) - Phase 1, 2A, & 3 Complete
+  // Categories: Sales Scripts (9), Email Templates (11), Insurance Arguments (15),
+  // Training (5), Agreements (9), Quick Reference (8), Procedures & Operations (5),
   // Product Information & Warranties (13), Licenses & Certifications (13),
-  // Photo Reports & Examples (5), Q&A Resources (8)
+  // Photo Reports & Examples (5), Q&A Resources (8), Tools & Utilities (6)
   async getDocumentIndex(): Promise<Document[]> {
     return [
       // Sales Scripts (7)
@@ -139,7 +139,35 @@ export const knowledgeService = {
       { name: 'When Stuck - What to Do Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Stuck_do.md`, type: 'md', category: 'Q&A Resources' },
       { name: 'Susan AI Training Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/susan_ai.md`, type: 'md', category: 'Q&A Resources' },
       { name: 'Training Resources Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Training.md`, type: 'md', category: 'Q&A Resources' },
-      { name: 'Document Templates Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/docs_temps.md`, type: 'md', category: 'Q&A Resources' }
+      { name: 'Document Templates Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/docs_temps.md`, type: 'md', category: 'Q&A Resources' },
+
+      // Procedures & Operations (4)
+      { name: 'Sales Operations and Tasks', path: `${DOCS_BASE}/Sales Rep Resources 2/Sales Operations and Tasks.md`, type: 'md', category: 'Procedures & Operations' },
+      { name: 'Mission, Values, & Commitment', path: `${DOCS_BASE}/Sales Rep Resources 2/Mission, Values, & Commitment.md`, type: 'md', category: 'Procedures & Operations' },
+      { name: 'Hover ESX_XML_PDF Process', path: `${DOCS_BASE}/Sales Rep Resources 2/Hover ESX_XML_PDF Process.md`, type: 'md', category: 'Procedures & Operations' },
+      { name: 'Adjuster_Inspector Information Sheet', path: `${DOCS_BASE}/Sales Rep Resources 2/Adjuster_Inspector Information Sheet1.md`, type: 'md', category: 'Procedures & Operations' },
+
+      // Additional Reference Materials (6)
+      { name: 'RoofER Top 10 Cheat Sheet', path: `${DOCS_BASE}/Sales Rep Resources 2/RoofER_Top10_CheatSheet_Fixed.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'RoofER Master Documents', path: `${DOCS_BASE}/Sales Rep Resources 2/RoofER_Master_Documents.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'RoofER Master Documents Updated', path: `${DOCS_BASE}/Sales Rep Resources 2/RoofER_Master_Documents_Updated.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'Roof-ER Roof & Siding Claim Response Packet', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Roof & Siding Claim Response Packet.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'Roof-ER Siding Claim Response Packet', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Siding Claim Response Packet.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'Required Mortgage Endorsement Companies', path: `${DOCS_BASE}/Sales Rep Resources 2/Required Mortgage Endorsement Companies.md`, type: 'md', category: 'Quick Reference' },
+
+      // Additional Training Materials (3)
+      { name: 'Brochure', path: `${DOCS_BASE}/Sales Rep Resources 2/Brochure.md`, type: 'md', category: 'Training' },
+      { name: 'RESIDENTIAL BRAND GUIDELINES', path: `${DOCS_BASE}/RESIDENTIAL_BRAND_GUIDELINES.md`, type: 'md', category: 'Training' },
+      { name: 'Roof-ER Sales Training Full', path: `${DOCS_BASE}/Roof-ER Sales Training (1).md`, type: 'md', category: 'Training' },
+
+      // Additional Scripts & Processes (2)
+      { name: 'Adjuster Meeting Outcome Script', path: `${DOCS_BASE}/Sales Rep Resources 2/images samp/Pitches/Adjuster Meeting Outcome Script.md`, type: 'md', category: 'Sales Scripts' },
+      { name: 'AM Outcome Process', path: `${DOCS_BASE}/Sales Rep Resources 2/images samp/Process/AM Outcome Process.md`, type: 'md', category: 'Procedures & Operations' },
+
+      // Tools & Utilities (3)
+      { name: 'Email Generator Guide', path: `${DOCS_BASE}/Sales Rep Resources 2/📧 Email Generator .md`, type: 'md', category: 'Tools & Utilities' },
+      { name: 'Role+ Information', path: `${DOCS_BASE}/Sales Rep Resources 2/Role+.md`, type: 'md', category: 'Tools & Utilities' },
+      { name: 'Untitled Document', path: `${DOCS_BASE}/Sales Rep Resources 2/Untitled document.md`, type: 'md', category: 'Tools & Utilities' }
     ];
   },
 
