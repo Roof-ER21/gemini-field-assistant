@@ -26,11 +26,12 @@ export interface SearchResult {
 const DOCS_BASE = '/docs';
 
 export const knowledgeService = {
-  // Get list of all 107 key documents (87% of 123 total) - Phase 1, 2A, & 3 Complete
+  // Get list of all 114 key documents (93% of 123 total) - Phase 1, 2A, 3, & Final Complete
   // Categories: Sales Scripts (9), Email Templates (11), Insurance Arguments (15),
-  // Training (5), Agreements (9), Quick Reference (8), Procedures & Operations (5),
-  // Product Information & Warranties (13), Licenses & Certifications (13),
+  // Training (5), Agreements (9), Quick Reference (11), Procedures & Operations (5),
+  // Product Information & Warranties (13), Licenses & Certifications (16),
   // Photo Reports & Examples (5), Q&A Resources (8), Tools & Utilities (6)
+  // Remaining 9 docs: 6 Merged PDFs (review needed), 3 Expired licenses (archived)
   async getDocumentIndex(): Promise<Document[]> {
     return [
       // Sales Scripts (7)
@@ -167,7 +168,17 @@ export const knowledgeService = {
       // Tools & Utilities (3)
       { name: 'Email Generator Guide', path: `${DOCS_BASE}/Sales Rep Resources 2/📧 Email Generator .md`, type: 'md', category: 'Tools & Utilities' },
       { name: 'Role+ Information', path: `${DOCS_BASE}/Sales Rep Resources 2/Role+.md`, type: 'md', category: 'Tools & Utilities' },
-      { name: 'Untitled Document', path: `${DOCS_BASE}/Sales Rep Resources 2/Untitled document.md`, type: 'md', category: 'Tools & Utilities' }
+      { name: 'Untitled Document', path: `${DOCS_BASE}/Sales Rep Resources 2/Untitled document.md`, type: 'md', category: 'Tools & Utilities' },
+
+      // Additional Quick Reference (3)
+      { name: 'Roof-ER Quick Cheat Sheet', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Quick Cheat Sheet.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'Roof-ER Quick Strike Guide', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Quick Strike Guide.md`, type: 'md', category: 'Quick Reference' },
+      { name: 'Document Index', path: `${DOCS_BASE}/INDEX.md`, type: 'md', category: 'Quick Reference' },
+
+      // Additional Licenses & Certifications (3)
+      { name: 'CertainTeed Certified Certificate', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/CERTIFIED_CERTIFICATE.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Maryland Contractor License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/MD License.md`, type: 'md', category: 'Licenses & Certifications' },
+      { name: 'Virginia Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' }
     ];
   },
 
