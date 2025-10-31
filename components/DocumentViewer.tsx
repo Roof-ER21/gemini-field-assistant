@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, ExternalLink } from 'lucide-react';
+import { X, Download, ExternalLink, Printer, Share2, List } from 'lucide-react';
 import { knowledgeService, Document, DocumentContent } from '../services/knowledgeService';
+import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import ReactMarkdown from 'react-markdown';
 
 interface DocumentViewerProps {
@@ -12,6 +13,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showTOC, setShowTOC] = useState(false);
+  const [toc, setToc] = useState<{ level: number; text: string; id: string }[]>([]);
 
   useEffect(() => {
     loadDocumentContent();
@@ -23,6 +26,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
       setError(null);
       const docContent = await knowledgeService.loadDocument(document.path);
       setContent(docContent);
+
+      // Extract table of contents
+      const extractedTOC = enhancedKnowledgeService.extractTableOfContents(docContent.content);
+      setToc(extractedTOC);
+      setShowTOC(extractedTOC.length > 3); // Show TOC if document has more than 3 headings
     } catch (err) {
       console.error('Failed to load document:', err);
       setError('Failed to load document content. Please try again.');
@@ -43,6 +51,38 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    if (!content) return;
+    window.print();
+  };
+
+  const handleShare = async () => {
+    const shareLink = enhancedKnowledgeService.generateShareLink(document.path);
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: document.name,
+          text: `Check out this document: ${document.name}`,
+          url: shareLink
+        });
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(shareLink);
+        alert('Share link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareLink);
+        alert('Share link copied to clipboard!');
+      } catch (clipboardError) {
+        alert(`Share link: ${shareLink}`);
+      }
+    }
   };
 
   return (
@@ -108,6 +148,69 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            {toc.length > 0 && (
+              <button
+                onClick={() => setShowTOC(!showTOC)}
+                disabled={!content}
+                style={{
+                  padding: '8px 12px',
+                  background: showTOC ? 'var(--roof-red)' : 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  color: 'var(--text-primary)',
+                  cursor: content ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  opacity: content ? 1 : 0.5,
+                }}
+                title="Table of Contents"
+              >
+                <List className="w-4 h-4" />
+                TOC
+              </button>
+            )}
+            <button
+              onClick={handlePrint}
+              disabled={!content}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                color: 'var(--text-primary)',
+                cursor: content ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                opacity: content ? 1 : 0.5,
+              }}
+              title="Print"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleShare}
+              disabled={!content}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                color: 'var(--text-primary)',
+                cursor: content ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                opacity: content ? 1 : 0.5,
+              }}
+              title="Share"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
             <button
               onClick={handleDownload}
               disabled={!content}
@@ -124,9 +227,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
                 fontSize: '14px',
                 opacity: content ? 1 : 0.5,
               }}
+              title="Download"
             >
               <Download className="w-4 h-4" />
-              Download
             </button>
             <button
               onClick={onClose}
@@ -140,6 +243,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
                 display: 'flex',
                 alignItems: 'center',
               }}
+              title="Close"
             >
               <X className="w-5 h-5" />
             </button>
@@ -150,10 +254,74 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
         <div
           style={{
             flex: 1,
-            overflow: 'auto',
-            padding: '24px',
+            display: 'flex',
+            overflow: 'hidden',
           }}
         >
+          {/* Table of Contents Sidebar */}
+          {showTOC && toc.length > 0 && content && (
+            <div
+              style={{
+                width: '250px',
+                borderRight: '1px solid var(--border-color)',
+                padding: '20px',
+                overflowY: 'auto',
+                background: 'var(--bg-secondary)',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--roof-red)',
+                  marginBottom: '16px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}
+              >
+                Table of Contents
+              </h3>
+              <nav>
+                {toc.map((heading, index) => (
+                  <a
+                    key={index}
+                    href={`#${heading.id}`}
+                    style={{
+                      display: 'block',
+                      paddingLeft: `${(heading.level - 1) * 12}px`,
+                      paddingTop: '8px',
+                      paddingBottom: '8px',
+                      fontSize: heading.level === 1 ? '14px' : '13px',
+                      color: heading.level === 1 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      textDecoration: 'none',
+                      borderLeft: `2px solid ${heading.level === 1 ? 'var(--roof-red)' : 'transparent'}`,
+                      marginLeft: heading.level === 1 ? '0' : '12px',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--roof-red)';
+                      e.currentTarget.style.borderLeftColor = 'var(--roof-red)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = heading.level === 1 ? 'var(--text-primary)' : 'var(--text-secondary)';
+                      e.currentTarget.style.borderLeftColor = heading.level === 1 ? 'var(--roof-red)' : 'transparent';
+                    }}
+                  >
+                    {heading.text}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          )}
+
+          {/* Document Content */}
+          <div
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '24px',
+            }}
+          >
           {loading && (
             <div
               style={{
@@ -219,9 +387,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
             >
               <ReactMarkdown
                 components={{
-                  h1: ({node, ...props}) => <h1 style={{ color: 'var(--roof-red)', marginTop: '24px', marginBottom: '16px' }} {...props} />,
-                  h2: ({node, ...props}) => <h2 style={{ color: 'var(--text-primary)', marginTop: '20px', marginBottom: '12px' }} {...props} />,
-                  h3: ({node, ...props}) => <h3 style={{ color: 'var(--text-secondary)', marginTop: '16px', marginBottom: '8px' }} {...props} />,
+                  h1: ({node, children, ...props}) => {
+                    const text = String(children);
+                    const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return <h1 id={id} style={{ color: 'var(--roof-red)', marginTop: '24px', marginBottom: '16px', scrollMarginTop: '20px' }} {...props}>{children}</h1>;
+                  },
+                  h2: ({node, children, ...props}) => {
+                    const text = String(children);
+                    const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return <h2 id={id} style={{ color: 'var(--text-primary)', marginTop: '20px', marginBottom: '12px', scrollMarginTop: '20px' }} {...props}>{children}</h2>;
+                  },
+                  h3: ({node, children, ...props}) => {
+                    const text = String(children);
+                    const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return <h3 id={id} style={{ color: 'var(--text-secondary)', marginTop: '16px', marginBottom: '8px', scrollMarginTop: '20px' }} {...props}>{children}</h3>;
+                  },
                   p: ({node, ...props}) => <p style={{ marginBottom: '12px' }} {...props} />,
                   ul: ({node, ...props}) => <ul style={{ marginLeft: '20px', marginBottom: '12px' }} {...props} />,
                   ol: ({node, ...props}) => <ol style={{ marginLeft: '20px', marginBottom: '12px' }} {...props} />,

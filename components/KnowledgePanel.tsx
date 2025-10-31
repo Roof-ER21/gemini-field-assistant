@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
-import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen } from 'lucide-react';
+import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
+import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
+
+type ViewMode = 'all' | 'recent' | 'favorites';
+type SearchMode = 'title' | 'content';
 
 const KnowledgePanel: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('all');
+  const [searchMode, setSearchMode] = useState<SearchMode>('content');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadDocumentIndex();
+    loadFavorites();
   }, []);
+
+  useEffect(() => {
+    loadDocumentsForView();
+  }, [viewMode]);
 
   const loadDocumentIndex = async () => {
     try {
@@ -19,6 +31,76 @@ const KnowledgePanel: React.FC = () => {
       setDocuments(docs);
     } catch (error) {
       console.error('Failed to load documents:', error);
+    }
+  };
+
+  const loadFavorites = () => {
+    const favs = enhancedKnowledgeService.getFavorites();
+    setFavorites(new Set(favs.map(f => f.documentPath)));
+  };
+
+  const loadDocumentsForView = async () => {
+    setLoading(true);
+    try {
+      switch (viewMode) {
+        case 'all':
+          const allDocs = await knowledgeService.getDocumentIndex();
+          setDocuments(allDocs);
+          break;
+        case 'recent':
+          const recentDocs = await enhancedKnowledgeService.getRecentDocuments(20);
+          setDocuments(recentDocs);
+          break;
+        case 'favorites':
+          const favDocs = await enhancedKnowledgeService.getFavoriteDocuments();
+          setDocuments(favDocs);
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to load documents for view:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadDocumentsForView();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const results = await enhancedKnowledgeService.searchDocuments(searchQuery, {
+        searchInContent: searchMode === 'content',
+        limit: 50
+      });
+      setDocuments(results.map(r => r.document));
+    } catch (error) {
+      console.error('Search failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDocumentClick = (doc: Document) => {
+    enhancedKnowledgeService.trackDocumentView(doc.path);
+    setSelectedDocument(doc);
+  };
+
+  const toggleFavorite = (doc: Document, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent document from opening
+
+    if (favorites.has(doc.path)) {
+      enhancedKnowledgeService.removeFromFavorites(doc.path);
+      setFavorites(prev => {
+        const next = new Set(prev);
+        next.delete(doc.path);
+        return next;
+      });
+    } else {
+      enhancedKnowledgeService.addToFavorites(doc.path);
+      setFavorites(prev => new Set(prev).add(doc.path));
     }
   };
 
@@ -37,12 +119,8 @@ const KnowledgePanel: React.FC = () => {
     }
   };
 
-  const filteredDocuments = searchQuery.trim()
-    ? documents.filter(doc =>
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.category?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : documents;
+  // Documents are already filtered by search or view mode
+  const displayDocuments = documents;
 
   const sampleDocs = [
     { title: 'Roof Types Guide', desc: 'Comprehensive guide to all roofing materials and styles', icon: '🏠' },
@@ -67,6 +145,75 @@ const KnowledgePanel: React.FC = () => {
           Knowledge Base
         </div>
 
+        {/* View Mode Tabs */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '20px',
+          borderBottom: '1px solid var(--border-subtle)',
+          paddingBottom: '12px'
+        }}>
+          <button
+            onClick={() => setViewMode('all')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'all' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'all' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <BookOpen className="w-4 h-4" />
+            All Documents ({documents.length})
+          </button>
+
+          <button
+            onClick={() => setViewMode('recent')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'recent' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'recent' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Clock className="w-4 h-4" />
+            Recently Viewed
+          </button>
+
+          <button
+            onClick={() => setViewMode('favorites')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'favorites' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'favorites' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Star className="w-4 h-4" fill={viewMode === 'favorites' ? 'currentColor' : 'none'} />
+            Favorites ({favorites.size})
+          </button>
+        </div>
+
         {/* Search Bar */}
         <div className="roof-er-search-bar">
           <div style={{ position: 'relative', width: '100%' }}>
@@ -84,23 +231,97 @@ const KnowledgePanel: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for sales tactics, product info, guidelines..."
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder={`Search ${searchMode === 'content' ? 'inside documents' : 'titles only'}...`}
               className="roof-er-search-input"
-              style={{ paddingLeft: '52px' }}
+              style={{ paddingLeft: '52px', paddingRight: '120px' }}
             />
+            <div style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              gap: '8px'
+            }}>
+              <button
+                onClick={() => setSearchMode(prev => prev === 'title' ? 'content' : 'title')}
+                title={searchMode === 'content' ? 'Search in content' : 'Search in titles'}
+                style={{
+                  padding: '6px 10px',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '6px',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Filter className="w-3 h-3" />
+                {searchMode === 'content' ? 'Full' : 'Title'}
+              </button>
+              <button
+                onClick={handleSearch}
+                style={{
+                  padding: '6px 10px',
+                  background: 'var(--roof-red)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+              >
+                Search
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Document Grid */}
         <div className="roof-er-doc-grid">
-          {filteredDocuments.length > 0 ? (
-            filteredDocuments.map((doc, index) => (
+          {loading ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              textAlign: 'center',
+              padding: '40px',
+              color: 'var(--text-tertiary)'
+            }}>
+              Loading documents...
+            </div>
+          ) : displayDocuments.length > 0 ? (
+            displayDocuments.map((doc, index) => (
               <div
                 key={index}
                 className="roof-er-doc-card"
-                onClick={() => setSelectedDocument(doc)}
-                style={{ cursor: 'pointer' }}
+                onClick={() => handleDocumentClick(doc)}
+                style={{ cursor: 'pointer', position: 'relative' }}
               >
+                <button
+                  onClick={(e) => toggleFavorite(doc, e)}
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    color: favorites.has(doc.path) ? 'var(--roof-red)' : 'var(--text-disabled)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={favorites.has(doc.path) ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <Star
+                    className="w-5 h-5"
+                    fill={favorites.has(doc.path) ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                  />
+                </button>
                 <div className="roof-er-doc-icon">{getDocIcon(doc.type)}</div>
                 <div className="roof-er-doc-title">{doc.name}</div>
                 <div className="roof-er-doc-desc">
@@ -124,13 +345,33 @@ const KnowledgePanel: React.FC = () => {
           )}
         </div>
 
-        {filteredDocuments.length === 0 && searchQuery.trim() && documents.length > 0 && (
+        {!loading && displayDocuments.length === 0 && searchQuery.trim() && (
           <div style={{
             textAlign: 'center',
             padding: '40px',
             color: 'var(--text-tertiary)'
           }}>
             No documents found matching "{searchQuery}"
+          </div>
+        )}
+
+        {!loading && displayDocuments.length === 0 && viewMode === 'favorites' && !searchQuery.trim() && (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px',
+            color: 'var(--text-tertiary)'
+          }}>
+            No favorites yet. Click the star icon on documents to add them to favorites.
+          </div>
+        )}
+
+        {!loading && displayDocuments.length === 0 && viewMode === 'recent' && !searchQuery.trim() && (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px',
+            color: 'var(--text-tertiary)'
+          }}>
+            No recently viewed documents. Open a document to see it here.
           </div>
         )}
       </div>
