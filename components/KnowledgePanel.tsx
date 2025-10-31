@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen } from 'lucide-react';
+import DocumentViewer from './DocumentViewer';
 
 const KnowledgePanel: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
   useEffect(() => {
     loadDocumentIndex();
@@ -96,7 +98,8 @@ const KnowledgePanel: React.FC = () => {
               <div
                 key={index}
                 className="roof-er-doc-card"
-                onClick={() => console.log('Opening document:', doc.name)}
+                onClick={() => setSelectedDocument(doc)}
+                style={{ cursor: 'pointer' }}
               >
                 <div className="roof-er-doc-icon">{getDocIcon(doc.type)}</div>
                 <div className="roof-er-doc-title">{doc.name}</div>
@@ -131,6 +134,14 @@ const KnowledgePanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Document Viewer Modal */}
+      {selectedDocument && (
+        <DocumentViewer
+          document={selectedDocument}
+          onClose={() => setSelectedDocument(null)}
+        />
+      )}
     </div>
   );
 };
