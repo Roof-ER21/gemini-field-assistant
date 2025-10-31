@@ -26,10 +26,11 @@ export interface SearchResult {
 const DOCS_BASE = '/docs';
 
 export const knowledgeService = {
-  // Get list of all 73 key documents (60% of 123 total) - Phase 1 Complete
-  // Now includes: Sales Scripts (7), Email Templates (11), Insurance Arguments (15),
+  // Get list of all 86 key documents (70% of 123 total) - Phase 1 & 2A Complete
+  // Categories: Sales Scripts (7), Email Templates (11), Insurance Arguments (15),
   // Training (2), Agreements (9), Quick Reference (2), Procedures (1),
-  // Product Information & Warranties (13), Licenses & Certifications (13)
+  // Product Information & Warranties (13), Licenses & Certifications (13),
+  // Photo Reports & Examples (5), Q&A Resources (8)
   async getDocumentIndex(): Promise<Document[]> {
     return [
       // Sales Scripts (7)
@@ -121,7 +122,24 @@ export const knowledgeService = {
       { name: 'VA Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' },
       { name: 'Roof-ER CertainTeed ShingleMaster', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Roof-ER CertainTeed ShingleMaster.md`, type: 'md', category: 'Licenses & Certifications' },
       { name: 'Certified Certificate', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/CERTIFIED_CERTIFICATE.md`, type: 'md', category: 'Licenses & Certifications' },
-      { name: 'TAX ID Information', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/TAX ID Information.md`, type: 'md', category: 'Licenses & Certifications' }
+      { name: 'TAX ID Information', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/TAX ID Information.md`, type: 'md', category: 'Licenses & Certifications' },
+
+      // Photo Reports & Examples (5)
+      { name: 'Example Photos Guide', path: `${DOCS_BASE}/Sales Rep Resources 2/Rep Reports & Photo Examples/EXAMPLE PHOTOS.md`, type: 'md', category: 'Photo Reports & Examples' },
+      { name: 'Sample Photo Report 1', path: `${DOCS_BASE}/Sales Rep Resources 2/Rep Reports & Photo Examples/Sample Photo Report 1.md`, type: 'md', category: 'Photo Reports & Examples' },
+      { name: 'Sample Photo Report 2', path: `${DOCS_BASE}/Sales Rep Resources 2/Rep Reports & Photo Examples/Sample Photo Report 2.md`, type: 'md', category: 'Photo Reports & Examples' },
+      { name: 'Sample Photo Report 3', path: `${DOCS_BASE}/Sales Rep Resources 2/Rep Reports & Photo Examples/Sample Photo Report 3.md`, type: 'md', category: 'Photo Reports & Examples' },
+      { name: 'Sample Photo Report 4', path: `${DOCS_BASE}/Sales Rep Resources 2/Rep Reports & Photo Examples/Sample Photo Report 4.md`, type: 'md', category: 'Photo Reports & Examples' },
+
+      // Q&A Resources (8)
+      { name: 'Escalation Procedures Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Escal.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'GAF Storm Damage Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/GAF_Storm.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'Knowledge Base Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Knowledge.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'Pushback Handling Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Pushback.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'When Stuck - What to Do Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Stuck_do.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'Susan AI Training Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/susan_ai.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'Training Resources Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/Training.md`, type: 'md', category: 'Q&A Resources' },
+      { name: 'Document Templates Q&A', path: `${DOCS_BASE}/Sales Rep Resources 2/Q&A Susan AI-21/docs_temps.md`, type: 'md', category: 'Q&A Resources' }
     ];
   },
 
