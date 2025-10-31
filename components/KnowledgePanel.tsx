@@ -7,7 +7,12 @@ import DocumentViewer from './DocumentViewer';
 type ViewMode = 'all' | 'recent' | 'favorites';
 type SearchMode = 'title' | 'content';
 
-const KnowledgePanel: React.FC = () => {
+interface KnowledgePanelProps {
+  selectedDocument?: string | null;
+  onDocumentViewed?: () => void;
+}
+
+const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed }) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,6 +25,14 @@ const KnowledgePanel: React.FC = () => {
     loadDocumentIndex();
     loadFavorites();
   }, []);
+
+  // Handle external document selection from citations
+  useEffect(() => {
+    if (externalDocPath) {
+      loadDocumentByPath(externalDocPath);
+      onDocumentViewed?.();
+    }
+  }, [externalDocPath]);
 
   useEffect(() => {
     loadDocumentsForView();
@@ -86,6 +99,28 @@ const KnowledgePanel: React.FC = () => {
   const handleDocumentClick = (doc: Document) => {
     enhancedKnowledgeService.trackDocumentView(doc.path);
     setSelectedDocument(doc);
+  };
+
+  const loadDocumentByPath = async (path: string) => {
+    try {
+      // Find document in current list
+      let doc = documents.find(d => d.path === path);
+
+      // If not found, load from index
+      if (!doc) {
+        const allDocs = await knowledgeService.getDocumentIndex();
+        doc = allDocs.find(d => d.path === path);
+      }
+
+      if (doc) {
+        enhancedKnowledgeService.trackDocumentView(doc.path);
+        setSelectedDocument(doc);
+      } else {
+        console.error('Document not found:', path);
+      }
+    } catch (error) {
+      console.error('Failed to load document:', error);
+    }
   };
 
   const toggleFavorite = (doc: Document, e: React.MouseEvent) => {

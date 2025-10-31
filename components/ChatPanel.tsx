@@ -9,8 +9,14 @@ import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
 import { Send, Mic, Paperclip } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
+import S21ResponseFormatter from './S21ResponseFormatter';
 
-const ChatPanel: React.FC = () => {
+interface ChatPanelProps {
+  onStartEmail?: (template: string, context: string) => void;
+  onOpenDocument?: (documentPath: string) => void;
+}
+
+const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,6 +25,7 @@ const ChatPanel: React.FC = () => {
   const [currentProvider, setCurrentProvider] = useState<string>('Auto');
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -29,14 +36,11 @@ const ChatPanel: React.FC = () => {
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  // Quick command suggestions
-  const quickCommands = [
-    'GAF Specs',
-    'Price Objection',
-    'VA Claim Docs',
-    'Measurements',
-    'Safety',
-    'Warranties'
+  // State options
+  const stateOptions = [
+    { code: 'VA', name: 'Virginia', color: '#1e40af' },
+    { code: 'MD', name: 'Maryland', color: '#dc2626' },
+    { code: 'PA', name: 'Pennsylvania', color: '#059669' }
   ];
 
   // Effect to initialize and load messages from localStorage
@@ -132,6 +136,12 @@ const ChatPanel: React.FC = () => {
       const queryType = personalityHelpers.detectQueryType(originalQuery);
       const useRAG = ragService.shouldUseRAG(originalQuery);
       let systemPrompt = SYSTEM_PROMPT;
+
+      // Add state context if selected
+      if (selectedState) {
+        systemPrompt += `\n\nCURRENT STATE CONTEXT: ${selectedState}\nThe user is working in ${selectedState}. Tailor all advice, building codes, and strategies specifically for ${selectedState}.`;
+      }
+
       let userPrompt = originalQuery;
       let sources: any[] = [];
 
@@ -168,6 +178,7 @@ const ChatPanel: React.FC = () => {
         id: (Date.now() + 1).toString(),
         text: responseText,
         sender: 'bot',
+        sources: sources.length > 0 ? sources : undefined,
       };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
@@ -328,7 +339,18 @@ const ChatPanel: React.FC = () => {
                   {msg.sender === 'user' ? 'YOU' : 'S21'}
                 </div>
                 <div className="roof-er-message-content">
-                  <div className="roof-er-message-text">{msg.text}</div>
+                  <div className="roof-er-message-text">
+                    {msg.sender === 'bot' ? (
+                      <S21ResponseFormatter
+                        content={msg.text}
+                        onStartEmail={onStartEmail}
+                        onOpenDocument={onOpenDocument}
+                        sources={msg.sources}
+                      />
+                    ) : (
+                      msg.text
+                    )}
+                  </div>
                   <div className="roof-er-message-time">
                     {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </div>
@@ -354,17 +376,36 @@ const ChatPanel: React.FC = () => {
 
       {/* Input Area */}
       <div className="roof-er-input-area">
-        {/* Quick Commands */}
-        <div className="roof-er-quick-commands">
-          {quickCommands.map((cmd, index) => (
-            <div
-              key={index}
-              className="roof-er-quick-cmd"
-              onClick={() => handleQuickCommand(cmd)}
+        {/* State Selector */}
+        <div className="roof-er-quick-commands" style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '12px 16px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500, marginRight: '8px' }}>
+            Current State:
+          </span>
+          {stateOptions.map((state) => (
+            <button
+              key={state.code}
+              onClick={() => setSelectedState(selectedState === state.code ? null : state.code as 'VA' | 'MD' | 'PA')}
+              style={{
+                padding: '6px 14px',
+                background: selectedState === state.code ? state.color : 'var(--bg-elevated)',
+                border: `2px solid ${selectedState === state.code ? state.color : 'var(--border-default)'}`,
+                borderRadius: '6px',
+                color: selectedState === state.code ? 'white' : 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              title={`${state.name} ${selectedState === state.code ? '(Active)' : ''}`}
             >
-              {cmd}
-            </div>
+              {state.code}
+            </button>
           ))}
+          {selectedState && (
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: '8px' }}>
+              S21 will tailor answers for {stateOptions.find(s => s.code === selectedState)?.name}
+            </span>
+          )}
         </div>
 
         {/* Input Wrapper */}

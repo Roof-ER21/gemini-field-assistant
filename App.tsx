@@ -13,6 +13,8 @@ type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | '
 
 const App: React.FC = () => {
   const [activePanel, setActivePanel] = useState<PanelType>('chat');
+  const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
 
   const pageTitles: Record<PanelType, string> = {
     chat: 'Chat',
@@ -24,24 +26,34 @@ const App: React.FC = () => {
     live: 'Live Conversation'
   };
 
+  const handleStartEmail = (template: string, context: string) => {
+    setEmailContext({ template, context });
+    setActivePanel('email');
+  };
+
+  const handleOpenDocument = (documentPath: string) => {
+    setSelectedDocument(documentPath);
+    setActivePanel('knowledge');
+  };
+
   const renderPanel = () => {
     switch (activePanel) {
       case 'chat':
-        return <ChatPanel />;
+        return <ChatPanel onStartEmail={handleStartEmail} onOpenDocument={handleOpenDocument} />;
       case 'image':
         return <ImageAnalysisPanel />;
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':
-        return <EmailPanel />;
+        return <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />;
       case 'maps':
         return <MapsPanel />;
       case 'live':
         return <LivePanel />;
       case 'knowledge':
-        return <KnowledgePanel />;
+        return <KnowledgePanel selectedDocument={selectedDocument} onDocumentViewed={() => setSelectedDocument(null)} />;
       default:
-        return <ChatPanel />;
+        return <ChatPanel onStartEmail={handleStartEmail} onOpenDocument={handleOpenDocument} />;
     }
   };
 

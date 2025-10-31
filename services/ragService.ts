@@ -60,6 +60,7 @@ Please provide your answer:`;
     sources.forEach((source, index) => {
       const docNum = index + 1;
       contextSection += `[Document ${docNum}]: ${source.document.name}\n`;
+      contextSection += `Path: ${source.document.path}\n`;
       contextSection += `Category: ${source.document.category}\n`;
       contextSection += `Content:\n${source.content}\n`;
       contextSection += `${'='.repeat(80)}\n\n`;
@@ -72,12 +73,14 @@ USER QUESTION: ${query}
 
 RESPONSE GUIDELINES:
 - Answer based on the knowledge base documents above
-- Cite documents naturally (e.g., "According to the GAF Installation Manual..." or "I found this in our Sales Script Library...")
+- **CRITICAL: Use bracketed citations [1], [2], [3] for EVERY factual claim from documents**
+- Place citations immediately after the statement: "Partial repairs void warranties [1]"
+- Use multiple citations when combining info: "IRC R908.3 requires matching [1] with 89% success rate [2]"
 - Be conversational and helpful - avoid robotic language
 - If documents don't fully answer the question, supplement with general knowledge and mention that clearly
 - Be specific and actionable - these are busy sales professionals who need practical guidance
 - Use bullet points or numbered lists for clarity when appropriate
-- Offer to pull up related information if it might be helpful
+- Keep paragraphs SHORT (1-3 sentences max) with line breaks between them
 
 Please provide your answer:`;
 
