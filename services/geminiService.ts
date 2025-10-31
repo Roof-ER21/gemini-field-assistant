@@ -6,10 +6,11 @@ import {
   Modality,
 } from '@google/genai';
 import { GroundingChunk } from '../types';
+import { env } from '../src/config/env';
 
 // Only initialize Gemini if API key is provided and valid
 const getGeminiClient = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
     return null;
   }
@@ -21,7 +22,7 @@ const ai = getGeminiClient();
 // Helper to check if Gemini is available
 const ensureGemini = () => {
   if (!ai) {
-    throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to .env.local or use alternative AI providers (Ollama, Groq, etc.)');
+    throw new Error('Gemini API key not configured. Please set GEMINI_API_KEY in Railway environment variables or use alternative AI providers (Ollama, Groq, etc.)');
   }
   return ai;
 };

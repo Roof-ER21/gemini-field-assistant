@@ -1,3 +1,5 @@
+import { documentBatchLoader } from './batchDocumentLoader';
+
 export interface Document {
   name: string;
   path: string;
@@ -266,18 +268,30 @@ export const knowledgeService = {
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, limit);
 
-    // Load content for top results
-    for (const result of topResults) {
-      try {
+    // Load content for top results using batch loader
+    const loadResult = await documentBatchLoader.loadInBatches(
+      topResults,
+      async (result) => {
         const docContent = await this.loadDocument(result.document.path);
         result.content = docContent.content;
-      } catch (error) {
-        console.warn(`Could not load ${result.document.name}:`, error);
-        result.content = `[Content unavailable for ${result.document.name}]`;
+        return result;
+      },
+      {
+        onProgress: (progress) => {
+          console.log(`Loading documents: ${progress.percentage}% (${progress.loaded}/${progress.total})`);
+        },
+        onError: (result, error, attempt) => {
+          console.warn(`Failed to load ${result.document.name} (attempt ${attempt}):`, error.message);
+        }
       }
-    }
+    );
 
-    return topResults;
+    // Handle failed loads
+    loadResult.failed.forEach(({ item }) => {
+      item.content = `[Content unavailable for ${item.document.name}]`;
+    });
+
+    return [...loadResult.success, ...loadResult.failed.map(f => f.item)];
   },
 
   // Get documents by category

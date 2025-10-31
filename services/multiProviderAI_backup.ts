@@ -4,8 +4,6 @@
  * Smart routing based on task type and availability
  */
 
-import { env } from '../src/config/env';
-
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -149,7 +147,7 @@ export class MultiProviderAI {
    * Groq - FASTEST COMMERCIAL API
    */
   private async generateGroq(messages: AIMessage[], options?: any): Promise<AIResponse> {
-    const apiKey = env.GROQ_API_KEY;
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
     const model = import.meta.env.VITE_GROQ_MODEL || PROVIDERS.groq.defaultModel;
@@ -185,7 +183,7 @@ export class MultiProviderAI {
    * Together AI - GREAT MODELS, LOW COST
    */
   private async generateTogether(messages: AIMessage[], options?: any): Promise<AIResponse> {
-    const apiKey = env.TOGETHER_API_KEY;
+    const apiKey = import.meta.env.VITE_TOGETHER_API_KEY;
     if (!apiKey) throw new Error('TOGETHER_API_KEY not set');
 
     const model = import.meta.env.VITE_TOGETHER_MODEL || PROVIDERS.together.defaultModel;
@@ -221,7 +219,7 @@ export class MultiProviderAI {
    * Hugging Face - FREE TIER AVAILABLE
    */
   private async generateHuggingFace(messages: AIMessage[], options?: any): Promise<AIResponse> {
-    const apiKey = env.HF_API_KEY;
+    const apiKey = import.meta.env.VITE_HF_API_KEY;
     if (!apiKey) throw new Error('HF_API_KEY not set');
 
     const model = import.meta.env.VITE_HF_MODEL || PROVIDERS.huggingface.defaultModel;
@@ -267,7 +265,7 @@ export class MultiProviderAI {
    * Gemini - FALLBACK OPTION
    */
   private async generateGemini(messages: AIMessage[], options?: any): Promise<AIResponse> {
-    const apiKey = env.GEMINI_API_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
       throw new Error('GEMINI_API_KEY not set');
     }
@@ -336,22 +334,22 @@ export class MultiProviderAI {
     }
 
     // 2. Try Groq (fastest commercial)
-    if (env.GROQ_API_KEY) {
+    if (import.meta.env.VITE_GROQ_API_KEY) {
       return 'groq';
     }
 
     // 3. Try Together AI (good balance)
-    if (env.TOGETHER_API_KEY) {
+    if (import.meta.env.VITE_TOGETHER_API_KEY) {
       return 'together';
     }
 
     // 4. Try Hugging Face (free tier)
-    if (env.HF_API_KEY) {
+    if (import.meta.env.VITE_HF_API_KEY) {
       return 'huggingface';
     }
 
     // 5. Fallback to Gemini
-    if (env.GEMINI_API_KEY) {
+    if (import.meta.env.VITE_GEMINI_API_KEY) {
       return 'gemini';
     }
 
@@ -386,10 +384,10 @@ export class MultiProviderAI {
     const available: AIProvider[] = [];
 
     if (await this.isOllamaAvailable()) available.push('ollama');
-    if (env.GROQ_API_KEY) available.push('groq');
-    if (env.TOGETHER_API_KEY) available.push('together');
-    if (env.HF_API_KEY) available.push('huggingface');
-    if (env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'PLACEHOLDER_API_KEY') {
+    if (import.meta.env.VITE_GROQ_API_KEY) available.push('groq');
+    if (import.meta.env.VITE_TOGETHER_API_KEY) available.push('together');
+    if (import.meta.env.VITE_HF_API_KEY) available.push('huggingface');
+    if (import.meta.env.VITE_GEMINI_API_KEY && import.meta.env.VITE_GEMINI_API_KEY !== 'PLACEHOLDER_API_KEY') {
       available.push('gemini');
     }
 
