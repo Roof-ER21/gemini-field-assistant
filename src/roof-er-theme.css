@@ -555,11 +555,21 @@ body {
   margin-top: 5px;
 }
 
+/* Knowledge Base Scroll Override */
+.roof-er-knowledge-scroll {
+  flex: 1;
+  overflow-y: auto !important;
+  padding: 20px;
+  display: block !important;
+  height: 100%;
+}
+
 /* Knowledge Base Cards */
 .roof-er-doc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
+  padding-bottom: 40px; /* Extra space at bottom for scrolling */
 }
 
 .roof-er-doc-card {

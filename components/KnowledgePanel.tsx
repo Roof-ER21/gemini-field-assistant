@@ -139,14 +139,7 @@ const KnowledgePanel: React.FC = () => {
 
   return (
     <div className="roof-er-content-area">
-      <div
-        className="roof-er-content-scroll"
-        style={{
-          display: 'block',
-          overflowY: 'auto',
-          height: '100%'
-        }}
-      >
+      <div className="roof-er-knowledge-scroll">
         <div className="roof-er-page-title">
           <BookOpen className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
           Knowledge Base
