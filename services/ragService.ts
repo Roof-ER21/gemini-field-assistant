@@ -141,10 +141,13 @@ Please provide your answer:`;
 
     // Keywords that suggest RAG would be helpful
     const ragKeywords = [
-      'script', 'pitch', 'email', 'template', 'insurance', 
+      'script', 'pitch', 'email', 'template', 'insurance',
       'claim', 'agreement', 'contract', 'warranty', 'gaf',
       'training', 'process', 'how to', 'what is', 'tell me about',
-      'adjuster', 'repair', 'inspection', 'estimate', 'customer'
+      'adjuster', 'repair', 'inspection', 'estimate', 'customer',
+      'code', 'codes', 'building', 'irc', 'virginia', 'maryland', 'pennsylvania',
+      'va', 'md', 'pa', 'matching', 'requirement', 'document', 'show me',
+      'give me', 'find', 'search', 'license', 'certification', 'guideline'
     ];
 
     // Check if query contains any RAG-relevant keywords
