@@ -1,17 +1,128 @@
-import React, { useState } from 'react';
-import { Upload, Camera, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, Camera, Image as ImageIcon, Download, Trash2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import {
+  analyzeRoofImage,
+  analyzeBatchImages,
+  getSavedAssessments,
+  deleteAssessment,
+  generateInspectionReport,
+  exportAssessmentAsMarkdown,
+  DamageAssessment
+} from '../services/imageAnalysisService';
 
 const ImageAnalysisPanel: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [assessments, setAssessments] = useState<DamageAssessment[]>([]);
+  const [selectedAssessment, setSelectedAssessment] = useState<DamageAssessment | null>(null);
+  const [error, setError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const recentAnalyses = [
-    { title: 'Recent Analysis', desc: '123 Main St - Storm damage detected', icon: '📷', time: 'Today' },
-    { title: 'Today 2:15 PM', desc: '456 Oak Ave - 2,400 sq ft measured', icon: '📐', time: '2:15 PM' },
-    { title: 'Today 1:30 PM', desc: '789 Elm St - Safety concerns identified', icon: '⚠️', time: '1:30 PM' }
-  ];
+  // Load saved assessments on mount
+  useEffect(() => {
+    setAssessments(getSavedAssessments());
+  }, []);
 
-  const handleUpload = () => {
-    alert('Photo upload feature - connects to camera/gallery for damage documentation');
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsAnalyzing(true);
+    setError('');
+
+    try {
+      const fileArray = Array.from(files);
+
+      if (fileArray.length === 1) {
+        // Single image analysis
+        const assessment = await analyzeRoofImage(fileArray[0]);
+        setAssessments(prev => [assessment, ...prev]);
+        setSelectedAssessment(assessment);
+      } else {
+        // Batch analysis
+        const results = await analyzeBatchImages(fileArray);
+        setAssessments(prev => [...results, ...prev]);
+        setSelectedAssessment(results[0]);
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Failed to analyze image');
+      console.error('Image analysis error:', err);
+    } finally {
+      setIsAnalyzing(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Delete this assessment?')) {
+      deleteAssessment(id);
+      setAssessments(getSavedAssessments());
+      if (selectedAssessment?.id === id) {
+        setSelectedAssessment(null);
+      }
+    }
+  };
+
+  const handleDownloadReport = () => {
+    if (!selectedAssessment) return;
+
+    const markdown = exportAssessmentAsMarkdown(selectedAssessment);
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `damage-assessment-${selectedAssessment.id}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadFullReport = () => {
+    const report = generateInspectionReport(assessments);
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `roof-inspection-report-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return '#dc2626';
+      case 'severe': return '#ea580c';
+      case 'moderate': return '#f59e0b';
+      case 'minor': return '#10b981';
+      default: return 'var(--text-secondary)';
+    }
+  };
+
+  const getUrgencyBadge = (urgency: string) => {
+    const colors = {
+      urgent: '#dc2626',
+      high: '#ea580c',
+      medium: '#f59e0b',
+      low: '#10b981'
+    };
+    return (
+      <span style={{
+        padding: '2px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: 600,
+        background: colors[urgency as keyof typeof colors] + '20',
+        color: colors[urgency as keyof typeof colors],
+        textTransform: 'uppercase'
+      }}>
+        {urgency}
+      </span>
+    );
   };
 
   return (
@@ -22,30 +133,351 @@ const ImageAnalysisPanel: React.FC = () => {
           Image Analysis
         </div>
 
-        {/* Upload Zone */}
-        <div className="roof-er-upload-zone" onClick={handleUpload}>
-          <div className="roof-er-upload-icon">
-            <Camera className="w-16 h-16" style={{ color: 'var(--roof-red)' }} />
+        {error && (
+          <div style={{
+            padding: '12px',
+            background: '#dc262620',
+            border: '2px solid #dc2626',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            color: '#dc2626',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <AlertCircle className="w-5 h-5" />
+            {error}
           </div>
-          <div className="roof-er-upload-text">Drop photos here or click to upload</div>
+        )}
+
+        {/* Upload Zone */}
+        <div
+          className="roof-er-upload-zone"
+          onClick={handleUploadClick}
+          style={{
+            opacity: isAnalyzing ? 0.5 : 1,
+            cursor: isAnalyzing ? 'not-allowed' : 'pointer'
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+            disabled={isAnalyzing}
+          />
+          <div className="roof-er-upload-icon">
+            {isAnalyzing ? (
+              <Clock className="w-16 h-16 animate-spin" style={{ color: 'var(--roof-red)' }} />
+            ) : (
+              <Camera className="w-16 h-16" style={{ color: 'var(--roof-red)' }} />
+            )}
+          </div>
+          <div className="roof-er-upload-text">
+            {isAnalyzing ? 'Analyzing damage...' : 'Drop photos here or click to upload'}
+          </div>
           <div className="roof-er-upload-subtext">
-            Roof damage • Measurements • Safety hazards
+            {isAnalyzing ? 'AI is inspecting your images' : 'Roof damage • Storm assessment • Safety hazards'}
           </div>
         </div>
 
-        {/* Recent Analyses */}
-        <div className="roof-er-page-title" style={{ fontSize: '18px', marginTop: '30px' }}>
-          Recent Analyses
-        </div>
-        <div className="roof-er-doc-grid">
-          {recentAnalyses.map((item, idx) => (
-            <div key={idx} className="roof-er-doc-card">
-              <div className="roof-er-doc-icon">{item.icon}</div>
-              <div className="roof-er-doc-title">{item.title}</div>
-              <div className="roof-er-doc-desc">{item.desc}</div>
+        {/* Selected Assessment Detail */}
+        {selectedAssessment && (
+          <div style={{
+            background: 'var(--bg-elevated)',
+            border: '2px solid var(--border-color)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginTop: '20px'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: '16px'
+            }}>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  {selectedAssessment.imageName}
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {selectedAssessment.timestamp.toLocaleString()} • Confidence: {selectedAssessment.confidence}%
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={handleDownloadReport}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'var(--roof-red)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={() => handleDelete(selectedAssessment.id)}
+                  style={{
+                    padding: '8px 12px',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          ))}
+
+            {/* Image Preview */}
+            <img
+              src={selectedAssessment.imageUrl}
+              alt="Roof assessment"
+              style={{
+                width: '100%',
+                maxHeight: '300px',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                background: '#00000010'
+              }}
+            />
+
+            {/* Damage Status */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                padding: '12px',
+                background: selectedAssessment.analysis.damageDetected ? '#dc262610' : '#10b98110',
+                borderRadius: '8px',
+                border: `2px solid ${selectedAssessment.analysis.damageDetected ? '#dc2626' : '#10b981'}`
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  DAMAGE DETECTED
+                </div>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: selectedAssessment.analysis.damageDetected ? '#dc2626' : '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {selectedAssessment.analysis.damageDetected ? (
+                    <><AlertCircle className="w-5 h-5" /> YES</>
+                  ) : (
+                    <><CheckCircle className="w-5 h-5" /> NO</>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: '12px', background: 'var(--bg-primary)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  SEVERITY
+                </div>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: getSeverityColor(selectedAssessment.analysis.severity),
+                  textTransform: 'uppercase'
+                }}>
+                  {selectedAssessment.analysis.severity}
+                </div>
+              </div>
+
+              <div style={{ padding: '12px', background: 'var(--bg-primary)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  URGENCY
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: 600 }}>
+                  {getUrgencyBadge(selectedAssessment.analysis.urgency)}
+                </div>
+              </div>
+            </div>
+
+            {/* Damage Details */}
+            {selectedAssessment.analysis.damageDetected && (
+              <>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Damage Type
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {selectedAssessment.analysis.damageType.map((type, idx) => (
+                      <span key={idx} style={{
+                        padding: '4px 10px',
+                        background: 'var(--roof-red)20',
+                        color: 'var(--roof-red)',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 500
+                      }}>
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Affected Area
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    {selectedAssessment.analysis.affectedArea}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Estimated Size
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    {selectedAssessment.analysis.estimatedSize}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Detailed Analysis */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                Detailed Analysis
+              </div>
+              <div style={{
+                fontSize: '14px',
+                color: 'var(--text-secondary)',
+                lineHeight: '1.6',
+                padding: '12px',
+                background: 'var(--bg-primary)',
+                borderRadius: '6px'
+              }}>
+                {selectedAssessment.rawResponse}
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            {selectedAssessment.analysis.recommendations.length > 0 && (
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                  Recommendations
+                </div>
+                <ul style={{
+                  margin: 0,
+                  paddingLeft: '20px',
+                  fontSize: '14px',
+                  color: 'var(--text-secondary)',
+                  lineHeight: '1.8'
+                }}>
+                  {selectedAssessment.analysis.recommendations.map((rec, idx) => (
+                    <li key={idx}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recent Analyses */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: '30px',
+          marginBottom: '12px'
+        }}>
+          <div className="roof-er-page-title" style={{ fontSize: '18px', margin: 0 }}>
+            Recent Analyses ({assessments.length})
+          </div>
+          {assessments.length > 0 && (
+            <button
+              onClick={handleDownloadFullReport}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--roof-red)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Download className="w-4 h-4" />
+              Full Report
+            </button>
+          )}
         </div>
+
+        {assessments.length === 0 ? (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            color: 'var(--text-tertiary)',
+            fontSize: '14px'
+          }}>
+            No assessments yet. Upload an image to get started.
+          </div>
+        ) : (
+          <div className="roof-er-doc-grid">
+            {assessments.map((assessment) => (
+              <div
+                key={assessment.id}
+                className="roof-er-doc-card"
+                onClick={() => setSelectedAssessment(assessment)}
+                style={{
+                  cursor: 'pointer',
+                  border: selectedAssessment?.id === assessment.id ? '2px solid var(--roof-red)' : undefined
+                }}
+              >
+                <img
+                  src={assessment.imageUrl}
+                  alt={assessment.imageName}
+                  style={{
+                    width: '100%',
+                    height: '120px',
+                    objectFit: 'cover',
+                    borderRadius: '6px',
+                    marginBottom: '8px'
+                  }}
+                />
+                <div className="roof-er-doc-title">{assessment.imageName}</div>
+                <div className="roof-er-doc-desc">
+                  {assessment.analysis.damageDetected ? (
+                    <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                      Damage: {assessment.analysis.severity}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>
+                      No damage detected
+                    </span>
+                  )}
+                </div>
+                <div style={{ marginTop: '6px' }}>
+                  {getUrgencyBadge(assessment.analysis.urgency)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
