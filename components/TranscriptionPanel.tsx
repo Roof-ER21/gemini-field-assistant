@@ -10,6 +10,7 @@ import {
   deleteTranscript,
   exportTranscriptAsMarkdown,
   formatDuration,
+  cleanupRecording,
   RecordingState,
   MeetingTranscript
 } from '../services/transcriptionService';
@@ -47,6 +48,16 @@ const TranscriptionPanel: React.FC = () => {
     };
   }, [recordingState]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup any active recording when component unmounts
+      if (recordingState) {
+        cleanupRecording(recordingState);
+      }
+    };
+  }, [recordingState]);
+
   const handleStartRecording = async () => {
     try {
       setError('');
@@ -67,18 +78,27 @@ const TranscriptionPanel: React.FC = () => {
       setError('');
 
       const audioBlob = await stopRecording(recordingState);
+      const recordedDuration = duration;
+
+      // Clear recording state immediately
       setRecordingState(null);
+      setDuration(0);
 
       // Transcribe
       const transcript = await transcribeAudio(audioBlob, meetingType);
-      transcript.duration = duration;
+      transcript.duration = recordedDuration;
 
       setTranscripts(prev => [transcript, ...prev]);
       setSelectedTranscript(transcript);
-      setDuration(0);
     } catch (err) {
       setError((err as Error).message || 'Failed to transcribe audio');
       console.error('Transcription error:', err);
+
+      // Cleanup on error
+      if (recordingState) {
+        cleanupRecording(recordingState);
+        setRecordingState(null);
+      }
     } finally {
       setIsTranscribing(false);
     }
@@ -109,14 +129,19 @@ const TranscriptionPanel: React.FC = () => {
   const handleDownload = () => {
     if (!selectedTranscript) return;
 
-    const markdown = exportTranscriptAsMarkdown(selectedTranscript);
-    const blob = new Blob([markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transcript-${selectedTranscript.id}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const markdown = exportTranscriptAsMarkdown(selectedTranscript);
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript-${selectedTranscript.timestamp.toISOString().split('T')[0]}-${selectedTranscript.metadata.meetingType}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download transcript');
+      console.error('Download error:', err);
+    }
   };
 
   const getSentimentColor = (sentiment: string) => {

@@ -63,8 +63,22 @@ export async function startRecording(): Promise<RecordingState> {
       }
     });
 
+    // Check for supported mime types
+    const mimeTypes = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4'
+    ];
+
+    const supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+
+    if (!supportedMimeType) {
+      throw new Error('No supported audio format found for recording');
+    }
+
     const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus'
+      mimeType: supportedMimeType
     });
 
     const chunks: Blob[] = [];
@@ -100,16 +114,26 @@ export async function stopRecording(state: RecordingState): Promise<Blob> {
       return;
     }
 
-    state.mediaRecorder.onstop = () => {
-      const blob = new Blob(state.chunks, { type: 'audio/webm' });
+    const mimeType = state.mediaRecorder.mimeType;
 
-      // Stop all tracks
+    state.mediaRecorder.onstop = () => {
+      const blob = new Blob(state.chunks, { type: mimeType });
+
+      // Stop all tracks to release microphone
       state.mediaRecorder?.stream.getTracks().forEach(track => track.stop());
 
       resolve(blob);
     };
 
-    state.mediaRecorder.stop();
+    // Stop recording if it's still active
+    if (state.mediaRecorder.state !== 'inactive') {
+      state.mediaRecorder.stop();
+    } else {
+      // Already stopped, just create the blob
+      const blob = new Blob(state.chunks, { type: mimeType });
+      state.mediaRecorder?.stream.getTracks().forEach(track => track.stop());
+      resolve(blob);
+    }
   });
 }
 
@@ -348,8 +372,31 @@ function saveTranscript(transcript: MeetingTranscript): void {
  * Delete transcript
  */
 export function deleteTranscript(id: string): void {
-  const transcripts = getSavedTranscripts().filter(t => t.id !== id);
-  localStorage.setItem('meeting_transcripts', JSON.stringify(transcripts));
+  const transcripts = getSavedTranscripts();
+
+  // Revoke blob URL if it exists
+  const transcript = transcripts.find(t => t.id === id);
+  if (transcript?.audioUrl) {
+    URL.revokeObjectURL(transcript.audioUrl);
+  }
+
+  const filtered = transcripts.filter(t => t.id !== id);
+  localStorage.setItem('meeting_transcripts', JSON.stringify(filtered));
+}
+
+/**
+ * Cleanup recording state and release resources
+ */
+export function cleanupRecording(state: RecordingState): void {
+  if (state.mediaRecorder) {
+    // Stop recording if active
+    if (state.mediaRecorder.state !== 'inactive') {
+      state.mediaRecorder.stop();
+    }
+
+    // Stop all media tracks to release microphone
+    state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+  }
 }
 
 /**
