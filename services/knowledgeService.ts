@@ -20,6 +20,7 @@ export interface DocumentContent {
 export interface SearchResult {
   document: Document;
   relevance: number;
+  score: number; // Alias for relevance to match Message.sources type
   snippet: string;
   content?: string;
 }
@@ -310,6 +311,7 @@ export const knowledgeService = {
         results.push({
           document: doc,
           relevance,
+          score: relevance, // Set score to match relevance for Message.sources compatibility
           snippet: `${doc.name} - ${doc.category || 'General'}`
         });
       }
