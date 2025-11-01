@@ -100,11 +100,17 @@ Please provide your answer:`;
 USER QUESTION: ${query}
 ${selectedState ? `\nCURRENT STATE: ${selectedState}` : ''}${stateGuidance}
 
+MANDATORY CITATION FORMAT:
+⚠️ YOU MUST use NUMBERED citations [1], [2], [3] for EVERY fact from the documents above.
+- Example: "IRC R908.3 requires matching [1]"
+- Example: "Maryland mandates full replacement [2]"
+- NEVER use descriptive citations like [MHIC-Matching-Requirement] or [IRC-R908]
+- ONLY use numbers: [1] for Document 1, [2] for Document 2, [3] for Document 3
+- Place citation immediately after each factual statement
+- Use multiple citations when combining info: "IRC R908.3 requires matching [1] with 89% success rate [2]"
+
 RESPONSE GUIDELINES:
 - Answer based on the knowledge base documents above
-- **CRITICAL: Use bracketed citations [1], [2], [3] for EVERY factual claim from documents**
-- Place citations immediately after the statement: "Partial repairs void warranties [1]"
-- Use multiple citations when combining info: "IRC R908.3 requires matching [1] with 89% success rate [2]"
 - **Apply state-specific rules above** - MD uses matching, VA/PA use repairability unless endorsement exists
 - Be conversational and helpful - avoid robotic language
 - If documents don't fully answer the question, supplement with general knowledge and mention that clearly
