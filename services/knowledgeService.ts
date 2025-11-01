@@ -29,12 +29,12 @@ export interface SearchResult {
 const DOCS_BASE = '/docs';
 
 export const knowledgeService = {
-  // Get list of all 114 key documents (93% of 123 total) - Phase 1, 2A, 3, & Final Complete
+  // Get list of all 117 key documents (95% of 123 total) - Phase 1, 2A, 3, & Final Complete + Objections
   // Categories: Sales Scripts (9), Email Templates (11), Insurance Arguments (15),
-  // Training (5), Agreements (9), Quick Reference (11), Procedures & Operations (5),
+  // Training (5), Objection Handling (3), Agreements (9), Quick Reference (11), Procedures & Operations (5),
   // Product Information & Warranties (13), Licenses & Certifications (16),
   // Photo Reports & Examples (5), Q&A Resources (8), Tools & Utilities (6)
-  // Remaining 9 docs: 6 Merged PDFs (review needed), 3 Expired licenses (archived)
+  // Remaining 6 docs: 6 Merged PDFs (review needed)
   async getDocumentIndex(): Promise<Document[]> {
     return [
       // Sales Scripts (7)
@@ -79,6 +79,11 @@ export const knowledgeService = {
       // Training (2)
       { name: 'Training Manual', path: `${DOCS_BASE}/Sales Rep Resources 2/Training Manual.md`, type: 'md', category: 'Training' },
       { name: 'Roof-ER Sales Training', path: `${DOCS_BASE}/Sales Rep Resources 2/Roof-ER Sales Training.pptx.md`, type: 'md', category: 'Training' },
+
+      // Objection Handling (3) - NEW
+      { name: 'Price & Cost Objections', path: `${DOCS_BASE}/objections/price-objections.md`, type: 'md', category: 'Objection Handling' },
+      { name: 'Timing & Decision Objections', path: `${DOCS_BASE}/objections/timing-objections.md`, type: 'md', category: 'Objection Handling' },
+      { name: 'Trust & Credibility Objections', path: `${DOCS_BASE}/objections/trust-objections.md`, type: 'md', category: 'Objection Handling' },
 
       // Agreements (9)
       { name: 'DMV Blank Contingency', path: `${DOCS_BASE}/Sales Rep Resources 2/DMV Blank Contingency.md`, type: 'md', category: 'Agreements & Contracts' },
