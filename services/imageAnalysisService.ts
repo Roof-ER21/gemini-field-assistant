@@ -18,9 +18,17 @@ export interface DamageAssessment {
     estimatedSize: string;
     recommendations: string[];
     urgency: 'low' | 'medium' | 'high' | 'urgent';
+    insuranceArguments: string[]; // Key talking points for insurance
+    claimViability: 'strong' | 'moderate' | 'weak' | 'none';
+    policyLanguage: string; // How to phrase this for adjuster
   };
+  followUpQuestions: string[]; // Questions Susan needs answered
   rawResponse: string;
   confidence: number;
+  conversationHistory?: Array<{
+    question: string;
+    answer: string;
+  }>;
 }
 
 export interface SafetyHazard {
@@ -51,40 +59,75 @@ export async function analyzeRoofImage(
     model: 'gemini-2.0-flash-exp' // Vision-capable model
   });
 
-  const prompt = `You are a professional roofing inspector analyzing this roof photo for damage assessment.
+  const prompt = `You are Susan, an insurance claims specialist for Roof-ER. Your role is to analyze roof damage photos and provide INSURANCE-FOCUSED guidance - NOT retail sales talk.
+
+CRITICAL MINDSET:
+- Think like an insurance adjuster, not a salesperson
+- Focus on POLICY LANGUAGE and CLAIM VIABILITY
+- Don't talk about "supplementing" or "upselling" - talk about COVERED PERILS and MATCHING REQUIREMENTS
+- Use adjuster terminology: "covered peril", "scope of loss", "like kind and quality", "repairability", "matching"
+- Your goal: Help the rep DOCUMENT and ARGUE the claim, not sell upgrades
 
 ANALYSIS REQUIREMENTS:
-1. **Damage Detection**: Identify any visible damage (missing shingles, cracks, holes, wear, storm damage, hail damage, wind damage)
-2. **Damage Type**: Classify damage type (wind, hail, age-related, storm, structural, cosmetic)
-3. **Severity**: Rate severity (minor, moderate, severe, critical)
-4. **Affected Area**: Describe location and extent (ridge, valley, slope, flashing, edges)
-5. **Estimated Size**: Approximate damaged area in square feet or percentage
-6. **Safety Hazards**: Note any immediate safety concerns (exposed decking, structural weakness, water infiltration risk)
-7. **Recommendations**: Provide actionable next steps (repair, replace, emergency tarping, etc.)
-8. **Urgency**: Rate urgency (low, medium, high, urgent)
+
+1. **Damage Documentation** (For Insurance Adjuster):
+   - What specific covered peril caused this? (wind, hail, storm, falling object, etc.)
+   - Is this sudden and accidental (covered) or gradual wear (not covered)?
+   - Can you see manufacturer defects vs. storm damage?
+   - Are there code violations visible that would require upgrades?
+
+2. **Scope of Loss Determination**:
+   - Affected area size and location
+   - Is damage repairable or does it require replacement?
+   - If repairable: Document WHY it's not repairable (brittle shingles, won't seal, safety hazard)
+   - If replacement needed: What percentage of roof is affected?
+
+3. **Matching & Code Arguments**:
+   - Are shingles discontinued? (Key for MD matching law IRC R908.3)
+   - Can you match color/texture/style with available products?
+   - Are there code upgrade triggers? (if >25% damaged in some jurisdictions)
+   - Will partial replacement create aesthetic mismatch?
+
+4. **Policy Language Translation**:
+   - How should the rep phrase this damage to the adjuster?
+   - What specific policy clauses apply? (matching, code upgrades, like kind and quality)
+   - What's the strongest argument for full replacement vs repair?
+
+5. **Follow-Up Questions**:
+   - What additional info do you need to strengthen the claim?
+   - What documents/photos would help? (shingle wrapper, other angles, age of roof, etc.)
+   - What details are missing that adjusters will ask for?
 
 FORMAT YOUR RESPONSE AS JSON:
 {
   "damageDetected": true/false,
-  "damageType": ["hail", "wind", etc.],
+  "damageType": ["wind", "hail", "impact", etc.],
   "severity": "minor|moderate|severe|critical",
-  "affectedArea": "description of location",
-  "estimatedSize": "X sq ft or X%",
-  "safetyHazards": [
-    {
-      "type": "string",
-      "location": "string",
-      "severity": "low|medium|high",
-      "description": "string"
-    }
+  "affectedArea": "Specific location with insurance terminology",
+  "estimatedSize": "X sq ft or X% of total roof area",
+  "claimViability": "strong|moderate|weak|none",
+  "policyLanguage": "Exact phrase to use with adjuster: 'The covered peril of [X] has caused [Y] requiring [Z]'",
+  "insuranceArguments": [
+    "Key argument 1 for adjuster (e.g., 'Shingles are discontinued per manufacturer - IRC R908.3 requires matching')",
+    "Key argument 2 for adjuster",
+    "Key argument 3 for adjuster"
   ],
-  "recommendations": ["action 1", "action 2"],
+  "recommendations": [
+    "Action items for rep (get shingle wrapper, photograph X, document Y)",
+    "Next steps for claim process"
+  ],
+  "followUpQuestions": [
+    "What year was the roof installed?",
+    "Do you have the shingle wrapper or manufacturer info?",
+    "When did the storm/damage occur?",
+    "Other questions needed to complete documentation"
+  ],
   "urgency": "low|medium|high|urgent",
   "confidence": 0-100,
-  "detailedAnalysis": "Full paragraph analysis for insurance documentation"
+  "detailedAnalysis": "Insurance adjuster-focused analysis explaining WHY this is covered and HOW to argue it"
 }
 
-Be specific, professional, and focus on details that would support an insurance claim.`;
+REMEMBER: You're helping document a CLAIM, not make a SALE. Focus on coverage, not upgrades.`;
 
   const result = await model.generateContent([
     prompt,
@@ -123,15 +166,116 @@ Be specific, professional, and focus on details that would support an insurance 
       estimatedSize: analysisData.estimatedSize || 'Unknown',
       recommendations: analysisData.recommendations || [],
       urgency: analysisData.urgency || 'low',
+      insuranceArguments: analysisData.insuranceArguments || [],
+      claimViability: analysisData.claimViability || 'moderate',
+      policyLanguage: analysisData.policyLanguage || '',
     },
+    followUpQuestions: analysisData.followUpQuestions || [],
     rawResponse: analysisData.detailedAnalysis || text,
     confidence: analysisData.confidence || 85,
+    conversationHistory: [],
   };
 
   // Store in localStorage
   saveAssessment(assessment);
 
   return assessment;
+}
+
+/**
+ * Answer follow-up questions and refine the assessment
+ */
+export async function answerFollowUpQuestion(
+  assessment: DamageAssessment,
+  questionIndex: number,
+  answer: string
+): Promise<DamageAssessment> {
+  const apiKey = env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
+    throw new Error('Gemini API key not configured');
+  }
+
+  const question = assessment.followUpQuestions[questionIndex];
+  const conversationHistory = assessment.conversationHistory || [];
+
+  // Build conversation context
+  const historyText = conversationHistory
+    .map(h => `Q: ${h.question}\nA: ${h.answer}`)
+    .join('\n\n');
+
+  // Dynamic import
+  const { GoogleGenerativeAI } = await import('@google/genai');
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash-exp'
+  });
+
+  const prompt = `You are Susan, an insurance claims specialist for Roof-ER. You previously analyzed a roof damage photo and asked follow-up questions.
+
+PREVIOUS ANALYSIS:
+${assessment.rawResponse}
+
+PREVIOUS QUESTIONS ANSWERED:
+${historyText || 'None yet'}
+
+NEW INFORMATION PROVIDED:
+Question: ${question}
+Answer: ${answer}
+
+TASK: Update your insurance claim assessment based on this new information. Provide a REVISED analysis that:
+1. Incorporates the new information into your claim strategy
+2. Updates insurance arguments if needed
+3. Updates policy language if needed
+4. Removes this question from follow-up list
+5. Adds any NEW follow-up questions that this answer triggers
+6. Maintains INSURANCE ADJUSTER focus (not retail sales)
+
+FORMAT YOUR RESPONSE AS JSON:
+{
+  "revisedAnalysis": "Updated detailed analysis incorporating new info",
+  "updatedInsuranceArguments": ["Revised argument 1", "Revised argument 2"],
+  "updatedPolicyLanguage": "Revised phrase for adjuster",
+  "claimViability": "strong|moderate|weak|none",
+  "additionalFollowUpQuestions": ["New question 1 if needed", "New question 2 if needed"],
+  "impactAssessment": "How does this new information change the claim approach?"
+}`;
+
+  const result = await model.generateContent([prompt]);
+  const response = await result.response;
+  const text = response.text();
+
+  // Parse JSON response
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Failed to parse AI response');
+  }
+
+  const data = JSON.parse(jsonMatch[0]);
+
+  // Update assessment
+  const updatedAssessment: DamageAssessment = {
+    ...assessment,
+    analysis: {
+      ...assessment.analysis,
+      insuranceArguments: data.updatedInsuranceArguments || assessment.analysis.insuranceArguments,
+      policyLanguage: data.updatedPolicyLanguage || assessment.analysis.policyLanguage,
+      claimViability: data.claimViability || assessment.analysis.claimViability,
+    },
+    followUpQuestions: [
+      ...assessment.followUpQuestions.filter((_, idx) => idx !== questionIndex),
+      ...(data.additionalFollowUpQuestions || []),
+    ],
+    rawResponse: data.revisedAnalysis || assessment.rawResponse,
+    conversationHistory: [
+      ...conversationHistory,
+      { question, answer },
+    ],
+  };
+
+  // Update in localStorage
+  updateAssessment(updatedAssessment);
+
+  return updatedAssessment;
 }
 
 /**
@@ -238,6 +382,19 @@ function saveAssessment(assessment: DamageAssessment): void {
 }
 
 /**
+ * Update existing assessment
+ */
+function updateAssessment(updatedAssessment: DamageAssessment): void {
+  const assessments = getSavedAssessments();
+  const index = assessments.findIndex(a => a.id === updatedAssessment.id);
+
+  if (index !== -1) {
+    assessments[index] = updatedAssessment;
+    localStorage.setItem('roof_damage_assessments', JSON.stringify(assessments));
+  }
+}
+
+/**
  * Delete assessment
  */
 export function deleteAssessment(id: string): void {
@@ -288,11 +445,16 @@ function generateId(): string {
  * For now, returns markdown that can be downloaded
  */
 export function exportAssessmentAsMarkdown(assessment: DamageAssessment): string {
-  return `# Roof Damage Assessment Report
+  const conversationSection = assessment.conversationHistory && assessment.conversationHistory.length > 0
+    ? `## Additional Information Gathered\n${assessment.conversationHistory.map(h => `**Q:** ${h.question}\n**A:** ${h.answer}`).join('\n\n')}\n\n`
+    : '';
+
+  return `# Insurance Claim Assessment Report
 
 **Date:** ${assessment.timestamp.toLocaleString()}
 **Image:** ${assessment.imageName}
 **Confidence:** ${assessment.confidence}%
+**Claim Viability:** ${assessment.analysis.claimViability.toUpperCase()}
 
 ## Damage Detection
 - **Detected:** ${assessment.analysis.damageDetected ? 'Yes' : 'No'}
@@ -304,15 +466,22 @@ export function exportAssessmentAsMarkdown(assessment: DamageAssessment): string
 - **Affected Area:** ${assessment.analysis.affectedArea}
 - **Estimated Size:** ${assessment.analysis.estimatedSize}
 
+## Insurance Adjuster Language
+${assessment.analysis.policyLanguage}
+
+## Key Insurance Arguments
+${assessment.analysis.insuranceArguments.map((arg, i) => `${i + 1}. ${arg}`).join('\n')}
+
 ## Detailed Analysis
 ${assessment.rawResponse}
 
-## Recommendations
+${conversationSection}## Recommendations for Rep
 ${assessment.analysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
----
+${assessment.followUpQuestions.length > 0 ? `## Outstanding Questions\n${assessment.followUpQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\n` : ''}---
 
-*Generated by S21 Field AI - Roof-ER*
+*Generated by S21 Field AI - Susan (Insurance Claims Specialist)*
 *This AI-generated assessment should be verified by a licensed roofing professional.*
+*Focus: Insurance claim documentation, not retail sales*
 `;
 }

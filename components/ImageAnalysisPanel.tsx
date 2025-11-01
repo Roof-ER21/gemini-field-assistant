@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Camera, Image as ImageIcon, Download, Trash2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Upload, Camera, Image as ImageIcon, Download, Trash2, AlertCircle, CheckCircle, Clock, MessageCircle, Send } from 'lucide-react';
 import {
   analyzeRoofImage,
   analyzeBatchImages,
@@ -7,6 +7,7 @@ import {
   deleteAssessment,
   generateInspectionReport,
   exportAssessmentAsMarkdown,
+  answerFollowUpQuestion,
   DamageAssessment
 } from '../services/imageAnalysisService';
 
@@ -15,6 +16,8 @@ const ImageAnalysisPanel: React.FC = () => {
   const [assessments, setAssessments] = useState<DamageAssessment[]>([]);
   const [selectedAssessment, setSelectedAssessment] = useState<DamageAssessment | null>(null);
   const [error, setError] = useState<string>('');
+  const [answeringQuestion, setAnsweringQuestion] = useState<number | null>(null);
+  const [questionAnswer, setQuestionAnswer] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load saved assessments on mount
@@ -91,6 +94,38 @@ const ImageAnalysisPanel: React.FC = () => {
     a.download = `roof-inspection-report-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleAnswerQuestion = async (questionIndex: number) => {
+    if (!selectedAssessment || !questionAnswer.trim()) return;
+
+    try {
+      setIsAnalyzing(true);
+      setError('');
+
+      const updated = await answerFollowUpQuestion(selectedAssessment, questionIndex, questionAnswer);
+
+      // Update in state
+      setAssessments(prev => prev.map(a => a.id === updated.id ? updated : a));
+      setSelectedAssessment(updated);
+      setAnsweringQuestion(null);
+      setQuestionAnswer('');
+    } catch (err) {
+      setError((err as Error).message || 'Failed to process answer');
+      console.error('Follow-up answer error:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const getClaimViabilityColor = (viability: string) => {
+    switch (viability) {
+      case 'strong': return '#10b981';
+      case 'moderate': return '#f59e0b';
+      case 'weak': return '#ea580c';
+      case 'none': return '#dc2626';
+      default: return 'var(--text-secondary)';
+    }
   };
 
   const getSeverityColor = (severity: string) => {
@@ -355,10 +390,206 @@ const ImageAnalysisPanel: React.FC = () => {
               </>
             )}
 
+            {/* Insurance Claim Viability */}
+            {selectedAssessment.analysis.claimViability && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{
+                  padding: '14px',
+                  background: getClaimViabilityColor(selectedAssessment.analysis.claimViability) + '15',
+                  border: `2px solid ${getClaimViabilityColor(selectedAssessment.analysis.claimViability)}`,
+                  borderRadius: '8px'
+                }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    INSURANCE CLAIM VIABILITY
+                  </div>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: 600,
+                    color: getClaimViabilityColor(selectedAssessment.analysis.claimViability),
+                    textTransform: 'uppercase',
+                    marginBottom: '8px'
+                  }}>
+                    {selectedAssessment.analysis.claimViability}
+                  </div>
+                  {selectedAssessment.analysis.policyLanguage && (
+                    <div style={{
+                      fontSize: '13px',
+                      color: 'var(--text-primary)',
+                      fontStyle: 'italic',
+                      padding: '8px',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '4px',
+                      marginTop: '8px'
+                    }}>
+                      <strong>For Adjuster:</strong> {selectedAssessment.analysis.policyLanguage}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Insurance Arguments */}
+            {selectedAssessment.analysis.insuranceArguments && selectedAssessment.analysis.insuranceArguments.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MessageCircle className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                  Key Insurance Arguments
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedAssessment.analysis.insuranceArguments.map((arg, idx) => (
+                    <div key={idx} style={{
+                      padding: '10px 12px',
+                      background: 'var(--roof-red)10',
+                      borderLeft: '4px solid var(--roof-red)',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      color: 'var(--text-primary)',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong>#{idx + 1}:</strong> {arg}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Follow-Up Questions */}
+            {selectedAssessment.followUpQuestions && selectedAssessment.followUpQuestions.length > 0 && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '16px',
+                background: '#f59e0b15',
+                border: '2px solid #f59e0b',
+                borderRadius: '8px'
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle className="w-5 h-5" style={{ color: '#f59e0b' }} />
+                  Susan needs more information to strengthen this claim:
+                </div>
+                {selectedAssessment.followUpQuestions.map((question, idx) => (
+                  <div key={idx} style={{
+                    marginBottom: '10px',
+                    padding: '10px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '6px'
+                  }}>
+                    <div style={{ fontSize: '13px', color: 'var(--text-primary)', marginBottom: '6px', fontWeight: 500 }}>
+                      {idx + 1}. {question}
+                    </div>
+                    {answeringQuestion === idx ? (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <input
+                          type="text"
+                          value={questionAnswer}
+                          onChange={(e) => setQuestionAnswer(e.target.value)}
+                          placeholder="Type your answer..."
+                          autoFocus
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)'
+                          }}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAnswerQuestion(idx)}
+                        />
+                        <button
+                          onClick={() => handleAnswerQuestion(idx)}
+                          disabled={!questionAnswer.trim() || isAnalyzing}
+                          style={{
+                            padding: '6px 12px',
+                            background: 'var(--roof-red)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: questionAnswer.trim() && !isAnalyzing ? 'pointer' : 'not-allowed',
+                            opacity: questionAnswer.trim() && !isAnalyzing ? 1 : 0.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Send className="w-4 h-4" />
+                          {isAnalyzing ? 'Updating...' : 'Send'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAnsweringQuestion(null);
+                            setQuestionAnswer('');
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAnsweringQuestion(idx)}
+                        style={{
+                          padding: '4px 10px',
+                          background: 'var(--roof-red)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        Answer Question
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Conversation History */}
+            {selectedAssessment.conversationHistory && selectedAssessment.conversationHistory.length > 0 && (
+              <details style={{ marginBottom: '16px' }}>
+                <summary style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  background: 'var(--bg-primary)',
+                  borderRadius: '6px'
+                }}>
+                  Information Provided ({selectedAssessment.conversationHistory.length})
+                </summary>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedAssessment.conversationHistory.map((item, idx) => (
+                    <div key={idx} style={{
+                      padding: '10px',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '6px'
+                    }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        <strong>Q:</strong> {item.question}
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                        <strong>A:</strong> {item.answer}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
             {/* Detailed Analysis */}
             <div style={{ marginBottom: '12px' }}>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                Detailed Analysis
+                Insurance-Focused Analysis
               </div>
               <div style={{
                 fontSize: '14px',
