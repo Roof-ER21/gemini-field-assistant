@@ -846,10 +846,45 @@ body {
 }
 
 /* Responsive Design */
+/* Tablet Optimizations (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .roof-er-sidebar {
+    width: 220px;
+  }
+
+  .roof-er-header {
+    padding: 12px 20px;
+  }
+
+  .roof-er-message {
+    max-width: 90%;
+    font-size: 15px;
+  }
+
+  .roof-er-input-area {
+    padding: 18px;
+  }
+
+  .roof-er-send-btn {
+    min-width: 110px;
+    height: 48px;
+  }
+
+  /* Touch-friendly state buttons on tablet */
+  .roof-er-state-btn {
+    min-height: 44px;
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+}
+
+/* Mobile Optimizations (< 768px) */
 @media (max-width: 768px) {
   /* Show mobile menu button */
   .roof-er-mobile-menu-btn {
     display: flex;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   /* Hide sidebar by default on mobile */
@@ -879,13 +914,16 @@ body {
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
   }
 
+  /* Touch-friendly header */
   .roof-er-header {
-    padding: 10px 15px;
+    padding: 12px 16px;
+    min-height: 60px;
   }
 
   .roof-er-logo {
     font-size: 14px;
-    padding: 6px 12px;
+    padding: 8px 14px;
+    min-height: 44px;
   }
 
   .roof-er-app-title {
@@ -896,26 +934,96 @@ body {
     display: none;
   }
 
+  /* Touch-friendly buttons (44px minimum per iOS guidelines) */
   .roof-er-header-btn {
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .roof-er-message {
     max-width: 95%;
+    font-size: 15px;
+    line-height: 1.6;
   }
 
+  /* Larger touch-friendly input area */
   .roof-er-input-area {
-    padding: 15px;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .roof-er-input-field {
+    padding: 14px 16px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 50px;
+  }
+
+  /* Touch-friendly send button */
+  .roof-er-send-btn {
+    min-width: 100px;
+    min-height: 50px;
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+
+  /* Touch-friendly state selector buttons */
+  .roof-er-state-btn {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  /* Touch-friendly quick command buttons */
+  .roof-er-quick-cmd {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
   }
 
   .roof-er-quick-commands {
     overflow-x: scroll;
     scrollbar-width: none;
+    padding: 8px 0;
+    gap: 10px;
   }
 
   .roof-er-quick-commands::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Touch-friendly sidebar nav items */
+  .roof-er-nav-item {
+    min-height: 48px;
+    padding: 14px 18px;
+    font-size: 15px;
+  }
+
+  /* Larger citation badges for touch */
+  .citation-badge {
+    min-width: 28px;
+    min-height: 28px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  /* Touch-friendly "Start Email" button */
+  button[class*="Start Email"] {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  /* Better spacing for mobile content */
+  .roof-er-content-area {
+    padding: 16px;
+  }
+
+  .roof-er-page-title {
+    font-size: 20px;
+    margin-bottom: 16px;
   }
 }
 
