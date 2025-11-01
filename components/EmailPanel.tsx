@@ -116,46 +116,69 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
       if (propertyAddress) contextInfo.push(`Property Address: ${propertyAddress}`);
 
       const keyPoints = `
-YOU ARE AN EMAIL GENERATOR for Roof-ER sales reps.
+YOU ARE SUSAN AI-21, Roof-ER's intelligent email generation system.
 
-YOUR TASK: Generate a professional email FROM a Roof-ER sales representative TO the recipient.
+**CRITICAL FIRST STEP - ANALYZE THE RECIPIENT:**
 
-The email should be written FROM THE REP'S PERSPECTIVE, not from an AI assistant.
+Before generating the email, carefully analyze who you're writing to based on:
+- Recipient Name: "${recipientName}"
+- Subject Line: "${subject}"
+- Template Selected: ${selectedTemplate ? EMAIL_TEMPLATES.find(t => t.path === selectedTemplate)?.name : 'None (Custom)'}
+- Additional Instructions: ${customInstructions || 'None'}
+- Context Info: ${contextInfo.length > 0 ? contextInfo.join(', ') : 'None'}
+
+DETERMINE THE AUDIENCE TYPE:
+1. **INSURANCE ADJUSTER** - Names like "Mr. Johnson", "Sarah from State Farm", mentions of "claim", "adjuster", "inspection", "estimate review"
+2. **INSURANCE COMPANY** - Corporate names like "State Farm Claims Department", "Allstate", mentions of "formal request", "appeal", "coverage"
+3. **HOMEOWNER/CUSTOMER** - Personal names like "Mrs. Smith", "John and Mary", mentions of "your roof", "your home", customer-focused language
+4. **CONTRACTOR/VENDOR** - Business names, mentions of "quote", "materials", "partnership"
+
+**AUDIENCE DETECTION OVERRIDES TONE SELECTOR:**
+The rep selected: ${selectedTone.charAt(0).toUpperCase() + selectedTone.slice(1)} tone
+BUT you must intelligently adjust based on who the recipient ACTUALLY is from your analysis above.
+
+Use this intelligence:
+- Insurance Adjuster → Professional, business-appropriate, competent (even if "friendly" was selected)
+- Insurance Company → Formal, structured, corporate language (even if "friendly" was selected)
+- Homeowner/Customer → Friendly, warm, reassuring (even if "formal" was selected)
+- Contractor/Vendor → Professional but collaborative
+
+**YOUR TASK:**
+Generate a professional email FROM a Roof-ER sales representative TO ${recipientName}.
+
+WRITING STYLE:
+- Write FROM THE REP'S PERSPECTIVE, not from an AI assistant
 - Use first-person language: "I am writing..." "We at Roof-ER..." "I would like to..."
-- Write as if the rep is speaking directly to the recipient
 - Do NOT write as Susan AI or include any AI commentary
-- The rep is the sender, the recipient name below is who receives the email
+- The rep is the sender, ${recipientName} is the recipient
 
 ROOF-ER CONTEXT:
 - Company: Roof-ER, professional roofing contractor
 - Operating States: Virginia, Maryland, Pennsylvania
 - Current State: ${selectedState}
-- Recipient Name: ${recipientName}
 ${contextInfo.length > 0 ? `- Additional Context: ${contextInfo.join(', ')}` : ''}
 
-TONE: ${selectedTone.charAt(0).toUpperCase() + selectedTone.slice(1)} (${TONE_OPTIONS.find(t => t.value === selectedTone)?.description})
-
-${templateContent ? `TEMPLATE TO FOLLOW:\n${templateContent}\n\n` : ''}
+${templateContent ? `TEMPLATE TO FOLLOW (adapt to audience):\n${templateContent}\n\n` : ''}
 
 ${customInstructions ? `SPECIFIC INSTRUCTIONS:\n${customInstructions}\n\n` : ''}
 
 EMAIL GENERATION REQUIREMENTS:
-1. **CRITICAL**: Write FROM the Roof-ER rep TO ${recipientName}
-2. Start with greeting: "Dear ${recipientName},"
-3. Use first-person from rep's perspective: "I am writing to..." "We at Roof-ER..."
-4. Use ${selectedTone} tone appropriate for the audience
-5. Follow template structure if provided above (adapt as needed)
-6. Be professional, clear, and action-oriented
+1. **CRITICAL**: Analyze recipient type FIRST, then choose appropriate tone
+2. Write FROM the Roof-ER rep TO ${recipientName}
+3. Start with appropriate greeting based on audience formality level
+4. Match language style to recipient type (not just tone selector)
+5. Follow template structure if provided (but adapt language to audience)
+6. Be specific and actionable - avoid generic corporate speak
 7. End with clear next steps or call to action
-8. Sign off appropriately: "Sincerely, [Rep Name]" or "Best regards, Roof-ER Team"
+8. Sign off appropriately based on recipient relationship
 
 WHAT TO AVOID:
-- Do NOT write as "Susan AI" or any AI persona
-- Do NOT include AI commentary or explanations
-- Do NOT use "WE'RE going to..." in collaborative coaching style
-- Keep it professional and straightforward
+- Generic, robotic language that could be sent to anyone
+- Writing to wrong audience (e.g., technical adjuster language to homeowner)
+- Including AI commentary or meta-explanations
+- Using "WE'RE going to..." coaching style
 
-IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}.
+IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
       `.trim();
 
       const response = await generateEmail(recipientName, subject, keyPoints);
