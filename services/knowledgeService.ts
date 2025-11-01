@@ -48,7 +48,7 @@ export const knowledgeService = {
       // Email Templates (11)
       { name: 'iTel Shingle Template', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/iTel Shingle Template.md`, type: 'md', category: 'Email Templates' },
       { name: 'Post AM Email Template', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/Post AM Email Template.md`, type: 'md', category: 'Email Templates' },
-      { name: 'Request For Appraisal', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/Request For Appraisal.md`, type: 'md', category: 'Email Templates' },
+      { name: 'PA Permit Denial - Siding Replacement', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/PA Permit Denial - Siding Replacement.md`, type: 'md', category: 'Email Templates' },
       { name: 'Repair Attempt Template', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/Repair Attempt Template.md`, type: 'md', category: 'Email Templates' },
       { name: 'Photo Report Template', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/Photo Report Template.md`, type: 'md', category: 'Email Templates' },
       { name: 'Template from Customer to Insurance', path: `${DOCS_BASE}/Sales Rep Resources 2/Email Templates/Template from Customer to Insurance.md`, type: 'md', category: 'Email Templates' },
@@ -180,7 +180,10 @@ export const knowledgeService = {
       // Additional Licenses & Certifications (3)
       { name: 'CertainTeed Certified Certificate', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/CERTIFIED_CERTIFICATE.md`, type: 'md', category: 'Licenses & Certifications' },
       { name: 'Maryland Contractor License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/MD License.md`, type: 'md', category: 'Licenses & Certifications' },
-      { name: 'Virginia Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' }
+      { name: 'Virginia Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' },
+
+      // State-Specific Resources (CRITICAL)
+      { name: 'State-Specific Matching Requirements', path: `${DOCS_BASE}/State-Specific-Matching-Requirements.md`, type: 'md', category: 'State-Specific Codes' }
     ];
   },
 
@@ -203,16 +206,33 @@ export const knowledgeService = {
     }
   },
 
-  // Search documents with content loading
-  async searchDocuments(query: string, limit: number = 5): Promise<SearchResult[]> {
+  // Enhanced search with content-based matching and state-awareness
+  async searchDocuments(query: string, limit: number = 5, selectedState?: string): Promise<SearchResult[]> {
     const queryLower = query.toLowerCase();
     const documents = await this.getDocumentIndex();
 
-    // Extract keywords
+    // Extract keywords and clean them
     const keywords = queryLower
       .split(/\s+/)
       .filter(w => w.length > 2)
       .map(w => w.replace(/[^a-z0-9]/g, ''));
+
+    // Detect state mentions in query
+    const stateKeywords = {
+      'VA': ['virginia', 'va'],
+      'MD': ['maryland', 'md'],
+      'PA': ['pennsylvania', 'pa', 'philly', 'philadelphia']
+    };
+
+    const detectedStates: string[] = [];
+    Object.entries(stateKeywords).forEach(([state, stateWords]) => {
+      if (stateWords.some(sw => queryLower.includes(sw))) {
+        detectedStates.push(state);
+      }
+    });
+
+    // Use selected state if provided, otherwise use detected states
+    const relevantStates = selectedState ? [selectedState] : detectedStates;
 
     const results: SearchResult[] = [];
 
@@ -221,35 +241,67 @@ export const knowledgeService = {
       const categoryLower = (doc.category || '').toLowerCase();
       let relevance = 0;
 
-      // Exact matches
-      if (nameLower === queryLower) relevance += 5.0;
-      if (categoryLower === queryLower) relevance += 3.0;
+      // CRITICAL: State-specific documents get massive boost
+      if (doc.category === 'State-Specific Codes' && relevantStates.length > 0) {
+        relevance += 10.0;
+      }
 
-      // Partial matches
-      if (nameLower.includes(queryLower)) relevance += 2.0;
-      if (categoryLower.includes(queryLower)) relevance += 1.5;
-
-      // Keyword matching
-      keywords.forEach(kw => {
-        if (kw.length > 2) {
-          if (nameLower.includes(kw)) relevance += 0.8;
-          if (categoryLower.includes(kw)) relevance += 0.5;
+      // State mentions in document name
+      relevantStates.forEach(state => {
+        const stateLower = state.toLowerCase();
+        if (nameLower.includes(stateLower) || categoryLower.includes(stateLower)) {
+          relevance += 5.0;
         }
       });
 
-      // Boost important categories
-      const boosts: Record<string, string[]> = {
-        'script': ['script', 'pitch', 'initial', 'meeting'],
-        'email': ['email', 'template', 'send'],
-        'insurance': ['insurance', 'claim', 'argument', 'adjuster'],
-        'training': ['training', 'learn', 'how', 'manual'],
-        'agreement': ['agreement', 'contract', 'sign']
+      // Exact matches
+      if (nameLower === queryLower) relevance += 8.0;
+      if (categoryLower === queryLower) relevance += 5.0;
+
+      // Partial matches
+      if (nameLower.includes(queryLower)) relevance += 3.0;
+      if (categoryLower.includes(queryLower)) relevance += 2.0;
+
+      // Keyword matching with TF-IDF-like scoring
+      const uniqueKeywords = new Set(keywords);
+      const nameWords = nameLower.split(/\s+/);
+      const matchedKeywords = keywords.filter(kw => {
+        if (kw.length > 2) {
+          if (nameLower.includes(kw)) return true;
+          if (categoryLower.includes(kw)) return true;
+        }
+        return false;
+      });
+
+      // Score based on keyword density
+      const keywordDensity = matchedKeywords.length / Math.max(uniqueKeywords.size, 1);
+      relevance += keywordDensity * 4.0;
+
+      // Multi-word phrase matching (higher precision)
+      if (query.split(/\s+/).length > 1) {
+        const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const matchedWords = queryWords.filter(qw => nameLower.includes(qw) || categoryLower.includes(qw));
+        if (matchedWords.length === queryWords.length) {
+          relevance += 6.0; // All query words present
+        }
+      }
+
+      // Boost critical categories with enhanced logic
+      const categoryBoosts: Record<string, { terms: string[], boost: number }> = {
+        'state': { terms: ['state', 'virginia', 'maryland', 'pennsylvania', 'code', 'matching', 'requirement'], boost: 8.0 },
+        'script': { terms: ['script', 'pitch', 'initial', 'meeting', 'call'], boost: 3.0 },
+        'email': { terms: ['email', 'template', 'send', 'letter'], boost: 3.0 },
+        'insurance': { terms: ['insurance', 'claim', 'argument', 'adjuster', 'partial', 'approval'], boost: 4.0 },
+        'training': { terms: ['training', 'learn', 'how', 'manual', 'guide'], boost: 2.0 },
+        'agreement': { terms: ['agreement', 'contract', 'sign', 'contingency'], boost: 2.5 },
+        'building': { terms: ['building', 'code', 'irc', 'r908', 'flashing', 'roof'], boost: 4.5 }
       };
 
-      Object.entries(boosts).forEach(([cat, terms]) => {
-        if (keywords.some(kw => terms.includes(kw))) {
-          if (categoryLower.includes(cat) || nameLower.includes(cat)) {
-            relevance += 2.0;
+      Object.entries(categoryBoosts).forEach(([catKey, { terms, boost }]) => {
+        const matchedTerms = terms.filter(term => keywords.includes(term) || queryLower.includes(term));
+        if (matchedTerms.length > 0) {
+          if (categoryLower.includes(catKey) || nameLower.includes(catKey)) {
+            relevance += boost * (matchedTerms.length / terms.length);
           }
         }
       });
@@ -263,10 +315,20 @@ export const knowledgeService = {
       }
     }
 
-    // Sort and limit
-    const topResults = results
-      .sort((a, b) => b.relevance - a.relevance)
-      .slice(0, limit);
+    // Sort by relevance (descending)
+    let topResults = results.sort((a, b) => b.relevance - a.relevance);
+
+    // Ensure state-specific docs are ALWAYS included if states detected
+    if (relevantStates.length > 0) {
+      const stateDoc = topResults.find(r => r.document.category === 'State-Specific Codes');
+      if (stateDoc && topResults.indexOf(stateDoc) > 0) {
+        // Move to top if not already there
+        topResults = [stateDoc, ...topResults.filter(r => r !== stateDoc)];
+      }
+    }
+
+    // Limit results
+    topResults = topResults.slice(0, limit);
 
     // Load content for top results using batch loader
     const loadResult = await documentBatchLoader.loadInBatches(
@@ -274,6 +336,34 @@ export const knowledgeService = {
       async (result) => {
         const docContent = await this.loadDocument(result.document.path);
         result.content = docContent.content;
+
+        // CONTENT-BASED SCORING: Boost if query terms appear in content
+        if (docContent.content) {
+          const contentLower = docContent.content.toLowerCase();
+          let contentRelevance = 0;
+
+          keywords.forEach(kw => {
+            const regex = new RegExp(`\\b${kw}\\b`, 'gi');
+            const matches = contentLower.match(regex);
+            if (matches) {
+              contentRelevance += Math.min(matches.length * 0.5, 3.0); // Cap at 3.0
+            }
+          });
+
+          // Add content relevance to total
+          result.relevance += contentRelevance;
+
+          // Extract better snippet from content
+          const firstMatch = keywords.find(kw => contentLower.includes(kw));
+          if (firstMatch) {
+            const index = contentLower.indexOf(firstMatch);
+            const start = Math.max(0, index - 50);
+            const end = Math.min(docContent.content.length, index + 150);
+            const snippet = docContent.content.substring(start, end).trim();
+            result.snippet = `...${snippet}...`;
+          }
+        }
+
         return result;
       },
       {
@@ -291,7 +381,9 @@ export const knowledgeService = {
       item.content = `[Content unavailable for ${item.document.name}]`;
     });
 
-    return [...loadResult.success, ...loadResult.failed.map(f => f.item)];
+    // Re-sort after content-based scoring
+    const allResults = [...loadResult.success, ...loadResult.failed.map(f => f.item)];
+    return allResults.sort((a, b) => b.relevance - a.relevance);
   },
 
   // Get documents by category

@@ -147,11 +147,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
 
       if (useRAG) {
         console.log('[RAG] Enhancing query with knowledge base...');
-        const ragContext = await ragService.buildRAGContext(originalQuery, 3);
+        const ragContext = await ragService.buildRAGContext(originalQuery, 3, selectedState || undefined);
         systemPrompt = ragContext.enhancedPrompt.split('USER QUESTION:')[0];
         userPrompt = originalQuery;
         sources = ragContext.sources;
-        console.log(`[RAG] Found ${sources.length} relevant documents`);
+        console.log(`[RAG] Found ${sources.length} relevant documents${selectedState ? ` (State: ${selectedState})` : ''}`);
       }
 
       const conversationMessages = [

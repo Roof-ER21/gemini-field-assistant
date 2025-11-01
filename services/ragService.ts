@@ -12,18 +12,19 @@ export interface RAGContext {
  */
 export const ragService = {
   /**
-   * Build RAG context for a user query
+   * Build RAG context for a user query with state-awareness
    * @param query User's question
    * @param topK Number of top documents to retrieve (default: 5)
+   * @param selectedState Optional state code (VA, MD, PA) for state-specific search boosting
    * @returns RAG context with sources and enhanced prompt
    */
-  async buildRAGContext(query: string, topK: number = 5): Promise<RAGContext> {
+  async buildRAGContext(query: string, topK: number = 5, selectedState?: string): Promise<RAGContext> {
     try {
-      // Search for relevant documents
-      const sources = await knowledgeService.searchDocuments(query, topK);
+      // Search for relevant documents with state-awareness
+      const sources = await knowledgeService.searchDocuments(query, topK, selectedState);
 
       // Build enhanced prompt with context
-      const enhancedPrompt = this.buildEnhancedPrompt(query, sources);
+      const enhancedPrompt = this.buildEnhancedPrompt(query, sources, selectedState);
 
       return {
         query,
@@ -42,9 +43,9 @@ export const ragService = {
   },
 
   /**
-   * Build enhanced prompt with document context
+   * Build enhanced prompt with document context and state-specific guidance
    */
-  buildEnhancedPrompt(query: string, sources: SearchResult[]): string {
+  buildEnhancedPrompt(query: string, sources: SearchResult[], selectedState?: string): string {
     if (sources.length === 0) {
       // No relevant documents found, use general knowledge
       return `USER QUESTION: ${query}
@@ -66,16 +67,45 @@ Please provide your answer:`;
       contextSection += `${'='.repeat(80)}\n\n`;
     });
 
+    // Add state-specific guidance if applicable
+    let stateGuidance = '';
+    if (selectedState) {
+      const stateRules: Record<string, string> = {
+        'MD': `**MARYLAND-SPECIFIC RULES (CRITICAL):**
+- Maryland REQUIRES insurance companies to account for matching (IRC R908.3)
+- Use matching arguments AGGRESSIVELY in MD claims
+- Insurance must pay for full replacement if matching is impossible
+- This is your strongest argument in Maryland`,
+        'VA': `**VIRGINIA-SPECIFIC RULES (CRITICAL):**
+- Virginia does NOT require matching UNLESS the policy has a matching endorsement
+- DO NOT use matching arguments in VA without confirming matching endorsement exists
+- Instead, use: Repairability arguments, differing dimensions, missed storm damage
+- Focus on brittleness tests and repair attempt documentation`,
+        'PA': `**PENNSYLVANIA-SPECIFIC RULES (CRITICAL):**
+- Pennsylvania does NOT require matching UNLESS the policy has a matching endorsement
+- DO NOT use matching arguments in PA without confirming matching endorsement exists
+- Instead, use: Permit denials (very effective), repairability, differing dimensions
+- Focus on township requirements and building code compliance`
+      };
+
+      stateGuidance = stateRules[selectedState] || '';
+      if (stateGuidance) {
+        stateGuidance = `\n\n${stateGuidance}\n`;
+      }
+    }
+
     // Build the enhanced prompt with personality-aligned instructions
     const enhancedPrompt = `${contextSection}
 
 USER QUESTION: ${query}
+${selectedState ? `\nCURRENT STATE: ${selectedState}` : ''}${stateGuidance}
 
 RESPONSE GUIDELINES:
 - Answer based on the knowledge base documents above
 - **CRITICAL: Use bracketed citations [1], [2], [3] for EVERY factual claim from documents**
 - Place citations immediately after the statement: "Partial repairs void warranties [1]"
 - Use multiple citations when combining info: "IRC R908.3 requires matching [1] with 89% success rate [2]"
+- **Apply state-specific rules above** - MD uses matching, VA/PA use repairability unless endorsement exists
 - Be conversational and helpful - avoid robotic language
 - If documents don't fully answer the question, supplement with general knowledge and mention that clearly
 - Be specific and actionable - these are busy sales professionals who need practical guidance
