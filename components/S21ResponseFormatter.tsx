@@ -169,8 +169,6 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
     for (const line of lines) {
       // Skip template content
       if (line.includes('"') && line.length > 100) continue;
-      // Skip sources section
-      if (line.includes('Sources:') || line.includes('---')) break;
       // Add substantive content
       if (line.trim().length > 20 && contextLines.length < 4) {
         contextLines.push(line.trim());
@@ -201,8 +199,14 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
               return (
                 <span
                   key={idx}
-                  onMouseEnter={() => setHoveredCitation(citationNum)}
-                  onMouseLeave={() => setHoveredCitation(null)}
+                  onMouseEnter={(e) => {
+                    setHoveredCitation(citationNum);
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    setHoveredCitation(null);
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
+                  }}
                   onClick={() => {
                     if (onOpenDocument) {
                       onOpenDocument(source.document.path);
@@ -218,12 +222,6 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                     borderRadius: '3px',
                     background: 'rgba(220, 38, 38, 0.1)',
                     transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
                   }}
                 >
                   {part}

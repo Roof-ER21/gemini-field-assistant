@@ -169,10 +169,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
       const response = await multiAI.generate(conversationMessages);
       setCurrentProvider(response.provider);
 
+      // Sources are handled by S21ResponseFormatter via interactive citations
+      // No need to append text-based sources - they're redundant
       let responseText = response.content;
-      if (useRAG && sources.length > 0) {
-        responseText += ragService.formatSourcesCitation(sources);
-      }
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
