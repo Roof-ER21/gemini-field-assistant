@@ -55,6 +55,32 @@ export const ragService = {
 Please provide your answer:`;
     }
 
+    // ⚠️ CRITICAL: Put citation instructions FIRST so AI sees them immediately
+    const citationInstructions = `🔴 CRITICAL INSTRUCTION - READ THIS FIRST 🔴
+
+MANDATORY CITATION FORMAT:
+You MUST cite sources using [1], [2], [3] for EVERY fact from the documents below.
+
+Examples of CORRECT citations:
+✅ "IRC R908.3 requires matching [1]"
+✅ "Maryland mandates full replacement [2]"
+✅ "According to GAF guidelines [3], storm damage must be documented"
+
+Examples of INCORRECT citations (DO NOT DO THIS):
+❌ "IRC R908.3 requires matching" (missing citation)
+❌ "According to Document 1" (use [1] instead)
+❌ "[MHIC-Matching-Requirement]" (use [2] instead)
+
+RULES:
+- [1] refers to Document 1, [2] refers to Document 2, [3] refers to Document 3
+- Place citation IMMEDIATELY after each fact
+- Multiple citations for combined info: "IRC R908.3 requires matching [1] with 89% success [2]"
+- If you don't cite a fact, the user won't be able to verify it
+
+${'='.repeat(80)}
+
+`;
+
     // Build context section with relevant documents
     let contextSection = 'RELEVANT KNOWLEDGE BASE DOCUMENTS:\n\n';
 
@@ -94,29 +120,23 @@ Please provide your answer:`;
       }
     }
 
-    // Build the enhanced prompt with personality-aligned instructions
-    const enhancedPrompt = `${contextSection}
+    // Build the enhanced prompt with citation instructions FIRST
+    const enhancedPrompt = `${citationInstructions}${contextSection}
 
 USER QUESTION: ${query}
 ${selectedState ? `\nCURRENT STATE: ${selectedState}` : ''}${stateGuidance}
 
-MANDATORY CITATION FORMAT:
-⚠️ YOU MUST use NUMBERED citations [1], [2], [3] for EVERY fact from the documents above.
-- Example: "IRC R908.3 requires matching [1]"
-- Example: "Maryland mandates full replacement [2]"
-- NEVER use descriptive citations like [MHIC-Matching-Requirement] or [IRC-R908]
-- ONLY use numbers: [1] for Document 1, [2] for Document 2, [3] for Document 3
-- Place citation immediately after each factual statement
-- Use multiple citations when combining info: "IRC R908.3 requires matching [1] with 89% success rate [2]"
-
 RESPONSE GUIDELINES:
 - Answer based on the knowledge base documents above
+- **REMEMBER: Cite EVERY fact with [1], [2], or [3]** (See citation rules at top)
 - **Apply state-specific rules above** - MD uses matching, VA/PA use repairability unless endorsement exists
 - Be conversational and helpful - avoid robotic language
 - If documents don't fully answer the question, supplement with general knowledge and mention that clearly
 - Be specific and actionable - these are busy sales professionals who need practical guidance
 - Use bullet points or numbered lists for clarity when appropriate
 - Keep paragraphs SHORT (1-3 sentences max) with line breaks between them
+
+REMINDER: Every factual claim needs a [1], [2], or [3] citation. This is MANDATORY.
 
 Please provide your answer:`;
 

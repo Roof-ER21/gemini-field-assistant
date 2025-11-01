@@ -10,6 +10,7 @@ import { multiAI, AIProvider } from '../services/multiProviderAI';
 import { Send, Mic, Paperclip } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
+import { enforceCitations, validateCitations } from '../services/citationEnforcer';
 
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
@@ -172,6 +173,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
       // Sources are handled by S21ResponseFormatter via interactive citations
       // No need to append text-based sources - they're redundant
       let responseText = response.content;
+
+      // 🔴 CITATION ENFORCEMENT: Auto-add citations if AI forgot them
+      if (sources.length > 0) {
+        responseText = enforceCitations(responseText, sources);
+
+        // Validate citations and log issues
+        const validation = validateCitations(responseText, sources);
+        if (!validation.valid) {
+          console.warn('[Citation Validator] Issues found:', validation.issues);
+        } else {
+          console.log('[Citation Validator] ✓ All citations valid');
+        }
+      }
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
