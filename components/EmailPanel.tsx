@@ -20,6 +20,7 @@ type ToneOption = {
 const EMAIL_TEMPLATES: EmailTemplate[] = [
   { name: 'iTel Shingle Template', path: '/docs/Sales Rep Resources 2/Email Templates/iTel Shingle Template.md', description: 'For iTel shingle quotes and information' },
   { name: 'Post AM Email Template', path: '/docs/Sales Rep Resources 2/Email Templates/Post AM Email Template.md', description: 'Follow-up after adjuster meeting' },
+  { name: 'PA Permit Denial - Siding Replacement', path: '/docs/Sales Rep Resources 2/Email Templates/PA Permit Denial - Siding Replacement.md', description: 'PA permit denial for siding - requires full replacement' },
   { name: 'Repair Attempt Template', path: '/docs/Sales Rep Resources 2/Email Templates/Repair Attempt Template.md', description: 'Document repair attempt for insurance' },
   { name: 'Photo Report Template', path: '/docs/Sales Rep Resources 2/Email Templates/Photo Report Template.md', description: 'Send photo documentation' },
   { name: 'Template from Customer to Insurance', path: '/docs/Sales Rep Resources 2/Email Templates/Template from Customer to Insurance.md', description: 'Customer communication to insurance company' },
