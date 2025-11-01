@@ -31,7 +31,7 @@ interface ParsedSection {
 const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, onStartEmail, onOpenDocument, sources }) => {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1]));
   const [copiedSections, setCopiedSections] = useState<Set<number>>(new Set());
-  const [hoveredCitation, setHoveredCitation] = useState<number | null>(null);
+  const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
 
   // Parse the raw response into structured sections
   const parseResponse = (text: string): ParsedSection[] => {
@@ -196,11 +196,14 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
             const source = sources[citationNum - 1];
 
             if (source) {
+              // Create unique ID for this specific citation instance
+              const citationId = `citation-${citationNum}-${idx}`;
+
               return (
                 <span
                   key={idx}
                   onMouseEnter={(e) => {
-                    setHoveredCitation(citationNum);
+                    setHoveredCitation(citationId);
                     e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
                   }}
                   onMouseLeave={(e) => {
@@ -225,7 +228,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   }}
                 >
                   {part}
-                  {hoveredCitation === citationNum && (
+                  {hoveredCitation === citationId && (
                     <div
                       style={{
                         position: 'absolute',
