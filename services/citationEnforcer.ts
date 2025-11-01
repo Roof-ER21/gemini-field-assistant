@@ -33,59 +33,34 @@ export function getExpectedCitationCount(sources: SearchResult[]): number {
  * @returns Text with citations added
  */
 export function enforceCitations(text: string, sources: SearchResult[]): string {
-  // If already has citations, return as-is
-  if (hasCitations(text)) {
-    return text;
-  }
-
   // If no sources, return as-is
   if (sources.length === 0) {
     return text;
   }
 
-  console.log('[Citation Enforcer] AI forgot citations - adding them automatically');
-
-  // Strategy: Add citations after sentences that mention document content
-  let enhancedText = text;
-
-  sources.forEach((source, index) => {
-    const citationNum = index + 1;
-    const docName = source.document.name;
-    const category = source.document.category;
-
-    // Extract key phrases from document name
-    const keywords = extractKeywords(docName, category);
-
-    // For each keyword, add citation after first mention
-    keywords.forEach(keyword => {
-      const pattern = new RegExp(
-        `(${escapeRegex(keyword)}[^.!?]*[.!?])(?!.*\\[\\d+\\])`,
-        'i'
-      );
-
-      enhancedText = enhancedText.replace(pattern, (match) => {
-        // Check if this sentence already has a citation
-        if (/\[\d+\]/.test(match)) {
-          return match;
-        }
-        // Add citation before the ending punctuation
-        return match.replace(/([.!?])$/, ` [${citationNum}]$1`);
-      });
-    });
-  });
-
-  // If still no citations added, add a generic one at the end of first paragraph
-  if (!hasCitations(enhancedText)) {
-    const firstParagraphEnd = enhancedText.search(/\n\n|$/);
-    if (firstParagraphEnd > 0) {
-      enhancedText =
-        enhancedText.slice(0, firstParagraphEnd) +
-        ` [1]` +
-        enhancedText.slice(firstParagraphEnd);
-    }
+  // If already has citations, return as-is (AI did its job!)
+  if (hasCitations(text)) {
+    console.log('[Citation Enforcer] ✓ AI already included citations - no enforcement needed');
+    return text;
   }
 
-  return enhancedText;
+  console.log('[Citation Enforcer] AI forgot citations - adding them automatically');
+
+  // Strategy: Add ONE citation at the end of the first factual paragraph
+  // This is conservative to avoid over-citing
+  const paragraphs = text.split(/\n\n+/);
+
+  if (paragraphs.length === 0) {
+    return text;
+  }
+
+  // Add [1] to the end of the first substantial paragraph
+  const firstParagraph = paragraphs[0];
+  if (firstParagraph.length > 50) { // Only if it's substantial
+    paragraphs[0] = firstParagraph.replace(/([.!?])\s*$/, ' [1]$1');
+  }
+
+  return paragraphs.join('\n\n');
 }
 
 /**
