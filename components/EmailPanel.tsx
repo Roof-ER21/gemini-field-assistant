@@ -345,8 +345,8 @@ ${ragSection}
  5. Follow template structure if provided (but adapt language to audience)
  6. Incorporate state-specific regulations when relevant
  7. Be specific and actionable - avoid generic corporate speak
- 8. End with an assertive, outcome-focused request: explicitly ask to update the estimate/decision to FULL APPROVAL (e.g., "Please update the estimate to full replacement consistent with the attached evidence.")
- 9. If ending with a question, use: "What do you need from us to make sure we get this to a full approval?"
+ 8. End with a respectful, outcome‑focused request to update the estimate/decision to FULL APPROVAL based on the evidence provided (e.g., "We respectfully request that this be updated to a full replacement consistent with the attached documentation.")
+ 9. If ending with a question, prefer: "Is there anything else you need from us to make sure we get this to a full approval?"
  10. Do NOT ask to schedule calls/meetings by default; only if the recipient has already requested one
 
  WHAT TO AVOID:
@@ -354,7 +354,7 @@ ${ragSection}
  - Writing to wrong audience (e.g., technical adjuster language to homeowner)
  - Including AI commentary or meta-explanations
  - Using "WE'RE going to..." coaching style
- - Ending with soft asks to schedule a call/meeting instead of requesting full approval
+ - Ending with generic invites to schedule a call/meeting instead of respectfully requesting full approval
 
 IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
 If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.

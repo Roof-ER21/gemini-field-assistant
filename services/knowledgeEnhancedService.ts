@@ -27,7 +27,8 @@ export class EnhancedKnowledgeService {
   private static STORAGE_KEYS = {
     HISTORY: 'knowledge_history',
     FAVORITES: 'knowledge_favorites',
-    PREFERENCES: 'knowledge_preferences'
+    PREFERENCES: 'knowledge_preferences',
+    GO_TO: 'knowledge_go_to'
   };
 
   /**
@@ -205,6 +206,48 @@ export class EnhancedKnowledgeService {
     return favorites
       .map(f => allDocs.find(d => d.path === f.documentPath))
       .filter((d): d is Document => d !== undefined);
+  }
+
+  /**
+   * Go-To collection management (pinned quick-access docs)
+   */
+  addToGoTo(documentPath: string): void {
+    const items = this.getGoTo();
+    if (!items.includes(documentPath)) {
+      items.unshift(documentPath);
+      this.saveGoTo(items);
+    }
+  }
+
+  removeFromGoTo(documentPath: string): void {
+    const items = this.getGoTo().filter(p => p !== documentPath);
+    this.saveGoTo(items);
+  }
+
+  isGoTo(documentPath: string): boolean {
+    return this.getGoTo().includes(documentPath);
+  }
+
+  getGoTo(): string[] {
+    try {
+      const raw = localStorage.getItem(EnhancedKnowledgeService.STORAGE_KEYS.GO_TO);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private saveGoTo(items: string[]): void {
+    try {
+      localStorage.setItem(EnhancedKnowledgeService.STORAGE_KEYS.GO_TO, JSON.stringify(items.slice(0, 50)));
+    } catch {}
+  }
+
+  async getGoToDocuments(): Promise<Document[]> {
+    const paths = this.getGoTo();
+    const allDocs = await knowledgeService.getDocumentIndex();
+    const map = new Map(allDocs.map(d => [d.path, d] as const));
+    return paths.map(p => map.get(p)).filter((d): d is Document => !!d);
   }
 
   /**

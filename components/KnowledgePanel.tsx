@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
-import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter } from 'lucide-react';
+import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 
-type ViewMode = 'all' | 'recent' | 'favorites';
+type ViewMode = 'all' | 'recent' | 'favorites' | 'goto';
 type SearchMode = 'title' | 'content';
 
 interface KnowledgePanelProps {
@@ -20,10 +20,16 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [searchMode, setSearchMode] = useState<SearchMode>('content');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [goTo, setGoTo] = useState<Set<string>>(new Set());
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [stateFilter, setStateFilter] = useState<'All' | 'VA' | 'MD' | 'PA'>('All');
 
   useEffect(() => {
     loadDocumentIndex();
     loadFavorites();
+    loadGoTo();
+    loadCategories();
   }, []);
 
   // Handle external document selection from citations
@@ -52,12 +58,39 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
     setFavorites(new Set(favs.map(f => f.documentPath)));
   };
 
+  const loadGoTo = () => {
+    const items = enhancedKnowledgeService.getGoTo();
+    setGoTo(new Set(items));
+  };
+
+  const loadCategories = async () => {
+    try {
+      const cats = await knowledgeService.getCategories();
+      setCategories(['All', ...cats]);
+    } catch (e) {
+      console.warn('Failed to load categories');
+    }
+  };
+
   const loadDocumentsForView = async () => {
     setLoading(true);
     try {
       switch (viewMode) {
         case 'all':
-          const allDocs = await knowledgeService.getDocumentIndex();
+          let allDocs = await knowledgeService.getDocumentIndex();
+          // Apply category filter
+          if (selectedCategory !== 'All') {
+            allDocs = allDocs.filter(d => d.category === selectedCategory);
+          }
+          // Apply state filter
+          if (stateFilter !== 'All') {
+            const state = stateFilter;
+            allDocs = allDocs.filter(d =>
+              (d.category === 'State-Specific Codes') ||
+              d.name.includes(state) ||
+              d.path.toLowerCase().includes(state.toLowerCase())
+            );
+          }
           setDocuments(allDocs);
           break;
         case 'recent':
@@ -67,6 +100,10 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
         case 'favorites':
           const favDocs = await enhancedKnowledgeService.getFavoriteDocuments();
           setDocuments(favDocs);
+          break;
+        case 'goto':
+          const goToDocs = await enhancedKnowledgeService.getGoToDocuments();
+          setDocuments(goToDocs);
           break;
       }
     } catch (error) {
@@ -136,6 +173,21 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
     } else {
       enhancedKnowledgeService.addToFavorites(doc.path);
       setFavorites(prev => new Set(prev).add(doc.path));
+    }
+  };
+
+  const toggleGoTo = (doc: Document, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (goTo.has(doc.path)) {
+      enhancedKnowledgeService.removeFromGoTo(doc.path);
+      setGoTo(prev => {
+        const next = new Set(prev);
+        next.delete(doc.path);
+        return next;
+      });
+    } else {
+      enhancedKnowledgeService.addToGoTo(doc.path);
+      setGoTo(prev => new Set(prev).add(doc.path));
     }
   };
 
@@ -247,6 +299,70 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             <Star className="w-4 h-4" fill={viewMode === 'favorites' ? 'currentColor' : 'none'} />
             Favorites ({favorites.size})
           </button>
+
+          <button
+            onClick={() => setViewMode('goto')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'goto' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'goto' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Pin className="w-4 h-4" />
+            Go‑To ({goTo.size})
+          </button>
+        </div>
+
+        {/* Filters: Category + State */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Category:</span>
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => { setSelectedCategory(cat); loadDocumentsForView(); }}
+                style={{
+                  padding: '6px 10px',
+                  background: selectedCategory === cat ? 'var(--roof-red)' : 'var(--bg-hover)',
+                  border: `1px solid ${selectedCategory === cat ? 'var(--roof-red)' : 'var(--border-default)'}`,
+                  borderRadius: '9999px',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>State:</span>
+            {(['All','VA','MD','PA'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => { setStateFilter(s); loadDocumentsForView(); }}
+                style={{
+                  padding: '6px 10px',
+                  background: stateFilter === s ? 'var(--roof-red)' : 'var(--bg-hover)',
+                  border: `1px solid ${stateFilter === s ? 'var(--roof-red)' : 'var(--border-default)'}`,
+                  borderRadius: '9999px',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -356,6 +472,23 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
                     fill={favorites.has(doc.path) ? 'currentColor' : 'none'}
                     stroke="currentColor"
                   />
+                </button>
+                <button
+                  onClick={(e) => toggleGoTo(doc, e)}
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    color: goTo.has(doc.path) ? 'var(--roof-red)' : 'var(--text-disabled)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={goTo.has(doc.path) ? 'Unpin from Go-To' : 'Pin to Go-To'}
+                >
+                  <Pin className="w-5 h-5" />
                 </button>
                 <div className="roof-er-doc-icon">{getDocIcon(doc.type)}</div>
                 <div className="roof-er-doc-title">{doc.name}</div>
