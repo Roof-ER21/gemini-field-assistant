@@ -170,7 +170,19 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat }) =
           }
           content = text.trim();
         } else if (/\.(docx)$/i.test(name)) {
-          content = '[docx upload added – convert to PDF or MD for full text extraction]';
+          try {
+            const mammoth: any = await import('mammoth/mammoth.browser');
+            const arrayBuffer = await doc.arrayBuffer();
+            const result = await mammoth.convertToHtml({ arrayBuffer });
+            // Strip HTML tags to plain text
+            const html = result.value as string;
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            content = tmp.textContent || tmp.innerText || '';
+          } catch (e) {
+            console.warn('DOCX conversion failed:', e);
+            content = '[Failed to extract text from DOCX]';
+          }
         } else {
           content = '[Unsupported document type]';
         }

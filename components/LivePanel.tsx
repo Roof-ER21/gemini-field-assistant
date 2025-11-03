@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { env } from '../src/config/env';
 import { Mic, Radio, Trash2, Volume2, VolumeX, Wifi, WifiOff, PhoneOff, MessageCircle } from 'lucide-react';
 
 interface Message {
@@ -221,10 +222,10 @@ const LivePanel: React.FC = () => {
 
       // Dynamic import Gemini
       const { GoogleGenerativeAI } = await import('@google/genai');
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      const apiKey = env.GEMINI_API_KEY || (process.env.GEMINI_API_KEY as string);
 
-      if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-        throw new Error('Gemini API key not configured');
+      if (!apiKey) {
+        throw new Error('Gemini API key not configured. Set GEMINI_API_KEY in .env/.env.local or Railway variables.');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);

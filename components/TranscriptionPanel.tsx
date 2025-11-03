@@ -196,9 +196,9 @@ const TranscriptionPanel: React.FC = () => {
     if (!file) return;
 
     // Check file type
-    const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/x-m4a'];
-    if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a)$/i)) {
-      setError('Invalid file type. Please upload MP3, WAV, or M4A files.');
+    const validTypes = ['audio/mp3','audio/mpeg','audio/wav','audio/m4a','audio/x-m4a','audio/webm','audio/ogg'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a|webm|ogg)$/i)) {
+      setError('Invalid file type. Please upload MP3, WAV, M4A, WEBM, or OGG files.');
       return;
     }
 
