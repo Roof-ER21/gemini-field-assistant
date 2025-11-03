@@ -279,7 +279,8 @@ CREATE TABLE IF NOT EXISTS insurance_companies (
     website VARCHAR(255),
     notes TEXT,
     category VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_insurance_companies_name ON insurance_companies(name);

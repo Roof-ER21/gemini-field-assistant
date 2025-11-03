@@ -34,7 +34,7 @@ async function seed() {
       await client.query(
         `INSERT INTO insurance_companies (name, state, phone, email, address, website, notes, category)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-         ON CONFLICT DO NOTHING`,
+         ON CONFLICT (name) DO NOTHING`,
         [it.name, it.state, it.phone || null, it.email || null, it.address || null, it.website || null, it.notes || null, it.category || null]
       );
     }
@@ -51,4 +51,3 @@ async function seed() {
 }
 
 seed();
-
