@@ -149,13 +149,18 @@ body {
 }
 
 .roof-er-logo {
-  background: var(--roof-red);
-  color: var(--text-primary);
-  padding: 8px 16px;
-  font-weight: 700;
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
   border-radius: var(--radius-sm);
-  letter-spacing: 1px;
+}
+
+.roof-er-logo img {
+  height: 40px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .roof-er-app-title {
@@ -975,9 +980,12 @@ body {
   }
 
   .roof-er-logo {
-    font-size: 14px;
-    padding: 8px 14px;
+    padding: 4px 8px;
     min-height: 44px;
+  }
+
+  .roof-er-logo img {
+    height: 36px;
   }
 
   .roof-er-app-title {

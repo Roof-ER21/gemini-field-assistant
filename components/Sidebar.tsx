@@ -20,10 +20,40 @@ interface SidebarProps {
   onQuickAction?: (action: QuickActionType) => void;
 }
 
+// Custom S21 Triangle Icon Component
+const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M12 4L20 20H4L12 4Z"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <text
+      x="12"
+      y="17"
+      fontFamily="sans-serif"
+      fontSize="7"
+      fontWeight="bold"
+      fill="#000000"
+      textAnchor="middle"
+    >
+      S21
+    </text>
+  </svg>
+);
+
 const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickAction }) => {
   const navItems = [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
-    { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: MessageSquare },
+    { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
     { id: 'image', label: 'Upload Analysis', desc: 'Docs & photos review', icon: Image },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },

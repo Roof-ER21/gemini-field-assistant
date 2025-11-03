@@ -164,7 +164,15 @@ const App: React.FC = () => {
           </button>
 
           <div className="roof-er-logo">
-            <span>ROOF ER</span>
+            <img
+              src="/roofer-logo-icon.png"
+              alt="ROOFER"
+              style={{
+                height: '40px',
+                width: 'auto',
+                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+              }}
+            />
           </div>
           <div className="roof-er-app-title">S21 FIELD AI</div>
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>

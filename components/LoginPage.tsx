@@ -93,81 +93,73 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     <div
       className="min-h-screen flex items-center justify-center px-4"
       style={{
-        background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+        background: '#000000',
         position: 'relative',
         overflow: 'hidden'
       }}
     >
-      {/* Background decorative elements */}
+      {/* Full Logo Background */}
       <div style={{
         position: 'absolute',
-        top: '-10%',
-        right: '-5%',
-        width: '500px',
-        height: '500px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)',
-        pointerEvents: 'none'
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        backgroundImage: 'url(/roofer-logo-full.png)',
+        backgroundSize: 'contain',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        opacity: '0.15',
+        pointerEvents: 'none',
+        filter: 'blur(1px)'
       }} />
+
+      {/* Gradient overlay for better text readability */}
       <div style={{
         position: 'absolute',
-        bottom: '-10%',
-        left: '-5%',
-        width: '400px',
-        height: '400px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%)',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        background: 'radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.7) 100%)',
         pointerEvents: 'none'
       }} />
 
       <div className="w-full max-w-md" style={{ position: 'relative', zIndex: 1 }}>
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          {/* Roof-ER Logo */}
+          {/* Full ROOFER Logo Image */}
           <div style={{
-            display: 'inline-block',
-            marginBottom: '20px',
-            padding: '16px 24px',
-            background: 'rgba(26, 31, 46, 0.6)',
-            borderRadius: '16px',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: '20px'
           }}>
-            <svg width="240" height="60" viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg">
-              {/* House Icon with roof layers and cross */}
-              <g>
-                {/* Roof structure */}
-                <path d="M 15 30 L 30 15 L 45 30" fill="none" stroke="#9ca3af" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M 12 35 L 30 17 L 48 35" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                {/* House body */}
-                <rect x="18" y="30" width="24" height="20" fill="none" stroke="#9ca3af" strokeWidth="2.5" rx="1"/>
-                {/* Red medical cross */}
-                <rect x="27" y="33" width="6" height="14" fill="#ef4444" rx="1"/>
-                <rect x="23" y="37" width="14" height="6" fill="#ef4444" rx="1"/>
-              </g>
-
-              {/* ROOFER Text - Larger and Clearer */}
-              <text x="60" y="42" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="32" fontWeight="900" fill="#e5e7eb" letterSpacing="-1">ROOF</text>
-              <text x="155" y="42" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="32" fontWeight="900" fill="#ef4444" letterSpacing="-1">ER</text>
-
-              {/* Subtitle - More visible */}
-              <text x="62" y="54" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="9" fontWeight="600" fill="#9ca3af" letterSpacing="1.5">THE ROOF DOCS</text>
-            </svg>
+            <img
+              src="/roofer-logo-full.png"
+              alt="ROOFER - The Roof Docs"
+              style={{
+                width: '280px',
+                height: 'auto',
+                filter: 'drop-shadow(0 8px 24px rgba(239, 68, 68, 0.4))'
+              }}
+            />
           </div>
 
           <h1
             className="text-3xl font-bold mb-2"
             style={{
               color: '#ffffff',
-              letterSpacing: '-0.02em'
+              letterSpacing: '-0.02em',
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.8)'
             }}
           >
             S21 Field AI
           </h1>
           <p style={{
-            color: 'rgba(255, 255, 255, 0.6)',
+            color: 'rgba(255, 255, 255, 0.7)',
             fontSize: '14px',
-            fontWeight: 500
+            fontWeight: 500,
+            textShadow: '0 1px 4px rgba(0, 0, 0, 0.8)'
           }}>
             Your intelligent field assistant
           </p>
