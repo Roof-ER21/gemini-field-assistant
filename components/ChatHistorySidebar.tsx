@@ -24,6 +24,9 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
   const [showLoadMore, setShowLoadMore] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [isLoadMoreHovered, setIsLoadMoreHovered] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -272,8 +275,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               ) : (
                 <div style={{ padding: '0.5rem' }}>
                   {sessions.map((session) => {
-                    const [isHovered, setIsHovered] = useState(false);
-                    const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+                    const isHovered = hoveredSessionId === session.session_id;
                     const isActive = currentSessionId === session.session_id;
 
                     return (
@@ -286,8 +288,11 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                           marginBottom: '0.25rem',
                           transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={() => setIsHovered(true)}
-                        onMouseLeave={() => setIsHovered(false)}
+                        onMouseEnter={() => setHoveredSessionId(session.session_id)}
+                        onMouseLeave={() => {
+                          setHoveredSessionId(null);
+                          setHoveredButton(null);
+                        }}
                       >
                         {/* Session Header */}
                         <div
@@ -389,7 +394,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === 'txt' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              background: hoveredButton === `${session.session_id}-txt` ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
                               color: '#9ca3af',
                               border: 'none',
                               borderRadius: '0.375rem',
@@ -401,7 +406,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               transition: 'background 0.2s',
                               fontWeight: '500'
                             }}
-                            onMouseEnter={() => setHoveredButton('txt')}
+                            onMouseEnter={() => setHoveredButton(`${session.session_id}-txt`)}
                             onMouseLeave={() => setHoveredButton(null)}
                             title="Export as text"
                           >
@@ -417,7 +422,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === 'json' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              background: hoveredButton === `${session.session_id}-json` ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
                               color: '#9ca3af',
                               border: 'none',
                               borderRadius: '0.375rem',
@@ -429,7 +434,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               transition: 'background 0.2s',
                               fontWeight: '500'
                             }}
-                            onMouseEnter={() => setHoveredButton('json')}
+                            onMouseEnter={() => setHoveredButton(`${session.session_id}-json`)}
                             onMouseLeave={() => setHoveredButton(null)}
                             title="Export as JSON"
                           >
@@ -444,8 +449,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                             style={{
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === 'delete' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
-                              color: hoveredButton === 'delete' ? '#ef4444' : '#dc2626',
+                              background: hoveredButton === `${session.session_id}-delete` ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                              color: hoveredButton === `${session.session_id}-delete` ? '#ef4444' : '#dc2626',
                               border: 'none',
                               borderRadius: '0.375rem',
                               cursor: 'pointer',
@@ -455,7 +460,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               transition: 'all 0.2s',
                               fontWeight: '500'
                             }}
-                            onMouseEnter={() => setHoveredButton('delete')}
+                            onMouseEnter={() => setHoveredButton(`${session.session_id}-delete`)}
                             onMouseLeave={() => setHoveredButton(null)}
                             title="Delete conversation"
                           >
@@ -469,33 +474,30 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               )}
 
               {/* Load More Button */}
-              {showLoadMore && (() => {
-                const [isLoadMoreHovered, setIsLoadMoreHovered] = useState(false);
-                return (
-                  <div style={{ padding: '0.75rem' }}>
-                    <button
-                      onClick={loadSessions}
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem 1rem',
-                        fontSize: '0.875rem',
-                        color: isLoadMoreHovered ? '#fff' : '#9ca3af',
-                        background: isLoadMoreHovered ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        fontWeight: '500',
-                        letterSpacing: '-0.01em'
-                      }}
-                      onMouseEnter={() => setIsLoadMoreHovered(true)}
-                      onMouseLeave={() => setIsLoadMoreHovered(false)}
-                    >
-                      Load More
-                    </button>
-                  </div>
-                );
-              })()}
+              {showLoadMore && (
+                <div style={{ padding: '0.75rem' }}>
+                  <button
+                    onClick={loadSessions}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 1rem',
+                      fontSize: '0.875rem',
+                      color: isLoadMoreHovered ? '#fff' : '#9ca3af',
+                      background: isLoadMoreHovered ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontWeight: '500',
+                      letterSpacing: '-0.01em'
+                    }}
+                    onMouseEnter={() => setIsLoadMoreHovered(true)}
+                    onMouseLeave={() => setIsLoadMoreHovered(false)}
+                  >
+                    Load More
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
