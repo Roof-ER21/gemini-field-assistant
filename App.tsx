@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
 
   // Check authentication on mount
   useEffect(() => {
@@ -66,7 +67,13 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     setShowUserProfile(false);
+    setShowChatHistory(false);
     setActivePanel('home');
+  };
+
+  const handleOpenUserProfile = () => {
+    setShowChatHistory(false); // Close chat history when opening user profile
+    setShowUserProfile(true);
   };
 
   // Show login page if not authenticated
@@ -79,7 +86,14 @@ const App: React.FC = () => {
       case 'home':
         return <HomePage setActivePanel={setActivePanel} />;
       case 'chat':
-        return <ChatPanel onStartEmail={handleStartEmail} onOpenDocument={handleOpenDocument} />;
+        return (
+          <ChatPanel
+            onStartEmail={handleStartEmail}
+            onOpenDocument={handleOpenDocument}
+            showHistorySidebar={showChatHistory}
+            onToggleHistory={(show: boolean) => setShowChatHistory(show)}
+          />
+        );
       case 'image':
         return <ImageAnalysisPanel />;
       case 'transcribe':
@@ -125,7 +139,7 @@ const App: React.FC = () => {
           {currentUser && (
             <div
               className="roof-er-header-btn cursor-pointer"
-              onClick={() => setShowUserProfile(true)}
+              onClick={handleOpenUserProfile}
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <div
@@ -139,7 +153,7 @@ const App: React.FC = () => {
           )}
           <button
             className="roof-er-header-btn"
-            onClick={() => setShowUserProfile(true)}
+            onClick={handleOpenUserProfile}
           >
             <Settings className="w-4 h-4 inline mr-1" />
             Settings

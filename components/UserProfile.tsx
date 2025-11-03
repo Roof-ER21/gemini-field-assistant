@@ -78,14 +78,22 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center px-4 z-50"
-      style={{ background: 'rgba(0, 0, 0, 0.7)' }}
+      className="fixed inset-0 flex items-center justify-center px-4"
+      style={{
+        background: 'rgba(0, 0, 0, 0.75)',
+        zIndex: 10000,
+        animation: 'fadeIn 0.2s ease-in-out'
+      }}
     >
       <div
-        className="w-full max-w-md rounded-lg shadow-xl"
+        className="w-full max-w-md rounded-xl"
         style={{
           background: 'var(--bg-elevated)',
-          border: '2px solid var(--roof-red)'
+          border: '2px solid var(--roof-red)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          animation: 'slideUp 0.3s ease-out',
+          maxHeight: '90vh',
+          overflowY: 'auto'
         }}
       >
         {/* Header */}
@@ -241,7 +249,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             {editing ? (
               <>
                 <button
@@ -269,7 +277,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
                     setSuccess('');
                   }}
                   disabled={saving}
-                  className="px-6 py-3 rounded-lg font-semibold text-base transition-all"
+                  className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-base transition-all"
                   style={{
                     background: 'var(--bg-hover)',
                     color: 'var(--text-primary)',
@@ -298,13 +306,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="px-6 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
                   style={{
                     background: 'var(--bg-hover)',
                     color: 'var(--error)',
                     border: '2px solid var(--error)',
                     cursor: 'pointer',
-                    minHeight: '50px'
+                    minHeight: '50px',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <LogOut className="w-5 h-5" />

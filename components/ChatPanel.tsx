@@ -17,9 +17,16 @@ import ChatHistorySidebar from './ChatHistorySidebar';
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
   onOpenDocument?: (documentPath: string) => void;
+  showHistorySidebar?: boolean;
+  onToggleHistory?: (show: boolean) => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({
+  onStartEmail,
+  onOpenDocument,
+  showHistorySidebar = false,
+  onToggleHistory
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +36,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
-  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -358,7 +364,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
       {/* Chat History Sidebar */}
       <ChatHistorySidebar
         isOpen={showHistorySidebar}
-        onClose={() => setShowHistorySidebar(false)}
+        onClose={() => onToggleHistory?.(false)}
         onLoadSession={handleLoadSession}
         onNewChat={handleNewChat}
         currentSessionId={currentSessionId}
@@ -367,7 +373,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
       {/* Header with Hamburger Menu */}
       <div className="roof-er-header">
         <button
-          onClick={() => setShowHistorySidebar(true)}
+          onClick={() => onToggleHistory?.(true)}
           className="roof-er-menu-btn"
           title="Chat History"
         >

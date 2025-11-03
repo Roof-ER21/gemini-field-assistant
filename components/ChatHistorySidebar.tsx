@@ -128,7 +128,11 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className="fixed inset-0 lg:hidden"
+            style={{
+              background: 'rgba(0, 0, 0, 0.6)',
+              zIndex: 1000
+            }}
             onClick={onClose}
           />
 
@@ -138,8 +142,12 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed left-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col"
-            style={{ maxWidth: 'calc(100vw - 60px)' }}
+            className="fixed left-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 flex flex-col"
+            style={{
+              maxWidth: 'calc(100vw - 60px)',
+              zIndex: 1100,
+              boxShadow: '4px 0 24px -4px rgba(0, 0, 0, 0.3)'
+            }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
