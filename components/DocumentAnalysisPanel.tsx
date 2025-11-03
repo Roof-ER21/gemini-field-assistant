@@ -40,8 +40,10 @@ interface AnalysisResult {
     adjusterEmail?: string;
     dateOfLoss?: string;
     propertyAddress?: string;
-    estimatedAmount?: string;
-    approvedAmount?: string;
+    rcv?: string; // Replacement Cost Value
+    acv?: string; // Actual Cash Value
+    recoverableDepreciation?: string;
+    nonRecoverableDepreciation?: string;
     deductible?: string;
     claimStatus?: string;
   };
@@ -259,20 +261,39 @@ const DocumentAnalysisPanel: React.FC = () => {
         additionalNotes ? `Additional Notes: ${additionalNotes}` : ''
       ].filter(Boolean).join('\n');
 
-      const analysisPrompt = `You are Susan, an expert insurance claim analyst. I've uploaded ${files.length} document(s) for analysis.
+      const analysisPrompt = `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
 
 ${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
 
-Please analyze these documents and provide:
+IMPORTANT INSTRUCTIONS FOR INSURANCE ESTIMATES:
 
-1. **Claim Status**: Determine if this is a FULL APPROVAL, PARTIAL APPROVAL, DENIAL, or UNKNOWN
-2. **Extracted Information**: Extract claim number, policy number, insurance company, adjuster name/contact, dates, amounts, deductible
-3. **Summary**: Brief overview of what the documents contain
-4. **Key Findings**: Important points from the documents
-5. **Damage Descriptions**: Any damage mentioned in the documents
-6. **Recommendations**: What the sales rep should do next
-7. **Next Steps**: Specific action items based on the claim status
+**Financial Values Parsing Rules:**
+1. Look for "RCV" or "Replacement Cost Value" - this is the TOTAL cost to replace/repair
+2. Look for "ACV" or "Actual Cash Value" - this is RCV minus depreciation
+3. Look for "Depreciation" amounts:
+   - If it says "Recoverable Depreciation" → use that value
+   - If it says "Non-Recoverable Depreciation" → use that value
+   - If it ONLY says "Depreciation" (without specifying type) → assume it's ALL recoverable, set non-recoverable to $0
+4. Look for "Deductible" - the homeowner's out-of-pocket cost
+
+**Sales Rep Guidance Rules:**
+- You are speaking TO THE SALES REP, not the homeowner
+- Do NOT say "you should hire a contractor" - the rep IS the contractor/roofer
+- Focus on how the rep can maximize the claim and get full approval
+- Use S21's knowledge base strategies for handling partial approvals, denials, and supplements
+- Reference specific techniques from the email templates, sales scripts, and claim strategies in the knowledge base
+- Be strategic - help the rep understand leverage points and next actions
+
+Analyze these documents and provide:
+
+1. **Claim Status**: FULL APPROVAL, PARTIAL APPROVAL, DENIAL, or UNKNOWN
+2. **Extracted Insurance Data**: Extract all claim details with correct terminology (RCV, ACV, depreciation breakdown, deductible)
+3. **Summary**: Brief overview of the estimate/claim documents
+4. **Key Findings**: Critical points the sales rep needs to know
+5. **Damage Descriptions**: All damage items mentioned
+6. **Recommendations**: Strategic advice for the sales rep based on S21's proven strategies (supplements, negotiations, documentation)
+7. **Next Steps**: Specific action items for the rep to maximize claim value and get full approval
 
 Format your response as JSON with this structure:
 {
@@ -286,16 +307,18 @@ Format your response as JSON with this structure:
     "adjusterEmail": "string or null",
     "dateOfLoss": "string or null",
     "propertyAddress": "string or null",
-    "estimatedAmount": "string or null",
-    "approvedAmount": "string or null",
-    "deductible": "string or null",
+    "rcv": "string (e.g., '$25,000.00') or null",
+    "acv": "string (e.g., '$20,000.00') or null",
+    "recoverableDepreciation": "string (e.g., '$5,000.00') or null",
+    "nonRecoverableDepreciation": "string (e.g., '$0.00') or null - ALWAYS $0 if not explicitly stated",
+    "deductible": "string (e.g., '$1,000.00') or null",
     "claimStatus": "string or null"
   },
   "summary": "string",
-  "keyFindings": ["array of strings"],
-  "damageDescriptions": ["array of strings"],
-  "recommendations": ["array of strings"],
-  "nextSteps": ["array of strings"]
+  "keyFindings": ["array of strings - what the sales rep must know"],
+  "damageDescriptions": ["array of damage items found"],
+  "recommendations": ["array of strategic recommendations for the sales rep using S21's proven techniques"],
+  "nextSteps": ["array of specific action items for the rep to execute"]
 }`;
 
       // Call multiAI service
@@ -707,7 +730,27 @@ Format your response as JSON with this structure:
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
                       {Object.entries(analysisResult.insuranceData).map(([key, value]) => {
                         if (!value) return null;
-                        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
+                        // Custom label mapping for insurance terminology
+                        const labelMap: Record<string, string> = {
+                          rcv: 'RCV (Replacement Cost Value)',
+                          acv: 'ACV (Actual Cash Value)',
+                          recoverableDepreciation: 'Recoverable Depreciation',
+                          nonRecoverableDepreciation: 'Non-Recoverable Depreciation',
+                          claimNumber: 'Claim Number',
+                          policyNumber: 'Policy Number',
+                          insuranceCompany: 'Insurance Company',
+                          adjusterName: 'Adjuster Name',
+                          adjusterPhone: 'Adjuster Phone',
+                          adjusterEmail: 'Adjuster Email',
+                          dateOfLoss: 'Date of Loss',
+                          propertyAddress: 'Property Address',
+                          deductible: 'Deductible',
+                          claimStatus: 'Claim Status'
+                        };
+
+                        const label = labelMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
                         return (
                           <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', padding: '0.5rem', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)' }}>
                             <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{label}:</span>
