@@ -18,8 +18,10 @@ type ToneOption = {
 };
 
 const EMAIL_TEMPLATES: EmailTemplate[] = [
-  { name: 'iTel Shingle Template', path: '/docs/Sales Rep Resources 2/Email Templates/iTel Shingle Template.md', description: 'For iTel shingle quotes and information' },
+  { name: 'MD Thank You - Homeowner', path: '/docs/Sales Rep Resources 2/Email Templates/MD Thank You - Homeowner.md', description: 'Maryland homeowner thank you email' },
+  { name: 'MD Follow-Up - Homeowner', path: '/docs/Sales Rep Resources 2/Email Templates/MD Follow-Up - Homeowner.md', description: 'Maryland homeowner follow-up email' },
   { name: 'Post AM Email Template', path: '/docs/Sales Rep Resources 2/Email Templates/Post AM Email Template.md', description: 'Follow-up after adjuster meeting' },
+  { name: 'iTel Shingle Template', path: '/docs/Sales Rep Resources 2/Email Templates/iTel Shingle Template.md', description: 'For iTel shingle quotes and information' },
   { name: 'PA Permit Denial - Siding Replacement', path: '/docs/Sales Rep Resources 2/Email Templates/PA Permit Denial - Siding Replacement.md', description: 'PA permit denial for siding - requires full replacement' },
   { name: 'Repair Attempt Template', path: '/docs/Sales Rep Resources 2/Email Templates/Repair Attempt Template.md', description: 'Document repair attempt for insurance' },
   { name: 'Photo Report Template', path: '/docs/Sales Rep Resources 2/Email Templates/Photo Report Template.md', description: 'Send photo documentation' },
