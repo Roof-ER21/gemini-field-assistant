@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePage';
 import ChatPanel from './components/ChatPanel';
@@ -8,15 +8,30 @@ import EmailPanel from './components/EmailPanel';
 import MapsPanel from './components/MapsPanel';
 import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
+import LoginPage from './components/LoginPage';
+import UserProfile from './components/UserProfile';
+import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [showUserProfile, setShowUserProfile] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelType>('home');
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+    }
+  }, []);
 
   const pageTitles: Record<PanelType, string> = {
     home: 'Home',
@@ -38,6 +53,26 @@ const App: React.FC = () => {
     setSelectedDocument(documentPath);
     setActivePanel('knowledge');
   };
+
+  const handleLoginSuccess = () => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setShowUserProfile(false);
+    setActivePanel('home');
+  };
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
 
   const renderPanel = () => {
     switch (activePanel) {
@@ -87,7 +122,25 @@ const App: React.FC = () => {
             <div className="roof-er-status-dot"></div>
             <span>4 AI Systems Active</span>
           </div>
-          <button className="roof-er-header-btn">
+          {currentUser && (
+            <div
+              className="roof-er-header-btn cursor-pointer"
+              onClick={() => setShowUserProfile(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{ background: 'var(--roof-red)' }}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="hidden md:inline">{currentUser.name}</span>
+            </div>
+          )}
+          <button
+            className="roof-er-header-btn"
+            onClick={() => setShowUserProfile(true)}
+          >
             <Settings className="w-4 h-4 inline mr-1" />
             Settings
           </button>
@@ -97,6 +150,14 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* User Profile Modal */}
+      {showUserProfile && (
+        <UserProfile
+          onClose={() => setShowUserProfile(false)}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* Main Content */}
       <div className="flex flex-1">

@@ -7,10 +7,12 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
+import { databaseService } from '../services/databaseService';
+import ChatHistorySidebar from './ChatHistorySidebar';
 
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
@@ -27,6 +29,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -91,8 +95,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('chatHistory', JSON.stringify(messages));
+      // Auto-save session
+      databaseService.saveChatSession(currentSessionId, messages);
     }
-  }, [messages]);
+  }, [messages, currentSessionId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -318,8 +324,55 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
     }
   };
 
+  const handleLoadSession = (sessionId: string, sessionMessages: any[]) => {
+    setMessages(sessionMessages);
+    setCurrentSessionId(sessionId);
+    setShowWelcome(false);
+    localStorage.setItem('chatHistory', JSON.stringify(sessionMessages));
+  };
+
+  const handleNewChat = () => {
+    const newSessionId = `session-${Date.now()}`;
+    setCurrentSessionId(newSessionId);
+    setMessages([]);
+    setShowWelcome(true);
+    localStorage.removeItem('chatHistory');
+
+    // Show welcome message
+    const welcomeMessage = personalityHelpers.getWelcomeMessage(false);
+    setMessages([{
+      id: 'initial',
+      text: welcomeMessage.text,
+      sender: 'bot'
+    }]);
+  };
+
   return (
     <div className="roof-er-content-area">
+      {/* Chat History Sidebar */}
+      <ChatHistorySidebar
+        isOpen={showHistorySidebar}
+        onClose={() => setShowHistorySidebar(false)}
+        onLoadSession={handleLoadSession}
+        onNewChat={handleNewChat}
+        currentSessionId={currentSessionId}
+      />
+
+      {/* Header with Hamburger Menu */}
+      <div className="roof-er-header">
+        <button
+          onClick={() => setShowHistorySidebar(true)}
+          className="roof-er-menu-btn"
+          title="Chat History"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="roof-er-header-title">
+          <span className="roof-er-logo">S21</span>
+          <span className="roof-er-subtitle">AI Roofing Assistant</span>
+        </div>
+      </div>
+
       {/* Messages Area */}
       <div className="roof-er-content-scroll">
         {showWelcome ? (

@@ -12,6 +12,10 @@ export interface Message {
     content: string;
     score: number;
   }>;
+  state?: string;
+  provider?: string;
+  session_id?: string;
+  created_at?: Date;
 }
 
 export interface GroundingChunk {

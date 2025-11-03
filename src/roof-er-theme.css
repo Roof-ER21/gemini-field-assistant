@@ -101,6 +101,45 @@ body {
   box-shadow: var(--shadow-red);
   z-index: var(--z-header);
   position: relative;
+  gap: 16px;
+}
+
+.roof-er-header-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.roof-er-subtitle {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.roof-er-menu-btn {
+  background: var(--bg-hover);
+  border: 2px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.roof-er-menu-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--roof-red);
+  transform: scale(1.05);
+}
+
+.roof-er-menu-btn:active {
+  transform: scale(0.95);
 }
 
 .roof-er-header-left {
@@ -885,6 +924,21 @@ body {
     display: flex;
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* Mobile-friendly header */
+  .roof-er-header {
+    padding: 10px 16px;
+  }
+
+  .roof-er-subtitle {
+    display: none;
+  }
+
+  .roof-er-menu-btn {
+    padding: 8px;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   /* Hide sidebar by default on mobile */

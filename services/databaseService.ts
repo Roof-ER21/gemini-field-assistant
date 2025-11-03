@@ -30,6 +30,18 @@ export interface ChatMessage {
   session_id: string;
 }
 
+export interface ChatSession {
+  session_id: string;
+  user_id: string;
+  title: string;
+  preview: string;
+  message_count: number;
+  first_message_at: Date;
+  last_message_at: Date;
+  state?: string;
+  messages?: ChatMessage[];
+}
+
 export interface DocumentView {
   id: string;
   user_id: string;
@@ -111,14 +123,68 @@ export class DatabaseService {
         name: user.name || 'Demo User',
         role: user.role || 'sales_rep',
         state: user.state || null,
-        created_at: new Date(),
-        last_login_at: new Date()
+        created_at: user.created_at || new Date(),
+        last_login_at: user.last_login_at || new Date()
       };
       localStorage.setItem('current_user', JSON.stringify(currentUser));
       return;
     }
 
     // TODO: Implement API call
+    // await fetch(`${this.apiBaseUrl}/users/me`, {
+    //   method: 'PUT',
+    //   body: JSON.stringify(user)
+    // });
+  }
+
+  async updateUser(userId: string, updates: Partial<User>): Promise<boolean> {
+    if (this.useLocalStorage) {
+      const userStr = localStorage.getItem('current_user');
+      if (!userStr) return false;
+
+      const user = JSON.parse(userStr);
+      if (user.id !== userId) return false;
+
+      const updatedUser = {
+        ...user,
+        ...updates,
+        id: user.id, // Don't allow ID change
+        email: user.email, // Don't allow email change
+        created_at: user.created_at // Don't allow created_at change
+      };
+
+      localStorage.setItem('current_user', JSON.stringify(updatedUser));
+      return true;
+    }
+
+    // TODO: Implement API call
+    return false;
+  }
+
+  async getUserPreferences(userId: string): Promise<any> {
+    if (this.useLocalStorage) {
+      const prefsStr = localStorage.getItem(`user_preferences_${userId}`);
+      return prefsStr ? JSON.parse(prefsStr) : {
+        preferred_state: null,
+        preferred_ai_provider: 'Gemini',
+        theme: 'dark',
+        notifications_enabled: true,
+        preferences: {}
+      };
+    }
+
+    // TODO: Implement API call
+    return null;
+  }
+
+  async updateUserPreferences(userId: string, preferences: any): Promise<boolean> {
+    if (this.useLocalStorage) {
+      localStorage.setItem(`user_preferences_${userId}`, JSON.stringify(preferences));
+      return true;
+    }
+
+    // TODO: Implement API call
+    return false;
   }
 
   // ============================================================================
@@ -152,6 +218,110 @@ export class DatabaseService {
 
     // TODO: Implement API call
     return [];
+  }
+
+  // ============================================================================
+  // CHAT SESSION METHODS
+  // ============================================================================
+
+  async saveChatSession(sessionId: string, messages: any[]): Promise<void> {
+    if (this.useLocalStorage) {
+      const sessionsStr = localStorage.getItem('chat_sessions') || '{}';
+      const sessions = JSON.parse(sessionsStr);
+
+      const userMessages = messages.filter(m => !m.text?.includes('Hey there!') && !m.text?.includes('Welcome back'));
+
+      if (userMessages.length === 0) {
+        return; // Don't save empty sessions
+      }
+
+      const firstUserMsg = userMessages.find(m => m.sender === 'user');
+      const lastMsg = userMessages[userMessages.length - 1];
+
+      sessions[sessionId] = {
+        session_id: sessionId,
+        user_id: 'demo-user',
+        title: firstUserMsg?.text.slice(0, 50) || 'New Chat',
+        preview: firstUserMsg?.text.slice(0, 100) || '',
+        message_count: userMessages.length,
+        first_message_at: new Date().toISOString(),
+        last_message_at: new Date().toISOString(),
+        state: userMessages.find(m => m.state)?.state || null,
+        messages: userMessages
+      };
+
+      localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+      return;
+    }
+
+    // TODO: Implement API call
+  }
+
+  async getChatSessions(limit: number = 20): Promise<ChatSession[]> {
+    if (this.useLocalStorage) {
+      const sessionsStr = localStorage.getItem('chat_sessions') || '{}';
+      const sessionsObj = JSON.parse(sessionsStr);
+
+      const sessions = Object.values(sessionsObj) as ChatSession[];
+
+      // Sort by last message date, most recent first
+      sessions.sort((a, b) =>
+        new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      );
+
+      return sessions.slice(0, limit);
+    }
+
+    // TODO: Implement API call
+    return [];
+  }
+
+  async getChatSession(sessionId: string): Promise<ChatSession | null> {
+    if (this.useLocalStorage) {
+      const sessionsStr = localStorage.getItem('chat_sessions') || '{}';
+      const sessions = JSON.parse(sessionsStr);
+      return sessions[sessionId] || null;
+    }
+
+    // TODO: Implement API call
+    return null;
+  }
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    if (this.useLocalStorage) {
+      const sessionsStr = localStorage.getItem('chat_sessions') || '{}';
+      const sessions = JSON.parse(sessionsStr);
+      delete sessions[sessionId];
+      localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+      return;
+    }
+
+    // TODO: Implement API call
+  }
+
+  async exportChatSession(sessionId: string, format: 'json' | 'txt' = 'json'): Promise<string> {
+    const session = await this.getChatSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (format === 'json') {
+      return JSON.stringify(session, null, 2);
+    }
+
+    // Plain text format
+    let text = `Chat Session: ${session.title}\n`;
+    text += `Date: ${new Date(session.first_message_at).toLocaleString()}\n`;
+    text += `Messages: ${session.message_count}\n`;
+    text += `\n${'='.repeat(80)}\n\n`;
+
+    session.messages?.forEach(msg => {
+      const sender = msg.sender === 'user' ? 'YOU' : 'S21';
+      const time = new Date(msg.created_at).toLocaleTimeString();
+      text += `[${time}] ${sender}:\n${msg.content}\n\n`;
+    });
+
+    return text;
   }
 
   // ============================================================================
