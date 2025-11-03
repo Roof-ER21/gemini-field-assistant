@@ -1079,6 +1079,47 @@ body {
     font-size: 20px;
     margin-bottom: 16px;
   }
+
+  /* Touch-friendly upload zone on mobile */
+  .roof-er-upload-zone {
+    padding: 30px 20px !important;
+    min-height: 60px !important;
+  }
+
+  .roof-er-upload-icon {
+    font-size: 48px !important;
+  }
+
+  .roof-er-upload-text {
+    font-size: 16px !important;
+  }
+
+  .roof-er-upload-subtext {
+    font-size: 13px !important;
+  }
+
+  /* Touch-friendly export buttons */
+  button[class*="export"],
+  button[class*="download"] {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  /* Mobile image zoom controls */
+  button[aria-label*="zoom"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Mobile comparison view */
+  .comparison-container {
+    flex-direction: column !important;
+  }
+
+  /* Mobile history grid */
+  .roof-er-doc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  }
 }
 
 /* Utility Classes */

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Play, Pause, Download, Trash2, Clock, CheckCircle, AlertCircle, User, MapPin } from 'lucide-react';
+import {
+  Mic, Square, Play, Pause, Download, Trash2, Clock, CheckCircle, AlertCircle,
+  User, MapPin, Upload, Copy, Share2, FileText, FileJson, FileType, Search,
+  Edit2, Check, X, Volume2, MoreVertical
+} from 'lucide-react';
 import {
   startRecording,
   stopRecording,
@@ -23,7 +27,20 @@ const TranscriptionPanel: React.FC = () => {
   const [selectedTranscript, setSelectedTranscript] = useState<MeetingTranscript | null>(null);
   const [meetingType, setMeetingType] = useState<'initial' | 'inspection' | 'followup' | 'closing' | 'other'>('initial');
   const [error, setError] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingSpeaker, setEditingSpeaker] = useState<{ index: number; name: string } | null>(null);
+  const [speakerNames, setSpeakerNames] = useState<{ [key: string]: string }>({});
+  const [audioVolume, setAudioVolume] = useState<number[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   const timerRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // Load saved transcripts
   useEffect(() => {
@@ -34,7 +51,14 @@ const TranscriptionPanel: React.FC = () => {
   useEffect(() => {
     if (recordingState?.isRecording && !recordingState.isPaused) {
       timerRef.current = window.setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          // Max 5 minutes (300 seconds)
+          if (prev >= 300) {
+            handleStopRecording();
+            return prev;
+          }
+          return prev + 1;
+        });
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -51,19 +75,62 @@ const TranscriptionPanel: React.FC = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Cleanup any active recording when component unmounts
       if (recordingState) {
         cleanupRecording(recordingState);
       }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
   }, [recordingState]);
+
+  // Audio visualization
+  const startAudioVisualization = (stream: MediaStream) => {
+    try {
+      audioContextRef.current = new AudioContext();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      source.connect(analyserRef.current);
+
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateVolume = () => {
+        if (!analyserRef.current || !recordingState?.isRecording) return;
+
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+
+        setAudioVolume(prev => {
+          const newVolume = [...prev, average];
+          // Keep only last 50 values
+          return newVolume.slice(-50);
+        });
+
+        animationFrameRef.current = requestAnimationFrame(updateVolume);
+      };
+
+      updateVolume();
+    } catch (err) {
+      console.error('Audio visualization error:', err);
+    }
+  };
 
   const handleStartRecording = async () => {
     try {
       setError('');
       setDuration(0);
+      setAudioVolume([]);
       const state = await startRecording();
       setRecordingState(state);
+
+      if (state.mediaRecorder?.stream) {
+        startAudioVisualization(state.mediaRecorder.stream);
+      }
     } catch (err) {
       setError((err as Error).message || 'Failed to start recording');
       console.error('Recording error:', err);
@@ -83,6 +150,16 @@ const TranscriptionPanel: React.FC = () => {
       // Clear recording state immediately
       setRecordingState(null);
       setDuration(0);
+      setAudioVolume([]);
+
+      // Stop audio visualization
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
 
       // Transcribe
       const transcript = await transcribeAudio(audioBlob, meetingType);
@@ -94,7 +171,6 @@ const TranscriptionPanel: React.FC = () => {
       setError((err as Error).message || 'Failed to transcribe audio');
       console.error('Transcription error:', err);
 
-      // Cleanup on error
       if (recordingState) {
         cleanupRecording(recordingState);
         setRecordingState(null);
@@ -116,6 +192,86 @@ const TranscriptionPanel: React.FC = () => {
     }
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+
+    // Check file type
+    const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/x-m4a'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a)$/i)) {
+      setError('Invalid file type. Please upload MP3, WAV, or M4A files.');
+      return;
+    }
+
+    // Check file size (50MB max)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('File too large. Maximum size is 50MB.');
+      return;
+    }
+
+    try {
+      setError('');
+      setIsTranscribing(true);
+      setUploadProgress(0);
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Convert file to blob
+      const audioBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+
+      // Transcribe
+      const transcript = await transcribeAudio(audioBlob, meetingType);
+
+      // Calculate approximate duration (not exact without decoding audio)
+      transcript.duration = Math.floor(file.size / 16000); // Rough estimate
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      setTimeout(() => {
+        setTranscripts(prev => [transcript, ...prev]);
+        setSelectedTranscript(transcript);
+        setUploadProgress(0);
+      }, 500);
+
+    } catch (err) {
+      setError((err as Error).message || 'Failed to transcribe audio file');
+      console.error('Upload error:', err);
+      setUploadProgress(0);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
   const handleDelete = (id: string) => {
     if (confirm('Delete this transcript?')) {
       deleteTranscript(id);
@@ -126,7 +282,7 @@ const TranscriptionPanel: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleExportMarkdown = () => {
     if (!selectedTranscript) return;
 
     try {
@@ -138,10 +294,112 @@ const TranscriptionPanel: React.FC = () => {
       a.download = `transcript-${selectedTranscript.timestamp.toISOString().split('T')[0]}-${selectedTranscript.metadata.meetingType}.md`;
       a.click();
       URL.revokeObjectURL(url);
+      setShowExportMenu(false);
     } catch (err) {
-      setError('Failed to download transcript');
-      console.error('Download error:', err);
+      setError('Failed to export as Markdown');
+      console.error('Export error:', err);
     }
+  };
+
+  const handleExportTXT = () => {
+    if (!selectedTranscript) return;
+
+    try {
+      const text = `MEETING TRANSCRIPT
+Date: ${selectedTranscript.timestamp.toLocaleString()}
+Duration: ${formatDuration(selectedTranscript.duration)}
+Type: ${selectedTranscript.metadata.meetingType}
+${selectedTranscript.metadata.customerName ? `Customer: ${selectedTranscript.metadata.customerName}` : ''}
+${selectedTranscript.metadata.propertyAddress ? `Property: ${selectedTranscript.metadata.propertyAddress}` : ''}
+
+SUMMARY
+${selectedTranscript.analysis.summary}
+
+FULL TRANSCRIPT
+${selectedTranscript.fullTranscript}
+
+Generated by S21 Field AI - Roof-ER
+`;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript-${selectedTranscript.timestamp.toISOString().split('T')[0]}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+    } catch (err) {
+      setError('Failed to export as TXT');
+      console.error('Export error:', err);
+    }
+  };
+
+  const handleExportJSON = () => {
+    if (!selectedTranscript) return;
+
+    try {
+      const json = JSON.stringify(selectedTranscript, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript-${selectedTranscript.timestamp.toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+    } catch (err) {
+      setError('Failed to export as JSON');
+      console.error('Export error:', err);
+    }
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (!selectedTranscript) return;
+
+    try {
+      await navigator.clipboard.writeText(selectedTranscript.fullTranscript);
+      alert('Transcript copied to clipboard!');
+    } catch (err) {
+      setError('Failed to copy to clipboard');
+      console.error('Copy error:', err);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!selectedTranscript) return;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: selectedTranscript.title,
+          text: selectedTranscript.analysis.summary,
+        });
+      } catch (err) {
+        console.error('Share error:', err);
+      }
+    } else {
+      handleCopyToClipboard();
+    }
+  };
+
+  const handleRenameSpeaker = (segmentIndex: number, currentSpeaker: string) => {
+    const currentName = speakerNames[currentSpeaker] || currentSpeaker;
+    setEditingSpeaker({ index: segmentIndex, name: currentName });
+  };
+
+  const saveSpeakerName = (speaker: string) => {
+    if (editingSpeaker) {
+      setSpeakerNames(prev => ({
+        ...prev,
+        [speaker]: editingSpeaker.name
+      }));
+      setEditingSpeaker(null);
+    }
+  };
+
+  const getSpeakerDisplayName = (speaker?: string) => {
+    if (!speaker || speaker === 'unknown') return 'Unknown';
+    return speakerNames[speaker] || (speaker === 'rep' ? 'Rep' : speaker === 'customer' ? 'Customer' : speaker);
   };
 
   const getSentimentColor = (sentiment: string) => {
@@ -161,6 +419,13 @@ const TranscriptionPanel: React.FC = () => {
       default: return '🙂';
     }
   };
+
+  const filteredTranscripts = transcripts.filter(t =>
+    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.fullTranscript.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.metadata.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.metadata.propertyAddress?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="roof-er-content-area">
@@ -187,7 +452,7 @@ const TranscriptionPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Recording Controls */}
+        {/* Recording & Upload Section */}
         <div style={{
           background: 'var(--bg-elevated)',
           border: '2px solid var(--border-color)',
@@ -206,18 +471,19 @@ const TranscriptionPanel: React.FC = () => {
                 <button
                   key={type}
                   onClick={() => setMeetingType(type)}
-                  disabled={!!recordingState}
+                  disabled={!!recordingState || isTranscribing}
                   style={{
-                    padding: '6px 12px',
+                    padding: '8px 16px',
                     background: meetingType === type ? 'var(--roof-red)' : 'var(--bg-primary)',
                     color: meetingType === type ? 'white' : 'var(--text-primary)',
                     border: meetingType === type ? 'none' : '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    cursor: recordingState ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
+                    borderRadius: '8px',
+                    cursor: (recordingState || isTranscribing) ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
                     fontWeight: 500,
                     textTransform: 'capitalize',
-                    opacity: recordingState ? 0.5 : 1
+                    opacity: (recordingState || isTranscribing) ? 0.5 : 1,
+                    transition: 'all 0.2s'
                   }}
                 >
                   {type}
@@ -227,7 +493,7 @@ const TranscriptionPanel: React.FC = () => {
           </div>
 
           {/* Recording Button */}
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '20px' }}>
             {!recordingState && !isTranscribing && (
               <button
                 onClick={handleStartRecording}
@@ -242,18 +508,24 @@ const TranscriptionPanel: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto',
-                  transition: 'transform 0.2s',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
                   boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
                 }}
-                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(220, 38, 38, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                }}
               >
                 <Mic className="w-16 h-16" style={{ color: 'white' }} />
               </button>
             )}
 
             {recordingState && (
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={handlePauseResume}
                   style={{
@@ -265,8 +537,11 @@ const TranscriptionPanel: React.FC = () => {
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    transition: 'transform 0.2s'
                   }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
                   {recordingState.isPaused ? (
                     <Play className="w-10 h-10" style={{ color: 'white' }} />
@@ -286,8 +561,11 @@ const TranscriptionPanel: React.FC = () => {
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    transition: 'transform 0.2s'
                   }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
                   <Square className="w-10 h-10" style={{ color: 'white' }} />
                 </button>
@@ -304,12 +582,51 @@ const TranscriptionPanel: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto'
+                margin: '0 auto',
+                position: 'relative'
               }}>
                 <Clock className="w-16 h-16 animate-spin" style={{ color: 'var(--roof-red)' }} />
+                {uploadProgress > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '-30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    fontSize: '13px',
+                    color: 'var(--text-secondary)',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {uploadProgress}%
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          {/* Audio Waveform Visualization */}
+          {recordingState && !recordingState.isPaused && audioVolume.length > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              height: '60px',
+              marginBottom: '16px'
+            }}>
+              {audioVolume.slice(-25).map((volume, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    width: '4px',
+                    height: `${Math.max(4, (volume / 255) * 60)}px`,
+                    background: 'var(--roof-red)',
+                    borderRadius: '2px',
+                    transition: 'height 0.1s'
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Status */}
           <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
@@ -321,7 +638,9 @@ const TranscriptionPanel: React.FC = () => {
               <span style={{ color: '#f59e0b' }}>⏸ Paused</span>
             )}
             {isTranscribing && (
-              <span style={{ color: 'var(--roof-red)' }}>Transcribing Audio...</span>
+              <span style={{ color: 'var(--roof-red)' }}>
+                {uploadProgress > 0 ? 'Processing Audio...' : 'Transcribing Audio...'}
+              </span>
             )}
           </div>
 
@@ -329,13 +648,55 @@ const TranscriptionPanel: React.FC = () => {
           {(recordingState || isTranscribing) && (
             <div style={{ fontSize: '32px', fontWeight: 600, color: 'var(--roof-red)', fontFamily: 'monospace' }}>
               {formatDuration(duration)}
+              {duration >= 300 && (
+                <div style={{ fontSize: '13px', color: '#f59e0b', marginTop: '4px' }}>
+                  Max recording time reached (5 min)
+                </div>
+              )}
             </div>
           )}
 
+          {/* File Upload Area */}
           {!recordingState && !isTranscribing && (
-            <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
-              Click to start recording customer conversations
-            </div>
+            <>
+              <div style={{ margin: '20px 0', color: 'var(--text-tertiary)', fontSize: '14px' }}>
+                or
+              </div>
+              <div
+                ref={dropZoneRef}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '30px',
+                  border: isDragging ? '3px dashed var(--roof-red)' : '2px dashed var(--border-color)',
+                  borderRadius: '12px',
+                  background: isDragging ? 'var(--roof-red)10' : 'var(--bg-primary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-secondary)' }} />
+                <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  Upload Audio File
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                  Drag & drop or click to select<br/>
+                  MP3, WAV, M4A (max 50MB)
+                </div>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/mp3,audio/mpeg,audio/wav,audio/m4a"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+              />
+            </>
           )}
         </div>
 
@@ -352,13 +713,15 @@ const TranscriptionPanel: React.FC = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-start',
-              marginBottom: '16px'
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              gap: '12px'
             }}>
-              <div>
+              <div style={{ flex: 1, minWidth: '200px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   {selectedTranscript.title}
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                   <span>{selectedTranscript.timestamp.toLocaleString()}</span>
                   <span>•</span>
                   <span>{formatDuration(selectedTranscript.duration)}</span>
@@ -382,14 +745,16 @@ const TranscriptionPanel: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
-                  onClick={handleDownload}
+                  onClick={handleCopyToClipboard}
                   style={{
                     padding: '8px 12px',
-                    background: 'var(--roof-red)',
-                    color: 'white',
-                    border: 'none',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontSize: '13px',
@@ -398,9 +763,125 @@ const TranscriptionPanel: React.FC = () => {
                     gap: '6px'
                   }}
                 >
-                  <Download className="w-4 h-4" />
-                  Download
+                  <Copy className="w-4 h-4" />
+                  Copy
                 </button>
+
+                <button
+                  onClick={handleShare}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
+
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'var(--roof-red)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
+                  </button>
+
+                  {showExportMenu && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '4px',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      zIndex: 100,
+                      minWidth: '160px'
+                    }}>
+                      <button
+                        onClick={handleExportTXT}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          color: 'var(--text-primary)',
+                          borderBottom: '1px solid var(--border-color)'
+                        }}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Export as TXT
+                      </button>
+                      <button
+                        onClick={handleExportMarkdown}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          color: 'var(--text-primary)',
+                          borderBottom: '1px solid var(--border-color)'
+                        }}
+                      >
+                        <FileType className="w-4 h-4" />
+                        Export as MD
+                      </button>
+                      <button
+                        onClick={handleExportJSON}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          color: 'var(--text-primary)'
+                        }}
+                      >
+                        <FileJson className="w-4 h-4" />
+                        Export as JSON
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => handleDelete(selectedTranscript.id)}
                   style={{
@@ -565,11 +1046,12 @@ const TranscriptionPanel: React.FC = () => {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {selectedTranscript.analysis.keyPoints.map((point, idx) => (
                     <span key={idx} style={{
-                      padding: '4px 10px',
+                      padding: '6px 12px',
                       background: 'var(--roof-red)20',
                       color: 'var(--roof-red)',
                       borderRadius: '6px',
-                      fontSize: '12px'
+                      fontSize: '12px',
+                      fontWeight: 500
                     }}>
                       {point}
                     </span>
@@ -598,7 +1080,7 @@ const TranscriptionPanel: React.FC = () => {
               </div>
             )}
 
-            {/* Full Transcript (Collapsible) */}
+            {/* Full Transcript with Speaker Labels */}
             <details style={{ marginTop: '16px' }}>
               <summary style={{
                 fontSize: '13px',
@@ -609,69 +1091,179 @@ const TranscriptionPanel: React.FC = () => {
                 background: 'var(--bg-primary)',
                 borderRadius: '6px'
               }}>
-                Full Transcript
+                Full Transcript with Speakers
               </summary>
-              <div style={{
-                marginTop: '8px',
-                padding: '12px',
-                background: 'var(--bg-primary)',
-                borderRadius: '6px',
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                lineHeight: '1.8',
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'monospace'
-              }}>
-                {selectedTranscript.fullTranscript}
+              <div style={{ marginTop: '8px' }}>
+                {selectedTranscript.segments.map((segment, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '10px 12px',
+                      background: segment.speaker === 'rep' ? '#3b82f620' : segment.speaker === 'customer' ? '#10b98120' : 'var(--bg-primary)',
+                      borderRadius: '6px',
+                      marginBottom: '8px',
+                      borderLeft: `3px solid ${segment.speaker === 'rep' ? '#3b82f6' : segment.speaker === 'customer' ? '#10b981' : 'var(--border-color)'}`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {editingSpeaker?.index === idx ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editingSpeaker.name}
+                              onChange={(e) => setEditingSpeaker({ ...editingSpeaker, name: e.target.value })}
+                              style={{
+                                padding: '4px 8px',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                background: 'var(--bg-elevated)',
+                                color: 'var(--text-primary)'
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => saveSpeakerName(segment.speaker || 'unknown')}
+                              style={{
+                                padding: '4px',
+                                background: '#10b981',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Check className="w-3 h-3" style={{ color: 'white' }} />
+                            </button>
+                            <button
+                              onClick={() => setEditingSpeaker(null)}
+                              style={{
+                                padding: '4px',
+                                background: '#dc2626',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <X className="w-3 h-3" style={{ color: 'white' }} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: segment.speaker === 'rep' ? '#3b82f6' : segment.speaker === 'customer' ? '#10b981' : 'var(--text-secondary)' }}>
+                              {getSpeakerDisplayName(segment.speaker)}
+                            </span>
+                            <button
+                              onClick={() => handleRenameSpeaker(idx, segment.speaker || 'unknown')}
+                              style={{
+                                padding: '2px',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                opacity: 0.5
+                              }}
+                            >
+                              <Edit2 className="w-3 h-3" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                        {formatDuration(segment.timestamp)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6' }}>
+                      {segment.text}
+                    </div>
+                  </div>
+                ))}
               </div>
             </details>
           </div>
         )}
 
-        {/* Recent Transcripts */}
+        {/* Search Bar */}
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          gap: '12px',
           marginTop: '30px',
           marginBottom: '12px'
         }}>
-          <div className="roof-er-page-title" style={{ fontSize: '18px', margin: 0 }}>
-            Recent Transcripts ({transcripts.length})
+          <div className="roof-er-page-title" style={{ fontSize: '18px', margin: 0, flex: 1 }}>
+            Transcription History ({transcripts.length})
+          </div>
+          <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
+            <Search className="w-4 h-4" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+            <input
+              type="text"
+              placeholder="Search transcripts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px 8px 36px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                fontSize: '13px',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)'
+              }}
+            />
           </div>
         </div>
 
-        {transcripts.length === 0 ? (
+        {/* Recent Transcripts */}
+        {filteredTranscripts.length === 0 ? (
           <div style={{
             padding: '40px',
             textAlign: 'center',
             color: 'var(--text-tertiary)',
             fontSize: '14px'
           }}>
-            No transcripts yet. Record a meeting to get started.
+            {searchQuery ? 'No transcripts found matching your search.' : 'No transcripts yet. Record a meeting to get started.'}
           </div>
         ) : (
           <div className="roof-er-doc-grid">
-            {transcripts.map((transcript) => (
+            {filteredTranscripts.map((transcript) => (
               <div
                 key={transcript.id}
                 className="roof-er-doc-card"
                 onClick={() => setSelectedTranscript(transcript)}
                 style={{
                   cursor: 'pointer',
-                  border: selectedTranscript?.id === transcript.id ? '2px solid var(--roof-red)' : undefined
+                  border: selectedTranscript?.id === transcript.id ? '2px solid var(--roof-red)' : undefined,
+                  position: 'relative'
                 }}
               >
-                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
+                <div style={{ fontSize: '20px', marginBottom: '8px' }}>
                   {getSentimentIcon(transcript.analysis.customerSentiment)}
                 </div>
                 <div className="roof-er-doc-title">{transcript.title}</div>
                 <div className="roof-er-doc-desc">
                   {formatDuration(transcript.duration)} • {transcript.metadata.meetingType}
                 </div>
-                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                  {transcript.analysis.actionItems.length} actions • {transcript.analysis.objections.length} objections
+                <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-tertiary)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <span>{transcript.analysis.actionItems.length} actions</span>
+                  <span>•</span>
+                  <span>{transcript.analysis.objections.length} objections</span>
+                  {transcript.analysis.estimatedValue && (
+                    <>
+                      <span>•</span>
+                      <span style={{ color: '#10b981', fontWeight: 600 }}>{transcript.analysis.estimatedValue}</span>
+                    </>
+                  )}
                 </div>
+                {transcript.audioUrl && (
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                    <audio
+                      controls
+                      src={transcript.audioUrl}
+                      style={{ width: '100%', height: '32px' }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

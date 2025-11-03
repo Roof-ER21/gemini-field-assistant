@@ -55,6 +55,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
       console.log('Available AI providers:', providers.length);
     });
 
+    // Load saved state selection
+    const savedState = localStorage.getItem('selectedState');
+    if (savedState && (savedState === 'VA' || savedState === 'MD' || savedState === 'PA')) {
+      setSelectedState(savedState);
+    }
+
     try {
       const savedMessages = localStorage.getItem('chatHistory');
       if (savedMessages) {
@@ -450,7 +456,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onStartEmail, onOpenDocument }) =
           {stateOptions.map((state) => (
             <button
               key={state.code}
-              onClick={() => setSelectedState(selectedState === state.code ? null : state.code as 'VA' | 'MD' | 'PA')}
+              onClick={() => {
+                const newState = selectedState === state.code ? null : state.code as 'VA' | 'MD' | 'PA';
+                setSelectedState(newState);
+                // Persist state selection
+                if (newState) {
+                  localStorage.setItem('selectedState', newState);
+                } else {
+                  localStorage.removeItem('selectedState');
+                }
+              }}
               style={{
                 padding: '6px 14px',
                 background: selectedState === state.code ? state.color : 'var(--bg-elevated)',
