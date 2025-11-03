@@ -428,7 +428,22 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   {renderTextWithCitations(section.content)}
                 </div>
                 <button
-                  onClick={() => copySection(section.content, index)}
+                  onClick={() => {
+                    // Find all related sections (action plan + following checklists)
+                    let fullActionPlan = section.content;
+
+                    // Look for the next section - if it's a checklist, include it
+                    for (let i = index + 1; i < sections.length; i++) {
+                      if (sections[i].type === 'checklist') {
+                        fullActionPlan += '\n\n' + sections[i].content;
+                        break; // Only include the immediate next checklist
+                      } else if (sections[i].type !== 'text') {
+                        break; // Stop if we hit a non-text, non-checklist section
+                      }
+                    }
+
+                    copySection(fullActionPlan, index);
+                  }}
                   style={{
                     marginTop: '12px',
                     padding: '8px 14px',
@@ -446,7 +461,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   }}
                 >
                   {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {isCopied ? 'Copied!' : 'Copy Action Plan'}
+                  {isCopied ? 'Copied Action Plan!' : 'Copy Full Action Plan'}
                 </button>
               </div>
             )}

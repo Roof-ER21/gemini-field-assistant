@@ -148,6 +148,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             className="fixed left-0 top-0 bottom-0 w-80 flex flex-col"
             style={{
               maxWidth: 'calc(100vw - 60px)',
+              height: '100vh',
               zIndex: 1100,
               background: '#0f1419',
               borderRight: '1px solid rgba(239, 68, 68, 0.3)',
