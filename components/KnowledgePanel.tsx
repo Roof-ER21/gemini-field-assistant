@@ -4,7 +4,7 @@ import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 
-type ViewMode = 'all' | 'recent' | 'favorites' | 'uploads';
+type ViewMode = 'all' | 'recent' | 'favorites';
 type SearchMode = 'title' | 'content';
 
 interface KnowledgePanelProps {
@@ -105,14 +105,6 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
           const favDocs = await enhancedKnowledgeService.getFavoriteDocuments();
           favDocs.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
           setDocuments(favDocs);
-          break;
-        case 'uploads':
-          {
-            const allDocs2 = await knowledgeService.getDocumentIndex();
-            const uploads = allDocs2.filter(d => d.category === 'User Uploads');
-            uploads.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
-            setDocuments(uploads);
-          }
           break;
       }
     } catch (error) {
@@ -309,25 +301,6 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             Favorites ({favorites.size})
           </button>
 
-          <button
-            onClick={() => setViewMode('uploads')}
-            style={{
-              padding: '8px 16px',
-              background: viewMode === 'uploads' ? 'var(--roof-red)' : 'var(--bg-hover)',
-              border: `1px solid ${viewMode === 'uploads' ? 'var(--roof-red)' : 'var(--border-default)'}`,
-              borderRadius: '8px',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <File className="w-4 h-4" />
-            Uploads
-          </button>
         </div>
 
         {/* Filters: Category + State */}
@@ -499,49 +472,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
                 >
                   <Pin className="w-5 h-5" />
                 </button>
-                {doc.category === 'User Uploads' && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ position: 'absolute', top: '48px', left: '12px', display: 'flex', gap: '6px' }}
-                  >
-                    <button
-                      title="Open in Chat"
-                      onClick={() => {
-                        try { localStorage.setItem('chat_quick_doc', JSON.stringify({ name: doc.name, path: doc.path })); } catch {}
-                        onOpenInChat?.(doc);
-                      }}
-                      style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--roof-red)', border: 'none', borderRadius: '9999px', color: '#fff' }}
-                    >Chat</button>
-                    <button
-                      title="Rename"
-                      onClick={() => {
-                        const newName = prompt('Rename document', doc.name);
-                        if (!newName) return;
-                        try {
-                          const raw = localStorage.getItem('user_uploads') || '[]';
-                          const list = JSON.parse(raw);
-                          const item = list.find((u: any) => u.path === doc.path);
-                          if (item) { item.name = newName; localStorage.setItem('user_uploads', JSON.stringify(list)); loadDocumentsForView(); }
-                        } catch {}
-                      }}
-                      style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--bg-hover)', border: '1px solid var(--border-default)', borderRadius: '9999px', color: 'var(--text-primary)' }}
-                    >Rename</button>
-                    <button
-                      title="Delete"
-                      onClick={() => {
-                        if (!confirm('Delete this uploaded document?')) return;
-                        try {
-                          const raw = localStorage.getItem('user_uploads') || '[]';
-                          let list = JSON.parse(raw);
-                          list = list.filter((u: any) => u.path !== doc.path);
-                          localStorage.setItem('user_uploads', JSON.stringify(list));
-                          loadDocumentsForView();
-                        } catch {}
-                      }}
-                      style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--bg-hover)', border: '1px solid var(--border-default)', borderRadius: '9999px', color: 'var(--text-primary)' }}
-                    >Delete</button>
-                  </div>
-                )}
+                {/* no upload toolbar in Knowledge – uploads managed in Upload Analysis */}
                 <div className="roof-er-doc-icon">{getDocIcon(doc.type)}</div>
                 <div className="roof-er-doc-title">{doc.name}</div>
                 <div className="roof-er-doc-desc">
