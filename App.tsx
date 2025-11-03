@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
+import HomePage from './components/HomePage';
 import ChatPanel from './components/ChatPanel';
 import ImageAnalysisPanel from './components/ImageAnalysisPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
@@ -9,21 +10,22 @@ import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
 import { Settings, History, Menu, X } from 'lucide-react';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
 
 const App: React.FC = () => {
-  const [activePanel, setActivePanel] = useState<PanelType>('chat');
+  const [activePanel, setActivePanel] = useState<PanelType>('home');
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitles: Record<PanelType, string> = {
+    home: 'Home',
     chat: 'Chat',
     knowledge: 'Knowledge Base',
     image: 'Image Analysis',
     transcribe: 'Transcription',
     email: 'Email Generator',
-    maps: 'Maps',
+    maps: 'Insurance Co',
     live: 'Live Conversation'
   };
 
@@ -39,6 +41,8 @@ const App: React.FC = () => {
 
   const renderPanel = () => {
     switch (activePanel) {
+      case 'home':
+        return <HomePage setActivePanel={setActivePanel} />;
       case 'chat':
         return <ChatPanel onStartEmail={handleStartEmail} onOpenDocument={handleOpenDocument} />;
       case 'image':
@@ -54,7 +58,7 @@ const App: React.FC = () => {
       case 'knowledge':
         return <KnowledgePanel selectedDocument={selectedDocument} onDocumentViewed={() => setSelectedDocument(null)} />;
       default:
-        return <ChatPanel onStartEmail={handleStartEmail} onOpenDocument={handleOpenDocument} />;
+        return <HomePage setActivePanel={setActivePanel} />;
     }
   };
 

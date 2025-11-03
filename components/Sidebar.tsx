@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Home,
   MessageSquare,
   BookOpen,
   Image,
@@ -12,7 +13,7 @@ import {
   DollarSign
 } from 'lucide-react';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
 
 interface SidebarProps {
   activePanel: PanelType;
@@ -21,6 +22,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
   const navItems = [
+    { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: MessageSquare },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
     { id: 'image', label: 'Image Analysis', desc: 'Roof damage detection', icon: Image },
