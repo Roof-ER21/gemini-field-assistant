@@ -142,151 +142,372 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed left-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 flex flex-col"
+            className="fixed left-0 top-0 bottom-0 w-80 flex flex-col"
             style={{
               maxWidth: 'calc(100vw - 60px)',
               zIndex: 1100,
-              boxShadow: '4px 0 24px -4px rgba(0, 0, 0, 0.3)'
+              background: '#0f1419',
+              borderRight: '1px solid rgba(239, 68, 68, 0.3)',
+              boxShadow: '4px 0 24px -4px rgba(0, 0, 0, 0.5)',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
             }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageSquare className="w-5 h-5" />
+            <div style={{
+              padding: '1rem',
+              borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h2 style={{
+                fontSize: '1.125rem',
+                fontWeight: '600',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                letterSpacing: '-0.01em'
+              }}>
+                <MessageSquare className="w-5 h-5" style={{ color: '#ef4444' }} />
                 Chat History
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                style={{
+                  padding: '0.5rem',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5" style={{ color: '#9ca3af' }} />
               </button>
             </div>
 
             {/* New Chat Button */}
-            <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+            <div style={{
+              padding: '0.75rem',
+              borderBottom: '1px solid rgba(239, 68, 68, 0.2)'
+            }}>
               <button
                 onClick={() => {
                   onNewChat();
                   onClose();
                 }}
-                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontWeight: '500',
+                  fontSize: '0.9375rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                  letterSpacing: '-0.01em'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#dc2626';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#ef4444';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.3)';
+                }}
               >
                 + New Chat
               </button>
             </div>
 
             {/* Sessions List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto" style={{ background: '#0f1419' }}>
               {isLoading ? (
-                <div className="p-8 text-center text-gray-500">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-2 text-sm">Loading conversations...</p>
+                <div style={{
+                  padding: '2rem',
+                  textAlign: 'center',
+                  color: '#9ca3af'
+                }}>
+                  <div style={{
+                    display: 'inline-block',
+                    width: '2rem',
+                    height: '2rem',
+                    border: '2px solid transparent',
+                    borderTopColor: '#ef4444',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                  <p style={{
+                    marginTop: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500'
+                  }}>Loading conversations...</p>
                 </div>
               ) : sessions.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No conversations yet</p>
-                  <p className="text-xs mt-1">Start chatting to see history here</p>
+                <div style={{
+                  padding: '2rem',
+                  textAlign: 'center',
+                  color: '#6b7280'
+                }}>
+                  <MessageSquare className="w-12 h-12 mx-auto mb-3" style={{ opacity: 0.3 }} />
+                  <p style={{
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    marginBottom: '0.25rem'
+                  }}>No conversations yet</p>
+                  <p style={{
+                    fontSize: '0.8125rem',
+                    color: '#4b5563'
+                  }}>Start chatting to see history here</p>
                 </div>
               ) : (
-                <div className="space-y-1 p-2">
-                  {sessions.map((session) => (
-                    <div
-                      key={session.session_id}
-                      className={`group rounded-lg border transition-all ${
-                        currentSessionId === session.session_id
-                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
-                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      {/* Session Header */}
-                      <div
-                        onClick={() => handleLoadSession(session.session_id)}
-                        className="p-3 cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between mb-1">
-                          <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-1 flex-1">
-                            {session.title}
-                          </h3>
-                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
-                        </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
-                          {session.preview}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatRelativeTime(session.last_message_at)}
-                          </span>
-                          <span>{session.message_count} messages</span>
-                          {session.state && (
-                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
-                              {session.state}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                <div style={{ padding: '0.5rem' }}>
+                  {sessions.map((session) => {
+                    const [isHovered, setIsHovered] = useState(false);
+                    const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+                    const isActive = currentSessionId === session.session_id;
 
-                      {/* Action Buttons */}
-                      <div className="px-3 pb-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExportSession(session.session_id, 'txt');
+                    return (
+                      <div
+                        key={session.session_id}
+                        style={{
+                          background: isActive ? 'rgba(239, 68, 68, 0.1)' : '#1a1f2e',
+                          border: `1px solid ${isActive ? 'rgba(239, 68, 68, 0.4)' : isHovered ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          borderRadius: '0.5rem',
+                          marginBottom: '0.25rem',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => setIsHovered(false)}
+                      >
+                        {/* Session Header */}
+                        <div
+                          onClick={() => handleLoadSession(session.session_id)}
+                          style={{
+                            padding: '0.75rem',
+                            cursor: 'pointer'
                           }}
-                          className="flex-1 px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center justify-center gap-1"
-                          title="Export as text"
                         >
-                          <Download className="w-3 h-3" />
-                          TXT
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExportSession(session.session_id, 'json');
-                          }}
-                          className="flex-1 px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center justify-center gap-1"
-                          title="Export as JSON"
-                        >
-                          <Download className="w-3 h-3" />
-                          JSON
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSession(session.session_id);
-                          }}
-                          className="px-2 py-1.5 text-xs bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded"
-                          title="Delete conversation"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            marginBottom: '0.25rem'
+                          }}>
+                            <h3 style={{
+                              fontWeight: '500',
+                              fontSize: '0.875rem',
+                              color: '#fff',
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 1,
+                              WebkitBoxOrient: 'vertical',
+                              lineHeight: '1.25rem',
+                              letterSpacing: '-0.01em'
+                            }}>
+                              {session.title}
+                            </h3>
+                            <ChevronRight
+                              style={{
+                                width: '1rem',
+                                height: '1rem',
+                                color: '#9ca3af',
+                                flexShrink: 0,
+                                marginLeft: '0.5rem'
+                              }}
+                            />
+                          </div>
+                          <p style={{
+                            fontSize: '0.8125rem',
+                            color: '#9ca3af',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            marginBottom: '0.5rem',
+                            lineHeight: '1.25rem'
+                          }}>
+                            {session.preview}
+                          </p>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            fontSize: '0.8125rem',
+                            color: '#9ca3af'
+                          }}>
+                            <span style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <Clock style={{ width: '0.75rem', height: '0.75rem' }} />
+                              {formatRelativeTime(session.last_message_at)}
+                            </span>
+                            <span>{session.message_count} messages</span>
+                            {session.state && (
+                              <span style={{
+                                padding: '0.125rem 0.5rem',
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                color: '#ef4444',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                              }}>
+                                {session.state}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{
+                          padding: '0 0.75rem 0.5rem 0.75rem',
+                          display: 'flex',
+                          gap: '0.5rem',
+                          opacity: isHovered ? 1 : 0,
+                          transition: 'opacity 0.2s'
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportSession(session.session_id, 'txt');
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.375rem 0.5rem',
+                              fontSize: '0.75rem',
+                              background: hoveredButton === 'txt' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              color: '#9ca3af',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              transition: 'background 0.2s',
+                              fontWeight: '500'
+                            }}
+                            onMouseEnter={() => setHoveredButton('txt')}
+                            onMouseLeave={() => setHoveredButton(null)}
+                            title="Export as text"
+                          >
+                            <Download style={{ width: '0.75rem', height: '0.75rem' }} />
+                            TXT
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportSession(session.session_id, 'json');
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.375rem 0.5rem',
+                              fontSize: '0.75rem',
+                              background: hoveredButton === 'json' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              color: '#9ca3af',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              transition: 'background 0.2s',
+                              fontWeight: '500'
+                            }}
+                            onMouseEnter={() => setHoveredButton('json')}
+                            onMouseLeave={() => setHoveredButton(null)}
+                            title="Export as JSON"
+                          >
+                            <Download style={{ width: '0.75rem', height: '0.75rem' }} />
+                            JSON
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSession(session.session_id);
+                            }}
+                            style={{
+                              padding: '0.375rem 0.5rem',
+                              fontSize: '0.75rem',
+                              background: hoveredButton === 'delete' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                              color: hoveredButton === 'delete' ? '#ef4444' : '#dc2626',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s',
+                              fontWeight: '500'
+                            }}
+                            onMouseEnter={() => setHoveredButton('delete')}
+                            onMouseLeave={() => setHoveredButton(null)}
+                            title="Delete conversation"
+                          >
+                            <Trash2 style={{ width: '0.75rem', height: '0.75rem' }} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* Load More Button */}
-              {showLoadMore && (
-                <div className="p-3">
-                  <button
-                    onClick={loadSessions}
-                    className="w-full px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    Load More
-                  </button>
-                </div>
-              )}
+              {showLoadMore && (() => {
+                const [isLoadMoreHovered, setIsLoadMoreHovered] = useState(false);
+                return (
+                  <div style={{ padding: '0.75rem' }}>
+                    <button
+                      onClick={loadSessions}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.875rem',
+                        color: isLoadMoreHovered ? '#fff' : '#9ca3af',
+                        background: isLoadMoreHovered ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontWeight: '500',
+                        letterSpacing: '-0.01em'
+                      }}
+                      onMouseEnter={() => setIsLoadMoreHovered(true)}
+                      onMouseLeave={() => setIsLoadMoreHovered(false)}
+                    >
+                      Load More
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Footer */}
-            <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-center text-gray-500">
+            <div style={{
+              padding: '0.75rem',
+              borderTop: '1px solid rgba(239, 68, 68, 0.2)'
+            }}>
+              <p style={{
+                fontSize: '0.75rem',
+                textAlign: 'center',
+                color: '#6b7280'
+              }}>
                 Swipe right to close
               </p>
             </div>
