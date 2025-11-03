@@ -32,6 +32,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1]));
   const [copiedSections, setCopiedSections] = useState<Set<number>>(new Set());
   const [hoveredCitation, setHoveredCitation] = useState<number | null>(null); // Track citation number only
+  const [firstCitationElements] = useState<Map<number, boolean>>(new Map()); // Track first occurrence of each citation
 
   // Parse the raw response into structured sections
   const parseResponse = (text: string): ParsedSection[] => {
@@ -196,8 +197,11 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
             const source = sources[citationNum - 1];
 
             if (source) {
-              // Only show tooltip on the first occurrence of each citation number
-              const isFirstOccurrence = parts.slice(0, idx).filter(p => p === part).length === 0;
+              // Check if this is the first time we're seeing this citation number
+              const isFirstOccurrence = !firstCitationElements.has(citationNum);
+              if (isFirstOccurrence) {
+                firstCitationElements.set(citationNum, true);
+              }
 
               return (
                 <span
