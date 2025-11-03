@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Copy, Check, Download, ChevronDown, ChevronUp, Zap, Target, FileText, AlertCircle, Mail } from 'lucide-react';
 
 interface SourceDocument {
@@ -31,13 +31,7 @@ interface ParsedSection {
 const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, onStartEmail, onOpenDocument, sources }) => {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1]));
   const [copiedSections, setCopiedSections] = useState<Set<number>>(new Set());
-  const [hoveredCitation, setHoveredCitation] = useState<number | null>(null); // Track citation number only
-  const firstCitationElementsRef = useRef<Map<number, boolean>>(new Map()); // Track first occurrence of each citation
-
-  // Clear the citation tracking map when content changes
-  useEffect(() => {
-    firstCitationElementsRef.current.clear();
-  }, [content]);
+  const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
 
   // Parse the raw response into structured sections
   const parseResponse = (text: string): ParsedSection[] => {
@@ -202,17 +196,14 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
             const source = sources[citationNum - 1];
 
             if (source) {
-              // Check if this is the first time we're seeing this citation number
-              const isFirstOccurrence = !firstCitationElementsRef.current.has(citationNum);
-              if (isFirstOccurrence) {
-                firstCitationElementsRef.current.set(citationNum, true);
-              }
+              // Create unique ID for this specific citation instance
+              const citationId = `citation-${citationNum}-${idx}`;
 
               return (
                 <span
                   key={idx}
                   onMouseEnter={(e) => {
-                    setHoveredCitation(citationNum);
+                    setHoveredCitation(citationId);
                     e.currentTarget.style.background = 'rgba(220, 38, 38, 0.25)';
                     e.currentTarget.style.transform = 'scale(1.1)';
                   }}
@@ -244,7 +235,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   }}
                 >
                   {part}
-                  {hoveredCitation === citationNum && isFirstOccurrence && (
+                  {hoveredCitation === citationId && (
                     <div
                       style={{
                         position: 'absolute',

@@ -7,30 +7,18 @@ import ReactMarkdown from 'react-markdown';
 interface DocumentViewerProps {
   document: Document;
   onClose: () => void;
-  highlightFromCitation?: boolean; // Flag to show citation highlight effect
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, highlightFromCitation = false }) => {
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) => {
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTOC, setShowTOC] = useState(false);
   const [toc, setToc] = useState<{ level: number; text: string; id: string }[]>([]);
-  const [showHighlight, setShowHighlight] = useState(highlightFromCitation);
 
   useEffect(() => {
     loadDocumentContent();
   }, [document]);
-
-  // Auto-hide highlight effect after 3 seconds
-  useEffect(() => {
-    if (showHighlight) {
-      const timer = setTimeout(() => {
-        setShowHighlight(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showHighlight]);
 
   const loadDocumentContent = async () => {
     try {
@@ -395,54 +383,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, high
               style={{
                 color: 'var(--text-primary)',
                 lineHeight: 1.7,
-                position: 'relative'
               }}
             >
-              {/* Citation highlight banner */}
-              {showHighlight && (
-                <div
-                  style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 100,
-                    background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%)',
-                    padding: '12px 20px',
-                    borderRadius: '8px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)',
-                    animation: 'slideDown 0.3s ease-out',
-                    border: '2px solid rgba(255, 255, 255, 0.2)'
-                  }}
-                >
-                  <span style={{ fontSize: '20px' }}>📌</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '2px' }}>
-                      Opened from Citation
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)' }}>
-                      This document was referenced in your conversation
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowHighlight(false)}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.2)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      borderRadius: '4px',
-                      padding: '4px 8px',
-                      color: 'white',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      fontWeight: 600
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
               <ReactMarkdown
                 components={{
                   h1: ({node, children, ...props}) => {
