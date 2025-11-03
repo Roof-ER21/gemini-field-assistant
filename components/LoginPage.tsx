@@ -122,53 +122,51 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       <div className="w-full max-w-md" style={{ position: 'relative', zIndex: 1 }}>
         {/* Logo and Title */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           {/* Roof-ER Logo */}
           <div style={{
             display: 'inline-block',
-            marginBottom: '24px',
-            padding: '20px',
-            background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%)',
-            borderRadius: '20px',
-            boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), 0 0 0 1px rgba(239, 68, 68, 0.2)'
+            marginBottom: '20px',
+            padding: '16px 24px',
+            background: 'rgba(26, 31, 46, 0.6)',
+            borderRadius: '16px',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
           }}>
-            <svg width="200" height="80" viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg">
-              {/* Roof Icon */}
-              <g transform="translate(0, 0)">
-                {/* House outline */}
-                <path d="M 120 100 L 180 60 L 240 100 L 240 160 L 120 160 Z" fill="none" stroke="#4a4a4a" strokeWidth="8"/>
-                {/* Roof layers */}
-                <path d="M 100 100 L 180 40 L 260 100" fill="none" stroke="#4a4a4a" strokeWidth="10" strokeLinecap="round"/>
-                <path d="M 110 120 L 180 70 L 250 120" fill="none" stroke="#4a4a4a" strokeWidth="8" strokeLinecap="round"/>
-                {/* Red cross */}
-                <rect x="170" y="110" width="20" height="50" fill="#ef4444" rx="2"/>
-                <rect x="155" y="125" width="50" height="20" fill="#ef4444" rx="2"/>
+            <svg width="240" height="60" viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg">
+              {/* House Icon with roof layers and cross */}
+              <g>
+                {/* Roof structure */}
+                <path d="M 15 30 L 30 15 L 45 30" fill="none" stroke="#9ca3af" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M 12 35 L 30 17 L 48 35" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                {/* House body */}
+                <rect x="18" y="30" width="24" height="20" fill="none" stroke="#9ca3af" strokeWidth="2.5" rx="1"/>
+                {/* Red medical cross */}
+                <rect x="27" y="33" width="6" height="14" fill="#ef4444" rx="1"/>
+                <rect x="23" y="37" width="14" height="6" fill="#ef4444" rx="1"/>
               </g>
 
-              {/* ROOFER Text */}
-              <g transform="translate(0, 0)">
-                <text x="20" y="240" fontFamily="Arial, sans-serif" fontSize="80" fontWeight="900" fill="#4a4a4a" letterSpacing="-2">ROOF</text>
-                <text x="330" y="240" fontFamily="Arial, sans-serif" fontSize="80" fontWeight="900" fill="#ef4444" letterSpacing="-2">ER</text>
-              </g>
+              {/* ROOFER Text - Larger and Clearer */}
+              <text x="60" y="42" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="32" fontWeight="900" fill="#e5e7eb" letterSpacing="-1">ROOF</text>
+              <text x="155" y="42" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="32" fontWeight="900" fill="#ef4444" letterSpacing="-1">ER</text>
 
-              {/* Subtitle */}
-              <text x="40" y="270" fontFamily="Arial, sans-serif" fontSize="24" fontWeight="600" fill="#6b7280" letterSpacing="4">THE ROOF DOCS</text>
+              {/* Subtitle - More visible */}
+              <text x="62" y="54" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" fontSize="9" fontWeight="600" fill="#9ca3af" letterSpacing="1.5">THE ROOF DOCS</text>
             </svg>
           </div>
 
           <h1
-            className="text-4xl font-bold mb-3"
+            className="text-3xl font-bold mb-2"
             style={{
               color: '#ffffff',
-              letterSpacing: '-0.02em',
-              textShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+              letterSpacing: '-0.02em'
             }}
           >
             S21 Field AI
           </h1>
           <p style={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '16px',
+            color: 'rgba(255, 255, 255, 0.6)',
+            fontSize: '14px',
             fontWeight: 500
           }}>
             Your intelligent field assistant
@@ -177,22 +175,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         {/* Login Card */}
         <div
-          className="p-8 shadow-lg"
+          className="p-6 shadow-lg"
           style={{
             background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.9) 0%, rgba(15, 20, 25, 0.9) 100%)',
-            borderRadius: '24px',
+            borderRadius: '20px',
             border: '1px solid rgba(239, 68, 68, 0.2)',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.1)',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(239, 68, 68, 0.1)',
             backdropFilter: 'blur(20px)'
           }}
         >
           {step === 'email' ? (
             // Step 1: Email Input
             <form onSubmit={handleEmailSubmit}>
-              <div className="mb-6">
+              <div className="mb-5">
                 <label
                   htmlFor="email"
-                  className="block mb-3 text-sm font-semibold"
+                  className="block mb-2 text-sm font-semibold"
                   style={{
                     color: 'rgba(255, 255, 255, 0.9)',
                     letterSpacing: '-0.01em'
@@ -208,19 +206,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   placeholder="your.email@roofer.com"
                   required
                   autoFocus
-                  className="w-full px-4 py-4 text-base"
+                  className="w-full px-4 py-3 text-base"
                   style={{
                     background: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '14px',
+                    borderRadius: '12px',
                     color: '#ffffff',
-                    minHeight: '56px',
+                    minHeight: '50px',
                     transition: 'all 0.2s',
                     outline: 'none'
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-                    e.target.style.boxShadow = '0 0 0 4px rgba(239, 68, 68, 0.1)';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
@@ -245,20 +243,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 font-semibold text-base transition-all"
+                className="w-full py-3 font-semibold text-base transition-all"
                 style={{
                   background: loading ? 'rgba(239, 68, 68, 0.6)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '14px',
+                  borderRadius: '12px',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  minHeight: '56px',
+                  minHeight: '50px',
                   opacity: loading ? 0.7 : 1,
-                  boxShadow: loading ? 'none' : '0 4px 16px rgba(239, 68, 68, 0.4)',
+                  boxShadow: loading ? 'none' : '0 4px 12px rgba(239, 68, 68, 0.4)',
                   transform: loading ? 'scale(0.98)' : 'scale(1)'
                 }}
                 onMouseEnter={(e) => {
-                  if (!loading) e.currentTarget.style.transform = 'scale(1.02)';
+                  if (!loading) e.currentTarget.style.transform = 'scale(1.01)';
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) e.currentTarget.style.transform = 'scale(1)';
@@ -480,12 +478,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm" style={{
+        <div className="mt-6 text-center text-sm" style={{
           color: 'rgba(255, 255, 255, 0.5)',
           fontWeight: 500
         }}>
-          <p style={{ marginBottom: '8px' }}>S21 Field Assistant</p>
-          <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+          <p style={{ marginBottom: '4px' }}>S21 Field Assistant</p>
+          <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
             Secure email authentication
           </p>
         </div>
