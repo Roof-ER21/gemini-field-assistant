@@ -13,8 +13,9 @@ interface InsuranceCompany {
 
 const MapsPanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
-  const insuranceCompanies: InsuranceCompany[] = [
+  const defaultCompanies: InsuranceCompany[] = [
     {
       name: 'AAA (CSAA Insurance)',
       app: 'AAA Mobile',
@@ -455,13 +456,43 @@ const MapsPanel: React.FC = () => {
     }
   ];
 
+  // Try fetching from backend API; explicitly fall back to local list if unavailable
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const base = (import.meta as any).env?.VITE_API_URL || '/api';
+        const res = await fetch(`${base}/insurance/companies?limit=200`);
+        if (!res.ok) throw new Error(`insurance_companies: status ${res.status}`);
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data) && data.length) {
+          setCompanies(
+            data.map((d: any) => ({
+              name: d.name,
+              app: d.category || 'Web Portal',
+              loginUrl: d.website || undefined,
+              email: d.email || '',
+              phone: d.phone || '',
+              notes: d.notes || '',
+            }))
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn('insurance_companies: API unavailable, using local list');
+      }
+      if (!cancelled) setCompanies(defaultCompanies);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const filteredCompanies = searchQuery.trim()
-    ? insuranceCompanies.filter(company =>
+    ? companies.filter(company =>
         company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         company.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         company.notes.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : insuranceCompanies;
+    : companies;
 
   return (
     <div className="roof-er-content-area">
@@ -526,7 +557,7 @@ const MapsPanel: React.FC = () => {
             minWidth: '200px'
           }}>
             <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--roof-red)' }}>
-              {insuranceCompanies.filter(c => c.app.includes('Mobile')).length}
+              {companies.filter(c => c.app.includes('Mobile')).length}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
               With Mobile Apps

@@ -156,9 +156,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       const useRAG = ragService.shouldUseRAG(originalQuery);
       let systemPrompt = SYSTEM_PROMPT;
 
-      // Add state context if selected
+      // Add state context if selected, else enforce tri-state-safe guidance
       if (selectedState) {
         systemPrompt += `\n\nCURRENT STATE CONTEXT: ${selectedState}\nThe user is working in ${selectedState}. Tailor all advice, building codes, and strategies specifically for ${selectedState}.`;
+      } else {
+        systemPrompt += `\n\nNO STATE SELECTED: Do not assume a state. Provide guidance that is valid across Virginia (VA), Maryland (MD), and Pennsylvania (PA). Where requirements differ, explicitly call out differences per state. Do not apply MD-only matching rules unless the user confirms Maryland.`;
       }
 
       let userPrompt = originalQuery;

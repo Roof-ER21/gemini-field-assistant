@@ -12,13 +12,15 @@ import {
 } from 'lucide-react';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {
   activePanel: PanelType;
   setActivePanel: (panel: PanelType) => void;
+  onQuickAction?: (action: QuickActionType) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickAction }) => {
   const navItems = [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: MessageSquare },
@@ -71,7 +73,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
           return (
             <div
               key={action.id}
-              onClick={() => setActivePanel(action.id as PanelType)}
+              onClick={() => {
+                if (onQuickAction) {
+                  onQuickAction(action.id as QuickActionType);
+                } else {
+                  setActivePanel(action.id as PanelType);
+                }
+              }}
               className="roof-er-action-card"
               style={{ cursor: 'pointer' }}
             >

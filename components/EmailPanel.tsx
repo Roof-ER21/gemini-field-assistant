@@ -165,6 +165,16 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     }
   }, [selectedTemplate]);
 
+  // Initialize state from global selection used in Chat
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('selectedState');
+      if (saved && (saved === 'VA' || saved === 'MD' || saved === 'PA')) {
+        setSelectedState(saved);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (emailContext) {
       setCustomInstructions(emailContext.context);
@@ -254,6 +264,18 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     setWhyItWorks('');
 
     try {
+      // Pull small, state-aware RAG context for email generation
+      const ragDocs = await knowledgeService.searchDocuments(
+        [selectedState, subject || '', 'partial', 'approval', 'insurance', 'email'].filter(Boolean).join(' '),
+        2,
+        selectedState
+      );
+
+      const ragSection = ragDocs.length
+        ? `\nRELEVANT KNOWLEDGE (Use where appropriate):\n${ragDocs
+            .map((d, i) => `(${i + 1}) ${d.document.name}\n${(d.content || '').slice(0, 800)}\n`)
+            .join('\n')}`
+        : '';
       const contextInfo = [];
       Object.entries(templateVars).forEach(([key, value]) => {
         if (value) {
@@ -317,6 +339,8 @@ ${templateContent ? `TEMPLATE TO FOLLOW (adapt to audience):\n${templateContent}
 
 ${customInstructions ? `SPECIFIC INSTRUCTIONS:\n${customInstructions}\n\n` : ''}
 
+${ragSection}
+
 EMAIL GENERATION REQUIREMENTS:
 1. **CRITICAL**: Analyze recipient type FIRST, then choose appropriate tone
 2. Write FROM the Roof-ER rep TO ${recipientName}
@@ -335,6 +359,7 @@ WHAT TO AVOID:
 - Using "WE'RE going to..." coaching style
 
 IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
+If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.
       `.trim();
 
       const response = await generateEmail(recipientName, subject, keyPoints);

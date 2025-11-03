@@ -10,6 +10,7 @@ import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
+import QuickActionModal from './components/QuickActionModal';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 
@@ -23,6 +24,8 @@ const App: React.FC = () => {
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [initialQuickAction, setInitialQuickAction] = useState<'email' | 'transcribe' | 'image'>('email');
   const [showChatHistory, setShowChatHistory] = useState(false);
 
   // Check authentication on mount
@@ -191,6 +194,22 @@ const App: React.FC = () => {
               setActivePanel(panel);
               setIsMobileMenuOpen(false); // Close menu when item is selected
             }}
+            onQuickAction={(action) => {
+              // Open modal for email to collect minimal context
+              if (action === 'email') {
+                setInitialQuickAction('email');
+                setShowQuickActions(true);
+                return;
+              }
+              if (action === 'transcribe') {
+                setActivePanel('transcribe');
+                return;
+              }
+              if (action === 'image') {
+                setActivePanel('image');
+                return;
+              }
+            }}
           />
         </div>
 
@@ -198,6 +217,33 @@ const App: React.FC = () => {
           {renderPanel()}
         </main>
       </div>
+
+      {/* Floating Quick Action Button (mobile-first) */}
+      <button
+        className="fixed bottom-5 right-5 md:hidden shadow-lg"
+        aria-label="Open quick actions"
+        onClick={() => { setInitialQuickAction('email'); setShowQuickActions(true); }}
+        style={{
+          background: 'var(--roof-red)',
+          color: '#fff',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '9999px',
+          padding: '14px 18px',
+          boxShadow: '0 10px 24px rgba(239, 68, 68, 0.35)'
+        }}
+      >
+        + Quick
+      </button>
+
+      {/* Quick Actions Modal */}
+      <QuickActionModal
+        isOpen={showQuickActions}
+        initialAction={initialQuickAction}
+        onClose={() => setShowQuickActions(false)}
+        onStartEmail={({ template, context }) => handleStartEmail(template || '', context || '')}
+        onGoTranscribe={() => setActivePanel('transcribe')}
+        onGoUpload={() => setActivePanel('image')}
+      />
     </div>
   );
 };

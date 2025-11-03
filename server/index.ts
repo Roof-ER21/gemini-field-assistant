@@ -6,6 +6,8 @@
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const { Pool } = pg;
 const app = express();
@@ -390,6 +392,43 @@ app.get('/api/analytics/popular-documents', async (req, res) => {
 });
 
 // ============================================================================
+// INSURANCE COMPANIES ENDPOINTS
+// ============================================================================
+
+// List insurance companies with optional filters
+app.get('/api/insurance/companies', async (req, res) => {
+  try {
+    const { q, state, limit = 100 } = req.query as { q?: string; state?: string; limit?: any };
+
+    const clauses: string[] = [];
+    const params: any[] = [];
+
+    if (state && typeof state === 'string') {
+      clauses.push(`state = $${params.length + 1}`);
+      params.push(state.toUpperCase());
+    }
+
+    if (q && typeof q === 'string') {
+      clauses.push(`LOWER(name) LIKE $${params.length + 1}`);
+      params.push(`%${q.toLowerCase()}%`);
+    }
+
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const sql = `SELECT id, name, state, phone, email, address, website, notes, category, created_at
+                 FROM insurance_companies ${where}
+                 ORDER BY name ASC
+                 LIMIT $${params.length + 1}`;
+    params.push(Number(limit) || 100);
+
+    const result = await pool.query(sql, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching insurance companies:', error);
+    res.status(500).json({ error: 'insurance_companies: failed to fetch', message: (error as Error).message });
+  }
+});
+
+// ============================================================================
 // ERROR HANDLER
 // ============================================================================
 
@@ -408,3 +447,28 @@ app.listen(PORT, () => {
 });
 
 export default app;
+
+// ============================================================================
+// STATIC FILE SERVING (Production)
+// ============================================================================
+
+// When running in Railway production, also serve the built frontend from /dist
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const distDir = path.resolve(__dirname, '../dist');
+
+  // Serve static assets
+  app.use(express.static(distDir));
+
+  // SPA fallback for non-API routes
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+      res.status(404).json({ error: 'API route not found' });
+      return;
+    }
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+} catch (e) {
+  // Ignore if file resolution fails during dev
+}

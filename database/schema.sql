@@ -267,6 +267,24 @@ CREATE TRIGGER update_rag_documents_updated_at BEFORE UPDATE ON rag_documents
 -- ============================================================================
 -- SAMPLE DATA (for testing)
 -- ============================================================================
+-- INSURANCE COMPANIES (Directory)
+-- Note: Critical for MapsPanel. Logged error indicated missing relation.
+CREATE TABLE IF NOT EXISTS insurance_companies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    state VARCHAR(2) NOT NULL,
+    phone VARCHAR(20),
+    email VARCHAR(255),
+    address TEXT,
+    website VARCHAR(255),
+    notes TEXT,
+    category VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_insurance_companies_name ON insurance_companies(name);
+CREATE INDEX IF NOT EXISTS idx_insurance_companies_state ON insurance_companies(state);
+
 -- Insert a test user
 INSERT INTO users (email, name, role, state)
 VALUES ('test@roofer.com', 'Test User', 'sales_rep', 'MD')

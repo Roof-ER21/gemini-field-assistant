@@ -1,0 +1,13 @@
+[
+  {"name":"Allstate","state":"VA","phone":"(800) 326-0950","email":"claims@claims.allstate.com","website":"https://myaccount.allstate.com","notes":"MyAccount portal with MFA","category":"Insurer"},
+  {"name":"State Farm","state":"PA","phone":"(800) 782-8332","email":"claims@statefarm.com","website":"https://www.statefarm.com/claims","notes":"Claims portal","category":"Insurer"},
+  {"name":"USAA","state":"MD","phone":"(800) 531-8722","email":"","website":"https://www.usaa.com","notes":"Military members only","category":"Insurer"},
+  {"name":"Nationwide","state":"VA","phone":"(800) 421-3535","email":"nationwide-claims@nationwide.com","website":"https://www.nationwide.com","notes":"Biometric login","category":"Insurer"},
+  {"name":"Liberty Mutual","state":"PA","phone":"(800) 225-2467","email":"imaging@libertymutual.com","website":"https://www.libertymutual.com","notes":"Touch/Face login","category":"Insurer"},
+  {"name":"Erie Insurance","state":"MD","phone":"(800) 367-3743","email":"RichmondPropertySupport@erieinsurance.com","website":"https://www.erieinsurance.com","notes":"Regional","category":"Insurer"},
+  {"name":"Farm Bureau (Virginia)","state":"VA","phone":"(804) 290-1000","email":"claimsnewmail@vafb.com","website":"https://www.vafb.com","notes":"Quick Pay available","category":"Insurer"},
+  {"name":"Progressive","state":"PA","phone":"(877) 828-9702","email":"PGRH_claims@progressive.com","website":"https://www.progressive.com","notes":"Home portal redirects","category":"Insurer"},
+  {"name":"Kemper","state":"MD","phone":"(800) 353-6737","email":"NPSC@kemper.com","website":"https://customer.kemper.com","notes":"Alt portal available","category":"Insurer"},
+  {"name":"Chubb","state":"VA","phone":"(866) 324-8222","email":"uspropertyclaims@chubb.com","website":"https://www.chubb.com","notes":"One-time payments","category":"Insurer"}
+]
+

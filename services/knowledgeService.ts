@@ -61,6 +61,7 @@ export const knowledgeService = {
 
       // Insurance Arguments (15)
       { name: 'GAF Storm Damage Guidelines', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/GAF Storm Damage Guidelines .md`, type: 'md', category: 'Insurance Arguments' },
+      { name: 'PA Partials', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/PA Partials.md`, type: 'md', category: 'Insurance Arguments' },
       { name: 'Maryland Insurance Administration Matching Requirement 1', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Maryland Insurance Administration Matching Requirement 1.md`, type: 'md', category: 'Insurance Arguments' },
       { name: 'Maryland Insurance Administration Matching Requirement 2', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Maryland Insurance Administration Matching Requirement 2.md`, type: 'md', category: 'Insurance Arguments' },
       { name: 'Maryland Insurance Administration Matching Requirement 3', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Maryland Insurance Administration Matching Requirement 3.md`, type: 'md', category: 'Insurance Arguments' },
@@ -189,7 +190,10 @@ export const knowledgeService = {
       { name: 'Virginia Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' },
 
       // State-Specific Resources (CRITICAL)
-      { name: 'State-Specific Matching Requirements', path: `${DOCS_BASE}/State-Specific-Matching-Requirements.md`, type: 'md', category: 'State-Specific Codes' }
+      { name: 'State-Specific Matching Requirements', path: `${DOCS_BASE}/State-Specific-Matching-Requirements.md`, type: 'md', category: 'State-Specific Codes' },
+      { name: 'Virginia Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Virginia-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
+      { name: 'Maryland Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Maryland-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
+      { name: 'Pennsylvania Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Pennsylvania-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' }
     ];
   },
 

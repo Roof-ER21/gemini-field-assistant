@@ -8,9 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "server:dev": "tsx watch server/index.ts",
-    "server:build": "tsc server/index.ts --outDir dist-server",
+    "server:build": "tsc -p tsconfig.server.json",
     "db:init": "node scripts/init-database.js",
-    "db:init:railway": "railway run node scripts/init-database.js"
+    "db:init:railway": "railway run node scripts/init-database.js",
+    "db:seed:insurance": "node scripts/seed-insurance-companies.js",
+    "db:seed:railway:insurance": "railway run node scripts/seed-insurance-companies.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",

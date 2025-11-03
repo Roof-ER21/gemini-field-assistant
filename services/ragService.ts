@@ -93,7 +93,7 @@ ${'='.repeat(80)}
       contextSection += `${'='.repeat(80)}\n\n`;
     });
 
-    // Add state-specific guidance if applicable
+    // Add state-specific or tri-state guidance
     let stateGuidance = '';
     if (selectedState) {
       const stateRules: Record<string, string> = {
@@ -118,6 +118,9 @@ ${'='.repeat(80)}
       if (stateGuidance) {
         stateGuidance = `\n\n${stateGuidance}\n`;
       }
+    } else {
+      // No state selected: enforce generic, tri-state safe guidance
+      stateGuidance = `\n\n**TRI-STATE GUIDANCE (NO STATE SELECTED):**\n- Do NOT assume a state. Provide guidance that applies across VA, MD, and PA.\n- When rules differ by state, clearly call out the differences per state.\n- Do NOT use Maryland-only matching arguments unless the user confirms MD.\n- Prefer universal items (repairability, documentation, clear photos, code-compliant methods).\n`;
     }
 
     // Build the enhanced prompt with citation instructions FIRST
