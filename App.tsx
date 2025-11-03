@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePage';
 import ChatPanel from './components/ChatPanel';
-import ImageAnalysisPanel from './components/ImageAnalysisPanel';
+import DocumentAnalysisPanel from './components/DocumentAnalysisPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
 import EmailPanel from './components/EmailPanel';
 import MapsPanel from './components/MapsPanel';
@@ -118,7 +118,7 @@ const App: React.FC = () => {
           />
         );
       case 'image':
-        return <ImageAnalysisPanel onOpenChat={() => setActivePanel('chat')} onOpenKnowledge={() => setActivePanel('knowledge')} />;
+        return <DocumentAnalysisPanel />;
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':
