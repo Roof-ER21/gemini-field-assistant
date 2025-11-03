@@ -20,6 +20,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [searchMode, setSearchMode] = useState<SearchMode>('content');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [openedFromCitation, setOpenedFromCitation] = useState(false);
 
   useEffect(() => {
     loadDocumentIndex();
@@ -29,6 +30,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   // Handle external document selection from citations
   useEffect(() => {
     if (externalDocPath) {
+      setOpenedFromCitation(true);
       loadDocumentByPath(externalDocPath);
       onDocumentViewed?.();
     }
@@ -415,7 +417,11 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
       {selectedDocument && (
         <DocumentViewer
           document={selectedDocument}
-          onClose={() => setSelectedDocument(null)}
+          onClose={() => {
+            setSelectedDocument(null);
+            setOpenedFromCitation(false);
+          }}
+          highlightFromCitation={openedFromCitation}
         />
       )}
     </div>

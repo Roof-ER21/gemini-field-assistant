@@ -31,7 +31,7 @@ interface ParsedSection {
 const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, onStartEmail, onOpenDocument, sources }) => {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1]));
   const [copiedSections, setCopiedSections] = useState<Set<number>>(new Set());
-  const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
+  const [hoveredCitation, setHoveredCitation] = useState<number | null>(null); // Track citation number only
 
   // Parse the raw response into structured sections
   const parseResponse = (text: string): ParsedSection[] => {
@@ -196,14 +196,14 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
             const source = sources[citationNum - 1];
 
             if (source) {
-              // Create unique ID for this specific citation instance
-              const citationId = `citation-${citationNum}-${idx}`;
+              // Only show tooltip on the first occurrence of each citation number
+              const isFirstOccurrence = parts.slice(0, idx).filter(p => p === part).length === 0;
 
               return (
                 <span
                   key={idx}
                   onMouseEnter={(e) => {
-                    setHoveredCitation(citationId);
+                    setHoveredCitation(citationNum);
                     e.currentTarget.style.background = 'rgba(220, 38, 38, 0.25)';
                     e.currentTarget.style.transform = 'scale(1.1)';
                   }}
@@ -235,7 +235,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   }}
                 >
                   {part}
-                  {hoveredCitation === citationId && (
+                  {hoveredCitation === citationNum && isFirstOccurrence && (
                     <div
                       style={{
                         position: 'absolute',
