@@ -4,7 +4,7 @@ import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 
-type ViewMode = 'all' | 'recent' | 'favorites';
+type ViewMode = 'all' | 'recent' | 'favorites' | 'uploads';
 type SearchMode = 'title' | 'content';
 
 interface KnowledgePanelProps {
@@ -105,6 +105,14 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
           const favDocs = await enhancedKnowledgeService.getFavoriteDocuments();
           favDocs.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
           setDocuments(favDocs);
+          break;
+        case 'uploads':
+          {
+            const allDocs2 = await knowledgeService.getDocumentIndex();
+            const uploads = allDocs2.filter(d => d.category === 'User Uploads');
+            uploads.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
+            setDocuments(uploads);
+          }
           break;
       }
     } catch (error) {
@@ -299,6 +307,26 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
           >
             <Star className="w-4 h-4" fill={viewMode === 'favorites' ? 'currentColor' : 'none'} />
             Favorites ({favorites.size})
+          </button>
+
+          <button
+            onClick={() => setViewMode('uploads')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'uploads' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'uploads' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <File className="w-4 h-4" />
+            Uploads
           </button>
         </div>
 
