@@ -25,7 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: MessageSquare },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
-    { id: 'image', label: 'Image Analysis', desc: 'Roof damage detection', icon: Image },
+    { id: 'image', label: 'Upload Analysis', desc: 'Docs & photos review', icon: Image },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
     { id: 'maps', label: 'Insurance Co', desc: 'Insurance directory', icon: Building2 },

@@ -41,7 +41,7 @@ const App: React.FC = () => {
     home: 'Home',
     chat: 'Chat',
     knowledge: 'Knowledge Base',
-    image: 'Image Analysis',
+    image: 'Upload Analysis',
     transcribe: 'Transcription',
     email: 'Email Generator',
     maps: 'Insurance Co',

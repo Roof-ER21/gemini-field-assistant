@@ -34,8 +34,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     },
     {
       id: 'image',
-      title: 'Analyze Damage',
-      description: 'AI-powered roof inspection',
+      title: 'Upload & Analyze',
+      description: 'Docs, approvals, denials, photos',
       icon: Image,
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
@@ -75,10 +75,10 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     },
     {
       id: 'image',
-      title: 'Image Analysis',
-      description: 'AI-powered roof damage detection and assessment',
+      title: 'Upload Analysis',
+      description: 'Upload approvals/denials/partials & photos for guidance',
       icon: Image,
-      stats: 'Instant Results'
+      stats: 'Docs + Photos'
     },
     {
       id: 'transcribe',
