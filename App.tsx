@@ -58,6 +58,14 @@ const App: React.FC = () => {
     setActivePanel('knowledge');
   };
 
+  const openChat = () => setActivePanel('chat');
+  const openChatWithDoc = (doc: { name: string; path: string }) => {
+    try {
+      localStorage.setItem('chat_quick_doc', JSON.stringify(doc));
+    } catch {}
+    setActivePanel('chat');
+  };
+
   const handleLoginSuccess = () => {
     const user = authService.getCurrentUser();
     if (user) {
@@ -98,17 +106,23 @@ const App: React.FC = () => {
           />
         );
       case 'image':
-        return <ImageAnalysisPanel />;
+        return <ImageAnalysisPanel onOpenChat={() => setActivePanel('chat')} />;
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':
         return <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />;
       case 'maps':
-        return <MapsPanel />;
+        return <MapsPanel onOpenChat={() => setActivePanel('chat')} />;
       case 'live':
         return <LivePanel />;
       case 'knowledge':
-        return <KnowledgePanel selectedDocument={selectedDocument} onDocumentViewed={() => setSelectedDocument(null)} />;
+        return (
+          <KnowledgePanel
+            selectedDocument={selectedDocument}
+            onDocumentViewed={() => setSelectedDocument(null)}
+            onOpenInChat={(doc) => openChatWithDoc({ name: doc.name, path: doc.path })}
+          />
+        );
       default:
         return <HomePage setActivePanel={setActivePanel} />;
     }

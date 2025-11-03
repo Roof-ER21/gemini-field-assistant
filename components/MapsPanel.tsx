@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Search, Phone, Mail, ExternalLink, Smartphone } from 'lucide-react';
+import { Building2, Search, Phone, Mail, ExternalLink, Smartphone, Pin, MessageCircle } from 'lucide-react';
 
 interface InsuranceCompany {
   name: string;
@@ -11,9 +11,15 @@ interface InsuranceCompany {
   score?: string;
 }
 
-const MapsPanel: React.FC = () => {
+interface MapsPanelProps { onOpenChat?: () => void }
+
+const MapsPanel: React.FC<MapsPanelProps> = ({ onOpenChat }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
+  const [viewMode, setViewMode] = useState<'all' | 'goto'>('all');
+  const [goTo, setGoTo] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('insurance_go_to') || '[]')); } catch { return new Set(); }
+  });
 
   const defaultCompanies: InsuranceCompany[] = [
     {
@@ -486,13 +492,23 @@ const MapsPanel: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const baseList = viewMode === 'goto' ? companies.filter(c => goTo.has(c.name)) : companies;
   const filteredCompanies = searchQuery.trim()
-    ? companies.filter(company =>
+    ? baseList.filter(company =>
         company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         company.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         company.notes.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : companies;
+    : baseList;
+
+  const toggleGoTo = (name: string) => {
+    setGoTo(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      try { localStorage.setItem('insurance_go_to', JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  };
 
   return (
     <div className="roof-er-content-area">
@@ -500,6 +516,14 @@ const MapsPanel: React.FC = () => {
         <div className="roof-er-page-title">
           <Building2 className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
           Insurance Companies Directory
+        </div>
+
+        {/* View & Search */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={() => setViewMode('all')} style={{ padding: '6px 10px', background: viewMode==='all'?'var(--roof-red)':'var(--bg-hover)', border: `1px solid ${viewMode==='all'?'var(--roof-red)':'var(--border-default)'}`, borderRadius: '9999px', color: 'var(--text-primary)', fontSize: '12px' }}>All</button>
+            <button onClick={() => setViewMode('goto')} style={{ padding: '6px 10px', background: viewMode==='goto'?'var(--roof-red)':'var(--bg-hover)', border: `1px solid ${viewMode==='goto'?'var(--roof-red)':'var(--border-default)'}`, borderRadius: '9999px', color: 'var(--text-primary)', fontSize: '12px', display:'inline-flex', alignItems:'center', gap:'4px' }}><Pin className="w-3 h-3"/>Go‑To</button>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -584,7 +608,7 @@ const MapsPanel: React.FC = () => {
             e.currentTarget.style.transform = 'translateX(0)';
           }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px', position: 'relative' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   {company.name}
@@ -606,6 +630,13 @@ const MapsPanel: React.FC = () => {
                   {company.score}
                 </div>
               )}
+              <button
+                onClick={() => toggleGoTo(company.name)}
+                title={goTo.has(company.name) ? 'Unpin from Go‑To' : 'Pin to Go‑To'}
+                style={{ position: 'absolute', top: 0, right: 0, background: 'none', border: 'none', cursor: 'pointer', color: goTo.has(company.name) ? 'var(--roof-red)' : 'var(--text-disabled)' }}
+              >
+                <Pin className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Contact Info */}
@@ -644,6 +675,25 @@ const MapsPanel: React.FC = () => {
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { try { localStorage.setItem('chat_quick_company', JSON.stringify({ name: company.name })); } catch {}; onOpenChat?.(); }}
+                style={{
+                  padding: '8px 14px',
+                  background: 'var(--bg-hover)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 500
+                }}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Open in Chat
+              </button>
               {company.loginUrl && (
                 <button
                   onClick={() => window.open(company.loginUrl, '_blank')}

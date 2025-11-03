@@ -10,6 +10,7 @@ type SearchMode = 'title' | 'content';
 interface KnowledgePanelProps {
   selectedDocument?: string | null;
   onDocumentViewed?: () => void;
+  onOpenInChat?: (doc: Document) => void;
 }
 
 const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed }) => {
@@ -549,6 +550,14 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
         <DocumentViewer
           document={selectedDocument}
           onClose={() => setSelectedDocument(null)}
+          onOpenInChat={(doc) => {
+            try {
+              localStorage.setItem('chat_quick_doc', JSON.stringify({ name: doc.name, path: doc.path }));
+            } catch {}
+            // bubble up to App to switch panels
+            onDocumentViewed?.();
+            onOpenInChat?.(doc);
+          }}
         />
       )}
     </div>

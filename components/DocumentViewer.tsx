@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 interface DocumentViewerProps {
   document: Document;
   onClose: () => void;
+  onOpenInChat?: (doc: Document) => void;
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) => {
@@ -148,6 +149,27 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) =>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => onOpenInChat?.(document)}
+              disabled={!content}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--roof-red)',
+                border: '1px solid var(--roof-red)',
+                borderRadius: '8px',
+                color: '#fff',
+                cursor: content ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                opacity: content ? 1 : 0.5,
+              }}
+              title="Open in Chat"
+            >
+              <Share2 className="w-4 h-4" />
+              Open in Chat
+            </button>
             {toc.length > 0 && (
               <button
                 onClick={() => setShowTOC(!showTOC)}

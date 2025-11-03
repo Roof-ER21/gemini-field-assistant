@@ -35,18 +35,10 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      aria-modal
-    >
-      <div
-        className="w-full sm:w-[560px] max-w-[96%] rounded-t-2xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}
-        role="dialog"
-      >
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} aria-modal>
+      <div className="w-full sm:w-[640px] max-w-[96%] rounded-t-2xl sm:rounded-2xl overflow-hidden" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }} role="dialog">
         {/* Header */}
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-default)' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.05) 100%)', borderBottom: '1px solid var(--border-default)' }} className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
             <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>Quick Actions</div>
@@ -70,7 +62,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 key={t.id}
                 onClick={() => setActive(t.id as QuickActionType)}
                 className={`px-3 py-2 rounded-lg flex items-center gap-2 ${selected ? 'bg-[var(--roof-red)] text-white' : ''}`}
-                style={{ border: selected ? '1px solid transparent' : '1px solid var(--border-default)' }}
+                style={{ border: selected ? '1px solid transparent' : '1px solid var(--border-default)', background: selected ? 'var(--roof-red)' : 'var(--bg-hover)', color: selected ? '#fff' : 'var(--text-primary)' }}
               >
                 <Icon className="w-4 h-4" />
                 <span>{t.label}</span>
@@ -82,12 +74,12 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
         {/* Content */}
         <div className="p-4">
           {active === 'email' && (
-            <div className="grid gap-3">
+            <div className="grid gap-3 p-3" style={{ background: 'var(--bg-secondary)' }}>
               <div className="grid gap-1">
                 <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Recipient (optional)</label>
                 <input
                   className="px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
                   placeholder="e.g., Sarah from State Farm"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
@@ -97,7 +89,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Subject (optional)</label>
                 <input
                   className="px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
                   placeholder="Subject line"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
@@ -107,7 +99,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Instructions / Context (optional)</label>
                 <textarea
                   className="px-3 py-2 rounded-lg min-h-[96px]"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
                   placeholder="Any specific details to include"
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
@@ -118,7 +110,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent' }}
+                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
                   onClick={startEmail}
                 >
                   Start Email
@@ -128,7 +120,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           )}
 
           {active === 'transcribe' && (
-            <div className="grid gap-3">
+            <div className="grid gap-3 p-3">
               <p style={{ color: 'var(--text-secondary)' }}>
                 Jump into Transcription to record a voice note and convert to text.
               </p>
@@ -136,7 +128,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent' }}
+                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
                   onClick={() => { onGoTranscribe(); onClose(); }}
                 >
                   Go to Transcription
@@ -146,7 +138,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           )}
 
           {active === 'image' && (
-            <div className="grid gap-3">
+            <div className="grid gap-3 p-3">
               <p style={{ color: 'var(--text-secondary)' }}>
                 Upload roof photos for AI-powered damage assessment and reporting.
               </p>
@@ -154,7 +146,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent' }}
+                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
                   onClick={() => { onGoUpload(); onClose(); }}
                 >
                   Go to Image Analysis
@@ -169,4 +161,3 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
 };
 
 export default QuickActionModal;
-

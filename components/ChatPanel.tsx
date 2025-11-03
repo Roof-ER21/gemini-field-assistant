@@ -104,6 +104,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   }, []);
 
+  // Handle quick-open context from other panels (document, insurance company, image assessment)
+  useEffect(() => {
+    try {
+      const quickDoc = localStorage.getItem('chat_quick_doc');
+      if (quickDoc) {
+        const { name, path } = JSON.parse(quickDoc);
+        setUserInput((prev) => prev || `Please answer using this document as a primary source: ${name} (${path}).`);
+        localStorage.removeItem('chat_quick_doc');
+      }
+      const quickCompany = localStorage.getItem('chat_quick_company');
+      if (quickCompany) {
+        const { name } = JSON.parse(quickCompany);
+        setUserInput((prev) => prev || `I’m working with ${name}. Provide state-aware guidance and common claim handling practices for this insurer.`);
+        localStorage.removeItem('chat_quick_company');
+      }
+      const quickAssessment = localStorage.getItem('chat_quick_assessment');
+      if (quickAssessment) {
+        const { summary } = JSON.parse(quickAssessment);
+        setUserInput((prev) => prev || `Discuss this image assessment and craft next steps for the claim:\n\n${summary}`);
+        localStorage.removeItem('chat_quick_assessment');
+      }
+    } catch (e) {
+      console.warn('Failed to load quick-open context');
+    }
+  }, []);
+
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('chatHistory', JSON.stringify(messages));
