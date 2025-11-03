@@ -92,39 +92,98 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'var(--bg-primary)' }}
+      style={{
+        background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
     >
-      <div className="w-full max-w-md">
+      {/* Background decorative elements */}
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        right: '-5%',
+        width: '500px',
+        height: '500px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-10%',
+        left: '-5%',
+        width: '400px',
+        height: '400px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+
+      <div className="w-full max-w-md" style={{ position: 'relative', zIndex: 1 }}>
         {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <div
-            className="inline-block px-6 py-3 mb-4 rounded-lg"
-            style={{
-              background: 'var(--roof-red)',
-              fontWeight: 700,
-              fontSize: '24px',
-              letterSpacing: '1.5px'
-            }}
-          >
-            ROOF ER
+        <div className="text-center mb-10">
+          {/* Roof-ER Logo */}
+          <div style={{
+            display: 'inline-block',
+            marginBottom: '24px',
+            padding: '20px',
+            background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%)',
+            borderRadius: '20px',
+            boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), 0 0 0 1px rgba(239, 68, 68, 0.2)'
+          }}>
+            <svg width="200" height="80" viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg">
+              {/* Roof Icon */}
+              <g transform="translate(0, 0)">
+                {/* House outline */}
+                <path d="M 120 100 L 180 60 L 240 100 L 240 160 L 120 160 Z" fill="none" stroke="#4a4a4a" strokeWidth="8"/>
+                {/* Roof layers */}
+                <path d="M 100 100 L 180 40 L 260 100" fill="none" stroke="#4a4a4a" strokeWidth="10" strokeLinecap="round"/>
+                <path d="M 110 120 L 180 70 L 250 120" fill="none" stroke="#4a4a4a" strokeWidth="8" strokeLinecap="round"/>
+                {/* Red cross */}
+                <rect x="170" y="110" width="20" height="50" fill="#ef4444" rx="2"/>
+                <rect x="155" y="125" width="50" height="20" fill="#ef4444" rx="2"/>
+              </g>
+
+              {/* ROOFER Text */}
+              <g transform="translate(0, 0)">
+                <text x="20" y="240" fontFamily="Arial, sans-serif" fontSize="80" fontWeight="900" fill="#4a4a4a" letterSpacing="-2">ROOF</text>
+                <text x="330" y="240" fontFamily="Arial, sans-serif" fontSize="80" fontWeight="900" fill="#ef4444" letterSpacing="-2">ER</text>
+              </g>
+
+              {/* Subtitle */}
+              <text x="40" y="270" fontFamily="Arial, sans-serif" fontSize="24" fontWeight="600" fill="#6b7280" letterSpacing="4">THE ROOF DOCS</text>
+            </svg>
           </div>
+
           <h1
-            className="text-3xl font-bold mb-2"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-4xl font-bold mb-3"
+            style={{
+              color: '#ffffff',
+              letterSpacing: '-0.02em',
+              textShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+            }}
           >
             S21 Field AI
           </h1>
-          <p style={{ color: 'var(--text-tertiary)', fontSize: '15px' }}>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontSize: '16px',
+            fontWeight: 500
+          }}>
             Your intelligent field assistant
           </p>
         </div>
 
         {/* Login Card */}
         <div
-          className="rounded-lg p-8 shadow-lg"
+          className="p-8 shadow-lg"
           style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-subtle)'
+            background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.9) 0%, rgba(15, 20, 25, 0.9) 100%)',
+            borderRadius: '24px',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.1)',
+            backdropFilter: 'blur(20px)'
           }}
         >
           {step === 'email' ? (
@@ -133,8 +192,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <div className="mb-6">
                 <label
                   htmlFor="email"
-                  className="block mb-2 text-sm font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
+                  className="block mb-3 text-sm font-semibold"
+                  style={{
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    letterSpacing: '-0.01em'
+                  }}
                 >
                   Email Address
                 </label>
@@ -146,12 +208,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   placeholder="your.email@roofer.com"
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-lg text-base"
+                  className="w-full px-4 py-4 text-base"
                   style={{
-                    background: 'var(--bg-hover)',
-                    border: '2px solid var(--border-default)',
-                    color: 'var(--text-primary)',
-                    minHeight: '50px'
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '14px',
+                    color: '#ffffff',
+                    minHeight: '56px',
+                    transition: 'all 0.2s',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                    e.target.style.boxShadow = '0 0 0 4px rgba(239, 68, 68, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    e.target.style.boxShadow = 'none';
                   }}
                 />
               </div>
@@ -172,14 +245,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-lg font-semibold text-base transition-all"
+                className="w-full py-4 font-semibold text-base transition-all"
                 style={{
-                  background: loading ? 'var(--roof-red-darker)' : 'var(--roof-red)',
-                  color: 'var(--text-primary)',
+                  background: loading ? 'rgba(239, 68, 68, 0.6)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#ffffff',
                   border: 'none',
+                  borderRadius: '14px',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  minHeight: '50px',
-                  opacity: loading ? 0.7 : 1
+                  minHeight: '56px',
+                  opacity: loading ? 0.7 : 1,
+                  boxShadow: loading ? 'none' : '0 4px 16px rgba(239, 68, 68, 0.4)',
+                  transform: loading ? 'scale(0.98)' : 'scale(1)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) e.currentTarget.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
                 {loading ? 'Sending Code...' : 'Continue'}
@@ -398,9 +480,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-xs" style={{ color: 'var(--text-disabled)' }}>
-          <p>Roof-ER Field Assistant</p>
-          <p className="mt-1">Secure email authentication</p>
+        <div className="mt-8 text-center text-sm" style={{
+          color: 'rgba(255, 255, 255, 0.5)',
+          fontWeight: 500
+        }}>
+          <p style={{ marginBottom: '8px' }}>S21 Field Assistant</p>
+          <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+            Secure email authentication
+          </p>
         </div>
       </div>
     </div>
