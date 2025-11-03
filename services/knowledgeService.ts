@@ -36,7 +36,7 @@ export const knowledgeService = {
   // Photo Reports & Examples (5), Q&A Resources (8), Tools & Utilities (6)
   // Remaining 6 docs: 6 Merged PDFs (review needed)
   async getDocumentIndex(): Promise<Document[]> {
-    return [
+    const baseDocs: Document[] = [
       // Sales Scripts (7)
       { name: 'Initial Pitch Script', path: `${DOCS_BASE}/Sales Rep Resources 2/Sales Scripts /Initial Pitch Script.md`, type: 'md', category: 'Sales Scripts' },
       { name: 'Post Adjuster Meeting Script', path: `${DOCS_BASE}/Sales Rep Resources 2/Sales Scripts /Post Adjuster Meeting Script.md`, type: 'md', category: 'Sales Scripts' },
@@ -195,11 +195,38 @@ export const knowledgeService = {
       { name: 'Maryland Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Maryland-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
       { name: 'Pennsylvania Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Pennsylvania-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' }
     ];
+
+    // Append user-uploaded documents from localStorage (if any)
+    try {
+      const raw = localStorage.getItem('user_uploads') || '[]';
+      const uploads = JSON.parse(raw);
+      const uploadDocs: Document[] = uploads.map((u: any) => ({
+        name: u.name || 'User Upload',
+        path: u.path || `local:uploads/${u.id}`,
+        type: 'md',
+        category: 'User Uploads'
+      }));
+      return [...uploadDocs, ...baseDocs];
+    } catch {
+      return baseDocs;
+    }
   },
 
   // Load document content
   async loadDocument(path: string): Promise<DocumentContent> {
     try {
+      // Local user uploads
+      if (path.startsWith('local:uploads/')) {
+        const raw = localStorage.getItem('user_uploads') || '[]';
+        const uploads = JSON.parse(raw);
+        const id = path.split('/').pop();
+        const doc = uploads.find((u: any) => u.id === id || u.path === path);
+        if (doc) {
+          return { name: doc.name, content: doc.content || '', metadata: { lastModified: new Date() } };
+        }
+        throw new Error('Local upload not found');
+      }
+
       const name = path.split('/').pop()?.replace('.md', '') || 'Unknown';
       const response = await fetch(path);
 

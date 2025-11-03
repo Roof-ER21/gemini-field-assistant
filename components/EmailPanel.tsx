@@ -542,7 +542,7 @@ Keep it practical and actionable. Use confident language.
         {activeTab === 'compose' && (
           <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'grid', gridTemplateColumns: generatedEmail ? '1fr 1fr' : '1fr', gap: '24px' }}>
             {/* Form Section */}
-            <div>
+            <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
               <form onSubmit={handleGenerate}>
                 {/* Category Filter Pills */}
                 <div style={{ marginBottom: '20px' }}>
@@ -913,13 +913,13 @@ Keep it practical and actionable. Use confident language.
 
             {/* Preview Section */}
             {generatedEmail && (
-              <div>
+              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '12px' }}>
                 <div style={{
-                  background: 'var(--bg-elevated)',
+                  background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
                   border: '1px solid var(--border-default)',
                   borderRadius: 'var(--radius-lg)',
-                  padding: '20px',
-                  marginBottom: '20px'
+                  padding: '16px',
+                  marginBottom: '16px'
                 }}>
                   <div style={{
                     display: 'flex',

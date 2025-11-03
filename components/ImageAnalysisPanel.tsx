@@ -90,9 +90,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat }) =
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files).filter(file =>
-      file.type.startsWith('image/')
-    );
+    const files = Array.from(e.dataTransfer.files);
 
     if (files.length > 0) {
       await handleFilesSelected(files);
@@ -112,27 +110,84 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat }) =
   };
 
   const handleFilesSelected = async (files: File[]) => {
-    if (files.length > 5) {
-      setError('Maximum 5 images can be uploaded at once');
+    if (files.length > 10) {
+      setError('Maximum 10 files can be uploaded at once');
       return;
     }
 
     setError('');
 
-    // Create upload objects
-    const uploads: ImageUpload[] = await Promise.all(
-      files.map(async (file) => ({
-        file,
-        preview: await fileToDataURL(file),
-        id: generateId(),
-        status: 'pending' as const
-      }))
-    );
+    // Split by type: images vs. documents
+    const imageFiles = files.filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+    const docFiles = files.filter(f => !imageFiles.includes(f));
 
-    setImageUploads(uploads);
+    // Prepare image uploads (convert HEIC to JPEG if needed)
+    const processedImages: File[] = [];
+    for (const f of imageFiles) {
+      if (/\.(heic|heif)$/i.test(f.name)) {
+        try {
+          const heic2any = (await import('heic2any')).default as any;
+          const blob = await heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 });
+          const jpegFile = new File([blob as BlobPart], f.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+          processedImages.push(jpegFile);
+        } catch (err) {
+          console.warn('HEIC convert failed, skipping:', err);
+        }
+      } else {
+        processedImages.push(f);
+      }
+    }
 
-    // Analyze images
-    await analyzeUploadedImages(uploads);
+    if (processedImages.length) {
+      const uploads: ImageUpload[] = await Promise.all(
+        processedImages.map(async (file) => ({
+          file,
+          preview: await fileToDataURL(file),
+          id: generateId(),
+          status: 'pending' as const
+        }))
+      );
+      setImageUploads(uploads);
+      await analyzeUploadedImages(uploads);
+    }
+
+    // Handle document uploads
+    for (const doc of docFiles) {
+      const name = doc.name;
+      let content = '';
+      try {
+        if (/\.(md|txt)$/i.test(name)) {
+          content = await doc.text();
+        } else if (/\.pdf$/i.test(name)) {
+          const pdfjsLib: any = await import('pdfjs-dist');
+          const array = new Uint8Array(await doc.arrayBuffer());
+          const pdf = await pdfjsLib.getDocument({ data: array }).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const contentObj = await page.getTextContent();
+            text += contentObj.items.map((it: any) => it.str).join(' ') + '\n\n';
+          }
+          content = text.trim();
+        } else if (/\.(docx)$/i.test(name)) {
+          content = '[docx upload added – convert to PDF or MD for full text extraction]';
+        } else {
+          content = '[Unsupported document type]';
+        }
+      } catch (e) {
+        content = '[Failed to extract text]';
+      }
+
+      // Save into knowledge user uploads
+      try {
+        const storeKey = 'user_uploads';
+        const raw = localStorage.getItem(storeKey) || '[]';
+        const list = JSON.parse(raw);
+        const id = generateId();
+        list.unshift({ id, name, type: 'md', path: `local:uploads/${id}`, content, category: 'User Uploads' });
+        localStorage.setItem(storeKey, JSON.stringify(list.slice(0, 100)));
+      } catch {}
+    }
   };
 
   const analyzeUploadedImages = async (uploads: ImageUpload[]) => {
