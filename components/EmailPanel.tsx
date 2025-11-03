@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Mail, Send, Copy, FileText, CheckCircle, Sparkles, Download, MessageCircle,
   Eye, Lightbulb, User, Building, Hash, MapPin, Clock, Search, Trash2,
-  Edit3, RefreshCw, Calendar, Phone, DollarSign, Home, Filter, Archive,
-  Plus, X, ChevronLeft, ChevronRight, Wand2, Check
+  Edit3, RefreshCw, Home, Filter, Archive, Plus, X, ChevronLeft, ChevronRight,
+  Wand2, Check
 } from 'lucide-react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
@@ -86,14 +86,10 @@ const TONE_OPTIONS: ToneOption[] = [
 const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { key: 'customerName', label: 'Customer Name', placeholder: 'John Smith', icon: User },
   { key: 'customerEmail', label: 'Email', placeholder: 'customer@email.com', icon: Mail },
-  { key: 'customerPhone', label: 'Phone', placeholder: '(555) 123-4567', icon: Phone },
   { key: 'propertyAddress', label: 'Property Address', placeholder: '123 Main St, Richmond, VA', icon: MapPin },
   { key: 'claimNumber', label: 'Claim Number', placeholder: 'CLM-2024-12345', icon: Hash },
   { key: 'insuranceCompany', label: 'Insurance Company', placeholder: 'State Farm', icon: Building },
-  { key: 'quoteAmount', label: 'Quote Amount', placeholder: '$15,000', icon: DollarSign },
-  { key: 'appointmentDate', label: 'Appointment Date', placeholder: 'March 15, 2024', icon: Calendar },
   { key: 'repName', label: 'Rep Name', placeholder: 'Your Name', icon: User },
-  { key: 'repPhone', label: 'Rep Phone', placeholder: '(555) 987-6543', icon: Phone },
 ];
 
 const STATE_REGULATIONS = {
@@ -341,22 +337,24 @@ ${customInstructions ? `SPECIFIC INSTRUCTIONS:\n${customInstructions}\n\n` : ''}
 
 ${ragSection}
 
-EMAIL GENERATION REQUIREMENTS:
-1. **CRITICAL**: Analyze recipient type FIRST, then choose appropriate tone
-2. Write FROM the Roof-ER rep TO ${recipientName}
-3. Start with appropriate greeting based on audience formality level
-4. Match language style to recipient type (not just tone selector)
-5. Follow template structure if provided (but adapt language to audience)
-6. Incorporate state-specific regulations when relevant
-7. Be specific and actionable - avoid generic corporate speak
-8. End with clear next steps or call to action
-9. Sign off appropriately based on recipient relationship
+ EMAIL GENERATION REQUIREMENTS:
+ 1. **CRITICAL**: Analyze recipient type FIRST, then choose appropriate tone
+ 2. Write FROM the Roof-ER rep TO ${recipientName}
+ 3. Start with appropriate greeting based on audience formality level
+ 4. Match language style to recipient type (not just tone selector)
+ 5. Follow template structure if provided (but adapt language to audience)
+ 6. Incorporate state-specific regulations when relevant
+ 7. Be specific and actionable - avoid generic corporate speak
+ 8. End with an assertive, outcome-focused request: explicitly ask to update the estimate/decision to FULL APPROVAL (e.g., "Please update the estimate to full replacement consistent with the attached evidence.")
+ 9. If ending with a question, use: "What do you need from us to make sure we get this to a full approval?"
+ 10. Do NOT ask to schedule calls/meetings by default; only if the recipient has already requested one
 
-WHAT TO AVOID:
-- Generic, robotic language that could be sent to anyone
-- Writing to wrong audience (e.g., technical adjuster language to homeowner)
-- Including AI commentary or meta-explanations
-- Using "WE'RE going to..." coaching style
+ WHAT TO AVOID:
+ - Generic, robotic language that could be sent to anyone
+ - Writing to wrong audience (e.g., technical adjuster language to homeowner)
+ - Including AI commentary or meta-explanations
+ - Using "WE'RE going to..." coaching style
+ - Ending with soft asks to schedule a call/meeting instead of requesting full approval
 
 IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
 If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.
