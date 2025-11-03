@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Copy, Check, Download, ChevronDown, ChevronUp, Zap, Target, FileText, AlertCircle, Mail } from 'lucide-react';
 
 interface SourceDocument {
@@ -32,7 +32,12 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1]));
   const [copiedSections, setCopiedSections] = useState<Set<number>>(new Set());
   const [hoveredCitation, setHoveredCitation] = useState<number | null>(null); // Track citation number only
-  const [firstCitationElements] = useState<Map<number, boolean>>(new Map()); // Track first occurrence of each citation
+  const firstCitationElementsRef = useRef<Map<number, boolean>>(new Map()); // Track first occurrence of each citation
+
+  // Clear the citation tracking map when content changes
+  useEffect(() => {
+    firstCitationElementsRef.current.clear();
+  }, [content]);
 
   // Parse the raw response into structured sections
   const parseResponse = (text: string): ParsedSection[] => {
@@ -198,9 +203,9 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
 
             if (source) {
               // Check if this is the first time we're seeing this citation number
-              const isFirstOccurrence = !firstCitationElements.has(citationNum);
+              const isFirstOccurrence = !firstCitationElementsRef.current.has(citationNum);
               if (isFirstOccurrence) {
-                firstCitationElements.set(citationNum, true);
+                firstCitationElementsRef.current.set(citationNum, true);
               }
 
               return (
