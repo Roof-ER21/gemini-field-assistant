@@ -458,15 +458,28 @@ try {
   const __dirname = path.dirname(__filename);
   const distDir = path.resolve(__dirname, '../dist');
 
-  // Serve static assets
-  app.use(express.static(distDir));
+  // Serve static assets (hashed files can be cached aggressively)
+  app.use(
+    express.static(distDir, {
+      maxAge: '1y',
+      immutable: true,
+    })
+  );
 
-  // SPA fallback for non-API routes
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) {
-      res.status(404).json({ error: 'API route not found' });
-      return;
-    }
+  // Serve index.html with no-cache for root
+  app.get(['/', '/index.html'], (req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+
+  // SPA fallback only for non-asset, non-API GET requests that accept HTML
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+    // Do not hijack real asset requests (contain a dot extension or /assets)
+    if (req.path.includes('.') || req.path.startsWith('/assets')) return next();
+    if (!req.accepts('html')) return next();
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.sendFile(path.join(distDir, 'index.html'));
   });
 } catch (e) {
