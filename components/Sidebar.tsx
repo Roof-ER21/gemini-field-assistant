@@ -5,7 +5,7 @@ import {
   Image,
   Mic,
   Mail,
-  MapPin,
+  Building2,
   Radio,
   Target,
   FileText,
@@ -26,7 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
     { id: 'image', label: 'Image Analysis', desc: 'Roof damage detection', icon: Image },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
-    { id: 'maps', label: 'Maps', desc: 'Find suppliers', icon: MapPin },
+    { id: 'maps', label: 'Insurance Co', desc: 'Insurance directory', icon: Building2 },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
   ];
 
