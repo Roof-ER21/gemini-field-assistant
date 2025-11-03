@@ -169,6 +169,42 @@ CREATE INDEX IF NOT EXISTS idx_search_analytics_created_at ON search_analytics(c
 CREATE INDEX IF NOT EXISTS idx_search_analytics_query ON search_analytics USING gin(to_tsvector('english', query));
 
 -- ============================================================================
+-- RAG DOCUMENTS TABLE
+-- ============================================================================
+-- Stores document embeddings for RAG (Retrieval Augmented Generation)
+-- This table enables semantic search and AI-powered document retrieval
+CREATE TABLE IF NOT EXISTS rag_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_name VARCHAR(500) NOT NULL,
+    document_path VARCHAR(1000) NOT NULL,
+    document_category VARCHAR(100),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('pdf', 'md', 'txt', 'docx', 'pptx', 'json', 'markdown', 'text')),
+    content TEXT NOT NULL,
+    content_hash VARCHAR(64), -- SHA-256 hash for deduplication
+    chunk_index INTEGER DEFAULT 0, -- For splitting large documents into chunks
+    metadata JSONB, -- Flexible metadata (pages, size, author, etc.)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(document_path, chunk_index)
+);
+
+-- Indexes for efficient RAG queries
+CREATE INDEX IF NOT EXISTS idx_rag_documents_path ON rag_documents(document_path);
+CREATE INDEX IF NOT EXISTS idx_rag_documents_category ON rag_documents(document_category);
+CREATE INDEX IF NOT EXISTS idx_rag_documents_hash ON rag_documents(content_hash);
+CREATE INDEX IF NOT EXISTS idx_rag_documents_type ON rag_documents(type);
+CREATE INDEX IF NOT EXISTS idx_rag_documents_created_at ON rag_documents(created_at DESC);
+
+-- Full-text search index for RAG content
+CREATE INDEX IF NOT EXISTS idx_rag_documents_content_search ON rag_documents
+    USING gin(to_tsvector('english', content));
+
+-- Note: For semantic embeddings (vector search), you would need:
+-- 1. Enable pgvector extension: CREATE EXTENSION IF NOT EXISTS vector;
+-- 2. Add embedding column: ALTER TABLE rag_documents ADD COLUMN embedding VECTOR(768);
+-- 3. Create vector index: CREATE INDEX ON rag_documents USING ivfflat (embedding vector_cosine_ops);
+
+-- ============================================================================
 -- ANALYTICS SUMMARY VIEW
 -- ============================================================================
 -- Useful view for quick analytics
@@ -223,6 +259,9 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_rag_documents_updated_at BEFORE UPDATE ON rag_documents
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================

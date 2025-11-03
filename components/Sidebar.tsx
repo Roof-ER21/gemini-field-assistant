@@ -8,9 +8,7 @@ import {
   Mail,
   Building2,
   Radio,
-  Target,
-  FileText,
-  DollarSign
+  Upload
 } from 'lucide-react';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
@@ -33,9 +31,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
   ];
 
   const quickActions = [
-    { title: 'Handle Objection', desc: 'Get response scripts', icon: Target },
-    { title: 'Document Job', desc: 'Create job report', icon: FileText },
-    { title: 'Price Quote', desc: 'Generate estimate', icon: DollarSign }
+    { id: 'email', title: 'Email', desc: 'Quick email draft', icon: Mail },
+    { id: 'transcribe', title: 'Voice Note', desc: 'Record & transcribe', icon: Mic },
+    { id: 'image', title: 'Upload', desc: 'Quick file upload', icon: Upload }
   ];
 
   return (
@@ -68,10 +66,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel }) => {
       {/* Quick Actions Section */}
       <div className="roof-er-sidebar-section">
         <div className="roof-er-sidebar-title">Quick Actions</div>
-        {quickActions.map((action, index) => {
+        {quickActions.map((action) => {
           const Icon = action.icon;
           return (
-            <div key={index} className="roof-er-action-card">
+            <div
+              key={action.id}
+              onClick={() => setActivePanel(action.id as PanelType)}
+              className="roof-er-action-card"
+              style={{ cursor: 'pointer' }}
+            >
               <div className="roof-er-action-card-title">
                 <Icon className="w-4 h-4 inline mr-1" />
                 {action.title}
