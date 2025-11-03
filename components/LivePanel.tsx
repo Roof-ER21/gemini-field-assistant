@@ -129,10 +129,16 @@ const LivePanel: React.FC = () => {
         'audio/webm;codecs=opus',
         'audio/webm',
         'audio/ogg;codecs=opus',
-        'audio/mp4'
+        'audio/mp4',
+        'audio/wav'
       ];
 
-      const supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+      let supportedMimeType: string | undefined;
+      if (typeof (MediaRecorder as any).isTypeSupported === 'function') {
+        supportedMimeType = mimeTypes.find(type => (MediaRecorder as any).isTypeSupported(type));
+      } else {
+        supportedMimeType = 'audio/wav';
+      }
 
       if (!supportedMimeType) {
         throw new Error('No supported audio format found');

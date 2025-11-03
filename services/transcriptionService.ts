@@ -68,10 +68,18 @@ export async function startRecording(): Promise<RecordingState> {
       'audio/webm;codecs=opus',
       'audio/webm',
       'audio/ogg;codecs=opus',
-      'audio/mp4'
+      'audio/mp4',
+      'audio/wav'
     ];
 
-    const supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+    let supportedMimeType: string | undefined;
+    // Some polyfills do not implement isTypeSupported
+    if (typeof (MediaRecorder as any).isTypeSupported === 'function') {
+      supportedMimeType = mimeTypes.find(type => (MediaRecorder as any).isTypeSupported(type));
+    } else {
+      // Assume WAV via polyfill
+      supportedMimeType = 'audio/wav';
+    }
 
     if (!supportedMimeType) {
       throw new Error('No supported audio format found for recording');

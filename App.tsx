@@ -66,6 +66,18 @@ const App: React.FC = () => {
     setActivePanel('chat');
   };
 
+  // Consume knowledge_open_doc marker to open Knowledge on a specific doc
+  useEffect(() => {
+    try {
+      const marker = localStorage.getItem('knowledge_open_doc');
+      if (marker) {
+        setSelectedDocument(marker);
+        setActivePanel('knowledge');
+        localStorage.removeItem('knowledge_open_doc');
+      }
+    } catch {}
+  }, [activePanel]);
+
   const handleLoginSuccess = () => {
     const user = authService.getCurrentUser();
     if (user) {
@@ -106,7 +118,7 @@ const App: React.FC = () => {
           />
         );
       case 'image':
-        return <ImageAnalysisPanel onOpenChat={() => setActivePanel('chat')} />;
+        return <ImageAnalysisPanel onOpenChat={() => setActivePanel('chat')} onOpenKnowledge={() => setActivePanel('knowledge')} />;
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':

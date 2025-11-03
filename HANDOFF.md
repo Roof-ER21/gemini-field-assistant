@@ -72,6 +72,37 @@
 3. **Action Plan Copy Button**: Now copies full plan including checklist items
 4. **Login Page**: Professional Roof-ER logo with S21 branding, compact design
 
+5. **Upload Analysis**
+   - Panel renamed from Image Analysis → Upload Analysis
+   - Supports images (PNG/JPG/HEIC) and docs (PDF/MD/TXT/DOCX)
+   - HEIC auto‑conversion to JPEG
+   - PDF/DOCX text extraction client‑side (pdfjs‑dist, mammoth)
+   - Recent Uploads list with “Open in Chat” and “View” actions
+   - Filter between All / Images / Docs
+
+6. **Knowledge Improvements**
+   - New “Uploads” tab lists only user‑uploaded docs
+   - Card toolbar for uploaded docs: Chat, Rename, Delete
+   - Pins float to top across all views; Favorites remain primary saved list
+   - “Open in Chat” in Document Viewer sends doc context to Chat
+
+7. **Email Generator UI**
+   - Card layout, softer borders, sticky preview on wide screens
+   - Respectful full‑approval closing guidance
+   - Trimmed variables (removed phone/amount/date boxes)
+
+8. **Live/Transcribe Reliability**
+   - Live Mode uses env GEMINI_API_KEY (clear error if missing)
+   - MediaRecorder WAV polyfill for Safari/older browsers
+   - Transcription uploads accept webm/ogg in addition to mp3/wav/m4a
+   - Clearer errors for unsupported recording formats
+
+9. **Server + Assets**
+   - Correct SPA fallback (no HTML for missing assets)
+   - index.html served no‑cache; assets immutable cached
+   - Added public/vite.svg to avoid 404
+   - Added mobile-web-app-capable meta
+
 ---
 
 ## 🎯 Next Steps - Priority Roadmap
@@ -92,6 +123,13 @@
 - `components/Sidebar.tsx`
 - `App.tsx` (add quick action routing)
 - New file: `components/QuickActionModal.tsx` (optional)
+
+#### 1b. Uploads Workflow Enhancements
+**Status**: Initial implementation complete
+**Next**:
+- [ ] Add “Upload” entry in Knowledge to import directly from there
+- [ ] Server endpoint for larger PDF/DOCX extraction (optional for perf)
+- [ ] Persist uploads in DB for cross‑device access
 
 #### 2. Insurance Company Database Integration
 **Location**: `/components/MapsPanel.tsx`
@@ -153,6 +191,10 @@ CREATE TABLE IF NOT EXISTS insurance_companies (
 - [ ] Add haptic feedback for iOS
 - [ ] Test voice recording on mobile Safari
 - [ ] Test camera integration for image upload
+
+#### 4b. Caching / SW
+- [ ] Add versioned sw.js auto‑update prompt or disable SW if stale caches persist
+- [ ] Precache icons/manifest only; keep assets network‑first to avoid staleness
 
 **Testing Checklist**:
 ```markdown
@@ -352,6 +394,7 @@ NODE_ENV=production
 2. ✅ **FIXED**: User profile modal overlapping
 3. ✅ **FIXED**: Copy Action Plan only copying intro text
 4. **PENDING**: Insurance companies database table doesn't exist (causes error in logs)
+5. Service Worker may cache stale index on some devices; mitigated by server no-cache and minimal SW. Consider full SW versioning UX.
 
 ### Minor (Can Wait)
 1. Some bundle chunks are >500kb (consider code splitting)
