@@ -70,14 +70,16 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
     }
   }, []);
 
-  // Load recent user uploads from Knowledge (localStorage backed)
+  // Clear any existing user uploads from localStorage on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('user_uploads') || '[]';
-      const list = JSON.parse(raw);
-      setUserUploads(list.slice(0, 12).map((u: any) => ({ id: u.id, name: u.name, path: u.path })));
-    } catch {}
-  }, [imageUploads]);
+      // Remove old user_uploads data that may have been saved before
+      localStorage.removeItem('user_uploads');
+      console.log('[ImageAnalysisPanel] Cleared user_uploads from localStorage');
+    } catch (error) {
+      console.warn('Could not clear user_uploads:', error);
+    }
+  }, []);
 
   // Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
@@ -202,15 +204,13 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
         content = '[Failed to extract text]';
       }
 
-      // Save into knowledge user uploads
-      try {
-        const storeKey = 'user_uploads';
-        const raw = localStorage.getItem(storeKey) || '[]';
-        const list = JSON.parse(raw);
-        const id = generateId();
-        list.unshift({ id, name, type: 'md', path: `local:uploads/${id}`, content, category: 'User Uploads' });
-        localStorage.setItem(storeKey, JSON.stringify(list.slice(0, 100)));
-      } catch {}
+      // NOTE: Documents uploaded here are NOT saved to knowledge base
+      // They are processed for temporary analysis only
+      // If you want to analyze the document, the content is extracted above
+      console.log(`Document "${name}" processed. Content length: ${content.length} characters`);
+
+      // Optional: You could show a message or process the document for analysis here
+      alert(`Document "${name}" uploaded and processed.\n\nTo analyze this document with Susan, please go to the Chat panel and use the file upload feature there.`);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, DragEvent } from 'react';
+import React, { useState, useRef, useEffect, DragEvent } from 'react';
 import { Upload, FileText, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { multiAI } from '../services/multiProviderAI';
 import { SYSTEM_PROMPT } from '../config/s21Personality';
@@ -75,6 +75,16 @@ const DocumentAnalysisPanel: React.FC = () => {
 
   const MAX_FILES = 20;
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+  // Clear any existing user uploads from localStorage on mount
+  useEffect(() => {
+    try {
+      localStorage.removeItem('user_uploads');
+      console.log('[DocumentAnalysisPanel] Cleared user_uploads from localStorage');
+    } catch (error) {
+      console.warn('Could not clear user_uploads:', error);
+    }
+  }, []);
 
   // ============================================================================
   // FILE HANDLING

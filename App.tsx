@@ -35,6 +35,15 @@ const App: React.FC = () => {
       setCurrentUser(user);
       setIsAuthenticated(true);
     }
+
+    // Clear any old user_uploads from localStorage
+    // Files should never be saved - only analyzed temporarily
+    try {
+      localStorage.removeItem('user_uploads');
+      console.log('[App] Cleared user_uploads from localStorage on mount');
+    } catch (error) {
+      console.warn('Could not clear user_uploads:', error);
+    }
   }, []);
 
   const pageTitles: Record<PanelType, string> = {
