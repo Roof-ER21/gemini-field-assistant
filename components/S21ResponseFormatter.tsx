@@ -204,11 +204,13 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   key={idx}
                   onMouseEnter={(e) => {
                     setHoveredCitation(citationId);
-                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.25)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
                   }}
                   onMouseLeave={(e) => {
                     setHoveredCitation(null);
-                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.15)';
+                    e.currentTarget.style.transform = 'scale(1)';
                   }}
                   onClick={() => {
                     if (onOpenDocument) {
@@ -218,13 +220,18 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   style={{
                     position: 'relative',
                     cursor: 'pointer',
-                    color: 'var(--roof-red)',
-                    fontWeight: 600,
-                    fontSize: '12px',
-                    padding: '2px 4px',
-                    borderRadius: '3px',
-                    background: 'rgba(220, 38, 38, 0.1)',
-                    transition: 'all 0.2s'
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(220, 38, 38, 0.15)',
+                    border: '1px solid var(--roof-red)',
+                    transition: 'all 0.2s',
+                    display: 'inline-block',
+                    marginLeft: '2px',
+                    marginRight: '2px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
                   }}
                 >
                   {part}
@@ -235,41 +242,62 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                         bottom: '100%',
                         left: '50%',
                         transform: 'translateX(-50%)',
-                        marginBottom: '8px',
-                        padding: '12px',
-                        background: 'var(--bg-elevated)',
+                        marginBottom: '10px',
+                        padding: '14px 16px',
+                        background: '#1a1a1a',
                         border: '2px solid var(--roof-red)',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                        zIndex: 1000,
-                        minWidth: '250px',
-                        maxWidth: '350px',
-                        pointerEvents: 'none'
+                        borderRadius: '10px',
+                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(220, 38, 38, 0.2)',
+                        zIndex: 10000,
+                        minWidth: '280px',
+                        maxWidth: '380px',
+                        pointerEvents: 'none',
+                        animation: 'fadeIn 0.2s ease-out'
                       }}
                     >
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--roof-red)', marginBottom: '6px' }}>
-                        {source.document.name}
+                      {/* Arrow pointer */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '-8px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '0',
+                        height: '0',
+                        borderLeft: '8px solid transparent',
+                        borderRight: '8px solid transparent',
+                        borderTop: '8px solid var(--roof-red)'
+                      }} />
+
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', marginBottom: '6px', lineHeight: '1.3' }}>
+                        📄 {source.document.name}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
                         {source.document.category}
                       </div>
                       <div style={{
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        lineHeight: '1.5',
-                        maxHeight: '120px',
+                        fontSize: '13px',
+                        color: '#e2e8f0',
+                        lineHeight: '1.6',
+                        maxHeight: '140px',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        textOverflow: 'ellipsis',
+                        marginBottom: '10px',
+                        padding: '8px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid var(--roof-red)'
                       }}>
-                        {source.content.slice(0, 200)}...
+                        {source.content.slice(0, 220)}...
                       </div>
                       <div style={{
-                        fontSize: '11px',
+                        fontSize: '12px',
                         color: 'var(--roof-red)',
-                        marginTop: '6px',
-                        fontWeight: 600
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
                       }}>
-                        Click to view full document
+                        <span>👆</span> Click to view full document
                       </div>
                     </div>
                   )}
