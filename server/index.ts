@@ -704,13 +704,29 @@ app.post('/api/admin/run-migration', async (req, res) => {
 -- 1. USER ACTIVITY LOG TABLE
 CREATE TABLE IF NOT EXISTS user_activity_log (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL,
   activity_type VARCHAR(50) NOT NULL,
   activity_data JSONB,
   ip_address VARCHAR(45),
   user_agent TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add foreign key constraint (will succeed once users table has data)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'user_activity_log_user_id_fkey'
+  ) THEN
+    ALTER TABLE user_activity_log
+    ADD CONSTRAINT user_activity_log_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN others THEN
+    RAISE NOTICE 'Could not add foreign key constraint - will be added later when users exist';
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_activity_user_date ON user_activity_log(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity_log(activity_type);
@@ -723,12 +739,28 @@ CREATE TABLE IF NOT EXISTS email_notifications (
   id SERIAL PRIMARY KEY,
   notification_type VARCHAR(50) NOT NULL,
   recipient_email VARCHAR(255) NOT NULL,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER,
   sent_at TIMESTAMP DEFAULT NOW(),
   email_data JSONB,
   success BOOLEAN DEFAULT true,
   error_message TEXT
 );
+
+-- Add foreign key constraint (will succeed once users table has data)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'email_notifications_user_id_fkey'
+  ) THEN
+    ALTER TABLE email_notifications
+    ADD CONSTRAINT email_notifications_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN others THEN
+    RAISE NOTICE 'Could not add foreign key constraint - will be added later when users exist';
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_email_notifications_user ON email_notifications(user_id, sent_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_notifications_type ON email_notifications(notification_type);
