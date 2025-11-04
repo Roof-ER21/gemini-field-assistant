@@ -6,9 +6,14 @@
  */
 
 import pg from 'pg';
-import * as dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.local' });
+// Try to load dotenv if running locally (optional)
+try {
+  const dotenv = await import('dotenv');
+  dotenv.config({ path: '.env.local' });
+} catch (e) {
+  // dotenv not available (Railway environment) - use env vars directly
+}
 
 const { Pool } = pg;
 
