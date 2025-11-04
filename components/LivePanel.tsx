@@ -246,10 +246,6 @@ const LivePanel: React.FC = () => {
         throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');
       }
 
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp'
-      });
-
       const conversationContext = messages.slice(-5).map(m =>
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
       ).join('\n');
@@ -272,18 +268,23 @@ Respond in JSON format:
   "response": "Your helpful response"
 }`;
 
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: audioBlob.type,
-            data: base64Audio.split(',')[1],
-          },
+      // Use the correct API: client.models.generateContent()
+      const result = await genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: audioBlob.type,
+                data: base64Audio.split(',')[1],
+              },
+            },
+          ],
         },
-      ]);
+      });
 
-      const response = await result.response;
-      const text = response.text();
+      const text = result.text;
 
       // Parse JSON
       const jsonMatch = text.match(/\{[\s\S]*\}/);

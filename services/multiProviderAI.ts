@@ -273,11 +273,9 @@ export class MultiProviderAI {
       throw new Error('GEMINI_API_KEY not set');
     }
 
-    // Use existing Gemini implementation
+    // Use existing Gemini implementation with correct API
     const genAI = new GoogleGenAI({ apiKey });
-    const model = genAI.getGenerativeModel({
-      model: import.meta.env.VITE_GEMINI_MODEL || PROVIDERS.gemini.defaultModel
-    });
+    const modelName = import.meta.env.VITE_GEMINI_MODEL || PROVIDERS.gemini.defaultModel;
 
     // Convert messages to Gemini format
     const contents = messages
@@ -289,16 +287,17 @@ export class MultiProviderAI {
 
     const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
 
-    const chat = model.startChat({
+    // Use the new API: client.chats.create()
+    const chat = genAI.chats.create({
+      model: modelName,
       history: contents.slice(0, -1),
       systemInstruction,
     });
 
     const result = await chat.sendMessage(contents[contents.length - 1].parts[0].text);
-    const response = await result.response;
 
     return {
-      content: response.text(),
+      content: result.text,
       provider: 'Google Gemini',
       model: PROVIDERS.gemini.defaultModel,
     };
