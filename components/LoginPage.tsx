@@ -126,39 +126,39 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         pointerEvents: 'none'
       }} />
 
-      <div className="w-full max-w-md" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="w-full max-w-2xl px-6" style={{ position: 'relative', zIndex: 1 }}>
         {/* Logo and Title */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-12">
           {/* Full ROOFER Logo Image */}
           <div style={{
             display: 'flex',
             justifyContent: 'center',
-            marginBottom: '20px'
+            marginBottom: '32px'
           }}>
             <img
               src="/roofer-logo-full.png"
               alt="ROOFER - The Roof Docs"
               style={{
-                width: '280px',
+                width: '360px',
                 height: 'auto',
-                filter: 'drop-shadow(0 8px 24px rgba(239, 68, 68, 0.4))'
+                filter: 'drop-shadow(0 12px 32px rgba(239, 68, 68, 0.5))'
               }}
             />
           </div>
 
           <h1
-            className="text-3xl font-bold mb-2"
+            className="text-4xl font-bold mb-2"
             style={{
               color: '#ffffff',
               letterSpacing: '-0.02em',
               textShadow: '0 2px 8px rgba(0, 0, 0, 0.8)'
             }}
           >
-            S21 Field AI
+            S21 ROOFER
           </h1>
           <p style={{
             color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '14px',
+            fontSize: '16px',
             fontWeight: 500,
             textShadow: '0 1px 4px rgba(0, 0, 0, 0.8)'
           }}>
@@ -168,13 +168,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         {/* Login Card */}
         <div
-          className="p-6 shadow-lg"
+          className="shadow-lg"
           style={{
-            background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.9) 0%, rgba(15, 20, 25, 0.9) 100%)',
-            borderRadius: '20px',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(239, 68, 68, 0.1)',
-            backdropFilter: 'blur(20px)'
+            background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.95) 0%, rgba(15, 20, 25, 0.95) 100%)',
+            borderRadius: '24px',
+            border: '2px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.2)',
+            backdropFilter: 'blur(20px)',
+            padding: '48px 40px'
           }}
         >
           {step === 'email' ? (
