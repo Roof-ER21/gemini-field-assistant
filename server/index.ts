@@ -9,6 +9,7 @@ import pg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { emailService, LoginNotificationData, ChatNotificationData } from './services/emailService.js';
+import { cronService } from './services/cronService.js';
 
 const { Pool } = pg;
 const app = express();
@@ -691,6 +692,50 @@ app.post('/api/admin/trigger-daily-summary', async (req, res) => {
 // ADMIN ENDPOINTS
 // ============================================================================
 
+// Get cron job status (admin only)
+app.get('/api/admin/cron-status', (req, res) => {
+  try {
+    const status = cronService.getStatus();
+    res.json({
+      success: true,
+      ...status,
+      schedules: [
+        { time: '5:00 AM', description: 'Morning Summary' },
+        { time: '12:00 PM', description: 'Midday Summary' },
+        { time: '7:00 PM', description: 'Evening Summary' },
+        { time: '11:00 PM', description: 'Night Summary' }
+      ],
+      timezone: 'America/New_York'
+    });
+  } catch (error) {
+    console.error('Error getting cron status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get cron status',
+      message: (error as Error).message
+    });
+  }
+});
+
+// Manually trigger cron job (for testing)
+app.post('/api/admin/trigger-cron-manual', async (req, res) => {
+  try {
+    const result = await cronService.runManually();
+    res.json({
+      success: true,
+      message: 'Manual cron job executed',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error running manual cron:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run manual cron',
+      message: (error as Error).message
+    });
+  }
+});
+
 // Run database migration (admin only)
 app.post('/api/admin/run-migration', async (req, res) => {
   try {
@@ -1118,6 +1163,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 app.listen(PORT, () => {
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+
+  // Start automated email cron jobs
+  try {
+    cronService.startAll();
+    console.log('✅ Automated email scheduling initialized');
+  } catch (error) {
+    console.error('⚠️  Failed to start cron jobs:', error);
+    console.log('💡 Email notifications will still work via manual triggers');
+  }
 });
 
 export default app;
