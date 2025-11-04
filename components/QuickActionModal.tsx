@@ -30,26 +30,43 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
   const startEmail = () => {
     const greeting = recipient ? `Dear ${recipient},\n\n` : '';
     const template = `${greeting}`;
-    onStartEmail({ template, context: instructions ? `${instructions}\n\nSubject: ${subject}` : `Subject: ${subject}` });
+    const context = instructions ? `${instructions}\n\nSubject: ${subject}` : `Subject: ${subject}`;
+    onStartEmail({ template, context });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} aria-modal>
-      <div className="w-full sm:w-[640px] max-w-[96%] rounded-t-2xl sm:rounded-2xl overflow-hidden" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }} role="dialog">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.75)' }} aria-modal>
+      <div className="w-full sm:w-[640px] max-w-[96%] rounded-t-2xl sm:rounded-2xl overflow-hidden" style={{
+        background: 'linear-gradient(135deg, rgba(26, 31, 46, 1) 0%, rgba(15, 20, 25, 1) 100%)',
+        border: '2px solid rgba(239, 68, 68, 0.3)',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(239, 68, 68, 0.2)'
+      }} role="dialog">
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.05) 100%)', borderBottom: '1px solid var(--border-default)' }} className="p-4 flex items-center justify-between">
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(239,68,68,0.25) 0%, rgba(239,68,68,0.1) 100%)',
+          borderBottom: '2px solid rgba(239, 68, 68, 0.3)'
+        }} className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-            <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>Quick Actions</div>
+            <Zap className="w-5 h-5" style={{ color: '#ef4444' }} />
+            <div className="font-bold text-lg" style={{ color: '#ffffff' }}>Quick Actions</div>
           </div>
-          <button className="roof-er-header-btn" onClick={onClose} aria-label="Close quick actions">
+          <button
+            className="roof-er-header-btn"
+            onClick={onClose}
+            aria-label="Close quick actions"
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#ffffff'
+            }}
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 p-3" style={{ borderBottom: '1px solid var(--border-default)' }}>
+        <div className="flex gap-2 p-3" style={{ borderBottom: '2px solid rgba(239, 68, 68, 0.2)', background: 'rgba(0, 0, 0, 0.3)' }}>
           {[
             { id: 'email', label: 'Email', icon: Mail },
             { id: 'transcribe', label: 'Voice Note', icon: Mic },
@@ -62,7 +79,14 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 key={t.id}
                 onClick={() => setActive(t.id as QuickActionType)}
                 className={`px-3 py-2 rounded-lg flex items-center gap-2 ${selected ? 'bg-[var(--roof-red)] text-white' : ''}`}
-                style={{ border: selected ? '1px solid transparent' : '1px solid var(--border-default)', background: selected ? 'var(--roof-red)' : 'var(--bg-hover)', color: selected ? '#fff' : 'var(--text-primary)' }}
+                style={{
+                  border: selected ? '2px solid rgba(255, 255, 255, 0.3)' : '2px solid rgba(255, 255, 255, 0.1)',
+                  background: selected ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'rgba(255, 255, 255, 0.05)',
+                  color: selected ? '#ffffff' : 'rgba(255, 255, 255, 0.8)',
+                  fontWeight: selected ? '600' : '500',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer'
+                }}
               >
                 <Icon className="w-4 h-4" />
                 <span>{t.label}</span>
@@ -74,32 +98,51 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
         {/* Content */}
         <div className="p-4">
           {active === 'email' && (
-            <div className="grid gap-3 p-3" style={{ background: 'var(--bg-secondary)' }}>
+            <div className="grid gap-3 p-4" style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
               <div className="grid gap-1">
-                <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Recipient (optional)</label>
+                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Recipient (optional)</label>
                 <input
                   className="px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '2px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                  }}
                   placeholder="e.g., Sarah from State Farm"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                 />
               </div>
               <div className="grid gap-1">
-                <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Subject (optional)</label>
+                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Subject (optional)</label>
                 <input
                   className="px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '2px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                  }}
                   placeholder="Subject line"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
               </div>
               <div className="grid gap-1">
-                <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Instructions / Context (optional)</label>
+                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Instructions / Context (optional)</label>
                 <textarea
                   className="px-3 py-2 rounded-lg min-h-[96px]"
-                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '2px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                  }}
                   placeholder="Any specific details to include"
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
@@ -107,10 +150,27 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
+                  onClick={onClose}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="roof-er-header-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#ffffff',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
+                    fontWeight: '700'
+                  }}
                   onClick={startEmail}
                 >
                   Start Email
@@ -120,15 +180,36 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           )}
 
           {active === 'transcribe' && (
-            <div className="grid gap-3 p-3">
-              <p style={{ color: 'var(--text-secondary)' }}>
+            <div className="grid gap-3 p-4" style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500' }}>
                 Jump into Transcription to record a voice note and convert to text.
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
+                  onClick={onClose}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="roof-er-header-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#ffffff',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
+                    fontWeight: '700'
+                  }}
                   onClick={() => { onGoTranscribe(); onClose(); }}
                 >
                   Go to Transcription
@@ -138,15 +219,36 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           )}
 
           {active === 'image' && (
-            <div className="grid gap-3 p-3">
-              <p style={{ color: 'var(--text-secondary)' }}>
+            <div className="grid gap-3 p-4" style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500' }}>
                 Upload roof photos for AI-powered damage assessment and reporting.
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button className="roof-er-header-btn" onClick={onClose}>Cancel</button>
                 <button
                   className="roof-er-header-btn"
-                  style={{ background: 'var(--roof-red)', color: '#fff', border: '1px solid transparent', boxShadow: '0 8px 20px rgba(239,68,68,0.35)' }}
+                  onClick={onClose}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="roof-er-header-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#ffffff',
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
+                    fontWeight: '700'
+                  }}
                   onClick={() => { onGoUpload(); onClose(); }}
                 >
                   Go to Image Analysis

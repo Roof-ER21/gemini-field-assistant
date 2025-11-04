@@ -7,12 +7,14 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
 import { databaseService } from '../services/databaseService';
 import ChatHistorySidebar from './ChatHistorySidebar';
+import { emailNotificationService } from '../services/emailNotificationService';
+import { authService } from '../services/authService';
 
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
@@ -37,8 +39,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Refs for voice transcription
   const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
@@ -153,6 +157,60 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    let content = '';
+
+    try {
+      if (/\.(md|txt)$/i.test(file.name)) {
+        content = await file.text();
+      } else if (/\.pdf$/i.test(file.name)) {
+        const pdfjsLib: any = await import('pdfjs-dist');
+        const array = new Uint8Array(await file.arrayBuffer());
+        const pdf = await pdfjsLib.getDocument({ data: array }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const contentObj = await page.getTextContent();
+          text += contentObj.items.map((it: any) => it.str).join(' ') + '\n\n';
+        }
+        content = text.trim();
+      } else if (/\.(docx)$/i.test(file.name)) {
+        const mammoth: any = await import('mammoth/mammoth.browser');
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        const html = result.value as string;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        content = tmp.textContent || tmp.innerText || '';
+      } else {
+        alert('Unsupported file type. Please upload PDF, DOCX, MD, or TXT files.');
+        return;
+      }
+
+      setUploadedFiles([{ name: file.name, content, type: file.type }]);
+      setUserInput((prev) =>
+        prev ? `${prev}\n\n[Attached: ${file.name}]` : `[Attached: ${file.name}]\n\nPlease analyze this document and provide guidance.`
+      );
+    } catch (error) {
+      console.error('Error reading file:', error);
+      alert('Failed to read file. Please try again.');
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeUploadedFile = (fileName: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
+    setUserInput(prev => prev.replace(`[Attached: ${fileName}]`, '').trim());
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!userInput.trim() || isLoading) return;
@@ -175,6 +233,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       textareaRef.current.style.height = 'auto';
     }
 
+    // Send email notification to admin for chat interaction
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      emailNotificationService.notifyChat({
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        message: originalQuery,
+        timestamp: new Date().toISOString(),
+        sessionId: currentSessionId,
+        state: selectedState || undefined
+      }).catch(err => {
+        console.warn('Failed to send chat notification email:', err);
+        // Don't block chat if email fails
+      });
+    }
+
     setIsLoading(true);
 
     try {
@@ -192,11 +266,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       let userPrompt = originalQuery;
       let sources: any[] = [];
 
+      // Include uploaded file content in the prompt
+      if (uploadedFiles.length > 0) {
+        const fileContext = uploadedFiles.map(f =>
+          `\n\n--- UPLOADED DOCUMENT: ${f.name} ---\n${f.content}\n--- END OF ${f.name} ---`
+        ).join('\n');
+        userPrompt = originalQuery + fileContext;
+        // Clear uploaded files after sending
+        setUploadedFiles([]);
+      }
+
       if (useRAG) {
         console.log('[RAG] Enhancing query with knowledge base...');
         const ragContext = await ragService.buildRAGContext(originalQuery, 3, selectedState || undefined);
         systemPrompt = ragContext.enhancedPrompt.split('USER QUESTION:')[0];
-        userPrompt = originalQuery;
+        // Keep the uploaded file content in userPrompt
+        if (uploadedFiles.length === 0) {
+          userPrompt = originalQuery;
+        }
         sources = ragContext.sources;
         console.log(`[RAG] Found ${sources.length} relevant documents${selectedState ? ` (State: ${selectedState})` : ''}`);
       }
@@ -523,6 +610,61 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
         </div>
 
+        {/* File Upload Input (Hidden) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc,.txt,.md"
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
+
+        {/* Uploaded Files Display */}
+        {uploadedFiles.length > 0 && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'var(--bg-elevated)',
+            borderTop: '1px solid var(--border-default)',
+            display: 'flex',
+            gap: '8px',
+            flexWrap: 'wrap'
+          }}>
+            {uploadedFiles.map((file) => (
+              <div
+                key={file.name}
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--roof-red)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <FileText className="w-4 h-4" />
+                <span>{file.name}</span>
+                <button
+                  onClick={() => removeUploadedFile(file.name)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'white',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Remove file"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Input Wrapper */}
         <form onSubmit={handleSendMessage} className="roof-er-input-wrapper">
           <textarea
@@ -539,8 +681,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <button
               type="button"
               className="roof-er-action-btn"
-              title="Attach Photo"
-              onClick={() => alert('Photo attachment feature - connects to camera/gallery')}
+              title="Attach Document (PDF, DOCX, TXT, MD)"
+              onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip className="w-5 h-5" />
             </button>

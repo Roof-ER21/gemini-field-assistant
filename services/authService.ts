@@ -5,6 +5,7 @@
  */
 
 import { databaseService, User } from './databaseService';
+import { emailNotificationService } from './emailNotificationService';
 
 export interface AuthUser {
   id: string;
@@ -23,11 +24,18 @@ export interface LoginResult {
   verificationCode?: string; // For MVP, we'll show this in console
 }
 
+interface StoredAuth {
+  user: AuthUser;
+  expiresAt: number;
+  rememberMe: boolean;
+}
+
 class AuthService {
   private static instance: AuthService;
   private currentUser: AuthUser | null = null;
   private readonly AUTH_KEY = 's21_auth_user';
   private readonly SESSION_KEY = 's21_session_id';
+  private readonly TOKEN_KEY = 's21_auth_token';
 
   private constructor() {
     // Load user from localStorage on initialization
@@ -46,24 +54,54 @@ class AuthService {
    */
   private loadStoredUser(): void {
     try {
-      const storedUser = localStorage.getItem(this.AUTH_KEY);
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        // Check if session is still valid (e.g., within 30 days)
-        const lastLogin = new Date(parsedUser.last_login_at);
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const storedToken = localStorage.getItem(this.TOKEN_KEY);
+      if (storedToken) {
+        const authData: StoredAuth = JSON.parse(storedToken);
+        const now = Date.now();
 
-        if (lastLogin > thirtyDaysAgo) {
-          this.currentUser = parsedUser;
+        // Check if token has expired
+        if (now < authData.expiresAt) {
+          this.currentUser = authData.user;
+          console.log('✅ Auto-login successful. Token expires:', new Date(authData.expiresAt));
+
+          // Auto-refresh token if it's close to expiring (within 7 days) and rememberMe is true
+          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+          if (authData.rememberMe && (authData.expiresAt - now) < sevenDaysInMs) {
+            this.refreshToken(authData.user, authData.rememberMe);
+          }
         } else {
-          // Session expired
+          // Token expired
+          console.log('🔒 Token expired, logging out');
           this.logout();
         }
       }
     } catch (error) {
       console.error('Error loading stored user:', error);
       this.logout();
+    }
+  }
+
+  /**
+   * Refresh authentication token
+   */
+  private refreshToken(user: AuthUser, rememberMe: boolean): void {
+    try {
+      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
+
+      const authData: StoredAuth = {
+        user: {
+          ...user,
+          last_login_at: new Date()
+        },
+        expiresAt,
+        rememberMe
+      };
+
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
+      console.log('🔄 Token refreshed. New expiry:', rememberMe ? new Date(expiresAt) : 'Session only');
+    } catch (error) {
+      console.error('Error refreshing token:', error);
     }
   }
 
@@ -142,7 +180,7 @@ class AuthService {
   /**
    * Verify code and complete login (Step 2: Verify code)
    */
-  async verifyLoginCode(email: string, code: string, name?: string): Promise<LoginResult> {
+  async verifyLoginCode(email: string, code: string, name?: string, rememberMe: boolean = false): Promise<LoginResult> {
     try {
       // Get stored code
       const storedCode = sessionStorage.getItem(`verification_code_${email}`);
@@ -200,9 +238,21 @@ class AuthService {
       this.currentUser = user;
       localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
 
-      // Create session
+      // Create session with token expiry
       const sessionId = crypto.randomUUID();
       localStorage.setItem(this.SESSION_KEY, sessionId);
+
+      // Store authentication token with expiry
+      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
+
+      const authData: StoredAuth = {
+        user,
+        expiresAt,
+        rememberMe
+      };
+
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
 
       // Update database service
       await databaseService.setCurrentUser(user);
@@ -212,6 +262,20 @@ class AuthService {
       sessionStorage.removeItem(`code_timestamp_${email}`);
 
       console.log('✅ User logged in successfully:', user.email);
+      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (30 days)' : 'No (session only)'}`);
+      if (rememberMe) {
+        console.log(`⏰ Token expires: ${new Date(expiresAt)}`);
+      }
+
+      // Send email notification to admin
+      emailNotificationService.notifyLogin({
+        userName: user.name,
+        userEmail: user.email,
+        timestamp: user.last_login_at.toISOString()
+      }).catch(err => {
+        console.warn('Failed to send login notification email:', err);
+        // Don't block login if email fails
+      });
 
       return {
         success: true,
@@ -230,7 +294,7 @@ class AuthService {
   /**
    * Quick login for development (bypass code verification)
    */
-  async quickLogin(email: string, name?: string): Promise<LoginResult> {
+  async quickLogin(email: string, name?: string, rememberMe: boolean = false): Promise<LoginResult> {
     try {
       const user: AuthUser = {
         id: crypto.randomUUID(),
@@ -258,9 +322,32 @@ class AuthService {
       const sessionId = crypto.randomUUID();
       localStorage.setItem(this.SESSION_KEY, sessionId);
 
+      // Store authentication token with expiry
+      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
+
+      const authData: StoredAuth = {
+        user,
+        expiresAt,
+        rememberMe
+      };
+
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
+
       await databaseService.setCurrentUser(user);
 
       console.log('✅ Quick login successful:', user.email);
+      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (30 days)' : 'No (session only)'}`);
+
+      // Send email notification to admin
+      emailNotificationService.notifyLogin({
+        userName: user.name,
+        userEmail: user.email,
+        timestamp: user.last_login_at.toISOString()
+      }).catch(err => {
+        console.warn('Failed to send login notification email:', err);
+        // Don't block login if email fails
+      });
 
       return {
         success: true,
@@ -351,6 +438,7 @@ class AuthService {
     this.currentUser = null;
     localStorage.removeItem(this.AUTH_KEY);
     localStorage.removeItem(this.SESSION_KEY);
+    localStorage.removeItem(this.TOKEN_KEY);
 
     // Clear session codes
     const keys = Object.keys(sessionStorage);

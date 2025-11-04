@@ -8,13 +8,14 @@ import EmailPanel from './components/EmailPanel';
 import MapsPanel from './components/MapsPanel';
 import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
+import AdminPanel from './components/AdminPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -54,7 +55,8 @@ const App: React.FC = () => {
     transcribe: 'Transcription',
     email: 'Email Generator',
     maps: 'Insurance Co',
-    live: 'Live Conversation'
+    live: 'Live Conversation',
+    admin: 'Admin Panel'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -144,6 +146,8 @@ const App: React.FC = () => {
             onOpenInChat={(doc) => openChatWithDoc({ name: doc.name, path: doc.path })}
           />
         );
+      case 'admin':
+        return <AdminPanel />;
       default:
         return <HomePage setActivePanel={setActivePanel} />;
     }
@@ -267,15 +271,28 @@ const App: React.FC = () => {
         aria-label="Open quick actions"
         onClick={() => { setInitialQuickAction('email'); setShowQuickActions(true); }}
         style={{
-          background: 'var(--roof-red)',
-          color: '#fff',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: '#ffffff',
+          border: '2px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '9999px',
-          padding: '14px 18px',
-          boxShadow: '0 10px 24px rgba(239, 68, 68, 0.35)'
+          padding: '16px 24px',
+          fontSize: '16px',
+          fontWeight: '700',
+          boxShadow: '0 8px 24px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.3)',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          zIndex: 40
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.boxShadow = '0 12px 32px rgba(239, 68, 68, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.3)';
         }}
       >
-        + Quick
+        + Quick Actions
       </button>
 
       {/* Quick Actions Modal */}

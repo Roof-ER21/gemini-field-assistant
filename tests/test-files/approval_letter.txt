@@ -1,0 +1,38 @@
+
+INSURANCE CLAIM APPROVAL LETTER
+
+Claim Number: CLM-2024-12345
+Policy Number: POL-987654
+Insured: John Doe
+Property: 456 Oak Avenue, Dallas, TX 75201
+
+Dear Mr. Doe,
+
+We are pleased to inform you that your claim has been FULLY APPROVED.
+
+Approved Amount: $45,000.00
+Deductible: $2,500.00
+Net Payment: $42,500.00
+
+Damage Assessment:
+- Roof replacement required (wind damage)
+- Siding repair on east wall (hail damage)
+- Gutter system replacement
+- Fascia and soffit repair
+
+Next Steps:
+1. Select a contractor from our approved vendor list
+2. Obtain estimates for the repair work
+3. Submit contractor information to adjuster
+4. Schedule final inspection after repairs
+
+Adjuster Contact:
+Name: Jane Smith
+Phone: (555) 123-4567
+Email: jane.smith@insurance.com
+
+Claim Status: APPROVED - FULL COVERAGE
+Approval Date: November 3, 2025
+
+Sincerely,
+Test Insurance Company

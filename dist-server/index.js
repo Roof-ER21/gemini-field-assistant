@@ -7,6 +7,7 @@ import cors from 'cors';
 import pg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { emailService } from './services/emailService.js';
 const { Pool } = pg;
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -300,6 +301,196 @@ app.get('/api/analytics/popular-documents', async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching popular documents:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// ============================================================================
+// EMAIL NOTIFICATION ENDPOINTS
+// ============================================================================
+// Send email notification endpoint
+app.post('/api/notifications/email', async (req, res) => {
+    try {
+        const { type, data } = req.body;
+        if (!type || !data) {
+            return res.status(400).json({
+                error: 'Missing required fields',
+                message: 'Both "type" and "data" are required'
+            });
+        }
+        let success = false;
+        if (type === 'login') {
+            const loginData = {
+                userName: data.userName,
+                userEmail: data.userEmail,
+                timestamp: new Date(data.timestamp || Date.now()),
+                ipAddress: data.ipAddress || req.ip,
+                userAgent: data.userAgent || req.get('user-agent')
+            };
+            success = await emailService.sendLoginNotification(loginData);
+        }
+        else if (type === 'chat') {
+            const chatData = {
+                userName: data.userName,
+                userEmail: data.userEmail,
+                message: data.message,
+                timestamp: new Date(data.timestamp || Date.now()),
+                sessionId: data.sessionId,
+                state: data.state
+            };
+            success = await emailService.sendChatNotification(chatData);
+        }
+        else {
+            return res.status(400).json({
+                error: 'Invalid notification type',
+                message: 'Type must be either "login" or "chat"'
+            });
+        }
+        if (success) {
+            res.json({
+                success: true,
+                message: 'Email notification sent successfully',
+                provider: emailService.getConfig().provider
+            });
+        }
+        else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to send email notification'
+            });
+        }
+    }
+    catch (error) {
+        console.error('Error sending email notification:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            message: error.message
+        });
+    }
+});
+// Get email service configuration (for debugging)
+app.get('/api/notifications/config', async (req, res) => {
+    try {
+        const config = emailService.getConfig();
+        res.json({
+            provider: config.provider,
+            from: config.from,
+            adminEmail: config.adminEmail,
+            configured: config.provider !== 'console'
+        });
+    }
+    catch (error) {
+        console.error('Error fetching email config:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// ============================================================================
+// ADMIN ENDPOINTS
+// ============================================================================
+// Get all users with conversation statistics
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const result = await pool.query(`
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.role,
+        u.state,
+        COUNT(DISTINCT ch.id) as total_messages,
+        MAX(u.last_login_at) as last_active
+      FROM users u
+      LEFT JOIN chat_history ch ON u.id = ch.user_id
+      GROUP BY u.id, u.email, u.name, u.role, u.state
+      ORDER BY last_active DESC NULLS LAST
+    `);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching admin users:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get all conversations for a specific user
+app.get('/api/admin/conversations', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) {
+            return res.status(400).json({ error: 'userId is required' });
+        }
+        const result = await pool.query(`
+      SELECT
+        session_id,
+        COUNT(*) as message_count,
+        MIN(created_at) as first_message_at,
+        MAX(created_at) as last_message_at,
+        (
+          SELECT content
+          FROM chat_history
+          WHERE user_id = $1 AND session_id = ch.session_id
+          ORDER BY created_at ASC
+          LIMIT 1
+        ) as preview
+      FROM chat_history ch
+      WHERE user_id = $1 AND session_id IS NOT NULL
+      GROUP BY session_id
+      ORDER BY last_message_at DESC
+    `, [userId]);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching conversations:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get all messages for a specific conversation
+app.get('/api/admin/conversations/:sessionId', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const { userId } = req.query;
+        if (!userId || !sessionId) {
+            return res.status(400).json({ error: 'userId and sessionId are required' });
+        }
+        const result = await pool.query(`
+      SELECT
+        id,
+        message_id,
+        sender,
+        content,
+        state,
+        provider,
+        sources,
+        created_at
+      FROM chat_history
+      WHERE user_id = $1 AND session_id = $2
+      ORDER BY created_at ASC
+    `, [userId, sessionId]);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching conversation messages:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Update user role (admin only - in production add auth middleware)
+app.patch('/api/admin/users/:userId/role', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { role } = req.body;
+        if (!['sales_rep', 'manager', 'admin'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+        const result = await pool.query(`UPDATE users
+       SET role = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`, [role, userId]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    }
+    catch (error) {
+        console.error('Error updating user role:', error);
         res.status(500).json({ error: error.message });
     }
 });

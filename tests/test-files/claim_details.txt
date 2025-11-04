@@ -1,0 +1,11 @@
+Claim Number: CLM-2024-001
+Policy Number: POL-123456
+Insurance Company: Test Insurance Co.
+Date of Loss: 2024-01-15
+Property Address: 123 Main Street, Austin, TX 78701
+Claim Amount: $25,000.00
+Status: Approved
+
+Description:
+Wind and hail damage to roof. Missing shingles on north side.
+Fascia damage observed. Gutters detached.

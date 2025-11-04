@@ -8,10 +8,12 @@ import {
   Mail,
   Building2,
   Radio,
-  Upload
+  Upload,
+  Shield
 } from 'lucide-react';
+import { authService } from '../services/authService';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin';
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {
@@ -51,6 +53,9 @@ const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickAction }) => {
+  const currentUser = authService.getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
+
   const navItems = [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
@@ -61,6 +66,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'maps', label: 'Insurance Co', desc: 'Insurance directory', icon: Building2 },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
   ];
+
+  // Add admin item only if user is admin
+  if (isAdmin) {
+    navItems.push({
+      id: 'admin',
+      label: 'Admin Panel',
+      desc: 'User conversations',
+      icon: Shield
+    });
+  }
 
   const quickActions = [
     { id: 'email', title: 'Email', desc: 'Quick email draft', icon: Mail },

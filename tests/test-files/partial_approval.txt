@@ -1,0 +1,15 @@
+
+PARTIAL CLAIM APPROVAL
+
+Claim #: CLM-2024-55555
+Original Estimate: $30,000.00
+Approved Amount: $18,000.00
+Status: PARTIAL APPROVAL
+
+Items Approved:
+- Roof repair (wind damage): $15,000
+- Gutter replacement: $3,000
+
+Items Denied:
+- Cosmetic siding damage: $7,000 (wear and tear, not covered)
+- Interior painting: $5,000 (not related to covered loss)

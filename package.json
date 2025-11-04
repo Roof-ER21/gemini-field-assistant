@@ -12,7 +12,12 @@
     "db:init": "node scripts/init-database.js",
     "db:init:railway": "railway run node scripts/init-database.js",
     "db:seed:insurance": "node scripts/seed-insurance-companies.js",
-    "db:seed:railway:insurance": "railway run node scripts/seed-insurance-companies.js"
+    "db:seed:railway:insurance": "railway run node scripts/seed-insurance-companies.js",
+    "admin:list-users": "node scripts/list-users.js",
+    "admin:list-users:railway": "railway run node scripts/list-users.js",
+    "admin:set-admin": "node scripts/set-user-admin.js",
+    "admin:set-admin:railway": "railway run node scripts/set-user-admin.js",
+    "test:email": "node scripts/test-email-notifications.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",

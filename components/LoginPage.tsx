@@ -20,6 +20,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [showDevLogin, setShowDevLogin] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Handle email submission (Step 1)
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -54,7 +55,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await authService.verifyLoginCode(email, code, name || undefined);
+      const result = await authService.verifyLoginCode(email, code, name || undefined, rememberMe);
 
       if (result.success) {
         onLoginSuccess();
@@ -75,7 +76,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await authService.quickLogin(email, name || undefined);
+      const result = await authService.quickLogin(email, name || undefined, rememberMe);
 
       if (result.success) {
         onLoginSuccess();
@@ -418,6 +419,35 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     minHeight: '50px'
                   }}
                 />
+              </div>
+
+              {/* Remember Me Checkbox */}
+              <div className="mb-6">
+                <label
+                  className="flex items-center cursor-pointer"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="mr-3"
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      accentColor: 'var(--roof-red)',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span className="text-sm font-semibold">
+                    Remember me for 30 days
+                  </span>
+                </label>
+                <p className="text-xs mt-2 ml-8" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                  {rememberMe
+                    ? 'Your session will be saved for 30 days'
+                    : 'You will need to login again when you close the browser'}
+                </p>
               </div>
 
               {error && (
