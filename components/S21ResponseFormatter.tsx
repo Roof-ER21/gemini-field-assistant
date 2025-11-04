@@ -220,7 +220,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                   style={{
                     position: 'relative',
                     cursor: 'pointer',
-                    color: '#ffffff',
+                    color: 'var(--roof-red)',
                     fontWeight: 700,
                     fontSize: '11px',
                     padding: '2px 6px',

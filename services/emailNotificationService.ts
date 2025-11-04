@@ -3,7 +3,12 @@
  * Handles sending email notifications to the backend API
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL for production, localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:3001/api'
+    : `${window.location.origin}/api`
+);
 
 interface LoginNotificationPayload {
   userName: string;
