@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auth Debug - S21 ROOFER</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .section {
+      background: #2a2a2a;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    h1 { color: #ef4444; }
+    h2 { color: #ef4444; margin-top: 0; }
+    pre {
+      background: #1a1a1a;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      border: 1px solid #444;
+    }
+    button {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #dc2626;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .warning { color: #f59e0b; }
+  </style>
+</head>
+<body>
+  <h1>🔍 S21 ROOFER - Authentication Debug</h1>
+
+  <div class="section">
+    <h2>Current Auth Status</h2>
+    <div id="authStatus">Checking...</div>
+  </div>
+
+  <div class="section">
+    <h2>localStorage Data</h2>
+    <pre id="localStorage">Loading...</pre>
+  </div>
+
+  <div class="section">
+    <h2>Database User Info (if logged in)</h2>
+    <div id="dbInfo">Loading...</div>
+  </div>
+
+  <div class="section">
+    <h2>Actions</h2>
+    <button onclick="clearAuth()">Clear All Auth Data (Force Logout)</button>
+    <button onclick="location.reload()">Refresh Page</button>
+    <button onclick="location.href='/'">Go to App</button>
+  </div>
+
+  <div class="section">
+    <h2>Admin Panel Check</h2>
+    <div id="adminCheck">Checking...</div>
+  </div>
+
+  <script>
+    // Check localStorage
+    function updateLocalStorage() {
+      const keys = ['s21_auth_user', 's21_session_id', 's21_auth_token'];
+      const data = {};
+      keys.forEach(key => {
+        const value = localStorage.getItem(key);
+        if (value) {
+          try {
+            data[key] = JSON.parse(value);
+          } catch (e) {
+            data[key] = value;
+          }
+        } else {
+          data[key] = null;
+        }
+      });
+      document.getElementById('localStorage').textContent = JSON.stringify(data, null, 2);
+      return data;
+    }
+
+    // Check auth status
+    function checkAuthStatus() {
+      const data = updateLocalStorage();
+      const authToken = data.s21_auth_token;
+
+      if (!authToken || !authToken.user) {
+        document.getElementById('authStatus').innerHTML = '<span class="warning">❌ Not logged in</span>';
+        document.getElementById('adminCheck').innerHTML = '<span class="error">Cannot check - not logged in</span>';
+        document.getElementById('dbInfo').innerHTML = '<span class="warning">Not logged in</span>';
+        return;
+      }
+
+      const user = authToken.user;
+      const expiresAt = authToken.expiresAt;
+      const now = Date.now();
+      const expired = expiresAt && now > expiresAt;
+
+      let status = `<p class="success">✅ Logged in as: <strong>${user.email}</strong></p>`;
+      status += `<p>Name: ${user.name}</p>`;
+      status += `<p>Role: <strong>${user.role}</strong> ${user.role === 'admin' ? '👑' : ''}</p>`;
+      status += `<p>State: ${user.state || 'None'}</p>`;
+
+      if (expiresAt) {
+        const expiryDate = new Date(expiresAt);
+        status += `<p>Token expires: ${expiryDate.toLocaleString()}</p>`;
+        if (expired) {
+          status += `<p class="error">⚠️ Token is EXPIRED!</p>`;
+        } else {
+          const timeLeft = Math.floor((expiresAt - now) / (1000 * 60 * 60 * 24));
+          status += `<p class="success">Token valid (${timeLeft} days remaining)</p>`;
+        }
+      } else {
+        status += `<p>Session only (no expiry set)</p>`;
+      }
+
+      document.getElementById('authStatus').innerHTML = status;
+
+      // Check admin panel visibility
+      if (user.role === 'admin') {
+        document.getElementById('adminCheck').innerHTML = `
+          <p class="success">✅ You should see the Admin Panel in the sidebar!</p>
+          <p>If you don't see it, try:</p>
+          <ol>
+            <li>Click "Clear All Auth Data" below</li>
+            <li>Go back to the app and log in again</li>
+            <li>The new authentication code will load your admin role from the database</li>
+          </ol>
+        `;
+      } else {
+        document.getElementById('adminCheck').innerHTML = `
+          <p class="error">❌ Your role is "${user.role}" (not admin)</p>
+          <p class="warning">This is the problem! Even though you're added to the database as admin,
+          your session was created with the old code that hardcoded role as "sales_rep".</p>
+          <p><strong>Solution:</strong></p>
+          <ol>
+            <li>Wait for Railway deployment to finish</li>
+            <li>Click "Clear All Auth Data" below</li>
+            <li>Go back to app and log in as ahmed.mahmoud@theroofdocs.com</li>
+            <li>New code will query database and load your admin role</li>
+            <li>Admin Panel will appear!</li>
+          </ol>
+        `;
+      }
+
+      // Fetch from database
+      fetchDatabaseUser(user.email);
+    }
+
+    // Fetch user from database
+    async function fetchDatabaseUser(email) {
+      try {
+        const response = await fetch(`/api/users/${email}`);
+        if (response.ok) {
+          const dbUser = await response.json();
+          document.getElementById('dbInfo').innerHTML = `
+            <p class="success">✅ Found in database:</p>
+            <pre>${JSON.stringify(dbUser, null, 2)}</pre>
+            ${dbUser.role === 'admin' ? '<p class="success">✅ Database shows you as ADMIN!</p>' : ''}
+          `;
+        } else {
+          document.getElementById('dbInfo').innerHTML = `<span class="error">API returned: ${response.status} ${response.statusText}</span>`;
+        }
+      } catch (error) {
+        document.getElementById('dbInfo').innerHTML = `<span class="error">Error: ${error.message}</span>`;
+      }
+    }
+
+    // Clear all auth
+    function clearAuth() {
+      if (confirm('This will log you out. Continue?')) {
+        localStorage.removeItem('s21_auth_user');
+        localStorage.removeItem('s21_session_id');
+        localStorage.removeItem('s21_auth_token');
+        sessionStorage.clear();
+        alert('✅ All auth data cleared! Now go back to the app and log in again.');
+        location.reload();
+      }
+    }
+
+    // Run on load
+    checkAuthStatus();
+    setInterval(updateLocalStorage, 5000); // Update every 5 seconds
+  </script>
+</body>
+</html>
