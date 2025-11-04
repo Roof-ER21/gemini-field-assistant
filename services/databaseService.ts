@@ -87,8 +87,12 @@ export class DatabaseService {
   }
 
   private constructor() {
-    // In production, this would be your backend API URL
-    this.apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
+    // Auto-detect production vs development API URL
+    this.apiBaseUrl = import.meta.env.VITE_API_URL || (
+      window.location.hostname === 'localhost'
+        ? 'http://localhost:3001/api'
+        : `${window.location.origin}/api`
+    );
 
     // Check if we can connect to the database
     this.checkDatabaseConnection();
@@ -103,16 +107,28 @@ export class DatabaseService {
 
   private async checkDatabaseConnection(): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/health`);
+      console.log(`[DB] Checking connection to: ${this.apiBaseUrl}/health`);
+      const response = await fetch(`${this.apiBaseUrl}/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
       if (response.ok) {
+        const data = await response.json();
         this.useLocalStorage = false;
-        console.log('[DB] Connected to backend API');
+        console.log('[DB] ✅ Connected to backend API - Database mode enabled');
+        console.log('[DB] Health check:', data);
+        console.log('[DB] 💾 Chat messages will be saved to PostgreSQL database');
+        console.log('[DB] 👀 Admin can now view all conversations');
         return;
+      } else {
+        console.warn('[DB] Health check failed with status:', response.status);
       }
     } catch (error) {
-      // ignore
+      console.warn('[DB] Connection error:', (error as Error).message);
     }
-    console.log('[DB] Using localStorage fallback');
+    console.log('[DB] ⚠️  Using localStorage only (backend not available)');
+    console.log('[DB] 🔒 Conversations will be private to this browser');
     this.useLocalStorage = true;
   }
 
