@@ -112,6 +112,15 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Simple version/build info to verify live deploy
+app.get('/api/version', (req, res) => {
+  res.json({
+    service: 's21-field-assistant-api',
+    commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT || 'unknown',
+    builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
+  });
+});
+
 // ============================================================================
 // USER ENDPOINTS
 // ============================================================================
