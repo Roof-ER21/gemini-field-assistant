@@ -231,21 +231,43 @@ FORMAT YOUR RESPONSE AS JSON:
 
 Focus on sales-relevant details that help close deals and maintain customer relationships.`;
 
-  // Use the correct API: client.models.generateContent()
-  const result = await genAI.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
-    contents: {
-      parts: [
-        { text: prompt },
-        {
-          inlineData: {
-            mimeType: audioBlob.type,
-            data: base64Audio.split(',')[1],
-          },
+  // Use the correct API with retry logic for rate limits
+  let result;
+  let retries = 3;
+
+  while (retries > 0) {
+    try {
+      result = await genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: audioBlob.type,
+                data: base64Audio.split(',')[1],
+              },
+            },
+          ],
         },
-      ],
-    },
-  });
+      });
+      break; // Success, exit retry loop
+    } catch (error: any) {
+      if (error?.code === 429 && retries > 1) {
+        // Rate limit hit, wait and retry
+        console.warn(`Rate limit hit, retrying in ${4 - retries} seconds... (${retries - 1} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, (4 - retries) * 1000));
+        retries--;
+      } else {
+        // Not a rate limit or out of retries
+        throw error;
+      }
+    }
+  }
+
+  if (!result) {
+    throw new Error('Failed to transcribe audio after multiple retries');
+  }
 
   const text = result.text;
 
