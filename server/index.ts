@@ -508,11 +508,12 @@ app.get('/api/admin/users', async (req, res) => {
         u.name,
         u.role,
         u.state,
+        u.created_at,
         COUNT(DISTINCT ch.id) as total_messages,
-        MAX(u.last_login_at) as last_active
+        MAX(ch.created_at) as last_active
       FROM users u
       LEFT JOIN chat_history ch ON u.id = ch.user_id
-      GROUP BY u.id, u.email, u.name, u.role, u.state
+      GROUP BY u.id, u.email, u.name, u.role, u.state, u.created_at
       ORDER BY last_active DESC NULLS LAST
     `);
 
