@@ -441,12 +441,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     }}
                   />
                   <span className="text-sm font-semibold">
-                    Remember me for 30 days
+                    Remember me on this device
                   </span>
                 </label>
                 <p className="text-xs mt-2 ml-8" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                   {rememberMe
-                    ? 'Your session will be saved for 30 days'
+                    ? 'Stay logged in for 1 year'
                     : 'You will need to login again when you close the browser'}
                 </p>
               </div>

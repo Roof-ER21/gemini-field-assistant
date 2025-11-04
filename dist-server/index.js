@@ -493,6 +493,99 @@ app.get('/api/notifications/config', async (req, res) => {
     }
 });
 // ============================================================================
+// ACTIVITY LOGGING ENDPOINTS
+// ============================================================================
+// Log user activity
+app.post('/api/activity/log', async (req, res) => {
+    try {
+        const userEmail = getRequestEmail(req);
+        const { activity_type, activity_data, timestamp } = req.body;
+        if (!activity_type) {
+            return res.status(400).json({ error: 'activity_type is required' });
+        }
+        // Get or create user
+        const userId = await getOrCreateUserIdByEmail(userEmail);
+        if (!userId) {
+            return res.status(400).json({ error: 'Invalid user email' });
+        }
+        // Insert activity log
+        const result = await pool.query(`INSERT INTO user_activity_log (user_id, activity_type, activity_data, created_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, created_at`, [userId, activity_type, activity_data || null, timestamp || new Date().toISOString()]);
+        console.log(`✅ Activity logged: ${activity_type} for user ${userEmail}`);
+        res.json({
+            success: true,
+            activity_id: result.rows[0].id,
+            created_at: result.rows[0].created_at
+        });
+    }
+    catch (error) {
+        console.error('Error logging activity:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to log activity',
+            message: error.message
+        });
+    }
+});
+// Get activity summary for a user (today by default)
+app.get('/api/activity/summary/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { date } = req.query;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        const result = await pool.query(`SELECT
+         activity_type,
+         COUNT(*) as count,
+         MIN(created_at) as first_activity,
+         MAX(created_at) as last_activity
+       FROM user_activity_log
+       WHERE user_id = $1 AND DATE(created_at) = $2
+       GROUP BY activity_type`, [userId, targetDate]);
+        res.json({
+            user_id: userId,
+            date: targetDate,
+            activities: result.rows
+        });
+    }
+    catch (error) {
+        console.error('Error getting activity summary:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Trigger daily summary email manually (admin only)
+app.post('/api/admin/trigger-daily-summary', async (req, res) => {
+    try {
+        const { userId, date } = req.body;
+        // Import dailySummaryService dynamically
+        const { dailySummaryService } = await import('./services/dailySummaryService.js');
+        if (userId) {
+            // Send for specific user
+            const success = await dailySummaryService.sendDailySummaryEmail(userId, date);
+            res.json({
+                success,
+                message: success ? 'Daily summary sent' : 'No activity to summarize or already sent'
+            });
+        }
+        else {
+            // Send for all users
+            const result = await dailySummaryService.sendAllDailySummaries(date);
+            res.json({
+                success: true,
+                ...result
+            });
+        }
+    }
+    catch (error) {
+        console.error('Error triggering daily summary:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to trigger daily summary',
+            message: error.message
+        });
+    }
+});
+// ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
 // Get all users with conversation statistics

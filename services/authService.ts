@@ -6,6 +6,7 @@
 
 import { databaseService, User } from './databaseService';
 import { emailNotificationService } from './emailNotificationService';
+import { activityService } from './activityService';
 
 export interface AuthUser {
   id: string;
@@ -64,9 +65,9 @@ class AuthService {
           this.currentUser = authData.user;
           console.log('✅ Auto-login successful. Token expires:', new Date(authData.expiresAt));
 
-          // Auto-refresh token if it's close to expiring (within 7 days) and rememberMe is true
-          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          if (authData.rememberMe && (authData.expiresAt - now) < sevenDaysInMs) {
+          // Auto-refresh token if it's close to expiring (within 30 days) and rememberMe is true
+          const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+          if (authData.rememberMe && (authData.expiresAt - now) < thirtyDaysInMs) {
             this.refreshToken(authData.user, authData.rememberMe);
           }
         } else {
@@ -86,7 +87,7 @@ class AuthService {
    */
   private refreshToken(user: AuthUser, rememberMe: boolean): void {
     try {
-      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiryDuration = rememberMe ? 365 * 24 * 60 * 60 * 1000 : 0; // 1 year or session
       const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
 
       const authData: StoredAuth = {
@@ -128,7 +129,11 @@ class AuthService {
 
   /**
    * Send verification code (MVP: just log to console)
-   * In production, this would send an email via SendGrid or similar
+   * TODO: Integrate with email service to send verification code via email
+   * - Use emailNotificationService or similar email provider
+   * - Consider using SendGrid, AWS SES, or Resend for email delivery
+   * - Add rate limiting to prevent abuse (max 3 codes per 15 minutes)
+   * - Add email template with branded styling
    */
   private async sendVerificationCode(email: string, code: string): Promise<void> {
     console.log('='.repeat(60));
@@ -137,7 +142,7 @@ class AuthService {
     console.log(`Email: ${email}`);
     console.log(`Verification Code: ${code}`);
     console.log('='.repeat(60));
-    console.log('In production, this would be sent via email service.');
+    console.log('TODO: In production, implement actual email sending via email service.');
     console.log('='.repeat(60));
 
     // Store code in sessionStorage for verification (expires on browser close)
@@ -189,7 +194,7 @@ class AuthService {
       if (!storedCode || !timestamp) {
         return {
           success: false,
-          message: 'Verification code expired. Please request a new one.'
+          message: 'No verification code found. Please request a new code.'
         };
       }
 
@@ -201,7 +206,7 @@ class AuthService {
         sessionStorage.removeItem(`code_timestamp_${email}`);
         return {
           success: false,
-          message: 'Verification code expired. Please request a new one.'
+          message: 'Verification code expired (10 min limit). Please request a new one.'
         };
       }
 
@@ -209,7 +214,7 @@ class AuthService {
       if (code !== storedCode) {
         return {
           success: false,
-          message: 'Invalid verification code. Please try again.'
+          message: 'Invalid verification code. Please check and try again.'
         };
       }
 
@@ -224,6 +229,8 @@ class AuthService {
         last_login_at: new Date()
       };
 
+      let isFirstLogin = true;
+
       // First, check if user exists in database and get their role
       try {
         const response = await fetch(`${window.location.origin}/api/users/${email.toLowerCase()}`);
@@ -235,7 +242,10 @@ class AuthService {
             user.role = dbUser.role || 'sales_rep'; // Use role from database
             user.state = dbUser.state;
             user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
+            // Check if user has logged in before (first_login_at exists)
+            isFirstLogin = !dbUser.first_login_at;
             console.log('✅ Loaded user from database with role:', user.role);
+            console.log(`🔑 First login: ${isFirstLogin}`);
           }
         }
       } catch (error) {
@@ -270,7 +280,7 @@ class AuthService {
       localStorage.setItem(this.SESSION_KEY, sessionId);
 
       // Store authentication token with expiry
-      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiryDuration = rememberMe ? 365 * 24 * 60 * 60 * 1000 : 0; // 1 year or session
       const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
 
       const authData: StoredAuth = {
@@ -289,20 +299,30 @@ class AuthService {
       sessionStorage.removeItem(`code_timestamp_${email}`);
 
       console.log('✅ User logged in successfully:', user.email);
-      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (30 days)' : 'No (session only)'}`);
+      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (1 year)' : 'No (session only)'}`);
       if (rememberMe) {
         console.log(`⏰ Token expires: ${new Date(expiresAt)}`);
       }
 
-      // Send email notification to admin
-      emailNotificationService.notifyLogin({
-        userName: user.name,
-        userEmail: user.email,
-        timestamp: user.last_login_at.toISOString()
-      }).catch(err => {
-        console.warn('Failed to send login notification email:', err);
-        // Don't block login if email fails
+      // Log login activity (for daily summaries)
+      activityService.logLogin().catch(err => {
+        console.warn('Failed to log login activity:', err);
       });
+
+      // Send email notification to admin ONLY on first login
+      if (isFirstLogin) {
+        console.log('📧 First login detected - sending admin notification');
+        emailNotificationService.notifyLogin({
+          userName: user.name,
+          userEmail: user.email,
+          timestamp: user.last_login_at.toISOString()
+        }).catch(err => {
+          console.warn('Failed to send first login notification email:', err);
+          // Don't block login if email fails
+        });
+      } else {
+        console.log('🔕 Not first login - skipping admin email notification');
+      }
 
       return {
         success: true,
@@ -358,7 +378,7 @@ class AuthService {
       localStorage.setItem(this.SESSION_KEY, sessionId);
 
       // Store authentication token with expiry
-      const expiryDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 0; // 30 days or session
+      const expiryDuration = rememberMe ? 365 * 24 * 60 * 60 * 1000 : 0; // 1 year or session
       const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
 
       const authData: StoredAuth = {
@@ -372,17 +392,14 @@ class AuthService {
       await databaseService.setCurrentUser(user);
 
       console.log('✅ Quick login successful:', user.email);
-      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (30 days)' : 'No (session only)'}`);
+      console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (1 year)' : 'No (session only)'}`);
 
-      // Send email notification to admin
-      emailNotificationService.notifyLogin({
-        userName: user.name,
-        userEmail: user.email,
-        timestamp: user.last_login_at.toISOString()
-      }).catch(err => {
-        console.warn('Failed to send login notification email:', err);
-        // Don't block login if email fails
+      // Log login activity (for daily summaries)
+      activityService.logLogin().catch(err => {
+        console.warn('Failed to log login activity:', err);
       });
+
+      // Quick login doesn't send emails (dev mode only)
 
       return {
         success: true,

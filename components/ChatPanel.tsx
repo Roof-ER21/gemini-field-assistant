@@ -15,6 +15,7 @@ import { databaseService } from '../services/databaseService';
 import ChatHistorySidebar from './ChatHistorySidebar';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { authService } from '../services/authService';
+import { activityService } from '../services/activityService';
 
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
@@ -233,19 +234,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       textareaRef.current.style.height = 'auto';
     }
 
-    // Send email notification to admin for chat interaction
+    // DISABLED: Chat email notifications removed as per Phase 1 of notification overhaul
+    // Activity logging will be handled separately below
+    // emailNotificationService.notifyChat(...) - COMMENTED OUT
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
-      emailNotificationService.notifyChat({
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        message: originalQuery,
-        timestamp: new Date().toISOString(),
-        sessionId: currentSessionId,
-        state: selectedState || undefined
-      }).catch(err => {
-        console.warn('Failed to send chat notification email:', err);
-        // Don't block chat if email fails
+      // Log chat activity to backend
+      activityService.logChatMessage(originalQuery.length).catch(err => {
+        console.warn('Failed to log chat activity:', err);
+        // Don't block chat if activity logging fails
       });
 
       // Persist user message to backend when available
