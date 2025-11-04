@@ -143,6 +143,45 @@ app.get('/api/users/:email', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Create new user
+app.post('/api/users', async (req, res) => {
+    try {
+        const { email, name, role, state, id } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+        // Check if user already exists
+        const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [normalizedEmail]);
+        if (existing.rows.length > 0) {
+            // User already exists, update first_login_at if not set
+            const user = existing.rows[0];
+            if (!user.first_login_at) {
+                await pool.query('UPDATE users SET first_login_at = NOW() WHERE id = $1', [user.id]);
+            }
+            return res.json({
+                ...user,
+                isNew: false
+            });
+        }
+        // Determine role (admin if matches configured admin email)
+        const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+        const userRole = adminEnv && adminEnv === normalizedEmail ? 'admin' : (role || 'sales_rep');
+        // Create new user
+        const result = await pool.query(`INSERT INTO users (id, email, name, role, state, first_login_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING *`, [id || null, normalizedEmail, name || normalizedEmail.split('@')[0], userRole, state || null]);
+        console.log(`✅ Created new user: ${normalizedEmail} with role: ${userRole}`);
+        res.status(201).json({
+            ...result.rows[0],
+            isNew: true
+        });
+    }
+    catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // Update user
 app.patch('/api/users/me', async (req, res) => {
     try {

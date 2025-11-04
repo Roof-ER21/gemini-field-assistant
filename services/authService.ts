@@ -229,27 +229,56 @@ class AuthService {
         last_login_at: new Date()
       };
 
-      let isFirstLogin = true;
+      let isFirstLogin = false;
 
-      // First, check if user exists in database and get their role
+      // First, try to create or get user from database
       try {
-        const response = await fetch(`${window.location.origin}/api/users/${email.toLowerCase()}`);
-        if (response.ok) {
-          const dbUser = await response.json();
-          if (dbUser) {
+        console.log('📝 Creating/getting user in database...');
+        const createResponse = await fetch(`${window.location.origin}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            state: user.state
+          })
+        });
+
+        if (createResponse.ok) {
+          const dbUser = await createResponse.json();
+          user.id = dbUser.id;
+          user.name = dbUser.name || user.name;
+          user.role = dbUser.role || 'sales_rep';
+          user.state = dbUser.state;
+          user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
+          isFirstLogin = dbUser.isNew === true || !dbUser.first_login_at;
+          console.log('✅ User created/loaded in database with role:', user.role);
+          console.log(`🔑 First login: ${isFirstLogin}`);
+        } else {
+          console.warn('⚠️  Failed to create user in database, continuing with local auth');
+          // Fallback: check if user exists
+          const checkResponse = await fetch(`${window.location.origin}/api/users/${email.toLowerCase()}`);
+          if (checkResponse.ok) {
+            const dbUser = await checkResponse.json();
             user.id = dbUser.id;
             user.name = dbUser.name || user.name;
-            user.role = dbUser.role || 'sales_rep'; // Use role from database
+            user.role = dbUser.role || 'sales_rep';
             user.state = dbUser.state;
             user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
-            // Check if user has logged in before (first_login_at exists)
             isFirstLogin = !dbUser.first_login_at;
-            console.log('✅ Loaded user from database with role:', user.role);
-            console.log(`🔑 First login: ${isFirstLogin}`);
+          } else {
+            // Brand new user not in database
+            isFirstLogin = true;
           }
         }
       } catch (error) {
-        console.warn('Could not load user from database, using defaults:', error);
+        console.error('❌ Error creating/loading user from database:', error);
+        console.warn('Continuing with local authentication only');
+        isFirstLogin = true;
       }
 
       // Ensure configured admin has admin role on login (client-side)
@@ -305,21 +334,42 @@ class AuthService {
       }
 
       // Log login activity (for daily summaries)
-      activityService.logLogin().catch(err => {
-        console.warn('Failed to log login activity:', err);
-      });
+      try {
+        await activityService.logLogin();
+        console.log('✅ Login activity logged');
+      } catch (err) {
+        console.error('❌ Failed to log login activity:', err);
+      }
 
       // Send email notification to admin ONLY on first login
       if (isFirstLogin) {
         console.log('📧 First login detected - sending admin notification');
-        emailNotificationService.notifyLogin({
-          userName: user.name,
-          userEmail: user.email,
+        console.log('📧 User details:', {
+          name: user.name,
+          email: user.email,
           timestamp: user.last_login_at.toISOString()
-        }).catch(err => {
-          console.warn('Failed to send first login notification email:', err);
-          // Don't block login if email fails
         });
+
+        try {
+          const emailResult = await emailNotificationService.notifyLogin({
+            userName: user.name,
+            userEmail: user.email,
+            timestamp: user.last_login_at.toISOString()
+          });
+
+          if (emailResult.success) {
+            console.log('✅ First login notification sent successfully');
+          } else {
+            console.error('❌ First login notification failed:', emailResult.error);
+          }
+        } catch (err) {
+          console.error('❌ Exception sending first login notification:', err);
+          console.error('Error details:', {
+            message: (err as Error).message,
+            stack: (err as Error).stack
+          });
+          // Don't block login if email fails
+        }
       } else {
         console.log('🔕 Not first login - skipping admin email notification');
       }
