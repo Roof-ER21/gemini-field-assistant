@@ -704,7 +704,7 @@ app.post('/api/admin/run-migration', async (req, res) => {
 -- 1. USER ACTIVITY LOG TABLE
 CREATE TABLE IF NOT EXISTS user_activity_log (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL,
+  user_id UUID NOT NULL,
   activity_type VARCHAR(50) NOT NULL,
   activity_data JSONB,
   ip_address VARCHAR(45),
@@ -739,7 +739,7 @@ CREATE TABLE IF NOT EXISTS email_notifications (
   id SERIAL PRIMARY KEY,
   notification_type VARCHAR(50) NOT NULL,
   recipient_email VARCHAR(255) NOT NULL,
-  user_id INTEGER,
+  user_id UUID,
   sent_at TIMESTAMP DEFAULT NOW(),
   email_data JSONB,
   success BOOLEAN DEFAULT true,
@@ -805,7 +805,7 @@ LEFT JOIN user_activity_log ual ON u.id = ual.user_id
 GROUP BY u.id, u.email, u.name, u.role, u.state, u.login_count, u.first_login_at, u.last_login_at;
 
 -- 5. CREATE FUNCTIONS
-CREATE OR REPLACE FUNCTION is_first_login_today(p_user_id INTEGER)
+CREATE OR REPLACE FUNCTION is_first_login_today(p_user_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
@@ -818,7 +818,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION get_users_for_daily_summary()
 RETURNS TABLE (
-  user_id INTEGER,
+  user_id UUID,
   user_email VARCHAR(255),
   user_name VARCHAR(255),
   activity_count BIGINT
@@ -839,7 +839,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION daily_summary_sent_today(p_user_id INTEGER)
+CREATE OR REPLACE FUNCTION daily_summary_sent_today(p_user_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
