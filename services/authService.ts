@@ -242,6 +242,15 @@ class AuthService {
         console.warn('Could not load user from database, using defaults:', error);
       }
 
+      // Ensure configured admin has admin role on login (client-side)
+      try {
+        const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase();
+        if (adminEmail && user.email.toLowerCase() === adminEmail) {
+          user.role = 'admin';
+          console.log('👑 Applied admin role from VITE_ADMIN_EMAIL');
+        }
+      } catch {}
+
       // Fallback: Check if user exists in localStorage
       const existingUser = this.findUserByEmail(email);
       if (existingUser && !user.id) {
@@ -333,6 +342,14 @@ class AuthService {
         user.state = existingUser.state;
         user.created_at = existingUser.created_at;
       }
+
+      // Elevate if matches configured admin email (client-side shortcut)
+      try {
+        const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase();
+        if (adminEmail && user.email.toLowerCase() === adminEmail) {
+          user.role = 'admin';
+        }
+      } catch {}
 
       this.currentUser = user;
       localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));

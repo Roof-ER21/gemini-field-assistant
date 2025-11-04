@@ -12,6 +12,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { databaseService } from '../services/databaseService';
 
 interface UserSummary {
   id: string;
@@ -42,6 +43,14 @@ interface ChatMessage {
   created_at: string;
 }
 
+interface AnalyticsSummary {
+  total_messages?: number;
+  unique_documents_viewed?: number;
+  favorite_documents?: number;
+  emails_generated?: number;
+  last_active?: string;
+}
+
 const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -50,6 +59,7 @@ const AdminPanel: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,6 +75,7 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
+      fetchAnalytics();
     }
   }, [isAdmin]);
 
@@ -119,6 +130,15 @@ const AdminPanel: React.FC = () => {
       console.error('Error fetching messages:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const summary = await databaseService.getAnalyticsSummary();
+      setAnalytics(summary || null);
+    } catch (e) {
+      console.warn('Failed to load analytics:', (e as Error).message);
     }
   };
 
@@ -216,6 +236,39 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="flex h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
+      {/* Analytics Summary Bar */}
+      {analytics && (
+        <div className="w-full p-4" style={{ position: 'absolute', top: 64, left: 0 }}>
+          <div className="mx-4 grid grid-cols-2 md:grid-cols-5 gap-3" style={{
+            background: 'rgba(30,30,30,0.9)',
+            border: '1px solid rgba(239,68,68,0.25)',
+            borderRadius: 12,
+            padding: 12,
+            backdropFilter: 'blur(8px)'
+          }}>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.total_messages ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Messages</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.emails_generated ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Emails</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.unique_documents_viewed ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Docs Viewed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.favorite_documents ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Favorites</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Last Active</div>
+              <div className="text-sm" style={{ color: 'white' }}>{analytics.last_active ? new Date(analytics.last_active).toLocaleString() : '-'}</div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* User List Panel */}
       <div
         className="w-80 border-r flex flex-col"

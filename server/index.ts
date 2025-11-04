@@ -47,6 +47,51 @@ app.use((req, res, next) => {
 });
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+// Normalize emails for comparison
+function normalizeEmail(email: string | undefined | null): string | null {
+  if (!email || typeof email !== 'string') return null;
+  return email.trim().toLowerCase();
+}
+
+// Resolve user email from request header and fallback
+function getRequestEmail(req: express.Request): string {
+  const headerEmail = normalizeEmail(req.header('x-user-email'));
+  return headerEmail || 'demo@roofer.com';
+}
+
+// Get or create a user by email, marking admin based on env
+async function getOrCreateUserIdByEmail(email: string): Promise<string | null> {
+  const norm = normalizeEmail(email);
+  if (!norm) return null;
+
+  try {
+    // Try existing
+    const existing = await pool.query('SELECT id, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [norm]);
+    if (existing.rows.length > 0) {
+      return existing.rows[0].id;
+    }
+
+    // Determine role (admin if matches configured admin email)
+    const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+    const role = adminEnv && adminEnv === norm ? 'admin' : 'sales_rep';
+
+    const created = await pool.query(
+      `INSERT INTO users (email, name, role)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [norm, norm.split('@')[0], role]
+    );
+    return created.rows[0]?.id || null;
+  } catch (e) {
+    console.error('Error in getOrCreateUserIdByEmail:', e);
+    return null;
+  }
+}
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
@@ -74,24 +119,20 @@ app.get('/api/health', async (req, res) => {
 // Get current user (simplified - in production use auth middleware)
 app.get('/api/users/me', async (req, res) => {
   try {
-    // For demo, get the first user or create one
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1 LIMIT 1',
-      ['demo@roofer.com']
-    );
+    const email = getRequestEmail(req);
+    const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    if (existing.rows.length > 0) return res.json(existing.rows[0]);
 
-    if (result.rows.length === 0) {
-      // Create demo user
-      const newUser = await pool.query(
-        `INSERT INTO users (email, name, role, state)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        ['demo@roofer.com', 'Demo User', 'sales_rep', 'MD']
-      );
-      res.json(newUser.rows[0]);
-    } else {
-      res.json(result.rows[0]);
-    }
+    // Create if not found, set role if admin
+    const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+    const role = adminEnv && adminEnv === normalizeEmail(email) ? 'admin' : 'sales_rep';
+    const created = await pool.query(
+      `INSERT INTO users (email, name, role)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [email, email.split('@')[0], role]
+    );
+    res.json(created.rows[0]);
   } catch (error) {
     console.error('Error fetching user:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -146,10 +187,8 @@ app.patch('/api/users/me', async (req, res) => {
 app.post('/api/chat/messages', async (req, res) => {
   try {
     const { message_id, sender, content, state, provider, sources, session_id } = req.body;
-
-    // Get current user
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -174,9 +213,8 @@ app.post('/api/chat/messages', async (req, res) => {
 app.get('/api/chat/messages', async (req, res) => {
   try {
     const { session_id, limit = 50 } = req.query;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -209,9 +247,8 @@ app.get('/api/chat/messages', async (req, res) => {
 app.post('/api/documents/track-view', async (req, res) => {
   try {
     const { documentPath, documentName, category, timeSpent = 0 } = req.body;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -242,9 +279,8 @@ app.post('/api/documents/track-view', async (req, res) => {
 app.get('/api/documents/recent', async (req, res) => {
   try {
     const { limit = 20 } = req.query;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -269,9 +305,8 @@ app.get('/api/documents/recent', async (req, res) => {
 app.post('/api/documents/favorites', async (req, res) => {
   try {
     const { documentPath, documentName, category, note } = req.body;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -297,9 +332,8 @@ app.post('/api/documents/favorites', async (req, res) => {
 app.delete('/api/documents/favorites/:documentPath', async (req, res) => {
   try {
     const { documentPath } = req.params;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -320,8 +354,8 @@ app.delete('/api/documents/favorites/:documentPath', async (req, res) => {
 // Get favorites
 app.get('/api/documents/favorites', async (req, res) => {
   try {
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -348,9 +382,8 @@ app.get('/api/documents/favorites', async (req, res) => {
 app.post('/api/emails/log', async (req, res) => {
   try {
     const { emailType, recipient, subject, body, context, state } = req.body;
-
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });
@@ -377,8 +410,8 @@ app.post('/api/emails/log', async (req, res) => {
 
 app.get('/api/analytics/summary', async (req, res) => {
   try {
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-    const userId = userResult.rows[0]?.id;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not found' });

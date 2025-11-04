@@ -68,6 +68,23 @@ export class DatabaseService {
   private static instance: DatabaseService;
   private apiBaseUrl: string;
   private useLocalStorage: boolean = true; // Start with localStorage, switch to DB when backend is ready
+  private getAuthEmail(): string | null {
+    try {
+      // Primary: auth user from app
+      const authUserStr = localStorage.getItem('s21_auth_user');
+      if (authUserStr) {
+        const u = JSON.parse(authUserStr);
+        if (u?.email) return (u.email as string).toLowerCase();
+      }
+      // Fallback: current_user used by this service
+      const cur = localStorage.getItem('current_user');
+      if (cur) {
+        const u = JSON.parse(cur);
+        if (u?.email) return (u.email as string).toLowerCase();
+      }
+    } catch {}
+    return null;
+  }
 
   private constructor() {
     // In production, this would be your backend API URL
@@ -85,18 +102,18 @@ export class DatabaseService {
   }
 
   private async checkDatabaseConnection(): Promise<void> {
-    // Try to connect to the database API
-    // For now, use localStorage as fallback
     try {
-      // const response = await fetch(`${this.apiBaseUrl}/health`);
-      // if (response.ok) {
-      //   this.useLocalStorage = false;
-      //   console.log('✅ Database connection established');
-      // }
+      const response = await fetch(`${this.apiBaseUrl}/health`);
+      if (response.ok) {
+        this.useLocalStorage = false;
+        console.log('[DB] Connected to backend API');
+        return;
+      }
     } catch (error) {
-      console.log('📦 Using localStorage as database fallback');
-      this.useLocalStorage = true;
+      // ignore
     }
+    console.log('[DB] Using localStorage fallback');
+    this.useLocalStorage = true;
   }
 
   // ============================================================================
@@ -196,12 +213,27 @@ export class DatabaseService {
       // Keep using the existing localStorage system
       return;
     }
-
-    // TODO: Implement API call to save chat message
-    // await fetch(`${this.apiBaseUrl}/chat/messages`, {
-    //   method: 'POST',
-    //   body: JSON.stringify(message)
-    // });
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/chat/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({
+          message_id: message.message_id,
+          sender: message.sender,
+          content: message.content,
+          state: message.state,
+          provider: message.provider,
+          sources: message.sources,
+          session_id: message.session_id,
+        }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to save chat message:', (e as Error).message);
+    }
   }
 
   async getChatHistory(sessionId?: string, limit: number = 50): Promise<ChatMessage[]> {
@@ -216,7 +248,18 @@ export class DatabaseService {
       return history.slice(0, limit);
     }
 
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      const params = new URLSearchParams();
+      if (sessionId) params.set('session_id', sessionId);
+      if (limit) params.set('limit', String(limit));
+      const res = await fetch(`${this.apiBaseUrl}/chat/messages?${params.toString()}`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return [];
   }
 
@@ -272,7 +315,7 @@ export class DatabaseService {
       return sessions.slice(0, limit);
     }
 
-    // TODO: Implement API call
+    // TODO: Implement API endpoint for sessions if needed
     return [];
   }
 
@@ -283,7 +326,7 @@ export class DatabaseService {
       return sessions[sessionId] || null;
     }
 
-    // TODO: Implement API call
+    // TODO: Implement API endpoint for a single session if needed
     return null;
   }
 
@@ -296,7 +339,7 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API call
+    // TODO: Implement API endpoint for deletion if needed
   }
 
   async exportChatSession(sessionId: string, format: 'json' | 'txt' = 'json'): Promise<string> {
@@ -353,11 +396,19 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API call
-    // await fetch(`${this.apiBaseUrl}/documents/track-view`, {
-    //   method: 'POST',
-    //   body: JSON.stringify({ documentPath, documentName, category })
-    // });
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/documents/track-view`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({ documentPath, documentName, category, timeSpent: 0 }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to track document view:', (e as Error).message);
+    }
   }
 
   async getRecentDocuments(limit: number = 20): Promise<any[]> {
@@ -367,7 +418,15 @@ export class DatabaseService {
       return history.slice(0, limit);
     }
 
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/documents/recent?limit=${limit}`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return [];
   }
 
@@ -390,7 +449,19 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/documents/favorites`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({ documentPath, documentName, category, note }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to add favorite:', (e as Error).message);
+    }
   }
 
   async removeFromFavorites(documentPath: string): Promise<void> {
@@ -402,7 +473,17 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/documents/favorites/${encodeURIComponent(documentPath)}`, {
+        method: 'DELETE',
+        headers: {
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to remove favorite:', (e as Error).message);
+    }
   }
 
   async getFavorites(): Promise<any[]> {
@@ -411,7 +492,15 @@ export class DatabaseService {
       return JSON.parse(favoritesStr);
     }
 
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/documents/favorites`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return [];
   }
 
@@ -440,8 +529,26 @@ export class DatabaseService {
       localStorage.setItem('email_generation_log', JSON.stringify(logs.slice(-100)));
       return;
     }
-
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/emails/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({
+          emailType: emailData.emailType,
+          recipient: emailData.recipient,
+          subject: emailData.subject,
+          body: emailData.body,
+          context: emailData.context,
+          state: emailData.state,
+        }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to log email generation:', (e as Error).message);
+    }
   }
 
   // ============================================================================
@@ -463,8 +570,15 @@ export class DatabaseService {
         last_active: new Date().toISOString()
       };
     }
-
-    // TODO: Implement API call
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/analytics/summary`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
     return {};
   }
 }

@@ -247,6 +247,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         console.warn('Failed to send chat notification email:', err);
         // Don't block chat if email fails
       });
+
+      // Persist user message to backend when available
+      databaseService.saveChatMessage({
+        message_id: userMessage.id,
+        sender: 'user',
+        content: originalQuery,
+        state: selectedState || undefined,
+        session_id: currentSessionId,
+      });
     }
 
     setIsLoading(true);
@@ -327,6 +336,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         sources: sources.length > 0 ? sources : undefined,
       };
       setMessages(prev => [...prev, botMessage]);
+
+      // Persist bot message to backend when available
+      databaseService.saveChatMessage({
+        message_id: botMessage.id,
+        sender: 'bot',
+        content: responseText,
+        state: selectedState || undefined,
+        provider: response.provider,
+        sources: sources.length > 0 ? sources : undefined,
+        session_id: currentSessionId,
+      });
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
