@@ -417,12 +417,40 @@ app.get('/api/analytics/summary', async (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    const result = await pool.query(
-      `SELECT * FROM user_activity_summary WHERE user_id = $1`,
-      [userId]
-    );
-
-    res.json(result.rows[0] || {});
+    try {
+      const result = await pool.query(
+        `SELECT * FROM user_activity_summary WHERE user_id = $1`,
+        [userId]
+      );
+      return res.json(result.rows[0] || {});
+    } catch (e) {
+      // Fallback if view doesn't exist: compute quick summary from base tables
+      const summary = {
+        total_messages: 0,
+        unique_documents_viewed: 0,
+        favorite_documents: 0,
+        emails_generated: 0,
+        last_active: null as any
+      };
+      try {
+        const m = await pool.query('SELECT COUNT(*)::int as c, MAX(created_at) as last FROM chat_history WHERE user_id = $1', [userId]);
+        summary.total_messages = m.rows[0]?.c || 0;
+        summary.last_active = m.rows[0]?.last || null;
+      } catch {}
+      try {
+        const dv = await pool.query('SELECT COUNT(DISTINCT document_path)::int as c FROM document_views WHERE user_id = $1', [userId]);
+        summary.unique_documents_viewed = dv.rows[0]?.c || 0;
+      } catch {}
+      try {
+        const fav = await pool.query('SELECT COUNT(*)::int as c FROM document_favorites WHERE user_id = $1', [userId]);
+        summary.favorite_documents = fav.rows[0]?.c || 0;
+      } catch {}
+      try {
+        const em = await pool.query('SELECT COUNT(*)::int as c FROM email_generation_log WHERE user_id = $1', [userId]);
+        summary.emails_generated = em.rows[0]?.c || 0;
+      } catch {}
+      return res.json(summary);
+    }
   } catch (error) {
     console.error('Error fetching analytics:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -432,13 +460,28 @@ app.get('/api/analytics/summary', async (req, res) => {
 app.get('/api/analytics/popular-documents', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-
-    const result = await pool.query(
-      `SELECT * FROM popular_documents LIMIT $1`,
-      [limit]
-    );
-
-    res.json(result.rows);
+    try {
+      const result = await pool.query(
+        `SELECT * FROM popular_documents LIMIT $1`,
+        [limit]
+      );
+      return res.json(result.rows);
+    } catch (e) {
+      // Fallback if view doesn't exist: compute from document_views
+      const result = await pool.query(
+        `SELECT document_path, document_name, document_category,
+                COUNT(DISTINCT user_id) as unique_viewers,
+                SUM(view_count) as total_views,
+                AVG(total_time_spent)::int as avg_time_spent,
+                MAX(last_viewed_at) as last_viewed
+         FROM document_views
+         GROUP BY document_path, document_name, document_category
+         ORDER BY total_views DESC
+         LIMIT $1`,
+        [limit]
+      );
+      return res.json(result.rows);
+    }
   } catch (error) {
     console.error('Error fetching popular documents:', error);
     res.status(500).json({ error: (error as Error).message });
