@@ -237,40 +237,43 @@ const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
+    <div className="flex flex-col h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
       {/* Analytics Summary Bar */}
       {analytics && (
-        <div className="w-full p-4" style={{ position: 'absolute', top: 64, left: 0 }}>
-          <div className="mx-4 grid grid-cols-2 md:grid-cols-5 gap-3" style={{
-            background: 'rgba(30,30,30,0.9)',
-            border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: 12,
-            padding: 12,
-            backdropFilter: 'blur(8px)'
-          }}>
+        <div className="w-full p-3 border-b" style={{
+          borderColor: 'rgba(239,68,68,0.2)',
+          background: 'rgba(30,30,30,0.6)',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.total_messages ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Messages</div>
+              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.total_messages ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Total Messages</div>
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.emails_generated ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Emails</div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--roof-red)' }}>{analytics.emails_generated ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Emails Generated</div>
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.unique_documents_viewed ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Docs Viewed</div>
+              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.unique_documents_viewed ?? 0}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Documents</div>
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: 'white' }}>{analytics.favorite_documents ?? 0}</div>
+              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.favorite_documents ?? 0}</div>
               <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Favorites</div>
             </div>
             <div className="text-center">
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Last Active</div>
-              <div className="text-sm" style={{ color: 'white' }}>{analytics.last_active ? new Date(analytics.last_active).toLocaleString() : '-'}</div>
+              <div className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Last Active</div>
+              <div className="text-xs font-medium" style={{ color: 'white' }}>
+                {analytics.last_active ? new Date(analytics.last_active).toLocaleDateString() : '-'}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden">
       {/* User List Panel */}
       <div
         className="w-80 border-r flex flex-col"
@@ -356,34 +359,60 @@ const AdminPanel: React.FC = () => {
 
           {/* Date Filters */}
           <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="From"
-              className="p-2 rounded text-sm"
-              style={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)'
-              }}
-            />
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              placeholder="To"
-              className="p-2 rounded text-sm"
-              style={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)'
-              }}
-            />
+            <div className="relative">
+              <label className="text-xs mb-1 block" style={{ color: 'var(--text-tertiary)' }}>From Date</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full p-2 rounded text-sm"
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            </div>
+            <div className="relative">
+              <label className="text-xs mb-1 block" style={{ color: 'var(--text-tertiary)' }}>To Date</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full p-2 rounded text-sm"
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            </div>
           </div>
 
-          <div className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
-            {filteredUsers.length} of {users.length} users
+          <div className="flex items-center justify-between mt-3">
+            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {filteredUsers.length} of {users.length} users
+            </div>
+            {(searchQuery || roleFilter || dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setRoleFilter('');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                className="text-xs px-2 py-1 rounded transition-colors"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: 'var(--roof-red)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
 
@@ -611,6 +640,7 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
