@@ -205,10 +205,10 @@ app.post('/api/users', async (req, res) => {
     const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
     const userRole = adminEnv && adminEnv === normalizedEmail ? 'admin' : (role || 'sales_rep');
 
-    // Create new user
+    // Create new user (let PostgreSQL generate UUID via gen_random_uuid())
     const result = await pool.query(
       `INSERT INTO users (id, email, name, role, state, first_login_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, NOW())
        RETURNING *`,
       [id || null, normalizedEmail, name || normalizedEmail.split('@')[0], userRole, state || null]
     );

@@ -239,6 +239,51 @@ const AdminPanel: React.FC = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  // Export all users data to CSV
+  const exportAllUsers = () => {
+    if (users.length === 0) return;
+
+    const csvHeader = 'Name,Email,Role,State,Total Messages,Last Active\n';
+    const csvRows = users.map(user =>
+      `"${user.name}","${user.email}","${user.role}","${user.state || 'N/A'}",${user.total_messages},"${user.last_active ? new Date(user.last_active).toLocaleString() : 'N/A'}"`
+    ).join('\n');
+
+    const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `admin-users-export-${new Date().toISOString()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Export analytics summary
+  const exportAnalyticsSummary = () => {
+    const summary = {
+      generated_at: new Date().toISOString(),
+      analytics,
+      total_users: users.length,
+      active_users: users.filter(u => u.total_messages > 0).length,
+      users_by_role: {
+        admin: users.filter(u => u.role === 'admin').length,
+        sales_rep: users.filter(u => u.role.includes('sales')).length,
+        manager: users.filter(u => u.role === 'manager').length
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-summary-${new Date().toISOString()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Determine online status (mock - can be enhanced with real data)
   const isUserOnline = (lastActive: string): boolean => {
     if (!lastActive) return false;
@@ -311,6 +356,8 @@ const AdminPanel: React.FC = () => {
       }}>
         {/* Stat Card 1 */}
         <div
+          onClick={exportAnalyticsSummary}
+          title="Click to export analytics summary"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -349,6 +396,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 2 */}
         <div
+          onClick={exportAnalyticsSummary}
+          title="Click to export analytics summary"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -387,6 +436,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 3 */}
         <div
+          onClick={exportAnalyticsSummary}
+          title="Click to export analytics summary"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -425,6 +476,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 4 */}
         <div
+          onClick={exportAllUsers}
+          title="Click to export all users to CSV"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',

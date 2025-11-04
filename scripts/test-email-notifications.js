@@ -21,7 +21,7 @@ process.env.EMAIL_ADMIN_ADDRESS = process.env.EMAIL_ADMIN_ADDRESS || 'admin@roof
 process.env.EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 's21-assistant@roofer.com';
 
 // Import email service (use dynamic import for ES modules)
-import('../server/services/emailService.js').then(async ({ emailService }) => {
+import('../dist-server/services/emailService.js').then(async ({ emailService }) => {
   console.log('✅ Email service imported successfully');
   console.log('');
 
