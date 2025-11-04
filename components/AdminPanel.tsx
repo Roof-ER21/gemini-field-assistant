@@ -51,6 +51,8 @@ interface AnalyticsSummary {
   last_active?: string;
 }
 
+type QuickFilter = 'today' | 'week' | 'month' | 'all';
+
 const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -66,6 +68,7 @@ const AdminPanel: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
 
   const currentUser = authService.getCurrentUser();
 
@@ -176,6 +179,39 @@ const AdminPanel: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Quick filter date calculation
+  const getQuickFilterDate = (filter: QuickFilter): Date | null => {
+    const now = new Date();
+    switch (filter) {
+      case 'today':
+        return new Date(now.setHours(0, 0, 0, 0));
+      case 'week':
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return weekAgo;
+      case 'month':
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        return monthAgo;
+      case 'all':
+      default:
+        return null;
+    }
+  };
+
+  // Apply quick filter
+  const handleQuickFilter = (filter: QuickFilter) => {
+    setQuickFilter(filter);
+    const filterDate = getQuickFilterDate(filter);
+    if (filterDate) {
+      setDateFrom(filterDate.toISOString().split('T')[0]);
+      setDateTo(new Date().toISOString().split('T')[0]);
+    } else {
+      setDateFrom('');
+      setDateTo('');
+    }
+  };
+
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
     if (searchQuery && !user.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -194,40 +230,56 @@ const AdminPanel: React.FC = () => {
     return true;
   });
 
+  // Get user initials for avatar
+  const getInitials = (name: string): string => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Determine online status (mock - can be enhanced with real data)
+  const isUserOnline = (lastActive: string): boolean => {
+    if (!lastActive) return false;
+    const lastActiveDate = new Date(lastActive);
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return lastActiveDate > fiveMinutesAgo;
+  };
+
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
+      <div className="flex items-center justify-center h-full" style={{ background: '#0f0f0f' }}>
         <div
           className="p-12 rounded-2xl text-center max-w-md"
           style={{
-            background: 'rgba(30, 30, 30, 0.95)',
-            border: '2px solid var(--roof-red)',
+            background: '#1a1a1a',
+            border: '2px solid #991b1b',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(10px)'
           }}
         >
           <div
             className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center animate-pulse"
             style={{
-              background: 'linear-gradient(135deg, var(--roof-red) 0%, #dc2626 100%)',
-              boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4)'
+              background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+              boxShadow: '0 8px 24px rgba(127, 29, 29, 0.4)'
             }}
           >
             <Users className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold mb-3" style={{ color: 'white' }}>Access Denied</h2>
-          <p className="text-base mb-6" style={{ color: 'var(--text-secondary)' }}>
+          <h2 className="text-2xl font-bold mb-3" style={{ color: '#e4e4e7' }}>Access Denied</h2>
+          <p className="text-base mb-6" style={{ color: '#a1a1aa' }}>
             You need admin privileges to access this panel.
           </p>
           <div
             className="p-4 rounded-lg text-sm"
             style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)'
+              background: 'rgba(153, 27, 27, 0.1)',
+              border: '1px solid rgba(153, 27, 27, 0.3)'
             }}
           >
-            <p style={{ color: 'var(--text-tertiary)' }}>
+            <p style={{ color: '#71717a' }}>
               If you believe this is an error, please contact your administrator.
             </p>
           </div>
@@ -237,411 +289,934 @@ const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
-      {/* Analytics Summary Bar */}
-      {analytics && (
-        <div className="w-full p-3 border-b" style={{
-          borderColor: 'rgba(239,68,68,0.2)',
-          background: 'rgba(30,30,30,0.6)',
-          backdropFilter: 'blur(8px)'
-        }}>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.total_messages ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Total Messages</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold" style={{ color: 'var(--roof-red)' }}>{analytics.emails_generated ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Emails Generated</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.unique_documents_viewed ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Documents</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold" style={{ color: 'white' }}>{analytics.favorite_documents ?? 0}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Favorites</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Last Active</div>
-              <div className="text-xs font-medium" style={{ color: 'white' }}>
-                {analytics.last_active ? new Date(analytics.last_active).toLocaleDateString() : '-'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden">
-      {/* User List Panel */}
-      <div
-        className="w-80 border-r flex flex-col"
-        style={{
-          background: 'rgba(30, 30, 30, 0.8)',
-          borderColor: 'rgba(239, 68, 68, 0.2)',
-          backdropFilter: 'blur(10px)'
-        }}
-      >
-        {/* Search and Filters */}
+    <div style={{
+      background: '#0f0f0f',
+      height: '100vh',
+      overflow: 'hidden',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+    }}>
+      {/* Stats Header - Fixed */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        background: '#1a1a1a',
+        borderBottom: '1px solid #2a2a2a',
+        padding: '20px 30px',
+        zIndex: 100,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '20px'
+      }}>
+        {/* Stat Card 1 */}
         <div
-          className="p-4 border-b"
           style={{
-            borderColor: 'rgba(239, 68, 68, 0.2)',
-            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, transparent 100%)'
+            background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 30px rgba(127, 29, 29, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
           }}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, var(--roof-red) 0%, #dc2626 100%)',
-                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
-              }}
-            >
-              <Users className="w-4 h-4 text-white" />
-            </div>
-            <h2 className="text-lg font-bold" style={{ color: 'white' }}>All Users</h2>
-            <button
-              onClick={fetchUsers}
-              className="ml-auto p-2 rounded-lg transition-all"
-              style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-              title="Refresh users"
-            >
-              <RefreshCw className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-            </button>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '100px',
+            height: '100px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            transform: 'translate(30%, -30%)'
+          }} />
+          <div style={{ fontSize: '36px', fontWeight: 700, marginBottom: '5px', position: 'relative', zIndex: 1 }}>
+            {analytics?.total_messages ?? 0}
           </div>
-
-          {/* Search */}
-          <div className="relative mb-2">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 rounded"
-              style={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)'
-              }}
-            />
-          </div>
-
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full p-2 rounded mb-2"
-            style={{
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)'
-            }}
-          >
-            <option value="">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="sales_rep">Sales Rep</option>
-          </select>
-
-          {/* Date Filters */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <label className="text-xs mb-1 block" style={{ color: 'var(--text-tertiary)' }}>From Date</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full p-2 rounded text-sm"
-                style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-            <div className="relative">
-              <label className="text-xs mb-1 block" style={{ color: 'var(--text-tertiary)' }}>To Date</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full p-2 rounded text-sm"
-                style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-3">
-            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {filteredUsers.length} of {users.length} users
-            </div>
-            {(searchQuery || roleFilter || dateFrom || dateTo) && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setRoleFilter('');
-                  setDateFrom('');
-                  setDateTo('');
-                }}
-                className="text-xs px-2 py-1 rounded transition-colors"
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: 'var(--roof-red)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-              >
-                Clear Filters
-              </button>
-            )}
+          <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 500, position: 'relative', zIndex: 1 }}>
+            Total Messages
           </div>
         </div>
 
-        {/* User List */}
-        <div className="flex-1 overflow-y-auto">
-          {loading && !users.length && (
-            <div className="p-8 text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent mb-4" style={{ color: 'var(--roof-red)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                Loading users...
-              </p>
-            </div>
-          )}
+        {/* Stat Card 2 */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 30px rgba(127, 29, 29, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '100px',
+            height: '100px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            transform: 'translate(30%, -30%)'
+          }} />
+          <div style={{ fontSize: '36px', fontWeight: 700, marginBottom: '5px', position: 'relative', zIndex: 1 }}>
+            {analytics?.emails_generated ?? 0}
+          </div>
+          <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 500, position: 'relative', zIndex: 1 }}>
+            Emails Generated
+          </div>
+        </div>
 
-          {error && (
-            <div className="p-4 m-4 rounded-lg" style={{
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
-              border: '2px solid rgba(239, 68, 68, 0.3)',
-              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
-            }}>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--roof-red)' }}>
-                  <span className="text-white text-xl font-bold">!</span>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold mb-1" style={{ color: 'var(--roof-red)' }}>Error Loading Users</h3>
-                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{error}</p>
-                  <button
-                    onClick={fetchUsers}
-                    className="mt-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      background: 'var(--roof-red)',
-                      color: 'white'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                  >
-                    Try Again
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Stat Card 3 */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 30px rgba(127, 29, 29, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '100px',
+            height: '100px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            transform: 'translate(30%, -30%)'
+          }} />
+          <div style={{ fontSize: '36px', fontWeight: 700, marginBottom: '5px', position: 'relative', zIndex: 1 }}>
+            {analytics?.unique_documents_viewed ?? 0}
+          </div>
+          <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 500, position: 'relative', zIndex: 1 }}>
+            Documents
+          </div>
+        </div>
 
-          {filteredUsers.map((user) => (
-            <div
-              key={user.id}
-              onClick={() => handleUserSelect(user)}
-              className="p-3 border-b cursor-pointer hover:bg-white/5 transition-colors"
-              style={{
-                borderColor: 'var(--border-default)',
-                background: selectedUser?.id === user.id ? 'var(--bg-elevated)' : 'transparent'
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{ background: 'var(--roof-red)' }}
-                >
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{user.name}</div>
-                  <div className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>
-                    {user.email}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded"
-                      style={{
-                        background: user.role === 'admin' ? 'var(--roof-red)' : 'var(--bg-elevated)',
-                        color: user.role === 'admin' ? 'white' : 'var(--text-tertiary)'
-                      }}
-                    >
-                      {user.role}
-                    </span>
-                    {user.state && (
-                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                        {user.state}
-                      </span>
-                    )}
-                    <span className="text-xs ml-auto" style={{ color: 'var(--text-tertiary)' }}>
-                      {user.total_messages} msgs
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-              </div>
-            </div>
-          ))}
+        {/* Stat Card 4 */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 30px rgba(127, 29, 29, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '100px',
+            height: '100px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            transform: 'translate(30%, -30%)'
+          }} />
+          <div style={{ fontSize: '36px', fontWeight: 700, marginBottom: '5px', position: 'relative', zIndex: 1 }}>
+            {analytics?.last_active ? new Date(analytics.last_active).toLocaleDateString() : '-'}
+          </div>
+          <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 500, position: 'relative', zIndex: 1 }}>
+            Last Active
+          </div>
         </div>
       </div>
 
-      {/* Conversations Panel */}
-      {selectedUser && (
-        <div
-          className="w-96 border-r flex flex-col"
-          style={{
-            background: 'var(--bg-secondary)',
-            borderColor: 'var(--border-default)'
-          }}
-        >
-          <div className="p-4 border-b" style={{ borderColor: 'var(--border-default)' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-              <h2 className="text-lg font-bold">Conversations</h2>
+      {/* Main Container */}
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        {/* Sidebar - Users List */}
+        <div style={{
+          width: '320px',
+          background: '#1a1a1a',
+          borderRight: '1px solid #2a2a2a',
+          display: 'flex',
+          flexDirection: 'column',
+          marginTop: '140px'
+        }}>
+          {/* Sidebar Header */}
+          <div style={{
+            padding: '25px',
+            borderBottom: '1px solid #2a2a2a'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '20px',
+              fontWeight: 700,
+              marginBottom: '20px',
+              color: '#e4e4e7'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px'
+              }}>
+                👥
+              </div>
+              All Users
+              <button
+                onClick={fetchUsers}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                title="Refresh users"
+              >
+                <RefreshCw style={{ width: '16px', height: '16px', color: '#991b1b' }} />
+              </button>
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-              {selectedUser.name} - {conversations.length} conversations
+
+            {/* Search Box */}
+            <div style={{ position: 'relative', marginBottom: '15px' }}>
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 40px 12px 16px',
+                  background: '#262626',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '10px',
+                  color: '#e4e4e7',
+                  fontSize: '14px',
+                  transition: 'all 0.3s ease',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#991b1b';
+                  e.currentTarget.style.background = '#2a2a2a';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#3a3a3a';
+                  e.currentTarget.style.background = '#262626';
+                }}
+              />
+              <span style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                opacity: 0.5
+              }}>
+                🔍
+              </span>
+            </div>
+
+            {/* Filter Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Role Filter */}
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: '#262626',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '8px',
+                  color: '#e4e4e7',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="sales_repMD">Sales Rep MD</option>
+                <option value="manager">Manager</option>
+              </select>
+
+              {/* Date Filters */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setQuickFilter('all');
+                  }}
+                  style={{
+                    padding: '10px',
+                    background: '#262626',
+                    border: '1px solid #3a3a3a',
+                    borderRadius: '8px',
+                    color: '#e4e4e7',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setQuickFilter('all');
+                  }}
+                  style={{
+                    padding: '10px',
+                    background: '#262626',
+                    border: '1px solid #3a3a3a',
+                    borderRadius: '8px',
+                    color: '#e4e4e7',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Quick Filters */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                {(['today', 'week', 'month', 'all'] as QuickFilter[]).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => handleQuickFilter(filter)}
+                    style={{
+                      padding: '6px 12px',
+                      background: quickFilter === filter ? '#991b1b' : '#262626',
+                      border: `1px solid ${quickFilter === filter ? '#991b1b' : '#3a3a3a'}`,
+                      borderRadius: '6px',
+                      color: quickFilter === filter ? 'white' : '#a1a1aa',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      outline: 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (quickFilter !== filter) {
+                        e.currentTarget.style.background = '#2a2a2a';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (quickFilter !== filter) {
+                        e.currentTarget.style.background = '#262626';
+                      }
+                    }}
+                  >
+                    {filter === 'week' ? 'This Week' : filter === 'month' ? 'This Month' : filter === 'all' ? 'All Time' : 'Today'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Users Count */}
+            <div style={{
+              fontSize: '12px',
+              color: '#71717a',
+              marginTop: '15px',
+              paddingTop: '15px',
+              borderTop: '1px solid #2a2a2a'
+            }}>
+              {filteredUsers.length} of {users.length} users
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {conversations.map((conv) => (
+          {/* Users List */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px'
+          }} className="custom-scrollbar">
+            {loading && !users.length && (
+              <div style={{ padding: '40px', textAlign: 'center' }}>
+                <div style={{
+                  display: 'inline-block',
+                  width: '40px',
+                  height: '40px',
+                  border: '4px solid #3a3a3a',
+                  borderTop: '4px solid #991b1b',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
+                  Loading users...
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div style={{
+                background: '#1a1a1a',
+                border: '1px solid #991b1b',
+                borderRadius: '10px',
+                padding: '16px',
+                marginBottom: '12px'
+              }}>
+                <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '8px' }}>Error</div>
+                <div style={{ color: '#a1a1aa', fontSize: '14px' }}>{error}</div>
+              </div>
+            )}
+
+            {filteredUsers.map((user) => (
               <div
-                key={conv.session_id}
-                onClick={() => handleConversationSelect(conv)}
-                className="p-3 border-b cursor-pointer hover:bg-white/5 transition-colors"
+                key={user.id}
+                onClick={() => handleUserSelect(user)}
                 style={{
-                  borderColor: 'var(--border-default)',
-                  background: selectedConversation?.session_id === conv.session_id ? 'var(--bg-elevated)' : 'transparent'
+                  background: selectedUser?.id === user.id ? '#2a2a2a' : '#262626',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  position: 'relative',
+                  boxShadow: selectedUser?.id === user.id ? '-4px 0 0 #991b1b' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedUser?.id !== user.id) {
+                    e.currentTarget.style.background = '#2a2a2a';
+                    e.currentTarget.style.borderColor = '#991b1b';
+                    e.currentTarget.style.transform = 'translateX(4px)';
+                    e.currentTarget.style.boxShadow = '-4px 0 0 #991b1b';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedUser?.id !== user.id) {
+                    e.currentTarget.style.background = '#262626';
+                    e.currentTarget.style.borderColor = '#3a3a3a';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }
                 }}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                    <span className="text-sm font-medium">{conv.message_count} messages</span>
+                {/* User Card Header */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    fontWeight: 600,
+                    flexShrink: 0,
+                    position: 'relative',
+                    color: '#fff'
+                  }}>
+                    {getInitials(user.name)}
+                    {/* Status Indicator */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '2px',
+                      right: '2px',
+                      width: '12px',
+                      height: '12px',
+                      background: isUserOnline(user.last_active) ? '#10b981' : '#6b7280',
+                      border: '2px solid #262626',
+                      borderRadius: '50%'
+                    }} />
                   </div>
-                  <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontWeight: 600,
+                      fontSize: '15px',
+                      marginBottom: '2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      color: '#e4e4e7'
+                    }}>
+                      {user.name}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#71717a',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {user.email}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  {conv.preview.substring(0, 100)}...
-                </div>
-                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  <Clock className="w-3 h-3" />
-                  <span>{new Date(conv.first_message_at).toLocaleDateString()}</span>
-                  <span>-</span>
-                  <span>{new Date(conv.last_message_at).toLocaleTimeString()}</span>
+
+                {/* User Card Footer */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '4px 10px',
+                    background: user.role === 'admin' ? '#dc2626' : user.role.includes('sales') ? '#991b1b' : '#3a3a3a',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: user.role === 'admin' || user.role.includes('sales') ? 'white' : '#e4e4e7'
+                  }}>
+                    {user.role}
+                  </span>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: '#a1a1aa'
+                  }}>
+                    <span style={{
+                      background: '#991b1b',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}>
+                      {user.total_messages}
+                    </span>
+                    messages
+                  </div>
                 </div>
               </div>
             ))}
 
-            {!conversations.length && !loading && (
-              <div className="p-4 text-center" style={{ color: 'var(--text-tertiary)' }}>
-                No conversations found
+            {!loading && filteredUsers.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#71717a'
+              }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  background: '#262626',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 20px',
+                  fontSize: '36px'
+                }}>
+                  👥
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                  No users found
+                </div>
+                <div style={{ fontSize: '14px', color: '#71717a' }}>
+                  Try adjusting your filters
+                </div>
               </div>
             )}
           </div>
         </div>
-      )}
 
-      {/* Messages Panel */}
-      <div className="flex-1 flex flex-col" style={{ background: 'var(--bg-primary)' }}>
-        {selectedConversation && selectedUser ? (
-          <>
-            {/* Header */}
-            <div
-              className="p-4 border-b flex items-center justify-between"
-              style={{
-                background: 'var(--bg-secondary)',
-                borderColor: 'var(--border-default)'
-              }}
-            >
-              <div>
-                <h2 className="text-lg font-bold">Conversation Details</h2>
-                <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                  {new Date(selectedConversation.first_message_at).toLocaleString()} - {selectedConversation.message_count} messages
-                </div>
-              </div>
-              <button
-                onClick={exportConversation}
-                className="px-4 py-2 rounded flex items-center gap-2 hover:opacity-80 transition-opacity"
-                style={{ background: 'var(--roof-red)', color: 'white' }}
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+        {/* Conversations Panel */}
+        <div style={{
+          width: '380px',
+          background: '#161616',
+          borderRight: '1px solid #2a2a2a',
+          display: 'flex',
+          flexDirection: 'column',
+          marginTop: '140px'
+        }}>
+          <div style={{
+            padding: '25px',
+            borderBottom: '1px solid #2a2a2a'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '18px',
+              fontWeight: 700,
+              marginBottom: '8px',
+              color: '#e4e4e7'
+            }}>
+              💬 Conversations
             </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {messages.map((msg, index) => (
-                <div
-                  key={msg.id}
-                  className="mb-4 p-4 rounded-lg"
-                  style={{
-                    background: msg.sender === 'user' ? 'var(--user-bg)' : 'var(--bg-card)',
-                    border: `1px solid ${msg.sender === 'user' ? 'var(--user-border)' : 'var(--border-default)'}`,
-                    marginLeft: msg.sender === 'user' ? '20%' : '0',
-                    marginRight: msg.sender === 'bot' ? '20%' : '0'
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{ background: msg.sender === 'user' ? 'var(--user-avatar)' : 'var(--roof-red)' }}
-                    >
-                      {msg.sender === 'user' ? 'U' : 'AI'}
-                    </div>
-                    <span className="text-sm font-medium">
-                      {msg.sender === 'user' ? selectedUser.name : 'S21 AI'}
-                    </span>
-                    <span className="text-xs ml-auto" style={{ color: 'var(--text-tertiary)' }}>
-                      {new Date(msg.created_at).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <div className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-                    {msg.content}
-                  </div>
-                  {msg.provider && (
-                    <div className="mt-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                      Provider: {msg.provider}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
-            <div className="text-center">
-              <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Select a conversation to view messages</p>
-              <p className="text-sm mt-2">Choose a user and conversation from the left panels</p>
+            <div style={{ fontSize: '13px', color: '#71717a' }}>
+              {selectedUser ? `${selectedUser.name} - ${conversations.length} conversations` : 'Select a user to view conversations'}
             </div>
           </div>
-        )}
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="custom-scrollbar">
+            {selectedUser && conversations.map((conv) => (
+              <div
+                key={conv.session_id}
+                onClick={() => handleConversationSelect(conv)}
+                style={{
+                  background: selectedConversation?.session_id === conv.session_id ? '#262626' : '#1a1a1a',
+                  border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#991b1b' : '#2a2a2a'}`,
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginBottom: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedConversation?.session_id !== conv.session_id) {
+                    e.currentTarget.style.background = '#262626';
+                    e.currentTarget.style.borderColor = '#991b1b';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedConversation?.session_id !== conv.session_id) {
+                    e.currentTarget.style.background = '#1a1a1a';
+                    e.currentTarget.style.borderColor = '#2a2a2a';
+                  }
+                }}
+              >
+                <div style={{
+                  fontSize: '11px',
+                  color: '#71717a',
+                  marginBottom: '6px'
+                }}>
+                  {new Date(conv.first_message_at).toLocaleDateString()} - {conv.message_count} messages
+                </div>
+                <div style={{
+                  fontSize: '13px',
+                  color: '#a1a1aa',
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {conv.preview}
+                </div>
+              </div>
+            ))}
+
+            {!selectedUser && (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '40px',
+                color: '#71717a'
+              }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  background: '#262626',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '20px',
+                  fontSize: '36px'
+                }}>
+                  📭
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                  Select a user
+                </div>
+                <div style={{ fontSize: '14px', color: '#71717a' }}>
+                  Choose a user from the left to view their conversations
+                </div>
+              </div>
+            )}
+
+            {selectedUser && conversations.length === 0 && !loading && (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '40px',
+                color: '#71717a'
+              }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  background: '#262626',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '20px',
+                  fontSize: '36px'
+                }}>
+                  📭
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                  No conversations found
+                </div>
+                <div style={{ fontSize: '14px', color: '#71717a' }}>
+                  This user hasn't started any conversations yet
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Messages Panel */}
+        <div style={{
+          flex: 1,
+          background: '#0f0f0f',
+          display: 'flex',
+          flexDirection: 'column',
+          marginTop: '140px'
+        }}>
+          {selectedConversation && selectedUser ? (
+            <>
+              {/* Messages Header */}
+              <div style={{
+                padding: '20px 25px',
+                borderBottom: '1px solid #2a2a2a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#1a1a1a'
+              }}>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7', marginBottom: '4px' }}>
+                    Conversation Details
+                  </h2>
+                  <div style={{ fontSize: '13px', color: '#71717a' }}>
+                    {new Date(selectedConversation.first_message_at).toLocaleString()} - {selectedConversation.message_count} messages
+                  </div>
+                </div>
+                <button
+                  onClick={exportConversation}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#991b1b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#7f1d1d';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#991b1b';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <Download style={{ width: '16px', height: '16px' }} />
+                  Export
+                </button>
+              </div>
+
+              {/* Messages List */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }} className="custom-scrollbar">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    style={{
+                      marginBottom: '16px',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: msg.sender === 'user' ? '#1a1a1a' : '#262626',
+                      border: `1px solid ${msg.sender === 'user' ? '#2a2a2a' : '#3a3a3a'}`,
+                      marginLeft: msg.sender === 'user' ? '15%' : '0',
+                      marginRight: msg.sender === 'bot' ? '15%' : '0'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '10px'
+                    }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: msg.sender === 'user' ? '#3a3a3a' : 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#fff'
+                      }}>
+                        {msg.sender === 'user' ? getInitials(selectedUser.name) : 'AI'}
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>
+                        {msg.sender === 'user' ? selectedUser.name : 'S21 AI'}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#71717a', marginLeft: 'auto' }}>
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#a1a1aa',
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {msg.content}
+                    </div>
+                    {msg.provider && (
+                      <div style={{
+                        marginTop: '10px',
+                        fontSize: '11px',
+                        color: '#71717a',
+                        padding: '4px 8px',
+                        background: '#1a1a1a',
+                        borderRadius: '4px',
+                        display: 'inline-block'
+                      }}>
+                        Provider: {msg.provider}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {loading && (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <div style={{
+                      display: 'inline-block',
+                      width: '30px',
+                      height: '30px',
+                      border: '3px solid #3a3a3a',
+                      borderTop: '3px solid #991b1b',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '40px',
+              color: '#71717a'
+            }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                background: '#262626',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '20px',
+                fontSize: '36px'
+              }}>
+                💬
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                Select a conversation to view messages
+              </div>
+              <div style={{ fontSize: '14px', color: '#71717a' }}>
+                Choose a user and conversation from the left panels
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      </div>
+
+      {/* Global Styles */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #3a3a3a;
+          border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4a4a4a;
+        }
+
+        @media (max-width: 1400px) {
+          /* Adjust stat cards for smaller screens */
+        }
+
+        @media (max-width: 1024px) {
+          /* Responsive adjustments */
+        }
+      ` }} />
     </div>
   );
 };
