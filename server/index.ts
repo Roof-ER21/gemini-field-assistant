@@ -98,6 +98,26 @@ app.get('/api/users/me', async (req, res) => {
   }
 });
 
+// Get user by email
+app.get('/api/users/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching user by email:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Update user
 app.patch('/api/users/me', async (req, res) => {
   try {

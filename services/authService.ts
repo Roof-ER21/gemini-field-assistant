@@ -224,9 +224,27 @@ class AuthService {
         last_login_at: new Date()
       };
 
-      // Check if user exists in localStorage
+      // First, check if user exists in database and get their role
+      try {
+        const response = await fetch(`${window.location.origin}/api/users/${email.toLowerCase()}`);
+        if (response.ok) {
+          const dbUser = await response.json();
+          if (dbUser) {
+            user.id = dbUser.id;
+            user.name = dbUser.name || user.name;
+            user.role = dbUser.role || 'sales_rep'; // Use role from database
+            user.state = dbUser.state;
+            user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
+            console.log('✅ Loaded user from database with role:', user.role);
+          }
+        }
+      } catch (error) {
+        console.warn('Could not load user from database, using defaults:', error);
+      }
+
+      // Fallback: Check if user exists in localStorage
       const existingUser = this.findUserByEmail(email);
-      if (existingUser) {
+      if (existingUser && !user.id) {
         user.id = existingUser.id;
         user.name = existingUser.name;
         user.role = existingUser.role;
