@@ -175,44 +175,93 @@ const AdminPanel: React.FC = () => {
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-primary)' }}>
+      <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
         <div
-          className="p-8 rounded-lg text-center max-w-md"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
+          className="p-12 rounded-2xl text-center max-w-md"
+          style={{
+            background: 'rgba(30, 30, 30, 0.95)',
+            border: '2px solid var(--roof-red)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(10px)'
+          }}
         >
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'var(--error)' }}>
-            <Users className="w-8 h-8 text-white" />
+          <div
+            className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center animate-pulse"
+            style={{
+              background: 'linear-gradient(135deg, var(--roof-red) 0%, #dc2626 100%)',
+              boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4)'
+            }}
+          >
+            <Users className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p style={{ color: 'var(--text-tertiary)' }}>
+          <h2 className="text-2xl font-bold mb-3" style={{ color: 'white' }}>Access Denied</h2>
+          <p className="text-base mb-6" style={{ color: 'var(--text-secondary)' }}>
             You need admin privileges to access this panel.
           </p>
+          <div
+            className="p-4 rounded-lg text-sm"
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)'
+            }}
+          >
+            <p style={{ color: 'var(--text-tertiary)' }}>
+              If you believe this is an error, please contact your administrator.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full" style={{ background: 'var(--bg-primary)' }}>
+    <div className="flex h-full" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)' }}>
       {/* User List Panel */}
       <div
         className="w-80 border-r flex flex-col"
         style={{
-          background: 'var(--bg-secondary)',
-          borderColor: 'var(--border-default)'
+          background: 'rgba(30, 30, 30, 0.8)',
+          borderColor: 'rgba(239, 68, 68, 0.2)',
+          backdropFilter: 'blur(10px)'
         }}
       >
         {/* Search and Filters */}
-        <div className="p-4 border-b" style={{ borderColor: 'var(--border-default)' }}>
+        <div
+          className="p-4 border-b"
+          style={{
+            borderColor: 'rgba(239, 68, 68, 0.2)',
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, transparent 100%)'
+          }}
+        >
           <div className="flex items-center gap-2 mb-3">
-            <Users className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-            <h2 className="text-lg font-bold">All Users</h2>
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, var(--roof-red) 0%, #dc2626 100%)',
+                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+              }}
+            >
+              <Users className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="text-lg font-bold" style={{ color: 'white' }}>All Users</h2>
             <button
               onClick={fetchUsers}
-              className="ml-auto p-1 hover:bg-white/10 rounded transition-colors"
+              className="ml-auto p-2 rounded-lg transition-all"
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
               title="Refresh users"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
             </button>
           </div>
 
@@ -286,14 +335,41 @@ const AdminPanel: React.FC = () => {
         {/* User List */}
         <div className="flex-1 overflow-y-auto">
           {loading && !users.length && (
-            <div className="p-4 text-center" style={{ color: 'var(--text-tertiary)' }}>
-              Loading users...
+            <div className="p-8 text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent mb-4" style={{ color: 'var(--roof-red)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                Loading users...
+              </p>
             </div>
           )}
 
           {error && (
-            <div className="p-4 m-4 rounded" style={{ background: 'var(--error)', color: 'white' }}>
-              {error}
+            <div className="p-4 m-4 rounded-lg" style={{
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
+              border: '2px solid rgba(239, 68, 68, 0.3)',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
+            }}>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--roof-red)' }}>
+                  <span className="text-white text-xl font-bold">!</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold mb-1" style={{ color: 'var(--roof-red)' }}>Error Loading Users</h3>
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{error}</p>
+                  <button
+                    onClick={fetchUsers}
+                    className="mt-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      background: 'var(--roof-red)',
+                      color: 'white'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
