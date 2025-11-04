@@ -39,6 +39,44 @@ app.use((req, res, next) => {
     next();
 });
 // ============================================================================
+// HELPERS
+// ============================================================================
+// Normalize emails for comparison
+function normalizeEmail(email) {
+    if (!email || typeof email !== 'string')
+        return null;
+    return email.trim().toLowerCase();
+}
+// Resolve user email from request header and fallback
+function getRequestEmail(req) {
+    const headerEmail = normalizeEmail(req.header('x-user-email'));
+    return headerEmail || 'demo@roofer.com';
+}
+// Get or create a user by email, marking admin based on env
+async function getOrCreateUserIdByEmail(email) {
+    const norm = normalizeEmail(email);
+    if (!norm)
+        return null;
+    try {
+        // Try existing
+        const existing = await pool.query('SELECT id, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [norm]);
+        if (existing.rows.length > 0) {
+            return existing.rows[0].id;
+        }
+        // Determine role (admin if matches configured admin email)
+        const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+        const role = adminEnv && adminEnv === norm ? 'admin' : 'sales_rep';
+        const created = await pool.query(`INSERT INTO users (email, name, role)
+       VALUES ($1, $2, $3)
+       RETURNING id`, [norm, norm.split('@')[0], role]);
+        return created.rows[0]?.id || null;
+    }
+    catch (e) {
+        console.error('Error in getOrCreateUserIdByEmail:', e);
+        return null;
+    }
+}
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 app.get('/api/health', async (req, res) => {
@@ -58,27 +96,49 @@ app.get('/api/health', async (req, res) => {
         });
     }
 });
+// Simple version/build info to verify live deploy
+app.get('/api/version', (req, res) => {
+    res.json({
+        service: 's21-field-assistant-api',
+        commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT || 'unknown',
+        builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
+    });
+});
 // ============================================================================
 // USER ENDPOINTS
 // ============================================================================
 // Get current user (simplified - in production use auth middleware)
 app.get('/api/users/me', async (req, res) => {
     try {
-        // For demo, get the first user or create one
-        const result = await pool.query('SELECT * FROM users WHERE email = $1 LIMIT 1', ['demo@roofer.com']);
-        if (result.rows.length === 0) {
-            // Create demo user
-            const newUser = await pool.query(`INSERT INTO users (email, name, role, state)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`, ['demo@roofer.com', 'Demo User', 'sales_rep', 'MD']);
-            res.json(newUser.rows[0]);
-        }
-        else {
-            res.json(result.rows[0]);
-        }
+        const email = getRequestEmail(req);
+        const existing = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+        if (existing.rows.length > 0)
+            return res.json(existing.rows[0]);
+        // Create if not found, set role if admin
+        const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+        const role = adminEnv && adminEnv === normalizeEmail(email) ? 'admin' : 'sales_rep';
+        const created = await pool.query(`INSERT INTO users (email, name, role)
+       VALUES ($1, $2, $3)
+       RETURNING *`, [email, email.split('@')[0], role]);
+        res.json(created.rows[0]);
     }
     catch (error) {
         console.error('Error fetching user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get user by email
+app.get('/api/users/:email', async (req, res) => {
+    try {
+        const { email } = req.params;
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    }
+    catch (error) {
+        console.error('Error fetching user by email:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -106,9 +166,8 @@ app.patch('/api/users/me', async (req, res) => {
 app.post('/api/chat/messages', async (req, res) => {
     try {
         const { message_id, sender, content, state, provider, sources, session_id } = req.body;
-        // Get current user
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -127,8 +186,8 @@ app.post('/api/chat/messages', async (req, res) => {
 app.get('/api/chat/messages', async (req, res) => {
     try {
         const { session_id, limit = 50 } = req.query;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -155,8 +214,8 @@ app.get('/api/chat/messages', async (req, res) => {
 app.post('/api/documents/track-view', async (req, res) => {
     try {
         const { documentPath, documentName, category, timeSpent = 0 } = req.body;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -181,8 +240,8 @@ app.post('/api/documents/track-view', async (req, res) => {
 app.get('/api/documents/recent', async (req, res) => {
     try {
         const { limit = 20 } = req.query;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -201,8 +260,8 @@ app.get('/api/documents/recent', async (req, res) => {
 app.post('/api/documents/favorites', async (req, res) => {
     try {
         const { documentPath, documentName, category, note } = req.body;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -222,8 +281,8 @@ app.post('/api/documents/favorites', async (req, res) => {
 app.delete('/api/documents/favorites/:documentPath', async (req, res) => {
     try {
         const { documentPath } = req.params;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -238,8 +297,8 @@ app.delete('/api/documents/favorites/:documentPath', async (req, res) => {
 // Get favorites
 app.get('/api/documents/favorites', async (req, res) => {
     try {
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -259,8 +318,8 @@ app.get('/api/documents/favorites', async (req, res) => {
 app.post('/api/emails/log', async (req, res) => {
     try {
         const { emailType, recipient, subject, body, context, state } = req.body;
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -280,13 +339,47 @@ app.post('/api/emails/log', async (req, res) => {
 // ============================================================================
 app.get('/api/analytics/summary', async (req, res) => {
     try {
-        const userResult = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@roofer.com']);
-        const userId = userResult.rows[0]?.id;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
             return res.status(401).json({ error: 'User not found' });
         }
-        const result = await pool.query(`SELECT * FROM user_activity_summary WHERE user_id = $1`, [userId]);
-        res.json(result.rows[0] || {});
+        try {
+            const result = await pool.query(`SELECT * FROM user_activity_summary WHERE user_id = $1`, [userId]);
+            return res.json(result.rows[0] || {});
+        }
+        catch (e) {
+            // Fallback if view doesn't exist: compute quick summary from base tables
+            const summary = {
+                total_messages: 0,
+                unique_documents_viewed: 0,
+                favorite_documents: 0,
+                emails_generated: 0,
+                last_active: null
+            };
+            try {
+                const m = await pool.query('SELECT COUNT(*)::int as c, MAX(created_at) as last FROM chat_history WHERE user_id = $1', [userId]);
+                summary.total_messages = m.rows[0]?.c || 0;
+                summary.last_active = m.rows[0]?.last || null;
+            }
+            catch { }
+            try {
+                const dv = await pool.query('SELECT COUNT(DISTINCT document_path)::int as c FROM document_views WHERE user_id = $1', [userId]);
+                summary.unique_documents_viewed = dv.rows[0]?.c || 0;
+            }
+            catch { }
+            try {
+                const fav = await pool.query('SELECT COUNT(*)::int as c FROM document_favorites WHERE user_id = $1', [userId]);
+                summary.favorite_documents = fav.rows[0]?.c || 0;
+            }
+            catch { }
+            try {
+                const em = await pool.query('SELECT COUNT(*)::int as c FROM email_generation_log WHERE user_id = $1', [userId]);
+                summary.emails_generated = em.rows[0]?.c || 0;
+            }
+            catch { }
+            return res.json(summary);
+        }
     }
     catch (error) {
         console.error('Error fetching analytics:', error);
@@ -296,8 +389,23 @@ app.get('/api/analytics/summary', async (req, res) => {
 app.get('/api/analytics/popular-documents', async (req, res) => {
     try {
         const { limit = 10 } = req.query;
-        const result = await pool.query(`SELECT * FROM popular_documents LIMIT $1`, [limit]);
-        res.json(result.rows);
+        try {
+            const result = await pool.query(`SELECT * FROM popular_documents LIMIT $1`, [limit]);
+            return res.json(result.rows);
+        }
+        catch (e) {
+            // Fallback if view doesn't exist: compute from document_views
+            const result = await pool.query(`SELECT document_path, document_name, document_category,
+                COUNT(DISTINCT user_id) as unique_viewers,
+                SUM(view_count) as total_views,
+                AVG(total_time_spent)::int as avg_time_spent,
+                MAX(last_viewed_at) as last_viewed
+         FROM document_views
+         GROUP BY document_path, document_name, document_category
+         ORDER BY total_views DESC
+         LIMIT $1`, [limit]);
+            return res.json(result.rows);
+        }
     }
     catch (error) {
         console.error('Error fetching popular documents:', error);
@@ -397,17 +505,50 @@ app.get('/api/admin/users', async (req, res) => {
         u.name,
         u.role,
         u.state,
+        u.created_at,
         COUNT(DISTINCT ch.id) as total_messages,
-        MAX(u.last_login_at) as last_active
+        MAX(ch.created_at) as last_active
       FROM users u
       LEFT JOIN chat_history ch ON u.id = ch.user_id
-      GROUP BY u.id, u.email, u.name, u.role, u.state
+      GROUP BY u.id, u.email, u.name, u.role, u.state, u.created_at
       ORDER BY last_active DESC NULLS LAST
     `);
         res.json(result.rows);
     }
     catch (error) {
         console.error('Error fetching admin users:', error);
+        // Fallback for legacy schemas without expected columns/views
+        try {
+            const fallback = await pool.query(`
+        SELECT id, email, name, role, state, created_at
+        FROM users
+        ORDER BY created_at DESC
+      `);
+            // shape to expected interface with zeros
+            const shaped = fallback.rows.map((u) => ({
+                ...u,
+                total_messages: 0,
+                last_active: u.created_at
+            }));
+            return res.json(shaped);
+        }
+        catch (e2) {
+            return res.status(500).json({ error: e2.message });
+        }
+    }
+});
+// Basic users list (explicit fallback endpoint for older DBs)
+app.get('/api/admin/users-basic', async (req, res) => {
+    try {
+        const result = await pool.query(`
+      SELECT id, email, name, role, state, created_at
+      FROM users
+      ORDER BY created_at DESC
+    `);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching admin users basic:', error);
         res.status(500).json({ error: error.message });
     }
 });

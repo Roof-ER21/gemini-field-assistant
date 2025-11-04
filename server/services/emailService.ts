@@ -80,12 +80,14 @@ class EmailService {
       switch (this.config.provider) {
         case 'sendgrid':
           // Dynamically import SendGrid (if installed)
-          const sgMail = await import('@sendgrid/mail').catch(() => null);
-          if (sgMail) {
-            sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
-            this.provider = sgMail.default;
-            console.log('✅ Email service initialized with SendGrid');
-          } else {
+          try {
+            const sgMail = await eval('import("@sendgrid/mail")');
+            if (sgMail) {
+              sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
+              this.provider = sgMail.default;
+              console.log('✅ Email service initialized with SendGrid');
+            }
+          } catch {
             console.warn('⚠️  @sendgrid/mail not installed. Install with: npm install @sendgrid/mail');
             this.config.provider = 'console';
           }
@@ -93,11 +95,14 @@ class EmailService {
 
         case 'resend':
           // Dynamically import Resend (if installed)
-          const { Resend } = await import('resend').catch(() => ({ Resend: null }));
-          if (Resend) {
-            this.provider = new Resend(process.env.RESEND_API_KEY!);
-            console.log('✅ Email service initialized with Resend');
-          } else {
+          try {
+            const resendModule = await eval('import("resend")');
+            const { Resend } = resendModule;
+            if (Resend) {
+              this.provider = new Resend(process.env.RESEND_API_KEY!);
+              console.log('✅ Email service initialized with Resend');
+            }
+          } catch {
             console.warn('⚠️  resend not installed. Install with: npm install resend');
             this.config.provider = 'console';
           }
@@ -105,19 +110,21 @@ class EmailService {
 
         case 'nodemailer':
           // Dynamically import Nodemailer (if installed)
-          const nodemailer = await import('nodemailer').catch(() => null);
-          if (nodemailer) {
-            this.provider = nodemailer.default.createTransport({
-              host: process.env.SMTP_HOST,
-              port: parseInt(process.env.SMTP_PORT || '587'),
-              secure: process.env.SMTP_SECURE === 'true',
-              auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-              },
-            });
-            console.log('✅ Email service initialized with Nodemailer');
-          } else {
+          try {
+            const nodemailer = await eval('import("nodemailer")');
+            if (nodemailer) {
+              this.provider = nodemailer.default.createTransport({
+                host: process.env.SMTP_HOST,
+                port: parseInt(process.env.SMTP_PORT || '587'),
+                secure: process.env.SMTP_SECURE === 'true',
+                auth: {
+                  user: process.env.SMTP_USER,
+                  pass: process.env.SMTP_PASS,
+                },
+              });
+              console.log('✅ Email service initialized with Nodemailer');
+            }
+          } catch {
             console.warn('⚠️  nodemailer not installed. Install with: npm install nodemailer');
             this.config.provider = 'console';
           }
