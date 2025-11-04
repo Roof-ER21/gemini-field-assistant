@@ -5,6 +5,7 @@
  */
 
 import { env } from '../src/config/env';
+import { GoogleGenAI } from '@google/genai';
 
 export interface TranscriptionSegment {
   timestamp: number;
@@ -178,9 +179,15 @@ export async function transcribeAudio(
   // Convert blob to base64
   const base64Audio = await blobToBase64(audioBlob);
 
-  // Dynamic import
-  const { GoogleGenerativeAI } = await import('@google/genai');
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // Initialize Gemini AI with error handling
+  let genAI: GoogleGenAI;
+  try {
+    genAI = new GoogleGenAI({ apiKey });
+  } catch (error) {
+    console.error('Failed to initialize GoogleGenAI:', error);
+    throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');
+  }
+
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash-exp'
   });

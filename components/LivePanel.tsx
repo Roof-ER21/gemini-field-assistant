@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { env } from '../src/config/env';
 import { Mic, Radio, Trash2, Volume2, VolumeX, Wifi, WifiOff, PhoneOff, MessageCircle } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 
 interface Message {
   id: string;
@@ -58,6 +59,7 @@ const LivePanel: React.FC = () => {
         speechSynthesis.cancel();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -196,8 +198,11 @@ const LivePanel: React.FC = () => {
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
 
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
+    // Check if AudioContext is already closed before trying to close it
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch((error) => {
+        console.warn('Failed to close AudioContext:', error);
+      });
       audioContextRef.current = null;
     }
 
@@ -226,15 +231,21 @@ const LivePanel: React.FC = () => {
       // Convert to base64
       const base64Audio = await blobToBase64(audioBlob);
 
-      // Dynamic import Gemini
-      const { GoogleGenerativeAI } = await import('@google/genai');
+      // Initialize Gemini AI
       const apiKey = env.GEMINI_API_KEY || (process.env.GEMINI_API_KEY as string);
 
-      if (!apiKey) {
+      if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
         throw new Error('Gemini API key not configured. Set GEMINI_API_KEY in .env/.env.local or Railway variables.');
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
+      let genAI: GoogleGenAI;
+      try {
+        genAI = new GoogleGenAI({ apiKey });
+      } catch (error) {
+        console.error('Failed to initialize GoogleGenAI:', error);
+        throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');
+      }
+
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash-exp'
       });

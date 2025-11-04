@@ -4,6 +4,7 @@
  */
 
 import { env } from '../src/config/env';
+import { GoogleGenAI } from '@google/genai';
 
 export interface DamageAssessment {
   id: string;
@@ -52,9 +53,8 @@ export async function analyzeRoofImage(
   // Convert image to base64
   const imageData = await fileToBase64(imageFile);
 
-  // Dynamic import to avoid build issues
-  const { GoogleGenerativeAI } = await import('@google/genai');
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // Initialize Gemini AI
+  const genAI = new GoogleGenAI({ apiKey });
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash-exp' // Vision-capable model
   });
@@ -203,9 +203,8 @@ export async function answerFollowUpQuestion(
     .map(h => `Q: ${h.question}\nA: ${h.answer}`)
     .join('\n\n');
 
-  // Dynamic import
-  const { GoogleGenerativeAI } = await import('@google/genai');
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // Initialize Gemini AI
+  const genAI = new GoogleGenAI({ apiKey });
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash-exp'
   });

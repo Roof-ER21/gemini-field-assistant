@@ -5,6 +5,7 @@
  */
 
 import { env } from '../src/config/env';
+import { GoogleGenAI } from '@google/genai';
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -273,8 +274,7 @@ export class MultiProviderAI {
     }
 
     // Use existing Gemini implementation
-    const { GoogleGenerativeAI } = await import('@google/genai');
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenAI({ apiKey });
     const model = genAI.getGenerativeModel({
       model: import.meta.env.VITE_GEMINI_MODEL || PROVIDERS.gemini.defaultModel
     });
