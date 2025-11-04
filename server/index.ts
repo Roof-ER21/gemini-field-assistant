@@ -553,6 +553,37 @@ app.get('/api/admin/users', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching admin users:', error);
+    // Fallback for legacy schemas without expected columns/views
+    try {
+      const fallback = await pool.query(`
+        SELECT id, email, name, role, state, created_at
+        FROM users
+        ORDER BY created_at DESC
+      `);
+      // shape to expected interface with zeros
+      const shaped = fallback.rows.map((u: any) => ({
+        ...u,
+        total_messages: 0,
+        last_active: u.created_at
+      }));
+      return res.json(shaped);
+    } catch (e2) {
+      return res.status(500).json({ error: (e2 as Error).message });
+    }
+  }
+});
+
+// Basic users list (explicit fallback endpoint for older DBs)
+app.get('/api/admin/users-basic', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, email, name, role, state, created_at
+      FROM users
+      ORDER BY created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching admin users basic:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

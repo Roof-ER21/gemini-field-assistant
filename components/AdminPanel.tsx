@@ -83,11 +83,13 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/admin/users');
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
+      let resp = await fetch('/api/admin/users');
+      if (!resp.ok) {
+        // Fallback to basic endpoint if legacy schema causes failure
+        resp = await fetch('/api/admin/users-basic');
       }
-      const data = await response.json();
+      if (!resp.ok) throw new Error('Failed to fetch users');
+      const data = await resp.json();
       setUsers(data);
     } catch (err) {
       setError((err as Error).message);
