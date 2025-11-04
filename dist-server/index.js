@@ -588,6 +588,189 @@ app.post('/api/admin/trigger-daily-summary', async (req, res) => {
 // ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
+// Run database migration (admin only)
+app.post('/api/admin/run-migration', async (req, res) => {
+    try {
+        console.log('🔧 Starting database migration...');
+        const migrationSQL = `
+-- ============================================================================
+-- ACTIVITY TRACKING MIGRATION FOR S21 FIELD ASSISTANT
+-- ============================================================================
+
+-- 1. USER ACTIVITY LOG TABLE
+CREATE TABLE IF NOT EXISTS user_activity_log (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  activity_type VARCHAR(50) NOT NULL,
+  activity_data JSONB,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_user_date ON user_activity_log(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity_log(activity_type);
+CREATE INDEX IF NOT EXISTS idx_activity_created ON user_activity_log(created_at DESC);
+
+COMMENT ON TABLE user_activity_log IS 'Comprehensive activity tracking for users - used for daily summary emails and analytics';
+
+-- 2. EMAIL NOTIFICATIONS TABLE
+CREATE TABLE IF NOT EXISTS email_notifications (
+  id SERIAL PRIMARY KEY,
+  notification_type VARCHAR(50) NOT NULL,
+  recipient_email VARCHAR(255) NOT NULL,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  sent_at TIMESTAMP DEFAULT NOW(),
+  email_data JSONB,
+  success BOOLEAN DEFAULT true,
+  error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_notifications_user ON email_notifications(user_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_notifications_type ON email_notifications(notification_type);
+CREATE INDEX IF NOT EXISTS idx_email_notifications_sent ON email_notifications(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_notifications_recipient ON email_notifications(recipient_email);
+
+-- 3. ALTER USERS TABLE
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0;
+
+-- 4. CREATE VIEWS
+CREATE OR REPLACE VIEW daily_activity_summary AS
+SELECT
+  user_id,
+  DATE(created_at) as activity_date,
+  activity_type,
+  COUNT(*) as activity_count,
+  MIN(created_at) as first_activity,
+  MAX(created_at) as last_activity
+FROM user_activity_log
+GROUP BY user_id, DATE(created_at), activity_type
+ORDER BY activity_date DESC, user_id;
+
+CREATE OR REPLACE VIEW user_activity_stats AS
+SELECT
+  u.id as user_id,
+  u.email,
+  u.name,
+  u.role,
+  u.state,
+  u.login_count,
+  u.first_login_at,
+  u.last_login_at,
+  COUNT(DISTINCT CASE WHEN ual.activity_type = 'chat' THEN ual.id END) as total_chats,
+  COUNT(DISTINCT CASE WHEN ual.activity_type = 'document_analysis' THEN ual.id END) as total_documents,
+  COUNT(DISTINCT CASE WHEN ual.activity_type = 'email_generated' THEN ual.id END) as total_emails,
+  COUNT(DISTINCT CASE WHEN ual.activity_type = 'transcription' THEN ual.id END) as total_transcriptions,
+  MAX(ual.created_at) as last_activity_at
+FROM users u
+LEFT JOIN user_activity_log ual ON u.id = ual.user_id
+GROUP BY u.id, u.email, u.name, u.role, u.state, u.login_count, u.first_login_at, u.last_login_at;
+
+-- 5. CREATE FUNCTIONS
+CREATE OR REPLACE FUNCTION is_first_login_today(p_user_id INTEGER)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM users
+    WHERE id = p_user_id
+    AND DATE(first_login_at) = CURRENT_DATE
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_users_for_daily_summary()
+RETURNS TABLE (
+  user_id INTEGER,
+  user_email VARCHAR(255),
+  user_name VARCHAR(255),
+  activity_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    u.id,
+    u.email,
+    u.name,
+    COUNT(ual.id) as activity_count
+  FROM users u
+  INNER JOIN user_activity_log ual ON u.id = ual.user_id
+  WHERE DATE(ual.created_at) = CURRENT_DATE
+  GROUP BY u.id, u.email, u.name
+  HAVING COUNT(ual.id) > 0
+  ORDER BY activity_count DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION daily_summary_sent_today(p_user_id INTEGER)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM email_notifications
+    WHERE user_id = p_user_id
+    AND notification_type = 'daily_summary'
+    AND DATE(sent_at) = CURRENT_DATE
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. CREATE TRIGGER
+CREATE OR REPLACE FUNCTION update_user_login_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.activity_type = 'login' THEN
+    UPDATE users
+    SET
+      last_login_at = NEW.created_at,
+      first_login_at = COALESCE(first_login_at, NEW.created_at),
+      login_count = login_count + 1
+    WHERE id = NEW.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_login_timestamp ON user_activity_log;
+CREATE TRIGGER trigger_update_login_timestamp
+  AFTER INSERT ON user_activity_log
+  FOR EACH ROW
+  WHEN (NEW.activity_type = 'login')
+  EXECUTE FUNCTION update_user_login_timestamp();
+
+-- 7. SEED DATA
+UPDATE users SET first_login_at = created_at WHERE first_login_at IS NULL;
+UPDATE users SET login_count = 0 WHERE login_count IS NULL;
+`;
+        // Execute the migration
+        await pool.query(migrationSQL);
+        // Get counts for verification
+        const activityCount = await pool.query('SELECT COUNT(*) as count FROM user_activity_log');
+        const notificationCount = await pool.query('SELECT COUNT(*) as count FROM email_notifications');
+        const userCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE first_login_at IS NOT NULL');
+        console.log('✅ Migration completed successfully!');
+        console.log(`  - user_activity_log: ${activityCount.rows[0].count} records`);
+        console.log(`  - email_notifications: ${notificationCount.rows[0].count} records`);
+        console.log(`  - users with login tracking: ${userCount.rows[0].count}`);
+        res.json({
+            success: true,
+            message: 'Database migration completed successfully',
+            stats: {
+                activity_log_records: activityCount.rows[0].count,
+                email_notification_records: notificationCount.rows[0].count,
+                users_with_login_tracking: userCount.rows[0].count
+            }
+        });
+    }
+    catch (error) {
+        console.error('❌ Migration failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Migration failed',
+            message: error.message
+        });
+    }
+});
 // Get all users with conversation statistics
 app.get('/api/admin/users', async (req, res) => {
     try {
