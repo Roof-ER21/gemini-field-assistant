@@ -116,6 +116,38 @@ async function runMigrations() {
       console.warn('⚠️  Could not create rag_chunks table:', error.message);
     }
 
+    // Migration 4: Ensure insurance_companies table exists
+    console.log('📝 Migration 4: Ensuring insurance_companies table exists...');
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS insurance_companies (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          state VARCHAR(2) NOT NULL,
+          phone VARCHAR(20),
+          email VARCHAR(255),
+          address TEXT,
+          website VARCHAR(255),
+          notes TEXT,
+          category VARCHAR(50),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(name)
+        );
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_insurance_companies_name ON insurance_companies(name);
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_insurance_companies_state ON insurance_companies(state);
+      `);
+
+      console.log('✅ insurance_companies table ensured');
+    } catch (error) {
+      console.warn('⚠️  Could not create insurance_companies table:', error.message);
+    }
+
     console.log('✅ All migrations completed successfully');
 
   } catch (error) {
