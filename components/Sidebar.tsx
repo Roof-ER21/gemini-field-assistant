@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {

@@ -19,7 +19,7 @@ BEGIN
 
         -- Add the corrected constraint with all valid document types
         ALTER TABLE rag_documents ADD CONSTRAINT rag_documents_type_check
-            CHECK (type IN ('pdf', 'md', 'txt', 'docx', 'pptx', 'json', 'markdown', 'text'));
+            CHECK (type IN ('pdf', 'md', 'txt', 'docx', 'pptx', 'json', 'markdown', 'text', 'processed'));
         RAISE NOTICE 'Added corrected constraint with extended type list';
 
     ELSE
@@ -34,7 +34,7 @@ BEGIN
             document_name VARCHAR(500) NOT NULL,
             document_path VARCHAR(1000) NOT NULL,
             document_category VARCHAR(100),
-            type VARCHAR(20) NOT NULL CHECK (type IN ('pdf', 'md', 'txt', 'docx', 'pptx', 'json', 'markdown', 'text')),
+            type VARCHAR(20) NOT NULL CHECK (type IN ('pdf', 'md', 'txt', 'docx', 'pptx', 'json', 'markdown', 'text', 'processed')),
             content TEXT NOT NULL,
             content_hash VARCHAR(64), -- SHA-256 hash for deduplication
             chunk_index INTEGER DEFAULT 0, -- For splitting large documents

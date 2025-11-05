@@ -423,14 +423,20 @@ const AdminPanel: React.FC = () => {
   const exportAnalyticsSummary = () => {
     const summary = {
       generated_at: new Date().toISOString(),
-      analytics,
       total_users: users.length,
       active_users: users.filter(u => u.total_messages > 0).length,
       users_by_role: {
         admin: users.filter(u => u.role === 'admin').length,
         sales_rep: users.filter(u => u.role.includes('sales')).length,
         manager: users.filter(u => u.role === 'manager').length
-      }
+      },
+      user_details: users.map(u => ({
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        total_messages: u.total_messages,
+        last_active: u.last_active
+      }))
     };
 
     const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });

@@ -505,60 +505,73 @@ FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- 9. SEED DATA - API PROVIDER PRICING
+-- 9. SEED DATA - API PROVIDER PRICING (2025 Current Rates)
 -- ============================================================================
+-- Note: Prices are per 1M tokens unless specified otherwise
+-- Last updated: January 2025
 
--- Google Gemini Pricing
+-- Google Gemini Pricing (Free during experimental preview, then very low cost)
+-- Source: Google AI Studio pricing (ai.google.dev/pricing)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('gemini', 'chat', 'gemini-2.0-flash', 'per_token', 0.075, 0.30),
-('gemini', 'chat', 'gemini-2.0-flash-thinking-exp', 'per_token', 0.075, 0.30),
-('gemini', 'chat', 'gemini-1.5-pro', 'per_token', 1.25, 5.00),
-('gemini', 'chat', 'gemini-1.5-flash', 'per_token', 0.075, 0.30),
-('gemini', 'image_analysis', 'gemini-2.0-flash', 'per_token', 0.075, 0.30),
-('gemini', 'embedding', 'text-embedding-004', 'per_token', 0.00001, 0.0);
+('gemini', 'chat', 'gemini-2.0-flash', 'free', 0.0, 0.0),  -- Currently FREE in preview
+('gemini', 'chat', 'gemini-2.0-flash-thinking-exp', 'free', 0.0, 0.0),  -- Currently FREE in preview
+('gemini', 'chat', 'gemini-1.5-pro', 'per_token', 1.25, 5.00),  -- Actual paid tier pricing
+('gemini', 'chat', 'gemini-1.5-flash', 'per_token', 0.075, 0.30),  -- When paid ($0.075/$0.30 per 1M)
+('gemini', 'image_analysis', 'gemini-2.0-flash', 'free', 0.0, 0.0),  -- Same model, currently FREE
+('gemini', 'embedding', 'text-embedding-004', 'per_token', 0.00001, 0.0);  -- Embeddings are very cheap
 
--- Groq Pricing (Ultra-fast inference)
+-- Groq Pricing (Free tier available, paid tier is ultra-fast and cheap)
+-- Source: groq.com/pricing (Free tier: 14,400 requests/day, Paid: $0.05-$0.10 per 1M)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('groq', 'chat', 'llama-3.3-70b-versatile', 'per_token', 0.05, 0.08),
-('groq', 'chat', 'llama-3.1-70b-versatile', 'per_token', 0.05, 0.08),
-('groq', 'chat', 'mixtral-8x7b-32768', 'per_token', 0.024, 0.024),
-('groq', 'chat', 'gemma2-9b-it', 'per_token', 0.02, 0.02);
+('groq', 'chat', 'llama-3.3-70b-versatile', 'per_token', 0.059, 0.079),  -- $0.059/$0.079 per 1M tokens
+('groq', 'chat', 'llama-3.1-70b-versatile', 'per_token', 0.059, 0.079),  -- Same pricing
+('groq', 'chat', 'mixtral-8x7b-32768', 'per_token', 0.024, 0.024),  -- Cheaper model
+('groq', 'chat', 'gemma2-9b-it', 'per_token', 0.02, 0.02);  -- Smallest/cheapest
 
--- Together AI Pricing
+-- Together AI Pricing (Competitive rates for open models)
+-- Source: together.ai/pricing (Turbo models: $0.18/$0.18, smaller: $0.06/$0.06)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('together', 'chat', 'meta-llama/Llama-3.1-70B-Instruct-Turbo', 'per_token', 0.18, 0.18),
-('together', 'chat', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'per_token', 0.06, 0.06),
-('together', 'chat', 'mistralai/Mixtral-8x7B-Instruct-v0.1', 'per_token', 0.12, 0.12),
-('together', 'chat', 'Qwen/Qwen2.5-72B-Instruct-Turbo', 'per_token', 0.18, 0.18);
+('together', 'chat', 'meta-llama/Llama-3.1-70B-Instruct-Turbo', 'per_token', 0.18, 0.18),  -- $0.18 per 1M
+('together', 'chat', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'per_token', 0.06, 0.06),  -- Smaller model
+('together', 'chat', 'mistralai/Mixtral-8x7B-Instruct-v0.1', 'per_token', 0.12, 0.12),  -- Mid-tier
+('together', 'chat', 'Qwen/Qwen2.5-72B-Instruct-Turbo', 'per_token', 0.18, 0.18);  -- Same as Llama 70B
 
--- DeepSeek Pricing
+-- DeepSeek Pricing (Known for being very cheap - actual 2025 rates)
+-- Source: platform.deepseek.com/api-docs/pricing
+-- DeepSeek-Chat: $0.14 input / $0.28 output per 1M tokens
+-- DeepSeek-Reasoner: $0.55 input / $2.19 output per 1M tokens (uses reasoning tokens)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('deepseek', 'chat', 'deepseek-chat', 'per_token', 0.14, 0.28),
-('deepseek', 'chat', 'deepseek-reasoner', 'per_token', 0.55, 2.19);
+('deepseek', 'chat', 'deepseek-chat', 'per_token', 0.14, 0.28),  -- Very affordable
+('deepseek', 'chat', 'deepseek-reasoner', 'per_token', 0.55, 2.19);  -- Reasoning model (more expensive)
 
--- HuggingFace (Free tier)
+-- HuggingFace Inference API (Free tier available)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('huggingface', 'chat', 'meta-llama/Llama-3.2-3B-Instruct', 'free', 0.0, 0.0),
-('huggingface', 'image_analysis', 'Salesforce/blip-image-captioning-large', 'free', 0.0, 0.0);
+('huggingface', 'chat', 'meta-llama/Llama-3.2-3B-Instruct', 'free', 0.0, 0.0),  -- Free inference
+('huggingface', 'image_analysis', 'Salesforce/blip-image-captioning-large', 'free', 0.0, 0.0);  -- Free
 
--- Ollama (Self-hosted - Free)
+-- Ollama (Self-hosted - Completely Free)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('ollama', 'chat', 'llama3.2', 'free', 0.0, 0.0),
-('ollama', 'chat', 'qwen2.5-coder', 'free', 0.0, 0.0),
-('ollama', 'chat', 'deepseek-r1', 'free', 0.0, 0.0),
-('ollama', 'embedding', 'nomic-embed-text', 'free', 0.0, 0.0);
+('ollama', 'chat', 'llama3.2', 'free', 0.0, 0.0),  -- Self-hosted
+('ollama', 'chat', 'qwen2.5-coder', 'free', 0.0, 0.0),  -- Self-hosted
+('ollama', 'chat', 'deepseek-r1', 'free', 0.0, 0.0),  -- Self-hosted
+('ollama', 'embedding', 'nomic-embed-text', 'free', 0.0, 0.0);  -- Self-hosted
 
--- Audio Transcription Services
+-- Audio Transcription Services (2025 rates)
+-- Google Speech-to-Text: Chirp 2 is free during preview, then ~$0.002-$0.005/min
+-- Deepgram: Nova-2 is $0.0043/min
+-- AssemblyAI: Best model is $0.00037/min (very cheap)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, per_minute_price) VALUES
-('google-speech', 'transcription', 'chirp-2', 'per_minute', 0.002),
-('google-speech', 'transcription', 'latest_long', 'per_minute', 0.006),
-('deepgram', 'transcription', 'nova-2', 'per_minute', 0.0043),
-('assemblyai', 'transcription', 'best', 'per_minute', 0.00037);
+('google-speech', 'transcription', 'chirp-2', 'per_minute', 0.002),  -- Chirp 2 (free in preview)
+('google-speech', 'transcription', 'latest_long', 'per_minute', 0.005),  -- Standard long audio
+('deepgram', 'transcription', 'nova-2', 'per_minute', 0.0043),  -- Nova-2 model
+('assemblyai', 'transcription', 'best', 'per_minute', 0.00037);  -- Very affordable
 
--- Web Search APIs (if used)
+-- Web Search APIs (2025 rates)
+-- Brave Search: ~$0.0005 per request (very cheap)
+-- Serper: ~$0.001 per request
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, per_request_price) VALUES
-('brave-search', 'web_search', 'web-search-api', 'per_request', 0.0005),
-('serper', 'web_search', 'google-search-api', 'per_request', 0.001);
+('brave-search', 'web_search', 'web-search-api', 'per_request', 0.0005),  -- Cost-effective
+('serper', 'web_search', 'google-search-api', 'per_request', 0.001);  -- Standard rate
 
 -- ============================================================================
 -- 10. HELPER FUNCTIONS FOR APPLICATION USE
