@@ -8,9 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
 dist-ssr
 *.local
+# dist folder is needed for Railway deployment - DO NOT IGNORE
 
 # Editor directories and files
 .vscode/*

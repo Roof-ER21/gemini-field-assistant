@@ -1,0 +1,159 @@
+============================================================
+DEEPSEEK-OCR EXTRACTION COMPLETE
+============================================================
+
+Total Documents Extracted: 123
+
+
+./ (2 files)
+  - RESIDENTIAL_BRAND_GUIDELINES.md
+  - Roof-ER Sales Training (1).md
+
+Sales Rep Resources 2/ (27 files)
+  - Adjuster_Inspector Information Sheet1.md
+  - Brochure.md
+  - DMV Blank Contingency.md
+  - Hover ESX_XML_PDF Process.md
+  - How to do a Repair Attempt [EXAMPLE].md
+  - Merged_PDFs_1.md
+  - Merged_PDFs_2.md
+  - Merged_PDFs_3.md
+  - Merged_PDFs_4.md
+  - Merged_PDFs_5.md
+  - Merged_PDFs_6.md
+  - Mission, Values, & Commitment.md
+  - PA Blank Contingency.md
+  - Required Mortgage Endorsement Companies.md
+  - Role+.md
+  - Roof-ER Quick Cheat Sheet.md
+  - Roof-ER Quick Strike Guide.md
+  - Roof-ER Roof & Siding Claim Response Packet.md
+  - Roof-ER Sales Training.pptx.md
+  - Roof-ER Siding Claim Response Packet.md
+  - RoofER_Master_Documents.md
+  - RoofER_Master_Documents_Updated.md
+  - RoofER_Top10_CheatSheet_Fixed.md
+  - Sales Operations and Tasks.md
+  - Training Manual.md
+  - Untitled document.md
+  - 📧 Email Generator .md
+
+Sales Rep Resources 2/Agreements/ (7 files)
+  - Claim Authorization Form.md
+  - Emergency Tarp.md
+  - InsuranceAgrement_Updated.md
+  - Project Agreement - Repair - MD.md
+  - Project Agreement - Repair - VA.md
+  - Repair Attempt Agreement.md
+  - iTel Agreement.md
+
+Sales Rep Resources 2/Customer Resources(Products, Warranties, etc.)/ (13 files)
+  - GAF Standard Warranty.md
+  - GAF Timberline HDZ Presentation.md
+  - GAF Warranty Comparison.md
+  - Golden_Pledge_Limited_RESWT161_Legal_Sample.md
+  - Post Sign Up Timeline.md
+  - Roof-ER.md
+  - RoofER Standard Materials.md
+  - SP Exclusion Form.md
+  - Silver Pledge Legalese.md
+  - Silver Pledge Warranty Brochure.md
+  - Warranty Comparison Prsentation.md
+  - What is a Deductible_.md
+  - Workmanship Warranty.md
+
+Sales Rep Resources 2/Email Templates/ (11 files)
+  - Danny_s Repair Attempt Video Template.md
+  - Estimate Request Template.md
+  - GAF Guidelines Template.md
+  - Generic Partial Template.md
+  - Photo Report Template.md
+  - Post AM Email Template.md
+  - Repair Attempt Template.md
+  - Request For Appraisal.md
+  - Siding Argument.md
+  - Template from Customer to Insurance.md
+  - iTel Shingle Template.md
+
+Sales Rep Resources 2/Insurance Argument Resources/ (15 files)
+  - Arbitration Information.md
+  - Complaint Forms.md
+  - Discontinued-Shingle-List.md
+  - Engineers.md
+  - Flashing Codes.md
+  - GAF Requirement - Slope Replacement.md
+  - GAF Storm Damage Guidelines .md
+  - Low Roof_Flat Roof Code.md
+  - Maryland Exterior Wrap Code R703.md
+  - Maryland Insurance Administration Matching Requirement 1.md
+  - Maryland Insurance Administration Matching Requirement 2.md
+  - Maryland Insurance Administration Matching Requirement 3.md
+  - PHILLY PARTIALS.md
+  - Virginia Residential Building Codes.md
+  - Virginia building codes Re-roofing Chapters.md
+
+Sales Rep Resources 2/Licenses & Certifications/ (4 files)
+  - CERTIFIED_CERTIFICATE.md
+  - MD License.md
+  - Roof-ER CertainTeed ShingleMaster.md
+  - VA Class A License.md
+
+Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/ (11 files)
+  - COI - General Liability.md
+  - COI - workers comp 2026.md
+  - Form W-9 (Rev. March 2024) (1).md
+  - GAF Master Elite 2025.md
+  - Maryland License Valid through 2027.md
+  - Master Elite Reference Letter for Customers.md
+  - PA license 2025 - 2027.md
+  - Pennsylvania License Valid Through 2027.md
+  - Roof-ER CertainTeed ShingleMaster.md
+  - TAX ID Information.md
+  - VA License 2025 - 2027.md
+
+Sales Rep Resources 2/Licenses, Certifications, & General Liability Ins/Expired Docs/ (3 files)
+  - Copy of MD License (Valid through 7_2025).md
+  - MD License (Valid through 7_2025).md
+  - VA Class A License (Valid through 12_2024.md
+
+Sales Rep Resources 2/Q&A Susan AI-21/ (8 files)
+  - Escal.md
+  - GAF_Storm.md
+  - Knowledge.md
+  - Pushback.md
+  - Stuck_do.md
+  - Training.md
+  - docs_temps.md
+  - susan_ai.md
+
+Sales Rep Resources 2/Questions/ (8 files)
+  - Escal.md
+  - GAF_Storm.md
+  - Knowledge.md
+  - Pushback.md
+  - Stuck_do.md
+  - Training.md
+  - docs_temps.md
+  - susan_ai.md
+
+Sales Rep Resources 2/Rep Reports & Photo Examples/ (5 files)
+  - EXAMPLE PHOTOS.md
+  - Sample Photo Report 1.md
+  - Sample Photo Report 2.md
+  - Sample Photo Report 3.md
+  - Sample Photo Report 4.md
+
+Sales Rep Resources 2/Sales Scripts / (7 files)
+  - Claim Filing Information Sheet.md
+  - Contingency and Claim Authorization Script.md
+  - Full Approval Estimate Phone Call.md
+  - Initial Pitch Script.md
+  - Inspection and Post Inspection Script.md
+  - Partial Estimate Phone Call.md
+  - Post Adjuster Meeting Script.md
+
+Sales Rep Resources 2/images samp/Pitches/ (1 files)
+  - Adjuster Meeting Outcome Script.md
+
+Sales Rep Resources 2/images samp/Process/ (1 files)
+  - AM Outcome Process.md
