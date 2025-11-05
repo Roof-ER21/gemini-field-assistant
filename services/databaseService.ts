@@ -4,6 +4,8 @@
  * Falls back to localStorage if database is unavailable
  */
 
+import { getApiBaseUrl } from './config';
+
 // PostgreSQL client for browser (using a REST API wrapper)
 // Note: For production, this would typically be a backend API endpoint
 
@@ -87,12 +89,8 @@ export class DatabaseService {
   }
 
   private constructor() {
-    // Auto-detect production vs development API URL
-    this.apiBaseUrl = import.meta.env.VITE_API_URL || (
-      window.location.hostname === 'localhost'
-        ? 'http://localhost:3001/api'
-        : `${window.location.origin}/api`
-    );
+    // Use centralized config for API URL
+    this.apiBaseUrl = getApiBaseUrl();
 
     // Check if we can connect to the database
     this.checkDatabaseConnection();

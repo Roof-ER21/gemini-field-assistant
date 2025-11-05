@@ -4,13 +4,7 @@
  */
 
 import { authService } from './authService';
-
-// Use relative URL for production, localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || (
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:3001/api'
-    : `${window.location.origin}/api`
-);
+import { API_BASE_URL } from './config';
 
 interface ActivityData {
   activity_type: string;
