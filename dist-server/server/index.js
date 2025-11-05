@@ -1852,7 +1852,8 @@ export default app;
 try {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const distDir = path.resolve(__dirname, '../dist');
+    // When compiled: __dirname = /app/dist-server/server, so we need ../../dist to reach /app/dist
+    const distDir = path.resolve(__dirname, '../../dist');
     // Serve static assets (hashed files can be cached aggressively)
     app.use(express.static(distDir, {
         maxAge: '1y',
