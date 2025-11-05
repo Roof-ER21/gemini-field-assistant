@@ -12,11 +12,13 @@ import {
   Download,
   RefreshCw,
   BarChart3,
-  Eye
+  Eye,
+  DollarSign
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
+import AdminBudgetTab from './AdminBudgetTab';
 
 interface UserSummary {
   id: string;
@@ -86,7 +88,7 @@ interface AllMessagesItem {
 type QuickFilter = 'today' | 'week' | 'month' | 'all';
 
 const AdminPanel: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
@@ -585,6 +587,26 @@ const AdminPanel: React.FC = () => {
         >
           <BarChart3 style={{ width: '1.125rem', height: '1.125rem' }} />
           Analytics
+        </button>
+
+        <button
+          onClick={() => setActiveTab('budget')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'budget' ? '#991b1b' : 'transparent',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          <DollarSign style={{ width: '1.125rem', height: '1.125rem' }} />
+          Budget
         </button>
       </div>
 
@@ -1758,6 +1780,10 @@ const AdminPanel: React.FC = () => {
 
         {activeTab === 'analytics' && (
           <AdminAnalyticsTab />
+        )}
+
+        {activeTab === 'budget' && (
+          <AdminBudgetTab />
         )}
       </div>
 

@@ -2214,6 +2214,482 @@ app.patch('/api/admin/concerning-chats/:id/review', async (req, res) => {
 });
 
 // ============================================================================
+// BUDGET MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// 1. Run Migration 005: API Usage Tracking and Budget Management
+app.post('/api/admin/run-migration-005', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔧 Running Migration 005: API Usage Tracking and Budget Management...');
+
+    const fs = await import('fs/promises');
+    const migrationPath = path.resolve(__dirname, '../../database/migrations/005_api_usage_tracking.sql');
+    const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
+
+    // Execute the migration
+    await pool.query(migrationSQL);
+
+    console.log('✅ Migration 005 completed successfully');
+
+    // Verify tables were created
+    const verify = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('api_providers', 'api_usage_log', 'user_budgets', 'company_budget', 'budget_alerts')
+      ORDER BY table_name
+    `);
+
+    const providersCount = await pool.query('SELECT COUNT(*) FROM api_providers');
+    const companyBudget = await pool.query('SELECT monthly_budget FROM company_budget LIMIT 1');
+
+    res.json({
+      success: true,
+      message: 'Migration 005 completed successfully',
+      tables_created: verify.rows.map(r => r.table_name),
+      api_providers_seeded: parseInt(providersCount.rows[0].count),
+      company_budget_initialized: companyBudget.rows[0]?.monthly_budget
+    });
+  } catch (error) {
+    console.error('❌ Migration 005 failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Migration failed',
+      message: (error as Error).message
+    });
+  }
+});
+
+// 2. Get budget overview stats (admin only)
+app.get('/api/admin/budget/overview', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get company budget status
+    const companyBudget = await pool.query(`
+      SELECT * FROM get_company_budget_status()
+    `);
+
+    // Get users over budget count
+    const usersOverBudget = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM user_budgets
+      WHERE current_month_spend >= monthly_budget AND is_active = true
+    `);
+
+    // Get total API calls this month
+    const apiCallsThisMonth = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM api_usage_log
+      WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)
+    `);
+
+    // Get average cost per call
+    const avgCostPerCall = await pool.query(`
+      SELECT AVG(estimated_cost) as avg_cost
+      FROM api_usage_log
+      WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)
+      AND estimated_cost > 0
+    `);
+
+    // Get most expensive provider
+    const mostExpensiveProvider = await pool.query(`
+      SELECT
+        provider_name,
+        SUM(estimated_cost) as total_cost
+      FROM api_usage_log
+      WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)
+      GROUP BY provider_name
+      ORDER BY total_cost DESC
+      LIMIT 1
+    `);
+
+    const overview = {
+      company: companyBudget.rows[0] || {
+        monthly_budget: 0,
+        current_spend: 0,
+        remaining_budget: 0,
+        usage_percentage: 0,
+        is_over_budget: false,
+        active_users_count: 0
+      },
+      users_over_budget: parseInt(usersOverBudget.rows[0].count || 0),
+      api_calls_this_month: parseInt(apiCallsThisMonth.rows[0].count || 0),
+      avg_cost_per_call: parseFloat(avgCostPerCall.rows[0]?.avg_cost || 0),
+      most_expensive_provider: mostExpensiveProvider.rows[0] || null
+    };
+
+    return res.json({ data: overview });
+  } catch (error) {
+    console.error('Error fetching budget overview:', error);
+    return res.status(500).json({ error: 'Failed to fetch budget overview' });
+  }
+});
+
+// 3. Get per-user budget details (admin only)
+app.get('/api/admin/budget/users', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    // Get total count
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM user_budgets ub
+      JOIN users u ON ub.user_id = u.id
+      WHERE ub.is_active = true
+    `);
+    const totalCount = parseInt(countResult.rows[0]?.total || 0);
+
+    // Get user budget details
+    const result = await pool.query(`
+      SELECT
+        u.id as user_id,
+        u.email,
+        u.name,
+        ub.monthly_budget,
+        ub.current_month_spend as current_spend,
+        ROUND((ub.current_month_spend / NULLIF(ub.monthly_budget, 0) * 100), 2) as percentage_used,
+        ub.current_month_spend >= ub.monthly_budget as is_over_budget,
+        (SELECT COUNT(*) FROM api_usage_log WHERE user_id = u.id AND created_at >= DATE_TRUNC('month', CURRENT_DATE)) as api_calls_this_month
+      FROM user_budgets ub
+      JOIN users u ON ub.user_id = u.id
+      WHERE ub.is_active = true
+      ORDER BY ub.current_month_spend DESC
+      LIMIT $1 OFFSET $2
+    `, [Number(limit), offset]);
+
+    return res.json({
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user budgets:', error);
+    return res.status(500).json({ error: 'Failed to fetch user budgets' });
+  }
+});
+
+// 4. Get budget alerts (admin only)
+app.get('/api/admin/budget/alerts', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { acknowledged = 'all' } = req.query;
+
+    let acknowledgedFilter = '';
+    if (acknowledged === 'true') {
+      acknowledgedFilter = 'WHERE ba.acknowledged = true';
+    } else if (acknowledged === 'false') {
+      acknowledgedFilter = 'WHERE ba.acknowledged = false';
+    }
+
+    const result = await pool.query(`
+      SELECT
+        ba.id,
+        ba.alert_type,
+        ba.threshold_percentage,
+        ba.current_spend,
+        ba.budget_limit,
+        ba.triggered_at,
+        ba.acknowledged,
+        ba.acknowledged_at,
+        ba.user_id,
+        u.email as user_email,
+        u.name as user_name,
+        ack_user.email as acknowledged_by_email
+      FROM budget_alerts ba
+      LEFT JOIN users u ON ba.user_id = u.id
+      LEFT JOIN users ack_user ON ba.acknowledged_by = ack_user.id
+      ${acknowledgedFilter}
+      ORDER BY ba.triggered_at DESC
+      LIMIT 100
+    `);
+
+    return res.json({ data: result.rows });
+  } catch (error) {
+    console.error('Error fetching budget alerts:', error);
+    return res.status(500).json({ error: 'Failed to fetch budget alerts' });
+  }
+});
+
+// 5. Acknowledge a budget alert (admin only)
+app.post('/api/admin/budget/alerts/:id/acknowledge', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    // Get admin user ID
+    const adminUser = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+
+    if (adminUser.rows.length === 0) {
+      return res.status(401).json({ error: 'Admin user not found' });
+    }
+
+    const result = await pool.query(
+      `UPDATE budget_alerts
+       SET acknowledged = true,
+           acknowledged_at = CURRENT_TIMESTAMP,
+           acknowledged_by = $1
+       WHERE id = $2
+       RETURNING *`,
+      [adminUser.rows[0].id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Alert not found' });
+    }
+
+    console.log(`✅ Budget alert ${id} acknowledged by ${email}`);
+
+    return res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error acknowledging budget alert:', error);
+    return res.status(500).json({ error: 'Failed to acknowledge alert' });
+  }
+});
+
+// 6. Get detailed API usage log (admin only)
+app.get('/api/admin/budget/usage-log', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const {
+      page = 1,
+      limit = 100,
+      userId,
+      provider,
+      serviceType,
+      startDate,
+      endDate,
+      export: exportCsv
+    } = req.query;
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    // Build filters
+    const filters: string[] = [];
+    const params: any[] = [];
+
+    if (userId) {
+      filters.push(`aul.user_id = $${params.length + 1}`);
+      params.push(userId);
+    }
+
+    if (provider) {
+      filters.push(`aul.provider_name = $${params.length + 1}`);
+      params.push(provider);
+    }
+
+    if (serviceType) {
+      filters.push(`aul.service_type = $${params.length + 1}`);
+      params.push(serviceType);
+    }
+
+    if (startDate) {
+      filters.push(`aul.created_at >= $${params.length + 1}`);
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      filters.push(`aul.created_at <= $${params.length + 1}`);
+      params.push(endDate);
+    }
+
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM api_usage_log aul
+      ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, params);
+    const totalCount = parseInt(countResult.rows[0]?.total || 0);
+
+    // Get usage log data
+    const dataQuery = `
+      SELECT
+        aul.id,
+        aul.created_at,
+        u.email as user_email,
+        u.name as user_name,
+        aul.provider_name,
+        aul.service_type,
+        aul.model_name,
+        aul.input_tokens,
+        aul.output_tokens,
+        aul.total_tokens,
+        aul.duration_ms,
+        aul.estimated_cost,
+        aul.feature_used,
+        aul.success
+      FROM api_usage_log aul
+      LEFT JOIN users u ON aul.user_id = u.id
+      ${whereClause}
+      ORDER BY aul.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    params.push(Number(limit), offset);
+
+    const result = await pool.query(dataQuery, params);
+
+    // If export is requested, return CSV format
+    if (exportCsv === 'true') {
+      const csvHeader = 'Date,User Email,Provider,Service Type,Model,Input Tokens,Output Tokens,Total Tokens,Duration (ms),Cost,Feature,Success\n';
+      const csvRows = result.rows.map(row =>
+        `${row.created_at},${row.user_email},${row.provider_name},${row.service_type},${row.model_name},${row.input_tokens},${row.output_tokens},${row.total_tokens},${row.duration_ms},${row.estimated_cost},${row.feature_used},${row.success}`
+      ).join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="api_usage_log.csv"');
+      return res.send(csvHeader + csvRows);
+    }
+
+    return res.json({
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching API usage log:', error);
+    return res.status(500).json({ error: 'Failed to fetch usage log' });
+  }
+});
+
+// 7. Update user budget limit (admin only)
+app.put('/api/admin/budget/user/:userId', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+    const { monthly_budget } = req.body;
+
+    if (!monthly_budget || monthly_budget < 0) {
+      return res.status(400).json({ error: 'Invalid monthly_budget value' });
+    }
+
+    // Upsert user budget
+    const result = await pool.query(
+      `INSERT INTO user_budgets (user_id, monthly_budget, updated_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         monthly_budget = $2,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [userId, monthly_budget]
+    );
+
+    console.log(`✅ Updated budget for user ${userId} to $${monthly_budget}`);
+
+    return res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating user budget:', error);
+    return res.status(500).json({ error: 'Failed to update user budget' });
+  }
+});
+
+// 8. Update company budget limit (admin only)
+app.put('/api/admin/budget/company', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { monthly_budget } = req.body;
+
+    if (!monthly_budget || monthly_budget < 0) {
+      return res.status(400).json({ error: 'Invalid monthly_budget value' });
+    }
+
+    // Update company budget
+    const result = await pool.query(
+      `UPDATE company_budget
+       SET monthly_budget = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = (SELECT id FROM company_budget ORDER BY id DESC LIMIT 1)
+       RETURNING *`,
+      [monthly_budget]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Company budget not found' });
+    }
+
+    console.log(`✅ Updated company budget to $${monthly_budget}`);
+
+    return res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating company budget:', error);
+    return res.status(500).json({ error: 'Failed to update company budget' });
+  }
+});
+
+// ============================================================================
 // INSURANCE COMPANIES ENDPOINTS
 // ============================================================================
 
