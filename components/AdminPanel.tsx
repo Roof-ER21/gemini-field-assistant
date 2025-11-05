@@ -336,7 +336,7 @@ const AdminPanel: React.FC = () => {
   };
 
   // Filter users based on search and filters
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (users || []).filter(user => {
     if (searchQuery && !user.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !user.email.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
@@ -354,7 +354,7 @@ const AdminPanel: React.FC = () => {
   });
 
   // Filter emails
-  const filteredEmails = emails.filter(email => {
+  const filteredEmails = (emails || []).filter(email => {
     if (emailSearch) {
       const search = emailSearch.toLowerCase();
       return (
@@ -369,7 +369,7 @@ const AdminPanel: React.FC = () => {
   });
 
   // Filter all messages
-  const filteredMessages = allMessages.filter(msg => {
+  const filteredMessages = (allMessages || []).filter(msg => {
     if (messageUserFilter && msg.user_id !== messageUserFilter) {
       return false;
     }
@@ -585,15 +585,18 @@ const AdminPanel: React.FC = () => {
       </div>
 
       {/* Main Container */}
-      <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
         {activeTab === 'users' && (
-        <>{/* Sidebar - Users List */}
+        <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
+        {/* Sidebar - Users List */}
         <div style={{
           width: '320px',
           background: '#1a1a1a',
-          borderRight: '1px solid #2a2a2a',
+          borderRadius: '12px',
+          border: '1px solid #2a2a2a',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          flexShrink: 0
         }}>
           {/* Sidebar Header */}
           <div style={{
@@ -988,7 +991,341 @@ const AdminPanel: React.FC = () => {
             )}
           </div>
         </div>
-        </>
+
+        {/* Conversations Panel - Shows when user is selected */}
+        {selectedUser && (
+          <div style={{
+            flex: 1,
+            background: '#1a1a1a',
+            borderRadius: '12px',
+            border: '1px solid #2a2a2a',
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: '350px',
+            maxWidth: '450px'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '25px',
+              borderBottom: '1px solid #2a2a2a'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '18px',
+                fontWeight: 600,
+                color: '#e4e4e7',
+                marginBottom: '10px'
+              }}>
+                <MessageSquare style={{ width: '20px', height: '20px', color: '#991b1b' }} />
+                Conversations
+              </div>
+              <div style={{
+                fontSize: '14px',
+                color: '#71717a'
+              }}>
+                {selectedUser.name}
+              </div>
+            </div>
+
+            {/* Conversations List */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px'
+            }} className="custom-scrollbar">
+              {loading && conversations.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center' }}>
+                  <div style={{
+                    display: 'inline-block',
+                    width: '40px',
+                    height: '40px',
+                    border: '4px solid #3a3a3a',
+                    borderTop: '4px solid #991b1b',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
+                    Loading conversations...
+                  </p>
+                </div>
+              ) : conversations.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  color: '#71717a'
+                }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    background: '#262626',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px',
+                    fontSize: '36px'
+                  }}>
+                    💬
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                    No conversations
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#71717a' }}>
+                    This user has no chat history
+                  </div>
+                </div>
+              ) : (
+                conversations.map((conv) => (
+                  <div
+                    key={conv.session_id}
+                    onClick={() => handleConversationSelect(conv)}
+                    style={{
+                      background: selectedConversation?.session_id === conv.session_id ? '#2a2a2a' : '#262626',
+                      border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#991b1b' : '#3a3a3a'}`,
+                      borderRadius: '12px',
+                      padding: '16px',
+                      marginBottom: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedConversation?.session_id !== conv.session_id) {
+                        e.currentTarget.style.background = '#2a2a2a';
+                        e.currentTarget.style.borderColor = '#991b1b';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedConversation?.session_id !== conv.session_id) {
+                        e.currentTarget.style.background = '#262626';
+                        e.currentTarget.style.borderColor = '#3a3a3a';
+                      }
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '10px'
+                    }}>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        background: '#991b1b',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: 'white'
+                      }}>
+                        <MessageSquare style={{ width: '14px', height: '14px' }} />
+                        {conv.message_count}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#71717a'
+                      }}>
+                        {new Date(conv.last_message_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#a1a1aa',
+                      lineHeight: '1.5',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}>
+                      {conv.preview || 'No preview available'}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Messages Panel - Shows when conversation is selected */}
+        {selectedUser && selectedConversation && (
+          <div style={{
+            flex: 1,
+            background: '#1a1a1a',
+            borderRadius: '12px',
+            border: '1px solid #2a2a2a',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '25px',
+              borderBottom: '1px solid #2a2a2a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#e4e4e7',
+                  marginBottom: '8px'
+                }}>
+                  <MessageSquare style={{ width: '20px', height: '20px', color: '#991b1b' }} />
+                  Messages
+                </div>
+                <div style={{ fontSize: '13px', color: '#71717a' }}>
+                  {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
+                </div>
+              </div>
+              <button
+                onClick={exportConversation}
+                style={{
+                  padding: '10px 16px',
+                  background: 'rgba(153, 27, 27, 0.2)',
+                  border: '1px solid #991b1b',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#991b1b';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                }}
+              >
+                <Download style={{ width: '16px', height: '16px' }} />
+                Export
+              </button>
+            </div>
+
+            {/* Messages List */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px'
+            }} className="custom-scrollbar">
+              {loading && messages.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center' }}>
+                  <div style={{
+                    display: 'inline-block',
+                    width: '40px',
+                    height: '40px',
+                    border: '4px solid #3a3a3a',
+                    borderTop: '4px solid #991b1b',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
+                    Loading messages...
+                  </p>
+                </div>
+              ) : messages.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  color: '#71717a'
+                }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    background: '#262626',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px',
+                    fontSize: '36px'
+                  }}>
+                    📭
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                    No messages
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#71717a' }}>
+                    No messages in this conversation
+                  </div>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    style={{
+                      marginBottom: '24px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start'
+                    }}
+                  >
+                    <div style={{
+                      maxWidth: '75%',
+                      background: msg.sender === 'user' ? '#991b1b' : '#262626',
+                      padding: '14px 18px',
+                      borderRadius: '12px',
+                      position: 'relative'
+                    }}>
+                      <div style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        marginBottom: '8px',
+                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#71717a',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        {msg.sender === 'user' ? selectedUser.name : 'S21 AI'}
+                      </div>
+                      <div style={{
+                        fontSize: '15px',
+                        lineHeight: '1.6',
+                        color: msg.sender === 'user' ? 'white' : '#e4e4e7',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                      }}>
+                        {msg.content}
+                      </div>
+                      {msg.provider && (
+                        <div style={{
+                          marginTop: '10px',
+                          fontSize: '11px',
+                          color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.6)' : '#71717a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <span>Provider: {msg.provider}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#71717a',
+                      marginTop: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <Clock style={{ width: '12px', height: '12px' }} />
+                      {new Date(msg.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        </div>
         )}
 
         {/* EMAILS TAB - Full Page View */}
