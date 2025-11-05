@@ -9,7 +9,6 @@ import {
   Radio,
   Target,
   FileText,
-  DollarSign,
   ArrowRight,
   Zap,
   CheckCircle,
@@ -439,11 +438,6 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                 title: 'Document Job',
                 description: 'Create professional job reports with photos and details',
                 icon: FileText
-              },
-              {
-                title: 'Price Quote',
-                description: 'Generate accurate estimates with material and labor costs',
-                icon: DollarSign
               }
             ].map((item, index) => {
               const Icon = item.icon;
