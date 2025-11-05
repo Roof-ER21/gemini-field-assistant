@@ -1461,14 +1461,14 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
     ]);
 
     res.json({
-      total_users: totalUsers.rows[0].count,
-      active_users_7d: activeUsers7d.rows[0].count,
-      total_conversations: totalConversations.rows[0].count,
-      total_messages: totalMessages.rows[0].count,
-      emails_generated: emailsGenerated.rows[0].count,
-      transcriptions_created: transcriptionsCreated.rows[0].count,
-      documents_uploaded: documentsUploaded.rows[0].count,
-      susan_sessions: susanSessions.rows[0].count
+      totalUsers: parseInt(totalUsers.rows[0].count),
+      activeUsers7d: parseInt(activeUsers7d.rows[0].count),
+      totalConversations: parseInt(totalConversations.rows[0].count),
+      totalMessages: parseInt(totalMessages.rows[0].count),
+      emailsGenerated: parseInt(emailsGenerated.rows[0].count),
+      transcriptions: parseInt(transcriptionsCreated.rows[0].count),
+      documentsUploaded: parseInt(documentsUploaded.rows[0].count),
+      susanSessions: parseInt(susanSessions.rows[0].count)
     });
   } catch (error) {
     console.error('Error fetching analytics overview:', error);
@@ -1492,24 +1492,28 @@ app.get('/api/admin/analytics/user-activity', async (req, res) => {
     // Query user_activity_enhanced view with time filtering
     const result = await pool.query(`
       SELECT
-        user_id,
-        email,
-        name,
-        role,
-        state,
-        total_messages,
-        emails_generated,
-        transcriptions_created,
-        documents_uploaded,
-        susan_sessions,
-        unique_documents_viewed,
-        favorite_documents,
-        images_analyzed,
-        last_active,
-        user_since
-      FROM user_activity_enhanced
-      WHERE ${timeFilter.replace('created_at', 'last_active')}
-      ORDER BY last_active DESC NULLS LAST
+        u.id,
+        u.email,
+        u.name,
+        u.role,
+        u.state,
+        COUNT(DISTINCT ch.id) AS chats,
+        COUNT(DISTINCT eg.id) AS emails,
+        COUNT(DISTINCT t.id) AS transcriptions,
+        COUNT(DISTINCT du.id) AS uploads,
+        COUNT(DISTINCT lss.id) AS susan,
+        COUNT(DISTINCT dv.document_path) AS "kbViews",
+        MAX(ch.created_at) AS "lastActive"
+      FROM users u
+      LEFT JOIN chat_history ch ON u.id = ch.user_id
+      LEFT JOIN email_generation_log eg ON u.id = eg.user_id
+      LEFT JOIN transcriptions t ON u.id = t.user_id
+      LEFT JOIN document_uploads du ON u.id = du.user_id
+      LEFT JOIN live_susan_sessions lss ON u.id = lss.user_id
+      LEFT JOIN document_views dv ON u.id = dv.user_id
+      WHERE ${timeFilter.replace('created_at', 'ch.created_at')}
+      GROUP BY u.id, u.email, u.name, u.role, u.state
+      ORDER BY "lastActive" DESC NULLS LAST
     `);
 
     res.json(result.rows);
@@ -1532,42 +1536,76 @@ app.get('/api/admin/analytics/feature-usage', async (req, res) => {
     const { timeRange = 'week' } = req.query;
     const timeFilter = getTimeRangeFilter(timeRange as string, 'activity_date');
 
-    // Query daily_activity_metrics view
-    const result = await pool.query(`
-      SELECT
-        activity_date,
-        activity_type,
-        count
-      FROM daily_activity_metrics
-      WHERE ${timeFilter}
+    // Query daily activity metrics with joins
+    const rawData = await pool.query(`
+      WITH date_series AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '30 days',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::date AS activity_date
+      ),
+      chat_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'chat' AS activity_type, COUNT(*) AS count
+        FROM chat_history
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      email_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'email' AS activity_type, COUNT(*) AS count
+        FROM email_generation_log
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      upload_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'upload' AS activity_type, COUNT(*) AS count
+        FROM document_uploads
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      transcription_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'transcription' AS activity_type, COUNT(*) AS count
+        FROM transcriptions
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      susan_counts AS (
+        SELECT DATE(started_at) AS activity_date, 'susan_session' AS activity_type, COUNT(*) AS count
+        FROM live_susan_sessions
+        WHERE ${timeFilter.replace('created_at', 'started_at')}
+        GROUP BY DATE(started_at)
+      ),
+      kb_counts AS (
+        SELECT DATE(last_viewed_at) AS activity_date, 'knowledge_base' AS activity_type, COUNT(*) AS count
+        FROM document_views
+        WHERE ${timeFilter.replace('created_at', 'last_viewed_at')}
+        GROUP BY DATE(last_viewed_at)
+      )
+      SELECT * FROM chat_counts
+      UNION ALL SELECT * FROM email_counts
+      UNION ALL SELECT * FROM upload_counts
+      UNION ALL SELECT * FROM transcription_counts
+      UNION ALL SELECT * FROM susan_counts
+      UNION ALL SELECT * FROM kb_counts
       ORDER BY activity_date ASC, activity_type
     `);
 
-    // Transform into chart-friendly format
-    // Group by date, with activity types as separate datasets
-    const dataByDate: { [key: string]: { [key: string]: number } } = {};
-    const activityTypes = new Set<string>();
-
-    for (const row of result.rows) {
-      const dateStr = row.activity_date.toISOString().split('T')[0];
-      if (!dataByDate[dateStr]) {
-        dataByDate[dateStr] = {};
-      }
-      dataByDate[dateStr][row.activity_type] = row.count;
-      activityTypes.add(row.activity_type);
-    }
-
-    // Convert to arrays for charting
-    const labels = Object.keys(dataByDate).sort();
-    const datasets = Array.from(activityTypes).map(type => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' '),
-      data: labels.map(date => dataByDate[date][type] || 0)
-    }));
-
-    res.json({
-      labels,
-      datasets
+    // Transform into flat array format for frontend
+    const dates = [...new Set(rawData.rows.map(r => r.activity_date.toISOString().split('T')[0]))].sort();
+    const transformedData = dates.map(date => {
+      const dayData = rawData.rows.filter(r => r.activity_date.toISOString().split('T')[0] === date);
+      return {
+        date,
+        chat: parseInt(dayData.find(d => d.activity_type === 'chat')?.count || 0),
+        email: parseInt(dayData.find(d => d.activity_type === 'email')?.count || 0),
+        upload: parseInt(dayData.find(d => d.activity_type === 'upload')?.count || 0),
+        transcribe: parseInt(dayData.find(d => d.activity_type === 'transcription')?.count || 0),
+        susan: parseInt(dayData.find(d => d.activity_type === 'susan_session')?.count || 0),
+        knowledgeBase: parseInt(dayData.find(d => d.activity_type === 'knowledge_base')?.count || 0)
+      };
     });
+
+    res.json(transformedData);
   } catch (error) {
     console.error('Error fetching feature usage:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -1643,16 +1681,20 @@ app.get('/api/admin/analytics/knowledge-base', async (req, res) => {
     `);
 
     res.json({
-      most_viewed: mostViewed.rows,
-      most_favorited: mostFavorited.rows,
-      search_queries: searchQueries,
-      category_breakdown: categoryBreakdown.rows.reduce((acc: any, row: any) => {
-        acc[row.document_category] = {
-          document_count: row.document_count,
-          total_views: row.total_views
-        };
-        return acc;
-      }, {})
+      mostViewed: mostViewed.rows.map(row => ({
+        name: row.document_name,
+        views: parseInt(row.total_views),
+        category: row.document_category
+      })),
+      mostFavorited: mostFavorited.rows.map(row => ({
+        name: row.document_name,
+        favorites: parseInt(row.favorite_count),
+        category: row.document_category
+      })),
+      topCategories: categoryBreakdown.rows.map(row => ({
+        category: row.document_category,
+        count: parseInt(row.document_count)
+      }))
     });
   } catch (error) {
     console.error('Error fetching knowledge base analytics:', error);
@@ -1718,24 +1760,11 @@ app.get('/api/admin/concerning-chats', async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        cc.id,
-        cc.session_id,
-        cc.user_id,
-        cc.message_id,
-        cc.concern_type,
-        cc.severity,
-        cc.flagged_content,
-        cc.context,
-        cc.detection_reason,
-        cc.flagged_at,
-        cc.reviewed,
-        cc.reviewed_by,
-        cc.reviewed_at,
-        cc.review_notes,
-        u.email as user_email,
-        u.name as user_name,
-        u.state as user_state,
-        reviewer.email as reviewer_email
+        cc.*,
+        u.email AS "userEmail",
+        u.name AS "userName",
+        u.state AS "userState",
+        reviewer.email AS "reviewerEmail"
       FROM concerning_chats cc
       JOIN users u ON cc.user_id = u.id
       LEFT JOIN users reviewer ON cc.reviewed_by = reviewer.id

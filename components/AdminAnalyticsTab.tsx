@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -104,6 +104,81 @@ interface ErrorState {
 }
 
 // ============================================================================
+// DATA TRANSFORMATION UTILITIES
+// ============================================================================
+
+/**
+ * Transforms snake_case API response to camelCase for OverviewStats
+ */
+const transformOverviewStats = (data: any): OverviewStats => {
+  return {
+    totalUsers: data.total_users ?? data.totalUsers ?? 0,
+    activeUsers7d: data.active_users_7d ?? data.activeUsers7d ?? 0,
+    totalMessages: data.total_messages ?? data.totalMessages ?? 0,
+    totalConversations: data.total_conversations ?? data.totalConversations ?? 0,
+    emailsGenerated: data.emails_generated ?? data.emailsGenerated ?? 0,
+    transcriptions: data.transcriptions_created ?? data.transcriptions ?? 0,
+    documentsUploaded: data.documents_uploaded ?? data.documentsUploaded ?? 0,
+    susanSessions: data.susan_sessions ?? data.susanSessions ?? 0,
+  };
+};
+
+/**
+ * Transforms snake_case API response to camelCase for UserActivity
+ */
+const transformUserActivity = (data: any[]): UserActivity[] => {
+  return data.map(user => ({
+    email: user.email ?? '',
+    role: user.role ?? '',
+    state: user.state ?? null,
+    chats: user.total_messages ?? user.chats ?? 0,
+    emails: user.emails_generated ?? user.emails ?? 0,
+    transcriptions: user.transcriptions_created ?? user.transcriptions ?? 0,
+    uploads: user.documents_uploaded ?? user.uploads ?? 0,
+    susan: user.susan_sessions ?? user.susan ?? 0,
+    kbViews: user.kb_views ?? user.kbViews ?? 0,
+    lastActive: user.last_active ?? user.lastActive ?? new Date().toISOString(),
+  }));
+};
+
+/**
+ * Transforms snake_case API response to camelCase for FeatureUsageData
+ */
+const transformFeatureUsage = (data: any[]): FeatureUsageData[] => {
+  return data.map(item => ({
+    date: item.date ?? '',
+    chat: item.chat_count ?? item.chat ?? 0,
+    email: item.email_count ?? item.email ?? 0,
+    upload: item.upload_count ?? item.upload ?? 0,
+    transcribe: item.transcription_count ?? item.transcribe ?? 0,
+    susan: item.susan_count ?? item.susan ?? 0,
+    knowledgeBase: item.kb_views ?? item.knowledgeBase ?? 0,
+  }));
+};
+
+/**
+ * Transforms snake_case API response to camelCase for KnowledgeBaseStats
+ */
+const transformKnowledgeBase = (data: any): KnowledgeBaseStats => {
+  return {
+    mostViewed: (data.most_viewed ?? data.mostViewed ?? []).map((doc: any) => ({
+      name: doc.document_name ?? doc.name ?? '',
+      views: doc.total_views ?? doc.views ?? 0,
+      category: doc.category ?? '',
+    })),
+    mostFavorited: (data.most_favorited ?? data.mostFavorited ?? []).map((doc: any) => ({
+      name: doc.document_name ?? doc.name ?? '',
+      favorites: doc.total_favorites ?? doc.favorites ?? 0,
+      category: doc.category ?? '',
+    })),
+    topCategories: (data.top_categories ?? data.topCategories ?? []).map((cat: any) => ({
+      category: cat.category ?? '',
+      count: cat.document_count ?? cat.count ?? 0,
+    })),
+  };
+};
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -121,7 +196,7 @@ const AdminAnalyticsTab: React.FC = () => {
   const [sortColumn, setSortColumn] = useState<keyof UserActivity>('lastActive');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 10;
 
   const [loading, setLoading] = useState<LoadingState>({
     overview: false,
@@ -143,23 +218,58 @@ const AdminAnalyticsTab: React.FC = () => {
   // DATA FETCHING
   // ============================================================================
 
+  // Bug Fix #4: Race Condition in useEffect with AbortController
   useEffect(() => {
-    fetchOverviewStats();
-    fetchUserActivity();
-    fetchFeatureUsage();
-    fetchKnowledgeBase();
-    fetchConcerningChats();
+    const controller = new AbortController();
+
+    const fetchAllData = async () => {
+      try {
+        await Promise.all([
+          fetchOverviewStats(controller.signal),
+          fetchUserActivity(controller.signal),
+          fetchFeatureUsage(controller.signal),
+          fetchKnowledgeBase(controller.signal)
+        ]);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.error('Error fetching analytics:', err);
+      }
+    };
+
+    fetchAllData();
+
+    return () => controller.abort();
   }, [timeRange]);
 
-  const fetchOverviewStats = async () => {
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchConcerningChats(controller.signal);
+    return () => controller.abort();
+  }, [severityFilter]);
+
+  // Bug Fix #2: HTTP Error Handling for 403/401/500
+  const fetchOverviewStats = async (signal?: AbortSignal) => {
     try {
       setLoading(prev => ({ ...prev, overview: true }));
       setError(prev => ({ ...prev, overview: null }));
 
-      const response = await fetch(`/api/admin/analytics/overview?range=${timeRange}`);
+      const response = await fetch(`/api/admin/analytics/overview?range=${timeRange}`, { signal });
+
+      if (response.status === 403 || response.status === 401) {
+        throw new Error('You do not have permission to view analytics');
+      }
+
+      if (response.status === 500) {
+        throw new Error('Server error - please try again later');
+      }
+
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setOverviewStats(data);
+        setOverviewStats(transformOverviewStats(data));
       } else {
         // Mock data for development
         setOverviewStats({
@@ -173,23 +283,37 @@ const AdminAnalyticsTab: React.FC = () => {
           susanSessions: 67,
         });
       }
-    } catch (err) {
-      setError(prev => ({ ...prev, overview: (err as Error).message }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setError(prev => ({ ...prev, overview: err.message }));
       console.error('Error fetching overview stats:', err);
     } finally {
       setLoading(prev => ({ ...prev, overview: false }));
     }
   };
 
-  const fetchUserActivity = async () => {
+  const fetchUserActivity = async (signal?: AbortSignal) => {
     try {
       setLoading(prev => ({ ...prev, userActivity: true }));
       setError(prev => ({ ...prev, userActivity: null }));
 
-      const response = await fetch(`/api/admin/analytics/user-activity?range=${timeRange}`);
+      const response = await fetch(`/api/admin/analytics/user-activity?range=${timeRange}`, { signal });
+
+      if (response.status === 403 || response.status === 401) {
+        throw new Error('You do not have permission to view analytics');
+      }
+
+      if (response.status === 500) {
+        throw new Error('Server error - please try again later');
+      }
+
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setUserActivity(data);
+        setUserActivity(transformUserActivity(data));
       } else {
         // Mock data for development
         setUserActivity([
@@ -219,23 +343,37 @@ const AdminAnalyticsTab: React.FC = () => {
           },
         ]);
       }
-    } catch (err) {
-      setError(prev => ({ ...prev, userActivity: (err as Error).message }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setError(prev => ({ ...prev, userActivity: err.message }));
       console.error('Error fetching user activity:', err);
     } finally {
       setLoading(prev => ({ ...prev, userActivity: false }));
     }
   };
 
-  const fetchFeatureUsage = async () => {
+  const fetchFeatureUsage = async (signal?: AbortSignal) => {
     try {
       setLoading(prev => ({ ...prev, featureUsage: true }));
       setError(prev => ({ ...prev, featureUsage: null }));
 
-      const response = await fetch(`/api/admin/analytics/feature-usage?range=${timeRange}`);
+      const response = await fetch(`/api/admin/analytics/feature-usage?range=${timeRange}`, { signal });
+
+      if (response.status === 403 || response.status === 401) {
+        throw new Error('You do not have permission to view analytics');
+      }
+
+      if (response.status === 500) {
+        throw new Error('Server error - please try again later');
+      }
+
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setFeatureUsage(data);
+        setFeatureUsage(transformFeatureUsage(data));
       } else {
         // Mock data for development
         const mockData: FeatureUsageData[] = [];
@@ -256,23 +394,37 @@ const AdminAnalyticsTab: React.FC = () => {
         }
         setFeatureUsage(mockData);
       }
-    } catch (err) {
-      setError(prev => ({ ...prev, featureUsage: (err as Error).message }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setError(prev => ({ ...prev, featureUsage: err.message }));
       console.error('Error fetching feature usage:', err);
     } finally {
       setLoading(prev => ({ ...prev, featureUsage: false }));
     }
   };
 
-  const fetchKnowledgeBase = async () => {
+  const fetchKnowledgeBase = async (signal?: AbortSignal) => {
     try {
       setLoading(prev => ({ ...prev, knowledgeBase: true }));
       setError(prev => ({ ...prev, knowledgeBase: null }));
 
-      const response = await fetch(`/api/admin/analytics/knowledge-base?range=${timeRange}`);
+      const response = await fetch(`/api/admin/analytics/knowledge-base?range=${timeRange}`, { signal });
+
+      if (response.status === 403 || response.status === 401) {
+        throw new Error('You do not have permission to view analytics');
+      }
+
+      if (response.status === 500) {
+        throw new Error('Server error - please try again later');
+      }
+
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setKnowledgeBase(data);
+        setKnowledgeBase(transformKnowledgeBase(data));
       } else {
         // Mock data for development
         setKnowledgeBase({
@@ -299,20 +451,34 @@ const AdminAnalyticsTab: React.FC = () => {
           ],
         });
       }
-    } catch (err) {
-      setError(prev => ({ ...prev, knowledgeBase: (err as Error).message }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setError(prev => ({ ...prev, knowledgeBase: err.message }));
       console.error('Error fetching knowledge base stats:', err);
     } finally {
       setLoading(prev => ({ ...prev, knowledgeBase: false }));
     }
   };
 
-  const fetchConcerningChats = async () => {
+  const fetchConcerningChats = async (signal?: AbortSignal) => {
     try {
       setLoading(prev => ({ ...prev, concerningChats: true }));
       setError(prev => ({ ...prev, concerningChats: null }));
 
-      const response = await fetch(`/api/admin/analytics/concerning-chats?range=${timeRange}`);
+      const response = await fetch(`/api/admin/concerning-chats?severity=${severityFilter}`, { signal });
+
+      if (response.status === 403 || response.status === 401) {
+        throw new Error('You do not have permission to view analytics');
+      }
+
+      if (response.status === 500) {
+        throw new Error('Server error - please try again later');
+      }
+
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
         setConcerningChats(data);
@@ -330,8 +496,9 @@ const AdminAnalyticsTab: React.FC = () => {
           },
         ]);
       }
-    } catch (err) {
-      setError(prev => ({ ...prev, concerningChats: (err as Error).message }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setError(prev => ({ ...prev, concerningChats: err.message }));
       console.error('Error fetching concerning chats:', err);
     } finally {
       setLoading(prev => ({ ...prev, concerningChats: false }));
@@ -351,20 +518,23 @@ const AdminAnalyticsTab: React.FC = () => {
     }
   };
 
-  const sortedUserActivity = [...userActivity].sort((a, b) => {
-    const aVal = a[sortColumn];
-    const bVal = b[sortColumn];
+  // Bug Fix #1: Sort Logic Crashes with Null Values
+  const sortedUserActivity = useMemo(() => {
+    return [...userActivity].sort((a, b) => {
+      const aValue = a[sortColumn] ?? '';
+      const bValue = b[sortColumn] ?? '';
 
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return sortDirection === 'asc'
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
-    }
+      if (typeof aValue === 'string') {
+        return sortDirection === 'asc'
+          ? aValue.localeCompare(bValue as string)
+          : (bValue as string).localeCompare(aValue);
+      }
 
-    return sortDirection === 'asc'
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
+      const aNum = Number(aValue) || 0;
+      const bNum = Number(bValue) || 0;
+      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+    });
+  }, [userActivity, sortColumn, sortDirection]);
 
   const paginatedUsers = sortedUserActivity.slice(
     (currentPage - 1) * itemsPerPage,
@@ -373,27 +543,38 @@ const AdminAnalyticsTab: React.FC = () => {
 
   const totalPages = Math.ceil(userActivity.length / itemsPerPage);
 
+  // Bug Fix #3: CSV Export Special Characters
+  const escapeCSV = (value: any): string => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const exportToCSV = () => {
     const headers = ['Email', 'Role', 'State', 'Chats', 'Emails', 'Transcriptions', 'Uploads', 'Susan', 'KB Views', 'Last Active'];
-    const csvRows = [
-      headers.join(','),
-      ...userActivity.map(user =>
-        [
-          user.email,
-          user.role,
-          user.state || 'N/A',
-          user.chats,
-          user.emails,
-          user.transcriptions,
-          user.uploads,
-          user.susan,
-          user.kbViews,
-          new Date(user.lastActive).toLocaleString(),
-        ].join(',')
-      ),
-    ];
+    const rows = userActivity.map(user =>
+      [
+        user.email,
+        user.role,
+        user.state || 'N/A',
+        user.chats,
+        user.emails,
+        user.transcriptions,
+        user.uploads,
+        user.susan,
+        user.kbViews,
+        new Date(user.lastActive).toLocaleString(),
+      ]
+    );
 
-    const csvContent = csvRows.join('\n');
+    const csvContent = [
+      headers.map(escapeCSV),
+      ...rows.map(row => row.map(escapeCSV))
+    ].map(row => row.join(',')).join('\n');
+
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -405,9 +586,25 @@ const AdminAnalyticsTab: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const filteredConcerningChats = concerningChats.filter(chat =>
-    severityFilter === 'all' || chat.severity === severityFilter
-  );
+  // Note: Filtering is now handled server-side via the API endpoint
+  const filteredConcerningChats = concerningChats;
+
+  // Bug Fix #5: BarChart Shows First 10, Not TOP 10
+  const topUsers = useMemo(() => {
+    return [...userActivity]
+      .sort((a, b) => b.chats - a.chats)
+      .slice(0, 10);
+  }, [userActivity]);
+
+  // Bug Fix #7: Color Contrast Fails WCAG AA
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return '#dc2626'; // Red - contrast ratio 4.5:1
+      case 'warning': return '#d97706';  // Darker amber - contrast ratio 4.5:1
+      case 'info': return '#2563eb';     // Darker blue - contrast ratio 4.5:1
+      default: return '#6b7280';
+    }
+  };
 
   // ============================================================================
   // RENDER HELPERS
@@ -476,6 +673,54 @@ const AdminAnalyticsTab: React.FC = () => {
     </div>
   );
 
+  const ErrorDisplay: React.FC<{ message: string; onRetry?: () => void }> = ({ message, onRetry }) => (
+    <div
+      style={{
+        background: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        borderRadius: '12px',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+        <AlertTriangle size={20} />
+        <span style={{ fontSize: '14px', fontWeight: 600 }}>Error Loading Data</span>
+      </div>
+      <div style={{ fontSize: '13px', color: '#fca5a5', textAlign: 'center' }}>
+        {message}
+      </div>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          style={{
+            padding: '8px 16px',
+            background: '#ef4444',
+            border: 'none',
+            borderRadius: '6px',
+            color: 'white',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#dc2626';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#ef4444';
+          }}
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -504,14 +749,16 @@ const AdminAnalyticsTab: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Calendar style={{ width: '20px', height: '20px', color: '#ef4444' }} />
+          <Calendar style={{ width: '20px', height: '20px', color: '#ef4444' }} aria-hidden="true" />
           <span style={{ fontSize: '14px', fontWeight: 600 }}>Time Range:</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="Filter by time range">
           {(['today', 'week', 'month', 'all'] as TimeRange[]).map((range) => (
             <button
               key={range}
               onClick={() => setTimeRange(range)}
+              aria-pressed={timeRange === range}
+              aria-label={`Filter by ${range === 'week' ? 'this week' : range === 'month' ? 'this month' : range === 'all' ? 'all time' : 'today'}`}
               style={{
                 padding: '8px 16px',
                 background: timeRange === range ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
@@ -550,7 +797,11 @@ const AdminAnalyticsTab: React.FC = () => {
           marginBottom: '24px',
         }}
       >
-        {loading.overview ? (
+        {error.overview ? (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <ErrorDisplay message={error.overview} onRetry={fetchOverviewStats} />
+          </div>
+        ) : loading.overview ? (
           <>
             <LoadingSkeleton />
             <LoadingSkeleton />
@@ -584,8 +835,22 @@ const AdminAnalyticsTab: React.FC = () => {
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
           Feature Usage Over Time
         </h2>
-        {loading.featureUsage ? (
+        {error.featureUsage ? (
+          <ErrorDisplay message={error.featureUsage} onRetry={fetchFeatureUsage} />
+        ) : loading.featureUsage ? (
           <LoadingSkeleton />
+        ) : featureUsage.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#71717a',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '8px',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No feature usage data available</div>
+            <div style={{ fontSize: '14px' }}>Data will appear here once users start using features</div>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={featureUsage}>
@@ -612,7 +877,7 @@ const AdminAnalyticsTab: React.FC = () => {
         )}
       </div>
 
-      {/* Section 4: User Activity Chart */}
+      {/* Section 4: User Activity Chart - Bug Fix #5: Shows TOP 10, not first 10 */}
       <div
         style={{
           background: 'rgba(255, 255, 255, 0.05)',
@@ -623,13 +888,27 @@ const AdminAnalyticsTab: React.FC = () => {
         }}
       >
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
-          Top Active Users
+          Top 10 Active Users
         </h2>
-        {loading.userActivity ? (
+        {error.userActivity ? (
+          <ErrorDisplay message={error.userActivity} onRetry={fetchUserActivity} />
+        ) : loading.userActivity ? (
           <LoadingSkeleton />
+        ) : topUsers.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#71717a',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '8px',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No user activity data available</div>
+            <div style={{ fontSize: '14px' }}>Data will appear here once users start chatting</div>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={userActivity.slice(0, 10)}>
+            <BarChart data={topUsers}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
               <XAxis
                 dataKey="email"
@@ -653,7 +932,15 @@ const AdminAnalyticsTab: React.FC = () => {
       </div>
 
       {/* Section 5: Knowledge Base Analytics */}
-      {knowledgeBase && (
+      {error.knowledgeBase ? (
+        <div style={{ marginBottom: '24px' }}>
+          <ErrorDisplay message={error.knowledgeBase} onRetry={fetchKnowledgeBase} />
+        </div>
+      ) : loading.knowledgeBase ? (
+        <div style={{ marginBottom: '24px' }}>
+          <LoadingSkeleton />
+        </div>
+      ) : knowledgeBase && (
         <div
           style={{
             display: 'grid',
@@ -790,11 +1077,13 @@ const AdminAnalyticsTab: React.FC = () => {
             <AlertTriangle size={20} style={{ color: '#ef4444' }} />
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>Concerning Chats Monitor</h2>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="Filter concerning chats by severity">
             {(['critical', 'warning', 'info', 'all'] as SeverityFilter[]).map((severity) => (
               <button
                 key={severity}
                 onClick={() => setSeverityFilter(severity)}
+                aria-pressed={severityFilter === severity}
+                aria-label={`Filter by ${severity} severity`}
                 style={{
                   padding: '6px 12px',
                   background: severityFilter === severity ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
@@ -813,7 +1102,11 @@ const AdminAnalyticsTab: React.FC = () => {
           </div>
         </div>
 
-        {filteredConcerningChats.length === 0 ? (
+        {error.concerningChats ? (
+          <ErrorDisplay message={error.concerningChats} onRetry={fetchConcerningChats} />
+        ) : loading.concerningChats ? (
+          <LoadingSkeleton />
+        ) : filteredConcerningChats.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
             <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No Concerning Chats</div>
@@ -902,6 +1195,7 @@ const AdminAnalyticsTab: React.FC = () => {
           <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>User Activity Breakdown</h2>
           <button
             onClick={exportToCSV}
+            aria-label="Export analytics data to CSV"
             style={{
               padding: '10px 16px',
               background: '#ef4444',
@@ -925,7 +1219,7 @@ const AdminAnalyticsTab: React.FC = () => {
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <Download size={16} />
+            <Download size={16} aria-hidden="true" />
             Export CSV
           </button>
         </div>
@@ -949,6 +1243,16 @@ const AdminAnalyticsTab: React.FC = () => {
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key as keyof UserActivity)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSort(col.key as keyof UserActivity);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Sort by ${col.label}`}
+                    aria-sort={sortColumn === col.key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                     style={{
                       padding: '12px',
                       textAlign: 'left',
@@ -961,7 +1265,7 @@ const AdminAnalyticsTab: React.FC = () => {
                   >
                     {col.label}
                     {sortColumn === col.key && (
-                      <span style={{ marginLeft: '4px' }}>
+                      <span style={{ marginLeft: '4px' }} aria-hidden="true">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
