@@ -10,7 +10,7 @@ interface DocumentViewerProps {
   onOpenInChat?: (doc: Document) => void;
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) => {
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, onOpenInChat }) => {
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

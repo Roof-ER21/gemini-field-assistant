@@ -104,7 +104,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files) as File[];
 
     if (files.length > 0) {
       await handleFilesSelected(files);

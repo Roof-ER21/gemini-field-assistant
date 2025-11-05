@@ -29,6 +29,19 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      optimizeDeps: {
+        include: ['recharts', 'victory-vendor/d3-shape']
+      },
+      build: {
+        rollupOptions: {
+          onwarn(warning, warn) {
+            if (warning.code === 'UNRESOLVED_IMPORT' && warning.message.includes('victory-vendor')) {
+              return;
+            }
+            warn(warning);
+          }
+        }
       }
     };
 });

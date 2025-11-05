@@ -9,10 +9,12 @@ import {
   Clock,
   Filter,
   Download,
-  RefreshCw
+  RefreshCw,
+  BarChart3
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
+import AdminAnalyticsTab from './AdminAnalyticsTab';
 
 interface UserSummary {
   id: string;
@@ -54,6 +56,7 @@ interface AnalyticsSummary {
 type QuickFilter = 'today' | 'week' | 'month' | 'all';
 
 const AdminPanel: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'users' | 'conversations' | 'messages' | 'analytics'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
@@ -292,6 +295,15 @@ const AdminPanel: React.FC = () => {
     return lastActiveDate > fiveMinutesAgo;
   };
 
+  // Handle stat card clicks
+  const handleStatClick = (statType: 'messages' | 'emails' | 'docs' | 'active') => {
+    setActiveTab('analytics');
+    // Optional: Pass filter to analytics tab via state/context
+    if ('vibrate' in navigator) {
+      navigator.vibrate(30); // Haptic feedback
+    }
+  };
+
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
@@ -356,8 +368,8 @@ const AdminPanel: React.FC = () => {
       }}>
         {/* Stat Card 1 */}
         <div
-          onClick={exportAnalyticsSummary}
-          title="Click to export analytics summary"
+          onClick={() => handleStatClick('messages')}
+          title="Click to view analytics"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -396,8 +408,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 2 */}
         <div
-          onClick={exportAnalyticsSummary}
-          title="Click to export analytics summary"
+          onClick={() => handleStatClick('emails')}
+          title="Click to view analytics"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -436,8 +448,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 3 */}
         <div
-          onClick={exportAnalyticsSummary}
-          title="Click to export analytics summary"
+          onClick={() => handleStatClick('docs')}
+          title="Click to view analytics"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -476,8 +488,8 @@ const AdminPanel: React.FC = () => {
 
         {/* Stat Card 4 */}
         <div
-          onClick={exportAllUsers}
-          title="Click to export all users to CSV"
+          onClick={() => handleStatClick('active')}
+          title="Click to view analytics"
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             padding: '20px',
@@ -515,9 +527,163 @@ const AdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div style={{
+        position: 'fixed',
+        top: '140px',
+        left: 0,
+        right: 0,
+        background: '#1a1a1a',
+        borderBottom: '1px solid #2a2a2a',
+        zIndex: 99,
+        display: 'flex',
+        padding: '0 30px'
+      }}>
+        <button
+          onClick={() => setActiveTab('users')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'users'
+              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              : 'transparent',
+            color: activeTab === 'users' ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+            border: 'none',
+            borderBottom: activeTab === 'users'
+              ? '2px solid #ef4444'
+              : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: activeTab === 'users' ? '600' : '400',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'users') {
+              e.currentTarget.style.color = '#fff';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'users') {
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+            }
+          }}
+        >
+          <Users className="w-4 h-4" />
+          Users
+        </button>
+
+        <button
+          onClick={() => setActiveTab('conversations')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'conversations'
+              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              : 'transparent',
+            color: activeTab === 'conversations' ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+            border: 'none',
+            borderBottom: activeTab === 'conversations'
+              ? '2px solid #ef4444'
+              : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: activeTab === 'conversations' ? '600' : '400',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'conversations') {
+              e.currentTarget.style.color = '#fff';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'conversations') {
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+            }
+          }}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Conversations
+        </button>
+
+        <button
+          onClick={() => setActiveTab('messages')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'messages'
+              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              : 'transparent',
+            color: activeTab === 'messages' ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+            border: 'none',
+            borderBottom: activeTab === 'messages'
+              ? '2px solid #ef4444'
+              : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: activeTab === 'messages' ? '600' : '400',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'messages') {
+              e.currentTarget.style.color = '#fff';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'messages') {
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+            }
+          }}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Messages
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'analytics'
+              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              : 'transparent',
+            color: activeTab === 'analytics' ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+            border: 'none',
+            borderBottom: activeTab === 'analytics'
+              ? '2px solid #ef4444'
+              : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: activeTab === 'analytics' ? '600' : '400',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'analytics') {
+              e.currentTarget.style.color = '#fff';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'analytics') {
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+            }
+          }}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Analytics
+        </button>
+      </div>
+
       {/* Main Container */}
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-        {/* Sidebar - Users List */}
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', marginTop: '50px' }}>
+        {activeTab === 'users' && (
+        <>{/* Sidebar - Users List */}
         <div style={{
           width: '320px',
           background: '#1a1a1a',
@@ -1236,6 +1402,44 @@ const AdminPanel: React.FC = () => {
             </div>
           )}
         </div>
+        </>
+        )}
+
+        {activeTab === 'conversations' && (
+          <div style={{
+            flex: 1,
+            padding: '40px',
+            color: '#e4e4e7',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column'
+          }}>
+            <MessageSquare className="w-16 h-16 mb-4" style={{ color: '#991b1b' }} />
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Conversations View</h2>
+            <p style={{ color: '#71717a' }}>Select a user from the Users tab to view their conversations</p>
+          </div>
+        )}
+
+        {activeTab === 'messages' && (
+          <div style={{
+            flex: 1,
+            padding: '40px',
+            color: '#e4e4e7',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column'
+          }}>
+            <MessageSquare className="w-16 h-16 mb-4" style={{ color: '#991b1b' }} />
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Messages View</h2>
+            <p style={{ color: '#71717a' }}>Select a conversation to view messages</p>
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <AdminAnalyticsTab />
+        )}
       </div>
 
       {/* Global Styles */}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { env } from '../src/config/env';
 import { Mic, Radio, Trash2, Volume2, VolumeX, Wifi, WifiOff, PhoneOff, MessageCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { databaseService } from '../services/databaseService';
 
 interface Message {
   id: string;
@@ -38,6 +39,11 @@ const LivePanel: React.FC = () => {
   const [lastTapTime, setLastTapTime] = useState(0);
   const [isSusanSpeaking, setIsSusanSpeaking] = useState(false);
   const [tapCount, setTapCount] = useState(0);
+
+  // Session tracking state
+  const [susanSessionId, setSusanSessionId] = useState<string | null>(null);
+  const [sessionMessageCount, setSessionMessageCount] = useState(0);
+  const [sessionDoubleTapStops, setSessionDoubleTapStops] = useState(0);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -196,6 +202,17 @@ const LivePanel: React.FC = () => {
         navigator.vibrate(50);
       }
 
+      // Start tracking session
+      try {
+        const sessionId = await databaseService.startLiveSusanSession();
+        setSusanSessionId(sessionId);
+        setSessionMessageCount(0);
+        setSessionDoubleTapStops(0);
+      } catch (error) {
+        console.warn('Failed to start tracking Susan session:', error);
+        // Continue - don't disrupt user experience
+      }
+
       // Add welcome message
       addMessage('assistant', 'S21 here - your real-time teammate. I\'m locked in and ready to back you up during this conversation.');
 
@@ -213,7 +230,7 @@ const LivePanel: React.FC = () => {
   /**
    * Stop live conversation
    */
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
@@ -233,6 +250,21 @@ const LivePanel: React.FC = () => {
 
     if (speechSynthesisRef.current) {
       speechSynthesis.cancel();
+    }
+
+    // End session tracking
+    if (susanSessionId) {
+      try {
+        await databaseService.endLiveSusanSession(
+          susanSessionId,
+          sessionMessageCount,
+          sessionDoubleTapStops
+        );
+        setSusanSessionId(null);
+      } catch (error) {
+        console.warn('Failed to end tracking Susan session:', error);
+        // Continue - don't disrupt user experience
+      }
     }
 
     setIsRecording(false);
@@ -361,6 +393,9 @@ Respond in JSON format:
       // Add AI response
       const aiMessage = addMessage('assistant', data.response);
 
+      // Increment message count
+      setSessionMessageCount(prev => prev + 1);
+
       // Speak the response if not muted
       if (!isMuted) {
         speakText(data.response);
@@ -421,6 +456,8 @@ Respond in JSON format:
       if ('vibrate' in navigator) {
         navigator.vibrate([30, 50, 30]); // Double vibration for double-tap feedback
       }
+      // Increment double-tap stops count
+      setSessionDoubleTapStops(prev => prev + 1);
     }
   };
 

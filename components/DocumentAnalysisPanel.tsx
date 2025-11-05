@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, DragEvent } from 'react';
 import { Upload, FileText, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { multiAI } from '../services/multiProviderAI';
 import { SYSTEM_PROMPT } from '../config/s21Personality';
+import { databaseService } from '../services/databaseService';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -165,6 +166,16 @@ const DocumentAnalysisPanel: React.FC = () => {
   // ANALYSIS
   // ============================================================================
 
+  /**
+   * Helper function to determine analysis type based on file name/content
+   */
+  const determineAnalysisType = (file: File): string => {
+    const name = file.name.toLowerCase();
+    if (name.includes('roof') || name.includes('damage')) return 'roof_damage';
+    if (name.includes('insurance') || name.includes('claim') || name.includes('denial') || name.includes('estimate')) return 'insurance_doc';
+    return 'general';
+  };
+
   const analyzeDocuments = async () => {
     if (files.length === 0) {
       alert('Please upload at least one file');
@@ -192,6 +203,7 @@ const DocumentAnalysisPanel: React.FC = () => {
           } else if (/\.pdf$/i.test(file.name)) {
             try {
               const pdfjsLib: any = await import('pdfjs-dist');
+              // @ts-ignore - Worker URL import
               const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs?url');
               pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
 
@@ -409,6 +421,22 @@ Format your response as JSON with this structure:
       // Update file statuses
       setFiles(files.map(f => ({ ...f, status: 'success' as const })));
       setAnalysisResult(result);
+
+      // Track document uploads
+      for (const uploadedFile of files) {
+        try {
+          await databaseService.logDocumentUpload({
+            fileName: uploadedFile.file.name,
+            fileType: uploadedFile.file.type || uploadedFile.file.name.split('.').pop() || 'unknown',
+            fileSizeBytes: uploadedFile.file.size,
+            analysisType: determineAnalysisType(uploadedFile.file),
+            analysisResult: analysis.summary || 'Analysis completed successfully'
+          });
+        } catch (error) {
+          console.warn('Failed to track document upload:', error);
+          // Continue - don't disrupt user experience
+        }
+      }
 
     } catch (error: any) {
       console.error('Analysis error:', error);

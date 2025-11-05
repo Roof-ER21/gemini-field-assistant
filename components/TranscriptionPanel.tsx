@@ -18,6 +18,7 @@ import {
   RecordingState,
   MeetingTranscript
 } from '../services/transcriptionService';
+import { databaseService } from '../services/databaseService';
 
 const TranscriptionPanel: React.FC = () => {
   const [recordingState, setRecordingState] = useState<RecordingState | null>(null);
@@ -168,6 +169,19 @@ const TranscriptionPanel: React.FC = () => {
 
       setTranscripts(prev => [transcript, ...prev]);
       setSelectedTranscript(transcript);
+
+      // Track transcription
+      try {
+        await databaseService.logTranscription({
+          audioDuration: recordedDuration,
+          transcriptionText: transcript.fullTranscript,
+          wordCount: transcript.fullTranscript.split(/\s+/).length,
+          provider: 'Gemini'
+        });
+      } catch (error) {
+        console.warn('Failed to track transcription:', error);
+        // Continue - don't disrupt user experience
+      }
     } catch (err) {
       setError((err as Error).message || 'Failed to transcribe audio');
       console.error('Transcription error:', err);
@@ -244,6 +258,19 @@ const TranscriptionPanel: React.FC = () => {
         setUploadProgress(0);
       }, 500);
 
+      // Track transcription for uploaded file
+      try {
+        await databaseService.logTranscription({
+          audioDuration: transcript.duration || Math.floor(file.size / 16000),
+          transcriptionText: transcript.fullTranscript,
+          wordCount: transcript.fullTranscript.split(/\s+/).length,
+          provider: 'Gemini'
+        });
+      } catch (error) {
+        console.warn('Failed to track transcription:', error);
+        // Continue - don't disrupt user experience
+      }
+
     } catch (err) {
       setError((err as Error).message || 'Failed to transcribe audio file');
       console.error('Upload error:', err);
@@ -267,7 +294,7 @@ const TranscriptionPanel: React.FC = () => {
     e.preventDefault();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files) as File[];
     if (files.length > 0) {
       handleFileUpload(files[0]);
     }

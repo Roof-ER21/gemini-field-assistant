@@ -619,6 +619,161 @@ export class DatabaseService {
     } catch {}
     return {};
   }
+
+  // ============================================================================
+  // LIVE SUSAN SESSION TRACKING
+  // ============================================================================
+
+  async startLiveSusanSession(): Promise<string | null> {
+    const sessionId = `susan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    if (this.useLocalStorage) {
+      const sessions = JSON.parse(localStorage.getItem('susan_sessions') || '[]');
+      sessions.push({
+        id: sessionId,
+        started_at: new Date().toISOString(),
+        message_count: 0,
+        double_tap_stops: 0
+      });
+      localStorage.setItem('susan_sessions', JSON.stringify(sessions));
+      return sessionId;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/activity/live-susan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({ action: 'start' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.session_id;
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to start Susan session:', (e as Error).message);
+    }
+    return null;
+  }
+
+  async endLiveSusanSession(sessionId: string, messageCount: number, doubleTapStops: number): Promise<void> {
+    if (this.useLocalStorage) {
+      const sessions = JSON.parse(localStorage.getItem('susan_sessions') || '[]');
+      const session = sessions.find((s: any) => s.id === sessionId);
+      if (session) {
+        session.ended_at = new Date().toISOString();
+        session.message_count = messageCount;
+        session.double_tap_stops = doubleTapStops;
+        localStorage.setItem('susan_sessions', JSON.stringify(sessions));
+      }
+      return;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/activity/live-susan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({
+          action: 'end',
+          session_id: sessionId,
+          message_count: messageCount,
+          double_tap_stops: doubleTapStops
+        }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to end Susan session:', (e as Error).message);
+    }
+  }
+
+  // ============================================================================
+  // TRANSCRIPTION TRACKING
+  // ============================================================================
+
+  async logTranscription(data: {
+    audioDuration: number;
+    transcriptionText: string;
+    wordCount: number;
+    provider?: string;
+  }): Promise<void> {
+    if (this.useLocalStorage) {
+      const transcriptions = JSON.parse(localStorage.getItem('transcriptions') || '[]');
+      transcriptions.push({
+        ...data,
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('transcriptions', JSON.stringify(transcriptions));
+      return;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/activity/transcription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({
+          audio_duration_seconds: data.audioDuration,
+          transcription_text: data.transcriptionText,
+          word_count: data.wordCount,
+          provider: data.provider || 'Gemini'
+        }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to log transcription:', (e as Error).message);
+    }
+  }
+
+  // ============================================================================
+  // DOCUMENT UPLOAD TRACKING
+  // ============================================================================
+
+  async logDocumentUpload(data: {
+    fileName: string;
+    fileType: string;
+    fileSizeBytes: number;
+    analysisType?: string;
+    analysisResult?: string;
+  }): Promise<void> {
+    if (this.useLocalStorage) {
+      const uploads = JSON.parse(localStorage.getItem('document_uploads') || '[]');
+      uploads.push({
+        ...data,
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('document_uploads', JSON.stringify(uploads));
+      return;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      await fetch(`${this.apiBaseUrl}/activity/document-upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify({
+          file_name: data.fileName,
+          file_type: data.fileType,
+          file_size_bytes: data.fileSizeBytes,
+          analysis_type: data.analysisType,
+          analysis_result: data.analysisResult,
+          analysis_performed: !!data.analysisResult
+        }),
+      });
+    } catch (e) {
+      console.warn('[DB] Failed to log document upload:', (e as Error).message);
+    }
+  }
 }
 
 // Export singleton instance

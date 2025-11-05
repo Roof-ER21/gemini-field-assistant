@@ -13,7 +13,7 @@ interface KnowledgePanelProps {
   onOpenInChat?: (doc: Document) => void;
 }
 
-const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed }) => {
+const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed, onOpenInChat }) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
