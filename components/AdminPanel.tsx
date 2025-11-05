@@ -220,8 +220,10 @@ const AdminPanel: React.FC = () => {
       // Try to fetch from API endpoint first
       const response = await fetch('/api/admin/emails', { headers });
       if (response.ok) {
-        const data = await response.json();
-        setEmails(data);
+        const responseData = await response.json();
+        // API returns {data: [], pagination: {}} - extract the data array
+        const emailData = responseData.data || responseData;
+        setEmails(emailData);
       } else {
         // Fallback to localStorage if API not available
         const emailLogsStr = localStorage.getItem('email_generation_log') || '[]';
@@ -250,8 +252,10 @@ const AdminPanel: React.FC = () => {
       // Try to fetch from API endpoint first
       const response = await fetch('/api/admin/all-messages', { headers });
       if (response.ok) {
-        const data = await response.json();
-        setAllMessages(data);
+        const responseData = await response.json();
+        // API returns {data: [], pagination: {}} - extract the data array
+        const messagesData = responseData.data || responseData;
+        setAllMessages(messagesData);
       } else {
         // Fallback to localStorage if API not available
         const chatHistoryStr = localStorage.getItem('chatHistory') || '[]';
