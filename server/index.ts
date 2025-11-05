@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { emailService, LoginNotificationData, ChatNotificationData } from './services/emailService.js';
 import { cronService } from './services/cronService.js';
@@ -2795,6 +2796,65 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // ============================================================================
+// STATIC FILE SERVING (Production)
+// ============================================================================
+
+// When running in Railway production, also serve the built frontend from /dist
+// This MUST be configured BEFORE app.listen() so routes are registered
+
+try {
+  // When compiled: __dirname = /app/dist-server, so we need ../dist to reach /app/dist
+  const distDir = path.resolve(__dirname, '../dist');
+  console.log('📁 Static file configuration:');
+  console.log('   __dirname:', __dirname);
+  console.log('   distDir:', distDir);
+  console.log('   Checking if dist exists...');
+
+  if (fs.existsSync(distDir)) {
+    console.log('   ✅ dist directory found');
+    const indexPath = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      console.log('   ✅ index.html found');
+    } else {
+      console.log('   ❌ index.html NOT found at:', indexPath);
+    }
+
+    // Serve static assets (hashed files can be cached aggressively)
+    app.use(
+      express.static(distDir, {
+        maxAge: '1y',
+        immutable: true,
+      })
+    );
+
+    // Serve index.html with no-cache for root
+    app.get(['/', '/index.html'], (req, res) => {
+      res.set('Cache-Control', 'no-store, max-age=0');
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+
+    // SPA fallback only for non-asset, non-API GET requests that accept HTML
+    app.get('*', (req, res, next) => {
+      if (req.method !== 'GET') return next();
+      if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+      // Do not hijack real asset requests (contain a dot extension or /assets)
+      if (req.path.includes('.') || req.path.startsWith('/assets')) return next();
+      if (!req.accepts('html')) return next();
+      res.set('Cache-Control', 'no-store, max-age=0');
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+
+    console.log('✅ Static file serving configured for production');
+  } else {
+    console.log('   ⚠️  dist directory NOT found at:', distDir);
+    console.log('   💡 Running in development mode - static files not served');
+  }
+} catch (e) {
+  console.error('❌ Error configuring static file serving:', e);
+  console.log('💡 App will continue but static files will not be served');
+}
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 
@@ -2813,56 +2873,3 @@ app.listen(PORT, () => {
 });
 
 export default app;
-
-// ============================================================================
-// STATIC FILE SERVING (Production)
-// ============================================================================
-
-// When running in Railway production, also serve the built frontend from /dist
-try {
-  // When compiled: __dirname = /app/dist-server, so we need ../dist to reach /app/dist
-  const distDir = path.resolve(__dirname, '../dist');
-  console.log('📁 Static file configuration:');
-  console.log('   __dirname:', __dirname);
-  console.log('   distDir:', distDir);
-  console.log('   Checking if dist exists...');
-  const fs = await import('fs');
-  if (fs.existsSync(distDir)) {
-    console.log('   ✅ dist directory found');
-    const indexPath = path.join(distDir, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      console.log('   ✅ index.html found');
-    } else {
-      console.log('   ❌ index.html NOT found at:', indexPath);
-    }
-  } else {
-    console.log('   ❌ dist directory NOT found at:', distDir);
-  }
-
-  // Serve static assets (hashed files can be cached aggressively)
-  app.use(
-    express.static(distDir, {
-      maxAge: '1y',
-      immutable: true,
-    })
-  );
-
-  // Serve index.html with no-cache for root
-  app.get(['/', '/index.html'], (req, res) => {
-    res.set('Cache-Control', 'no-store, max-age=0');
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
-
-  // SPA fallback only for non-asset, non-API GET requests that accept HTML
-  app.get('*', (req, res, next) => {
-    if (req.method !== 'GET') return next();
-    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
-    // Do not hijack real asset requests (contain a dot extension or /assets)
-    if (req.path.includes('.') || req.path.startsWith('/assets')) return next();
-    if (!req.accepts('html')) return next();
-    res.set('Cache-Control', 'no-store, max-age=0');
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
-} catch (e) {
-  // Ignore if file resolution fails during dev
-}
