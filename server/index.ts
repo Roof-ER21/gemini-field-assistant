@@ -2820,8 +2820,8 @@ export default app;
 
 // When running in Railway production, also serve the built frontend from /dist
 try {
-  // When compiled: __dirname = /app/dist-server/server, so we need ../../dist to reach /app/dist
-  const distDir = path.resolve(__dirname, '../../dist');
+  // When compiled: __dirname = /app/dist-server, so we need ../dist to reach /app/dist
+  const distDir = path.resolve(__dirname, '../dist');
 
   // Serve static assets (hashed files can be cached aggressively)
   app.use(
