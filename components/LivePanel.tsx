@@ -37,6 +37,7 @@ const LivePanel: React.FC = () => {
   // Double-tap state for stopping Susan
   const [lastTapTime, setLastTapTime] = useState(0);
   const [isSusanSpeaking, setIsSusanSpeaking] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -46,11 +47,24 @@ const LivePanel: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load voices on mount
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      // Load voices
+      speechSynthesis.getVoices();
+      // Some browsers need this event
+      speechSynthesis.onvoiceschanged = () => {
+        speechSynthesis.getVoices();
+      };
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -61,6 +75,9 @@ const LivePanel: React.FC = () => {
       }
       if (speechSynthesisRef.current) {
         speechSynthesis.cancel();
+      }
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,6 +348,20 @@ Respond in JSON format:
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
+      // Set UK English female voice
+      const voices = speechSynthesis.getVoices();
+      const ukVoice = voices.find(voice =>
+        voice.lang === 'en-GB' && voice.name.toLowerCase().includes('female')
+      ) || voices.find(voice =>
+        voice.lang === 'en-GB'
+      ) || voices.find(voice =>
+        voice.lang.startsWith('en-') && voice.name.toLowerCase().includes('female')
+      );
+
+      if (ukVoice) {
+        utterance.voice = ukVoice;
+      }
+
       // Track when Susan starts and stops speaking
       utterance.onstart = () => setIsSusanSpeaking(true);
       utterance.onend = () => setIsSusanSpeaking(false);
@@ -414,21 +445,44 @@ Respond in JSON format:
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime;
 
-    // Double-tap detected (within 300ms) and Susan is speaking
-    if (timeSinceLastTap < 300 && isSusanSpeaking) {
-      stopSusan();
-      setLastTapTime(0); // Reset to prevent triple-tap issues
-      return;
+    // If Susan is speaking, check for double-tap
+    if (isSusanSpeaking) {
+      if (timeSinceLastTap < 400) {
+        // Double-tap detected - stop Susan immediately
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        stopSusan();
+        setLastTapTime(0);
+        setTapCount(0);
+        return;
+      } else {
+        // First tap while Susan is speaking - wait to see if double-tap comes
+        setLastTapTime(now);
+        setTapCount(1);
+
+        // Don't do anything yet - wait for potential second tap
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+
+        tapTimeoutRef.current = setTimeout(() => {
+          // Single tap timeout - do nothing when Susan is speaking
+          // (just let them listen, single tap is ignored during speech)
+          setTapCount(0);
+        }, 400);
+        return;
+      }
     }
 
-    // Single tap - normal behavior
-    setLastTapTime(now);
-
+    // Normal behavior when Susan is NOT speaking
     if (isRecording) {
       stopRecording();
     } else {
       startLiveConversation();
     }
+
+    setLastTapTime(now);
   };
 
   return (
