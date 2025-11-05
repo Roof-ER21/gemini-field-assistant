@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Mail, Mic, Upload, Zap } from 'lucide-react';
+import { X, Mail, Mic, Upload } from 'lucide-react';
 
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
@@ -36,222 +36,397 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.75)' }} aria-modal>
-      <div className="w-full sm:w-[640px] max-w-[96%] rounded-t-2xl sm:rounded-2xl overflow-hidden" style={{
-        background: 'linear-gradient(135deg, rgba(26, 31, 46, 1) 0%, rgba(15, 20, 25, 1) 100%)',
-        border: '2px solid rgba(239, 68, 68, 0.3)',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(239, 68, 68, 0.2)'
-      }} role="dialog">
-        {/* Header */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0, 0, 0, 0.75)' }}
+      aria-modal
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-[420px] mx-4 rounded-2xl overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, rgba(26, 31, 46, 1) 0%, rgba(15, 20, 25, 1) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)'
+        }}
+        role="dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Compact Header */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(239,68,68,0.25) 0%, rgba(239,68,68,0.1) 100%)',
-          borderBottom: '2px solid rgba(239, 68, 68, 0.3)'
-        }} className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5" style={{ color: '#ef4444' }} />
-            <div className="font-bold text-lg" style={{ color: '#ffffff' }}>Quick Actions</div>
+          padding: '16px 20px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div className="font-bold" style={{ color: '#ffffff', fontSize: '16px' }}>
+            ⚡ Quick Actions
           </div>
           <button
-            className="roof-er-header-btn"
             onClick={onClose}
-            aria-label="Close quick actions"
+            aria-label="Close"
             style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#ffffff'
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '4px',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
             }}
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 p-3" style={{ borderBottom: '2px solid rgba(239, 68, 68, 0.2)', background: 'rgba(0, 0, 0, 0.3)' }}>
+        {/* Three Horizontal Action Buttons */}
+        <div style={{ padding: '16px', display: 'flex', gap: '10px' }}>
           {[
             { id: 'email', label: 'Email', icon: Mail },
             { id: 'transcribe', label: 'Voice Note', icon: Mic },
             { id: 'image', label: 'Upload', icon: Upload },
-          ].map((t) => {
-            const Icon = t.icon;
-            const selected = active === (t.id as QuickActionType);
+          ].map((action) => {
+            const Icon = action.icon;
+            const isActive = active === (action.id as QuickActionType);
             return (
               <button
-                key={t.id}
-                onClick={() => setActive(t.id as QuickActionType)}
-                className={`px-3 py-2 rounded-lg flex items-center gap-2 ${selected ? 'bg-[var(--roof-red)] text-white' : ''}`}
+                key={action.id}
+                onClick={() => setActive(action.id as QuickActionType)}
                 style={{
-                  border: selected ? '2px solid rgba(255, 255, 255, 0.3)' : '2px solid rgba(255, 255, 255, 0.1)',
-                  background: selected ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'rgba(255, 255, 255, 0.05)',
-                  color: selected ? '#ffffff' : 'rgba(255, 255, 255, 0.8)',
-                  fontWeight: selected ? '600' : '500',
-                  transition: 'all 0.2s ease',
-                  cursor: 'pointer'
+                  flex: 1,
+                  height: '64px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  borderRadius: '12px',
+                  border: isActive ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                    : 'rgba(255, 255, 255, 0.03)',
+                  color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontWeight: isActive ? '600' : '500',
+                  fontSize: '13px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                  }
                 }}
               >
-                <Icon className="w-4 h-4" />
-                <span>{t.label}</span>
+                <Icon className="w-5 h-5" />
+                <span>{action.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Content */}
-        <div className="p-4">
+        {/* Content Area */}
+        <div style={{ padding: '0 16px 16px 16px' }}>
           {active === 'email' && (
-            <div className="grid gap-3 p-4" style={{
-              background: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}>
-              <div className="grid gap-1">
-                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Recipient (optional)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Recipient Field */}
+              <div>
                 <input
-                  className="px-3 py-2 rounded-lg"
                   style={{
+                    width: '100%',
+                    height: '46px',
+                    padding: '0 14px',
                     background: 'rgba(255, 255, 255, 0.05)',
-                    border: '2px solid rgba(255, 255, 255, 0.15)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
                     color: '#ffffff',
-                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s'
                   }}
-                  placeholder="e.g., Sarah from State Farm"
+                  placeholder="Recipient (optional)"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-1">
-                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Subject (optional)</label>
-                <input
-                  className="px-3 py-2 rounded-lg"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '2px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.5)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
                   }}
-                  placeholder="Subject line"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-1">
-                <label className="text-sm font-semibold" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Instructions / Context (optional)</label>
-                <textarea
-                  className="px-3 py-2 rounded-lg min-h-[96px]"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '2px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)'
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
-                  placeholder="Any specific details to include"
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              {/* Subject Field */}
+              <div>
+                <input
+                  style={{
+                    width: '100%',
+                    height: '46px',
+                    padding: '0 14px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  placeholder="Subject (optional)"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.5)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                />
+              </div>
+
+              {/* Instructions/Context Field */}
+              <div>
+                <textarea
+                  style={{
+                    width: '100%',
+                    height: '90px',
+                    padding: '12px 14px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    transition: 'all 0.2s',
+                    fontFamily: 'inherit'
+                  }}
+                  placeholder="Instructions / Context (optional)"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.5)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '10px',
+                marginTop: '8px'
+              }}>
                 <button
-                  className="roof-er-header-btn"
                   onClick={onClose}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    flex: 1,
+                    height: '48px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
                     color: '#ffffff',
-                    fontWeight: '600'
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
                   Cancel
                 </button>
                 <button
-                  className="roof-er-header-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    color: '#ffffff',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
-                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
-                    fontWeight: '700'
-                  }}
                   onClick={startEmail}
+                  style={{
+                    flex: 1,
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                  }}
                 >
-                  Start Email
+                  Send Email
                 </button>
               </div>
             </div>
           )}
 
           {active === 'transcribe' && (
-            <div className="grid gap-3 p-4" style={{
-              background: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}>
-              <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500' }}>
-                Jump into Transcription to record a voice note and convert to text.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{
+                color: 'rgba(255, 255, 255, 0.85)',
+                fontSize: '14px',
+                lineHeight: '1.6',
+                margin: 0
+              }}>
+                Open the Transcription panel to record voice notes and convert them to text.
               </p>
-              <div className="flex items-center justify-end gap-2">
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '10px'
+              }}>
                 <button
-                  className="roof-er-header-btn"
                   onClick={onClose}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    flex: 1,
+                    height: '48px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
                     color: '#ffffff',
-                    fontWeight: '600'
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
                   Cancel
                 </button>
                 <button
-                  className="roof-er-header-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    color: '#ffffff',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
-                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
-                    fontWeight: '700'
-                  }}
                   onClick={() => { onGoTranscribe(); onClose(); }}
+                  style={{
+                    flex: 1,
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                  }}
                 >
-                  Go to Transcription
+                  Open Transcription
                 </button>
               </div>
             </div>
           )}
 
           {active === 'image' && (
-            <div className="grid gap-3 p-4" style={{
-              background: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}>
-              <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500' }}>
-                Upload roof photos for AI-powered damage assessment and reporting.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{
+                color: 'rgba(255, 255, 255, 0.85)',
+                fontSize: '14px',
+                lineHeight: '1.6',
+                margin: 0
+              }}>
+                Upload roof photos for AI-powered damage assessment and professional reporting.
               </p>
-              <div className="flex items-center justify-end gap-2">
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '10px'
+              }}>
                 <button
-                  className="roof-er-header-btn"
                   onClick={onClose}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    flex: 1,
+                    height: '48px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
                     color: '#ffffff',
-                    fontWeight: '600'
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
                   Cancel
                 </button>
                 <button
-                  className="roof-er-header-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    color: '#ffffff',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
-                    boxShadow: '0 8px 20px rgba(239,68,68,0.5)',
-                    fontWeight: '700'
-                  }}
                   onClick={() => { onGoUpload(); onClose(); }}
+                  style={{
+                    flex: 1,
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                  }}
                 >
-                  Go to Image Analysis
+                  Open Upload
                 </button>
               </div>
             </div>
