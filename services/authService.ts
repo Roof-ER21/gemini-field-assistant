@@ -23,6 +23,7 @@ export interface LoginResult {
   user?: AuthUser;
   message: string;
   verificationCode?: string; // For MVP, we'll show this in console
+  autoLoginSuccess?: boolean; // True if auto-login token was used
 }
 
 interface StoredAuth {
@@ -152,8 +153,9 @@ class AuthService {
 
   /**
    * Login with email (Step 1: Request verification code)
+   * Now checks for valid auto-login token first - if found and valid, skips verification
    */
-  async requestLoginCode(email: string): Promise<LoginResult> {
+  async requestLoginCode(email: string, name?: string, rememberMe: boolean = false): Promise<LoginResult> {
     try {
       // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -164,6 +166,79 @@ class AuthService {
         };
       }
 
+      // Check if user has a valid auto-login token
+      const storedToken = localStorage.getItem(this.TOKEN_KEY);
+      if (storedToken) {
+        try {
+          const authData: StoredAuth = JSON.parse(storedToken);
+          const now = Date.now();
+
+          // Check if token is valid and for the same email
+          if (authData.user.email.toLowerCase() === email.toLowerCase() &&
+              authData.rememberMe &&
+              now < authData.expiresAt) {
+
+            // Valid token found - perform auto-login
+            console.log('✅ Valid auto-login token found, skipping verification code');
+
+            // Update user info
+            const user: AuthUser = {
+              ...authData.user,
+              name: name || authData.user.name, // Update name if provided
+              last_login_at: new Date()
+            };
+
+            this.currentUser = user;
+            localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
+
+            // Refresh the token with new expiry
+            this.refreshToken(user, rememberMe);
+
+            // Update database service
+            await databaseService.setCurrentUser(user);
+
+            // Log login activity
+            try {
+              await activityService.logLogin();
+              console.log('✅ Login activity logged');
+            } catch (err) {
+              console.error('❌ Failed to log login activity:', err);
+            }
+
+            // Update last login in database
+            try {
+              await fetch(`${window.location.origin}/api/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  role: user.role,
+                  state: user.state
+                })
+              });
+            } catch (err) {
+              console.warn('Failed to update user in database:', err);
+            }
+
+            return {
+              success: true,
+              user,
+              message: 'Auto-login successful!',
+              autoLoginSuccess: true
+            };
+          } else {
+            console.log('🔒 Token expired or email mismatch, proceeding with verification code');
+          }
+        } catch (err) {
+          console.error('Error parsing stored token:', err);
+        }
+      }
+
+      // No valid token - proceed with normal verification code flow
+      console.log('📧 No valid auto-login token, sending verification code');
+
       // Generate and send verification code
       const code = this.generateVerificationCode();
       await this.sendVerificationCode(email, code);
@@ -171,7 +246,8 @@ class AuthService {
       return {
         success: true,
         message: 'Verification code sent! Check the browser console for MVP testing.',
-        verificationCode: code // For MVP, return it directly
+        verificationCode: code, // For MVP, return it directly
+        autoLoginSuccess: false
       };
     } catch (error) {
       console.error('Login error:', error);
@@ -184,8 +260,9 @@ class AuthService {
 
   /**
    * Verify code and complete login (Step 2: Verify code)
+   * Name is now required (collected in step 1)
    */
-  async verifyLoginCode(email: string, code: string, name?: string, rememberMe: boolean = false): Promise<LoginResult> {
+  async verifyLoginCode(email: string, code: string, name: string, rememberMe: boolean = false): Promise<LoginResult> {
     try {
       // Get stored code
       const storedCode = sessionStorage.getItem(`verification_code_${email}`);
@@ -222,7 +299,7 @@ class AuthService {
       const user: AuthUser = {
         id: crypto.randomUUID(),
         email: email.toLowerCase(),
-        name: name || email.split('@')[0], // Use email prefix as default name
+        name: name, // Name is now required from step 1
         role: 'sales_rep',
         state: null,
         created_at: new Date(),

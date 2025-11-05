@@ -29,9 +29,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await authService.requestLoginCode(email);
+      // Check if user has valid auto-login token and skip verification
+      const result = await authService.requestLoginCode(email, name, rememberMe);
 
       if (result.success) {
+        // If auto-login was successful, we're done
+        if (result.autoLoginSuccess) {
+          onLoginSuccess();
+          return;
+        }
+
+        // Otherwise proceed with verification code
         setGeneratedCode(result.verificationCode || '');
         setStep('code');
         // Auto-fill code for MVP convenience
@@ -55,7 +63,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await authService.verifyLoginCode(email, code, name || undefined, rememberMe);
+      // Name is now collected in step 1, so we pass it here
+      const result = await authService.verifyLoginCode(email, code, name, rememberMe);
 
       if (result.success) {
         onLoginSuccess();
@@ -229,6 +238,80 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   e.target.style.boxShadow = 'none';
                 }}
               />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="name"
+                className="block text-sm font-semibold"
+                style={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  marginBottom: '8px'
+                }}
+              >
+                Your Name
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Smith"
+                required
+                className="w-full px-4"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  height: '48px',
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.12)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {/* Remember Me Checkbox - Moved to Step 1 */}
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                className="flex items-center cursor-pointer"
+                style={{ color: 'rgba(255, 255, 255, 0.75)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    marginRight: '10px',
+                    accentColor: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                  Remember me on this device
+                </span>
+              </label>
+              <p style={{
+                fontSize: '0.75rem',
+                color: 'rgba(255, 255, 255, 0.45)',
+                marginTop: '6px',
+                marginLeft: '28px'
+              }}>
+                {rememberMe
+                  ? 'Stay logged in for 1 year'
+                  : 'Login again when browser closes'}
+              </p>
             </div>
 
             {error && (
@@ -446,69 +529,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   letterSpacing: '0.15em'
                 }}
               />
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label
-                htmlFor="name"
-                className="block text-sm font-semibold"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  marginBottom: '8px'
-                }}
-              >
-                Your Name (Optional)
-              </label>
-              <input
-                type="text"
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Smith"
-                className="w-full px-4"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  height: '48px',
-                  fontSize: '0.9375rem'
-                }}
-              />
-            </div>
-
-            {/* Remember Me Checkbox */}
-            <div style={{ marginBottom: '16px' }}>
-              <label
-                className="flex items-center cursor-pointer"
-                style={{ color: 'rgba(255, 255, 255, 0.75)' }}
-              >
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    marginRight: '10px',
-                    accentColor: '#ef4444',
-                    cursor: 'pointer'
-                  }}
-                />
-                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
-                  Remember me on this device
-                </span>
-              </label>
-              <p style={{
-                fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.45)',
-                marginTop: '6px',
-                marginLeft: '28px'
-              }}>
-                {rememberMe
-                  ? 'Stay logged in for 1 year'
-                  : 'Login again when browser closes'}
-              </p>
             </div>
 
             {error && (
