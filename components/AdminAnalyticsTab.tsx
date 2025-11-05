@@ -728,9 +728,8 @@ const AdminAnalyticsTab: React.FC = () => {
   return (
     <div
       style={{
-        background: '#0f0f0f',
-        minHeight: '100vh',
-        padding: '30px',
+        background: 'transparent',
+        padding: '0',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         color: '#e4e4e7',
       }}
