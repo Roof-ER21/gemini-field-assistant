@@ -2086,7 +2086,7 @@ app.post('/api/admin/concerning-chats/scan', async (req, res) => {
     }
 
     // Import chatMonitorService
-    const { chatMonitorService } = await import('../services/chatMonitorService.js');
+    const { chatMonitorService } = await import('./services/chatMonitorService.js');
 
     // Get recent messages (last 24 hours)
     const messagesResult = await pool.query(`

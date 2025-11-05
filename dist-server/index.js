@@ -105,6 +105,93 @@ app.get('/api/version', (req, res) => {
         builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
     });
 });
+// One-time migration runner for analytics tables (admin only)
+app.post('/api/admin/run-analytics-migration', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        console.log('🔄 Running analytics migration...');
+        // Create analytics tables
+        await pool.query(`
+      -- 1. Live Susan Sessions
+      CREATE TABLE IF NOT EXISTS live_susan_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        ended_at TIMESTAMP,
+        duration_seconds INTEGER,
+        message_count INTEGER DEFAULT 0,
+        double_tap_stops INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 2. Transcriptions
+      CREATE TABLE IF NOT EXISTS transcriptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        audio_duration_seconds INTEGER,
+        transcription_text TEXT,
+        word_count INTEGER,
+        provider VARCHAR(50) DEFAULT 'Gemini',
+        state VARCHAR(2),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 3. Document Uploads
+      CREATE TABLE IF NOT EXISTS document_uploads (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        file_name VARCHAR(255),
+        file_type VARCHAR(50),
+        file_size_bytes BIGINT,
+        analysis_type VARCHAR(50),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 4. Concerning Chats
+      CREATE TABLE IF NOT EXISTS concerning_chats (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        message_id VARCHAR(255),
+        concern_type VARCHAR(100),
+        severity VARCHAR(20) CHECK (severity IN ('critical', 'warning', 'info')),
+        flagged_content TEXT,
+        context TEXT,
+        detection_reason TEXT,
+        flagged_at TIMESTAMP DEFAULT NOW(),
+        reviewed BOOLEAN DEFAULT FALSE,
+        reviewed_by UUID REFERENCES users(id),
+        reviewed_at TIMESTAMP,
+        review_notes TEXT
+      );
+
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS idx_live_susan_sessions_user_id ON live_susan_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_live_susan_sessions_started_at ON live_susan_sessions(started_at);
+      CREATE INDEX IF NOT EXISTS idx_transcriptions_user_id ON transcriptions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_transcriptions_created_at ON transcriptions(created_at);
+      CREATE INDEX IF NOT EXISTS idx_document_uploads_user_id ON document_uploads(user_id);
+      CREATE INDEX IF NOT EXISTS idx_document_uploads_created_at ON document_uploads(created_at);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_user_id ON concerning_chats(user_id);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_severity ON concerning_chats(severity);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_flagged_at ON concerning_chats(flagged_at);
+    `);
+        console.log('✅ Analytics migration completed');
+        res.json({
+            success: true,
+            message: 'Analytics tables created successfully',
+            tables: ['live_susan_sessions', 'transcriptions', 'document_uploads', 'concerning_chats']
+        });
+    }
+    catch (error) {
+        console.error('❌ Migration failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // ============================================================================
 // USER ENDPOINTS
 // ============================================================================
@@ -914,6 +1001,41 @@ UPDATE users SET login_count = 0 WHERE login_count IS NULL;
         });
     }
 });
+// Run Migration 004: Fix RAG Analytics and Insurance Companies (admin only)
+app.post('/api/admin/run-migration-004', async (req, res) => {
+    try {
+        console.log('🔧 Running Migration 004: RAG Analytics and Insurance Companies...');
+        const fs = await import('fs/promises');
+        const migrationPath = path.resolve(__dirname, '../../database/migrations/004_fix_rag_and_insurance.sql');
+        const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
+        // Execute the migration
+        await pool.query(migrationSQL);
+        console.log('✅ Migration 004 completed successfully');
+        // Verify tables were created
+        const verify = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('rag_analytics', 'insurance_companies')
+      ORDER BY table_name
+    `);
+        const insuranceCount = await pool.query('SELECT COUNT(*) FROM insurance_companies');
+        res.json({
+            success: true,
+            message: 'Migration 004 completed successfully',
+            tables_created: verify.rows.map(r => r.table_name),
+            insurance_companies_seeded: parseInt(insuranceCount.rows[0].count)
+        });
+    }
+    catch (error) {
+        console.error('❌ Migration 004 failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Migration failed',
+            message: error.message
+        });
+    }
+});
 // Fix session_id column type (admin only)
 app.post('/api/admin/fix-session-id', async (req, res) => {
     try {
@@ -1094,6 +1216,712 @@ app.patch('/api/admin/users/:userId/role', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Get all emails generated by the system (admin only)
+app.get('/api/admin/emails', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { page = 1, limit = 50, search = '' } = req.query;
+        const offset = (Number(page) - 1) * Number(limit);
+        console.log('[ADMIN] 📧 Fetching emails:', { page, limit, search });
+        // Build search filter for email subject/recipient
+        let searchFilter = '';
+        const params = [];
+        if (search && typeof search === 'string' && search.trim() !== '') {
+            searchFilter = `WHERE (LOWER(eg.subject) LIKE $1 OR LOWER(eg.recipient_email) LIKE $1)`;
+            params.push(`%${search.toLowerCase()}%`);
+        }
+        // Get total count for pagination
+        const countQuery = `
+      SELECT COUNT(*)::int as total
+      FROM email_generation_log eg
+      ${searchFilter}
+    `;
+        const countResult = await pool.query(countQuery, params);
+        const totalCount = countResult.rows[0]?.total || 0;
+        // Get paginated results with user info
+        const dataQuery = `
+      SELECT
+        eg.id,
+        eg.recipient_email,
+        eg.subject,
+        eg.body,
+        eg.email_type,
+        eg.state,
+        eg.created_at as sent_at,
+        true as success,
+        u.id as user_id,
+        u.email as user_email,
+        u.name as user_name,
+        u.role as user_role
+      FROM email_generation_log eg
+      LEFT JOIN users u ON eg.user_id = u.id
+      ${searchFilter}
+      ORDER BY eg.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+        params.push(Number(limit), offset);
+        const result = await pool.query(dataQuery, params);
+        console.log('[ADMIN] ✅ Found', result.rows.length, 'emails');
+        res.json({
+            data: result.rows,
+            pagination: {
+                page: Number(page),
+                limit: Number(limit),
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / Number(limit))
+            }
+        });
+    }
+    catch (error) {
+        console.error('[ADMIN] ❌ Error fetching emails:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get all messages from all users/conversations (admin only)
+app.get('/api/admin/all-messages', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { page = 1, limit = 100, search = '' } = req.query;
+        const offset = (Number(page) - 1) * Number(limit);
+        console.log('[ADMIN] 💬 Fetching all messages:', { page, limit, search });
+        // Build search filter for message content
+        let searchFilter = '';
+        const params = [];
+        if (search && typeof search === 'string' && search.trim() !== '') {
+            searchFilter = `WHERE LOWER(ch.content) LIKE $1`;
+            params.push(`%${search.toLowerCase()}%`);
+        }
+        // Get total count for pagination
+        const countQuery = `
+      SELECT COUNT(*)::int as total
+      FROM chat_history ch
+      ${searchFilter}
+    `;
+        const countResult = await pool.query(countQuery, params);
+        const totalCount = countResult.rows[0]?.total || 0;
+        // Get paginated results with user info
+        const dataQuery = `
+      SELECT
+        ch.id,
+        ch.message_id,
+        ch.session_id,
+        ch.sender as role,
+        ch.content,
+        ch.state,
+        ch.provider,
+        ch.sources,
+        ch.created_at,
+        u.id as user_id,
+        u.email as user_email,
+        u.name as user_name,
+        u.role as user_role
+      FROM chat_history ch
+      LEFT JOIN users u ON ch.user_id = u.id
+      ${searchFilter}
+      ORDER BY ch.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+        params.push(Number(limit), offset);
+        const result = await pool.query(dataQuery, params);
+        console.log('[ADMIN] ✅ Found', result.rows.length, 'messages');
+        res.json({
+            data: result.rows,
+            pagination: {
+                page: Number(page),
+                limit: Number(limit),
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / Number(limit))
+            }
+        });
+    }
+    catch (error) {
+        console.error('[ADMIN] ❌ Error fetching all messages:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// ============================================================================
+// ANALYTICS & MONITORING ENDPOINTS
+// ============================================================================
+/**
+ * Helper function to get time range SQL filter
+ */
+function getTimeRangeFilter(timeRange, columnName = 'created_at') {
+    switch (timeRange) {
+        case 'today':
+            return `${columnName} >= CURRENT_DATE`;
+        case 'week':
+            return `${columnName} >= CURRENT_DATE - INTERVAL '7 days'`;
+        case 'month':
+            return `${columnName} >= CURRENT_DATE - INTERVAL '30 days'`;
+        case 'all':
+        default:
+            return '1=1'; // all time
+    }
+}
+/**
+ * Helper function to check if user is admin
+ */
+async function isAdmin(email) {
+    try {
+        const result = await pool.query('SELECT role FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+        return result.rows.length > 0 && result.rows[0].role === 'admin';
+    }
+    catch (error) {
+        console.error('Error checking admin status:', error);
+        return false;
+    }
+}
+// Track Live Susan session start/end
+app.post('/api/activity/live-susan', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const { action, session_id, message_count, double_tap_stops } = req.body;
+        if (!action || !['start', 'end'].includes(action)) {
+            return res.status(400).json({ error: 'action must be "start" or "end"' });
+        }
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        if (action === 'start') {
+            // Create new session
+            const result = await pool.query(`INSERT INTO live_susan_sessions (user_id, started_at, message_count, double_tap_stops)
+         VALUES ($1, NOW(), 0, 0)
+         RETURNING id`, [userId]);
+            console.log(`✅ Live Susan session started for user ${email}:`, result.rows[0].id);
+            return res.json({
+                session_id: result.rows[0].id
+            });
+        }
+        else {
+            // End session
+            if (!session_id) {
+                return res.status(400).json({ error: 'session_id is required for end action' });
+            }
+            const result = await pool.query(`UPDATE live_susan_sessions
+         SET ended_at = NOW(),
+             duration_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER,
+             message_count = COALESCE($1, message_count),
+             double_tap_stops = COALESCE($2, double_tap_stops)
+         WHERE id = $3 AND user_id = $4
+         RETURNING id, duration_seconds`, [message_count, double_tap_stops, session_id, userId]);
+            if (result.rows.length === 0) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
+            console.log(`✅ Live Susan session ended for user ${email}:`, result.rows[0]);
+            return res.json({
+                success: true,
+                duration_seconds: result.rows[0].duration_seconds
+            });
+        }
+    }
+    catch (error) {
+        console.error('Error tracking Live Susan session:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Log transcription activity
+app.post('/api/activity/transcription', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const { audio_duration_seconds, transcription_text, word_count, provider = 'Gemini' } = req.body;
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        // Get user's state
+        const userResult = await pool.query('SELECT state FROM users WHERE id = $1', [userId]);
+        const state = userResult.rows[0]?.state || null;
+        const result = await pool.query(`INSERT INTO transcriptions (user_id, audio_duration_seconds, transcription_text, word_count, provider, state)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, created_at`, [userId, audio_duration_seconds, transcription_text, word_count, provider, state]);
+        console.log(`✅ Transcription logged for user ${email}:`, result.rows[0].id);
+        res.json({
+            success: true,
+            transcription_id: result.rows[0].id,
+            created_at: result.rows[0].created_at
+        });
+    }
+    catch (error) {
+        console.error('Error logging transcription:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Log document upload activity
+app.post('/api/activity/document-upload', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const { file_name, file_type, file_size_bytes, analysis_type, analysis_result, analysis_performed = false } = req.body;
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        // Get user's state
+        const userResult = await pool.query('SELECT state FROM users WHERE id = $1', [userId]);
+        const state = userResult.rows[0]?.state || null;
+        const result = await pool.query(`INSERT INTO document_uploads
+       (user_id, file_name, file_type, file_size_bytes, analysis_performed, analysis_type, analysis_result, state)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, created_at`, [userId, file_name, file_type, file_size_bytes, analysis_performed, analysis_type, analysis_result, state]);
+        console.log(`✅ Document upload logged for user ${email}:`, result.rows[0].id);
+        res.json({
+            success: true,
+            upload_id: result.rows[0].id,
+            created_at: result.rows[0].created_at
+        });
+    }
+    catch (error) {
+        console.error('Error logging document upload:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get analytics overview (admin only)
+app.get('/api/admin/analytics/overview', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        // Note: Frontend sends ?range= but we currently return all-time stats
+        // TODO: Add time range filtering if needed in the future
+        // Get overview stats
+        const [totalUsers, activeUsers7d, totalConversations, totalMessages, emailsGenerated, transcriptionsCreated, documentsUploaded, susanSessions] = await Promise.all([
+            pool.query('SELECT COUNT(*)::int as count FROM users'),
+            pool.query(`
+        SELECT COUNT(DISTINCT user_id)::int as count
+        FROM chat_history
+        WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+      `),
+            pool.query('SELECT COUNT(DISTINCT session_id)::int as count FROM chat_history WHERE session_id IS NOT NULL'),
+            pool.query('SELECT COUNT(*)::int as count FROM chat_history'),
+            pool.query('SELECT COUNT(*)::int as count FROM email_generation_log'),
+            pool.query('SELECT COUNT(*)::int as count FROM transcriptions'),
+            pool.query('SELECT COUNT(*)::int as count FROM document_uploads'),
+            pool.query('SELECT COUNT(*)::int as count FROM live_susan_sessions')
+        ]);
+        res.json({
+            totalUsers: parseInt(totalUsers.rows[0].count),
+            activeUsers7d: parseInt(activeUsers7d.rows[0].count),
+            totalConversations: parseInt(totalConversations.rows[0].count),
+            totalMessages: parseInt(totalMessages.rows[0].count),
+            emailsGenerated: parseInt(emailsGenerated.rows[0].count),
+            transcriptions: parseInt(transcriptionsCreated.rows[0].count),
+            documentsUploaded: parseInt(documentsUploaded.rows[0].count),
+            susanSessions: parseInt(susanSessions.rows[0].count)
+        });
+    }
+    catch (error) {
+        console.error('Error fetching analytics overview:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get user activity breakdown (admin only)
+app.get('/api/admin/analytics/user-activity', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { timeRange = 'all' } = req.query;
+        const timeFilter = getTimeRangeFilter(timeRange);
+        // Query user_activity_enhanced view with time filtering
+        const result = await pool.query(`
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.role,
+        u.state,
+        COUNT(DISTINCT ch.id) AS chats,
+        COUNT(DISTINCT eg.id) AS emails,
+        COUNT(DISTINCT t.id) AS transcriptions,
+        COUNT(DISTINCT du.id) AS uploads,
+        COUNT(DISTINCT lss.id) AS susan,
+        COUNT(DISTINCT dv.document_path) AS "kbViews",
+        MAX(ch.created_at) AS "lastActive"
+      FROM users u
+      LEFT JOIN chat_history ch ON u.id = ch.user_id
+      LEFT JOIN email_generation_log eg ON u.id = eg.user_id
+      LEFT JOIN transcriptions t ON u.id = t.user_id
+      LEFT JOIN document_uploads du ON u.id = du.user_id
+      LEFT JOIN live_susan_sessions lss ON u.id = lss.user_id
+      LEFT JOIN document_views dv ON u.id = dv.user_id
+      WHERE ${timeFilter.replace('created_at', 'ch.created_at')}
+      GROUP BY u.id, u.email, u.name, u.role, u.state
+      ORDER BY "lastActive" DESC NULLS LAST
+    `);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching user activity:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get feature usage over time (admin only)
+app.get('/api/admin/analytics/feature-usage', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        // Accept both 'range' and 'timeRange' query params for compatibility
+        const { range, timeRange } = req.query;
+        const selectedRange = (range || timeRange || 'week');
+        const timeFilter = getTimeRangeFilter(selectedRange, 'created_at');
+        // Query daily activity metrics with joins
+        const rawData = await pool.query(`
+      WITH chat_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'chat' AS activity_type, COUNT(*) AS count
+        FROM chat_history
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      email_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'email' AS activity_type, COUNT(*) AS count
+        FROM email_generation_log
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      upload_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'upload' AS activity_type, COUNT(*) AS count
+        FROM document_uploads
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      transcription_counts AS (
+        SELECT DATE(created_at) AS activity_date, 'transcription' AS activity_type, COUNT(*) AS count
+        FROM transcriptions
+        WHERE ${timeFilter}
+        GROUP BY DATE(created_at)
+      ),
+      susan_counts AS (
+        SELECT DATE(started_at) AS activity_date, 'susan_session' AS activity_type, COUNT(*) AS count
+        FROM live_susan_sessions
+        WHERE ${timeFilter.replace('created_at', 'started_at')}
+        GROUP BY DATE(started_at)
+      ),
+      kb_counts AS (
+        SELECT DATE(last_viewed_at) AS activity_date, 'knowledge_base' AS activity_type, COUNT(*) AS count
+        FROM document_views
+        WHERE ${timeFilter.replace('created_at', 'last_viewed_at')}
+        GROUP BY DATE(last_viewed_at)
+      )
+      SELECT * FROM chat_counts
+      UNION ALL SELECT * FROM email_counts
+      UNION ALL SELECT * FROM upload_counts
+      UNION ALL SELECT * FROM transcription_counts
+      UNION ALL SELECT * FROM susan_counts
+      UNION ALL SELECT * FROM kb_counts
+      ORDER BY activity_date ASC, activity_type
+    `);
+        // Transform into flat array format for frontend
+        const dates = [...new Set(rawData.rows.map(r => r.activity_date.toISOString().split('T')[0]))].sort();
+        const transformedData = dates.map(date => {
+            const dayData = rawData.rows.filter(r => r.activity_date.toISOString().split('T')[0] === date);
+            return {
+                date,
+                chat: parseInt(dayData.find(d => d.activity_type === 'chat')?.count || 0),
+                email: parseInt(dayData.find(d => d.activity_type === 'email')?.count || 0),
+                upload: parseInt(dayData.find(d => d.activity_type === 'upload')?.count || 0),
+                transcribe: parseInt(dayData.find(d => d.activity_type === 'transcription')?.count || 0),
+                susan: parseInt(dayData.find(d => d.activity_type === 'susan_session')?.count || 0),
+                knowledgeBase: parseInt(dayData.find(d => d.activity_type === 'knowledge_base')?.count || 0)
+            };
+        });
+        res.json(transformedData);
+    }
+    catch (error) {
+        console.error('Error fetching feature usage:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get knowledge base analytics (admin only)
+app.get('/api/admin/analytics/knowledge-base', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        // Most viewed documents
+        const mostViewed = await pool.query(`
+      SELECT
+        document_path,
+        document_name,
+        document_category,
+        COUNT(DISTINCT user_id) as unique_viewers,
+        SUM(view_count) as total_views,
+        AVG(total_time_spent)::int as avg_time_spent
+      FROM document_views
+      GROUP BY document_path, document_name, document_category
+      ORDER BY total_views DESC
+      LIMIT 10
+    `);
+        // Most favorited documents
+        const mostFavorited = await pool.query(`
+      SELECT
+        document_path,
+        document_name,
+        document_category,
+        COUNT(*) as favorite_count
+      FROM document_favorites
+      GROUP BY document_path, document_name, document_category
+      ORDER BY favorite_count DESC
+      LIMIT 10
+    `);
+        // Search queries (if search_analytics table exists)
+        let searchQueries = [];
+        try {
+            const searchResult = await pool.query(`
+        SELECT
+          search_query,
+          COUNT(*) as search_count,
+          MAX(created_at) as last_searched
+        FROM search_analytics
+        GROUP BY search_query
+        ORDER BY search_count DESC
+        LIMIT 20
+      `);
+            searchQueries = searchResult.rows;
+        }
+        catch (e) {
+            // Table doesn't exist, skip
+        }
+        // Category breakdown
+        const categoryBreakdown = await pool.query(`
+      SELECT
+        document_category,
+        COUNT(DISTINCT document_path) as document_count,
+        SUM(view_count) as total_views
+      FROM document_views
+      WHERE document_category IS NOT NULL
+      GROUP BY document_category
+      ORDER BY total_views DESC
+    `);
+        res.json({
+            mostViewed: mostViewed.rows.map(row => ({
+                name: row.document_name,
+                views: parseInt(row.total_views),
+                category: row.document_category
+            })),
+            mostFavorited: mostFavorited.rows.map(row => ({
+                name: row.document_name,
+                favorites: parseInt(row.favorite_count),
+                category: row.document_category
+            })),
+            topCategories: categoryBreakdown.rows.map(row => ({
+                category: row.document_category,
+                count: parseInt(row.document_count)
+            }))
+        });
+    }
+    catch (error) {
+        console.error('Error fetching knowledge base analytics:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get detailed per-user analytics table (admin only)
+app.get('/api/admin/analytics/per-user', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        // Query user_activity_enhanced view
+        const result = await pool.query(`
+      SELECT
+        user_id,
+        email,
+        name,
+        role,
+        state,
+        total_messages,
+        emails_generated,
+        transcriptions_created,
+        documents_uploaded,
+        susan_sessions,
+        unique_documents_viewed,
+        favorite_documents,
+        images_analyzed,
+        last_active,
+        user_since
+      FROM user_activity_enhanced
+      ORDER BY total_messages DESC
+    `);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching per-user analytics:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get concerning/flagged chats (admin only)
+app.get('/api/admin/concerning-chats', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { severity = 'all' } = req.query;
+        let severityFilter = '1=1';
+        if (severity && severity !== 'all') {
+            severityFilter = `cc.severity = '${severity}'`;
+        }
+        const result = await pool.query(`
+      SELECT
+        cc.id,
+        cc.session_id AS "sessionId",
+        cc.user_id AS "userId",
+        cc.message_id AS "messageId",
+        cc.concern_type AS "concernType",
+        cc.severity,
+        cc.flagged_content AS content,
+        cc.context AS "fullContext",
+        cc.detection_reason AS "detectionReason",
+        cc.flagged_at AS timestamp,
+        cc.reviewed,
+        cc.reviewed_by AS "reviewedBy",
+        cc.reviewed_at AS "reviewedAt",
+        cc.review_notes AS "reviewNotes",
+        u.email AS "userEmail",
+        u.name AS "userName",
+        u.state AS "userState",
+        reviewer.email AS "reviewerEmail"
+      FROM concerning_chats cc
+      JOIN users u ON cc.user_id = u.id
+      LEFT JOIN users reviewer ON cc.reviewed_by = reviewer.id
+      WHERE ${severityFilter}
+      ORDER BY cc.flagged_at DESC
+      LIMIT 100
+    `);
+        res.json(result.rows);
+    }
+    catch (error) {
+        console.error('Error fetching concerning chats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Trigger manual scan for concerning chats (admin only)
+app.post('/api/admin/concerning-chats/scan', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        // Import chatMonitorService
+        const { chatMonitorService } = await import('./services/chatMonitorService.js');
+        // Get recent messages (last 24 hours)
+        const messagesResult = await pool.query(`
+      SELECT
+        ch.id,
+        ch.user_id,
+        ch.message_id,
+        ch.session_id,
+        ch.sender,
+        ch.content,
+        ch.state,
+        ch.created_at,
+        u.state as user_state
+      FROM chat_history ch
+      JOIN users u ON ch.user_id = u.id
+      WHERE ch.created_at >= NOW() - INTERVAL '24 hours'
+      ORDER BY ch.created_at DESC
+    `);
+        let scannedCount = 0;
+        let flaggedCount = 0;
+        // Scan each message
+        for (const message of messagesResult.rows) {
+            scannedCount++;
+            const detection = chatMonitorService.analyze({
+                sender: message.sender,
+                content: message.content,
+                state: message.user_state,
+                sessionId: message.session_id,
+                userId: message.user_id
+            });
+            if (detection) {
+                // Check if already flagged
+                const existingFlag = await pool.query('SELECT id FROM concerning_chats WHERE message_id = $1 AND concern_type = $2', [message.message_id, detection.concernType]);
+                if (existingFlag.rows.length === 0) {
+                    // Insert new flag
+                    await pool.query(`INSERT INTO concerning_chats
+             (user_id, message_id, session_id, concern_type, severity, flagged_content, context, detection_reason, flagged_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`, [
+                        message.user_id,
+                        message.message_id,
+                        message.session_id,
+                        detection.concernType,
+                        detection.severity,
+                        detection.flaggedContent,
+                        detection.context || null,
+                        detection.detectionReason
+                    ]);
+                    flaggedCount++;
+                }
+            }
+        }
+        console.log(`✅ Scan completed: ${scannedCount} messages scanned, ${flaggedCount} flagged`);
+        res.json({
+            success: true,
+            scanned: scannedCount,
+            flagged: flaggedCount
+        });
+    }
+    catch (error) {
+        console.error('Error scanning concerning chats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Mark concerning chat as reviewed (admin only)
+app.patch('/api/admin/concerning-chats/:id/review', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        const { review_notes } = req.body;
+        // Get admin user ID
+        const adminUser = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+        if (adminUser.rows.length === 0) {
+            return res.status(401).json({ error: 'Admin user not found' });
+        }
+        const result = await pool.query(`UPDATE concerning_chats
+       SET reviewed = true,
+           reviewed_by = $1,
+           reviewed_at = NOW(),
+           review_notes = $2
+       WHERE id = $3
+       RETURNING *`, [adminUser.rows[0].id, review_notes || null, id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Concerning chat not found' });
+        }
+        console.log(`✅ Concerning chat ${id} marked as reviewed by ${email}`);
+        res.json({
+            success: true,
+            ...result.rows[0]
+        });
+    }
+    catch (error) {
+        console.error('Error reviewing concerning chat:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // ============================================================================
 // INSURANCE COMPANIES ENDPOINTS
 // ============================================================================
@@ -1156,7 +1984,8 @@ export default app;
 try {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const distDir = path.resolve(__dirname, '../dist');
+    // When compiled: __dirname = /app/dist-server/server, so we need ../../dist to reach /app/dist
+    const distDir = path.resolve(__dirname, '../../dist');
     // Serve static assets (hashed files can be cached aggressively)
     app.use(express.static(distDir, {
         maxAge: '1y',
