@@ -1911,7 +1911,20 @@ app.get('/api/admin/concerning-chats', async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        cc.*,
+        cc.id,
+        cc.session_id AS "sessionId",
+        cc.user_id AS "userId",
+        cc.message_id AS "messageId",
+        cc.concern_type AS "concernType",
+        cc.severity,
+        cc.flagged_content AS content,
+        cc.context AS "fullContext",
+        cc.detection_reason AS "detectionReason",
+        cc.flagged_at AS timestamp,
+        cc.reviewed,
+        cc.reviewed_by AS "reviewedBy",
+        cc.reviewed_at AS "reviewedAt",
+        cc.review_notes AS "reviewNotes",
         u.email AS "userEmail",
         u.name AS "userName",
         u.state AS "userState",
