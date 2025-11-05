@@ -11,7 +11,8 @@ import {
   Filter,
   Download,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  Eye
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
@@ -54,6 +55,34 @@ interface AnalyticsSummary {
   last_active?: string;
 }
 
+interface EmailLog {
+  id?: string;
+  user_id?: string;
+  user_name?: string;
+  user_email?: string;
+  emailType?: string;
+  recipient?: string;
+  subject?: string;
+  body: string;
+  context?: string;
+  state?: string;
+  created_at: string;
+}
+
+interface AllMessagesItem {
+  id: string;
+  message_id: string;
+  user_id?: string;
+  user_name?: string;
+  user_email?: string;
+  sender: 'user' | 'bot';
+  content: string;
+  state: string | null;
+  provider: string | null;
+  session_id: string;
+  created_at: string;
+}
+
 type QuickFilter = 'today' | 'week' | 'month' | 'all';
 
 const AdminPanel: React.FC = () => {
@@ -65,6 +94,17 @@ const AdminPanel: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New state for emails and all messages
+  const [emails, setEmails] = useState<EmailLog[]>([]);
+  const [allMessages, setAllMessages] = useState<AllMessagesItem[]>([]);
+  const [emailsLoading, setEmailsLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+
+  // Email and message filters
+  const [emailSearch, setEmailSearch] = useState('');
+  const [messageSearch, setMessageSearch] = useState('');
+  const [messageUserFilter, setMessageUserFilter] = useState<string>('');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +123,20 @@ const AdminPanel: React.FC = () => {
       fetchUsers();
     }
   }, [isAdmin]);
+
+  // Fetch emails when emails tab is active
+  useEffect(() => {
+    if (activeTab === 'emails' && isAdmin) {
+      fetchEmails();
+    }
+  }, [activeTab, isAdmin]);
+
+  // Fetch all messages when messages tab is active
+  useEffect(() => {
+    if (activeTab === 'messages' && isAdmin) {
+      fetchAllMessages();
+    }
+  }, [activeTab, isAdmin]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -137,6 +191,56 @@ const AdminPanel: React.FC = () => {
       console.error('Error fetching messages:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEmails = async () => {
+    setEmailsLoading(true);
+    try {
+      // Try to fetch from API endpoint first
+      const response = await fetch('/api/admin/emails');
+      if (response.ok) {
+        const data = await response.json();
+        setEmails(data);
+      } else {
+        // Fallback to localStorage if API not available
+        const emailLogsStr = localStorage.getItem('email_generation_log') || '[]';
+        const emailLogs = JSON.parse(emailLogsStr);
+        setEmails(emailLogs);
+      }
+    } catch (err) {
+      console.warn('Error fetching emails, using localStorage:', err);
+      // Fallback to localStorage
+      const emailLogsStr = localStorage.getItem('email_generation_log') || '[]';
+      const emailLogs = JSON.parse(emailLogsStr);
+      setEmails(emailLogs);
+    } finally {
+      setEmailsLoading(false);
+    }
+  };
+
+  const fetchAllMessages = async () => {
+    setMessagesLoading(true);
+    try {
+      // Try to fetch from API endpoint first
+      const response = await fetch('/api/admin/all-messages');
+      if (response.ok) {
+        const data = await response.json();
+        setAllMessages(data);
+      } else {
+        // Fallback to localStorage if API not available
+        const chatHistoryStr = localStorage.getItem('chatHistory') || '[]';
+        const chatHistory = JSON.parse(chatHistoryStr);
+        setAllMessages(chatHistory);
+      }
+    } catch (err) {
+      console.warn('Error fetching all messages, using localStorage:', err);
+      // Fallback to localStorage
+      const chatHistoryStr = localStorage.getItem('chatHistory') || '[]';
+      const chatHistory = JSON.parse(chatHistoryStr);
+      setAllMessages(chatHistory);
+    } finally {
+      setMessagesLoading(false);
     }
   };
 
@@ -220,6 +324,37 @@ const AdminPanel: React.FC = () => {
     }
     if (dateTo && user.last_active && new Date(user.last_active) > new Date(dateTo)) {
       return false;
+    }
+    return true;
+  });
+
+  // Filter emails
+  const filteredEmails = emails.filter(email => {
+    if (emailSearch) {
+      const search = emailSearch.toLowerCase();
+      return (
+        email.subject?.toLowerCase().includes(search) ||
+        email.recipient?.toLowerCase().includes(search) ||
+        email.user_name?.toLowerCase().includes(search) ||
+        email.user_email?.toLowerCase().includes(search) ||
+        email.body?.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  // Filter all messages
+  const filteredMessages = allMessages.filter(msg => {
+    if (messageUserFilter && msg.user_id !== messageUserFilter) {
+      return false;
+    }
+    if (messageSearch) {
+      const search = messageSearch.toLowerCase();
+      return (
+        msg.content?.toLowerCase().includes(search) ||
+        msg.user_name?.toLowerCase().includes(search) ||
+        msg.user_email?.toLowerCase().includes(search)
+      );
     }
     return true;
   });
@@ -828,353 +963,430 @@ const AdminPanel: React.FC = () => {
             )}
           </div>
         </div>
+        </>
+        )}
 
-        {/* Conversations Panel */}
-        <div style={{
-          width: '380px',
-          background: '#161616',
-          borderRight: '1px solid #2a2a2a',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        {/* EMAILS TAB - Full Page View */}
+        {activeTab === 'emails' && (
           <div style={{
-            padding: '25px',
-            borderBottom: '1px solid #2a2a2a'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '18px',
-              fontWeight: 700,
-              marginBottom: '8px',
-              color: '#e4e4e7'
-            }}>
-              💬 Conversations
-            </div>
-            <div style={{ fontSize: '13px', color: '#71717a' }}>
-              {selectedUser ? `${selectedUser.name} - ${conversations.length} conversations` : 'Select a user to view conversations'}
-            </div>
-          </div>
+            flex: 1,
+            padding: '2rem',
+            overflowY: 'auto'
+          }} className="custom-scrollbar">
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'white' }}>
+              Email Generation Log
+            </h2>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="custom-scrollbar">
-            {selectedUser && conversations.map((conv) => (
-              <div
-                key={conv.session_id}
-                onClick={() => handleConversationSelect(conv)}
+            {/* Search and Filter Bar */}
+            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
+              <input
+                type="text"
+                placeholder="Search emails by subject, recipient, user..."
+                value={emailSearch}
+                onChange={(e) => setEmailSearch(e.target.value)}
                 style={{
-                  background: selectedConversation?.session_id === conv.session_id ? '#262626' : '#1a1a1a',
-                  border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#991b1b' : '#2a2a2a'}`,
-                  borderRadius: '10px',
-                  padding: '14px',
-                  marginBottom: '10px',
+                  flex: 1,
+                  padding: '0.75rem',
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#991b1b';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
+              />
+              <button
+                onClick={fetchEmails}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#991b1b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  if (selectedConversation?.session_id !== conv.session_id) {
-                    e.currentTarget.style.background = '#262626';
-                    e.currentTarget.style.borderColor = '#991b1b';
-                  }
+                  e.currentTarget.style.background = '#7f1d1d';
                 }}
                 onMouseLeave={(e) => {
-                  if (selectedConversation?.session_id !== conv.session_id) {
-                    e.currentTarget.style.background = '#1a1a1a';
-                    e.currentTarget.style.borderColor = '#2a2a2a';
-                  }
+                  e.currentTarget.style.background = '#991b1b';
                 }}
               >
-                <div style={{
-                  fontSize: '11px',
-                  color: '#71717a',
-                  marginBottom: '6px'
-                }}>
-                  {new Date(conv.first_message_at).toLocaleDateString()} - {conv.message_count} messages
-                </div>
-                <div style={{
-                  fontSize: '13px',
-                  color: '#a1a1aa',
-                  lineHeight: 1.4,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}>
-                  {conv.preview}
-                </div>
-              </div>
-            ))}
+                <RefreshCw style={{ width: '16px', height: '16px' }} />
+                Refresh
+              </button>
+            </div>
 
-            {!selectedUser && (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                padding: '40px',
-                color: '#71717a'
-              }}>
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  background: '#262626',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '20px',
-                  fontSize: '36px'
-                }}>
-                  📭
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
-                  Select a user
-                </div>
-                <div style={{ fontSize: '14px', color: '#71717a' }}>
-                  Choose a user from the left to view their conversations
-                </div>
-              </div>
-            )}
+            {/* Email Table */}
+            <div style={{
+              background: '#1a1a1a',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              overflow: 'hidden'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#0f0f0f', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>User</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Subject</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Recipient</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Date</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailsLoading ? (
+                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#71717a' }}>
+                        <div style={{
+                          display: 'inline-block',
+                          width: '30px',
+                          height: '30px',
+                          border: '3px solid #3a3a3a',
+                          borderTop: '3px solid #991b1b',
+                          borderRadius: '50%',
+                          animation: 'spin 1s linear infinite',
+                          marginBottom: '0.5rem'
+                        }} />
+                        <div>Loading emails...</div>
+                      </td>
+                    </tr>
+                  ) : filteredEmails.length === 0 ? (
+                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>
+                        <div style={{
+                          width: '64px',
+                          height: '64px',
+                          background: '#262626',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 1rem',
+                          fontSize: '32px'
+                        }}>
+                          📧
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '0.5rem' }}>
+                          No emails found
+                        </div>
+                        <div style={{ fontSize: '14px', color: '#71717a' }}>
+                          {emailSearch ? 'Try adjusting your search' : 'No emails have been generated yet'}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEmails.map((email, index) => (
+                      <tr key={email.id || index} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
+                          <div style={{ fontWeight: 600, color: '#e4e4e7', marginBottom: '0.25rem' }}>
+                            {email.user_name || 'Unknown User'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                            {email.user_email || 'N/A'}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa', maxWidth: '300px' }}>
+                          <div style={{
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            fontWeight: 500,
+                            color: '#e4e4e7'
+                          }}>
+                            {email.subject || 'No Subject'}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
+                          {email.recipient || 'N/A'}
+                        </td>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa', whiteSpace: 'nowrap' }}>
+                          {new Date(email.created_at).toLocaleDateString()} {new Date(email.created_at).toLocaleTimeString()}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <button
+                            onClick={() => {
+                              alert(`Email Details:\n\nSubject: ${email.subject}\nRecipient: ${email.recipient}\n\n${email.body}`);
+                            }}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              background: 'rgba(153, 27, 27, 0.2)',
+                              border: '1px solid #991b1b',
+                              borderRadius: '6px',
+                              color: '#fff',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#991b1b';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                            }}
+                          >
+                            <Eye style={{ width: '14px', height: '14px' }} />
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-            {selectedUser && conversations.length === 0 && !loading && (
+            {/* Email Count */}
+            {filteredEmails.length > 0 && (
               <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                padding: '40px',
-                color: '#71717a'
+                marginTop: '1rem',
+                fontSize: '0.875rem',
+                color: '#71717a',
+                textAlign: 'right'
               }}>
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  background: '#262626',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '20px',
-                  fontSize: '36px'
-                }}>
-                  📭
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
-                  No conversations found
-                </div>
-                <div style={{ fontSize: '14px', color: '#71717a' }}>
-                  This user hasn't started any conversations yet
-                </div>
+                Showing {filteredEmails.length} of {emails.length} emails
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Messages Panel */}
-        <div style={{
-          flex: 1,
-          background: '#0f0f0f',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          {selectedConversation && selectedUser ? (
-            <>
-              {/* Messages Header */}
-              <div style={{
-                padding: '20px 25px',
-                borderBottom: '1px solid #2a2a2a',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: '#1a1a1a'
-              }}>
-                <div>
-                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7', marginBottom: '4px' }}>
-                    Conversation Details
-                  </h2>
-                  <div style={{ fontSize: '13px', color: '#71717a' }}>
-                    {new Date(selectedConversation.first_message_at).toLocaleString()} - {selectedConversation.message_count} messages
-                  </div>
+        {/* MESSAGES TAB - Full Page View */}
+        {activeTab === 'messages' && (
+          <div style={{
+            flex: 1,
+            padding: '2rem',
+            overflowY: 'auto'
+          }} className="custom-scrollbar">
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'white' }}>
+              All Messages
+            </h2>
+
+            {/* Filters */}
+            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
+              <select
+                value={messageUserFilter}
+                onChange={(e) => setMessageUserFilter(e.target.value)}
+                style={{
+                  padding: '0.75rem',
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  minWidth: '200px'
+                }}
+              >
+                <option value="">All Users</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>{user.name}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Search messages..."
+                value={messageSearch}
+                onChange={(e) => setMessageSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#991b1b';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
+              />
+
+              <button
+                onClick={fetchAllMessages}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#991b1b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#7f1d1d';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#991b1b';
+                }}
+              >
+                <RefreshCw style={{ width: '16px', height: '16px' }} />
+                Refresh
+              </button>
+            </div>
+
+            {/* Messages List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {messagesLoading ? (
+                <div style={{
+                  background: '#1a1a1a',
+                  borderRadius: '12px',
+                  padding: '3rem',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  textAlign: 'center',
+                  color: '#71717a'
+                }}>
+                  <div style={{
+                    display: 'inline-block',
+                    width: '40px',
+                    height: '40px',
+                    border: '4px solid #3a3a3a',
+                    borderTop: '4px solid #991b1b',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '1rem'
+                  }} />
+                  <div>Loading messages...</div>
                 </div>
-                <button
-                  onClick={exportConversation}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#991b1b',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
+              ) : filteredMessages.length === 0 ? (
+                <div style={{
+                  background: '#1a1a1a',
+                  borderRadius: '12px',
+                  padding: '4rem',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  textAlign: 'center',
+                  color: '#71717a'
+                }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    background: '#262626',
+                    borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#7f1d1d';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#991b1b';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}
-                >
-                  <Download style={{ width: '16px', height: '16px' }} />
-                  Export
-                </button>
-              </div>
-
-              {/* Messages List */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }} className="custom-scrollbar">
-                {messages.map((msg) => (
+                    justifyContent: 'center',
+                    margin: '0 auto 1.5rem',
+                    fontSize: '40px'
+                  }}>
+                    💬
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#e4e4e7', marginBottom: '0.5rem' }}>
+                    No messages found
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#71717a' }}>
+                    {messageSearch || messageUserFilter ? 'Try adjusting your filters' : 'No messages have been sent yet'}
+                  </div>
+                </div>
+              ) : (
+                filteredMessages.map((msg, index) => (
                   <div
-                    key={msg.id}
+                    key={msg.id || index}
                     style={{
-                      marginBottom: '16px',
-                      padding: '16px',
+                      background: '#1a1a1a',
                       borderRadius: '12px',
-                      background: msg.sender === 'user' ? '#1a1a1a' : '#262626',
-                      border: `1px solid ${msg.sender === 'user' ? '#2a2a2a' : '#3a3a3a'}`,
-                      marginLeft: msg.sender === 'user' ? '15%' : '0',
-                      marginRight: msg.sender === 'bot' ? '15%' : '0'
+                      padding: '1.5rem',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#991b1b';
+                      e.currentTarget.style.background = '#1f1f1f';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.background = '#1a1a1a';
                     }}
                   >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginBottom: '10px'
-                    }}>
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        background: msg.sender === 'user' ? '#3a3a3a' : 'linear-gradient(135deg, #991b1b, #7f1d1d)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        color: '#fff'
-                      }}>
-                        {msg.sender === 'user' ? getInitials(selectedUser.name) : 'AI'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          background: msg.sender === 'user' ? 'linear-gradient(135deg, #991b1b, #7f1d1d)' : '#3a3a3a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: '#fff'
+                        }}>
+                          {msg.sender === 'user' ? getInitials(msg.user_name || 'User') : 'AI'}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: '600', color: '#e4e4e7', fontSize: '15px' }}>
+                            {msg.sender === 'user' ? (msg.user_name || 'Unknown User') : 'S21 AI'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                            {msg.user_email || 'N/A'}
+                          </div>
+                        </div>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>
-                        {msg.sender === 'user' ? selectedUser.name : 'S21 AI'}
-                      </span>
-                      <span style={{ fontSize: '12px', color: '#71717a', marginLeft: 'auto' }}>
-                        {new Date(msg.created_at).toLocaleTimeString()}
-                      </span>
+                      <div style={{ fontSize: '0.75rem', color: '#71717a', textAlign: 'right' }}>
+                        <div>{new Date(msg.created_at).toLocaleDateString()}</div>
+                        <div>{new Date(msg.created_at).toLocaleTimeString()}</div>
+                      </div>
                     </div>
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#a1a1aa',
-                      lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap'
-                    }}>
+                    <div style={{ fontSize: '0.9375rem', lineHeight: '1.6', color: '#a1a1aa', whiteSpace: 'pre-wrap' }}>
                       {msg.content}
                     </div>
                     {msg.provider && (
                       <div style={{
-                        marginTop: '10px',
-                        fontSize: '11px',
-                        color: '#71717a',
-                        padding: '4px 8px',
-                        background: '#1a1a1a',
-                        borderRadius: '4px',
-                        display: 'inline-block'
+                        marginTop: '0.75rem',
+                        display: 'inline-block',
+                        padding: '0.25rem 0.75rem',
+                        background: 'rgba(153, 27, 27, 0.2)',
+                        border: '1px solid rgba(153, 27, 27, 0.3)',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        color: '#991b1b',
+                        fontWeight: 600
                       }}>
-                        Provider: {msg.provider}
+                        {msg.provider}
                       </div>
                     )}
                   </div>
-                ))}
-
-                {loading && (
-                  <div style={{ textAlign: 'center', padding: '20px' }}>
-                    <div style={{
-                      display: 'inline-block',
-                      width: '30px',
-                      height: '30px',
-                      border: '3px solid #3a3a3a',
-                      borderTop: '3px solid #991b1b',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              padding: '40px',
-              color: '#71717a'
-            }}>
-              <div style={{
-                width: '80px',
-                height: '80px',
-                background: '#262626',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '20px',
-                fontSize: '36px'
-              }}>
-                💬
-              </div>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
-                Select a conversation to view messages
-              </div>
-              <div style={{ fontSize: '14px', color: '#71717a' }}>
-                Choose a user and conversation from the left panels
-              </div>
+                ))
+              )}
             </div>
-          )}
-        </div>
-        </>
-        )}
 
-        {activeTab === 'emails' && (
-          <div style={{
-            flex: 1,
-            padding: '40px',
-            color: '#e4e4e7',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column'
-          }}>
-            <Mail className="w-16 h-16 mb-4" style={{ color: '#991b1b' }} />
-            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Emails Tab</h2>
-            <p style={{ color: '#71717a' }}>Email management coming soon</p>
-          </div>
-        )}
-
-        {activeTab === 'messages' && (
-          <div style={{
-            flex: 1,
-            padding: '40px',
-            color: '#e4e4e7',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column'
-          }}>
-            <MessageSquare className="w-16 h-16 mb-4" style={{ color: '#991b1b' }} />
-            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Messages View</h2>
-            <p style={{ color: '#71717a' }}>Select a conversation to view messages</p>
+            {/* Message Count */}
+            {filteredMessages.length > 0 && (
+              <div style={{
+                marginTop: '1rem',
+                fontSize: '0.875rem',
+                color: '#71717a',
+                textAlign: 'right'
+              }}>
+                Showing {filteredMessages.length} of {allMessages.length} messages
+              </div>
+            )}
           </div>
         )}
 
