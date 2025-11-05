@@ -1678,6 +1678,9 @@ app.get('/api/admin/analytics/overview', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    // Note: Frontend sends ?range= but we currently return all-time stats
+    // TODO: Add time range filtering if needed in the future
+
     // Get overview stats
     const [
       totalUsers,
@@ -1776,19 +1779,14 @@ app.get('/api/admin/analytics/feature-usage', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { timeRange = 'week' } = req.query;
-    const timeFilter = getTimeRangeFilter(timeRange as string, 'activity_date');
+    // Accept both 'range' and 'timeRange' query params for compatibility
+    const { range, timeRange } = req.query;
+    const selectedRange = (range || timeRange || 'week') as string;
+    const timeFilter = getTimeRangeFilter(selectedRange, 'created_at');
 
     // Query daily activity metrics with joins
     const rawData = await pool.query(`
-      WITH date_series AS (
-        SELECT generate_series(
-          CURRENT_DATE - INTERVAL '30 days',
-          CURRENT_DATE,
-          INTERVAL '1 day'
-        )::date AS activity_date
-      ),
-      chat_counts AS (
+      WITH chat_counts AS (
         SELECT DATE(created_at) AS activity_date, 'chat' AS activity_type, COUNT(*) AS count
         FROM chat_history
         WHERE ${timeFilter}
