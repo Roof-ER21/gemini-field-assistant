@@ -34,6 +34,10 @@ const LivePanel: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  // Double-tap state for stopping Susan
+  const [lastTapTime, setLastTapTime] = useState(0);
+  const [isSusanSpeaking, setIsSusanSpeaking] = useState(false);
+
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -327,8 +331,26 @@ Respond in JSON format:
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
+      // Track when Susan starts and stops speaking
+      utterance.onstart = () => setIsSusanSpeaking(true);
+      utterance.onend = () => setIsSusanSpeaking(false);
+      utterance.onerror = () => setIsSusanSpeaking(false);
+
       speechSynthesisRef.current = utterance;
       speechSynthesis.speak(utterance);
+    }
+  };
+
+  /**
+   * Stop Susan from speaking (interrupt her)
+   */
+  const stopSusan = () => {
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+      setIsSusanSpeaking(false);
+      if ('vibrate' in navigator) {
+        navigator.vibrate([30, 50, 30]); // Double vibration for double-tap feedback
+      }
     }
   };
 
@@ -382,6 +404,30 @@ Respond in JSON format:
     }
     if ('vibrate' in navigator) {
       navigator.vibrate(30);
+    }
+  };
+
+  /**
+   * Handle mic button tap - detects double-tap to stop Susan
+   */
+  const handleMicButtonTap = () => {
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTime;
+
+    // Double-tap detected (within 300ms) and Susan is speaking
+    if (timeSinceLastTap < 300 && isSusanSpeaking) {
+      stopSusan();
+      setLastTapTime(0); // Reset to prevent triple-tap issues
+      return;
+    }
+
+    // Single tap - normal behavior
+    setLastTapTime(now);
+
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startLiveConversation();
     }
   };
 
@@ -631,7 +677,7 @@ Respond in JSON format:
         }}>
           {/* Main Action Button */}
           <button
-            onClick={isRecording ? stopRecording : startLiveConversation}
+            onClick={handleMicButtonTap}
             onTouchStart={(e) => {
               // Haptic feedback on iOS
               if ('vibrate' in navigator) {
@@ -683,7 +729,12 @@ Respond in JSON format:
             color: isRecording ? 'var(--roof-red)' : 'var(--text-secondary)',
             textAlign: 'center'
           }}>
-            {isRecording ? (
+            {isSusanSpeaking ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Volume2 className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                Susan is speaking... (Double-tap to stop)
+              </span>
+            ) : isRecording ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{
                   width: '8px',

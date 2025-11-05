@@ -145,7 +145,7 @@ export function connectLiveConversation(callbacks: {
       inputAudioTranscription: {},
       outputAudioTranscription: {},
       speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }, // UK English female voice
       },
       systemInstruction: 'You are S21, a friendly and helpful AI assistant.',
     },
