@@ -227,11 +227,24 @@ export class DatabaseService {
   async saveChatMessage(message: Partial<ChatMessage>): Promise<void> {
     if (this.useLocalStorage) {
       // Keep using the existing localStorage system
+      console.log('[DB] 📝 Using localStorage - message not sent to backend');
       return;
     }
+
     try {
       const email = this.getAuthEmail();
-      await fetch(`${this.apiBaseUrl}/chat/messages`, {
+      console.log('[DB] 💾 Saving chat message to database:', {
+        message_id: message.message_id,
+        sender: message.sender,
+        content_preview: message.content?.substring(0, 50) + '...',
+        session_id: message.session_id,
+        state: message.state,
+        provider: message.provider,
+        user_email: email,
+        api_url: `${this.apiBaseUrl}/chat/messages`
+      });
+
+      const response = await fetch(`${this.apiBaseUrl}/chat/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,8 +260,17 @@ export class DatabaseService {
           session_id: message.session_id,
         }),
       });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DB] ✅ Message saved successfully:', result);
+      } else {
+        const errorText = await response.text();
+        console.error('[DB] ❌ Failed to save message - HTTP', response.status, ':', errorText);
+      }
     } catch (e) {
-      console.warn('[DB] Failed to save chat message:', (e as Error).message);
+      console.error('[DB] ❌ Failed to save chat message - Exception:', (e as Error).message);
+      console.error('[DB] Stack trace:', (e as Error).stack);
     }
   }
 

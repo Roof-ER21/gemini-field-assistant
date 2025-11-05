@@ -17,7 +17,9 @@
     "admin:list-users:railway": "railway run node scripts/list-users.js",
     "admin:set-admin": "node scripts/set-user-admin.js",
     "admin:set-admin:railway": "railway run node scripts/set-user-admin.js",
-    "test:email": "node scripts/test-email-notifications.js"
+    "test:email": "node scripts/test-email-notifications.js",
+    "test:chat": "tsx scripts/test-chat-save.ts",
+    "test:chat:railway": "railway run tsx scripts/test-chat-save.ts"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",

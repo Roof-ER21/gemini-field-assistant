@@ -26,17 +26,28 @@ class EmailService {
      * Detect which email provider to use based on environment variables
      */
     detectProvider() {
+        console.log('🔍 Detecting email provider...');
+        console.log('   SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY ? '✅ SET' : '❌ NOT SET');
+        console.log('   RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✅ SET' : '❌ NOT SET');
+        console.log('   SMTP_HOST:', process.env.SMTP_HOST ? '✅ SET' : '❌ NOT SET');
         if (process.env.SENDGRID_API_KEY) {
+            console.log('✅ Email provider: SendGrid');
             return 'sendgrid';
         }
         else if (process.env.RESEND_API_KEY) {
+            console.log('✅ Email provider: Resend');
             return 'resend';
         }
         else if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+            console.log('✅ Email provider: Nodemailer');
             return 'nodemailer';
         }
         else {
             console.warn('⚠️  No email provider configured. Emails will be logged to console.');
+            console.warn('⚠️  To enable real email sending:');
+            console.warn('     1. Add RESEND_API_KEY to .env.local');
+            console.warn('     2. Get your API key from https://resend.com/');
+            console.warn('     3. Add EMAIL_ADMIN_ADDRESS to .env.local');
             return 'console';
         }
     }
@@ -341,14 +352,19 @@ Powered by ROOFER - The Roof Docs
                     console.log(`✅ Email sent via SendGrid to ${to}`);
                     return true;
                 case 'resend':
-                    await this.provider.emails.send({
+                    console.log(`📤 Sending email via Resend API...`);
+                    console.log(`   From: ${this.config.from}`);
+                    console.log(`   To: ${to}`);
+                    console.log(`   Subject: ${template.subject}`);
+                    const resendResult = await this.provider.emails.send({
                         from: this.config.from,
                         to: [to],
                         subject: template.subject,
                         html: template.html,
                         text: template.text,
                     });
-                    console.log(`✅ Email sent via Resend to ${to}`);
+                    console.log(`✅ Email sent via Resend successfully!`);
+                    console.log(`   Resend Response:`, JSON.stringify(resendResult, null, 2));
                     return true;
                 case 'nodemailer':
                     await this.provider.sendMail({

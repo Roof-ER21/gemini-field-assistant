@@ -187,17 +187,22 @@ app.post('/api/users', async (req, res) => {
     );
 
     if (existing.rows.length > 0) {
-      // User already exists, update first_login_at if not set
+      // User already exists
       const user = existing.rows[0];
-      if (!user.first_login_at) {
+      const isFirstLogin = !user.first_login_at;
+
+      // Update first_login_at if this is their first login
+      if (isFirstLogin) {
         await pool.query(
           'UPDATE users SET first_login_at = NOW() WHERE id = $1',
           [user.id]
         );
+        console.log(`🎉 First login detected for existing user: ${user.email}`);
       }
+
       return res.json({
         ...user,
-        isNew: false
+        isNew: isFirstLogin  // TRUE if first login, FALSE if not
       });
     }
 
@@ -254,23 +259,51 @@ app.post('/api/chat/messages', async (req, res) => {
   try {
     const { message_id, sender, content, state, provider, sources, session_id } = req.body;
     const email = getRequestEmail(req);
+
+    console.log('[API] 💾 Saving chat message:', {
+      message_id,
+      sender,
+      content_length: content?.length,
+      session_id,
+      state,
+      provider,
+      user_email: email,
+      has_sources: !!sources
+    });
+
     const userId = await getOrCreateUserIdByEmail(email);
 
     if (!userId) {
+      console.error('[API] ❌ User not found for email:', email);
       return res.status(401).json({ error: 'User not found' });
     }
+
+    console.log('[API] ✓ User ID resolved:', userId);
 
     const result = await pool.query(
       `INSERT INTO chat_history
        (user_id, message_id, sender, content, state, provider, sources, session_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [userId, message_id, sender, content, state, provider, JSON.stringify(sources), session_id]
+      [userId, message_id, sender, content, state, provider, sources ? JSON.stringify(sources) : null, session_id]
     );
+
+    console.log('[API] ✅ Message saved to database:', {
+      id: result.rows[0].id,
+      message_id: result.rows[0].message_id,
+      sender: result.rows[0].sender,
+      session_id: result.rows[0].session_id
+    });
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error saving chat message:', error);
+    console.error('[API] ❌ Error saving chat message:', error);
+    console.error('[API] Error details:', {
+      name: (error as any).name,
+      message: (error as Error).message,
+      code: (error as any).code,
+      detail: (error as any).detail
+    });
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -1074,9 +1107,20 @@ app.get('/api/admin/conversations', async (req, res) => {
   try {
     const { userId } = req.query;
 
+    console.log('[ADMIN] 📊 Fetching conversations for user:', userId);
+
     if (!userId) {
+      console.error('[ADMIN] ❌ userId is required');
       return res.status(400).json({ error: 'userId is required' });
     }
+
+    // First, check if user exists and has messages
+    const userCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM chat_history WHERE user_id = $1',
+      [userId]
+    );
+
+    console.log('[ADMIN] 📈 Total messages for user:', userCheck.rows[0].count);
 
     const result = await pool.query(`
       SELECT
@@ -1097,9 +1141,11 @@ app.get('/api/admin/conversations', async (req, res) => {
       ORDER BY last_message_at DESC
     `, [userId]);
 
+    console.log('[ADMIN] ✅ Found', result.rows.length, 'conversations for user');
+
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching conversations:', error);
+    console.error('[ADMIN] ❌ Error fetching conversations:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

@@ -310,24 +310,34 @@ Powered by ROOFER - The Roof Docs
      * Send email via the existing email service
      */
     async sendEmailViaService(to, subject, html, text) {
-        // Direct call to emailService with custom template
-        const config = emailService.getConfig();
-        // Log to console in dev mode
-        if (config.provider === 'console') {
+        try {
+            // Get the email service config to check provider
+            const config = emailService.getConfig();
+            console.log(`📧 Attempting to send daily summary email to ${to} via ${config.provider}`);
+            // Use reflection to access the private sendEmail method
+            // We'll call it using a custom template
+            const template = { subject, html, text };
+            // Access the private sendEmail method through the emailService instance
+            // Since TypeScript prevents direct access, we'll use a type assertion
+            const emailServiceAny = emailService;
+            const result = await emailServiceAny.sendEmail(to, template);
+            console.log(`✅ Daily summary email ${result ? 'sent successfully' : 'failed'} to ${to}`);
+            return result;
+        }
+        catch (error) {
+            console.error('❌ Error in sendEmailViaService:', error);
+            // Log to console as fallback
             console.log('\n' + '='.repeat(80));
-            console.log('📧 DAILY SUMMARY EMAIL (CONSOLE MODE)');
+            console.log('📧 DAILY SUMMARY EMAIL (FALLBACK - ERROR OCCURRED)');
             console.log('='.repeat(80));
             console.log(`To: ${to}`);
             console.log(`Subject: ${subject}`);
+            console.log(`Error: ${error.message}`);
             console.log('-'.repeat(80));
             console.log(text);
             console.log('='.repeat(80) + '\n');
-            return true;
+            return false;
         }
-        // In production, use the actual email service
-        // For now, just log - in Phase 2 we'll integrate with real email provider
-        console.log(`📧 Would send daily summary email to ${to}: ${subject}`);
-        return true;
     }
     /**
      * Send daily summaries to all active users
