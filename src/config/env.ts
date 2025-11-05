@@ -26,6 +26,10 @@ export const env = {
   RAG_ENABLED: getEnvVar('RAG_ENABLED') === 'true',
   RAG_TOP_K: parseInt(getEnvVar('RAG_TOP_K') || '5'),
 
+  // Transcription Limits (cost control)
+  TRANSCRIPTION_MAX_DURATION: parseInt(getEnvVar('TRANSCRIPTION_MAX_DURATION') || '180'), // 3 minutes default
+  TRANSCRIPTION_WARNING_THRESHOLD: parseInt(getEnvVar('TRANSCRIPTION_WARNING_THRESHOLD') || '150'), // 2:30 warning
+
   // Environment
   IS_PRODUCTION: getEnvVar('RAILWAY_ENVIRONMENT') === 'production' || import.meta.env.PROD,
   IS_DEVELOPMENT: !import.meta.env.PROD,
