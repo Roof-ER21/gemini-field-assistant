@@ -1137,6 +1137,47 @@ UPDATE users SET login_count = 0 WHERE login_count IS NULL;
   }
 });
 
+// Run Migration 004: Fix RAG Analytics and Insurance Companies (admin only)
+app.post('/api/admin/run-migration-004', async (req, res) => {
+  try {
+    console.log('🔧 Running Migration 004: RAG Analytics and Insurance Companies...');
+
+    const fs = await import('fs/promises');
+    const migrationPath = path.resolve(__dirname, '../../database/migrations/004_fix_rag_and_insurance.sql');
+    const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
+
+    // Execute the migration
+    await pool.query(migrationSQL);
+
+    console.log('✅ Migration 004 completed successfully');
+
+    // Verify tables were created
+    const verify = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('rag_analytics', 'insurance_companies')
+      ORDER BY table_name
+    `);
+
+    const insuranceCount = await pool.query('SELECT COUNT(*) FROM insurance_companies');
+
+    res.json({
+      success: true,
+      message: 'Migration 004 completed successfully',
+      tables_created: verify.rows.map(r => r.table_name),
+      insurance_companies_seeded: parseInt(insuranceCount.rows[0].count)
+    });
+  } catch (error) {
+    console.error('❌ Migration 004 failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Migration failed',
+      message: (error as Error).message
+    });
+  }
+});
+
 // Fix session_id column type (admin only)
 app.post('/api/admin/fix-session-id', async (req, res) => {
   try {
