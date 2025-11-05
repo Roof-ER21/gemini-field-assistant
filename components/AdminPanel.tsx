@@ -142,10 +142,15 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      let resp = await fetch('/api/admin/users');
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      let resp = await fetch('/api/admin/users', { headers });
       if (!resp.ok) {
         // Fallback to basic endpoint if legacy schema causes failure
-        resp = await fetch('/api/admin/users-basic');
+        resp = await fetch('/api/admin/users-basic', { headers });
       }
       if (!resp.ok) throw new Error('Failed to fetch users');
       const data = await resp.json();
@@ -162,7 +167,12 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/conversations?userId=${userId}`);
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch(`/api/admin/conversations?userId=${userId}`, { headers });
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
@@ -180,7 +190,12 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/conversations/${sessionId}?userId=${userId}`);
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch(`/api/admin/conversations/${sessionId}?userId=${userId}`, { headers });
       if (!response.ok) {
         throw new Error('Failed to fetch messages');
       }
@@ -197,8 +212,13 @@ const AdminPanel: React.FC = () => {
   const fetchEmails = async () => {
     setEmailsLoading(true);
     try {
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
       // Try to fetch from API endpoint first
-      const response = await fetch('/api/admin/emails');
+      const response = await fetch('/api/admin/emails', { headers });
       if (response.ok) {
         const data = await response.json();
         setEmails(data);
@@ -222,8 +242,13 @@ const AdminPanel: React.FC = () => {
   const fetchAllMessages = async () => {
     setMessagesLoading(true);
     try {
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
       // Try to fetch from API endpoint first
-      const response = await fetch('/api/admin/all-messages');
+      const response = await fetch('/api/admin/all-messages', { headers });
       if (response.ok) {
         const data = await response.json();
         setAllMessages(data);

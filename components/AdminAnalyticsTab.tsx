@@ -253,7 +253,16 @@ const AdminAnalyticsTab: React.FC = () => {
       setLoading(prev => ({ ...prev, overview: true }));
       setError(prev => ({ ...prev, overview: null }));
 
-      const response = await fetch(`/api/admin/analytics/overview?range=${timeRange}`, { signal });
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/analytics/overview?range=${timeRange}`, {
+        signal,
+        headers: {
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        }
+      });
 
       if (response.status === 403 || response.status === 401) {
         throw new Error('You do not have permission to view analytics');
@@ -297,7 +306,16 @@ const AdminAnalyticsTab: React.FC = () => {
       setLoading(prev => ({ ...prev, userActivity: true }));
       setError(prev => ({ ...prev, userActivity: null }));
 
-      const response = await fetch(`/api/admin/analytics/user-activity?range=${timeRange}`, { signal });
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/analytics/user-activity?range=${timeRange}`, {
+        signal,
+        headers: {
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        }
+      });
 
       if (response.status === 403 || response.status === 401) {
         throw new Error('You do not have permission to view analytics');
@@ -357,7 +375,16 @@ const AdminAnalyticsTab: React.FC = () => {
       setLoading(prev => ({ ...prev, featureUsage: true }));
       setError(prev => ({ ...prev, featureUsage: null }));
 
-      const response = await fetch(`/api/admin/analytics/feature-usage?range=${timeRange}`, { signal });
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/analytics/feature-usage?range=${timeRange}`, {
+        signal,
+        headers: {
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        }
+      });
 
       if (response.status === 403 || response.status === 401) {
         throw new Error('You do not have permission to view analytics');
@@ -408,7 +435,16 @@ const AdminAnalyticsTab: React.FC = () => {
       setLoading(prev => ({ ...prev, knowledgeBase: true }));
       setError(prev => ({ ...prev, knowledgeBase: null }));
 
-      const response = await fetch(`/api/admin/analytics/knowledge-base?range=${timeRange}`, { signal });
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/analytics/knowledge-base?range=${timeRange}`, {
+        signal,
+        headers: {
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        }
+      });
 
       if (response.status === 403 || response.status === 401) {
         throw new Error('You do not have permission to view analytics');
@@ -465,7 +501,16 @@ const AdminAnalyticsTab: React.FC = () => {
       setLoading(prev => ({ ...prev, concerningChats: true }));
       setError(prev => ({ ...prev, concerningChats: null }));
 
-      const response = await fetch(`/api/admin/concerning-chats?severity=${severityFilter}`, { signal });
+      // Get user email from localStorage for authentication
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/concerning-chats?severity=${severityFilter}`, {
+        signal,
+        headers: {
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        }
+      });
 
       if (response.status === 403 || response.status === 401) {
         throw new Error('You do not have permission to view analytics');
