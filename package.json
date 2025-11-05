@@ -20,7 +20,9 @@
     "admin:set-admin:railway": "railway run node scripts/set-user-admin.js",
     "test:email": "node scripts/test-email-notifications.js",
     "test:chat": "tsx scripts/test-chat-save.ts",
-    "test:chat:railway": "railway run tsx scripts/test-chat-save.ts"
+    "test:chat:railway": "railway run tsx scripts/test-chat-save.ts",
+    "db:migrate": "node run-migrations.js",
+    "db:migrate:railway": "railway run node run-migrations.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
