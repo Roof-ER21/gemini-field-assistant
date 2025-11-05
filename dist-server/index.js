@@ -228,7 +228,7 @@ app.post('/api/chat/messages', async (req, res) => {
         console.log('[API] ✓ User ID resolved:', userId);
         const result = await pool.query(`INSERT INTO chat_history
        (user_id, message_id, sender, content, state, provider, sources, session_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`, [userId, message_id, sender, content, state, provider, sources ? JSON.stringify(sources) : null, session_id]);
         console.log('[API] ✅ Message saved to database:', {
             id: result.rows[0].id,
@@ -910,6 +910,37 @@ UPDATE users SET login_count = 0 WHERE login_count IS NULL;
         res.status(500).json({
             success: false,
             error: 'Migration failed',
+            message: error.message
+        });
+    }
+});
+// Fix session_id column type (admin only)
+app.post('/api/admin/fix-session-id', async (req, res) => {
+    try {
+        console.log('🔧 Fixing session_id column type...');
+        // Change session_id from UUID to TEXT
+        await pool.query(`
+      ALTER TABLE chat_history
+      ALTER COLUMN session_id TYPE TEXT USING session_id::TEXT
+    `);
+        console.log('✅ session_id column changed to TEXT');
+        // Verify the change
+        const verify = await pool.query(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'chat_history' AND column_name = 'session_id'
+    `);
+        res.json({
+            success: true,
+            message: 'session_id column type fixed successfully',
+            new_type: verify.rows[0]?.data_type
+        });
+    }
+    catch (error) {
+        console.error('❌ Fix failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Fix failed',
             message: error.message
         });
     }
