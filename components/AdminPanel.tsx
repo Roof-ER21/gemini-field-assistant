@@ -13,7 +13,11 @@ import {
   RefreshCw,
   BarChart3,
   Eye,
-  DollarSign
+  DollarSign,
+  Database,
+  CheckCircle,
+  XCircle,
+  Loader
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
@@ -87,6 +91,13 @@ interface AllMessagesItem {
 
 type QuickFilter = 'today' | 'week' | 'month' | 'all';
 
+interface MigrationStatus {
+  migration005: 'not_run' | 'running' | 'success' | 'error';
+  migration006: 'not_run' | 'running' | 'success' | 'error';
+  message005: string;
+  message006: string;
+}
+
 const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -96,6 +107,14 @@ const AdminPanel: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Migration state
+  const [migrationStatus, setMigrationStatus] = useState<MigrationStatus>({
+    migration005: 'not_run',
+    migration006: 'not_run',
+    message005: '',
+    message006: ''
+  });
 
   // New state for emails and all messages
   const [emails, setEmails] = useState<EmailLog[]>([]);
@@ -458,6 +477,75 @@ const AdminPanel: React.FC = () => {
     return lastActiveDate > fiveMinutesAgo;
   };
 
+  // Migration handlers
+  const handleRunMigration005 = async () => {
+    setMigrationStatus(prev => ({ ...prev, migration005: 'running', message005: 'Running migration...' }));
+
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/run-migration-005', {
+        method: 'POST',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Migration failed');
+      }
+
+      const result = await response.json();
+      setMigrationStatus(prev => ({
+        ...prev,
+        migration005: 'success',
+        message005: result.message || 'Migration 005 completed successfully!'
+      }));
+    } catch (err) {
+      console.error('Migration 005 error:', err);
+      setMigrationStatus(prev => ({
+        ...prev,
+        migration005: 'error',
+        message005: (err as Error).message || 'Migration failed'
+      }));
+    }
+  };
+
+  const handleRunMigration006 = async () => {
+    setMigrationStatus(prev => ({ ...prev, migration006: 'running', message006: 'Running migration...' }));
+
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/run-migration-006', {
+        method: 'POST',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Migration failed');
+      }
+
+      const result = await response.json();
+      setMigrationStatus(prev => ({
+        ...prev,
+        migration006: 'success',
+        message006: result.message || 'Migration 006 completed successfully!'
+      }));
+    } catch (err) {
+      console.error('Migration 006 error:', err);
+      setMigrationStatus(prev => ({
+        ...prev,
+        migration006: 'error',
+        message006: (err as Error).message || 'Migration failed'
+      }));
+    }
+  };
+
 
   // Access denied for non-admin users
   if (!isAdmin) {
@@ -507,6 +595,188 @@ const AdminPanel: React.FC = () => {
       overflow: 'auto',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
     }}>
+      {/* Database Migrations Section */}
+      <div style={{
+        background: '#1a1a1a',
+        borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
+        padding: '1.5rem 2rem'
+      }}>
+        <div style={{
+          maxWidth: '1600px',
+          margin: '0 auto'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginBottom: '1rem'
+          }}>
+            <Database style={{ width: '20px', height: '20px', color: '#991b1b' }} />
+            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#e4e4e7', margin: 0 }}>
+              Database Migrations
+            </h3>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {/* Migration 005 Button */}
+            <div style={{ flex: '1', minWidth: '300px' }}>
+              <button
+                onClick={handleRunMigration005}
+                disabled={migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1.25rem',
+                  background: migrationStatus.migration005 === 'success'
+                    ? '#166534'
+                    : migrationStatus.migration005 === 'error'
+                    ? '#991b1b'
+                    : migrationStatus.migration005 === 'running'
+                    ? '#3a3a3a'
+                    : '#991b1b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  cursor: migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'
+                    ? 'not-allowed'
+                    : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s ease',
+                  opacity: migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'
+                    ? 0.6
+                    : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
+                    e.currentTarget.style.background = '#7f1d1d';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
+                    e.currentTarget.style.background = '#991b1b';
+                  }
+                }}
+              >
+                {migrationStatus.migration005 === 'running' && (
+                  <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                )}
+                {migrationStatus.migration005 === 'success' && (
+                  <CheckCircle style={{ width: '16px', height: '16px' }} />
+                )}
+                {migrationStatus.migration005 === 'error' && (
+                  <XCircle style={{ width: '16px', height: '16px' }} />
+                )}
+                {migrationStatus.migration005 === 'not_run' && (
+                  <Database style={{ width: '16px', height: '16px' }} />
+                )}
+                Run Migration 005 (Budget System)
+              </button>
+              {migrationStatus.message005 && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '0.5rem 0.75rem',
+                  background: migrationStatus.migration005 === 'success'
+                    ? 'rgba(22, 101, 52, 0.2)'
+                    : migrationStatus.migration005 === 'error'
+                    ? 'rgba(153, 27, 27, 0.2)'
+                    : 'rgba(58, 58, 58, 0.2)',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: migrationStatus.migration005 === 'success'
+                    ? '#86efac'
+                    : migrationStatus.migration005 === 'error'
+                    ? '#fca5a5'
+                    : '#a1a1aa'
+                }}>
+                  {migrationStatus.message005}
+                </div>
+              )}
+            </div>
+
+            {/* Migration 006 Button */}
+            <div style={{ flex: '1', minWidth: '300px' }}>
+              <button
+                onClick={handleRunMigration006}
+                disabled={migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1.25rem',
+                  background: migrationStatus.migration006 === 'success'
+                    ? '#166534'
+                    : migrationStatus.migration006 === 'error'
+                    ? '#991b1b'
+                    : migrationStatus.migration006 === 'running'
+                    ? '#3a3a3a'
+                    : '#991b1b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  cursor: migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'
+                    ? 'not-allowed'
+                    : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s ease',
+                  opacity: migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'
+                    ? 0.6
+                    : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
+                    e.currentTarget.style.background = '#7f1d1d';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
+                    e.currentTarget.style.background = '#991b1b';
+                  }
+                }}
+              >
+                {migrationStatus.migration006 === 'running' && (
+                  <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                )}
+                {migrationStatus.migration006 === 'success' && (
+                  <CheckCircle style={{ width: '16px', height: '16px' }} />
+                )}
+                {migrationStatus.migration006 === 'error' && (
+                  <XCircle style={{ width: '16px', height: '16px' }} />
+                )}
+                {migrationStatus.migration006 === 'not_run' && (
+                  <Database style={{ width: '16px', height: '16px' }} />
+                )}
+                Run Migration 006 (Fix Database Errors)
+              </button>
+              {migrationStatus.message006 && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '0.5rem 0.75rem',
+                  background: migrationStatus.migration006 === 'success'
+                    ? 'rgba(22, 101, 52, 0.2)'
+                    : migrationStatus.migration006 === 'error'
+                    ? 'rgba(153, 27, 27, 0.2)'
+                    : 'rgba(58, 58, 58, 0.2)',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: migrationStatus.migration006 === 'success'
+                    ? '#86efac'
+                    : migrationStatus.migration006 === 'error'
+                    ? '#fca5a5'
+                    : '#a1a1aa'
+                }}>
+                  {migrationStatus.message006}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tab Navigation */}
       <div style={{
         background: '#1a1a1a',

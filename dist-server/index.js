@@ -1967,6 +1967,53 @@ app.post('/api/admin/run-migration-005', async (req, res) => {
         });
     }
 });
+// Migration 006: Fix Production Issues
+app.post('/api/admin/run-migration-006', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const isAdminUser = await isAdmin(email);
+        if (!isAdminUser) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        console.log('🔧 Running Migration 006: Fix Production Issues...');
+        const fs = await import('fs/promises');
+        const migrationPath = path.resolve(__dirname, '../../database/migrations/006_fix_production_issues.sql');
+        const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
+        // Execute the migration
+        await pool.query(migrationSQL);
+        console.log('✅ Migration 006 completed successfully');
+        // Verify rag_documents constraint was fixed
+        const constraintCheck = await pool.query(`
+      SELECT conname AS constraint_name, pg_get_constraintdef(c.oid) AS constraint_definition
+      FROM pg_constraint c
+      JOIN pg_class t ON c.conrelid = t.oid
+      WHERE t.relname = 'rag_documents'
+      AND conname = 'rag_documents_type_check'
+    `);
+        // Verify rag_analytics columns exist
+        const columnsCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = 'rag_analytics'
+      ORDER BY ordinal_position
+    `);
+        res.json({
+            success: true,
+            message: 'Migration 006 completed successfully - Fixed rag_documents constraint and rag_analytics schema',
+            rag_documents_constraint_fixed: constraintCheck.rows.length > 0,
+            rag_analytics_columns: columnsCheck.rows.map(r => r.column_name)
+        });
+    }
+    catch (error) {
+        console.error('❌ Migration 006 failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Migration failed',
+            message: error.message
+        });
+    }
+});
 // 2. Get budget overview stats (admin only)
 app.get('/api/admin/budget/overview', async (req, res) => {
     try {
