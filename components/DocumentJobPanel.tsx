@@ -16,24 +16,41 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({ onClose }) => {
     }
 
     try {
-      // Get existing transcriptions from localStorage
-      const existing = localStorage.getItem('transcriptions');
-      const transcriptions = existing ? JSON.parse(existing) : [];
+      // Get existing transcripts from localStorage (using correct key)
+      const existing = localStorage.getItem('meeting_transcripts');
+      const transcripts = existing ? JSON.parse(existing) : [];
 
-      // Create new transcription entry
-      const newTranscription = {
+      // Create new transcript entry matching MeetingTranscript interface
+      const newTranscript = {
         id: Date.now().toString(),
-        text: noteText.trim(),
-        timestamp: new Date().toISOString(),
-        type: 'note', // Mark as manual note (not voice transcription)
-        title: `Job Note - ${new Date().toLocaleString()}`
+        timestamp: new Date(),
+        duration: 0, // Manual note has no duration
+        title: `Job Note - ${new Date().toLocaleString()}`,
+        segments: [{
+          timestamp: 0,
+          text: noteText.trim(),
+          speaker: 'rep'
+        }],
+        fullTranscript: noteText.trim(),
+        analysis: {
+          summary: 'Manual job note - no AI analysis',
+          actionItems: [],
+          objections: [],
+          keyPoints: [],
+          customerSentiment: 'neutral' as const,
+          followUpNeeded: false,
+          nextSteps: []
+        },
+        metadata: {
+          meetingType: 'other' as const
+        }
       };
 
       // Add to beginning of array (most recent first)
-      transcriptions.unshift(newTranscription);
+      transcripts.unshift(newTranscript);
 
-      // Save back to localStorage
-      localStorage.setItem('transcriptions', JSON.stringify(transcriptions));
+      // Save back to localStorage with correct key
+      localStorage.setItem('meeting_transcripts', JSON.stringify(transcripts));
 
       // Show success feedback
       setSaveSuccess(true);
