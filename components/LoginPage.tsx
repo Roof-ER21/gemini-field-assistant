@@ -1,7 +1,7 @@
 /**
- * Login Page Component
+ * Login Page Component - Compact & Clean Design
  * Simple email-based authentication for S21 Field AI
- * Mobile-first design with Roof-ER branding
+ * Mobile-first, minimal interface showing off branded background
  */
 
 import React, { useState } from 'react';
@@ -99,7 +99,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         overflow: 'hidden'
       }}
     >
-      {/* Full Logo Background */}
+      {/* Branded Background - Wood texture with ROOFER text */}
       <div style={{
         position: 'absolute',
         top: '0',
@@ -107,406 +107,487 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         width: '100%',
         height: '100%',
         backgroundImage: 'url(/roofer-logo-full.png)',
-        backgroundSize: 'contain',
+        backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        opacity: '0.15',
-        pointerEvents: 'none',
-        filter: 'blur(1px)'
+        opacity: '0.12',
+        pointerEvents: 'none'
       }} />
 
-      {/* Gradient overlay for better text readability */}
+      {/* Gradient overlay for better contrast */}
       <div style={{
         position: 'absolute',
         top: '0',
         left: '0',
         width: '100%',
         height: '100%',
-        background: 'radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.7) 100%)',
+        background: 'radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.75) 100%)',
         pointerEvents: 'none'
       }} />
 
-      <div className="w-full max-w-2xl px-6" style={{ position: 'relative', zIndex: 1 }}>
-        {/* Logo and Title */}
-        <div className="text-center mb-12">
-          {/* Full ROOFER Logo Image */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            marginBottom: '32px'
-          }}>
-            <img
-              src="/roofer-logo-full.png"
-              alt="ROOFER - The Roof Docs"
-              style={{
-                width: '360px',
-                height: 'auto',
-                filter: 'drop-shadow(0 12px 32px rgba(239, 68, 68, 0.5))'
-              }}
-            />
-          </div>
-
-          <h1
-            className="text-4xl font-bold mb-2"
+      {/* Compact Centered Login Card */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          width: '100%',
+          maxWidth: '340px',
+          background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.96) 0%, rgba(15, 20, 25, 0.96) 100%)',
+          borderRadius: '12px',
+          border: '1px solid rgba(239, 68, 68, 0.25)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(239, 68, 68, 0.15)',
+          backdropFilter: 'blur(20px)',
+          padding: '28px'
+        }}
+      >
+        {/* Logo - Clean app icon (black rounded square with Roof ER branding) */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '16px'
+        }}>
+          <img
+            src="/roofer-logo-icon.png"
+            alt="S21 ROOFER"
             style={{
-              color: '#ffffff',
-              letterSpacing: '-0.02em',
-              textShadow: '0 2px 8px rgba(0, 0, 0, 0.8)'
+              width: '85px',
+              height: '85px',
+              borderRadius: '8px',
+              filter: 'drop-shadow(0 4px 16px rgba(239, 68, 68, 0.35))'
             }}
-          >
-            S21 ROOFER
-          </h1>
-          <p style={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '16px',
-            fontWeight: 500,
-            textShadow: '0 1px 4px rgba(0, 0, 0, 0.8)'
-          }}>
-            Your intelligent field assistant
-          </p>
+          />
         </div>
 
-        {/* Login Card */}
-        <div
-          className="shadow-lg"
+        {/* Title - Reduced size */}
+        <h1
+          className="text-center font-bold"
           style={{
-            background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.95) 0%, rgba(15, 20, 25, 0.95) 100%)',
-            borderRadius: '24px',
-            border: '2px solid rgba(239, 68, 68, 0.3)',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.2)',
-            backdropFilter: 'blur(20px)',
-            padding: '48px 40px'
+            color: '#ffffff',
+            fontSize: '1.625rem',
+            letterSpacing: '-0.03em',
+            marginBottom: '8px',
+            textShadow: '0 2px 10px rgba(0, 0, 0, 0.9)'
           }}
         >
-          {step === 'email' ? (
-            // Step 1: Email Input
-            <form onSubmit={handleEmailSubmit}>
-              <div className="mb-5">
-                <label
-                  htmlFor="email"
-                  className="block mb-2 text-sm font-semibold"
-                  style={{
-                    color: 'rgba(255, 255, 255, 0.9)',
-                    letterSpacing: '-0.01em'
-                  }}
-                >
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@roofer.com"
-                  required
-                  autoFocus
-                  className="w-full px-4 py-3 text-base"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    minHeight: '50px',
-                    transition: 'all 0.2s',
-                    outline: 'none'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
+          S21 ROOFER
+        </h1>
 
-              {error && (
-                <div
-                  className="mb-4 p-3 rounded-lg text-sm"
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid var(--error)',
-                    color: 'var(--error)'
-                  }}
-                >
-                  {error}
-                </div>
-              )}
+        {/* Subtitle - Smaller, lighter */}
+        <p
+          className="text-center"
+          style={{
+            color: 'rgba(255, 255, 255, 0.65)',
+            fontSize: '0.875rem',
+            fontWeight: 400,
+            marginBottom: '20px',
+            textShadow: '0 1px 6px rgba(0, 0, 0, 0.9)'
+          }}
+        >
+          Your intelligent field assistant
+        </p>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 font-semibold text-base transition-all"
+        {/* Login Forms */}
+        {step === 'email' ? (
+          // Step 1: Email Input
+          <form onSubmit={handleEmailSubmit}>
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold"
                 style={{
-                  background: loading ? 'rgba(239, 68, 68, 0.6)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '12px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  minHeight: '50px',
-                  opacity: loading ? 0.7 : 1,
-                  boxShadow: loading ? 'none' : '0 4px 12px rgba(239, 68, 68, 0.4)',
-                  transform: loading ? 'scale(0.98)' : 'scale(1)'
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) e.currentTarget.style.transform = 'scale(1.01)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) e.currentTarget.style.transform = 'scale(1)';
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  marginBottom: '8px'
                 }}
               >
-                {loading ? 'Sending Code...' : 'Continue'}
+                Email Address
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@roofer.com"
+                required
+                autoFocus
+                className="w-full px-4"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  height: '48px',
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.12)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {error && (
+              <div
+                className="text-sm"
+                style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ff6b6b'
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full font-semibold transition-all"
+              style={{
+                background: loading ? 'rgba(239, 68, 68, 0.65)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                height: '48px',
+                fontSize: '0.9375rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.75 : 1,
+                boxShadow: loading ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.45)',
+                transform: loading ? 'scale(0.98)' : 'scale(1)',
+                marginBottom: '12px'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) e.currentTarget.style.transform = 'scale(1.015)';
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              {loading ? 'Sending Code...' : 'Continue'}
+            </button>
+
+            {/* Dev Login Toggle */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowDevLogin(!showDevLogin)}
+                style={{
+                  color: 'rgba(255, 255, 255, 0.45)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: '0.75rem',
+                  padding: '4px'
+                }}
+              >
+                {showDevLogin ? 'Hide' : 'Show'} Quick Login (Dev)
               </button>
+            </div>
 
-              {/* Dev Login Toggle */}
-              <div className="mt-6 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowDevLogin(!showDevLogin)}
-                  className="text-sm"
-                  style={{
-                    color: 'var(--text-tertiary)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  {showDevLogin ? 'Hide' : 'Show'} Quick Login (Dev)
-                </button>
-              </div>
-
-              {showDevLogin && (
-                <div className="mt-4">
-                  <div className="mb-3">
-                    <label
-                      htmlFor="dev-name"
-                      className="block mb-2 text-sm"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      Your Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      id="dev-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="John Smith"
-                      className="w-full px-4 py-3 rounded-lg text-base"
-                      style={{
-                        background: 'var(--bg-hover)',
-                        border: '2px solid var(--border-default)',
-                        color: 'var(--text-primary)',
-                        minHeight: '50px'
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleQuickLogin}
-                    disabled={loading}
-                    className="w-full py-3 rounded-lg font-semibold text-base transition-all"
+            {showDevLogin && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label
+                    htmlFor="dev-name"
+                    className="block text-sm"
                     style={{
-                      background: 'var(--bg-hover)',
-                      color: 'var(--text-primary)',
-                      border: '2px solid var(--roof-red)',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      minHeight: '50px'
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      marginBottom: '6px'
                     }}
                   >
-                    Quick Login (Skip Code)
-                  </button>
-                </div>
-              )}
-            </form>
-          ) : (
-            // Step 2: Code Verification
-            <form onSubmit={handleCodeSubmit}>
-              <div className="mb-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep('email');
-                    setCode('');
-                    setError('');
-                  }}
-                  className="mb-4 text-sm flex items-center"
-                  style={{
-                    color: 'var(--text-tertiary)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ← Back
-                </button>
-
-                <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
-                  We sent a verification code to:
-                </p>
-                <p
-                  className="mb-6 font-semibold"
-                  style={{ color: 'var(--roof-red)' }}
-                >
-                  {email}
-                </p>
-
-                {generatedCode && (
-                  <div
-                    className="mb-4 p-4 rounded-lg text-center"
-                    style={{
-                      background: 'rgba(196, 30, 58, 0.1)',
-                      border: '1px solid var(--roof-red)'
-                    }}
-                  >
-                    <p className="text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
-                      MVP Test Code (check console):
-                    </p>
-                    <p
-                      className="text-2xl font-bold"
-                      style={{ color: 'var(--roof-red)' }}
-                    >
-                      {generatedCode}
-                    </p>
-                  </div>
-                )}
-
-                <label
-                  htmlFor="code"
-                  className="block mb-2 text-sm font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Verification Code
-                </label>
-                <input
-                  type="text"
-                  id="code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="123456"
-                  required
-                  autoFocus
-                  maxLength={6}
-                  className="w-full px-4 py-3 rounded-lg text-base text-center text-2xl tracking-widest font-bold"
-                  style={{
-                    background: 'var(--bg-hover)',
-                    border: '2px solid var(--border-default)',
-                    color: 'var(--text-primary)',
-                    minHeight: '60px'
-                  }}
-                />
-              </div>
-
-              <div className="mb-6">
-                <label
-                  htmlFor="name"
-                  className="block mb-2 text-sm font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Your Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Smith"
-                  className="w-full px-4 py-3 rounded-lg text-base"
-                  style={{
-                    background: 'var(--bg-hover)',
-                    border: '2px solid var(--border-default)',
-                    color: 'var(--text-primary)',
-                    minHeight: '50px'
-                  }}
-                />
-              </div>
-
-              {/* Remember Me Checkbox */}
-              <div className="mb-6">
-                <label
-                  className="flex items-center cursor-pointer"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
+                    Your Name (Optional)
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="mr-3"
+                    type="text"
+                    id="dev-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="John Smith"
+                    className="w-full px-4"
                     style={{
-                      width: '20px',
-                      height: '20px',
-                      accentColor: 'var(--roof-red)',
-                      cursor: 'pointer'
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      height: '44px',
+                      fontSize: '0.9375rem'
                     }}
                   />
-                  <span className="text-sm font-semibold">
-                    Remember me on this device
-                  </span>
-                </label>
-                <p className="text-xs mt-2 ml-8" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                  {rememberMe
-                    ? 'Stay logged in for 1 year'
-                    : 'You will need to login again when you close the browser'}
-                </p>
-              </div>
-
-              {error && (
-                <div
-                  className="mb-4 p-3 rounded-lg text-sm"
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid var(--error)',
-                    color: 'var(--error)'
-                  }}
-                >
-                  {error}
                 </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-lg font-semibold text-base transition-all"
-                style={{
-                  background: loading ? 'var(--roof-red-darker)' : 'var(--roof-red)',
-                  color: 'var(--text-primary)',
-                  border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  minHeight: '50px',
-                  opacity: loading ? 0.7 : 1
-                }}
-              >
-                {loading ? 'Verifying...' : 'Login'}
-              </button>
-
-              <div className="mt-4 text-center">
                 <button
                   type="button"
-                  onClick={handleEmailSubmit}
-                  className="text-sm"
+                  onClick={handleQuickLogin}
+                  disabled={loading}
+                  className="w-full font-semibold transition-all"
                   style={{
-                    color: 'var(--text-tertiary)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '8px',
+                    height: '44px',
+                    fontSize: '0.875rem',
+                    cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  Resend Code
+                  Quick Login (Skip Code)
                 </button>
               </div>
-            </form>
-          )}
-        </div>
+            )}
+          </form>
+        ) : (
+          // Step 2: Code Verification
+          <form onSubmit={handleCodeSubmit}>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('email');
+                setCode('');
+                setError('');
+              }}
+              className="text-sm flex items-center"
+              style={{
+                color: 'rgba(255, 255, 255, 0.6)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                marginBottom: '16px',
+                padding: '4px 0'
+              }}
+            >
+              ← Back
+            </button>
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-sm" style={{
-          color: 'rgba(255, 255, 255, 0.5)',
-          fontWeight: 500
-        }}>
-          <p style={{ marginBottom: '4px' }}>S21 Field Assistant</p>
-          <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+            <p style={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '0.875rem',
+              marginBottom: '8px'
+            }}>
+              We sent a verification code to:
+            </p>
+            <p
+              className="font-semibold"
+              style={{
+                color: '#ef4444',
+                fontSize: '0.9375rem',
+                marginBottom: '16px'
+              }}
+            >
+              {email}
+            </p>
+
+            {generatedCode && (
+              <div
+                className="text-center"
+                style={{
+                  marginBottom: '16px',
+                  padding: '14px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}
+              >
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  marginBottom: '6px'
+                }}>
+                  MVP Test Code:
+                </p>
+                <p
+                  className="font-bold"
+                  style={{
+                    fontSize: '1.75rem',
+                    color: '#ef4444',
+                    letterSpacing: '0.1em'
+                  }}
+                >
+                  {generatedCode}
+                </p>
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="code"
+                className="block text-sm font-semibold"
+                style={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  marginBottom: '8px'
+                }}
+              >
+                Verification Code
+              </label>
+              <input
+                type="text"
+                id="code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+                required
+                autoFocus
+                maxLength={6}
+                className="w-full text-center font-bold tracking-widest"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  height: '52px',
+                  fontSize: '1.5rem',
+                  letterSpacing: '0.15em'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="name"
+                className="block text-sm font-semibold"
+                style={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  marginBottom: '8px'
+                }}
+              >
+                Your Name (Optional)
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Smith"
+                className="w-full px-4"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  height: '48px',
+                  fontSize: '0.9375rem'
+                }}
+              />
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                className="flex items-center cursor-pointer"
+                style={{ color: 'rgba(255, 255, 255, 0.75)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    marginRight: '10px',
+                    accentColor: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                  Remember me on this device
+                </span>
+              </label>
+              <p style={{
+                fontSize: '0.75rem',
+                color: 'rgba(255, 255, 255, 0.45)',
+                marginTop: '6px',
+                marginLeft: '28px'
+              }}>
+                {rememberMe
+                  ? 'Stay logged in for 1 year'
+                  : 'Login again when browser closes'}
+              </p>
+            </div>
+
+            {error && (
+              <div
+                className="text-sm"
+                style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ff6b6b'
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full font-semibold transition-all"
+              style={{
+                background: loading ? 'rgba(239, 68, 68, 0.65)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                height: '48px',
+                fontSize: '0.9375rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.75 : 1,
+                boxShadow: loading ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.45)',
+                marginBottom: '12px'
+              }}
+            >
+              {loading ? 'Verifying...' : 'Verify & Sign In'}
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleEmailSubmit}
+                style={{
+                  color: 'rgba(255, 255, 255, 0.45)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: '0.75rem',
+                  padding: '4px'
+                }}
+              >
+                Resend Code
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Footer - Small text */}
+        <div
+          className="text-center"
+          style={{
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          <p style={{
+            fontSize: '0.8125rem',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontWeight: 500,
+            marginBottom: '4px'
+          }}>
+            S21 Field Assistant
+          </p>
+          <p style={{
+            fontSize: '0.6875rem',
+            color: 'rgba(255, 255, 255, 0.35)'
+          }}>
             Secure email authentication
           </p>
         </div>
