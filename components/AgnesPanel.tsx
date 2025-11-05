@@ -354,6 +354,7 @@ Ask permission to address their specific concern directly: "What's the main thin
         >
           <X style={{ width: '1.25rem', height: '1.25rem', color: '#fff' }} />
         </button>
+        </div>
       </div>
 
       {/* Quick Objections - Only show in coach mode */}
@@ -399,7 +400,7 @@ Ask permission to address their specific concern directly: "What's the main thin
             </button>
           ))}
         </div>
-        </div>
+      </div>
       )}
 
       {/* Messages */}
