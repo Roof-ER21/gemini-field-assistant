@@ -15,6 +15,10 @@ const { Pool } = pg;
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ES Module __dirname and __filename support
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // ============================================================================
 // DATABASE CONNECTION
 // ============================================================================
@@ -2816,8 +2820,6 @@ export default app;
 
 // When running in Railway production, also serve the built frontend from /dist
 try {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
   // When compiled: __dirname = /app/dist-server/server, so we need ../../dist to reach /app/dist
   const distDir = path.resolve(__dirname, '../../dist');
 
