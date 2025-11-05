@@ -283,7 +283,7 @@ app.post('/api/chat/messages', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO chat_history
        (user_id, message_id, sender, content, state, provider, sources, session_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text)
        RETURNING *`,
       [userId, message_id, sender, content, state, provider, sources ? JSON.stringify(sources) : null, session_id]
     );

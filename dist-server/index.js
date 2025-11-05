@@ -228,7 +228,7 @@ app.post('/api/chat/messages', async (req, res) => {
         console.log('[API] ✓ User ID resolved:', userId);
         const result = await pool.query(`INSERT INTO chat_history
        (user_id, message_id, sender, content, state, provider, sources, session_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text)
        RETURNING *`, [userId, message_id, sender, content, state, provider, sources ? JSON.stringify(sources) : null, session_id]);
         console.log('[API] ✅ Message saved to database:', {
             id: result.rows[0].id,
