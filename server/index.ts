@@ -122,6 +122,98 @@ app.get('/api/version', (req, res) => {
   });
 });
 
+// One-time migration runner for analytics tables (admin only)
+app.post('/api/admin/run-analytics-migration', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔄 Running analytics migration...');
+
+    // Create analytics tables
+    await pool.query(`
+      -- 1. Live Susan Sessions
+      CREATE TABLE IF NOT EXISTS live_susan_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        ended_at TIMESTAMP,
+        duration_seconds INTEGER,
+        message_count INTEGER DEFAULT 0,
+        double_tap_stops INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 2. Transcriptions
+      CREATE TABLE IF NOT EXISTS transcriptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        audio_duration_seconds INTEGER,
+        transcription_text TEXT,
+        word_count INTEGER,
+        provider VARCHAR(50) DEFAULT 'Gemini',
+        state VARCHAR(2),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 3. Document Uploads
+      CREATE TABLE IF NOT EXISTS document_uploads (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        file_name VARCHAR(255),
+        file_type VARCHAR(50),
+        file_size_bytes BIGINT,
+        analysis_type VARCHAR(50),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      -- 4. Concerning Chats
+      CREATE TABLE IF NOT EXISTS concerning_chats (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        message_id VARCHAR(255),
+        concern_type VARCHAR(100),
+        severity VARCHAR(20) CHECK (severity IN ('critical', 'warning', 'info')),
+        flagged_content TEXT,
+        context TEXT,
+        detection_reason TEXT,
+        flagged_at TIMESTAMP DEFAULT NOW(),
+        reviewed BOOLEAN DEFAULT FALSE,
+        reviewed_by UUID REFERENCES users(id),
+        reviewed_at TIMESTAMP,
+        review_notes TEXT
+      );
+
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS idx_live_susan_sessions_user_id ON live_susan_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_live_susan_sessions_started_at ON live_susan_sessions(started_at);
+      CREATE INDEX IF NOT EXISTS idx_transcriptions_user_id ON transcriptions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_transcriptions_created_at ON transcriptions(created_at);
+      CREATE INDEX IF NOT EXISTS idx_document_uploads_user_id ON document_uploads(user_id);
+      CREATE INDEX IF NOT EXISTS idx_document_uploads_created_at ON document_uploads(created_at);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_user_id ON concerning_chats(user_id);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_severity ON concerning_chats(severity);
+      CREATE INDEX IF NOT EXISTS idx_concerning_chats_flagged_at ON concerning_chats(flagged_at);
+    `);
+
+    console.log('✅ Analytics migration completed');
+
+    res.json({
+      success: true,
+      message: 'Analytics tables created successfully',
+      tables: ['live_susan_sessions', 'transcriptions', 'document_uploads', 'concerning_chats']
+    });
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // ============================================================================
 // USER ENDPOINTS
 // ============================================================================
