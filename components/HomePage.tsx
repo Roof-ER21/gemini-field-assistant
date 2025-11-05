@@ -15,7 +15,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'documentjob';
 
 interface HomePageProps {
   setActivePanel: (panel: PanelType) => void;
@@ -430,34 +430,44 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           }}>
             {[
               {
+                id: 'agnes',
                 title: 'Handle Objection',
                 description: 'Get response scripts for common customer objections',
-                icon: Target
+                icon: Target,
+                color: '#7c3aed'
               },
               {
+                id: 'documentjob',
                 title: 'Document Job',
                 description: 'Create professional job reports with photos and details',
-                icon: FileText
+                icon: FileText,
+                color: '#10b981'
               }
-            ].map((item, index) => {
+            ].map((item) => {
               const Icon = item.icon;
               return (
-                <div
-                  key={index}
+                <button
+                  key={item.id}
+                  onClick={() => setActivePanel(item.id as PanelType)}
                   style={{
                     background: 'rgba(239, 68, 68, 0.05)',
                     border: '1px solid rgba(239, 68, 68, 0.2)',
                     borderRadius: '12px',
                     padding: '1.25rem',
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
                     e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
                   <div style={{
@@ -487,7 +497,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   }}>
                     {item.description}
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>

@@ -9,13 +9,15 @@ import MapsPanel from './components/MapsPanel';
 import LivePanel from './components/LivePanel';
 import KnowledgePanel from './components/KnowledgePanel';
 import AdminPanel from './components/AdminPanel';
+import AgnesPanel from './components/AgnesPanel';
+import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -56,7 +58,9 @@ const App: React.FC = () => {
     email: 'Email Generator',
     maps: 'Insurance Co',
     live: 'Live Conversation',
-    admin: 'Admin Panel'
+    admin: 'Admin Panel',
+    agnes: 'Agnes - Objection Handler',
+    documentjob: 'Document Job'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -148,6 +152,10 @@ const App: React.FC = () => {
         );
       case 'admin':
         return <AdminPanel />;
+      case 'agnes':
+        return <AgnesPanel onClose={() => setActivePanel('home')} />;
+      case 'documentjob':
+        return <DocumentJobPanel onClose={() => setActivePanel('home')} />;
       default:
         return <HomePage setActivePanel={setActivePanel} />;
     }
