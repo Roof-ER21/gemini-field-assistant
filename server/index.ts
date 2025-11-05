@@ -2822,6 +2822,22 @@ export default app;
 try {
   // When compiled: __dirname = /app/dist-server, so we need ../dist to reach /app/dist
   const distDir = path.resolve(__dirname, '../dist');
+  console.log('📁 Static file configuration:');
+  console.log('   __dirname:', __dirname);
+  console.log('   distDir:', distDir);
+  console.log('   Checking if dist exists...');
+  const fs = await import('fs');
+  if (fs.existsSync(distDir)) {
+    console.log('   ✅ dist directory found');
+    const indexPath = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      console.log('   ✅ index.html found');
+    } else {
+      console.log('   ❌ index.html NOT found at:', indexPath);
+    }
+  } else {
+    console.log('   ❌ dist directory NOT found at:', distDir);
+  }
 
   // Serve static assets (hashed files can be cached aggressively)
   app.use(
