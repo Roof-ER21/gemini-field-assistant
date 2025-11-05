@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Shield, AlertTriangle, CheckCircle, X, Send, Loader2 } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, X, Send, Loader2, Swords, Users, BookOpen } from 'lucide-react';
 import { multiAI, AIMessage } from '../services/multiProviderAI';
 
 interface AgnesPanelProps {
@@ -11,87 +11,177 @@ interface Message {
   text: string;
   sender: 'user' | 'agnes';
   timestamp: Date;
-  category?: 'price' | 'timing' | 'denial' | 'partial' | 'cancel' | 'general';
+  category?: 'price' | 'timing' | 'denial' | 'partial' | 'cancel' | 'general' | 'quality' | 'trust' | 'competition' | 'warranty';
 }
+
+type AgnesMode = 'coach' | 'roleplay';
 
 const AgnesPanel: React.FC<AgnesPanelProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [mode, setMode] = useState<AgnesMode>('coach');
+  const [roleplayActive, setRoleplayActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickObjections = [
-    { text: "Too expensive", category: 'price' as const },
-    { text: "Need to think about it", category: 'timing' as const },
-    { text: "Got a denial from insurance", category: 'denial' as const },
-    { text: "Insurance only paid partial", category: 'partial' as const },
-    { text: "Want to cancel early", category: 'cancel' as const },
-    { text: "Already got other quotes", category: 'price' as const }
+    // Pricing & Value
+    { text: "Too expensive", category: 'price' as const, emoji: '💰' },
+    { text: "Already got other quotes", category: 'competition' as const, emoji: '🏆' },
+    { text: "Can't afford it right now", category: 'price' as const, emoji: '💸' },
+    { text: "Why so much more than others?", category: 'price' as const, emoji: '❓' },
+
+    // Timing & Decision
+    { text: "Need to think about it", category: 'timing' as const, emoji: '⏰' },
+    { text: "Want to wait until spring", category: 'timing' as const, emoji: '🌸' },
+    { text: "Have to talk to spouse", category: 'timing' as const, emoji: '👥' },
+
+    // Insurance
+    { text: "Got a denial from insurance", category: 'denial' as const, emoji: '❌' },
+    { text: "Insurance only paid partial", category: 'partial' as const, emoji: '📊' },
+    { text: "Insurance won't cover it", category: 'denial' as const, emoji: '🚫' },
+
+    // Quality & Trust
+    { text: "Don't trust contractors", category: 'trust' as const, emoji: '🤔' },
+    { text: "Had bad experience before", category: 'trust' as const, emoji: '😞' },
+    { text: "How do I know quality?", category: 'quality' as const, emoji: '✨' },
+
+    // Competition
+    { text: "Friend is a roofer", category: 'competition' as const, emoji: '👨‍🔧' },
+    { text: "Going with cheaper option", category: 'competition' as const, emoji: '⬇️' },
+
+    // Cancellation
+    { text: "Want to cancel early", category: 'cancel' as const, emoji: '🔙' },
+    { text: "Changed our mind", category: 'cancel' as const, emoji: '💭' },
+
+    // Warranty & Guarantee
+    { text: "What if something goes wrong?", category: 'warranty' as const, emoji: '🛡️' },
+    { text: "Warranty concerns", category: 'warranty' as const, emoji: '📋' }
   ];
 
   useEffect(() => {
     // Agnes introduction
     const welcomeMessage: Message = {
       id: 'welcome',
-      text: `Hi! I'm Agnes, your objection handling specialist. 💪
+      text: mode === 'coach'
+        ? `Hey! I'm Agnes - your objection-crushing battle buddy! 💪
 
-I'm here to help you handle any customer objections with confidence. Whether they're saying it's too expensive, they got a denial, or they want to cancel - I've got your back!
+I've helped reps close 1000+ deals by turning "NO" into "YES". I'll give you word-for-word scripts, psychology breakdowns, and backup strategies for ANY objection.
 
-Click a common objection below or tell me what the customer is saying.`,
+**TWO WAYS TO TRAIN:**
+
+🎯 **COACH MODE** (Current): Get instant scripts for any objection
+⚔️ **ROLEPLAY MODE**: I become the difficult customer - practice your pitch!
+
+Pick an objection below or describe what you're facing!`
+        : `Alright! ROLEPLAY MODE activated! ⚔️
+
+I'm now the TOUGHEST customer you'll face today. I'm skeptical, price-sensitive, and I've heard every pitch before.
+
+Your job: Handle my objections and close this sale!
+
+**I'll push back HARD** - just like real customers do. After each round, I'll give you feedback on what worked and what didn't.
+
+Ready? Start your pitch or respond to my objections! 💼`,
       sender: 'agnes',
       timestamp: new Date()
     };
     setMessages([welcomeMessage]);
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const getAgnesResponse = async (objection: string, category?: string): Promise<string> => {
-    const agnesPrompt = `You are Agnes, an expert objection handling coach for roofing sales reps. A customer just said: "${objection}"
+    if (mode === 'roleplay') {
+      // Roleplay mode: Agnes becomes the difficult customer
+      const roleplayPrompt = `You are Agnes in ROLEPLAY MODE - you're acting as a TOUGH, SKEPTICAL CUSTOMER being sold a roofing service.
 
-Your job is to provide:
-1. A brief empathetic acknowledgment (1 sentence)
-2. The EXACT script the rep should use (word-for-word in quotes)
-3. Why this approach works (1-2 sentences)
-4. A follow-up tip if the customer still resists
+The sales rep just said: "${objection}"
 
-Be direct, confident, and specific. Use proven sales psychology. Keep the total response under 200 words.
+Your job is to:
+1. Respond AS THE CUSTOMER with a realistic objection or pushback (2-3 sentences)
+2. Be challenging but realistic - use common customer concerns
+3. After your customer response, add a brief coaching tip in brackets like: [💡 AGNES COACHING: What worked/didn't work in their approach]
 
-${category === 'price' ? 'Focus on value over cost. Emphasize quality, warranties, and long-term savings.' : ''}
-${category === 'denial' ? 'Help them understand denials are often initial responses and can be appealed or supplemented.' : ''}
-${category === 'partial' ? 'Show how partial payments are normal and how to work with the customer to bridge the gap.' : ''}
-${category === 'cancel' ? 'Address their concerns while protecting the relationship and the sale.' : ''}
-${category === 'timing' ? 'Create urgency without pressure. Focus on benefits of acting now.' : ''}
+Customer personality:
+- Price-sensitive and skeptical
+- Had bad contractor experiences
+- Comparing multiple quotes
+- Wants to think things over
+- Questions warranties and quality
+- Brings up timing concerns
 
-Format your response clearly with:
-📝 **What to Say:**
-"[exact script here]"
+Respond AS THE CUSTOMER first, then add your coaching tip at the end.`;
 
-💡 **Why It Works:**
-[explanation]
+      try {
+        const messages: AIMessage[] = [
+          { role: 'user', content: roleplayPrompt }
+        ];
+        const response = await multiAI.generate(messages);
+        return response.content;
+      } catch (error) {
+        return `[AS CUSTOMER] I appreciate the info, but I'm still not convinced. I've heard this before from other contractors. What makes you different?
 
-🎯 **If They Still Resist:**
-[backup approach]`;
+[💡 AGNES COACHING: Keep building value! Show specific differentiators and results.]`;
+      }
+    } else {
+      // Coach mode: Provide scripts and strategies
+      const agnesPrompt = `You are Agnes, Roof-ER's objection-crushing strategist. You're a no-nonsense battle buddy who gives PROVEN scripts that close deals.
 
-    try {
-      const messages: AIMessage[] = [
-        { role: 'user', content: agnesPrompt }
-      ];
-      const response = await multiAI.generate(messages);
-      return response.content;
-    } catch (error) {
-      return `I apologize, I'm having trouble connecting right now. Here's a quick tip for "${objection}":
+Customer objection: "${objection}"
 
-📝 **What to Say:**
+YOUR RESPONSE STYLE (like S21):
+- Confident, empowering, action-first
+- "HERE'S what to say..." (not "you could try...")
+- Word-for-word scripts with success rates
+- Psychology breakdowns
+- Use "WE'VE" seen this work 1000+ times
+
+${category === 'price' ? 'STRATEGY: Value over cost. Show ROI, warranties, financing. Reframe from expense to investment.' : ''}
+${category === 'competition' ? 'STRATEGY: Differentiate on quality, not price. Show what cheap options miss.' : ''}
+${category === 'denial' ? 'STRATEGY: Denials are NORMAL. 73% get overturned with proper supplements.' : ''}
+${category === 'partial' ? 'STRATEGY: Partial payments are COMMON. Show financing options and work with them.' : ''}
+${category === 'cancel' ? 'STRATEGY: Uncover the REAL concern. Address it directly. Protect the relationship.' : ''}
+${category === 'timing' ? 'STRATEGY: Create urgency through benefits, not pressure. Show cost of waiting.' : ''}
+${category === 'trust' ? 'STRATEGY: Build credibility fast. Use social proof, warranties, references.' : ''}
+${category === 'quality' ? 'STRATEGY: Show certifications, manufacturer partnerships, warranties that prove quality.' : ''}
+${category === 'warranty' ? 'STRATEGY: Turn concern into confidence. Explain comprehensive coverage.' : ''}
+
+Format (MANDATORY):
+📝 **HERE'S WHAT TO SAY:**
+"[Complete word-for-word script]"
+
+💡 **WHY THIS WORKS:**
+[Psychology + success rate if known]
+
+🎯 **IF THEY PUSH BACK:**
+"[Backup script]"
+
+⚡ **QUICK TIP:**
+[One tactical insight]
+
+Keep it CONCISE and ACTIONABLE. Under 250 words total.`;
+
+      try {
+        const messages: AIMessage[] = [
+          { role: 'user', content: agnesPrompt }
+        ];
+        const response = await multiAI.generate(messages);
+        return response.content;
+      } catch (error) {
+        return `I apologize, I'm having trouble connecting right now. Here's a quick tip for "${objection}":
+
+📝 **HERE'S WHAT TO SAY:**
 "I completely understand your concern. Many of our best customers felt the same way initially. Can I share what changed their mind?"
 
-💡 **Why It Works:**
+💡 **WHY THIS WORKS:**
 This validates their feelings while creating curiosity about what others discovered.
 
-🎯 **If They Still Resist:**
+🎯 **IF THEY PUSH BACK:**
 Ask permission to address their specific concern directly: "What's the main thing holding you back?" Then listen and address that ONE issue.`;
+      }
     }
   };
 
@@ -192,11 +282,61 @@ Ask permission to address their specific concern directly: "What's the main thin
               fontSize: '0.75rem',
               color: 'rgba(255, 255, 255, 0.8)'
             }}>
-              Your objection handling specialist
+              {mode === 'coach' ? 'Get proven scripts & strategies' : 'Practice with a tough customer'}
             </p>
           </div>
         </div>
-        <button
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* Mode Switcher */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.15)',
+            borderRadius: '8px',
+            padding: '4px',
+            display: 'flex',
+            gap: '4px'
+          }}>
+            <button
+              onClick={() => setMode('coach')}
+              style={{
+                background: mode === 'coach' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
+                color: mode === 'coach' ? '#7c3aed' : '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '0.4rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              <BookOpen style={{ width: '0.875rem', height: '0.875rem' }} />
+              Coach
+            </button>
+            <button
+              onClick={() => setMode('roleplay')}
+              style={{
+                background: mode === 'roleplay' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
+                color: mode === 'roleplay' ? '#7c3aed' : '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '0.4rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Swords style={{ width: '0.875rem', height: '0.875rem' }} />
+              Roleplay
+            </button>
+          </div>
+          <button
           onClick={onClose}
           style={{
             background: 'rgba(255, 255, 255, 0.2)',
@@ -216,20 +356,21 @@ Ask permission to address their specific concern directly: "What's the main thin
         </button>
       </div>
 
-      {/* Quick Objections */}
-      <div style={{
-        padding: '1rem 1.5rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(124, 58, 237, 0.05)'
-      }}>
-        <p style={{
-          margin: '0 0 0.75rem 0',
-          fontSize: '0.875rem',
-          color: 'rgba(255, 255, 255, 0.7)',
-          fontWeight: '500'
+      {/* Quick Objections - Only show in coach mode */}
+      {mode === 'coach' && (
+        <div style={{
+          padding: '1rem 1.5rem',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          background: 'rgba(124, 58, 237, 0.05)'
         }}>
-          Common Objections:
-        </p>
+          <p style={{
+            margin: '0 0 0.75rem 0',
+            fontSize: '0.875rem',
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontWeight: '500'
+          }}>
+            Common Objections:
+          </p>
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -254,11 +395,12 @@ Ask permission to address their specific concern directly: "What's the main thin
               onMouseEnter={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(124, 58, 237, 0.2)')}
               onMouseLeave={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(124, 58, 237, 0.1)')}
             >
-              {objection.text}
+              {objection.emoji} {objection.text}
             </button>
           ))}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{
