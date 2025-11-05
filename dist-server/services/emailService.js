@@ -436,6 +436,19 @@ Powered by ROOFER - The Roof Docs
         }
     }
     /**
+     * Send custom email with provided template
+     * PUBLIC API for services that need to send custom emails
+     */
+    async sendCustomEmail(to, template) {
+        try {
+            return await this.sendEmail(to, template);
+        }
+        catch (error) {
+            console.error('Error sending custom email:', error);
+            return false;
+        }
+    }
+    /**
      * Get current email configuration (for debugging)
      */
     getConfig() {

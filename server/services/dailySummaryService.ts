@@ -8,7 +8,7 @@ import pg from 'pg';
 const { Pool } = pg;
 
 // Email service import
-import { emailService } from './emailService.js';
+import { emailService, type EmailTemplate } from './emailService.js';
 
 interface ActivityData {
   message?: string;
@@ -398,34 +398,10 @@ Powered by ROOFER - The Roof Docs
    */
   private async sendEmailViaService(to: string, subject: string, html: string, text: string): Promise<boolean> {
     try {
-      // Get the email service config to check provider
-      const config = emailService.getConfig();
-
-      console.log(`📧 Attempting to send daily summary email to ${to} via ${config.provider}`);
-
-      // Use reflection to access the private sendEmail method
-      // We'll call it using a custom template
-      const template = { subject, html, text };
-
-      // Access the private sendEmail method through the emailService instance
-      // Since TypeScript prevents direct access, we'll use a type assertion
-      const emailServiceAny = emailService as any;
-      const result = await emailServiceAny.sendEmail(to, template);
-
-      console.log(`✅ Daily summary email ${result ? 'sent successfully' : 'failed'} to ${to}`);
-      return result;
+      const template: EmailTemplate = { subject, html, text };
+      return await emailService.sendCustomEmail(to, template);
     } catch (error) {
       console.error('❌ Error in sendEmailViaService:', error);
-      // Log to console as fallback
-      console.log('\n' + '='.repeat(80));
-      console.log('📧 DAILY SUMMARY EMAIL (FALLBACK - ERROR OCCURRED)');
-      console.log('='.repeat(80));
-      console.log(`To: ${to}`);
-      console.log(`Subject: ${subject}`);
-      console.log(`Error: ${(error as Error).message}`);
-      console.log('-'.repeat(80));
-      console.log(text);
-      console.log('='.repeat(80) + '\n');
       return false;
     }
   }

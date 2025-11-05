@@ -311,31 +311,11 @@ Powered by ROOFER - The Roof Docs
      */
     async sendEmailViaService(to, subject, html, text) {
         try {
-            // Get the email service config to check provider
-            const config = emailService.getConfig();
-            console.log(`📧 Attempting to send daily summary email to ${to} via ${config.provider}`);
-            // Use reflection to access the private sendEmail method
-            // We'll call it using a custom template
             const template = { subject, html, text };
-            // Access the private sendEmail method through the emailService instance
-            // Since TypeScript prevents direct access, we'll use a type assertion
-            const emailServiceAny = emailService;
-            const result = await emailServiceAny.sendEmail(to, template);
-            console.log(`✅ Daily summary email ${result ? 'sent successfully' : 'failed'} to ${to}`);
-            return result;
+            return await emailService.sendCustomEmail(to, template);
         }
         catch (error) {
             console.error('❌ Error in sendEmailViaService:', error);
-            // Log to console as fallback
-            console.log('\n' + '='.repeat(80));
-            console.log('📧 DAILY SUMMARY EMAIL (FALLBACK - ERROR OCCURRED)');
-            console.log('='.repeat(80));
-            console.log(`To: ${to}`);
-            console.log(`Subject: ${subject}`);
-            console.log(`Error: ${error.message}`);
-            console.log('-'.repeat(80));
-            console.log(text);
-            console.log('='.repeat(80) + '\n');
             return false;
         }
     }
