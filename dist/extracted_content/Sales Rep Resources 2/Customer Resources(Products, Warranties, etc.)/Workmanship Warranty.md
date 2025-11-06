@@ -1,2 +1,0 @@
-# Workmanship Warranty
-
