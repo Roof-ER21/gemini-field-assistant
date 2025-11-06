@@ -22,13 +22,15 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
+        // Expose Railway production env vars to frontend via process.env
+        // This makes them accessible to src/config/env.ts getEnvVar function
         'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
-        // Expose all VITE_ prefixed env vars for multiProviderAI
-        'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-        'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(env.VITE_GROQ_API_KEY),
-        'import.meta.env.VITE_TOGETHER_API_KEY': JSON.stringify(env.VITE_TOGETHER_API_KEY),
-        'import.meta.env.VITE_HF_API_KEY': JSON.stringify(env.VITE_HF_API_KEY),
+        'process.env.GROQ_API_KEY': JSON.stringify(env.VITE_GROQ_API_KEY || env.GROQ_API_KEY),
+        'process.env.TOGETHER_API_KEY': JSON.stringify(env.VITE_TOGETHER_API_KEY || env.TOGETHER_API_KEY),
+        'process.env.HUGGINGFACE_API_KEY': JSON.stringify(env.VITE_HF_API_KEY || env.HUGGINGFACE_API_KEY || env.HF_API_KEY),
+        'process.env.HF_API_KEY': JSON.stringify(env.VITE_HF_API_KEY || env.HUGGINGFACE_API_KEY || env.HF_API_KEY),
+        'process.env.OPENAI_API_KEY': JSON.stringify(env.VITE_OPENAI_API_KEY || env.OPENAI_API_KEY),
+        'process.env.RAILWAY_ENVIRONMENT': JSON.stringify(env.RAILWAY_ENVIRONMENT),
       },
       resolve: {
         alias: {
