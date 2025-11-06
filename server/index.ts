@@ -2235,7 +2235,7 @@ app.post('/api/admin/run-migration-005', async (req, res) => {
     console.log('🔧 Running Migration 005: API Usage Tracking and Budget Management...');
 
     const fs = await import('fs/promises');
-    const migrationPath = path.resolve(__dirname, '../../database/migrations/005_api_usage_tracking.sql');
+    const migrationPath = path.resolve(__dirname, '../database/migrations/005_api_usage_tracking.sql');
     const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
 
     // Execute the migration
@@ -2285,7 +2285,7 @@ app.post('/api/admin/run-migration-006', async (req, res) => {
     console.log('🔧 Running Migration 006: Fix Production Issues...');
 
     const fs = await import('fs/promises');
-    const migrationPath = path.resolve(__dirname, '../../database/migrations/006_fix_production_issues.sql');
+    const migrationPath = path.resolve(__dirname, '../database/migrations/006_fix_production_issues.sql');
     const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
 
     // Execute the migration
