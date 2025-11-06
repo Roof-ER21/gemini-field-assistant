@@ -45,3 +45,4 @@ export default defineConfig(({ mode }) => {
       }
     };
 });
+// Force rebuild with VITE environment variables
