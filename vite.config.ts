@@ -3,7 +3,9 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+    // Load env from files (for local dev) and merge with process.env (for CI/Railway)
+    const fileEnv = loadEnv(mode, process.cwd(), '');
+    const get = (key: string) => process.env[key] ?? fileEnv[key];
     return {
       server: {
         port: 5174,
@@ -22,15 +24,15 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Expose Railway production env vars to frontend via process.env
-        // This makes them accessible to src/config/env.ts getEnvVar function
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
-        'process.env.GROQ_API_KEY': JSON.stringify(env.VITE_GROQ_API_KEY || env.GROQ_API_KEY),
-        'process.env.TOGETHER_API_KEY': JSON.stringify(env.VITE_TOGETHER_API_KEY || env.TOGETHER_API_KEY),
-        'process.env.HUGGINGFACE_API_KEY': JSON.stringify(env.VITE_HF_API_KEY || env.HUGGINGFACE_API_KEY || env.HF_API_KEY),
-        'process.env.HF_API_KEY': JSON.stringify(env.VITE_HF_API_KEY || env.HUGGINGFACE_API_KEY || env.HF_API_KEY),
-        'process.env.OPENAI_API_KEY': JSON.stringify(env.VITE_OPENAI_API_KEY || env.OPENAI_API_KEY),
-        'process.env.RAILWAY_ENVIRONMENT': JSON.stringify(env.RAILWAY_ENVIRONMENT),
+        // Expose provider keys via process.env for src/config/env.ts
+        // Prefer CI/Railway environment over file-based env
+        'process.env.GEMINI_API_KEY': JSON.stringify(get('VITE_GEMINI_API_KEY') || get('GEMINI_API_KEY')),
+        'process.env.GROQ_API_KEY': JSON.stringify(get('VITE_GROQ_API_KEY') || get('GROQ_API_KEY')),
+        'process.env.TOGETHER_API_KEY': JSON.stringify(get('VITE_TOGETHER_API_KEY') || get('TOGETHER_API_KEY')),
+        'process.env.HUGGINGFACE_API_KEY': JSON.stringify(get('VITE_HF_API_KEY') || get('HUGGINGFACE_API_KEY') || get('HF_API_KEY')),
+        'process.env.HF_API_KEY': JSON.stringify(get('VITE_HF_API_KEY') || get('HUGGINGFACE_API_KEY') || get('HF_API_KEY')),
+        'process.env.OPENAI_API_KEY': JSON.stringify(get('VITE_OPENAI_API_KEY') || get('OPENAI_API_KEY')),
+        'process.env.RAILWAY_ENVIRONMENT': JSON.stringify(get('RAILWAY_ENVIRONMENT') || process.env.NODE_ENV || 'production'),
       },
       resolve: {
         alias: {
