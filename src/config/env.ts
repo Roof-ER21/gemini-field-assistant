@@ -56,6 +56,10 @@ export const env = {
 
       if (this.isProduction) {
         console.error('🔴 Critical: Production deployment missing required API keys!');
+        console.info('➡ Set VITE_GROQ_API_KEY, VITE_TOGETHER_API_KEY, VITE_GEMINI_API_KEY (and optional VITE_HF_API_KEY) in Railway, then redeploy.');
+        console.info('ℹ Provider status endpoint: /api/providers/status');
+      } else {
+        console.info('ℹ Dev tip: add keys to .env.local using VITE_* names.');
       }
     }
 

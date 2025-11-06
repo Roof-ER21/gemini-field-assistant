@@ -173,11 +173,11 @@ async function verifySetup() {
 
   // Check 2: GEMINI_API_KEY is set
   console.log('\n2. Checking GEMINI_API_KEY variable...');
-  const apiKey = envVars.GEMINI_API_KEY;
+  const apiKey = envVars.GEMINI_API_KEY || envVars.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
-    logError('GEMINI_API_KEY is not set in .env.local');
-    logInfo('Add it with: echo "GEMINI_API_KEY=your_key_here" > .env.local');
+    logError('GEMINI_API_KEY (or VITE_GEMINI_API_KEY) is not set in .env.local');
+    logInfo('Add it with: echo "VITE_GEMINI_API_KEY=your_key_here" >> .env.local');
     failed++;
   } else {
     logSuccess('GEMINI_API_KEY is set');

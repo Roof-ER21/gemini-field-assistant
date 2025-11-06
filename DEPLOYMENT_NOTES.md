@@ -21,6 +21,7 @@
 2. **Clear Browser Cache**: Clear site data for sa21.up.railway.app
 3. **Check Console**: Look for "Database mode enabled" message
 4. **Verify API Health**: Visit https://sa21.up.railway.app/api/health
+5. **Check Providers**: Visit https://sa21.up.railway.app/api/providers/status (booleans only)
 
 ### Known Build Hash:
 Production should serve: `index-z2ycfw80.js` (or newer)
@@ -31,6 +32,15 @@ If serving older hash, Railway didn't rebuild.
 - `RESEND_API_KEY` - Email delivery
 - `EMAIL_ADMIN_ADDRESS` - Receives notifications
 - `EMAIL_FROM_ADDRESS` - Sender email
+- `VITE_GROQ_API_KEY` - Groq (preferred provider)
+- `VITE_TOGETHER_API_KEY` - Together AI (fallback)
+- `VITE_GEMINI_API_KEY` - Google Gemini (fallback)
+- `VITE_HF_API_KEY` - Hugging Face (optional)
+
+Notes:
+- Frontend reads provider keys via `import.meta.env` (Vite). Use the `VITE_*` names above.
+- Keys must be present at build time so they get injected into the bundle.
+- Never expose non-VITE secrets to the client; only set VITE_* keys intended for the browser.
 
 ---
 Last Updated: November 4, 2025 21:55 EST

@@ -118,6 +118,30 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Provider configuration status (non-sensitive)
+// Returns booleans only — never exposes secrets
+app.get('/api/providers/status', (req, res) => {
+  try {
+    const status = {
+      groq: Boolean(process.env.GROQ_API_KEY),
+      together: Boolean(process.env.TOGETHER_API_KEY),
+      huggingface: Boolean(process.env.HF_API_KEY || process.env.HUGGINGFACE_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      anyConfigured: Boolean(
+        process.env.GROQ_API_KEY ||
+        process.env.TOGETHER_API_KEY ||
+        process.env.HF_API_KEY ||
+        process.env.HUGGINGFACE_API_KEY ||
+        process.env.GEMINI_API_KEY
+      ),
+      environment: process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || 'unknown'
+    };
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Simple version/build info to verify live deploy
 app.get('/api/version', (req, res) => {
   res.json({
