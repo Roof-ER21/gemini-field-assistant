@@ -3,7 +3,7 @@ import {
   Mail, Send, Copy, FileText, CheckCircle, Sparkles, Download, MessageCircle,
   Eye, Lightbulb, User, Building, Hash, MapPin, Clock, Search, Trash2,
   Edit3, RefreshCw, Home, Filter, Archive, Plus, X, ChevronLeft, ChevronRight,
-  Wand2, Check
+  Wand2, Check, HelpCircle
 } from 'lucide-react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
@@ -154,6 +154,13 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
   // AI Enhancement State
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementType, setEnhancementType] = useState<'improve' | 'grammar' | 'shorten' | 'lengthen' | null>(null);
+
+  // Talk About It - Conversational Refinement State
+  const [showConversationModal, setShowConversationModal] = useState(false);
+  const [conversationQuestions, setConversationQuestions] = useState<string[]>([]);
+  const [conversationAnswers, setConversationAnswers] = useState<Record<number, string>>({});
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [isRefiningEmail, setIsRefiningEmail] = useState(false);
 
   useEffect(() => {
     if (selectedTemplate) {
@@ -430,6 +437,133 @@ Keep it practical and actionable. Use confident language.
     } finally {
       setIsEnhancing(false);
       setEnhancementType(null);
+    }
+  };
+
+  const handleTalkAboutIt = async () => {
+    if (!generatedEmail) return;
+
+    setIsGeneratingQuestions(true);
+    setShowConversationModal(true);
+    setConversationQuestions([]);
+    setConversationAnswers({});
+
+    try {
+      // Generate contextual questions about the email
+      const questionPrompt = `
+You are Susan AI-21, reviewing this email to make it even more personalized and effective.
+
+CURRENT EMAIL:
+Subject: ${subject}
+To: ${recipientName}
+
+${generatedEmail}
+
+CONTEXT:
+- Template Used: ${selectedTemplate ? EMAIL_TEMPLATES.find(t => t.path === selectedTemplate)?.name : 'Custom'}
+- State: ${selectedState}
+- Tone: ${selectedTone}
+- Additional Instructions: ${customInstructions || 'None provided'}
+
+YOUR TASK:
+Re-read this email carefully and generate exactly 3-4 strategic clarifying questions that would help make this email MORE personalized, accurate, and effective.
+
+QUESTION GUIDELINES:
+1. Ask about specific details that would strengthen the argument (e.g., damage specifics, timeline, previous communications)
+2. Ask about recipient context that could personalize the message (e.g., "Has this adjuster been helpful in the past?" "Did they mention any specific concerns?")
+3. Ask about missing information that would make claims more credible (e.g., specific roof age, storm date, documentation available)
+4. Focus on actionable details that Susan can incorporate into the email
+
+IMPORTANT:
+- Make questions specific to THIS email's content and purpose
+- Ask questions that have clear, useful answers
+- Avoid generic questions that don't add value
+- Each question should directly improve personalization or accuracy
+
+Return ONLY the questions, one per line, numbered 1-4. No explanations or preamble.
+
+Example format:
+1. What specific type of damage did you observe during the inspection (hail dents, missing shingles, etc.)?
+2. Has this adjuster been responsive in previous communications, or is this a first contact?
+3. Do you have the exact storm date and any weather documentation to reference?
+4. What is the homeowner's main concern or priority right now?
+      `.trim();
+
+      const questionsResponse = await generateEmail('', 'Email Questions', questionPrompt);
+
+      // Parse questions from response
+      const parsedQuestions = questionsResponse
+        .split('\n')
+        .filter(line => line.trim().match(/^\d+\./))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .filter(q => q.length > 0);
+
+      setConversationQuestions(parsedQuestions);
+    } catch (error) {
+      console.error('Failed to generate questions:', error);
+      setConversationQuestions(['Unable to generate questions. Please try again.']);
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
+  };
+
+  const handleApplyConversationRefinements = async () => {
+    if (!generatedEmail || Object.keys(conversationAnswers).length === 0) return;
+
+    setIsRefiningEmail(true);
+
+    try {
+      // Build context from Q&A
+      const qaContext = conversationQuestions
+        .map((question, index) => {
+          const answer = conversationAnswers[index];
+          return answer ? `Q: ${question}\nA: ${answer}` : null;
+        })
+        .filter(Boolean)
+        .join('\n\n');
+
+      const refinePrompt = `
+You are Susan AI-21. You previously generated this email, and now you have additional context from the rep to make it more personalized and accurate.
+
+ORIGINAL EMAIL:
+Subject: ${subject}
+To: ${recipientName}
+
+${generatedEmail}
+
+NEW INFORMATION FROM REP:
+${qaContext}
+
+YOUR TASK:
+Rewrite the email incorporating this new information to make it:
+1. More personalized to the specific situation
+2. More accurate with concrete details
+3. More persuasive with specific evidence
+4. Better tailored to the recipient
+
+IMPORTANT RULES:
+- Maintain the same professional tone and structure
+- Keep the same core message and purpose
+- Naturally weave in the new details (don't just add them at the end)
+- Make it feel cohesive, not like information was added afterwards
+- If any answer suggests changing the approach, adapt accordingly
+- Keep it concise - don't make it unnecessarily longer
+
+Return ONLY the refined email, no explanations or meta-commentary.
+      `.trim();
+
+      const refinedEmail = await generateEmail('', 'Refined Email', refinePrompt);
+      setGeneratedEmail(refinedEmail);
+      setEditableEmailBody(refinedEmail);
+
+      // Close modal and reset
+      setShowConversationModal(false);
+      setConversationQuestions([]);
+      setConversationAnswers({});
+    } catch (error) {
+      console.error('Failed to refine email:', error);
+    } finally {
+      setIsRefiningEmail(false);
     }
   };
 
@@ -1089,30 +1223,30 @@ Keep it practical and actionable. Use confident language.
                       Improve Email
                     </button>
                     <button
-                      onClick={() => handleEnhanceEmail('grammar')}
-                      disabled={isEnhancing}
+                      onClick={handleTalkAboutIt}
+                      disabled={isEnhancing || isGeneratingQuestions}
                       style={{
                         padding: '10px',
                         background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
                         color: '#fff',
-                        cursor: isEnhancing ? 'not-allowed' : 'pointer',
+                        cursor: (isEnhancing || isGeneratingQuestions) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '6px',
                         fontSize: '13px',
                         fontWeight: 600,
-                        opacity: isEnhancing ? 0.5 : 1
+                        opacity: (isEnhancing || isGeneratingQuestions) ? 0.5 : 1
                       }}
                     >
-                      {isEnhancing && enhancementType === 'grammar' ? (
+                      {isGeneratingQuestions ? (
                         <Spinner />
                       ) : (
-                        <Check className="w-4 h-4" />
+                        <MessageCircle className="w-4 h-4" />
                       )}
-                      Fix Grammar
+                      Talk About It
                     </button>
                     <button
                       onClick={() => handleEnhanceEmail('shorten')}
@@ -1506,6 +1640,285 @@ Keep it practical and actionable. Use confident language.
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Talk About It - Conversation Modal */}
+        {showConversationModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+            onClick={() => !isRefiningEmail && setShowConversationModal(false)}
+          >
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-lg)',
+                maxWidth: '700px',
+                width: '100%',
+                maxHeight: '85vh',
+                overflow: 'auto',
+                padding: '0'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{
+                padding: '24px',
+                borderBottom: '2px solid var(--border-default)',
+                background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div>
+                    <h2 style={{
+                      fontSize: '22px',
+                      fontWeight: 700,
+                      marginBottom: '8px',
+                      color: 'var(--text-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <MessageCircle className="w-6 h-6" style={{ color: 'var(--roof-red)' }} />
+                      Let's Talk About Your Email
+                    </h2>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--text-secondary)',
+                      margin: 0,
+                      lineHeight: '1.5'
+                    }}>
+                      Susan has a few questions to make this email more personalized and effective
+                    </p>
+                  </div>
+                  {!isRefiningEmail && (
+                    <button
+                      onClick={() => setShowConversationModal(false)}
+                      style={{
+                        padding: '8px',
+                        background: 'var(--bg-tertiary)',
+                        border: 'none',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Questions Loading */}
+              {isGeneratingQuestions && (
+                <div style={{
+                  padding: '60px 24px',
+                  textAlign: 'center'
+                }}>
+                  <Spinner />
+                  <div style={{
+                    marginTop: '16px',
+                    fontSize: '15px',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 500
+                  }}>
+                    Susan is reading your email and preparing questions...
+                  </div>
+                </div>
+              )}
+
+              {/* Questions & Answers */}
+              {!isGeneratingQuestions && conversationQuestions.length > 0 && (
+                <div style={{ padding: '24px' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)',
+                    border: '2px solid #667eea30',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '16px',
+                    marginBottom: '24px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px',
+                      lineHeight: '1.6'
+                    }}>
+                      <HelpCircle className="w-5 h-5 flex-shrink-0" style={{ marginTop: '2px', color: '#667eea' }} />
+                      <div>
+                        Answer the questions below to help Susan refine your email with specific, accurate details.
+                        Skip any that don't apply.
+                      </div>
+                    </div>
+                  </div>
+
+                  {conversationQuestions.map((question, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        marginBottom: '24px',
+                        padding: '20px',
+                        background: 'var(--bg-secondary)',
+                        border: '2px solid var(--border-default)',
+                        borderRadius: 'var(--radius-lg)'
+                      }}
+                    >
+                      <label style={{
+                        display: 'block',
+                        marginBottom: '12px',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                        lineHeight: '1.5'
+                      }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '24px',
+                          height: '24px',
+                          background: 'var(--roof-red)',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          marginRight: '10px'
+                        }}>
+                          {index + 1}
+                        </span>
+                        {question}
+                      </label>
+                      <textarea
+                        value={conversationAnswers[index] || ''}
+                        onChange={(e) => setConversationAnswers({
+                          ...conversationAnswers,
+                          [index]: e.target.value
+                        })}
+                        placeholder="Type your answer here, or leave blank to skip..."
+                        disabled={isRefiningEmail}
+                        style={{
+                          width: '100%',
+                          minHeight: '80px',
+                          padding: '12px 16px',
+                          background: 'var(--bg-elevated)',
+                          border: '2px solid var(--border-default)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--text-primary)',
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          fontFamily: 'inherit',
+                          resize: 'vertical',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer Actions */}
+              {!isGeneratingQuestions && conversationQuestions.length > 0 && (
+                <div style={{
+                  padding: '20px 24px',
+                  borderTop: '2px solid var(--border-default)',
+                  background: 'var(--bg-secondary)',
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 10
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    gap: '12px',
+                    alignItems: 'center'
+                  }}>
+                    {!isRefiningEmail && (
+                      <button
+                        onClick={() => setShowConversationModal(false)}
+                        style={{
+                          flex: '0 0 auto',
+                          padding: '12px 20px',
+                          background: 'var(--bg-tertiary)',
+                          border: '2px solid var(--border-default)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 600
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      onClick={handleApplyConversationRefinements}
+                      disabled={isRefiningEmail || Object.keys(conversationAnswers).length === 0}
+                      style={{
+                        flex: 1,
+                        padding: '14px 24px',
+                        background: Object.keys(conversationAnswers).length === 0
+                          ? 'var(--bg-tertiary)'
+                          : 'var(--roof-red)',
+                        border: 'none',
+                        borderRadius: 'var(--radius-md)',
+                        color: '#fff',
+                        cursor: (isRefiningEmail || Object.keys(conversationAnswers).length === 0)
+                          ? 'not-allowed'
+                          : 'pointer',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        opacity: (isRefiningEmail || Object.keys(conversationAnswers).length === 0) ? 0.5 : 1,
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {isRefiningEmail ? (
+                        <>
+                          <Spinner />
+                          Susan is refining your email...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          Apply Changes & Refine Email
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {Object.keys(conversationAnswers).length === 0 && !isRefiningEmail && (
+                    <div style={{
+                      marginTop: '12px',
+                      fontSize: '13px',
+                      color: 'var(--text-tertiary)',
+                      textAlign: 'center'
+                    }}>
+                      Answer at least one question to continue
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
