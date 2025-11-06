@@ -523,33 +523,41 @@ Example format:
         .join('\n\n');
 
       const refinePrompt = `
-You are Susan AI-21. You previously generated this email, and now you have additional context from the rep to make it more personalized and accurate.
+You are Susan AI-21, Roof-ER's email generation system. You previously generated this email FROM a Roof-ER rep TO ${recipientName}.
 
-ORIGINAL EMAIL:
+The rep has provided additional details to make the email more specific and accurate. Your job is to refine the ORIGINAL email by incorporating these new details.
+
+ORIGINAL EMAIL (FROM THE REP):
 Subject: ${subject}
 To: ${recipientName}
 
 ${generatedEmail}
 
-NEW INFORMATION FROM REP:
+NEW INFORMATION FROM THE REP:
 ${qaContext}
 
 YOUR TASK:
-Rewrite the email incorporating this new information to make it:
-1. More personalized to the specific situation
-2. More accurate with concrete details
-3. More persuasive with specific evidence
-4. Better tailored to the recipient
+Refine the email by incorporating the new information. The email should still be written FROM the Roof-ER rep's perspective TO ${recipientName}.
 
-IMPORTANT RULES:
-- Maintain the same professional tone and structure
-- Keep the same core message and purpose
-- Naturally weave in the new details (don't just add them at the end)
-- Make it feel cohesive, not like information was added afterwards
-- If any answer suggests changing the approach, adapt accordingly
-- Keep it concise - don't make it unnecessarily longer
+CRITICAL RULES:
+1. **WRITE FROM THE REP'S VOICE** - Use "I", "we", "our team" (NOT "Susan AI-21 previously generated...")
+2. **DO NOT mention Susan, AI, or that this is a refined version**
+3. **Naturally weave in the specific details** from the Q&A without making it obvious information was added
+4. **Maintain the same professional tone** and core message
+5. **Keep it cohesive** - should read like it was written fresh with all the details from the start
+6. **Stay concise** - don't make it unnecessarily longer
+7. **Be specific** - use concrete details, dates, numbers, and names provided
 
-Return ONLY the refined email, no explanations or meta-commentary.
+EXAMPLE OF WHAT NOT TO DO:
+❌ "This is Susan AI-21, a digital assistant for Roof-ER. I previously generated an email..."
+❌ "With additional context from our representative, [Your Name], I am now providing a refined version..."
+
+EXAMPLE OF WHAT TO DO:
+✅ "I'm writing to follow up on the storm damage claim for [specific address]..."
+✅ "Our inspection on [specific date] revealed [specific damage details]..."
+✅ "As discussed with [homeowner name], the primary concerns are [specific concerns]..."
+
+Return ONLY the refined email from the rep's perspective. No explanations, no meta-commentary, no mentions of Susan or AI.
       `.trim();
 
       const refinedEmail = await generateEmail('', 'Refined Email', refinePrompt);
