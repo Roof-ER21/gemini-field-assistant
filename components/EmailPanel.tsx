@@ -465,28 +465,59 @@ CONTEXT:
 - Tone: ${selectedTone}
 - Additional Instructions: ${customInstructions || 'None provided'}
 
+ROOF-ER REP'S MISSION & WORKFLOW:
+The rep's PRIMARY GOAL is to get FULL APPROVAL from insurance for roof replacement/repairs. The typical workflow is:
+1. Document storm damage with photos and inspection report
+2. Submit estimate to insurance adjuster
+3. If partial approval, provide additional evidence (building codes, manufacturer guidelines, repair attempt videos)
+4. Request adjuster review the supplemental documentation
+5. Respectfully request full approval based on evidence
+6. Follow up with adjuster on timeline for decision
+
+WHAT REPS DO:
+- Advocate for homeowners to get full insurance coverage
+- Provide technical documentation (photos, reports, code references)
+- Follow up professionally with adjusters
+- Reference state building codes and manufacturer requirements
+- Document repair attempts when relevant
+
+WHAT REPS DO NOT DO:
+- Negotiate prices or offer discounts (insurance determines coverage amount)
+- Act as salespeople pushing upgrades
+- Offer supplemental services unrelated to the claim
+- Suggest scheduling meetings unless adjuster requested it
+- Make generic "next steps" that don't align with getting full approval
+
 YOUR TASK:
-Re-read this email carefully and generate exactly 3-4 strategic clarifying questions that would help make this email MORE personalized, accurate, and effective.
+Generate exactly 3-4 strategic questions that help the rep add SPECIFIC DETAILS to strengthen their case for full approval.
 
-QUESTION GUIDELINES:
-1. Ask about specific details that would strengthen the argument (e.g., damage specifics, timeline, previous communications)
-2. Ask about recipient context that could personalize the message (e.g., "Has this adjuster been helpful in the past?" "Did they mention any specific concerns?")
-3. Ask about missing information that would make claims more credible (e.g., specific roof age, storm date, documentation available)
-4. Focus on actionable details that Susan can incorporate into the email
+QUESTION FOCUS AREAS (PRIORITIZE THESE):
+1. **Specific damage details** - What exact damage was observed? Where? How extensive?
+2. **Timeline & documentation** - Storm date? Inspection date? What photos/reports exist?
+3. **Building codes & requirements** - Which specific code sections apply? Manufacturer requirements?
+4. **Previous communications** - What did adjuster say? What concerns were raised? What's missing from current approval?
+5. **Homeowner context** - Any urgent concerns? Living situation? Previous relationship with adjuster?
 
-IMPORTANT:
-- Make questions specific to THIS email's content and purpose
-- Ask questions that have clear, useful answers
-- Avoid generic questions that don't add value
-- Each question should directly improve personalization or accuracy
+IMPORTANT RULES:
+- Questions should lead to details that support FULL APPROVAL
+- Focus on evidence, documentation, and technical justification
+- Ask about what's already available (photos, reports, code sections)
+- Don't suggest actions outside the rep's workflow
+- Questions should result in concrete facts (dates, locations, measurements, code sections)
+
+BAD QUESTIONS (DON'T ASK THESE):
+❌ "Would you like to emphasize the need for matching requirements?"
+❌ "Should we suggest a follow-up call to discuss this approach?"
+❌ "Do you want to offer a warranty or quality guarantee?"
+❌ "Would negotiating price help close this deal?"
+
+GOOD QUESTIONS (ASK THESE):
+✅ "What is the exact storm date and do you have weather service documentation?"
+✅ "Which specific building code sections require full replacement vs partial repair?"
+✅ "What percentage did the adjuster approve and what specific items were denied?"
+✅ "Do you have a repair attempt video showing why partial repair won't work?"
 
 Return ONLY the questions, one per line, numbered 1-4. No explanations or preamble.
-
-Example format:
-1. What specific type of damage did you observe during the inspection (hail dents, missing shingles, etc.)?
-2. Has this adjuster been responsive in previous communications, or is this a first contact?
-3. Do you have the exact storm date and any weather documentation to reference?
-4. What is the homeowner's main concern or priority right now?
       `.trim();
 
       const questionsResponse = await generateEmail('', 'Email Questions', questionPrompt);
