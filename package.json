@@ -22,7 +22,11 @@
     "test:chat": "tsx scripts/test-chat-save.ts",
     "test:chat:railway": "railway run tsx scripts/test-chat-save.ts",
     "db:migrate": "node run-migrations.js",
-    "db:migrate:railway": "railway run node run-migrations.js"
+    "db:migrate:railway": "railway run node run-migrations.js",
+    "announcement:create": "node scripts/create-baby-malik-announcement.js",
+    "announcement:create:railway": "railway run node scripts/create-baby-malik-announcement.js",
+    "announcement:test": "node scripts/test-announcement-system.js",
+    "announcement:test:railway": "railway run node scripts/test-announcement-system.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
