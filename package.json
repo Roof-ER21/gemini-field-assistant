@@ -21,6 +21,8 @@
     "test:email": "node scripts/test-email-notifications.js",
     "test:chat": "tsx scripts/test-chat-save.ts",
     "test:chat:railway": "railway run tsx scripts/test-chat-save.ts",
+    "test:susan": "node scripts/test-susan-chat.js",
+    "test:susan:railway": "railway run node scripts/test-susan-chat.js",
     "db:migrate": "node run-migrations.js",
     "db:migrate:railway": "railway run node run-migrations.js",
     "announcement:create": "node scripts/create-baby-malik-announcement.js",
