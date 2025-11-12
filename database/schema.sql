@@ -287,6 +287,26 @@ CREATE TABLE IF NOT EXISTS insurance_companies (
 CREATE INDEX IF NOT EXISTS idx_insurance_companies_name ON insurance_companies(name);
 CREATE INDEX IF NOT EXISTS idx_insurance_companies_state ON insurance_companies(state);
 
+-- ============================================================================
+-- ANNOUNCEMENTS TABLE
+-- ============================================================================
+-- System-wide announcements/notifications for all users
+CREATE TABLE IF NOT EXISTS announcements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'info', -- info, success, warning, error, celebration
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active);
+CREATE INDEX IF NOT EXISTS idx_announcements_start_time ON announcements(start_time);
+
 -- Insert a test user
 INSERT INTO users (email, name, role, state)
 VALUES ('test@roofer.com', 'Test User', 'sales_rep', 'MD')

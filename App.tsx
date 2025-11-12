@@ -14,6 +14,7 @@ import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
+import { ToastContainer } from './components/ui/toast';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 
@@ -30,6 +31,13 @@ const App: React.FC = () => {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [initialQuickAction, setInitialQuickAction] = useState<'email' | 'transcribe' | 'image'>('email');
   const [showChatHistory, setShowChatHistory] = useState(false);
+  const [toasts, setToasts] = useState<Array<{
+    id: string;
+    title: string;
+    message: string;
+    type?: 'info' | 'success' | 'warning' | 'error' | 'celebration';
+    duration?: number;
+  }>>([]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -92,6 +100,70 @@ const App: React.FC = () => {
       }
     } catch {}
   }, [activePanel]);
+
+  // Check for active announcements
+  useEffect(() => {
+    const checkAnnouncements = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/announcements/active`);
+        const data = await response.json();
+
+        if (data.success && data.announcements.length > 0) {
+          // Get dismissed announcements from localStorage
+          const dismissedStr = localStorage.getItem('dismissed_announcements');
+          const dismissed: string[] = dismissedStr ? JSON.parse(dismissedStr) : [];
+
+          // Filter out dismissed announcements
+          const newAnnouncements = data.announcements
+            .filter((ann: any) => !dismissed.includes(ann.id))
+            .map((ann: any) => ({
+              id: ann.id,
+              title: ann.title,
+              message: ann.message,
+              type: ann.type || 'info',
+              duration: 0 // Don't auto-dismiss - user must dismiss manually
+            }));
+
+          if (newAnnouncements.length > 0) {
+            setToasts(prev => [...prev, ...newAnnouncements]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch announcements:', error);
+      }
+    };
+
+    // Check immediately on mount
+    if (isAuthenticated) {
+      checkAnnouncements();
+    }
+
+    // Check every 30 seconds for new announcements
+    const interval = setInterval(() => {
+      if (isAuthenticated) {
+        checkAnnouncements();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  const handleDismissToast = (id: string) => {
+    // Remove from toasts
+    setToasts(prev => prev.filter(t => t.id !== id));
+
+    // Store in localStorage so it won't show again
+    try {
+      const dismissedStr = localStorage.getItem('dismissed_announcements');
+      const dismissed: string[] = dismissedStr ? JSON.parse(dismissedStr) : [];
+      if (!dismissed.includes(id)) {
+        dismissed.push(id);
+        localStorage.setItem('dismissed_announcements', JSON.stringify(dismissed));
+      }
+    } catch (error) {
+      console.error('Failed to store dismissed announcement:', error);
+    }
+  };
 
   const handleLoginSuccess = () => {
     const user = authService.getCurrentUser();
@@ -312,6 +384,9 @@ const App: React.FC = () => {
         onGoTranscribe={() => setActivePanel('transcribe')}
         onGoUpload={() => setActivePanel('image')}
       />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
     </div>
   );
 };
