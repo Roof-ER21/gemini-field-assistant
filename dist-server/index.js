@@ -673,6 +673,65 @@ app.get('/api/notifications/config', async (req, res) => {
     }
 });
 // ============================================================================
+// ANNOUNCEMENT ENDPOINTS
+// ============================================================================
+// Get active announcements (public endpoint)
+app.get('/api/announcements/active', async (req, res) => {
+    try {
+        const now = new Date().toISOString();
+        const result = await pool.query(`SELECT id, title, message, type, start_time, end_time
+       FROM announcements
+       WHERE is_active = true
+         AND start_time <= $1
+         AND (end_time IS NULL OR end_time >= $1)
+       ORDER BY start_time DESC
+       LIMIT 10`, [now]);
+        res.json({
+            success: true,
+            announcements: result.rows
+        });
+    }
+    catch (error) {
+        console.error('Error fetching active announcements:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch announcements',
+            message: error.message
+        });
+    }
+});
+// Create announcement (admin only)
+app.post('/api/admin/announcements', async (req, res) => {
+    try {
+        const userEmail = getRequestEmail(req);
+        const { title, message, type, start_time, end_time } = req.body;
+        if (!title || !message || !start_time) {
+            return res.status(400).json({
+                success: false,
+                error: 'title, message, and start_time are required'
+            });
+        }
+        // Get user ID
+        const userId = await getOrCreateUserIdByEmail(userEmail);
+        const result = await pool.query(`INSERT INTO announcements (title, message, type, start_time, end_time, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`, [title, message, type || 'info', start_time, end_time || null, userId]);
+        console.log(`✅ Announcement created: "${title}" by ${userEmail}`);
+        res.json({
+            success: true,
+            announcement: result.rows[0]
+        });
+    }
+    catch (error) {
+        console.error('Error creating announcement:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create announcement',
+            message: error.message
+        });
+    }
+});
+// ============================================================================
 // ACTIVITY LOGGING ENDPOINTS
 // ============================================================================
 // Log user activity

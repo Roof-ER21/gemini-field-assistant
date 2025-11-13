@@ -23,6 +23,8 @@
     "test:chat:railway": "railway run tsx scripts/test-chat-save.ts",
     "test:susan": "node scripts/test-susan-chat.js",
     "test:susan:railway": "railway run node scripts/test-susan-chat.js",
+    "test:api": "node scripts/test-api-comprehensive.js",
+    "test:api:railway": "railway run node scripts/test-api-comprehensive.js",
     "db:migrate": "node run-migrations.js",
     "db:migrate:railway": "railway run node run-migrations.js",
     "announcement:create": "node scripts/create-baby-malik-announcement.js",

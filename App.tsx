@@ -16,6 +16,7 @@ import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import { ToastContainer } from './components/ui/toast';
 import { authService, AuthUser } from './services/authService';
+import { getApiBaseUrl } from './services/config';
 import { Settings, History, Menu, X } from 'lucide-react';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
@@ -105,7 +106,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkAnnouncements = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/announcements/active`);
+        const apiUrl = getApiBaseUrl();
+        const response = await fetch(`${apiUrl}/announcements/active`);
         const data = await response.json();
 
         if (data.success && data.announcements.length > 0) {
