@@ -8,6 +8,9 @@
 -- Enable UUID extension for better primary keys
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Enable pgvector extension for semantic search/RAG
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ============================================================================
 -- USERS TABLE
 -- ============================================================================

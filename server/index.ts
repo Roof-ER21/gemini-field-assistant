@@ -97,6 +97,21 @@ async function getOrCreateUserIdByEmail(email: string): Promise<string | null> {
   }
 }
 
+// Authorization middleware - require admin role
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const email = getRequestEmail(req);
+  const adminEmail = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
+
+  if (!adminEmail || email !== adminEmail) {
+    return res.status(403).json({
+      error: 'Admin access required',
+      message: 'This endpoint requires administrator privileges'
+    });
+  }
+
+  next();
+}
+
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
@@ -824,7 +839,7 @@ app.get('/api/announcements/active', async (req, res) => {
 });
 
 // Create announcement (admin only)
-app.post('/api/admin/announcements', async (req, res) => {
+app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
   try {
     const userEmail = getRequestEmail(req);
     const { title, message, type, start_time, end_time } = req.body;
@@ -1315,7 +1330,7 @@ app.post('/api/admin/fix-session-id', async (req, res) => {
 });
 
 // Get all users with conversation statistics
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -1372,7 +1387,7 @@ app.get('/api/admin/users-basic', async (req, res) => {
 });
 
 // Get all conversations for a specific user
-app.get('/api/admin/conversations', async (req, res) => {
+app.get('/api/admin/conversations', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -1453,7 +1468,7 @@ app.get('/api/admin/conversations/:sessionId', async (req, res) => {
 
 // Update user role (admin only - in production add auth middleware)
 // Accepts either user ID or email as userId parameter
-app.patch('/api/admin/users/:userId/role', async (req, res) => {
+app.patch('/api/admin/users/:userId/role', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;

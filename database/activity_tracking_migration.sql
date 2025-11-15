@@ -10,7 +10,7 @@
 -- Tracks all user activities: logins, chats, documents, emails, transcriptions
 CREATE TABLE IF NOT EXISTS user_activity_log (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   activity_type VARCHAR(50) NOT NULL, -- 'login', 'chat', 'document_analysis', 'email_generated', 'transcription'
   activity_data JSONB, -- Store relevant data (message count, document name, etc.)
   ip_address VARCHAR(45), -- Support both IPv4 and IPv6
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS email_notifications (
   id SERIAL PRIMARY KEY,
   notification_type VARCHAR(50) NOT NULL, -- 'first_login', 'daily_summary', 'welcome'
   recipient_email VARCHAR(255) NOT NULL,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   sent_at TIMESTAMP DEFAULT NOW(),
   email_data JSONB, -- Store email content, subject, etc.
   success BOOLEAN DEFAULT true,
