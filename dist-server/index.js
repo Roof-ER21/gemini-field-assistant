@@ -8,6 +8,8 @@ import pg from 'pg';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { emailService } from './services/emailService.js';
 import { cronService } from './services/cronService.js';
 const { Pool } = pg;
@@ -35,9 +37,60 @@ pool.query('SELECT NOW()', (err, res) => {
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================
+// Security headers with Helmet
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://api.together.xyz"],
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
+// CORS configuration
 app.use(cors());
+// Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// Rate limiting - General API protection
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+// Stricter rate limiting for write operations
+const writeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 50, // Limit each IP to 50 POST/PUT/DELETE requests per windowMs
+    message: 'Too many write requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.method === 'GET', // Only limit write operations
+});
+// Extra strict rate limiting for email notifications
+const emailLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // Limit each IP to 10 email requests per hour
+    message: 'Too many email requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+// Apply general rate limiting to all API routes
+app.use('/api/', generalLimiter);
+// Apply write limiter to specific endpoints
+app.use('/api/chat/messages', writeLimiter);
+app.use('/api/documents/', writeLimiter);
+app.use('/api/emails/', emailLimiter);
+app.use('/api/notifications/email', emailLimiter);
 // Request logging
 app.use((req, res, next) => {
     console.log(`${req.method} ${req.path}`);

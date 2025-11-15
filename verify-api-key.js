@@ -250,12 +250,17 @@ async function verifySetup() {
   } else {
     const viteConfig = readFileSync(viteConfigPath, 'utf-8');
 
-    if (viteConfig.includes("'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY)")) {
-      logSuccess('Vite config correctly maps GEMINI_API_KEY to process.env.API_KEY');
+    const ok = viteConfig.includes("'process.env.GEMINI_API_KEY'") &&
+               viteConfig.includes('get(\'VITE_GEMINI_API_KEY\')')
+               || viteConfig.includes('process.env[\'VITE_GEMINI_API_KEY\']')
+               || viteConfig.includes('process.env.VITE_GEMINI_API_KEY');
+
+    if (ok) {
+      logSuccess('Vite config maps GEMINI_API_KEY from CI/RAILWAY env to process.env.GEMINI_API_KEY');
       passed++;
     } else {
-      logWarning('Vite config may not be correctly configured');
-      logInfo('Expected to find: process.env.API_KEY mapped to env.GEMINI_API_KEY');
+      logWarning('Vite config may not pass GEMINI_API_KEY from CI env');
+      logInfo('Ensure define.process.env.GEMINI_API_KEY reads from VITE_GEMINI_API_KEY or GEMINI_API_KEY');
       warnings++;
     }
   }
