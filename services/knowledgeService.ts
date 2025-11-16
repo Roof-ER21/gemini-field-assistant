@@ -189,6 +189,9 @@ export const knowledgeService = {
       { name: 'Maryland Contractor License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/MD License.md`, type: 'md', category: 'Licenses & Certifications' },
       { name: 'Virginia Class A License', path: `${DOCS_BASE}/Sales Rep Resources 2/Licenses & Certifications/VA Class A License.md`, type: 'md', category: 'Licenses & Certifications' },
 
+      // Product Installation Requirements (NEW)
+      { name: 'OC Requirements for approvals up to Ridge (entire slopes)', path: `${DOCS_BASE}/OC_Ridge_Vent_Requirements.md`, type: 'md', category: 'Product Information & Warranties' },
+
       // State-Specific Resources (CRITICAL)
       { name: 'State-Specific Matching Requirements', path: `${DOCS_BASE}/State-Specific-Matching-Requirements.md`, type: 'md', category: 'State-Specific Codes' },
       { name: 'Virginia Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Virginia-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
