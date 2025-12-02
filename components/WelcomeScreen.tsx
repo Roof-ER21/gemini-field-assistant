@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import {
   Brain,
   Zap,
@@ -102,7 +102,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
     { icon: Radio, label: 'Live Conversation', count: 'Active' },
   ];
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 1 }, // Changed from 0 to 1 for immediate visibility
     visible: {
       opacity: 1,
@@ -113,7 +113,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
     },
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 1, y: 0 }, // Changed for immediate visibility
     visible: {
       opacity: 1,

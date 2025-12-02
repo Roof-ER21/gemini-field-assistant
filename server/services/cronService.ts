@@ -3,12 +3,12 @@
  * Sends daily summary emails at 5 AM, 12 PM, 7 PM, and 11 PM
  */
 
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { dailySummaryService } from './dailySummaryService.js';
 
 class CronService {
   private static instance: CronService;
-  private jobs: cron.ScheduledTask[] = [];
+  private jobs: ScheduledTask[] = [];
 
   private constructor() {}
 

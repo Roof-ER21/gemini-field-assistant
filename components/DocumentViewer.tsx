@@ -45,12 +45,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, onOp
 
     const blob = new Blob([content.content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = window.document.createElement('a');
     a.href = url;
     a.download = `${document.name}.md`;
-    document.body.appendChild(a);
+    window.document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    window.document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 

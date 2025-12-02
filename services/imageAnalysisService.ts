@@ -55,9 +55,6 @@ export async function analyzeRoofImage(
 
   // Initialize Gemini AI
   const genAI = new GoogleGenAI({ apiKey });
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp' // Vision-capable model
-  });
 
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. Your role is to analyze roof damage photos and provide INSURANCE-FOCUSED guidance - NOT retail sales talk.
 
@@ -129,18 +126,25 @@ FORMAT YOUR RESPONSE AS JSON:
 
 REMEMBER: You're helping document a CLAIM, not make a SALE. Focus on coverage, not upgrades.`;
 
-  const result = await model.generateContent([
-    prompt,
-    {
-      inlineData: {
-        mimeType: imageFile.type,
-        data: imageData.split(',')[1], // Remove data:image/xxx;base64, prefix
+  const response = await genAI.models.generateContent({
+    model: 'gemini-2.0-flash-exp', // Vision-capable model
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: imageFile.type,
+              data: imageData.split(',')[1], // Remove data:image/xxx;base64, prefix
+            },
+          },
+        ],
       },
-    },
-  ]);
+    ],
+  });
 
-  const response = await result.response;
-  const text = response.text();
+  const text = response.text ?? '';
 
   // Parse JSON response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -205,9 +209,6 @@ export async function answerFollowUpQuestion(
 
   // Initialize Gemini AI
   const genAI = new GoogleGenAI({ apiKey });
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp'
-  });
 
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. You previously analyzed a roof damage photo and asked follow-up questions.
 
@@ -239,9 +240,11 @@ FORMAT YOUR RESPONSE AS JSON:
   "impactAssessment": "How does this new information change the claim approach?"
 }`;
 
-  const result = await model.generateContent([prompt]);
-  const response = await result.response;
-  const text = response.text();
+  const response = await genAI.models.generateContent({
+    model: 'gemini-2.0-flash-exp',
+    contents: prompt,
+  });
+  const text = response.text ?? '';
 
   // Parse JSON response
   const jsonMatch = text.match(/\{[\s\S]*\}/);

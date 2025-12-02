@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { connectTranscriptionStream } from '../services/geminiService';
-import { LiveSession, LiveServerMessage } from '@google/genai';
+import { Session, LiveServerMessage } from '@google/genai';
 import { Message } from '../types';
 import Spinner from './Spinner';
 import { encode } from '../utils/audio';
@@ -46,7 +46,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Refs for voice transcription
-  const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
+  const sessionPromiseRef = useRef<Promise<Session> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);

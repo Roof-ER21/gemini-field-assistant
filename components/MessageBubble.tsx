@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { Copy, CheckCheck, User, Bot, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
@@ -22,7 +22,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const bubbleVariants = {
+  const bubbleVariants: Variants = {
     hidden: {
       opacity: 0,
       y: 20,

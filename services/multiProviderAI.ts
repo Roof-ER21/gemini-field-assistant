@@ -291,10 +291,14 @@ export class MultiProviderAI {
     const chat = genAI.chats.create({
       model: modelName,
       history: contents.slice(0, -1),
-      systemInstruction,
+      config: {
+        systemInstruction: systemInstruction || undefined,
+      },
     });
 
-    const result = await chat.sendMessage(contents[contents.length - 1].parts[0].text);
+    const result = await chat.sendMessage({
+      message: contents[contents.length - 1].parts[0].text,
+    });
 
     return {
       content: result.text,

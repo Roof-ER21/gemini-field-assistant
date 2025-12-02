@@ -96,6 +96,7 @@ export class EnhancedKnowledgeService {
         results.push({
           document: doc,
           relevance,
+          score: relevance, // Alias for relevance to match SearchResult type
           snippet: snippet || doc.category || 'No preview available'
         });
       }

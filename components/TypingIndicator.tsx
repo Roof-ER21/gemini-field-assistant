@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, type Transition } from 'framer-motion';
 import { Bot, Sparkles } from 'lucide-react';
 
 const TypingIndicator: React.FC = () => {
@@ -8,10 +8,10 @@ const TypingIndicator: React.FC = () => {
     animate: { y: -8 },
   };
 
-  const dotTransition = {
+  const dotTransition: Transition = {
     duration: 0.5,
     repeat: Infinity,
-    repeatType: "reverse" as const,
+    repeatType: "reverse",
     ease: "easeInOut",
   };
 

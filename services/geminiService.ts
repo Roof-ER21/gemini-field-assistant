@@ -1,7 +1,7 @@
 import {
   GoogleGenAI,
   Chat,
-  LiveSession,
+  Session,
   LiveServerMessage,
   Modality,
 } from '@google/genai';
@@ -118,7 +118,7 @@ export function connectTranscriptionStream(callbacks: {
   onclose: () => void;
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
-}): Promise<LiveSession> {
+}): Promise<Session> {
   const client = ensureGemini();
   return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -135,7 +135,7 @@ export function connectLiveConversation(callbacks: {
   onclose: () => void;
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
-}): Promise<LiveSession> {
+}): Promise<Session> {
   const client = ensureGemini();
   return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',

@@ -54,8 +54,30 @@ app.use(helmet({
     },
     crossOriginEmbedderPolicy: false,
 }));
-// CORS configuration
-app.use(cors());
+// CORS configuration - restrict to known origins
+const allowedOrigins = [
+    'https://a21.up.railway.app',
+    'https://sa21.up.railway.app',
+    'http://localhost:5173',
+    'http://localhost:3001',
+    'http://localhost:3000'
+];
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        // In production, log unauthorized origin attempts
+        if (process.env.NODE_ENV === 'production') {
+            console.warn(`CORS blocked request from: ${origin}`);
+        }
+        return callback(null, false);
+    },
+    credentials: true
+}));
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
