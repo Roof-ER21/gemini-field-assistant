@@ -32,11 +32,16 @@ class CronService {
       console.log(`⏰ [5:00 AM CRON JOB TRIGGERED] - ${now}`);
       console.log('='.repeat(80));
       try {
+        // Send admin aggregate summary
+        const adminResult = await dailySummaryService.sendAdminDailySummary();
+        console.log('✅ [5:00 AM] Admin summary:', adminResult.success ? 'Sent' : 'Skipped/Failed');
+
+        // Send individual user summaries (optional - can be disabled)
         const result = await dailySummaryService.sendAllDailySummaries();
-        console.log('✅ [5:00 AM] Morning summaries completed:', JSON.stringify(result, null, 2));
+        console.log('✅ [5:00 AM] User summaries completed:', JSON.stringify(result, null, 2));
         console.log('='.repeat(80) + '\n');
       } catch (error) {
-        console.error('❌ [5:00 AM] Failed to send morning summaries:', error);
+        console.error('❌ [5:00 AM] Failed to send summaries:', error);
         console.log('='.repeat(80) + '\n');
       }
     }, {
@@ -50,11 +55,16 @@ class CronService {
       console.log(`⏰ [12:00 PM CRON JOB TRIGGERED] - ${now}`);
       console.log('='.repeat(80));
       try {
+        // Send admin aggregate summary
+        const adminResult = await dailySummaryService.sendAdminDailySummary();
+        console.log('✅ [12:00 PM] Admin summary:', adminResult.success ? 'Sent' : 'Skipped/Failed');
+
+        // Send individual user summaries
         const result = await dailySummaryService.sendAllDailySummaries();
-        console.log('✅ [12:00 PM] Midday summaries completed:', JSON.stringify(result, null, 2));
+        console.log('✅ [12:00 PM] User summaries completed:', JSON.stringify(result, null, 2));
         console.log('='.repeat(80) + '\n');
       } catch (error) {
-        console.error('❌ [12:00 PM] Failed to send midday summaries:', error);
+        console.error('❌ [12:00 PM] Failed to send summaries:', error);
         console.log('='.repeat(80) + '\n');
       }
     }, {
@@ -68,11 +78,16 @@ class CronService {
       console.log(`⏰ [7:00 PM CRON JOB TRIGGERED] - ${now}`);
       console.log('='.repeat(80));
       try {
+        // Send admin aggregate summary
+        const adminResult = await dailySummaryService.sendAdminDailySummary();
+        console.log('✅ [7:00 PM] Admin summary:', adminResult.success ? 'Sent' : 'Skipped/Failed');
+
+        // Send individual user summaries
         const result = await dailySummaryService.sendAllDailySummaries();
-        console.log('✅ [7:00 PM] Evening summaries completed:', JSON.stringify(result, null, 2));
+        console.log('✅ [7:00 PM] User summaries completed:', JSON.stringify(result, null, 2));
         console.log('='.repeat(80) + '\n');
       } catch (error) {
-        console.error('❌ [7:00 PM] Failed to send evening summaries:', error);
+        console.error('❌ [7:00 PM] Failed to send summaries:', error);
         console.log('='.repeat(80) + '\n');
       }
     }, {
@@ -86,11 +101,16 @@ class CronService {
       console.log(`⏰ [11:00 PM CRON JOB TRIGGERED] - ${now}`);
       console.log('='.repeat(80));
       try {
+        // Send admin aggregate summary
+        const adminResult = await dailySummaryService.sendAdminDailySummary();
+        console.log('✅ [11:00 PM] Admin summary:', adminResult.success ? 'Sent' : 'Skipped/Failed');
+
+        // Send individual user summaries
         const result = await dailySummaryService.sendAllDailySummaries();
-        console.log('✅ [11:00 PM] Night summaries completed:', JSON.stringify(result, null, 2));
+        console.log('✅ [11:00 PM] User summaries completed:', JSON.stringify(result, null, 2));
         console.log('='.repeat(80) + '\n');
       } catch (error) {
-        console.error('❌ [11:00 PM] Failed to send night summaries:', error);
+        console.error('❌ [11:00 PM] Failed to send summaries:', error);
         console.log('='.repeat(80) + '\n');
       }
     }, {
@@ -135,11 +155,31 @@ class CronService {
   async runManually(): Promise<any> {
     console.log('🔧 Manual cron job trigger...');
     try {
+      // Send admin aggregate summary
+      const adminResult = await dailySummaryService.sendAdminDailySummary();
+      console.log('✅ Admin summary:', adminResult.success ? 'Sent' : 'Skipped/Failed');
+
+      // Send individual user summaries
       const result = await dailySummaryService.sendAllDailySummaries();
       console.log('✅ Manual trigger completed:', result);
-      return result;
+      return { adminResult, userResults: result };
     } catch (error) {
       console.error('❌ Manual trigger failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trigger admin summary only (for testing)
+   */
+  async runAdminSummaryManually(): Promise<any> {
+    console.log('🔧 Manual admin summary trigger...');
+    try {
+      const result = await dailySummaryService.sendAdminDailySummary();
+      console.log('✅ Admin summary trigger completed:', result.success ? 'Sent' : 'Skipped/Failed');
+      return result;
+    } catch (error) {
+      console.error('❌ Admin summary trigger failed:', error);
       throw error;
     }
   }

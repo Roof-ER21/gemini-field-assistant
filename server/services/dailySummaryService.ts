@@ -44,6 +44,36 @@ interface UserDailySummary {
   chatPreview: string[];
 }
 
+interface AdminDailySummary {
+  date: string;
+  totalUsers: number;
+  totalActivities: number;
+  totals: {
+    logins: number;
+    chats: number;
+    documents: number;
+    emails: number;
+    transcriptions: number;
+  };
+  userBreakdown: Array<{
+    name: string;
+    email: string;
+    state: string | null;
+    logins: number;
+    chats: number;
+    documents: number;
+    emails: number;
+    transcriptions: number;
+    totalActivities: number;
+  }>;
+  errors: Array<{
+    type: string;
+    email: string;
+    error: string;
+    timestamp: Date;
+  }>;
+}
+
 class DailySummaryService {
   private static instance: DailySummaryService;
   private pool: pg.Pool;
@@ -455,6 +485,352 @@ Powered by ROOFER - The Roof Docs
     } catch (error) {
       console.error('Error in sendAllDailySummaries:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get aggregate admin daily summary with ALL users' activity
+   */
+  async getAdminDailySummary(date?: string): Promise<AdminDailySummary> {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    try {
+      // Get all users with activity today aggregated by type
+      const usersResult = await this.pool.query<{
+        id: number;
+        name: string;
+        email: string;
+        state: string | null;
+        logins: string;
+        chats: string;
+        documents: string;
+        emails: string;
+        transcriptions: string;
+        total: string;
+      }>(
+        `SELECT
+          u.id, u.name, u.email, u.state,
+          COUNT(CASE WHEN al.activity_type = 'login' THEN 1 END)::text as logins,
+          COUNT(CASE WHEN al.activity_type = 'chat' THEN 1 END)::text as chats,
+          COUNT(CASE WHEN al.activity_type = 'document_analysis' THEN 1 END)::text as documents,
+          COUNT(CASE WHEN al.activity_type = 'email_generated' THEN 1 END)::text as emails,
+          COUNT(CASE WHEN al.activity_type = 'transcription' THEN 1 END)::text as transcriptions,
+          COUNT(*)::text as total
+        FROM users u
+        INNER JOIN user_activity_log al ON u.id = al.user_id
+        WHERE DATE(al.created_at) = $1
+        GROUP BY u.id, u.name, u.email, u.state
+        ORDER BY COUNT(*) DESC`,
+        [targetDate]
+      );
+
+      // Get any email errors from today
+      const errorsResult = await this.pool.query<{
+        notification_type: string;
+        recipient_email: string;
+        error_message: string;
+        sent_at: Date;
+      }>(
+        `SELECT notification_type, recipient_email, error_message, sent_at
+         FROM email_notifications
+         WHERE DATE(sent_at) = $1 AND success = false
+         ORDER BY sent_at DESC
+         LIMIT 20`,
+        [targetDate]
+      );
+
+      // Build user breakdown
+      const userBreakdown = usersResult.rows.map(user => ({
+        name: user.name || user.email.split('@')[0],
+        email: user.email,
+        state: user.state,
+        logins: parseInt(user.logins) || 0,
+        chats: parseInt(user.chats) || 0,
+        documents: parseInt(user.documents) || 0,
+        emails: parseInt(user.emails) || 0,
+        transcriptions: parseInt(user.transcriptions) || 0,
+        totalActivities: parseInt(user.total) || 0
+      }));
+
+      // Calculate totals
+      const totals = userBreakdown.reduce((acc, user) => ({
+        logins: acc.logins + user.logins,
+        chats: acc.chats + user.chats,
+        documents: acc.documents + user.documents,
+        emails: acc.emails + user.emails,
+        transcriptions: acc.transcriptions + user.transcriptions
+      }), { logins: 0, chats: 0, documents: 0, emails: 0, transcriptions: 0 });
+
+      // Build errors array
+      const errors = errorsResult.rows.map(err => ({
+        type: err.notification_type,
+        email: err.recipient_email,
+        error: err.error_message || 'Unknown error',
+        timestamp: err.sent_at
+      }));
+
+      return {
+        date: targetDate,
+        totalUsers: userBreakdown.length,
+        totalActivities: userBreakdown.reduce((sum, u) => sum + u.totalActivities, 0),
+        totals,
+        userBreakdown,
+        errors
+      };
+    } catch (error) {
+      console.error('Error getting admin daily summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate HTML email template for admin summary
+   */
+  private generateAdminSummaryEmail(summary: AdminDailySummary): { subject: string; html: string; text: string } {
+    const subject = `📊 Admin Daily Summary - ${summary.date} | ${summary.totalUsers} Active Users`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Daily Summary</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+          .container { max-width: 700px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+          .header .date { margin-top: 8px; font-size: 14px; opacity: 0.9; }
+          .content { padding: 30px 20px; }
+          .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+          .overview-card { background: #f8f9fa; border-top: 4px solid #3b82f6; padding: 20px; border-radius: 6px; text-align: center; }
+          .overview-card.highlight { border-top-color: #10b981; background: #ecfdf5; }
+          .overview-number { font-size: 36px; font-weight: 700; color: #1e40af; margin: 0; }
+          .overview-label { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px; }
+          .section { margin: 30px 0; }
+          .section-title { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }
+          .feature-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+          .feature-item { background: #f8f9fa; padding: 15px 10px; border-radius: 6px; text-align: center; }
+          .feature-number { font-size: 24px; font-weight: 700; color: #3b82f6; }
+          .feature-label { font-size: 11px; color: #666; text-transform: uppercase; margin-top: 5px; }
+          table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+          th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+          th { background: #f8f9fa; font-weight: 600; color: #333; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+          td { font-size: 14px; }
+          .state-badge { display: inline-block; padding: 3px 8px; background: #dbeafe; color: #1e40af; border-radius: 10px; font-size: 11px; font-weight: 600; }
+          .activity-badge { display: inline-block; padding: 3px 8px; background: #10b981; color: white; border-radius: 10px; font-size: 11px; font-weight: 600; }
+          .error-section { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 15px; margin: 20px 0; }
+          .error-title { color: #dc2626; font-weight: 600; margin-bottom: 10px; }
+          .error-item { background: white; padding: 10px; margin: 8px 0; border-radius: 4px; border-left: 3px solid #dc2626; font-size: 13px; }
+          .no-errors { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 15px; text-align: center; color: #059669; }
+          .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; border-top: 1px solid #e0e0e0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📊 Admin Daily Summary</h1>
+            <div class="date">${summary.date}</div>
+          </div>
+          <div class="content">
+            <div class="overview-grid">
+              <div class="overview-card highlight">
+                <div class="overview-number">${summary.totalUsers}</div>
+                <div class="overview-label">Active Users</div>
+              </div>
+              <div class="overview-card">
+                <div class="overview-number">${summary.totalActivities}</div>
+                <div class="overview-label">Total Activities</div>
+              </div>
+              <div class="overview-card">
+                <div class="overview-number">${summary.errors.length}</div>
+                <div class="overview-label">Errors Today</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Feature Usage Breakdown</div>
+              <div class="feature-grid">
+                <div class="feature-item">
+                  <div class="feature-number">${summary.totals.logins}</div>
+                  <div class="feature-label">Logins</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-number">${summary.totals.chats}</div>
+                  <div class="feature-label">Chats</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-number">${summary.totals.documents}</div>
+                  <div class="feature-label">Documents</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-number">${summary.totals.emails}</div>
+                  <div class="feature-label">Emails</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-number">${summary.totals.transcriptions}</div>
+                  <div class="feature-label">Transcripts</div>
+                </div>
+              </div>
+            </div>
+
+            ${summary.userBreakdown.length > 0 ? `
+            <div class="section">
+              <div class="section-title">User Activity Breakdown</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>State</th>
+                    <th>Logins</th>
+                    <th>Chats</th>
+                    <th>Docs</th>
+                    <th>Emails</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${summary.userBreakdown.map(user => `
+                  <tr>
+                    <td><strong>${user.name}</strong><br><span style="font-size: 11px; color: #666;">${user.email}</span></td>
+                    <td>${user.state ? `<span class="state-badge">${user.state}</span>` : '-'}</td>
+                    <td>${user.logins}</td>
+                    <td>${user.chats}</td>
+                    <td>${user.documents}</td>
+                    <td>${user.emails}</td>
+                    <td><span class="activity-badge">${user.totalActivities}</span></td>
+                  </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : '<p style="text-align: center; color: #666;">No user activity recorded today.</p>'}
+
+            ${summary.errors.length > 0 ? `
+            <div class="error-section">
+              <div class="error-title">⚠️ Errors & Issues (${summary.errors.length})</div>
+              ${summary.errors.slice(0, 10).map(err => `
+              <div class="error-item">
+                <strong>${err.type}</strong> → ${err.email}<br>
+                <span style="color: #666;">${err.error}</span>
+              </div>
+              `).join('')}
+              ${summary.errors.length > 10 ? `<p style="text-align: center; color: #666; font-size: 12px;">...and ${summary.errors.length - 10} more errors</p>` : ''}
+            </div>
+            ` : `
+            <div class="no-errors">
+              ✅ No errors recorded today - all systems running smoothly!
+            </div>
+            `}
+          </div>
+          <div class="footer">
+            <p style="margin: 5px 0;">S21 Field AI Assistant - Admin Report</p>
+            <p style="margin: 5px 0; font-size: 12px;">Powered by ROOFER - The Roof Docs</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+📊 ADMIN DAILY SUMMARY - ${summary.date}
+${'='.repeat(50)}
+
+OVERVIEW:
+- Active Users: ${summary.totalUsers}
+- Total Activities: ${summary.totalActivities}
+- Errors Today: ${summary.errors.length}
+
+FEATURE USAGE:
+- Logins: ${summary.totals.logins}
+- Chat Messages: ${summary.totals.chats}
+- Documents Viewed: ${summary.totals.documents}
+- Emails Generated: ${summary.totals.emails}
+- Transcriptions: ${summary.totals.transcriptions}
+
+USER BREAKDOWN:
+${summary.userBreakdown.map(u =>
+  `• ${u.name} (${u.state || 'N/A'}) - ${u.totalActivities} activities [Chats: ${u.chats}, Docs: ${u.documents}]`
+).join('\n')}
+
+${summary.errors.length > 0 ? `
+ERRORS & ISSUES:
+${summary.errors.slice(0, 10).map(e => `• ${e.type}: ${e.email} - ${e.error}`).join('\n')}
+` : 'No errors recorded today.'}
+
+---
+S21 Field AI Assistant - Admin Report
+Powered by ROOFER - The Roof Docs
+    `.trim();
+
+    return { subject, html, text };
+  }
+
+  /**
+   * Send admin daily summary to EMAIL_ADMIN_ADDRESS
+   */
+  async sendAdminDailySummary(date?: string): Promise<{ success: boolean; summary: AdminDailySummary | null; error?: string }> {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const adminEmail = process.env.EMAIL_ADMIN_ADDRESS;
+
+    console.log(`\n📊 [ADMIN SUMMARY] Starting admin daily summary for ${targetDate}...`);
+
+    if (!adminEmail) {
+      console.error('❌ EMAIL_ADMIN_ADDRESS not configured');
+      return { success: false, summary: null, error: 'EMAIL_ADMIN_ADDRESS not configured' };
+    }
+
+    try {
+      // Get aggregate summary data
+      const summary = await this.getAdminDailySummary(targetDate);
+
+      if (summary.totalUsers === 0) {
+        console.log(`ℹ️ No user activity on ${targetDate}, skipping admin summary`);
+        return { success: true, summary, error: 'No activity to report' };
+      }
+
+      // Generate email
+      const emailTemplate = this.generateAdminSummaryEmail(summary);
+
+      // Send to admin
+      const success = await this.sendEmailViaService(
+        adminEmail,
+        emailTemplate.subject,
+        emailTemplate.html,
+        emailTemplate.text
+      );
+
+      // Log to email_notifications
+      await this.pool.query(
+        `INSERT INTO email_notifications (notification_type, recipient_email, email_data, success)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          'admin_daily_summary',
+          adminEmail,
+          JSON.stringify({
+            date: targetDate,
+            totalUsers: summary.totalUsers,
+            totalActivities: summary.totalActivities,
+            errorsCount: summary.errors.length
+          }),
+          success
+        ]
+      );
+
+      if (success) {
+        console.log(`✅ [ADMIN SUMMARY] Sent to ${adminEmail}`);
+        console.log(`   - Users: ${summary.totalUsers}`);
+        console.log(`   - Activities: ${summary.totalActivities}`);
+        console.log(`   - Errors: ${summary.errors.length}`);
+      } else {
+        console.error(`❌ [ADMIN SUMMARY] Failed to send to ${adminEmail}`);
+      }
+
+      return { success, summary };
+    } catch (error) {
+      console.error('❌ [ADMIN SUMMARY] Error:', error);
+      return { success: false, summary: null, error: (error as Error).message };
     }
   }
 

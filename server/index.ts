@@ -1028,6 +1028,36 @@ app.post('/api/admin/trigger-cron-manual', async (req, res) => {
   }
 });
 
+// Trigger admin summary email only (for testing)
+app.post('/api/admin/trigger-admin-summary', async (req, res) => {
+  try {
+    const { date } = req.body;
+    const { dailySummaryService } = await import('./services/dailySummaryService.js');
+
+    const result = await dailySummaryService.sendAdminDailySummary(date);
+
+    res.json({
+      success: result.success,
+      message: result.success ? 'Admin summary email sent' : 'Admin summary not sent',
+      summary: result.summary ? {
+        date: result.summary.date,
+        totalUsers: result.summary.totalUsers,
+        totalActivities: result.summary.totalActivities,
+        totals: result.summary.totals,
+        errorsCount: result.summary.errors.length
+      } : null,
+      error: result.error
+    });
+  } catch (error) {
+    console.error('Error sending admin summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send admin summary',
+      message: (error as Error).message
+    });
+  }
+});
+
 // Run database migration (admin only)
 app.post('/api/admin/run-migration', async (req, res) => {
   try {
