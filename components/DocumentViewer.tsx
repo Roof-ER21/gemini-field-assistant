@@ -3,6 +3,7 @@ import { X, Download, ExternalLink, Printer, Share2, List } from 'lucide-react';
 import { knowledgeService, Document, DocumentContent } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import ReactMarkdown from 'react-markdown';
+import { useToast } from './Toast';
 
 interface DocumentViewerProps {
   document: Document;
@@ -11,6 +12,7 @@ interface DocumentViewerProps {
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, onOpenInChat }) => {
+  const toast = useToast();
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,16 +74,16 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose, onOp
       } else {
         // Fallback: copy to clipboard
         await navigator.clipboard.writeText(shareLink);
-        alert('Share link copied to clipboard!');
+        toast.success('Link Copied', 'Share link copied to clipboard');
       }
     } catch (error) {
       console.error('Error sharing:', error);
       // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(shareLink);
-        alert('Share link copied to clipboard!');
+        toast.success('Link Copied', 'Share link copied to clipboard');
       } catch (clipboardError) {
-        alert(`Share link: ${shareLink}`);
+        toast.info('Share Link', shareLink);
       }
     }
   };

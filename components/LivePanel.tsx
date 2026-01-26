@@ -3,6 +3,7 @@ import { env } from '../src/config/env';
 import { Mic, Radio, Trash2, Volume2, VolumeX, Wifi, WifiOff, PhoneOff, MessageCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { databaseService } from '../services/databaseService';
+import { useToast } from './Toast';
 
 interface Message {
   id: string;
@@ -19,6 +20,7 @@ interface ConnectionStatus {
 }
 
 const LivePanel: React.FC = () => {
+  const toast = useToast();
   // Connection & Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
@@ -223,7 +225,7 @@ const LivePanel: React.FC = () => {
         state: 'error',
         error: (error as Error).message
       });
-      alert('Failed to access microphone. Please grant permission and try again.');
+      toast.error('Microphone Access Denied', 'Please grant permission and try again');
     }
   };
 

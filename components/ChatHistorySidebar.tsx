@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageSquare, Download, Trash2, ChevronRight, Clock } from 'lucide-react';
 import { databaseService, ChatSession } from '../services/databaseService';
+import { useToast } from './Toast';
 
 interface ChatHistorySidebarProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
   onNewChat,
   currentSessionId
 }) => {
+  const toast = useToast();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
@@ -71,7 +73,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export session:', error);
-      alert('Failed to export conversation');
+      toast.error('Export Failed', 'Could not export conversation');
     }
   };
 

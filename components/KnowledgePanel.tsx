@@ -3,6 +3,7 @@ import { knowledgeService, Document } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
+import { useToast } from './Toast';
 
 type ViewMode = 'all' | 'recent' | 'favorites';
 type SearchMode = 'title' | 'content';
@@ -14,6 +15,7 @@ interface KnowledgePanelProps {
 }
 
 const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed, onOpenInChat }) => {
+  const toast = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -486,7 +488,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
               <div
                 key={index}
                 className="roof-er-doc-card"
-                onClick={() => alert(`Opening: ${doc.title}`)}
+                onClick={() => toast.info('Opening Document', doc.title)}
               >
                 <div className="roof-er-doc-icon">{doc.icon}</div>
                 <div className="roof-er-doc-title">{doc.title}</div>

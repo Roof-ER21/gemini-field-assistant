@@ -1491,10 +1491,18 @@ app.get('/api/admin/conversations/:sessionId', async (req, res) => {
   }
 });
 
-// Update user role (admin only - in production add auth middleware)
+// Update user role (admin only)
 // Accepts either user ID or email as userId parameter
 app.patch('/api/admin/users/:userId/role', async (req, res) => {
   try {
+    // CRITICAL: Verify requesting user is admin
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
     const { userId } = req.params;
     const { role } = req.body;
 

@@ -98,10 +98,11 @@ ${'='.repeat(80)}
     if (selectedState) {
       const stateRules: Record<string, string> = {
         'MD': `**MARYLAND-SPECIFIC RULES (CRITICAL):**
-- Maryland REQUIRES insurance companies to account for matching (IRC R908.3)
-- Use matching arguments AGGRESSIVELY in MD claims
-- Insurance must pay for full replacement if matching is impossible
-- This is your strongest argument in Maryland`,
+- Maryland building codes require contractors to ensure UNIFORM APPEARANCE across roof planes (IRC R908.3)
+- As the licensed contractor, you CANNOT perform work that violates these code requirements
+- Frame as: "Code-compliant work requires full replacement when matching materials are unavailable"
+- Key language: "The homeowner may share this technical documentation with their insurance"
+- This is your strongest CONTRACTOR documentation argument in Maryland`,
         'VA': `**VIRGINIA-SPECIFIC RULES (CRITICAL):**
 - Virginia does NOT require matching UNLESS the policy has a matching endorsement
 - DO NOT use matching arguments in VA without confirming matching endorsement exists

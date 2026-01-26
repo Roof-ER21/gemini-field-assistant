@@ -16,6 +16,7 @@ import {
   Filter,
   Calendar
 } from 'lucide-react';
+import { useToast } from './Toast';
 
 // ============================================================================
 // TYPES
@@ -78,6 +79,7 @@ type AlertFilter = 'all' | 'unacknowledged' | 'acknowledged';
 // ============================================================================
 
 const AdminBudgetTab: React.FC = () => {
+  const toast = useToast();
   // State
   const [overview, setOverview] = useState<BudgetOverview | null>(null);
   const [alerts, setAlerts] = useState<BudgetAlert[]>([]);
@@ -346,7 +348,7 @@ const AdminBudgetTab: React.FC = () => {
     try {
       const newBudget = parseFloat(editBudgetValue);
       if (isNaN(newBudget) || newBudget < 0) {
-        alert('Please enter a valid budget amount');
+        toast.warning('Invalid Input', 'Please enter a valid budget amount');
         return;
       }
 
@@ -400,7 +402,7 @@ const AdminBudgetTab: React.FC = () => {
     try {
       const budget = parseFloat(newCompanyBudget);
       if (isNaN(budget) || budget < 0) {
-        alert('Please enter a valid budget amount');
+        toast.warning('Invalid Input', 'Please enter a valid budget amount');
         return;
       }
 

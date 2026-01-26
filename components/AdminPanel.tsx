@@ -23,6 +23,7 @@ import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
+import { useToast } from './Toast';
 
 interface UserSummary {
   id: string;
@@ -99,6 +100,7 @@ interface MigrationStatus {
 }
 
 const AdminPanel: React.FC = () => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1782,7 +1784,7 @@ const AdminPanel: React.FC = () => {
                         <td style={{ padding: '1rem' }}>
                           <button
                             onClick={() => {
-                              alert(`Email Details:\n\nSubject: ${email.subject}\nRecipient: ${email.recipient}\n\n${email.body}`);
+                              toast.info(`Email: ${email.subject}`, `To: ${email.recipient}\n\n${email.body.substring(0, 200)}${email.body.length > 200 ? '...' : ''}`);
                             }}
                             style={{
                               padding: '0.5rem 1rem',

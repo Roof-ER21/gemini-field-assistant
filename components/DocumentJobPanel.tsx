@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { FileText, X, Save } from 'lucide-react';
+import { useToast } from './Toast';
 
 interface DocumentJobPanelProps {
   onClose: () => void;
 }
 
 const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({ onClose }) => {
+  const toast = useToast();
   const [noteText, setNoteText] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const saveToTranscription = () => {
     if (!noteText.trim()) {
-      alert('Please enter a note before saving.');
+      toast.warning('Empty Note', 'Please enter a note before saving');
       return;
     }
 
@@ -61,7 +63,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({ onClose }) => {
 
     } catch (error) {
       console.error('Error saving note:', error);
-      alert('Failed to save note. Please try again.');
+      toast.error('Save Failed', 'Failed to save note. Please try again');
     }
   };
 

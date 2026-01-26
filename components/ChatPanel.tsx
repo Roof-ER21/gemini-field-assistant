@@ -7,7 +7,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -16,6 +16,121 @@ import ChatHistorySidebar from './ChatHistorySidebar';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { authService } from '../services/authService';
 import { activityService } from '../services/activityService';
+import { useToast } from './Toast';
+
+/**
+ * Extract and compress key context from conversation history
+ * Preserves important facts while reducing token usage
+ */
+interface ConversationContext {
+  state: string | null;
+  insurer: string | null;
+  claimType: string | null;
+  damageDetails: string[];
+  customerUrgency: string | null;
+  keyFacts: string[];
+}
+
+function extractConversationContext(messages: Message[]): ConversationContext {
+  const context: ConversationContext = {
+    state: null,
+    insurer: null,
+    claimType: null,
+    damageDetails: [],
+    customerUrgency: null,
+    keyFacts: []
+  };
+
+  // Patterns to extract key information
+  const statePatterns = /\b(virginia|maryland|pennsylvania|VA|MD|PA)\b/gi;
+  const insurerPatterns = /\b(state farm|usaa|allstate|liberty mutual|travelers|erie|nationwide|geico|farmers|progressive|american family)\b/gi;
+  const claimPatterns = /\b(partial approval|full denial|denial|supplement|initial inspection|re-inspection|matching dispute|depreciation)\b/gi;
+  const damagePatterns = /\b(hail damage|wind damage|storm damage|age-related|brittle|cracked|missing shingles?|leak|water damage|impact marks?|granule loss)\b/gi;
+  const urgencyPatterns = /\b(urgent|asap|immediately|time-?sensitive|deadline|emergency|rush|today|tomorrow)\b/gi;
+
+  const allText = messages.map(m => m.text).join(' ');
+
+  // Extract state
+  const stateMatches = allText.match(statePatterns);
+  if (stateMatches) {
+    const lastState = stateMatches[stateMatches.length - 1].toUpperCase();
+    context.state = lastState === 'VIRGINIA' ? 'VA' :
+                    lastState === 'MARYLAND' ? 'MD' :
+                    lastState === 'PENNSYLVANIA' ? 'PA' : lastState;
+  }
+
+  // Extract insurer
+  const insurerMatches = allText.match(insurerPatterns);
+  if (insurerMatches) {
+    context.insurer = insurerMatches[insurerMatches.length - 1];
+  }
+
+  // Extract claim type
+  const claimMatches = allText.match(claimPatterns);
+  if (claimMatches) {
+    context.claimType = claimMatches[claimMatches.length - 1];
+  }
+
+  // Extract damage details (unique)
+  const damageMatches = allText.match(damagePatterns);
+  if (damageMatches) {
+    context.damageDetails = [...new Set(damageMatches.map(d => d.toLowerCase()))];
+  }
+
+  // Check for urgency
+  const urgencyMatches = allText.match(urgencyPatterns);
+  if (urgencyMatches) {
+    context.customerUrgency = 'high';
+  }
+
+  // Extract key facts from user messages (specific claim details, numbers, dates)
+  const numberPattern = /\$[\d,]+|\d+%|\d+\s*(?:years?|months?|sq(?:uare)?(?:\s*(?:feet|ft))?)/gi;
+  const datePattern = /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,?\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/gi;
+
+  messages.filter(m => m.sender === 'user').forEach(msg => {
+    const numbers = msg.text.match(numberPattern);
+    const dates = msg.text.match(datePattern);
+    if (numbers) context.keyFacts.push(...numbers.slice(0, 3));
+    if (dates) context.keyFacts.push(...dates.slice(0, 2));
+  });
+
+  // Dedupe key facts
+  context.keyFacts = [...new Set(context.keyFacts)].slice(0, 5);
+
+  return context;
+}
+
+/**
+ * Build compressed context summary for older messages
+ */
+function buildContextSummary(context: ConversationContext): string {
+  const parts: string[] = [];
+
+  if (context.state) {
+    parts.push(`State: ${context.state}`);
+  }
+  if (context.insurer) {
+    parts.push(`Insurance Company: ${context.insurer}`);
+  }
+  if (context.claimType) {
+    parts.push(`Claim Status: ${context.claimType}`);
+  }
+  if (context.damageDetails.length > 0) {
+    parts.push(`Damage Types: ${context.damageDetails.join(', ')}`);
+  }
+  if (context.customerUrgency) {
+    parts.push(`Urgency: ${context.customerUrgency}`);
+  }
+  if (context.keyFacts.length > 0) {
+    parts.push(`Key Details: ${context.keyFacts.join(', ')}`);
+  }
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  return `[CONVERSATION CONTEXT FROM EARLIER MESSAGES]\n${parts.join('\n')}\n[END CONTEXT]`;
+}
 
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
@@ -30,6 +145,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   showHistorySidebar = false,
   onToggleHistory
 }) => {
+  const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -188,7 +304,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         tmp.innerHTML = html;
         content = tmp.textContent || tmp.innerText || '';
       } else {
-        alert('Unsupported file type. Please upload PDF, DOCX, MD, or TXT files.');
+        toast.warning('Unsupported file type', 'Please upload PDF, DOCX, MD, or TXT files.');
         return;
       }
 
@@ -198,7 +314,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       );
     } catch (error) {
       console.error('Error reading file:', error);
-      alert('Failed to read file. Please try again.');
+      toast.error('Failed to read file', 'Please try again.');
     }
 
     // Reset file input
@@ -294,15 +410,40 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         console.log(`[RAG] Found ${sources.length} relevant documents${selectedState ? ` (State: ${selectedState})` : ''}`);
       }
 
+      // Build conversation context with compression for older messages
+      const filteredMessages = messages
+        .filter(m => m.sender !== 'bot' || !m.text.includes('Hey there!') && !m.text.includes('Welcome back'));
+
+      const recentMessages = filteredMessages.slice(-8); // Keep last 8 messages fully
+      const olderMessages = filteredMessages.slice(0, -8); // Compress older messages
+
+      // Extract context from older messages if any
+      let contextPrefix = '';
+      if (olderMessages.length > 0) {
+        const extractedContext = extractConversationContext(olderMessages);
+        contextPrefix = buildContextSummary(extractedContext);
+        if (contextPrefix) {
+          console.log('[Context Compression] Preserved context from', olderMessages.length, 'older messages');
+        }
+      }
+
+      // Also extract from recent messages to ensure we have latest context
+      const recentContext = extractConversationContext(recentMessages);
+
+      // Override selectedState if conversation explicitly mentions a different state
+      const conversationState = recentContext.state || (olderMessages.length > 0 ? extractConversationContext(olderMessages).state : null);
+      if (conversationState && !selectedState) {
+        console.log('[Context] Auto-detected state from conversation:', conversationState);
+      }
+
       const conversationMessages = [
         { role: 'system' as const, content: systemPrompt },
-        ...messages
-          .filter(m => m.sender !== 'bot' || !m.text.includes('Hey there!') && !m.text.includes('Welcome back'))
-          .slice(-10)
-          .map(m => ({
-            role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
-            content: m.text,
-          })),
+        // Add compressed context from older messages if available
+        ...(contextPrefix ? [{ role: 'system' as const, content: contextPrefix }] : []),
+        ...recentMessages.map(m => ({
+          role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
+          content: m.text,
+        })),
         { role: 'user' as const, content: userPrompt },
       ];
 
@@ -491,6 +632,71 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }]);
   };
 
+  // Helper function to detect if response contains email-worthy content
+  const responseHasEmailContent = (text: string): boolean => {
+    const emailIndicators = [
+      /here'?s\s+the\s+language/i,
+      /send\s+this\s+to\s+the\s+adjuster/i,
+      /copy[-\s]?(?:and[-\s]?)?paste/i,
+      /draft\s+(?:an?\s+)?email/i,
+      /email\s+template/i,
+      /communicate\s+with\s+the\s+insurance/i,
+      /dear\s+\w+/i, // Starts with "Dear [Name]"
+      /subject:/i,
+      /contractor[-\s]?compliant/i,
+      /professional\s+language/i,
+      /formal\s+(?:letter|correspondence)/i
+    ];
+
+    return emailIndicators.some(pattern => pattern.test(text));
+  };
+
+  // Helper function to extract email content from response
+  const extractEmailContent = (text: string): string => {
+    // Try to find quoted text or code blocks
+    const quotedMatch = text.match(/"([^"]{50,})"/);
+    if (quotedMatch) {
+      return quotedMatch[1];
+    }
+
+    // Look for content after common phrases
+    const languageMatch = text.match(/here'?s\s+the\s+language.*?:\s*(.+?)(?:\n\n|$)/is);
+    if (languageMatch) {
+      return languageMatch[1].trim();
+    }
+
+    // Look for template sections (lines starting with "Dear", "Subject:", etc.)
+    const templateLines: string[] = [];
+    const lines = text.split('\n');
+    let inTemplate = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Start capturing if we hit a template marker
+      if (/^(dear|subject:|to:|from:)/i.test(trimmed)) {
+        inTemplate = true;
+      }
+
+      if (inTemplate) {
+        templateLines.push(line);
+
+        // Stop if we hit an empty line after capturing some content
+        if (trimmed === '' && templateLines.length > 3) {
+          break;
+        }
+      }
+    }
+
+    if (templateLines.length > 0) {
+      return templateLines.join('\n').trim();
+    }
+
+    // Fallback: return first substantial paragraph
+    const paragraphs = text.split('\n\n').filter(p => p.trim().length > 50);
+    return paragraphs[0] || text.slice(0, 500);
+  };
+
   return (
     <div className="roof-er-content-area">
       {/* Chat History Sidebar */}
@@ -561,6 +767,42 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       msg.text
                     )}
                   </div>
+                  {msg.sender === 'bot' && responseHasEmailContent(msg.text) && onStartEmail && (
+                    <button
+                      onClick={() => {
+                        const emailContent = extractEmailContent(msg.text);
+                        onStartEmail('custom', emailContent);
+                      }}
+                      className="roof-er-draft-email-btn"
+                      style={{
+                        marginTop: '12px',
+                        padding: '10px 16px',
+                        background: 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: 'white',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.3)';
+                      }}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Draft as Email
+                    </button>
+                  )}
                   <div className="roof-er-message-time">
                     {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </div>

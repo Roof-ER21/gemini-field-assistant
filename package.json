@@ -22,7 +22,13 @@
     "test:chat": "tsx scripts/test-chat-save.ts",
     "test:chat:railway": "railway run tsx scripts/test-chat-save.ts",
     "db:migrate": "node run-migrations.js",
-    "db:migrate:railway": "railway run node run-migrations.js"
+    "db:migrate:railway": "railway run node run-migrations.js",
+    "db:migrate:performance": "node run-migration-007.js",
+    "db:migrate:performance:railway": "railway run node run-migration-007.js",
+    "db:verify:indexes": "node verify-performance-indexes.js",
+    "db:verify:indexes:railway": "railway run node verify-performance-indexes.js",
+    "db:analyze": "psql $DATABASE_URL -c 'ANALYZE;'",
+    "db:index-stats": "psql $DATABASE_URL -c \"SELECT schemaname, tablename, indexname, idx_scan as times_used, pg_size_pretty(pg_relation_size(indexrelid)) as size FROM pg_stat_user_indexes WHERE schemaname = 'public' AND indexname LIKE 'idx_%' ORDER BY idx_scan DESC;\""
   },
   "dependencies": {
     "@google/genai": "^1.27.0",

@@ -1,23 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePage';
 import ChatPanel from './components/ChatPanel';
-import DocumentAnalysisPanel from './components/DocumentAnalysisPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
-import EmailPanel from './components/EmailPanel';
 import MapsPanel from './components/MapsPanel';
-import LivePanel from './components/LivePanel';
-import KnowledgePanel from './components/KnowledgePanel';
-import AdminPanel from './components/AdminPanel';
-import AgnesPanel from './components/AgnesPanel';
 import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy load heavy panels for better performance
+const EmailPanel = lazy(() => import('./components/EmailPanel'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const DocumentAnalysisPanel = lazy(() => import('./components/DocumentAnalysisPanel'));
+const KnowledgePanel = lazy(() => import('./components/KnowledgePanel'));
+const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
+const LivePanel = lazy(() => import('./components/LivePanel'));
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
+
+// Loading fallback component for lazy-loaded panels
+const PanelLoader: React.FC = () => (
+  <div
+    className="flex items-center justify-center h-full"
+    style={{
+      minHeight: '400px',
+      background: 'var(--bg-primary)'
+    }}
+  >
+    <div className="flex flex-col items-center gap-3">
+      <div
+        className="animate-spin rounded-full h-12 w-12 border-b-2"
+        style={{ borderColor: 'var(--roof-red)' }}
+      ></div>
+      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Loading panel...
+      </p>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -133,27 +157,49 @@ const App: React.FC = () => {
           />
         );
       case 'image':
-        return <DocumentAnalysisPanel />;
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <DocumentAnalysisPanel />
+          </Suspense>
+        );
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':
-        return <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />;
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />
+          </Suspense>
+        );
       case 'maps':
         return <MapsPanel onOpenChat={() => setActivePanel('chat')} />;
       case 'live':
-        return <LivePanel />;
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <LivePanel />
+          </Suspense>
+        );
       case 'knowledge':
         return (
-          <KnowledgePanel
-            selectedDocument={selectedDocument}
-            onDocumentViewed={() => setSelectedDocument(null)}
-            onOpenInChat={(doc) => openChatWithDoc({ name: doc.name, path: doc.path })}
-          />
+          <Suspense fallback={<PanelLoader />}>
+            <KnowledgePanel
+              selectedDocument={selectedDocument}
+              onDocumentViewed={() => setSelectedDocument(null)}
+              onOpenInChat={(doc) => openChatWithDoc({ name: doc.name, path: doc.path })}
+            />
+          </Suspense>
         );
       case 'admin':
-        return <AdminPanel />;
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <AdminPanel />
+          </Suspense>
+        );
       case 'agnes':
-        return <AgnesPanel onClose={() => setActivePanel('home')} />;
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <AgnesPanel onClose={() => setActivePanel('home')} />
+          </Suspense>
+        );
       case 'documentjob':
         return <DocumentJobPanel onClose={() => setActivePanel('home')} />;
       default:
@@ -269,7 +315,9 @@ const App: React.FC = () => {
         </div>
 
         <main className="flex-1">
-          {renderPanel()}
+          <ErrorBoundary>
+            {renderPanel()}
+          </ErrorBoundary>
         </main>
       </div>
 

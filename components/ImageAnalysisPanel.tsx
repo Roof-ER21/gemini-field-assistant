@@ -5,6 +5,7 @@ import {
   ChevronLeft, ChevronRight, History, Mail, FileText, Maximize2,
   Eye, EyeOff, RefreshCw, Pin
 } from 'lucide-react';
+import { useToast } from './Toast';
 import {
   analyzeRoofImage,
   analyzeBatchImages,
@@ -30,6 +31,7 @@ interface ImageUpload {
 interface ImageAnalysisPanelProps { onOpenChat?: () => void; onOpenKnowledge?: () => void }
 
 const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onOpenKnowledge }) => {
+  const toast = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [assessments, setAssessments] = useState<DamageAssessment[]>([]);
   const [selectedAssessment, setSelectedAssessment] = useState<DamageAssessment | null>(null);
@@ -210,7 +212,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
       console.log(`Document "${name}" processed. Content length: ${content.length} characters`);
 
       // Optional: You could show a message or process the document for analysis here
-      alert(`Document "${name}" uploaded and processed.\n\nTo analyze this document with Susan, please go to the Chat panel and use the file upload feature there.`);
+      toast.success('Document Uploaded', `"${name}" processed. Use Chat panel to analyze with Susan.`);
     }
   };
 

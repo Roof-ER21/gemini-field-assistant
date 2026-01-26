@@ -3,6 +3,7 @@ import { Upload, FileText, X, Download, AlertCircle, CheckCircle } from 'lucide-
 import { multiAI } from '../services/multiProviderAI';
 import { SYSTEM_PROMPT } from '../config/s21Personality';
 import { databaseService } from '../services/databaseService';
+import { useToast } from './Toast';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -66,6 +67,7 @@ interface AnalysisResult {
 // ============================================================================
 
 const DocumentAnalysisPanel: React.FC = () => {
+  const toast = useToast();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -103,13 +105,13 @@ const DocumentAnalysisPanel: React.FC = () => {
 
       // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        alert(`File ${file.name} exceeds 10MB limit`);
+        toast.error('File Too Large', `File ${file.name} exceeds 10MB limit`);
         continue;
       }
 
       // Check total files
       if (files.length + newFiles.length >= MAX_FILES) {
-        alert(`Maximum ${MAX_FILES} files allowed`);
+        toast.warning('Maximum Files', `Maximum ${MAX_FILES} files allowed`);
         break;
       }
 
@@ -178,7 +180,7 @@ const DocumentAnalysisPanel: React.FC = () => {
 
   const analyzeDocuments = async () => {
     if (files.length === 0) {
-      alert('Please upload at least one file');
+      toast.warning('No Files', 'Please upload at least one file');
       return;
     }
 
@@ -462,13 +464,9 @@ Format your response as JSON with this structure:
     } catch (error: any) {
       console.error('Analysis error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(
-        `Analysis failed: ${errorMessage}\n\n` +
-        `Please check:\n` +
-        `- Your API keys are configured in .env.local\n` +
-        `- The files are valid and not corrupted\n` +
-        `- You have an active internet connection\n` +
-        `- Ollama is running (for local AI) or cloud provider keys are set`
+      toast.error(
+        'Analysis Failed',
+        `${errorMessage}. Check API keys, file validity, internet, and AI provider.`
       );
       setFiles(files.map(f => ({
         ...f,

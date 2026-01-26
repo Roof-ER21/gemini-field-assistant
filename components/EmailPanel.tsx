@@ -5,6 +5,7 @@ import {
   Edit3, RefreshCw, Home, Filter, Archive, Plus, X, ChevronLeft, ChevronRight,
   Wand2, Check, HelpCircle, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ShieldX
 } from 'lucide-react';
+import { useToast } from './Toast';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
 import { databaseService } from '../services/databaseService';
@@ -132,6 +133,7 @@ interface EmailPanelProps {
 }
 
 const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) => {
+  const toast = useToast();
   // Template & Generation State
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [templateContent, setTemplateContent] = useState<string>('');
@@ -1975,7 +1977,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                     <button
                       onClick={async () => {
                         await navigator.clipboard.writeText(selectedHistoryEmail.body);
-                        alert('Email copied to clipboard!');
+                        toast.success('Copied!', 'Email copied to clipboard');
                       }}
                       style={{
                         flex: 1,
