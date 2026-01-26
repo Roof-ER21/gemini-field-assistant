@@ -105,18 +105,24 @@ const STATE_REGULATIONS = {
     insuranceInfo: 'Virginia Bureau of Insurance: 1-877-310-6560',
     permitInfo: 'Most projects require permits. Check local jurisdiction.',
     roofingLicense: 'Class A or B Contractor License required',
+    matchingRule: 'NO matching requirement in VA building codes. Use repairability arguments (Brittle Test, Repair Attempt), manufacturer warranty requirements, or code-compliant installation arguments instead.',
+    keyStrategy: 'Focus on: "As the contractor, I cannot perform a repair that would void manufacturer warranties" or "GAF specifications require full replacement when..."',
   },
   MD: {
     buildingCode: 'Maryland Building Code 2021',
     insuranceInfo: 'Maryland Insurance Administration: 1-800-492-6116',
     permitInfo: 'Permits required for most roofing projects',
     roofingLicense: 'Home Improvement License required',
+    matchingRule: 'MD building codes require contractors to ensure UNIFORM APPEARANCE across roof planes. This is YOUR strongest argument - frame as contractor code compliance, NOT insurance requirement.',
+    keyStrategy: 'Use: "Maryland building codes require that I, as the licensed contractor, ensure uniform appearance. I cannot perform work that would violate these code requirements."',
   },
   PA: {
     buildingCode: 'Pennsylvania Uniform Construction Code (UCC)',
     insuranceInfo: 'PA Insurance Department: 1-877-881-6388',
     permitInfo: 'Local permits required. Strict enforcement.',
     roofingLicense: 'Home Improvement Contractor Registration required',
+    matchingRule: 'NO matching requirement in PA building codes. Use repairability arguments, manufacturer specs, or permit denial documentation.',
+    keyStrategy: 'Focus on: "The PA permit office denied partial repair" or "Manufacturer specifications prohibit mixing aged and new materials for warranty purposes."',
   }
 };
 
@@ -382,11 +388,14 @@ ROOF-ER CONTEXT:
 - Current State: ${selectedState}
 ${contextInfo.length > 0 ? `- Additional Context: ${contextInfo.join(', ')}` : ''}
 
-STATE-SPECIFIC INFORMATION (${selectedState}):
+STATE-SPECIFIC INFORMATION (${selectedState}) - CRITICAL:
 - Building Code: ${stateRegs.buildingCode}
-- Insurance Info: ${stateRegs.insuranceInfo}
-- Permit Requirements: ${stateRegs.permitInfo}
 - License Info: ${stateRegs.roofingLicense}
+- MATCHING RULE: ${stateRegs.matchingRule}
+- KEY STRATEGY: ${stateRegs.keyStrategy}
+- Permit Requirements: ${stateRegs.permitInfo}
+
+**IMPORTANT**: Your email MUST use ${selectedState}-specific arguments. ${selectedState === 'MD' ? 'Maryland HAS building code matching requirements - USE THIS as your primary argument framed through contractor code compliance.' : `${selectedState} does NOT have matching requirements - do NOT use matching arguments unless homeowner has matching endorsement. Use repairability, manufacturer specs, or permit denial instead.`}
 
 ${templateContent ? `TEMPLATE TO FOLLOW (adapt to audience):\n${templateContent}\n\n` : ''}
 
