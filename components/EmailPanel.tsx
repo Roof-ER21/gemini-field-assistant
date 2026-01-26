@@ -3,11 +3,18 @@ import {
   Mail, Send, Copy, FileText, CheckCircle, Sparkles, Download, MessageCircle,
   Eye, Lightbulb, User, Building, Hash, MapPin, Clock, Search, Trash2,
   Edit3, RefreshCw, Home, Filter, Archive, Plus, X, ChevronLeft, ChevronRight,
-  Wand2, Check, HelpCircle
+  Wand2, Check, HelpCircle, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ShieldX
 } from 'lucide-react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
 import { databaseService } from '../services/databaseService';
+import {
+  checkEmailCompliance,
+  autoFixViolations,
+  getCompliancePromptInstructions,
+  ComplianceResult,
+  ComplianceViolation
+} from '../services/emailComplianceService';
 import Spinner from './Spinner';
 
 type EmailTemplate = {
@@ -155,6 +162,11 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementType, setEnhancementType] = useState<'improve' | 'grammar' | 'shorten' | 'lengthen' | null>(null);
 
+  // Compliance Checker State
+  const [complianceResult, setComplianceResult] = useState<ComplianceResult | null>(null);
+  const [showComplianceDetails, setShowComplianceDetails] = useState(false);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+
   // Talk About It - Conversational Refinement State
   const [showConversationModal, setShowConversationModal] = useState(false);
   const [conversationQuestions, setConversationQuestions] = useState<string[]>([]);
@@ -191,6 +203,44 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
   useEffect(() => {
     loadSavedEmails();
   }, []);
+
+  // Re-check compliance when editable email body changes (debounced)
+  useEffect(() => {
+    if (!editableEmailBody) {
+      setComplianceResult(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const compliance = checkEmailCompliance(editableEmailBody);
+      setComplianceResult(compliance);
+    }, 500); // Debounce 500ms
+
+    return () => clearTimeout(timer);
+  }, [editableEmailBody]);
+
+  // Handler for auto-fixing violations
+  const handleAutoFix = async () => {
+    if (!complianceResult || complianceResult.violations.length === 0) return;
+
+    setIsAutoFixing(true);
+    try {
+      const emailToFix = isEditingEmail ? editableEmailBody : generatedEmail;
+      const { correctedText, changesMade } = autoFixViolations(emailToFix);
+
+      setEditableEmailBody(correctedText);
+      setGeneratedEmail(correctedText);
+
+      // Re-check compliance
+      const newCompliance = checkEmailCompliance(correctedText);
+      setComplianceResult(newCompliance);
+
+      // Log the changes
+      console.log('Auto-fix applied:', changesMade);
+    } finally {
+      setIsAutoFixing(false);
+    }
+  };
 
   const loadTemplate = async (templatePath: string) => {
     try {
@@ -363,6 +413,8 @@ ${ragSection}
  - Using "WE'RE going to..." coaching style
  - Ending with generic invites to schedule a call/meeting instead of respectfully requesting full approval
 
+${getCompliancePromptInstructions()}
+
 IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
 If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.
       `.trim();
@@ -370,6 +422,13 @@ If no state-specific rule applies, keep guidance valid across VA/MD/PA and do no
       const response = await generateEmail(recipientName, subject, keyPoints);
       setGeneratedEmail(response);
       setEditableEmailBody(response);
+
+      // Run compliance check on generated email
+      const compliance = checkEmailCompliance(response);
+      setComplianceResult(compliance);
+      if (!compliance.canSend) {
+        setShowComplianceDetails(true);
+      }
 
       // Generate "Why It Works" explanation
       const whyItWorksPrompt = `
@@ -432,6 +491,10 @@ Keep it practical and actionable. Use confident language.
       const enhanced = await generateEmail('', 'Enhanced Email', enhancePrompt);
       setGeneratedEmail(enhanced);
       setEditableEmailBody(enhanced);
+
+      // Re-check compliance after enhancement
+      const compliance = checkEmailCompliance(enhanced);
+      setComplianceResult(compliance);
     } catch (error) {
       console.error('Failed to enhance email:', error);
     } finally {
@@ -594,6 +657,10 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
       const refinedEmail = await generateEmail('', 'Refined Email', refinePrompt);
       setGeneratedEmail(refinedEmail);
       setEditableEmailBody(refinedEmail);
+
+      // Re-check compliance after refinement
+      const compliance = checkEmailCompliance(refinedEmail);
+      setComplianceResult(compliance);
 
       // Close modal and reset
       setShowConversationModal(false);
@@ -1180,6 +1247,238 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                     </div>
                   </div>
 
+                  {/* Compliance Status Banner */}
+                  {complianceResult && (
+                    <div style={{
+                      background: !complianceResult.canSend
+                        ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
+                        : complianceResult.warnings.length > 0
+                        ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                        : complianceResult.cautions.length > 0
+                        ? 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)'
+                        : 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                      border: `2px solid ${
+                        !complianceResult.canSend ? '#dc2626' :
+                        complianceResult.warnings.length > 0 ? '#d97706' :
+                        complianceResult.cautions.length > 0 ? '#4f46e5' : '#059669'
+                      }`,
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '16px',
+                      marginBottom: '16px'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: showComplianceDetails ? '12px' : 0
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {!complianceResult.canSend ? (
+                            <ShieldX className="w-6 h-6" style={{ color: '#dc2626' }} />
+                          ) : complianceResult.warnings.length > 0 ? (
+                            <ShieldAlert className="w-6 h-6" style={{ color: '#d97706' }} />
+                          ) : complianceResult.cautions.length > 0 ? (
+                            <Shield className="w-6 h-6" style={{ color: '#4f46e5' }} />
+                          ) : (
+                            <ShieldCheck className="w-6 h-6" style={{ color: '#059669' }} />
+                          )}
+                          <div>
+                            <div style={{
+                              fontSize: '15px',
+                              fontWeight: 600,
+                              color: !complianceResult.canSend ? '#991b1b' :
+                                     complianceResult.warnings.length > 0 ? '#92400e' :
+                                     complianceResult.cautions.length > 0 ? '#3730a3' : '#065f46',
+                              marginBottom: '2px'
+                            }}>
+                              {!complianceResult.canSend ? 'BLOCKED - Fix Before Sending' :
+                               complianceResult.warnings.length > 0 ? 'Warning - Review Carefully' :
+                               complianceResult.cautions.length > 0 ? 'Caution - Minor Issues' :
+                               'Compliant - Safe to Send'}
+                            </div>
+                            <div style={{
+                              fontSize: '13px',
+                              color: !complianceResult.canSend ? '#b91c1c' :
+                                     complianceResult.warnings.length > 0 ? '#b45309' :
+                                     complianceResult.cautions.length > 0 ? '#4338ca' : '#047857'
+                            }}>
+                              {complianceResult.summary}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {complianceResult.violations.length > 0 && (
+                            <button
+                              onClick={handleAutoFix}
+                              disabled={isAutoFixing}
+                              style={{
+                                padding: '8px 16px',
+                                background: '#dc2626',
+                                border: 'none',
+                                borderRadius: 'var(--radius-md)',
+                                color: '#fff',
+                                cursor: isAutoFixing ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                opacity: isAutoFixing ? 0.7 : 1
+                              }}
+                            >
+                              {isAutoFixing ? <Spinner /> : <Wand2 className="w-4 h-4" />}
+                              Auto-Fix Violations
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowComplianceDetails(!showComplianceDetails)}
+                            style={{
+                              padding: '8px 12px',
+                              background: 'rgba(255,255,255,0.5)',
+                              border: '1px solid var(--border-default)',
+                              borderRadius: 'var(--radius-md)',
+                              color: 'var(--text-primary)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '13px'
+                            }}
+                          >
+                            {showComplianceDetails ? 'Hide' : 'Details'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Compliance Details */}
+                      {showComplianceDetails && (
+                        <div style={{
+                          background: 'rgba(255,255,255,0.6)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '12px',
+                          maxHeight: '300px',
+                          overflowY: 'auto'
+                        }}>
+                          {/* Critical Violations */}
+                          {complianceResult.violations.length > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#991b1b',
+                                marginBottom: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}>
+                                <AlertTriangle className="w-4 h-4" />
+                                CRITICAL VIOLATIONS ({complianceResult.violations.length})
+                              </div>
+                              {complianceResult.violations.map((v, i) => (
+                                <div key={i} style={{
+                                  background: '#fee2e2',
+                                  border: '1px solid #fca5a5',
+                                  borderRadius: '8px',
+                                  padding: '12px',
+                                  marginBottom: '8px'
+                                }}>
+                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#991b1b', marginBottom: '4px' }}>
+                                    Found: "{v.found}"
+                                  </div>
+                                  <div style={{ fontSize: '13px', color: '#b91c1c', marginBottom: '8px' }}>
+                                    {v.why}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#7f1d1d' }}>
+                                    <strong>Try instead:</strong>
+                                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                      {v.suggestions.slice(0, 2).map((s, j) => (
+                                        <li key={j}>{s}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* High Warnings */}
+                          {complianceResult.warnings.length > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#92400e',
+                                marginBottom: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}>
+                                <AlertTriangle className="w-4 h-4" />
+                                HIGH WARNINGS ({complianceResult.warnings.length})
+                              </div>
+                              {complianceResult.warnings.map((w, i) => (
+                                <div key={i} style={{
+                                  background: '#fef3c7',
+                                  border: '1px solid #fcd34d',
+                                  borderRadius: '8px',
+                                  padding: '10px',
+                                  marginBottom: '6px'
+                                }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400e', marginBottom: '2px' }}>
+                                    "{w.found}"
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#b45309' }}>{w.why}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Medium Cautions */}
+                          {complianceResult.cautions.length > 0 && (
+                            <div>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#3730a3',
+                                marginBottom: '8px'
+                              }}>
+                                Suggestions ({complianceResult.cautions.length})
+                              </div>
+                              {complianceResult.cautions.map((c, i) => (
+                                <div key={i} style={{
+                                  background: '#e0e7ff',
+                                  border: '1px solid #a5b4fc',
+                                  borderRadius: '8px',
+                                  padding: '8px',
+                                  marginBottom: '4px',
+                                  fontSize: '12px',
+                                  color: '#3730a3'
+                                }}>
+                                  "{c.found}" - {c.why}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Safe Patterns Info */}
+                          {complianceResult.safePatternCount > 0 && (
+                            <div style={{
+                              marginTop: '12px',
+                              padding: '8px 12px',
+                              background: '#d1fae5',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              color: '#065f46'
+                            }}>
+                              <ShieldCheck className="w-4 h-4 inline mr-2" />
+                              Using {complianceResult.safePatternCount} compliant contractor-focused pattern(s)
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Email Preview or Editor */}
                   <div style={{
                     background: 'var(--bg-secondary)',
@@ -1344,25 +1643,38 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   {/* Send Button */}
                   <button
                     onClick={handleSendViaEmail}
+                    disabled={complianceResult && !complianceResult.canSend}
                     style={{
                       width: '100%',
                       padding: '14px',
-                      background: 'var(--roof-red)',
+                      background: complianceResult && !complianceResult.canSend
+                        ? '#9ca3af'
+                        : 'var(--roof-red)',
                       border: 'none',
                       borderRadius: 'var(--radius-md)',
                       color: '#fff',
-                      cursor: 'pointer',
+                      cursor: complianceResult && !complianceResult.canSend ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
                       fontSize: '15px',
                       fontWeight: 600,
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      opacity: complianceResult && !complianceResult.canSend ? 0.6 : 1
                     }}
                   >
-                    <Send className="w-5 h-5" />
-                    Open in Email App
+                    {complianceResult && !complianceResult.canSend ? (
+                      <>
+                        <ShieldX className="w-5 h-5" />
+                        Fix Violations Before Sending
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Open in Email App
+                      </>
+                    )}
                   </button>
                 </div>
 
