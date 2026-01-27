@@ -1,11 +1,12 @@
 /**
- * Login Page Component - Compact & Clean Design
- * Simple email-based authentication for S21 Field AI
- * Mobile-first, minimal interface showing off branded background
+ * Login Page - Clean Red/Black Design
+ * Mobile-first, properly sized for all screens
  */
 
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
+import LegalPage from './LegalPage';
+import { Mail, User, ArrowLeft, Shield } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -18,54 +19,42 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showDevLogin, setShowDevLogin] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
+  const [showDevLogin, setShowDevLogin] = useState(false);
+  const [isDevelopmentMode, setIsDevelopmentMode] = useState(false);
 
-  // Handle email submission (Step 1)
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Check if user has valid auto-login token and skip verification
       const result = await authService.requestLoginCode(email, name, rememberMe);
-
       if (result.success) {
-        // If auto-login was successful, we're done
         if (result.autoLoginSuccess) {
           onLoginSuccess();
           return;
         }
-
-        // Otherwise proceed with verification code
-        setGeneratedCode(result.verificationCode || '');
         setStep('code');
-        // Auto-fill code for MVP convenience
-        if (result.verificationCode) {
-          setCode(result.verificationCode);
-        }
+        setIsDevelopmentMode(result.developmentMode || false);
       } else {
         setError(result.message);
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle code verification (Step 2)
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Name is now collected in step 1, so we pass it here
       const result = await authService.verifyLoginCode(email, code, name, rememberMe);
-
       if (result.success) {
         onLoginSuccess();
       } else {
@@ -78,7 +67,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Handle quick login for development
   const handleQuickLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -86,7 +74,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     try {
       const result = await authService.quickLogin(email, name || undefined, rememberMe);
-
       if (result.success) {
         onLoginSuccess();
       } else {
@@ -99,519 +86,487 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  // Common input styles
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: '52px',
+    padding: '0 16px',
+    fontSize: '16px',
+    color: '#ffffff',
+    background: '#171717',
+    border: '1px solid #262626',
+    borderRadius: '12px',
+    outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s'
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#a1a1aa',
+    marginBottom: '8px'
+  };
+
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
       style={{
+        minHeight: '100vh',
+        minHeight: '100dvh',
+        width: '100%',
         background: '#000000',
-        position: 'relative',
-        overflow: 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px 20px',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}
     >
-      {/* Branded Background - Wood texture with ROOFER text */}
-      <div style={{
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        backgroundImage: 'url(/roofer-logo-full.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        opacity: '0.12',
-        pointerEvents: 'none'
-      }} />
-
-      {/* Gradient overlay for better contrast */}
-      <div style={{
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        background: 'radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.75) 100%)',
-        pointerEvents: 'none'
-      }} />
-
-      {/* Compact Centered Login Card */}
+      {/* Main Card */}
       <div
         style={{
-          position: 'relative',
-          zIndex: 1,
           width: '100%',
-          maxWidth: '340px',
-          background: 'linear-gradient(135deg, rgba(26, 31, 46, 0.96) 0%, rgba(15, 20, 25, 0.96) 100%)',
-          borderRadius: '12px',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(239, 68, 68, 0.15)',
-          backdropFilter: 'blur(20px)',
-          padding: '28px'
+          maxWidth: '360px',
+          background: '#0a0a0a',
+          borderRadius: '20px',
+          border: '1px solid #262626',
+          padding: '32px 24px',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)'
         }}
       >
-        {/* Logo - Clean app icon (black rounded square with Roof ER branding) */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: '16px'
-        }}>
-          <img
-            src="/roofer-logo-icon.png"
-            alt="S21 ROOFER"
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div
             style={{
-              width: '85px',
-              height: '85px',
-              borderRadius: '8px',
-              filter: 'drop-shadow(0 4px 16px rgba(239, 68, 68, 0.35))'
+              width: '88px',
+              height: '88px',
+              margin: '0 auto 16px',
+              borderRadius: '20px',
+              overflow: 'hidden',
+              boxShadow: '0 8px 24px rgba(220, 38, 38, 0.3)'
             }}
-          />
+          >
+            <img
+              src="/roofer-logo-icon.png"
+              alt="Roofer"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+              onError={(e) => {
+                // Fallback to gradient if image fails
+                e.currentTarget.parentElement!.style.background = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+          <h1
+            style={{
+              fontSize: '32px',
+              fontWeight: '700',
+              margin: '0 0 6px 0',
+              letterSpacing: '-0.02em'
+            }}
+          >
+            <span style={{ color: '#ffffff' }}>Susan</span>
+            <span style={{ color: '#dc2626', marginLeft: '6px' }}>21</span>
+          </h1>
+          <p
+            style={{
+              fontSize: '14px',
+              color: '#71717a',
+              margin: 0
+            }}
+          >
+            Your intelligent field assistant
+          </p>
         </div>
 
-        {/* Title - Reduced size */}
-        <h1
-          className="text-center font-bold"
-          style={{
-            color: '#ffffff',
-            fontSize: '1.625rem',
-            letterSpacing: '-0.03em',
-            marginBottom: '8px',
-            textShadow: '0 2px 10px rgba(0, 0, 0, 0.9)'
-          }}
-        >
-          S21 ROOFER
-        </h1>
-
-        {/* Subtitle - Smaller, lighter */}
-        <p
-          className="text-center"
-          style={{
-            color: 'rgba(255, 255, 255, 0.65)',
-            fontSize: '0.875rem',
-            fontWeight: 400,
-            marginBottom: '20px',
-            textShadow: '0 1px 6px rgba(0, 0, 0, 0.9)'
-          }}
-        >
-          Your intelligent field assistant
-        </p>
-
-        {/* Login Forms */}
         {step === 'email' ? (
-          // Step 1: Email Input
           <form onSubmit={handleEmailSubmit}>
+            {/* Email Input */}
             <div style={{ marginBottom: '16px' }}>
-              <label
-                htmlFor="email"
-                className="block text-sm font-semibold"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  marginBottom: '8px'
-                }}
-              >
-                Email Address
-              </label>
+              <label style={labelStyle}>Email Address</label>
               <input
                 type="email"
-                id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@roofer.com"
+                placeholder="you@company.com"
                 required
-                autoFocus
-                className="w-full px-4"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  height: '48px',
-                  fontSize: '0.9375rem',
-                  transition: 'all 0.2s',
-                  outline: 'none'
-                }}
+                autoComplete="email"
+                style={inputStyle}
                 onFocus={(e) => {
-                  e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.12)';
+                  e.target.style.borderColor = '#dc2626';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.borderColor = '#262626';
                   e.target.style.boxShadow = 'none';
                 }}
               />
             </div>
 
+            {/* Name Input */}
             <div style={{ marginBottom: '16px' }}>
-              <label
-                htmlFor="name"
-                className="block text-sm font-semibold"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  marginBottom: '8px'
-                }}
-              >
-                Your Name
-              </label>
+              <label style={labelStyle}>Your Name</label>
               <input
                 type="text"
-                id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Smith"
                 required
-                className="w-full px-4"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  height: '48px',
-                  fontSize: '0.9375rem',
-                  transition: 'all 0.2s',
-                  outline: 'none'
-                }}
+                autoComplete="name"
+                style={inputStyle}
                 onFocus={(e) => {
-                  e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.12)';
+                  e.target.style.borderColor = '#dc2626';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.borderColor = '#262626';
                   e.target.style.boxShadow = 'none';
                 }}
               />
             </div>
 
-            {/* Remember Me Checkbox - Moved to Step 1 */}
-            <div style={{ marginBottom: '16px' }}>
-              <label
-                className="flex items-center cursor-pointer"
-                style={{ color: 'rgba(255, 255, 255, 0.75)' }}
+            {/* Remember Me */}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '20px',
+                cursor: 'pointer'
+              }}
+            >
+              <div
+                onClick={() => setRememberMe(!rememberMe)}
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '6px',
+                  background: rememberMe ? '#dc2626' : '#262626',
+                  border: rememberMe ? 'none' : '2px solid #404040',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
               >
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    marginRight: '10px',
-                    accentColor: '#ef4444',
-                    cursor: 'pointer'
-                  }}
-                />
-                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
-                  Remember me on this device
-                </span>
-              </label>
-              <p style={{
-                fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.45)',
-                marginTop: '6px',
-                marginLeft: '28px'
-              }}>
-                {rememberMe
-                  ? 'Stay logged in for 1 year'
-                  : 'Login again when browser closes'}
-              </p>
-            </div>
+                {rememberMe && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <span style={{ fontSize: '14px', color: '#ffffff' }}>Remember me</span>
+                <p style={{ fontSize: '12px', color: '#71717a', margin: '2px 0 0 0' }}>
+                  Stay logged in for 1 year
+                </p>
+              </div>
+            </label>
 
+            {/* Error */}
             {error && (
               <div
-                className="text-sm"
                 style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#ff6b6b'
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  borderRadius: '10px',
+                  background: 'rgba(220, 38, 38, 0.1)',
+                  border: '1px solid rgba(220, 38, 38, 0.3)',
+                  fontSize: '13px',
+                  color: '#f87171'
                 }}
               >
                 {error}
               </div>
             )}
 
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full font-semibold transition-all"
               style={{
-                background: loading ? 'rgba(239, 68, 68, 0.65)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                width: '100%',
+                height: '52px',
+                fontSize: '16px',
+                fontWeight: '600',
                 color: '#ffffff',
+                background: loading
+                  ? '#4b1818'
+                  : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 border: 'none',
-                borderRadius: '10px',
-                height: '48px',
-                fontSize: '0.9375rem',
+                borderRadius: '12px',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.75 : 1,
-                boxShadow: loading ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.45)',
-                transform: loading ? 'scale(0.98)' : 'scale(1)',
-                marginBottom: '12px'
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) e.currentTarget.style.transform = 'scale(1.015)';
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) e.currentTarget.style.transform = 'scale(1)';
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: loading ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
+                transition: 'all 0.2s'
               }}
             >
-              {loading ? 'Sending Code...' : 'Continue'}
+              {loading ? (
+                'Sending...'
+              ) : (
+                <>
+                  <Mail style={{ width: '18px', height: '18px' }} />
+                  Continue
+                </>
+              )}
             </button>
 
             {/* Dev Login Toggle */}
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setShowDevLogin(!showDevLogin)}
-                style={{
-                  color: 'rgba(255, 255, 255, 0.45)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  fontSize: '0.75rem',
-                  padding: '4px'
-                }}
-              >
-                {showDevLogin ? 'Hide' : 'Show'} Quick Login (Dev)
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowDevLogin(!showDevLogin)}
+              style={{
+                width: '100%',
+                marginTop: '12px',
+                padding: '8px',
+                fontSize: '12px',
+                color: '#52525b',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              {showDevLogin ? 'Hide' : 'Show'} Quick Login
+            </button>
 
             {showDevLogin && (
-              <div style={{ marginTop: '16px' }}>
-                <div style={{ marginBottom: '12px' }}>
-                  <label
-                    htmlFor="dev-name"
-                    className="block text-sm"
-                    style={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      marginBottom: '6px'
-                    }}
-                  >
-                    Your Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="dev-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Smith"
-                    className="w-full px-4"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '8px',
-                      color: '#ffffff',
-                      height: '44px',
-                      fontSize: '0.9375rem'
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleQuickLogin}
-                  disabled={loading}
-                  className="w-full font-semibold transition-all"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    color: '#ef4444',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    borderRadius: '8px',
-                    height: '44px',
-                    fontSize: '0.875rem',
-                    cursor: loading ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Quick Login (Skip Code)
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleQuickLogin}
+                disabled={loading || !email}
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  color: '#dc2626',
+                  background: '#171717',
+                  border: '1px solid #262626',
+                  borderRadius: '10px',
+                  cursor: loading || !email ? 'not-allowed' : 'pointer',
+                  opacity: loading || !email ? 0.5 : 1
+                }}
+              >
+                Quick Login (Skip Verification)
+              </button>
             )}
           </form>
         ) : (
-          // Step 2: Code Verification
           <form onSubmit={handleCodeSubmit}>
+            {/* Back Button */}
             <button
               type="button"
-              onClick={() => {
-                setStep('email');
-                setCode('');
-                setError('');
-              }}
-              className="text-sm flex items-center"
+              onClick={() => { setStep('email'); setCode(''); setError(''); }}
               style={{
-                color: 'rgba(255, 255, 255, 0.6)',
-                background: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '20px',
+                padding: '0',
+                fontSize: '14px',
+                color: '#71717a',
+                background: 'transparent',
                 border: 'none',
-                cursor: 'pointer',
-                marginBottom: '16px',
-                padding: '4px 0'
+                cursor: 'pointer'
               }}
             >
-              ← Back
+              <ArrowLeft style={{ width: '16px', height: '16px' }} />
+              Back
             </button>
 
-            <p style={{
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontSize: '0.875rem',
-              marginBottom: '8px'
-            }}>
-              We sent a verification code to:
+            <p style={{ fontSize: '14px', color: '#a1a1aa', margin: '0 0 4px 0' }}>
+              We sent a code to
             </p>
-            <p
-              className="font-semibold"
-              style={{
-                color: '#ef4444',
-                fontSize: '0.9375rem',
-                marginBottom: '16px'
-              }}
-            >
+            <p style={{ fontSize: '15px', fontWeight: '600', color: '#dc2626', margin: '0 0 20px 0' }}>
               {email}
             </p>
 
-            {generatedCode && (
+            {isDevelopmentMode && (
               <div
-                className="text-center"
                 style={{
+                  padding: '12px',
                   marginBottom: '16px',
-                  padding: '14px',
-                  borderRadius: '8px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                  borderRadius: '10px',
+                  background: '#171717',
+                  border: '1px solid #262626',
+                  textAlign: 'center'
                 }}
               >
-                <p style={{
-                  fontSize: '0.75rem',
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  marginBottom: '6px'
-                }}>
-                  MVP Test Code:
-                </p>
-                <p
-                  className="font-bold"
-                  style={{
-                    fontSize: '1.75rem',
-                    color: '#ef4444',
-                    letterSpacing: '0.1em'
-                  }}
-                >
-                  {generatedCode}
+                <p style={{ fontSize: '12px', color: '#71717a', margin: 0 }}>
+                  Dev Mode: Check server console for code
                 </p>
               </div>
             )}
 
+            {/* Code Input */}
             <div style={{ marginBottom: '16px' }}>
-              <label
-                htmlFor="code"
-                className="block text-sm font-semibold"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  marginBottom: '8px'
-                }}
-              >
-                Verification Code
-              </label>
+              <label style={labelStyle}>Verification Code</label>
               <input
                 type="text"
-                id="code"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="123456"
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
                 required
                 autoFocus
-                maxLength={6}
-                className="w-full text-center font-bold tracking-widest"
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  height: '52px',
-                  fontSize: '1.5rem',
-                  letterSpacing: '0.15em'
+                  ...inputStyle,
+                  textAlign: 'center',
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  letterSpacing: '0.2em'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#dc2626';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#262626';
+                  e.target.style.boxShadow = 'none';
                 }}
               />
             </div>
 
+            {/* Error */}
             {error && (
               <div
-                className="text-sm"
                 style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#ff6b6b'
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  borderRadius: '10px',
+                  background: 'rgba(220, 38, 38, 0.1)',
+                  border: '1px solid rgba(220, 38, 38, 0.3)',
+                  fontSize: '13px',
+                  color: '#f87171'
                 }}
               >
                 {error}
               </div>
             )}
 
+            {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full font-semibold transition-all"
+              disabled={loading || code.length < 6}
               style={{
-                background: loading ? 'rgba(239, 68, 68, 0.65)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                width: '100%',
+                height: '52px',
+                fontSize: '16px',
+                fontWeight: '600',
                 color: '#ffffff',
+                background: loading || code.length < 6
+                  ? '#4b1818'
+                  : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 border: 'none',
-                borderRadius: '10px',
-                height: '48px',
-                fontSize: '0.9375rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.75 : 1,
-                boxShadow: loading ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.45)',
-                marginBottom: '12px'
+                borderRadius: '12px',
+                cursor: loading || code.length < 6 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
+                transition: 'all 0.2s'
               }}
             >
-              {loading ? 'Verifying...' : 'Verify & Sign In'}
+              {loading ? (
+                'Verifying...'
+              ) : (
+                <>
+                  <Shield style={{ width: '18px', height: '18px' }} />
+                  Sign In
+                </>
+              )}
             </button>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleEmailSubmit}
-                style={{
-                  color: 'rgba(255, 255, 255, 0.45)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  fontSize: '0.75rem',
-                  padding: '4px'
-                }}
-              >
-                Resend Code
-              </button>
-            </div>
+            {/* Resend */}
+            <button
+              type="button"
+              onClick={handleEmailSubmit}
+              disabled={loading}
+              style={{
+                width: '100%',
+                marginTop: '12px',
+                padding: '10px',
+                fontSize: '13px',
+                color: '#71717a',
+                background: 'transparent',
+                border: 'none',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Resend Code
+            </button>
           </form>
         )}
 
-        {/* Footer - Small text */}
+        {/* Footer */}
         <div
-          className="text-center"
           style={{
-            marginTop: '20px',
-            paddingTop: '16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+            marginTop: '24px',
+            paddingTop: '20px',
+            borderTop: '1px solid #1a1a1a',
+            textAlign: 'center'
           }}
         >
-          <p style={{
-            fontSize: '0.8125rem',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontWeight: 500,
-            marginBottom: '4px'
-          }}>
-            S21 Field Assistant
+          <p style={{ fontSize: '13px', color: '#52525b', margin: '0 0 4px 0' }}>
+            Susan 21 Assistant
           </p>
-          <p style={{
-            fontSize: '0.6875rem',
-            color: 'rgba(255, 255, 255, 0.35)'
-          }}>
+          <p style={{ fontSize: '11px', color: '#3f3f46', margin: '0 0 12px 0' }}>
             Secure email authentication
           </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+            <button
+              type="button"
+              onClick={() => setShowLegal('privacy')}
+              style={{
+                fontSize: '11px',
+                color: '#52525b',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Privacy Policy
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLegal('terms')}
+              style={{
+                fontSize: '11px',
+                color: '#52525b',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Terms of Service
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Legal Modal */}
+      {showLegal && (
+        <LegalPage
+          initialTab={showLegal}
+          onClose={() => setShowLegal(null)}
+        />
+      )}
     </div>
   );
 };

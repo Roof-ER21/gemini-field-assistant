@@ -60,7 +60,8 @@ class EmailService {
                 case 'sendgrid':
                     // Dynamically import SendGrid (if installed)
                     try {
-                        const sgMail = await eval('import("@sendgrid/mail")');
+                        // @ts-expect-error - Optional dependency, may not be installed
+                        const sgMail = await import('@sendgrid/mail');
                         if (sgMail) {
                             sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
                             this.provider = sgMail.default;
@@ -75,7 +76,7 @@ class EmailService {
                 case 'resend':
                     // Dynamically import Resend (if installed)
                     try {
-                        const resendModule = await eval('import("resend")');
+                        const resendModule = await import('resend');
                         const { Resend } = resendModule;
                         if (Resend) {
                             this.provider = new Resend(process.env.RESEND_API_KEY);
@@ -90,7 +91,8 @@ class EmailService {
                 case 'nodemailer':
                     // Dynamically import Nodemailer (if installed)
                     try {
-                        const nodemailer = await eval('import("nodemailer")');
+                        // @ts-expect-error - Optional dependency, may not be installed
+                        const nodemailer = await import('nodemailer');
                         if (nodemailer) {
                             this.provider = nodemailer.default.createTransport({
                                 host: process.env.SMTP_HOST,
@@ -445,6 +447,95 @@ Powered by ROOFER - The Roof Docs
         }
         catch (error) {
             console.error('Error sending custom email:', error);
+            return false;
+        }
+    }
+    /**
+     * Generate verification code email template
+     */
+    generateVerificationCodeTemplate(data) {
+        const { email, code, expiresInMinutes = 10 } = data;
+        const subject = `🔐 Your Susan AI-21 Verification Code: ${code}`;
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verification Code</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+          .content { padding: 30px 20px; text-align: center; }
+          .code-box { background: #f8f9fa; border: 2px dashed #ef4444; padding: 20px; margin: 25px 0; border-radius: 8px; }
+          .code { font-size: 36px; font-weight: bold; color: #ef4444; letter-spacing: 8px; font-family: 'Courier New', monospace; }
+          .expires { color: #666; font-size: 14px; margin-top: 15px; }
+          .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin: 20px 0; border-radius: 4px; font-size: 13px; color: #856404; }
+          .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; border-top: 1px solid #e0e0e0; }
+          .icon { font-size: 40px; margin-bottom: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="icon">🔐</div>
+            <h1>Verification Code</h1>
+          </div>
+          <div class="content">
+            <p>You're signing in to Susan AI-21 with:</p>
+            <p><strong>${email}</strong></p>
+
+            <div class="code-box">
+              <div class="code">${code}</div>
+              <div class="expires">This code expires in ${expiresInMinutes} minutes</div>
+            </div>
+
+            <p>Enter this code in the app to complete your sign-in.</p>
+
+            <div class="warning">
+              ⚠️ If you didn't request this code, please ignore this email. Someone may have entered your email address by mistake.
+            </div>
+          </div>
+          <div class="footer">
+            <p style="margin: 5px 0;">Susan AI-21 Field Assistant</p>
+            <p style="margin: 5px 0; font-size: 12px;">Powered by ROOFER - The Roof Docs</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+        const text = `
+🔐 VERIFICATION CODE
+
+You're signing in to Susan AI-21 with: ${email}
+
+Your verification code is: ${code}
+
+This code expires in ${expiresInMinutes} minutes.
+
+Enter this code in the app to complete your sign-in.
+
+⚠️ If you didn't request this code, please ignore this email.
+
+---
+Susan AI-21 Field Assistant
+Powered by ROOFER - The Roof Docs
+    `.trim();
+        return { subject, html, text };
+    }
+    /**
+     * Send verification code to user
+     * Returns true if email was sent successfully
+     */
+    async sendVerificationCode(data) {
+        try {
+            const template = this.generateVerificationCodeTemplate(data);
+            return await this.sendEmail(data.email, template);
+        }
+        catch (error) {
+            console.error('Error sending verification code email:', error);
             return false;
         }
     }

@@ -646,7 +646,7 @@ const AdminAnalyticsTab: React.FC = () => {
     switch (severity) {
       case 'critical': return '#dc2626'; // Red - contrast ratio 4.5:1
       case 'warning': return '#d97706';  // Darker amber - contrast ratio 4.5:1
-      case 'info': return '#2563eb';     // Darker blue - contrast ratio 4.5:1
+      case 'info': return '#6b7280';     // Gray - contrast ratio 4.5:1
       default: return '#6b7280';
     }
   };
@@ -911,7 +911,7 @@ const AdminAnalyticsTab: React.FC = () => {
               />
               <Legend />
               <Line type="monotone" dataKey="chat" stroke="#ef4444" strokeWidth={2} />
-              <Line type="monotone" dataKey="email" stroke="#3b82f6" strokeWidth={2} />
+              <Line type="monotone" dataKey="email" stroke="#059669" strokeWidth={2} />
               <Line type="monotone" dataKey="upload" stroke="#10b981" strokeWidth={2} />
               <Line type="monotone" dataKey="transcribe" stroke="#f59e0b" strokeWidth={2} />
               <Line type="monotone" dataKey="susan" stroke="#8b5cf6" strokeWidth={2} />

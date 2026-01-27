@@ -72,7 +72,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: index * 0.05 + 0.1 }}
-          className="flex-shrink-0 h-9 w-9 md:h-10 md:w-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center shadow-md touch-target"
+          className="flex-shrink-0 h-9 w-9 md:h-10 md:w-10 rounded-xl bg-[#171717] border border-[#262626] flex items-center justify-center shadow-md touch-target"
         >
           <div className="relative">
             <Bot className="h-4 w-4 md:h-5 md:w-5 text-red-500" strokeWidth={2} />
@@ -104,13 +104,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
           className={cn(
             "relative rounded-2xl px-4 py-3 md:px-5 md:py-3.5 shadow-lg transition-all duration-300 tap-feedback touch-target",
             isUser
-              ? 'bg-gradient-to-br from-[#e94560] via-[#e94560] to-[#ff6b88] text-white shadow-[rgba(233,69,96,0.2)] border border-red-500/20'
-              : 'bg-[rgba(255,255,255,0.03)] text-white border border-white/10'
+              ? 'bg-gradient-to-br from-[#dc2626] via-[#dc2626] to-[#b91c1c] text-white shadow-[rgba(220,38,38,0.2)] border border-red-600/20'
+              : 'bg-[#171717] text-white border border-[#262626]'
           )}
         >
           {/* Accent underline for bot messages */}
           {!isUser && (
-            <div className="absolute left-3 right-3 -bottom-px h-[2px] bg-gradient-to-r from-transparent via-[#e94560]/50 to-transparent rounded-b-2xl" />
+            <div className="absolute left-3 right-3 -bottom-px h-[2px] bg-gradient-to-r from-transparent via-[#dc2626]/50 to-transparent rounded-b-2xl" />
           )}
 
           {/* Sparkle effect for user messages */}
@@ -159,7 +159,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: index * 0.05 + 0.2 }}
-            className="text-[10px] text-zinc-600 mt-1.5 px-2 font-medium"
+            className="text-[10px] text-[#71717a] mt-1.5 px-2 font-medium"
           >
             {formatTime(timestamp)}
           </motion.span>

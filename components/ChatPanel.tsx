@@ -7,7 +7,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -17,6 +17,7 @@ import { emailNotificationService } from '../services/emailNotificationService';
 import { authService } from '../services/authService';
 import { activityService } from '../services/activityService';
 import { useToast } from './Toast';
+import ShareModal from './ShareModal';
 
 /**
  * Extract and compress key context from conversation history
@@ -157,6 +158,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; content: string; type: string }>>([]);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [messageToShare, setMessageToShare] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,9 +173,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   // State options
   const stateOptions = [
-    { code: 'VA', name: 'Virginia', color: '#1e40af' },
-    { code: 'MD', name: 'Maryland', color: '#dc2626' },
-    { code: 'PA', name: 'Pennsylvania', color: '#059669' }
+    { code: 'VA', name: 'Virginia', color: '#DC2626' },
+    { code: 'MD', name: 'Maryland', color: '#B91C1C' },
+    { code: 'PA', name: 'Pennsylvania', color: '#DC2626' }
   ];
 
   // Effect to initialize and load messages from localStorage
@@ -245,6 +248,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const { summary } = JSON.parse(quickAssessment);
         setUserInput((prev) => prev || `Discuss this image assessment and craft next steps for the claim:\n\n${summary}`);
         localStorage.removeItem('chat_quick_assessment');
+      }
+      const jobContext = localStorage.getItem('job_chat_context');
+      if (jobContext) {
+        setUserInput((prev) => prev || `I'm working on this job and need your help:\n\n${jobContext}\n\nWhat should I do next?`);
+        localStorage.removeItem('job_chat_context');
       }
     } catch (e) {
       console.warn('Failed to load quick-open context');
@@ -767,41 +775,75 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       msg.text
                     )}
                   </div>
-                  {msg.sender === 'bot' && responseHasEmailContent(msg.text) && onStartEmail && (
-                    <button
-                      onClick={() => {
-                        const emailContent = extractEmailContent(msg.text);
-                        onStartEmail('custom', emailContent);
-                      }}
-                      className="roof-er-draft-email-btn"
-                      style={{
-                        marginTop: '12px',
-                        padding: '10px 16px',
-                        background: 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: 'white',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.4)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.3)';
-                      }}
-                    >
-                      <Mail className="w-4 h-4" />
-                      Draft as Email
-                    </button>
+                  {msg.sender === 'bot' && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                      {responseHasEmailContent(msg.text) && onStartEmail && (
+                        <button
+                          onClick={() => {
+                            const emailContent = extractEmailContent(msg.text);
+                            onStartEmail('custom', emailContent);
+                          }}
+                          className="roof-er-draft-email-btn"
+                          style={{
+                            padding: '10px 16px',
+                            background: 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.3)';
+                          }}
+                        >
+                          <Mail className="w-4 h-4" />
+                          Draft as Email
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setMessageToShare(msg);
+                          setShareModalOpen(true);
+                        }}
+                        style={{
+                          padding: '10px 16px',
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--bg-secondary)';
+                          e.currentTarget.style.borderColor = 'var(--roof-red)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'var(--bg-elevated)';
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                        }}
+                      >
+                        <Users className="w-4 h-4" />
+                        Share with Team
+                      </button>
+                    </div>
                   )}
                   <div className="roof-er-message-time">
                     {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -965,6 +1007,26 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => {
+          setShareModalOpen(false);
+          setMessageToShare(null);
+        }}
+        contentType="chat"
+        originalQuery={
+          messageToShare
+            ? messages
+                .slice(0, messages.indexOf(messageToShare))
+                .reverse()
+                .find(m => m.sender === 'user')?.text || ''
+            : ''
+        }
+        aiResponse={messageToShare?.text || ''}
+        sessionId={currentSessionId}
+      />
     </div>
   );
 };

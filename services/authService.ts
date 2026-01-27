@@ -7,6 +7,7 @@
 import { databaseService, User } from './databaseService';
 import { emailNotificationService } from './emailNotificationService';
 import { activityService } from './activityService';
+import { API_BASE_URL } from './config';
 
 export interface AuthUser {
   id: string;
@@ -22,8 +23,8 @@ export interface LoginResult {
   success: boolean;
   user?: AuthUser;
   message: string;
-  verificationCode?: string; // For MVP, we'll show this in console
   autoLoginSuccess?: boolean; // True if auto-login token was used
+  developmentMode?: boolean; // True if verification code was logged to console (dev only)
 }
 
 interface StoredAuth {
@@ -122,33 +123,40 @@ class AuthService {
   }
 
   /**
-   * Generate a simple 6-digit verification code
+   * Send verification code via backend API
+   * The backend handles code generation, storage, and email delivery
    */
-  private generateVerificationCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  }
+  private async sendVerificationCode(email: string): Promise<{ success: boolean; developmentMode?: boolean; message: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
 
-  /**
-   * Send verification code (MVP: just log to console)
-   * TODO: Integrate with email service to send verification code via email
-   * - Use emailNotificationService or similar email provider
-   * - Consider using SendGrid, AWS SES, or Resend for email delivery
-   * - Add rate limiting to prevent abuse (max 3 codes per 15 minutes)
-   * - Add email template with branded styling
-   */
-  private async sendVerificationCode(email: string, code: string): Promise<void> {
-    console.log('='.repeat(60));
-    console.log('📧 VERIFICATION CODE FOR MVP TESTING');
-    console.log('='.repeat(60));
-    console.log(`Email: ${email}`);
-    console.log(`Verification Code: ${code}`);
-    console.log('='.repeat(60));
-    console.log('TODO: In production, implement actual email sending via email service.');
-    console.log('='.repeat(60));
+      const result = await response.json();
 
-    // Store code in sessionStorage for verification (expires on browser close)
-    sessionStorage.setItem(`verification_code_${email}`, code);
-    sessionStorage.setItem(`code_timestamp_${email}`, Date.now().toString());
+      if (response.ok && result.success) {
+        return {
+          success: true,
+          developmentMode: result.developmentMode,
+          message: result.message
+        };
+      }
+
+      return {
+        success: false,
+        message: result.error || 'Failed to send verification code'
+      };
+    } catch (error) {
+      console.error('Error sending verification code:', error);
+      return {
+        success: false,
+        message: 'Network error. Please check your connection and try again.'
+      };
+    }
   }
 
   /**
@@ -207,7 +215,7 @@ class AuthService {
 
             // Update last login in database
             try {
-              await fetch(`${window.location.origin}/api/users`, {
+              await fetch(`${API_BASE_URL}/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -237,18 +245,26 @@ class AuthService {
       }
 
       // No valid token - proceed with normal verification code flow
-      console.log('📧 No valid auto-login token, sending verification code');
+      console.log('📧 No valid auto-login token, requesting verification code from server');
 
-      // Generate and send verification code
-      const code = this.generateVerificationCode();
-      await this.sendVerificationCode(email, code);
+      // Send verification code via backend API
+      const sendResult = await this.sendVerificationCode(email);
 
-      return {
-        success: true,
-        message: 'Verification code sent! Check the browser console for MVP testing.',
-        verificationCode: code, // For MVP, return it directly
-        autoLoginSuccess: false
-      };
+      if (sendResult.success) {
+        return {
+          success: true,
+          message: sendResult.developmentMode
+            ? 'Verification code sent (check server console in development)'
+            : 'Verification code sent! Check your email.',
+          autoLoginSuccess: false,
+          developmentMode: sendResult.developmentMode
+        };
+      } else {
+        return {
+          success: false,
+          message: sendResult.message
+        };
+      }
     } catch (error) {
       console.error('Login error:', error);
       return {
@@ -264,34 +280,21 @@ class AuthService {
    */
   async verifyLoginCode(email: string, code: string, name: string, rememberMe: boolean = false): Promise<LoginResult> {
     try {
-      // Get stored code
-      const storedCode = sessionStorage.getItem(`verification_code_${email}`);
-      const timestamp = sessionStorage.getItem(`code_timestamp_${email}`);
+      // Verify code via backend API
+      const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code }),
+      });
 
-      if (!storedCode || !timestamp) {
+      const verifyResult = await verifyResponse.json();
+
+      if (!verifyResponse.ok || !verifyResult.success) {
         return {
           success: false,
-          message: 'No verification code found. Please request a new code.'
-        };
-      }
-
-      // Check if code is expired (10 minutes)
-      const codeAge = Date.now() - parseInt(timestamp);
-      const TEN_MINUTES = 10 * 60 * 1000;
-      if (codeAge > TEN_MINUTES) {
-        sessionStorage.removeItem(`verification_code_${email}`);
-        sessionStorage.removeItem(`code_timestamp_${email}`);
-        return {
-          success: false,
-          message: 'Verification code expired (10 min limit). Please request a new one.'
-        };
-      }
-
-      // Verify code
-      if (code !== storedCode) {
-        return {
-          success: false,
-          message: 'Invalid verification code. Please check and try again.'
+          message: verifyResult.error || 'Invalid verification code'
         };
       }
 
@@ -311,7 +314,7 @@ class AuthService {
       // First, try to create or get user from database
       try {
         console.log('📝 Creating/getting user in database...');
-        const createResponse = await fetch(`${window.location.origin}/api/users`, {
+        const createResponse = await fetch(`${API_BASE_URL}/users`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -338,7 +341,7 @@ class AuthService {
         } else {
           console.warn('⚠️  Failed to create user in database, continuing with local auth');
           // Fallback: check if user exists
-          const checkResponse = await fetch(`${window.location.origin}/api/users/${email.toLowerCase()}`);
+          const checkResponse = await fetch(`${API_BASE_URL}/users/${email.toLowerCase()}`);
           if (checkResponse.ok) {
             const dbUser = await checkResponse.json();
             user.id = dbUser.id;
@@ -399,10 +402,6 @@ class AuthService {
 
       // Update database service
       await databaseService.setCurrentUser(user);
-
-      // Clean up verification code
-      sessionStorage.removeItem(`verification_code_${email}`);
-      sessionStorage.removeItem(`code_timestamp_${email}`);
 
       console.log('✅ User logged in successfully:', user.email);
       console.log(`🔐 Remember Me: ${rememberMe ? 'Yes (1 year)' : 'No (session only)'}`);
@@ -618,14 +617,6 @@ class AuthService {
     localStorage.removeItem(this.AUTH_KEY);
     localStorage.removeItem(this.SESSION_KEY);
     localStorage.removeItem(this.TOKEN_KEY);
-
-    // Clear session codes
-    const keys = Object.keys(sessionStorage);
-    keys.forEach(key => {
-      if (key.startsWith('verification_code_') || key.startsWith('code_timestamp_')) {
-        sessionStorage.removeItem(key);
-      }
-    });
 
     console.log('✅ User logged out');
   }

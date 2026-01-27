@@ -1,19 +1,24 @@
 /**
  * Backend API Server for Susan 21
  * Provides REST API endpoints for PostgreSQL database operations
+ * Includes WebSocket support for real-time presence and messaging
  */
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { emailService } from './services/emailService.js';
 import { cronService } from './services/cronService.js';
+import { initializePresenceService } from './services/presenceService.js';
+import { createMessagingRoutes } from './routes/messagingRoutes.js';
 const { Pool } = pg;
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
@@ -106,6 +111,14 @@ const emailLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+// Very strict rate limiting for verification codes (prevent abuse)
+const verificationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 3, // Limit each IP to 3 verification code requests per 15 minutes
+    message: 'Too many verification code requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 // Apply general rate limiting to all API routes
 app.use('/api/', generalLimiter);
 // Apply write limiter to specific endpoints
@@ -113,6 +126,7 @@ app.use('/api/chat/messages', writeLimiter);
 app.use('/api/documents/', writeLimiter);
 app.use('/api/emails/', emailLimiter);
 app.use('/api/notifications/email', emailLimiter);
+app.use('/api/auth/send-verification-code', verificationLimiter);
 // Request logging
 app.use((req, res, next) => {
     console.log(`${req.method} ${req.path}`);
@@ -388,6 +402,172 @@ app.patch('/api/users/me', async (req, res) => {
     catch (error) {
         console.error('Error updating user:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+// Delete user account and all associated data (GDPR/CCPA compliance)
+app.delete('/api/users/me', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const email = getRequestEmail(req);
+        if (!email || email === 'demo@roofer.com') {
+            return res.status(400).json({ error: 'Cannot delete demo account' });
+        }
+        // Get user ID
+        const userResult = await client.query('SELECT id FROM users WHERE email = $1', [email]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const userId = userResult.rows[0].id;
+        console.log(`🗑️ Starting account deletion for user ${email} (ID: ${userId})`);
+        // Begin transaction
+        await client.query('BEGIN');
+        // Delete all user-related data in order of dependencies
+        // Complete list of all tables with user_id foreign key or user data
+        const deletions = [
+            // Core activity tables (CASCADE delete but explicit for logging)
+            { table: 'chat_history', deleted: 0 },
+            { table: 'email_generation_log', deleted: 0 },
+            { table: 'transcriptions', deleted: 0 },
+            { table: 'document_uploads', deleted: 0 },
+            { table: 'document_views', deleted: 0 },
+            { table: 'document_favorites', deleted: 0 },
+            { table: 'live_susan_sessions', deleted: 0 },
+            { table: 'user_activity_log', deleted: 0 },
+            // Additional tables from migrations
+            { table: 'concerning_chats', deleted: 0 }, // Migration 003
+            { table: 'image_analysis_log', deleted: 0 }, // schema.sql
+            { table: 'user_preferences', deleted: 0 }, // schema.sql
+            { table: 'search_analytics', deleted: 0 }, // schema.sql (SET NULL but delete for privacy)
+            { table: 'api_usage_log', deleted: 0 }, // Migration 005
+            { table: 'user_budgets', deleted: 0 }, // Migration 005
+            { table: 'budget_alerts', deleted: 0 }, // Migration 005
+            { table: 'rag_analytics', deleted: 0 }, // Migration 004 (SET NULL but delete for privacy)
+        ];
+        for (const deletion of deletions) {
+            try {
+                const result = await client.query(`DELETE FROM ${deletion.table} WHERE user_id = $1`, [userId]);
+                deletion.deleted = result.rowCount || 0;
+                console.log(`  ✓ Deleted ${deletion.deleted} rows from ${deletion.table}`);
+            }
+            catch (err) {
+                // Table might not exist - log but continue
+                console.log(`  ⚠️ Could not delete from ${deletion.table}: ${err.message}`);
+            }
+        }
+        // Finally, delete the user record
+        const userDeletion = await client.query('DELETE FROM users WHERE id = $1 RETURNING email', [userId]);
+        // Commit transaction
+        await client.query('COMMIT');
+        console.log(`✅ Account deletion completed for ${email}`);
+        res.json({
+            success: true,
+            message: 'Account and all associated data have been permanently deleted',
+            deletedEmail: userDeletion.rows[0]?.email,
+            deletedRecords: deletions.reduce((sum, d) => sum + d.deleted, 0)
+        });
+    }
+    catch (error) {
+        // Rollback on error
+        await client.query('ROLLBACK');
+        console.error('Error deleting user account:', error);
+        res.status(500).json({ error: 'Failed to delete account. Please try again.' });
+    }
+    finally {
+        client.release();
+    }
+});
+// Export user data (GDPR/CCPA compliance)
+app.get('/api/users/me/export', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        if (!email) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        // Get user info
+        const userResult = await pool.query('SELECT id, email, name, role, state, created_at FROM users WHERE email = $1', [email]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const userId = userResult.rows[0].id;
+        const user = userResult.rows[0];
+        // Gather all user data from all tables
+        // Helper to safely query a table (returns empty array if table doesn't exist)
+        const safeQuery = async (query, params) => {
+            try {
+                return await pool.query(query, params);
+            }
+            catch (err) {
+                console.log(`Export query failed (table may not exist): ${err.message}`);
+                return { rows: [], rowCount: 0 };
+            }
+        };
+        const [chatHistory, emailLogs, transcriptions, documentUploads, documentViews, favorites, susanSessions, activityLog, concerningChats, imageAnalysis, preferences, searchAnalytics, apiUsage, budgets, budgetAlerts, ragAnalytics] = await Promise.all([
+            // Core tables
+            pool.query('SELECT id, message_id, sender, content, state, created_at FROM chat_history WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+            pool.query('SELECT id, email_type, recipient_email, subject, created_at FROM email_generation_log WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+            safeQuery('SELECT id, audio_duration_seconds, transcription_text, word_count, provider, state, created_at FROM transcriptions WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+            safeQuery('SELECT id, file_name, file_type, file_size_bytes, analysis_type, state, created_at FROM document_uploads WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+            pool.query('SELECT document_path, view_count, last_viewed_at FROM document_views WHERE user_id = $1', [userId]),
+            pool.query('SELECT document_path, created_at FROM document_favorites WHERE user_id = $1', [userId]),
+            safeQuery('SELECT id, started_at, ended_at, duration_seconds, message_count FROM live_susan_sessions WHERE user_id = $1 ORDER BY started_at DESC', [userId]),
+            safeQuery('SELECT activity_type, activity_data, created_at FROM user_activity_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000', [userId]),
+            // Additional tables from migrations
+            safeQuery('SELECT id, concern_type, severity, flagged_content, detection_reason, flagged_at, reviewed FROM concerning_chats WHERE user_id = $1 ORDER BY flagged_at DESC', [userId]),
+            safeQuery('SELECT id, analysis_type, provider, created_at FROM image_analysis_log WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+            safeQuery('SELECT preferred_state, preferred_ai_provider, theme, notifications_enabled, created_at FROM user_preferences WHERE user_id = $1', [userId]),
+            safeQuery('SELECT query, results_count, selected_document, state, created_at FROM search_analytics WHERE user_id = $1 ORDER BY created_at DESC LIMIT 500', [userId]),
+            safeQuery('SELECT provider_name, service_type, model_name, input_tokens, output_tokens, estimated_cost, feature_used, created_at FROM api_usage_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000', [userId]),
+            safeQuery('SELECT monthly_budget, current_month_spend, last_reset_date, created_at FROM user_budgets WHERE user_id = $1', [userId]),
+            safeQuery('SELECT alert_type, threshold_percentage, current_spend, budget_limit, triggered_at, acknowledged FROM budget_alerts WHERE user_id = $1 ORDER BY triggered_at DESC', [userId]),
+            safeQuery('SELECT query_text, num_results, response_time_ms, state, created_at FROM rag_analytics WHERE user_id = $1 ORDER BY created_at DESC LIMIT 500', [userId])
+        ]);
+        const exportData = {
+            exportDate: new Date().toISOString(),
+            user: {
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                state: user.state,
+                accountCreated: user.created_at
+            },
+            data: {
+                chatHistory: chatHistory.rows,
+                emailsGenerated: emailLogs.rows,
+                transcriptions: transcriptions.rows,
+                documentUploads: documentUploads.rows,
+                documentViews: documentViews.rows,
+                favorites: favorites.rows,
+                liveSusanSessions: susanSessions.rows,
+                activityLog: activityLog.rows,
+                concerningChats: concerningChats.rows,
+                imageAnalysis: imageAnalysis.rows,
+                preferences: preferences.rows[0] || null,
+                searchAnalytics: searchAnalytics.rows,
+                apiUsage: apiUsage.rows,
+                budgets: budgets.rows[0] || null,
+                budgetAlerts: budgetAlerts.rows,
+                ragAnalytics: ragAnalytics.rows
+            },
+            statistics: {
+                totalChatMessages: chatHistory.rowCount,
+                totalEmailsGenerated: emailLogs.rowCount,
+                totalTranscriptions: transcriptions.rowCount,
+                totalDocumentUploads: documentUploads.rowCount,
+                totalDocumentViews: documentViews.rowCount,
+                totalFavorites: favorites.rowCount,
+                totalSusanSessions: susanSessions.rowCount,
+                totalApiCalls: apiUsage.rowCount,
+                totalImageAnalyses: imageAnalysis.rowCount
+            }
+        };
+        // Set headers for file download
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="susan-ai-data-export-${new Date().toISOString().split('T')[0]}.json"`);
+        res.json(exportData);
+    }
+    catch (error) {
+        console.error('Error exporting user data:', error);
+        res.status(500).json({ error: 'Failed to export data. Please try again.' });
     }
 });
 // ============================================================================
@@ -745,6 +925,135 @@ app.get('/api/notifications/config', async (req, res) => {
     catch (error) {
         console.error('Error fetching email config:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+// ============================================================================
+// AUTHENTICATION ENDPOINTS
+// ============================================================================
+// In-memory verification code storage (with expiration)
+const verificationCodes = new Map();
+// Clean up expired codes every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [email, data] of verificationCodes.entries()) {
+        if (now > data.expiresAt) {
+            verificationCodes.delete(email);
+        }
+    }
+}, 5 * 60 * 1000);
+// Generate a 6-digit verification code
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+// Send verification code endpoint
+app.post('/api/auth/send-verification-code', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email address is required'
+            });
+        }
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please enter a valid email address'
+            });
+        }
+        // Generate code
+        const code = generateVerificationCode();
+        const expiresInMinutes = 10;
+        const expiresAt = Date.now() + (expiresInMinutes * 60 * 1000);
+        // Store code for later verification
+        verificationCodes.set(email.toLowerCase(), { code, expiresAt });
+        // Send email with verification code
+        const emailSent = await emailService.sendVerificationCode({
+            email,
+            code,
+            expiresInMinutes
+        });
+        if (emailSent) {
+            res.json({
+                success: true,
+                message: 'Verification code sent to your email',
+                expiresInMinutes
+            });
+        }
+        else {
+            // Email failed but code is stored - in development mode, this is acceptable
+            const config = emailService.getConfig();
+            if (config.provider === 'console') {
+                // In console mode (development), return success with dev indicator
+                res.json({
+                    success: true,
+                    message: 'Verification code sent (check server console in development)',
+                    expiresInMinutes,
+                    developmentMode: true
+                });
+            }
+            else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to send verification email. Please try again.'
+                });
+            }
+        }
+    }
+    catch (error) {
+        console.error('Error sending verification code:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An error occurred while sending the verification code'
+        });
+    }
+});
+// Verify code endpoint
+app.post('/api/auth/verify-code', async (req, res) => {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and code are required'
+            });
+        }
+        const normalizedEmail = email.toLowerCase();
+        const storedData = verificationCodes.get(normalizedEmail);
+        if (!storedData) {
+            return res.status(400).json({
+                success: false,
+                error: 'No verification code found. Please request a new code.'
+            });
+        }
+        if (Date.now() > storedData.expiresAt) {
+            verificationCodes.delete(normalizedEmail);
+            return res.status(400).json({
+                success: false,
+                error: 'Verification code has expired. Please request a new code.'
+            });
+        }
+        if (storedData.code !== code) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid verification code. Please try again.'
+            });
+        }
+        // Code is valid - delete it so it can't be reused
+        verificationCodes.delete(normalizedEmail);
+        res.json({
+            success: true,
+            message: 'Email verified successfully'
+        });
+    }
+    catch (error) {
+        console.error('Error verifying code:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An error occurred while verifying the code'
+        });
     }
 });
 // ============================================================================
@@ -1320,10 +1629,16 @@ app.get('/api/admin/conversations/:sessionId', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-// Update user role (admin only - in production add auth middleware)
+// Update user role (admin only)
 // Accepts either user ID or email as userId parameter
 app.patch('/api/admin/users/:userId/role', async (req, res) => {
     try {
+        // CRITICAL: Verify requesting user is admin
+        const requestingEmail = getRequestEmail(req);
+        const adminCheck = await isAdmin(requestingEmail);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
         const { userId } = req.params;
         const { role } = req.body;
         if (!['sales_rep', 'manager', 'admin'].includes(role)) {
@@ -3449,11 +3764,43 @@ catch (e) {
     console.log('💡 App will continue but static files will not be served');
 }
 // ============================================================================
+// MESSAGING ROUTES SETUP
+// ============================================================================
+// Middleware to extract user ID for messaging routes
+app.use('/api/messages', async (req, res, next) => {
+    const email = getRequestEmail(req);
+    if (email) {
+        try {
+            const result = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+            if (result.rows.length > 0) {
+                req.userId = result.rows[0].id;
+                req.userEmail = email;
+            }
+        }
+        catch (e) {
+            console.error('Error getting user ID for messaging:', e);
+        }
+    }
+    next();
+});
+// Register messaging routes
+app.use('/api/messages', createMessagingRoutes(pool));
+app.use('/api', createMessagingRoutes(pool)); // Also mount /api/team
+// ============================================================================
 // START SERVER
 // ============================================================================
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`🚀 API Server running on port ${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+    // Initialize WebSocket presence service
+    try {
+        initializePresenceService(httpServer, pool, allowedOrigins);
+        console.log('✅ WebSocket presence service initialized');
+    }
+    catch (error) {
+        console.error('⚠️  Failed to initialize WebSocket:', error);
+        console.log('💡 REST API will continue without real-time updates');
+    }
     // Start automated email cron jobs
     try {
         cronService.startAll();

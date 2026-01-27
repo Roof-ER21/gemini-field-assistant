@@ -594,13 +594,16 @@ const AdminPanel: React.FC = () => {
     <div style={{
       background: '#0f0f0f',
       minHeight: '100vh',
-      overflow: 'auto',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      maxWidth: '100vw',
+      boxSizing: 'border-box',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
     }}>
       {/* Database Migrations Section */}
       <div style={{
-        background: '#1a1a1a',
-        borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
+        background: '#0a0a0a',
+        borderBottom: '2px solid #262626',
         padding: '1.5rem 2rem'
       }}>
         <div style={{
@@ -613,8 +616,8 @@ const AdminPanel: React.FC = () => {
             gap: '0.75rem',
             marginBottom: '1rem'
           }}>
-            <Database style={{ width: '20px', height: '20px', color: '#991b1b' }} />
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#e4e4e7', margin: 0 }}>
+            <Database style={{ width: '20px', height: '20px', color: '#dc2626' }} />
+            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#ffffff', margin: 0 }}>
               Database Migrations
             </h3>
           </div>
@@ -631,10 +634,10 @@ const AdminPanel: React.FC = () => {
                   background: migrationStatus.migration005 === 'success'
                     ? '#166534'
                     : migrationStatus.migration005 === 'error'
-                    ? '#991b1b'
+                    ? '#dc2626'
                     : migrationStatus.migration005 === 'running'
-                    ? '#3a3a3a'
-                    : '#991b1b',
+                    ? '#262626'
+                    : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
                   color: 'white',
@@ -653,12 +656,12 @@ const AdminPanel: React.FC = () => {
                 }}
                 onMouseEnter={(e) => {
                   if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
-                    e.currentTarget.style.background = '#7f1d1d';
+                    e.currentTarget.style.background = '#b91c1c';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
-                    e.currentTarget.style.background = '#991b1b';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                   }
                 }}
               >
@@ -709,10 +712,10 @@ const AdminPanel: React.FC = () => {
                   background: migrationStatus.migration006 === 'success'
                     ? '#166534'
                     : migrationStatus.migration006 === 'error'
-                    ? '#991b1b'
+                    ? '#dc2626'
                     : migrationStatus.migration006 === 'running'
-                    ? '#3a3a3a'
-                    : '#991b1b',
+                    ? '#262626'
+                    : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
                   color: 'white',
@@ -731,12 +734,12 @@ const AdminPanel: React.FC = () => {
                 }}
                 onMouseEnter={(e) => {
                   if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
-                    e.currentTarget.style.background = '#7f1d1d';
+                    e.currentTarget.style.background = '#b91c1c';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
-                    e.currentTarget.style.background = '#991b1b';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                   }
                 }}
               >
@@ -781,8 +784,8 @@ const AdminPanel: React.FC = () => {
 
       {/* Tab Navigation */}
       <div style={{
-        background: '#1a1a1a',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        background: '#0a0a0a',
+        borderBottom: '1px solid #262626',
         padding: '1rem 2rem',
         display: 'flex',
         gap: '1rem'
@@ -791,8 +794,8 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('users')}
           style={{
             padding: '0.75rem 1.5rem',
-            background: activeTab === 'users' ? '#991b1b' : 'transparent',
-            color: 'white',
+            background: activeTab === 'users' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -800,7 +803,8 @@ const AdminPanel: React.FC = () => {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <Users style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -811,8 +815,8 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('emails')}
           style={{
             padding: '0.75rem 1.5rem',
-            background: activeTab === 'emails' ? '#991b1b' : 'transparent',
-            color: 'white',
+            background: activeTab === 'emails' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -820,7 +824,8 @@ const AdminPanel: React.FC = () => {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <Mail style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -831,8 +836,8 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('messages')}
           style={{
             padding: '0.75rem 1.5rem',
-            background: activeTab === 'messages' ? '#991b1b' : 'transparent',
-            color: 'white',
+            background: activeTab === 'messages' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -840,7 +845,8 @@ const AdminPanel: React.FC = () => {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <MessageSquare style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -851,8 +857,8 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('analytics')}
           style={{
             padding: '0.75rem 1.5rem',
-            background: activeTab === 'analytics' ? '#991b1b' : 'transparent',
-            color: 'white',
+            background: activeTab === 'analytics' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -860,7 +866,8 @@ const AdminPanel: React.FC = () => {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <BarChart3 style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -871,8 +878,8 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('budget')}
           style={{
             padding: '0.75rem 1.5rem',
-            background: activeTab === 'budget' ? '#991b1b' : 'transparent',
-            color: 'white',
+            background: activeTab === 'budget' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -880,7 +887,8 @@ const AdminPanel: React.FC = () => {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <DollarSign style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -895,9 +903,9 @@ const AdminPanel: React.FC = () => {
         {/* Sidebar - Users List */}
         <div style={{
           width: '320px',
-          background: '#1a1a1a',
+          background: '#0a0a0a',
           borderRadius: '12px',
-          border: '1px solid #2a2a2a',
+          border: '1px solid #262626',
           display: 'flex',
           flexDirection: 'column',
           flexShrink: 0
@@ -905,7 +913,7 @@ const AdminPanel: React.FC = () => {
           {/* Sidebar Header */}
           <div style={{
             padding: '25px',
-            borderBottom: '1px solid #2a2a2a'
+            borderBottom: '1px solid #1a1a1a'
           }}>
             <div style={{
               display: 'flex',
@@ -914,12 +922,12 @@ const AdminPanel: React.FC = () => {
               fontSize: '20px',
               fontWeight: 700,
               marginBottom: '20px',
-              color: '#e4e4e7'
+              color: '#ffffff'
             }}>
               <div style={{
                 width: '32px',
                 height: '32px',
-                background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -941,14 +949,14 @@ const AdminPanel: React.FC = () => {
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                  e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
                 }}
                 title="Refresh users"
               >
-                <RefreshCw style={{ width: '16px', height: '16px', color: '#991b1b' }} />
+                <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
               </button>
             </div>
 
@@ -962,21 +970,21 @@ const AdminPanel: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px 40px 12px 16px',
-                  background: '#262626',
-                  border: '1px solid #3a3a3a',
+                  background: '#171717',
+                  border: '1px solid #262626',
                   borderRadius: '10px',
-                  color: '#e4e4e7',
+                  color: '#ffffff',
                   fontSize: '14px',
                   transition: 'all 0.3s ease',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#991b1b';
-                  e.currentTarget.style.background = '#2a2a2a';
+                  e.currentTarget.style.borderColor = '#dc2626';
+                  e.currentTarget.style.background = '#1a1a1a';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#3a3a3a';
-                  e.currentTarget.style.background = '#262626';
+                  e.currentTarget.style.borderColor = '#262626';
+                  e.currentTarget.style.background = '#171717';
                 }}
               />
               <span style={{
@@ -999,10 +1007,10 @@ const AdminPanel: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '10px 14px',
-                  background: '#262626',
-                  border: '1px solid #3a3a3a',
+                  background: '#171717',
+                  border: '1px solid #262626',
                   borderRadius: '8px',
-                  color: '#e4e4e7',
+                  color: '#ffffff',
                   fontSize: '14px',
                   cursor: 'pointer',
                   outline: 'none'
@@ -1025,10 +1033,10 @@ const AdminPanel: React.FC = () => {
                   }}
                   style={{
                     padding: '10px',
-                    background: '#262626',
-                    border: '1px solid #3a3a3a',
+                    background: '#171717',
+                    border: '1px solid #262626',
                     borderRadius: '8px',
-                    color: '#e4e4e7',
+                    color: '#ffffff',
                     fontSize: '12px',
                     outline: 'none'
                   }}
@@ -1042,10 +1050,10 @@ const AdminPanel: React.FC = () => {
                   }}
                   style={{
                     padding: '10px',
-                    background: '#262626',
-                    border: '1px solid #3a3a3a',
+                    background: '#171717',
+                    border: '1px solid #262626',
                     borderRadius: '8px',
-                    color: '#e4e4e7',
+                    color: '#ffffff',
                     fontSize: '12px',
                     outline: 'none'
                   }}
@@ -1060,10 +1068,10 @@ const AdminPanel: React.FC = () => {
                     onClick={() => handleQuickFilter(filter)}
                     style={{
                       padding: '6px 12px',
-                      background: quickFilter === filter ? '#991b1b' : '#262626',
-                      border: `1px solid ${quickFilter === filter ? '#991b1b' : '#3a3a3a'}`,
+                      background: quickFilter === filter ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
+                      border: `1px solid ${quickFilter === filter ? '#dc2626' : '#262626'}`,
                       borderRadius: '6px',
-                      color: quickFilter === filter ? 'white' : '#a1a1aa',
+                      color: quickFilter === filter ? '#ffffff' : '#a1a1aa',
                       fontSize: '12px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
@@ -1071,12 +1079,12 @@ const AdminPanel: React.FC = () => {
                     }}
                     onMouseEnter={(e) => {
                       if (quickFilter !== filter) {
-                        e.currentTarget.style.background = '#2a2a2a';
+                        e.currentTarget.style.background = '#1a1a1a';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (quickFilter !== filter) {
-                        e.currentTarget.style.background = '#262626';
+                        e.currentTarget.style.background = '#171717';
                       }
                     }}
                   >
@@ -1089,10 +1097,10 @@ const AdminPanel: React.FC = () => {
             {/* Users Count */}
             <div style={{
               fontSize: '12px',
-              color: '#71717a',
+              color: '#a1a1aa',
               marginTop: '15px',
               paddingTop: '15px',
-              borderTop: '1px solid #2a2a2a'
+              borderTop: '1px solid #1a1a1a'
             }}>
               {filteredUsers.length} of {users.length} users
             </div>
@@ -1110,12 +1118,12 @@ const AdminPanel: React.FC = () => {
                   display: 'inline-block',
                   width: '40px',
                   height: '40px',
-                  border: '4px solid #3a3a3a',
-                  borderTop: '4px solid #991b1b',
+                  border: '4px solid #262626',
+                  borderTop: '4px solid #dc2626',
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite'
                 }} />
-                <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
+                <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
                   Loading users...
                 </p>
               </div>
@@ -1123,8 +1131,8 @@ const AdminPanel: React.FC = () => {
 
             {error && (
               <div style={{
-                background: '#1a1a1a',
-                border: '1px solid #991b1b',
+                background: '#0a0a0a',
+                border: '1px solid #dc2626',
                 borderRadius: '10px',
                 padding: '16px',
                 marginBottom: '12px'
@@ -1139,28 +1147,28 @@ const AdminPanel: React.FC = () => {
                 key={user.id}
                 onClick={() => handleUserSelect(user)}
                 style={{
-                  background: selectedUser?.id === user.id ? '#2a2a2a' : '#262626',
-                  border: '1px solid #3a3a3a',
+                  background: selectedUser?.id === user.id ? '#171717' : '#0a0a0a',
+                  border: '1px solid #262626',
                   borderRadius: '12px',
                   padding: '16px',
                   marginBottom: '12px',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   position: 'relative',
-                  boxShadow: selectedUser?.id === user.id ? '-4px 0 0 #991b1b' : 'none'
+                  boxShadow: selectedUser?.id === user.id ? '-4px 0 0 #dc2626' : 'none'
                 }}
                 onMouseEnter={(e) => {
                   if (selectedUser?.id !== user.id) {
-                    e.currentTarget.style.background = '#2a2a2a';
-                    e.currentTarget.style.borderColor = '#991b1b';
+                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.borderColor = '#dc2626';
                     e.currentTarget.style.transform = 'translateX(4px)';
-                    e.currentTarget.style.boxShadow = '-4px 0 0 #991b1b';
+                    e.currentTarget.style.boxShadow = '-4px 0 0 #dc2626';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (selectedUser?.id !== user.id) {
-                    e.currentTarget.style.background = '#262626';
-                    e.currentTarget.style.borderColor = '#3a3a3a';
+                    e.currentTarget.style.background = '#0a0a0a';
+                    e.currentTarget.style.borderColor = '#262626';
                     e.currentTarget.style.transform = 'translateX(0)';
                     e.currentTarget.style.boxShadow = 'none';
                   }
@@ -1177,7 +1185,7 @@ const AdminPanel: React.FC = () => {
                     width: '48px',
                     height: '48px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1185,7 +1193,7 @@ const AdminPanel: React.FC = () => {
                     fontWeight: 600,
                     flexShrink: 0,
                     position: 'relative',
-                    color: '#fff'
+                    color: '#ffffff'
                   }}>
                     {getInitials(user.name)}
                     {/* Status Indicator */}
@@ -1195,8 +1203,8 @@ const AdminPanel: React.FC = () => {
                       right: '2px',
                       width: '12px',
                       height: '12px',
-                      background: isUserOnline(user.last_active) ? '#10b981' : '#6b7280',
-                      border: '2px solid #262626',
+                      background: isUserOnline(user.last_active) ? '#10b981' : '#52525b',
+                      border: '2px solid #0a0a0a',
                       borderRadius: '50%'
                     }} />
                   </div>
@@ -1208,13 +1216,13 @@ const AdminPanel: React.FC = () => {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      color: '#e4e4e7'
+                      color: '#ffffff'
                     }}>
                       {user.name}
                     </div>
                     <div style={{
                       fontSize: '12px',
-                      color: '#71717a',
+                      color: '#a1a1aa',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
@@ -1233,13 +1241,13 @@ const AdminPanel: React.FC = () => {
                   <span style={{
                     display: 'inline-block',
                     padding: '4px 10px',
-                    background: user.role === 'admin' ? '#dc2626' : user.role.includes('sales') ? '#991b1b' : '#3a3a3a',
+                    background: user.role === 'admin' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : user.role.includes('sales') ? '#dc2626' : '#262626',
                     borderRadius: '6px',
                     fontSize: '11px',
                     fontWeight: 600,
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px',
-                    color: user.role === 'admin' || user.role.includes('sales') ? 'white' : '#e4e4e7'
+                    color: user.role === 'admin' || user.role.includes('sales') ? '#ffffff' : '#d4d4d8'
                   }}>
                     {user.role}
                   </span>
@@ -1251,8 +1259,8 @@ const AdminPanel: React.FC = () => {
                     color: '#a1a1aa'
                   }}>
                     <span style={{
-                      background: '#991b1b',
-                      color: 'white',
+                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      color: '#ffffff',
                       padding: '2px 8px',
                       borderRadius: '10px',
                       fontSize: '12px',
@@ -1270,12 +1278,12 @@ const AdminPanel: React.FC = () => {
               <div style={{
                 textAlign: 'center',
                 padding: '40px 20px',
-                color: '#71717a'
+                color: '#a1a1aa'
               }}>
                 <div style={{
                   width: '80px',
                   height: '80px',
-                  background: '#262626',
+                  background: '#171717',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -1285,10 +1293,10 @@ const AdminPanel: React.FC = () => {
                 }}>
                   👥
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>
                   No users found
                 </div>
-                <div style={{ fontSize: '14px', color: '#71717a' }}>
+                <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
                   Try adjusting your filters
                 </div>
               </div>
@@ -1300,9 +1308,9 @@ const AdminPanel: React.FC = () => {
         {selectedUser && (
           <div style={{
             flex: 1,
-            background: '#1a1a1a',
+            background: '#0a0a0a',
             borderRadius: '12px',
-            border: '1px solid #2a2a2a',
+            border: '1px solid #262626',
             display: 'flex',
             flexDirection: 'column',
             minWidth: '350px',
@@ -1311,7 +1319,7 @@ const AdminPanel: React.FC = () => {
             {/* Header */}
             <div style={{
               padding: '25px',
-              borderBottom: '1px solid #2a2a2a'
+              borderBottom: '1px solid #1a1a1a'
             }}>
               <div style={{
                 display: 'flex',
@@ -1319,15 +1327,15 @@ const AdminPanel: React.FC = () => {
                 gap: '12px',
                 fontSize: '18px',
                 fontWeight: 600,
-                color: '#e4e4e7',
+                color: '#ffffff',
                 marginBottom: '10px'
               }}>
-                <MessageSquare style={{ width: '20px', height: '20px', color: '#991b1b' }} />
+                <MessageSquare style={{ width: '20px', height: '20px', color: '#dc2626' }} />
                 Conversations
               </div>
               <div style={{
                 fontSize: '14px',
-                color: '#71717a'
+                color: '#a1a1aa'
               }}>
                 {selectedUser.name}
               </div>
@@ -1386,8 +1394,8 @@ const AdminPanel: React.FC = () => {
                     key={conv.session_id}
                     onClick={() => handleConversationSelect(conv)}
                     style={{
-                      background: selectedConversation?.session_id === conv.session_id ? '#2a2a2a' : '#262626',
-                      border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#991b1b' : '#3a3a3a'}`,
+                      background: selectedConversation?.session_id === conv.session_id ? '#171717' : '#0a0a0a',
+                      border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#dc2626' : '#262626'}`,
                       borderRadius: '12px',
                       padding: '16px',
                       marginBottom: '12px',
@@ -1396,14 +1404,14 @@ const AdminPanel: React.FC = () => {
                     }}
                     onMouseEnter={(e) => {
                       if (selectedConversation?.session_id !== conv.session_id) {
-                        e.currentTarget.style.background = '#2a2a2a';
-                        e.currentTarget.style.borderColor = '#991b1b';
+                        e.currentTarget.style.background = '#171717';
+                        e.currentTarget.style.borderColor = '#dc2626';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (selectedConversation?.session_id !== conv.session_id) {
-                        e.currentTarget.style.background = '#262626';
-                        e.currentTarget.style.borderColor = '#3a3a3a';
+                        e.currentTarget.style.background = '#0a0a0a';
+                        e.currentTarget.style.borderColor = '#262626';
                       }
                     }}
                   >
@@ -1418,11 +1426,11 @@ const AdminPanel: React.FC = () => {
                         alignItems: 'center',
                         gap: '6px',
                         padding: '4px 10px',
-                        background: '#991b1b',
+                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                         borderRadius: '6px',
                         fontSize: '12px',
                         fontWeight: 600,
-                        color: 'white'
+                        color: '#ffffff'
                       }}>
                         <MessageSquare style={{ width: '14px', height: '14px' }} />
                         {conv.message_count}
@@ -1456,16 +1464,16 @@ const AdminPanel: React.FC = () => {
         {selectedUser && selectedConversation && (
           <div style={{
             flex: 1,
-            background: '#1a1a1a',
+            background: '#0a0a0a',
             borderRadius: '12px',
-            border: '1px solid #2a2a2a',
+            border: '1px solid #262626',
             display: 'flex',
             flexDirection: 'column'
           }}>
             {/* Header */}
             <div style={{
               padding: '25px',
-              borderBottom: '1px solid #2a2a2a',
+              borderBottom: '1px solid #1a1a1a',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -1477,13 +1485,13 @@ const AdminPanel: React.FC = () => {
                   gap: '12px',
                   fontSize: '18px',
                   fontWeight: 600,
-                  color: '#e4e4e7',
+                  color: '#ffffff',
                   marginBottom: '8px'
                 }}>
-                  <MessageSquare style={{ width: '20px', height: '20px', color: '#991b1b' }} />
+                  <MessageSquare style={{ width: '20px', height: '20px', color: '#dc2626' }} />
                   Messages
                 </div>
-                <div style={{ fontSize: '13px', color: '#71717a' }}>
+                <div style={{ fontSize: '13px', color: '#a1a1aa' }}>
                   {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
                 </div>
               </div>
@@ -1491,10 +1499,10 @@ const AdminPanel: React.FC = () => {
                 onClick={exportConversation}
                 style={{
                   padding: '10px 16px',
-                  background: 'rgba(153, 27, 27, 0.2)',
-                  border: '1px solid #991b1b',
+                  background: 'rgba(220, 38, 38, 0.2)',
+                  border: '1px solid #dc2626',
                   borderRadius: '8px',
-                  color: '#fff',
+                  color: '#ffffff',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1504,10 +1512,10 @@ const AdminPanel: React.FC = () => {
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#991b1b';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                  e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
                 }}
               >
                 <Download style={{ width: '16px', height: '16px' }} />
@@ -1575,7 +1583,7 @@ const AdminPanel: React.FC = () => {
                   >
                     <div style={{
                       maxWidth: '75%',
-                      background: msg.sender === 'user' ? '#991b1b' : '#262626',
+                      background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
                       padding: '14px 18px',
                       borderRadius: '12px',
                       position: 'relative'
@@ -1584,7 +1592,7 @@ const AdminPanel: React.FC = () => {
                         fontSize: '11px',
                         fontWeight: 600,
                         marginBottom: '8px',
-                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#71717a',
+                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.8)' : '#a1a1aa',
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px'
                       }}>
@@ -1593,7 +1601,7 @@ const AdminPanel: React.FC = () => {
                       <div style={{
                         fontSize: '15px',
                         lineHeight: '1.6',
-                        color: msg.sender === 'user' ? 'white' : '#e4e4e7',
+                        color: msg.sender === 'user' ? '#ffffff' : '#d4d4d8',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word'
                       }}>
@@ -1603,7 +1611,7 @@ const AdminPanel: React.FC = () => {
                         <div style={{
                           marginTop: '10px',
                           fontSize: '11px',
-                          color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.6)' : '#71717a',
+                          color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#a1a1aa',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px'
@@ -1614,7 +1622,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                     <div style={{
                       fontSize: '12px',
-                      color: '#71717a',
+                      color: '#a1a1aa',
                       marginTop: '6px',
                       display: 'flex',
                       alignItems: 'center',
@@ -1653,28 +1661,28 @@ const AdminPanel: React.FC = () => {
                 style={{
                   flex: 1,
                   padding: '0.75rem',
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: '#171717',
+                  border: '1px solid #262626',
                   borderRadius: '8px',
-                  color: 'white',
+                  color: '#ffffff',
                   fontSize: '14px',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#991b1b';
+                  e.currentTarget.style.borderColor = '#dc2626';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.borderColor = '#262626';
                 }}
               />
               <button
                 onClick={fetchEmails}
                 style={{
                   padding: '0.75rem 1.5rem',
-                  background: '#991b1b',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
-                  color: 'white',
+                  color: '#ffffff',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1684,10 +1692,10 @@ const AdminPanel: React.FC = () => {
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#7f1d1d';
+                  e.currentTarget.style.background = '#b91c1c';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#991b1b';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                 }}
               >
                 <RefreshCw style={{ width: '16px', height: '16px' }} />
@@ -1697,31 +1705,31 @@ const AdminPanel: React.FC = () => {
 
             {/* Email Table */}
             <div style={{
-              background: '#1a1a1a',
+              background: '#0a0a0a',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: '1px solid #262626',
               overflow: 'hidden'
             }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#0f0f0f', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>User</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Subject</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Recipient</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Date</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#e4e4e7' }}>Action</th>
+                  <tr style={{ background: '#000000', borderBottom: '1px solid #262626' }}>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>User</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Subject</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Recipient</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Date</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {emailsLoading ? (
-                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#71717a' }}>
+                    <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
+                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#a1a1aa' }}>
                         <div style={{
                           display: 'inline-block',
                           width: '30px',
                           height: '30px',
-                          border: '3px solid #3a3a3a',
-                          borderTop: '3px solid #991b1b',
+                          border: '3px solid #262626',
+                          borderTop: '3px solid #dc2626',
                           borderRadius: '50%',
                           animation: 'spin 1s linear infinite',
                           marginBottom: '0.5rem'
@@ -1730,12 +1738,12 @@ const AdminPanel: React.FC = () => {
                       </td>
                     </tr>
                   ) : filteredEmails.length === 0 ? (
-                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                      <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>
+                    <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
+                      <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
                         <div style={{
                           width: '64px',
                           height: '64px',
-                          background: '#262626',
+                          background: '#171717',
                           borderRadius: '50%',
                           display: 'flex',
                           alignItems: 'center',
@@ -1745,22 +1753,22 @@ const AdminPanel: React.FC = () => {
                         }}>
                           📧
                         </div>
-                        <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
                           No emails found
                         </div>
-                        <div style={{ fontSize: '14px', color: '#71717a' }}>
+                        <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
                           {emailSearch ? 'Try adjusting your search' : 'No emails have been generated yet'}
                         </div>
                       </td>
                     </tr>
                   ) : (
                     filteredEmails.map((email, index) => (
-                      <tr key={email.id || index} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <tr key={email.id || index} style={{ borderBottom: '1px solid #1a1a1a' }}>
                         <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
-                          <div style={{ fontWeight: 600, color: '#e4e4e7', marginBottom: '0.25rem' }}>
+                          <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '0.25rem' }}>
                             {email.user_name || 'Unknown User'}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
                             {email.user_email || 'N/A'}
                           </div>
                         </td>
@@ -1770,7 +1778,7 @@ const AdminPanel: React.FC = () => {
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             fontWeight: 500,
-                            color: '#e4e4e7'
+                            color: '#d4d4d8'
                           }}>
                             {email.subject || 'No Subject'}
                           </div>
@@ -1788,10 +1796,10 @@ const AdminPanel: React.FC = () => {
                             }}
                             style={{
                               padding: '0.5rem 1rem',
-                              background: 'rgba(153, 27, 27, 0.2)',
-                              border: '1px solid #991b1b',
+                              background: 'rgba(220, 38, 38, 0.2)',
+                              border: '1px solid #dc2626',
                               borderRadius: '6px',
-                              color: '#fff',
+                              color: '#ffffff',
                               fontSize: '0.75rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -1801,10 +1809,10 @@ const AdminPanel: React.FC = () => {
                               transition: 'all 0.2s ease'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#991b1b';
+                              e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(153, 27, 27, 0.2)';
+                              e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
                             }}
                           >
                             <Eye style={{ width: '14px', height: '14px' }} />
@@ -1850,10 +1858,10 @@ const AdminPanel: React.FC = () => {
                 onChange={(e) => setMessageUserFilter(e.target.value)}
                 style={{
                   padding: '0.75rem',
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: '#171717',
+                  border: '1px solid #262626',
                   borderRadius: '8px',
-                  color: 'white',
+                  color: '#ffffff',
                   fontSize: '14px',
                   cursor: 'pointer',
                   outline: 'none',
@@ -1874,18 +1882,18 @@ const AdminPanel: React.FC = () => {
                 style={{
                   flex: 1,
                   padding: '0.75rem',
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: '#171717',
+                  border: '1px solid #262626',
                   borderRadius: '8px',
-                  color: 'white',
+                  color: '#ffffff',
                   fontSize: '14px',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#991b1b';
+                  e.currentTarget.style.borderColor = '#dc2626';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.borderColor = '#262626';
                 }}
               />
 
@@ -1893,10 +1901,10 @@ const AdminPanel: React.FC = () => {
                 onClick={fetchAllMessages}
                 style={{
                   padding: '0.75rem 1.5rem',
-                  background: '#991b1b',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
-                  color: 'white',
+                  color: '#ffffff',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1906,10 +1914,10 @@ const AdminPanel: React.FC = () => {
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#7f1d1d';
+                  e.currentTarget.style.background = '#b91c1c';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#991b1b';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
                 }}
               >
                 <RefreshCw style={{ width: '16px', height: '16px' }} />
@@ -1921,19 +1929,19 @@ const AdminPanel: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {messagesLoading ? (
                 <div style={{
-                  background: '#1a1a1a',
+                  background: '#0a0a0a',
                   borderRadius: '12px',
                   padding: '3rem',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  border: '1px solid #262626',
                   textAlign: 'center',
-                  color: '#71717a'
+                  color: '#a1a1aa'
                 }}>
                   <div style={{
                     display: 'inline-block',
                     width: '40px',
                     height: '40px',
-                    border: '4px solid #3a3a3a',
-                    borderTop: '4px solid #991b1b',
+                    border: '4px solid #262626',
+                    borderTop: '4px solid #dc2626',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite',
                     marginBottom: '1rem'
@@ -1942,17 +1950,17 @@ const AdminPanel: React.FC = () => {
                 </div>
               ) : filteredMessages.length === 0 ? (
                 <div style={{
-                  background: '#1a1a1a',
+                  background: '#0a0a0a',
                   borderRadius: '12px',
                   padding: '4rem',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  border: '1px solid #262626',
                   textAlign: 'center',
-                  color: '#71717a'
+                  color: '#a1a1aa'
                 }}>
                   <div style={{
                     width: '80px',
                     height: '80px',
-                    background: '#262626',
+                    background: '#171717',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
@@ -1962,10 +1970,10 @@ const AdminPanel: React.FC = () => {
                   }}>
                     💬
                   </div>
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#e4e4e7', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
                     No messages found
                   </div>
-                  <div style={{ fontSize: '14px', color: '#71717a' }}>
+                  <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
                     {messageSearch || messageUserFilter ? 'Try adjusting your filters' : 'No messages have been sent yet'}
                   </div>
                 </div>
@@ -1974,19 +1982,19 @@ const AdminPanel: React.FC = () => {
                   <div
                     key={msg.id || index}
                     style={{
-                      background: '#1a1a1a',
+                      background: '#0a0a0a',
                       borderRadius: '12px',
                       padding: '1.5rem',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      border: '1px solid #262626',
                       transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#991b1b';
-                      e.currentTarget.style.background = '#1f1f1f';
+                      e.currentTarget.style.borderColor = '#dc2626';
+                      e.currentTarget.style.background = '#171717';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                      e.currentTarget.style.background = '#1a1a1a';
+                      e.currentTarget.style.borderColor = '#262626';
+                      e.currentTarget.style.background = '#0a0a0a';
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'flex-start' }}>
@@ -1995,26 +2003,26 @@ const AdminPanel: React.FC = () => {
                           width: '40px',
                           height: '40px',
                           borderRadius: '50%',
-                          background: msg.sender === 'user' ? 'linear-gradient(135deg, #991b1b, #7f1d1d)' : '#3a3a3a',
+                          background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#262626',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: '14px',
                           fontWeight: 600,
-                          color: '#fff'
+                          color: '#ffffff'
                         }}>
                           {msg.sender === 'user' ? getInitials(msg.user_name || 'User') : 'AI'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: '600', color: '#e4e4e7', fontSize: '15px' }}>
+                          <div style={{ fontWeight: '600', color: '#ffffff', fontSize: '15px' }}>
                             {msg.sender === 'user' ? (msg.user_name || 'Unknown User') : 'S21 AI'}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
                             {msg.user_email || 'N/A'}
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#71717a', textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#a1a1aa', textAlign: 'right' }}>
                         <div>{new Date(msg.created_at).toLocaleDateString()}</div>
                         <div>{new Date(msg.created_at).toLocaleTimeString()}</div>
                       </div>
@@ -2027,11 +2035,11 @@ const AdminPanel: React.FC = () => {
                         marginTop: '0.75rem',
                         display: 'inline-block',
                         padding: '0.25rem 0.75rem',
-                        background: 'rgba(153, 27, 27, 0.2)',
-                        border: '1px solid rgba(153, 27, 27, 0.3)',
+                        background: 'rgba(220, 38, 38, 0.2)',
+                        border: '1px solid rgba(220, 38, 38, 0.3)',
                         borderRadius: '6px',
                         fontSize: '0.75rem',
-                        color: '#991b1b',
+                        color: '#dc2626',
                         fontWeight: 600
                       }}>
                         {msg.provider}

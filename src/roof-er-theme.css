@@ -33,12 +33,12 @@
   --success-dark: #1e3a1e;
   --warning: #fbbf24;
   --error: #ef4444;
-  --info: #3b82f6;
+  --info: #a1a1aa;
 
   /* User Message Colors */
-  --user-bg: #1e2a3a;
-  --user-border: #2a3a4a;
-  --user-avatar: #2a5a8a;
+  --user-bg: #171717;
+  --user-border: #262626;
+  --user-avatar: #dc2626;
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -82,26 +82,38 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* Header Styles */
 .roof-er-header {
   background: var(--bg-elevated);
   border-bottom: 2px solid var(--roof-red);
-  padding: 12px 20px;
+  padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: var(--shadow-red);
   z-index: var(--z-header);
   position: relative;
-  gap: 16px;
+  gap: 12px;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .roof-er-header-title {
@@ -345,10 +357,13 @@ body {
 .roof-er-content-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  overflow-x: hidden;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end; /* Push content to bottom */
+  justify-content: flex-end;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .roof-er-message-container {
@@ -550,62 +565,82 @@ body {
   justify-content: center;
   height: 100%;
   text-align: center;
-  padding: 40px;
+  padding: 20px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .roof-er-welcome-icon {
-  font-size: 80px;
-  margin-bottom: 20px;
+  font-size: 60px;
+  margin-bottom: 16px;
   opacity: 0.3;
 }
 
 .roof-er-welcome-title {
-  font-size: 28px;
+  font-size: clamp(18px, 5vw, 24px);
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--text-primary);
+  max-width: 100%;
+  padding: 0 10px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.3;
 }
 
 .roof-er-welcome-subtitle {
-  font-size: 16px;
+  font-size: clamp(13px, 3.5vw, 15px);
   color: var(--text-tertiary);
-  max-width: 500px;
-  line-height: 1.6;
-  margin-bottom: 30px;
+  max-width: 100%;
+  padding: 0 10px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .roof-er-welcome-stats {
   display: flex;
-  gap: 30px;
-  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  max-width: 100%;
+  padding: 0 10px;
 }
 
 .roof-er-stat-item {
   text-align: center;
+  min-width: 70px;
+  flex: 0 0 auto;
 }
 
 .roof-er-stat-number {
-  font-size: 32px;
+  font-size: clamp(24px, 6vw, 32px);
   font-weight: 700;
   color: var(--roof-red);
   display: block;
 }
 
 .roof-er-stat-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-disabled);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-top: 5px;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
 }
 
 /* Knowledge Base Scroll Override */
 .roof-er-knowledge-scroll {
   flex: 1;
   overflow-y: auto !important;
+  overflow-x: hidden;
   padding: 20px;
   display: block !important;
   height: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Knowledge Base Cards */
@@ -989,19 +1024,44 @@ body {
   }
 
   .roof-er-app-title {
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .roof-er-page-subtitle {
     display: none;
   }
 
-  /* Touch-friendly buttons (44px minimum per iOS guidelines) */
+  /* Hide text-only header buttons on mobile */
   .roof-er-header-btn {
-    padding: 10px 14px;
-    font-size: 13px;
-    min-height: 44px;
-    min-width: 44px;
+    padding: 8px;
+    font-size: 0;
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .roof-er-header-btn svg {
+    margin: 0;
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Hide status badge text on mobile */
+  .roof-er-status-badge span {
+    display: none;
+  }
+
+  .roof-er-status-badge {
+    padding: 8px;
+  }
+
+  /* Shrink header actions gap */
+  .roof-er-header-actions {
+    gap: 6px;
+  }
+
+  /* Hide History button on mobile */
+  .roof-er-header-btn:last-child {
+    display: none;
   }
 
   .roof-er-message {

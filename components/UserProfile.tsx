@@ -1,13 +1,13 @@
 /**
  * User Profile Component
- * Simple profile display and editing for S21 Field AI
- * Accessible from Settings
+ * Clean, mobile-friendly profile display and editing
  */
 
 import React, { useState, useEffect } from 'react';
 import { authService, AuthUser } from '../services/authService';
-import { databaseService } from '../services/databaseService';
-import { User, LogOut, Save, X, MapPin } from 'lucide-react';
+import { User, LogOut, Save, X, MapPin, Trash2, Download, AlertTriangle, Shield, FileText } from 'lucide-react';
+import { API_BASE_URL } from '../services/config';
+import LegalPage from './LegalPage';
 
 interface UserProfileProps {
   onClose: () => void;
@@ -22,6 +22,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -34,32 +39,25 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
 
   const handleSave = async () => {
     if (!user) return;
-
     setError('');
     setSuccess('');
     setSaving(true);
 
     try {
-      const updated = await authService.updateUserProfile({
-        name,
-        state
-      });
-
+      const updated = await authService.updateUserProfile({ name, state });
       if (updated) {
         const currentUser = authService.getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
-          setSuccess('Profile updated successfully!');
+          setSuccess('Profile updated!');
           setEditing(false);
-
-          // Clear success message after 3 seconds
           setTimeout(() => setSuccess(''), 3000);
         }
       } else {
-        setError('Failed to update profile. Please try again.');
+        setError('Failed to update profile.');
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError('An error occurred.');
     } finally {
       setSaving(false);
     }
@@ -72,380 +70,398 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
     }
   };
 
-  if (!user) {
-    return null;
-  }
+  const handleExportData = async () => {
+    setExporting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/me/export`, {
+        headers: { 'x-user-email': user?.email || '' }
+      });
+
+      if (!response.ok) throw new Error('Failed to export data');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `susan-ai-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccess('Data exported!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to export data.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      setError('Please type DELETE to confirm');
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        method: 'DELETE',
+        headers: { 'x-user-email': user?.email || '' }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete account');
+      }
+
+      authService.logout();
+      onLogout();
+    } catch (err) {
+      setError((err as Error).message);
+      setDeleting(false);
+    }
+  };
+
+  if (!user) return null;
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 14px',
+    fontSize: '16px',
+    background: '#171717',
+    border: '1px solid #262626',
+    borderRadius: '10px',
+    color: '#ffffff',
+    outline: 'none',
+    boxSizing: 'border-box'
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#a1a1aa',
+    marginBottom: '6px'
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '14px',
+    fontSize: '15px',
+    fontWeight: '600',
+    borderRadius: '10px',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    transition: 'all 0.2s'
+  };
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center px-4"
       style={{
-        background: 'rgba(0, 0, 0, 0.75)',
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.9)',
         zIndex: 10000,
-        animation: 'fadeIn 0.2s ease-in-out'
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '20px',
+        paddingTop: '60px',
+        overflowY: 'auto'
       }}
     >
       <div
-        className="w-full max-w-md"
         style={{
-          background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%)',
-          borderRadius: '24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.3)',
-          animation: 'slideUp 0.3s ease-out',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          position: 'relative',
-          overflow: 'hidden'
+          width: '100%',
+          maxWidth: '380px',
+          background: '#0a0a0a',
+          borderRadius: '16px',
+          border: '1px solid #262626',
+          overflow: 'hidden',
+          marginBottom: '40px'
         }}
       >
-        {/* Decorative top gradient */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '120px',
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
-          pointerEvents: 'none',
-          zIndex: 0
-        }} />
-
-        {/* Decorative circle accent */}
-        <div style={{
-          position: 'absolute',
-          top: '-40px',
-          right: '-40px',
-          width: '160px',
-          height: '160px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%)',
-          pointerEvents: 'none',
-          zIndex: 0
-        }} />
         {/* Header */}
         <div
-          className="flex items-center justify-between p-6"
           style={{
-            position: 'relative',
-            zIndex: 1,
-            borderBottom: '1px solid rgba(239, 68, 68, 0.2)'
+            padding: '20px',
+            borderBottom: '1px solid #262626',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
           }}
         >
-          <div className="flex items-center gap-4">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
               style={{
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
-                border: '3px solid rgba(255, 255, 255, 0.1)'
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             >
-              <User className="w-7 h-7" style={{ color: '#ffffff', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }} />
+              <User style={{ width: '24px', height: '24px', color: '#ffffff' }} />
             </div>
             <div>
-              <h2
-                className="text-xl font-bold"
-                style={{
-                  color: '#ffffff',
-                  letterSpacing: '-0.02em',
-                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-                }}
-              >
-                {user.name || 'User Profile'}
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                {user.name || 'Profile'}
               </h2>
-              <p className="text-sm" style={{
-                color: 'rgba(255, 255, 255, 0.7)',
-                marginTop: '2px',
-                fontWeight: 500
-              }}>
-                {user.role === 'sales_rep' ? 'Sales Representative' : user.role}
+              <p style={{ fontSize: '13px', color: '#71717a', margin: '2px 0 0 0' }}>
+                {user.role === 'sales_rep' ? 'Sales Rep' : user.role}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2.5 rounded-full transition-all"
             style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: '#171717',
+              border: '1px solid #262626',
               color: '#ffffff',
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-              e.currentTarget.style.transform = 'rotate(90deg)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.transform = 'rotate(0deg)';
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
-            <X className="w-5 h-5" />
+            <X style={{ width: '18px', height: '18px' }} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6" style={{ position: 'relative', zIndex: 1 }}>
-          {/* Email (Read-only) */}
-          <div className="mb-5">
-            <label
-              className="block mb-2.5 text-sm font-semibold"
-              style={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                letterSpacing: '-0.01em'
-              }}
-            >
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={user.email}
-              disabled
-              className="w-full px-4 py-3.5 text-base"
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '14px',
-                color: 'rgba(255, 255, 255, 0.6)',
-                cursor: 'not-allowed',
-                minHeight: '52px',
-                transition: 'all 0.2s'
-              }}
-            />
-            <p className="mt-2 text-xs" style={{
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontStyle: 'italic'
+        <div style={{ padding: '20px' }}>
+          {/* Messages */}
+          {error && (
+            <div style={{
+              padding: '10px 12px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              background: 'rgba(220, 38, 38, 0.1)',
+              border: '1px solid rgba(220, 38, 38, 0.3)',
+              fontSize: '13px',
+              color: '#f87171'
             }}>
-              Email cannot be changed
-            </p>
-          </div>
-
-          {/* Name */}
-          <div className="mb-5">
-            <label
-              htmlFor="name"
-              className="block mb-2.5 text-sm font-semibold"
-              style={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                letterSpacing: '-0.01em'
-              }}
-            >
-              Your Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={!editing}
-              className="w-full px-4 py-3.5 text-base"
-              style={{
-                background: editing ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                border: editing ? '2px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '14px',
-                color: '#ffffff',
-                cursor: editing ? 'text' : 'not-allowed',
-                minHeight: '52px',
-                transition: 'all 0.2s',
-                boxShadow: editing ? '0 0 0 4px rgba(239, 68, 68, 0.1)' : 'none'
-              }}
-            />
-          </div>
-
-          {/* State Selector */}
-          <div className="mb-5">
-            <label
-              htmlFor="state"
-              className="block mb-2.5 text-sm font-semibold flex items-center gap-2"
-              style={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                letterSpacing: '-0.01em'
-              }}
-            >
-              <MapPin className="w-4 h-4" style={{ color: '#ef4444' }} />
-              Primary State
-            </label>
-            <select
-              id="state"
-              value={state || ''}
-              onChange={(e) => setState(e.target.value as 'VA' | 'MD' | 'PA' || null)}
-              disabled={!editing}
-              className="w-full px-4 py-3.5 text-base"
-              style={{
-                background: editing ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                border: editing ? '2px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '14px',
-                color: '#ffffff',
-                cursor: editing ? 'pointer' : 'not-allowed',
-                minHeight: '52px',
-                transition: 'all 0.2s',
-                boxShadow: editing ? '0 0 0 4px rgba(239, 68, 68, 0.1)' : 'none'
-              }}
-            >
-              <option value="">Select State</option>
-              <option value="VA">Virginia (VA)</option>
-              <option value="MD">Maryland (MD)</option>
-              <option value="PA">Pennsylvania (PA)</option>
-            </select>
-            <p className="mt-2 text-xs" style={{
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontStyle: 'italic'
-            }}>
-              Your primary operating state for regulations and codes
-            </p>
-          </div>
-
-          {/* Success/Error Messages */}
+              {error}
+            </div>
+          )}
           {success && (
-            <div
-              className="mb-4 p-3 rounded-lg text-sm"
-              style={{
-                background: 'rgba(74, 222, 128, 0.1)',
-                border: '1px solid var(--success)',
-                color: 'var(--success)'
-              }}
-            >
+            <div style={{
+              padding: '10px 12px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+              fontSize: '13px',
+              color: '#4ade80'
+            }}>
               {success}
             </div>
           )}
 
-          {error && (
-            <div
-              className="mb-4 p-3 rounded-lg text-sm"
+          {/* Email */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Email</label>
+            <input
+              type="email"
+              value={user.email}
+              disabled
+              style={{ ...inputStyle, color: '#71717a', cursor: 'not-allowed' }}
+            />
+          </div>
+
+          {/* Name */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!editing}
               style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid var(--error)',
-                color: 'var(--error)'
+                ...inputStyle,
+                border: editing ? '2px solid #dc2626' : '1px solid #262626',
+                cursor: editing ? 'text' : 'not-allowed'
+              }}
+            />
+          </div>
+
+          {/* State */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={labelStyle}>
+              <MapPin style={{ width: '14px', height: '14px', display: 'inline', marginRight: '4px', color: '#dc2626' }} />
+              State
+            </label>
+            <select
+              value={state || ''}
+              onChange={(e) => setState(e.target.value as 'VA' | 'MD' | 'PA' || null)}
+              disabled={!editing}
+              style={{
+                ...inputStyle,
+                border: editing ? '2px solid #dc2626' : '1px solid #262626',
+                cursor: editing ? 'pointer' : 'not-allowed'
               }}
             >
-              {error}
+              <option value="">Select State</option>
+              <option value="VA">Virginia</option>
+              <option value="MD">Maryland</option>
+              <option value="PA">Pennsylvania</option>
+            </select>
+          </div>
+
+          {/* Edit / Save Button */}
+          {editing ? (
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+              <button
+                onClick={() => { setEditing(false); setName(user.name); setState(user.state); }}
+                style={{ ...buttonStyle, flex: 1, background: '#171717', color: '#ffffff', border: '1px solid #262626' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{ ...buttonStyle, flex: 1, background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff' }}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
             </div>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              style={{ ...buttonStyle, background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff', marginBottom: '16px' }}
+            >
+              <Save style={{ width: '16px', height: '16px' }} />
+              Edit Profile
+            </button>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            {editing ? (
-              <>
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            style={{ ...buttonStyle, background: '#171717', color: '#dc2626', border: '1px solid #262626', marginBottom: '24px' }}
+          >
+            <LogOut style={{ width: '16px', height: '16px' }} />
+            Logout
+          </button>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: '#262626', margin: '0 -20px 20px' }} />
+
+          {/* Data Section */}
+          <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Download style={{ width: '14px', height: '14px', color: '#dc2626' }} />
+            Your Data
+          </h3>
+          <button
+            onClick={handleExportData}
+            disabled={exporting}
+            style={{ ...buttonStyle, background: '#171717', color: '#dc2626', border: '1px solid #262626', marginBottom: '8px' }}
+          >
+            <Download style={{ width: '16px', height: '16px' }} />
+            {exporting ? 'Exporting...' : 'Export Data'}
+          </button>
+          <p style={{ fontSize: '12px', color: '#52525b', marginBottom: '20px' }}>
+            Download your data (GDPR/CCPA)
+          </p>
+
+          {/* Danger Zone */}
+          <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#dc2626', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertTriangle style={{ width: '14px', height: '14px' }} />
+            Danger Zone
+          </h3>
+
+          {showDeleteConfirm ? (
+            <div style={{ background: '#171717', borderRadius: '10px', padding: '14px', border: '1px solid #262626' }}>
+              <p style={{ fontSize: '13px', color: '#a1a1aa', marginBottom: '12px' }}>
+                Type <strong style={{ color: '#dc2626' }}>DELETE</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE"
+                style={{ ...inputStyle, marginBottom: '12px', fontSize: '14px' }}
+              />
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 py-3.5 font-semibold text-base transition-all flex items-center justify-center gap-2"
-                  style={{
-                    background: saving ? 'rgba(239, 68, 68, 0.6)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '14px',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    minHeight: '52px',
-                    opacity: saving ? 0.7 : 1,
-                    boxShadow: saving ? 'none' : '0 4px 16px rgba(239, 68, 68, 0.4)',
-                    transform: saving ? 'scale(0.98)' : 'scale(1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!saving) e.currentTarget.style.transform = 'scale(1.02)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!saving) e.currentTarget.style.transform = 'scale(1)';
-                  }}
-                >
-                  <Save className="w-5 h-5" />
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditing(false);
-                    setName(user.name);
-                    setState(user.state);
-                    setError('');
-                    setSuccess('');
-                  }}
-                  disabled={saving}
-                  className="w-full sm:w-auto px-6 py-3.5 font-semibold text-base transition-all"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '14px',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    minHeight: '52px'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!saving) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!saving) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  }}
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                  style={{ ...buttonStyle, flex: 1, background: '#262626', color: '#ffffff', padding: '10px' }}
                 >
                   Cancel
                 </button>
-              </>
-            ) : (
-              <>
                 <button
-                  onClick={() => setEditing(true)}
-                  className="flex-1 py-3.5 font-semibold text-base transition-all"
-                  style={{
-                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '14px',
-                    cursor: 'pointer',
-                    minHeight: '52px',
-                    boxShadow: '0 4px 16px rgba(239, 68, 68, 0.4)'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  style={{ ...buttonStyle, flex: 1, background: '#dc2626', color: '#ffffff', padding: '10px' }}
                 >
-                  Edit Profile
+                  {deleting ? 'Deleting...' : 'Delete'}
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full sm:w-auto px-6 py-3.5 font-semibold text-base transition-all flex items-center justify-center gap-2"
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    color: '#ef4444',
-                    border: '1px solid rgba(239, 68, 68, 0.5)',
-                    borderRadius: '14px',
-                    cursor: 'pointer',
-                    minHeight: '52px',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                    e.currentTarget.style.borderColor = '#ef4444';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-                  }}
-                >
-                  <LogOut className="w-5 h-5" />
-                  Logout
-                </button>
-              </>
-            )}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{ ...buttonStyle, background: '#171717', color: '#dc2626', border: '1px solid #262626' }}
+            >
+              <Trash2 style={{ width: '16px', height: '16px' }} />
+              Delete Account
+            </button>
+          )}
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: '#262626', margin: '20px -20px' }} />
+
+          {/* Legal */}
+          <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <FileText style={{ width: '14px', height: '14px', color: '#dc2626' }} />
+            Legal
+          </h3>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => setShowLegal('privacy')}
+              style={{ ...buttonStyle, flex: 1, background: '#171717', color: '#a1a1aa', border: '1px solid #262626', padding: '10px', fontSize: '13px' }}
+            >
+              Privacy
+            </button>
+            <button
+              onClick={() => setShowLegal('terms')}
+              style={{ ...buttonStyle, flex: 1, background: '#171717', color: '#a1a1aa', border: '1px solid #262626', padding: '10px', fontSize: '13px' }}
+            >
+              Terms
+            </button>
+          </div>
+
+          {/* Footer Info */}
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '11px', color: '#52525b' }}>
+              Member since {new Date(user.createdAt || Date.now()).toLocaleDateString()}
+            </p>
           </div>
         </div>
-
-        {/* Footer Info */}
-        <div
-          className="p-5 text-xs text-center"
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            borderTop: '1px solid rgba(239, 68, 68, 0.2)',
-            color: 'rgba(255, 255, 255, 0.5)',
-            background: 'rgba(0, 0, 0, 0.2)'
-          }}
-        >
-          <p style={{ marginBottom: '6px', fontWeight: 500 }}>
-            Member since: {new Date(user.created_at).toLocaleDateString()}
-          </p>
-          <p style={{ fontWeight: 500 }}>
-            Last login: {new Date(user.last_login_at).toLocaleString()}
-          </p>
-        </div>
       </div>
+
+      {/* Legal Modal */}
+      {showLegal && (
+        <LegalPage
+          initialTab={showLegal}
+          onClose={() => setShowLegal(null)}
+        />
+      )}
     </div>
   );
 };

@@ -259,12 +259,12 @@ Ask permission to address their specific concern directly: "What's the main thin
     }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
         padding: '1rem 1.5rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '2px solid rgba(124, 58, 237, 0.3)'
+        borderBottom: '2px solid rgba(220, 38, 38, 0.3)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Shield style={{ width: '1.5rem', height: '1.5rem', color: '#fff' }} />
@@ -299,7 +299,7 @@ Ask permission to address their specific concern directly: "What's the main thin
               onClick={() => setMode('coach')}
               style={{
                 background: mode === 'coach' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
-                color: mode === 'coach' ? '#7c3aed' : '#fff',
+                color: mode === 'coach' ? '#dc2626' : '#fff',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '0.4rem 0.75rem',
@@ -319,7 +319,7 @@ Ask permission to address their specific concern directly: "What's the main thin
               onClick={() => setMode('roleplay')}
               style={{
                 background: mode === 'roleplay' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
-                color: mode === 'roleplay' ? '#7c3aed' : '#fff',
+                color: mode === 'roleplay' ? '#dc2626' : '#fff',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '0.4rem 0.75rem',
@@ -362,7 +362,7 @@ Ask permission to address their specific concern directly: "What's the main thin
         <div style={{
           padding: '1rem 1.5rem',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'rgba(124, 58, 237, 0.05)'
+          background: 'rgba(220, 38, 38, 0.05)'
         }}>
           <p style={{
             margin: '0 0 0.75rem 0',
@@ -383,8 +383,8 @@ Ask permission to address their specific concern directly: "What's the main thin
               onClick={() => handleQuickObjection(objection.text, objection.category)}
               disabled={isLoading}
               style={{
-                background: 'rgba(124, 58, 237, 0.1)',
-                border: '1px solid rgba(124, 58, 237, 0.3)',
+                background: 'rgba(220, 38, 38, 0.1)',
+                border: '1px solid rgba(220, 38, 38, 0.3)',
                 borderRadius: '20px',
                 padding: '0.5rem 1rem',
                 fontSize: '0.875rem',
@@ -393,8 +393,8 @@ Ask permission to address their specific concern directly: "What's the main thin
                 transition: 'all 0.2s',
                 opacity: isLoading ? 0.5 : 1
               }}
-              onMouseEnter={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(124, 58, 237, 0.2)')}
-              onMouseLeave={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(124, 58, 237, 0.1)')}
+              onMouseEnter={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)')}
+              onMouseLeave={(e) => !isLoading && (e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)')}
             >
               {objection.emoji} {objection.text}
             </button>
@@ -421,9 +421,9 @@ Ask permission to address their specific concern directly: "What's the main thin
             <div style={{
               maxWidth: '80%',
               background: message.sender === 'user'
-                ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-                : 'rgba(124, 58, 237, 0.1)',
-              border: message.sender === 'agnes' ? '1px solid rgba(124, 58, 237, 0.3)' : 'none',
+                ? 'linear-gradient(135deg, #171717 0%, #262626 100%)'
+                : 'rgba(220, 38, 38, 0.1)',
+              border: message.sender === 'agnes' ? '1px solid rgba(220, 38, 38, 0.3)' : 'none',
               borderRadius: message.sender === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
               padding: '1rem 1.25rem',
               color: '#fff'
@@ -435,13 +435,13 @@ Ask permission to address their specific concern directly: "What's the main thin
                   gap: '0.5rem',
                   marginBottom: '0.5rem',
                   paddingBottom: '0.5rem',
-                  borderBottom: '1px solid rgba(124, 58, 237, 0.3)'
+                  borderBottom: '1px solid rgba(220, 38, 38, 0.3)'
                 }}>
-                  <Shield style={{ width: '1rem', height: '1rem', color: '#7c3aed' }} />
+                  <Shield style={{ width: '1rem', height: '1rem', color: '#dc2626' }} />
                   <span style={{
                     fontSize: '0.875rem',
                     fontWeight: '600',
-                    color: '#7c3aed'
+                    color: '#dc2626'
                   }}>
                     Agnes
                   </span>
@@ -512,8 +512,8 @@ Ask permission to address their specific concern directly: "What's the main thin
             disabled={!input.trim() || isLoading}
             style={{
               background: input.trim() && !isLoading
-                ? 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)'
-                : 'rgba(124, 58, 237, 0.3)',
+                ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                : 'rgba(220, 38, 38, 0.3)',
               border: 'none',
               borderRadius: '12px',
               padding: '0.875rem 1.25rem',

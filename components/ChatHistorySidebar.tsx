@@ -152,8 +152,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               maxWidth: 'calc(100vw - 60px)',
               height: '100vh',
               zIndex: 1100,
-              background: '#0f1419',
-              borderRight: '1px solid rgba(239, 68, 68, 0.3)',
+              background: '#0a0a0a',
+              borderRight: '1px solid rgba(220, 38, 38, 0.3)',
               boxShadow: '4px 0 24px -4px rgba(0, 0, 0, 0.5)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
             }}
@@ -164,7 +164,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             {/* Header */}
             <div style={{
               padding: '1rem',
-              borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
+              borderBottom: '1px solid rgba(220, 38, 38, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -178,7 +178,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                 gap: '0.5rem',
                 letterSpacing: '-0.01em'
               }}>
-                <MessageSquare className="w-5 h-5" style={{ color: '#ef4444' }} />
+                <MessageSquare className="w-5 h-5" style={{ color: '#dc2626' }} />
                 Chat History
               </h2>
               <button
@@ -191,7 +191,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                   cursor: 'pointer',
                   transition: 'background 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
                 <X className="w-5 h-5" style={{ color: '#9ca3af' }} />
@@ -201,7 +201,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             {/* New Chat Button */}
             <div style={{
               padding: '0.75rem',
-              borderBottom: '1px solid rgba(239, 68, 68, 0.2)'
+              borderBottom: '1px solid rgba(220, 38, 38, 0.2)'
             }}>
               <button
                 onClick={() => {
@@ -211,7 +211,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  background: '#ef4444',
+                  background: '#dc2626',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '0.5rem',
@@ -219,16 +219,16 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                   fontSize: '0.9375rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
                   letterSpacing: '-0.01em'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = '#dc2626';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.4)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#ef4444';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.3)';
+                  e.currentTarget.style.background = '#dc2626';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.3)';
                 }}
               >
                 + New Chat
@@ -236,7 +236,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             </div>
 
             {/* Sessions List */}
-            <div className="flex-1 overflow-y-auto" style={{ background: '#0f1419' }}>
+            <div className="flex-1 overflow-y-auto" style={{ background: '#0a0a0a' }}>
               {isLoading ? (
                 <div style={{
                   padding: '2rem',
@@ -248,7 +248,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                     width: '2rem',
                     height: '2rem',
                     border: '2px solid transparent',
-                    borderTopColor: '#ef4444',
+                    borderTopColor: '#dc2626',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite'
                   }}></div>
@@ -285,8 +285,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                       <div
                         key={session.session_id}
                         style={{
-                          background: isActive ? 'rgba(239, 68, 68, 0.1)' : '#1a1f2e',
-                          border: `1px solid ${isActive ? 'rgba(239, 68, 68, 0.4)' : isHovered ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isActive ? 'rgba(220, 38, 38, 0.1)' : '#171717',
+                          border: `1px solid ${isActive ? 'rgba(220, 38, 38, 0.4)' : isHovered ? 'rgba(220, 38, 38, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
                           borderRadius: '0.5rem',
                           marginBottom: '0.25rem',
                           transition: 'all 0.2s ease'
@@ -368,8 +368,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                             {session.state && (
                               <span style={{
                                 padding: '0.125rem 0.5rem',
-                                background: 'rgba(239, 68, 68, 0.2)',
-                                color: '#ef4444',
+                                background: 'rgba(220, 38, 38, 0.2)',
+                                color: '#dc2626',
                                 borderRadius: '0.25rem',
                                 fontSize: '0.75rem',
                                 fontWeight: '500'
@@ -397,7 +397,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === `${session.session_id}-txt` ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              background: hoveredButton === `${session.session_id}-txt` ? 'rgba(220, 38, 38, 0.1)' : 'rgba(255, 255, 255, 0.05)',
                               color: '#9ca3af',
                               border: 'none',
                               borderRadius: '0.375rem',
@@ -425,7 +425,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === `${session.session_id}-json` ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                              background: hoveredButton === `${session.session_id}-json` ? 'rgba(220, 38, 38, 0.1)' : 'rgba(255, 255, 255, 0.05)',
                               color: '#9ca3af',
                               border: 'none',
                               borderRadius: '0.375rem',
@@ -452,8 +452,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                             style={{
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === `${session.session_id}-delete` ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
-                              color: hoveredButton === `${session.session_id}-delete` ? '#ef4444' : '#dc2626',
+                              background: hoveredButton === `${session.session_id}-delete` ? 'rgba(220, 38, 38, 0.2)' : 'rgba(220, 38, 38, 0.1)',
+                              color: hoveredButton === `${session.session_id}-delete` ? '#dc2626' : '#dc2626',
                               border: 'none',
                               borderRadius: '0.375rem',
                               cursor: 'pointer',
@@ -506,7 +506,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             {/* Footer */}
             <div style={{
               padding: '0.75rem',
-              borderTop: '1px solid rgba(239, 68, 68, 0.2)'
+              borderTop: '1px solid rgba(220, 38, 38, 0.2)'
             }}>
               <p style={{
                 fontSize: '0.75rem',

@@ -12,7 +12,8 @@ import {
   ArrowRight,
   Zap,
   CheckCircle,
-  TrendingUp
+  TrendingUp,
+  Briefcase
 } from 'lucide-react';
 
 type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'documentjob';
@@ -28,7 +29,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       title: 'Start Chat',
       description: 'Get instant AI assistance',
       icon: MessageSquare,
-      color: '#ef4444',
+      color: '#dc2626',
       gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
     },
     {
@@ -44,8 +45,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       title: 'Generate Email',
       description: 'Professional communication',
       icon: Mail,
-      color: '#3b82f6',
-      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+      color: '#dc2626',
+      gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
     },
     {
       id: 'maps',
@@ -54,6 +55,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       icon: Building2,
       color: '#8b5cf6',
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+    },
+    {
+      id: 'documentjob',
+      title: 'Manage Jobs',
+      description: 'Track your roofing projects',
+      icon: Briefcase,
+      color: '#71717a',
+      gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)'
     }
   ];
 
@@ -113,26 +122,29 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     <div style={{
       width: '100%',
       height: '100%',
-      overflow: 'auto',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       background: 'var(--bg-primary)',
-      padding: '0'
+      padding: '0',
+      boxSizing: 'border-box'
     }}>
       {/* Hero Section */}
       <div style={{
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-        borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
-        padding: '2rem 1.5rem',
-        textAlign: 'center'
+        background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
+        borderBottom: '1px solid #262626',
+        padding: '1.5rem 1rem',
+        textAlign: 'center',
+        boxSizing: 'border-box'
       }}>
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.5rem',
-          background: 'rgba(239, 68, 68, 0.1)',
+          background: 'rgba(220, 38, 38, 0.1)',
           padding: '0.5rem 1rem',
           borderRadius: '50px',
           marginBottom: '1rem',
-          border: '1px solid rgba(239, 68, 68, 0.3)'
+          border: '1px solid rgba(220, 38, 38, 0.3)'
         }}>
           <div style={{
             width: '8px',
@@ -144,7 +156,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           }} />
           <span style={{
             fontSize: '0.875rem',
-            color: 'rgba(255, 255, 255, 0.9)',
+            color: '#d4d4d8',
             fontWeight: '500'
           }}>
             4 AI Systems Active
@@ -152,21 +164,25 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
         </div>
 
         <h1 style={{
-          fontSize: 'clamp(1.75rem, 5vw, 2.5rem)',
+          fontSize: 'clamp(1.5rem, 5vw, 2rem)',
           fontWeight: '700',
-          color: '#fff',
+          color: '#ffffff',
           marginBottom: '0.5rem',
-          lineHeight: '1.2'
+          lineHeight: '1.3',
+          wordWrap: 'break-word',
+          padding: '0 0.5rem'
         }}>
-          Welcome to <span style={{ color: '#ef4444' }}>S21</span> Field AI
+          Welcome to <span style={{ color: '#ffffff' }}>Susan</span> <span style={{ color: '#dc2626' }}>21</span>
         </h1>
 
         <p style={{
-          fontSize: 'clamp(1rem, 3vw, 1.125rem)',
-          color: 'rgba(255, 255, 255, 0.7)',
-          maxWidth: '600px',
-          margin: '0 auto 2rem',
-          lineHeight: '1.6'
+          fontSize: 'clamp(0.875rem, 3vw, 1rem)',
+          color: '#a1a1aa',
+          maxWidth: '100%',
+          margin: '0 auto 1.5rem',
+          lineHeight: '1.5',
+          padding: '0 0.5rem',
+          wordWrap: 'break-word'
         }}>
           Your AI-powered roofing assistant. Get instant answers, analyze damage, generate emails, and access insurance contacts.
         </p>
@@ -174,39 +190,41 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
         {/* Stats Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-          gap: '1rem',
-          maxWidth: '600px',
-          margin: '0 auto'
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '0.75rem',
+          maxWidth: '100%',
+          margin: '0 auto',
+          padding: '0 0.5rem',
+          boxSizing: 'border-box'
         }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             return (
               <div key={index} style={{
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: '#0a0a0a',
                 backdropFilter: 'blur(10px)',
                 padding: '1rem',
                 borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid #1a1a1a',
                 textAlign: 'center'
               }}>
                 <Icon style={{
                   width: '1.5rem',
                   height: '1.5rem',
-                  color: '#ef4444',
+                  color: '#dc2626',
                   margin: '0 auto 0.5rem'
                 }} />
                 <div style={{
                   fontSize: '1.5rem',
                   fontWeight: '700',
-                  color: '#fff',
+                  color: '#ffffff',
                   marginBottom: '0.25rem'
                 }}>
                   {stat.value}
                 </div>
                 <div style={{
                   fontSize: '0.75rem',
-                  color: 'rgba(255, 255, 255, 0.6)'
+                  color: '#71717a'
                 }}>
                   {stat.label}
                 </div>
@@ -222,13 +240,13 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#fff',
+            color: '#ffffff',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem'
           }}>
-            <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#ef4444' }} />
+            <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#dc2626' }} />
             Quick Actions
           </h2>
 
@@ -257,7 +275,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(239, 68, 68, 0.4)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(220, 38, 38, 0.4)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
@@ -279,14 +297,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                       <Icon style={{
                         width: '1.5rem',
                         height: '1.5rem',
-                        color: '#fff'
+                        color: '#ffffff'
                       }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{
                         fontSize: '1.125rem',
                         fontWeight: '600',
-                        color: '#fff',
+                        color: '#ffffff',
                         marginBottom: '0.25rem'
                       }}>
                         {action.title}
@@ -318,7 +336,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#fff',
+            color: '#ffffff',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -340,21 +358,21 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   key={feature.id}
                   onClick={() => setActivePanel(feature.id as PanelType)}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: '#0a0a0a',
+                    border: '1px solid #1a1a1a',
                     borderRadius: '12px',
                     padding: '1.25rem',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.5)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    e.currentTarget.style.background = '#0a0a0a';
+                    e.currentTarget.style.borderColor = '#1a1a1a';
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
@@ -365,10 +383,10 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                     marginBottom: '0.75rem'
                   }}>
                     <div style={{
-                      background: 'rgba(239, 68, 68, 0.1)',
+                      background: 'rgba(220, 38, 38, 0.1)',
                       padding: '0.625rem',
                       borderRadius: '10px',
-                      border: '1px solid rgba(239, 68, 68, 0.2)'
+                      border: '1px solid rgba(220, 38, 38, 0.2)'
                     }}>
                       <Icon style={{
                         width: '1.25rem',
@@ -380,7 +398,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                       <div style={{
                         fontSize: '1rem',
                         fontWeight: '600',
-                        color: '#fff',
+                        color: '#ffffff',
                         marginBottom: '0.25rem'
                       }}>
                         {feature.title}
@@ -396,7 +414,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   </div>
                   <p style={{
                     fontSize: '0.875rem',
-                    color: 'rgba(255, 255, 255, 0.6)',
+                    color: '#71717a',
                     lineHeight: '1.5',
                     margin: 0
                   }}>
@@ -413,13 +431,13 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#fff',
+            color: '#ffffff',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem'
           }}>
-            <Target style={{ width: '1.25rem', height: '1.25rem', color: '#ef4444' }} />
+            <Target style={{ width: '1.25rem', height: '1.25rem', color: '#dc2626' }} />
             Quick Reference
           </h2>
 
@@ -434,14 +452,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                 title: 'Handle Objection',
                 description: 'Get response scripts for common customer objections',
                 icon: Target,
-                color: '#7c3aed'
+                color: '#dc2626'
               },
               {
                 id: 'documentjob',
                 title: 'Document Job',
                 description: 'Create professional job reports with photos and details',
                 icon: FileText,
-                color: '#10b981'
+                color: '#b91c1c'
               }
             ].map((item) => {
               const Icon = item.icon;
@@ -450,8 +468,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   key={item.id}
                   onClick={() => setActivePanel(item.id as PanelType)}
                   style={{
-                    background: 'rgba(239, 68, 68, 0.05)',
-                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    background: 'rgba(220, 38, 38, 0.05)',
+                    border: '1px solid rgba(220, 38, 38, 0.2)',
                     borderRadius: '12px',
                     padding: '1.25rem',
                     transition: 'all 0.3s ease',
@@ -460,13 +478,13 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                     width: '100%'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.4)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.2)';
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
@@ -479,7 +497,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                     <Icon style={{
                       width: '1.125rem',
                       height: '1.125rem',
-                      color: '#ef4444'
+                      color: '#dc2626'
                     }} />
                     <div style={{
                       fontSize: '1rem',
@@ -491,7 +509,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   </div>
                   <p style={{
                     fontSize: '0.875rem',
-                    color: 'rgba(255, 255, 255, 0.6)',
+                    color: '#71717a',
                     lineHeight: '1.5',
                     margin: 0
                   }}>
@@ -507,14 +525,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
         <div style={{
           marginTop: '2rem',
           padding: '1rem',
-          background: 'rgba(59, 130, 246, 0.1)',
-          border: '1px solid rgba(59, 130, 246, 0.3)',
+          background: 'rgba(220, 38, 38, 0.1)',
+          border: '1px solid rgba(220, 38, 38, 0.3)',
           borderRadius: '12px',
           textAlign: 'center'
         }}>
           <p style={{
             fontSize: '0.875rem',
-            color: 'rgba(255, 255, 255, 0.8)',
+            color: '#d4d4d8',
             margin: 0,
             lineHeight: '1.5'
           }}>

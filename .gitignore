@@ -29,3 +29,8 @@ dist-ssr
 .env.local
 # Vite build output - Railway will build this
 dist/
+
+# iOS/Capacitor (handled separately)
+ios/
+android/
+

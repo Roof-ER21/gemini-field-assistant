@@ -30,8 +30,9 @@ const SimpleFallback: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => (
       <div className="h-24 w-24 mx-auto rounded-3xl bg-gradient-to-br from-red-600 via-red-600 to-red-700 flex items-center justify-center shadow-2xl shadow-red-600/50">
         <Sparkles className="h-12 w-12 text-white" strokeWidth={2} />
       </div>
-      <h1 className="text-5xl font-bold bg-gradient-to-r from-red-500 via-red-600 to-red-700 bg-clip-text text-transparent">
-        S21 Field Assistant
+      <h1 className="text-5xl font-bold">
+        <span className="text-white">Susan</span>
+        <span className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 bg-clip-text text-transparent ml-2">21</span>
       </h1>
       <p className="text-xl text-zinc-400 max-w-lg mx-auto">
         Your premium AI-powered roofing assistant with advanced capabilities
@@ -66,28 +67,28 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
       icon: Brain,
       title: 'Multi-Provider AI',
       description: 'Seamlessly switch between multiple AI providers for optimal responses',
-      color: 'from-blue-500 to-cyan-500',
+      color: 'from-red-600 to-red-700',
       badge: 'Smart',
     },
     {
       icon: Database,
       title: 'RAG Knowledge Base',
       description: 'Enhanced responses using your custom roofing knowledge base',
-      color: 'from-purple-500 to-pink-500',
+      color: 'from-red-600 to-red-700',
       badge: 'RAG',
     },
     {
       icon: Shield,
       title: 'Enterprise Security',
       description: 'Bank-level encryption and secure API handling',
-      color: 'from-red-500 to-orange-500',
+      color: 'from-red-600 to-red-700',
       badge: 'Secure',
     },
     {
       icon: Zap,
       title: 'Lightning Fast',
       description: 'Optimized for speed with local and cloud processing',
-      color: 'from-yellow-500 to-amber-500',
+      color: 'from-red-600 to-red-700',
       badge: 'Fast',
     },
   ];
@@ -188,12 +189,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
                 <motion.div
                   key={cap.label}
                   whileHover={{ scale: 1.05, y: -5 }}
-                  className="flex items-center gap-3 px-6 py-3 rounded-xl bg-white border border-zinc-200 shadow-md"
+                  className="flex items-center gap-3 px-6 py-3 rounded-xl bg-[#0a0a0a] border border-[#262626] shadow-md"
                 >
-                  <Icon className="h-5 w-5 text-red-500" strokeWidth={2} />
+                  <Icon className="h-5 w-5 text-[#dc2626]" strokeWidth={2} />
                   <div className="text-left">
-                    <div className="text-xs text-zinc-500 font-medium">{cap.label}</div>
-                    <div className="text-sm font-bold text-zinc-900">{cap.count}</div>
+                    <div className="text-xs text-[#a1a1aa] font-medium">{cap.label}</div>
+                    <div className="text-sm font-bold text-[#ffffff]">{cap.count}</div>
                   </div>
                 </motion.div>
               );
@@ -203,7 +204,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
         {/* Features Grid */}
         <motion.div variants={itemVariants} className="space-y-6">
-          <h2 className="text-3xl font-bold text-center text-white">
+          <h2 className="text-3xl font-bold text-center text-[#ffffff]">
             Powerful Features
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -226,13 +227,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
                         <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} shadow-lg`}>
                           <Icon className="h-6 w-6 text-white" strokeWidth={2} />
                         </div>
-                        <Badge variant="outline" className="text-[10px] text-white/80 border-white/20">
+                        <Badge variant="outline" className="text-[10px] text-[#d4d4d8] border-[#262626]">
                           {feature.badge}
                         </Badge>
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-bold text-white">{feature.title}</h3>
-                        <p className="text-sm text-[color:var(--s21-text-secondary)] leading-relaxed">
+                        <h3 className="text-xl font-bold text-[#ffffff]">{feature.title}</h3>
+                        <p className="text-sm text-[#a1a1aa] leading-relaxed">
                           {feature.description}
                         </p>
                       </div>
@@ -240,7 +241,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
                     {/* Hover Effect */}
                     <motion.div
-                      className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#dc2626] to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
                       initial={{ x: '-100%' }}
                       whileHover={{ x: '100%' }}
                       transition={{ duration: 0.6 }}
@@ -257,17 +258,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
           variants={itemVariants}
           className="text-center space-y-6 py-12"
         >
-          <h3 className="text-2xl font-bold text-white">
+          <h3 className="text-2xl font-bold text-[#ffffff]">
             Ready to Get Started?
           </h3>
-          <p className="text-[color:var(--s21-text-secondary)] max-w-lg mx-auto">
+          <p className="text-[#a1a1aa] max-w-lg mx-auto">
             Start chatting with S21 and experience the power of multi-provider AI assistance
           </p>
           <motion.button
             onClick={onGetStarted}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-[#e94560] to-[#ff6b88] text-white font-bold shadow-2xl shadow-red-600/30 hover:shadow-red-600/50 transition-all duration-300"
+            className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-[#dc2626] to-[#b91c1c] text-white font-bold shadow-2xl shadow-red-600/30 hover:shadow-red-600/50 transition-all duration-300"
           >
             <MessageSquare className="h-5 w-5" />
             <span>Start Chatting</span>
@@ -278,12 +279,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
         {/* Footer Info */}
         <motion.div
           variants={itemVariants}
-          className="text-center space-y-3 py-8 border-t border-white/10"
+          className="text-center space-y-3 py-8 border-t border-[#262626]"
         >
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-[#71717a]">
             Powered by cutting-edge AI technology
           </p>
-          <div className="flex justify-center gap-4 text-xs text-white/50">
+          <div className="flex justify-center gap-4 text-xs text-[#52525b]">
             <span>OpenAI GPT-4</span>
             <span>•</span>
             <span>Anthropic Claude</span>

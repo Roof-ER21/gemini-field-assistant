@@ -3,8 +3,10 @@ import {
   Mail, Send, Copy, FileText, CheckCircle, Sparkles, Download, MessageCircle,
   Eye, Lightbulb, User, Building, Hash, MapPin, Clock, Search, Trash2,
   Edit3, RefreshCw, Home, Filter, Archive, Plus, X, ChevronLeft, ChevronRight,
-  Wand2, Check, HelpCircle, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ShieldX
+  Wand2, Check, HelpCircle, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ShieldX,
+  Users
 } from 'lucide-react';
+import ShareModal from './ShareModal';
 import { useToast } from './Toast';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
@@ -81,7 +83,7 @@ const EMAIL_TEMPLATES: EmailTemplate[] = [
 
 const STATES = [
   { code: 'VA', name: 'Virginia', color: '#e74c3c' },
-  { code: 'MD', name: 'Maryland', color: '#3498db' },
+  { code: 'MD', name: 'Maryland', color: '#DC2626' },
   { code: 'PA', name: 'Pennsylvania', color: '#2ecc71' }
 ];
 
@@ -181,6 +183,9 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
   const [conversationAnswers, setConversationAnswers] = useState<Record<number, string>>({});
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [isRefiningEmail, setIsRefiningEmail] = useState(false);
+
+  // Share Modal State
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
     if (selectedTemplate) {
@@ -1255,6 +1260,34 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       >
                         <Download className="w-4 h-4" />
                       </button>
+                      <button
+                        onClick={() => setShareModalOpen(true)}
+                        style={{
+                          padding: '8px 12px',
+                          background: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--roof-red)';
+                          e.currentTarget.style.color = 'var(--roof-red)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-default)';
+                          e.currentTarget.style.color = 'var(--text-primary)';
+                        }}
+                      >
+                        <Users className="w-4 h-4" />
+                        Share
+                      </button>
                     </div>
                   </div>
 
@@ -1266,12 +1299,12 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         : complianceResult.warnings.length > 0
                         ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
                         : complianceResult.cautions.length > 0
-                        ? 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)'
+                        ? 'linear-gradient(135deg, #262626 0%, #171717 100%)'
                         : 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
                       border: `2px solid ${
                         !complianceResult.canSend ? '#dc2626' :
                         complianceResult.warnings.length > 0 ? '#d97706' :
-                        complianceResult.cautions.length > 0 ? '#4f46e5' : '#059669'
+                        complianceResult.cautions.length > 0 ? '#52525b' : '#059669'
                       }`,
                       borderRadius: 'var(--radius-lg)',
                       padding: '16px',
@@ -1289,7 +1322,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           ) : complianceResult.warnings.length > 0 ? (
                             <ShieldAlert className="w-6 h-6" style={{ color: '#d97706' }} />
                           ) : complianceResult.cautions.length > 0 ? (
-                            <Shield className="w-6 h-6" style={{ color: '#4f46e5' }} />
+                            <Shield className="w-6 h-6" style={{ color: '#6b7280' }} />
                           ) : (
                             <ShieldCheck className="w-6 h-6" style={{ color: '#059669' }} />
                           )}
@@ -1299,7 +1332,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               fontWeight: 600,
                               color: !complianceResult.canSend ? '#991b1b' :
                                      complianceResult.warnings.length > 0 ? '#92400e' :
-                                     complianceResult.cautions.length > 0 ? '#3730a3' : '#065f46',
+                                     complianceResult.cautions.length > 0 ? '#374151' : '#065f46',
                               marginBottom: '2px'
                             }}>
                               {!complianceResult.canSend ? 'BLOCKED - Fix Before Sending' :
@@ -1311,7 +1344,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               fontSize: '13px',
                               color: !complianceResult.canSend ? '#b91c1c' :
                                      complianceResult.warnings.length > 0 ? '#b45309' :
-                                     complianceResult.cautions.length > 0 ? '#4338ca' : '#047857'
+                                     complianceResult.cautions.length > 0 ? '#4b5563' : '#047857'
                             }}>
                               {complianceResult.summary}
                             </div>
@@ -1450,20 +1483,20 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               <div style={{
                                 fontSize: '13px',
                                 fontWeight: 600,
-                                color: '#3730a3',
+                                color: '#374151',
                                 marginBottom: '8px'
                               }}>
                                 Suggestions ({complianceResult.cautions.length})
                               </div>
                               {complianceResult.cautions.map((c, i) => (
                                 <div key={i} style={{
-                                  background: '#e0e7ff',
-                                  border: '1px solid #a5b4fc',
+                                  background: '#f3f4f6',
+                                  border: '1px solid #d1d5db',
                                   borderRadius: '8px',
                                   padding: '8px',
                                   marginBottom: '4px',
                                   fontSize: '12px',
-                                  color: '#3730a3'
+                                  color: '#374151'
                                 }}>
                                   "{c.found}" - {c.why}
                                 </div>
@@ -1550,7 +1583,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       disabled={isEnhancing}
                       style={{
                         padding: '10px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
                         color: '#fff',
@@ -1576,7 +1609,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       disabled={isEnhancing || isGeneratingQuestions}
                       style={{
                         padding: '10px',
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                        background: 'linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
                         color: '#fff',
@@ -1602,7 +1635,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       disabled={isEnhancing}
                       style={{
                         padding: '10px',
-                        background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                        background: 'linear-gradient(135deg, #52525B 0%, #27272A 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
                         color: '#fff',
@@ -1628,7 +1661,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       disabled={isEnhancing}
                       style={{
                         padding: '10px',
-                        background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                        background: 'linear-gradient(135deg, #71717A 0%, #3F3F46 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
                         color: '#fff',
@@ -2109,8 +2142,8 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
               {!isGeneratingQuestions && conversationQuestions.length > 0 && (
                 <div style={{ padding: '24px' }}>
                   <div style={{
-                    background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)',
-                    border: '2px solid #667eea30',
+                    background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
+                    border: '2px solid rgba(220,38,38,0.3)',
                     borderRadius: 'var(--radius-lg)',
                     padding: '16px',
                     marginBottom: '24px'
@@ -2123,7 +2156,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       fontSize: '14px',
                       lineHeight: '1.6'
                     }}>
-                      <HelpCircle className="w-5 h-5 flex-shrink-0" style={{ marginTop: '2px', color: '#667eea' }} />
+                      <HelpCircle className="w-5 h-5 flex-shrink-0" style={{ marginTop: '2px', color: 'var(--roof-red)' }} />
                       <div>
                         Answer the questions below to help Susan refine your email with specific, accurate details.
                         Skip any that don't apply.
@@ -2284,6 +2317,19 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
           </div>
         )}
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        contentType="email"
+        emailSubject={subject}
+        emailBody={isEditingEmail ? editableEmailBody : generatedEmail}
+        emailMetadata={{
+          tone: selectedTone,
+          recipient: recipientName
+        }}
+      />
     </div>
   );
 };

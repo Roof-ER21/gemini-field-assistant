@@ -3,21 +3,69 @@
  * Handles environment-aware API URL detection
  */
 
+// Production API URL for native apps
+const PRODUCTION_API_URL = 'https://a21.up.railway.app/api';
+
+/**
+ * Detect if running in a Capacitor native app
+ */
+function isCapacitorNative(): boolean {
+  // Multiple detection methods for Capacitor native environment
+  const Capacitor = (window as any).Capacitor;
+
+  // Method 1: Check Capacitor.isNativePlatform() function
+  const hasCapacitorNative = Capacitor?.isNativePlatform?.() === true;
+
+  // Method 2: Check Capacitor.getPlatform() returns 'ios' or 'android'
+  const platform = Capacitor?.getPlatform?.();
+  const isNativePlatform = platform === 'ios' || platform === 'android';
+
+  // Method 3: Check protocol schemes
+  const protocol = window.location.protocol;
+  const isSpecialProtocol = protocol === 'ionic:' ||
+                            protocol === 'capacitor:' ||
+                            protocol === 'file:';
+
+  // Method 4: Capacitor uses localhost with custom scheme on iOS
+  const isCapacitorLocalhost = Capacitor &&
+                               window.location.hostname === 'localhost' &&
+                               protocol !== 'http:' &&
+                               protocol !== 'https:';
+
+  const result = hasCapacitorNative || isNativePlatform || isSpecialProtocol || isCapacitorLocalhost;
+
+  console.log('[Config] Capacitor detection:', {
+    hasCapacitorNative,
+    isNativePlatform,
+    platform,
+    protocol,
+    isSpecialProtocol,
+    isCapacitorLocalhost,
+    result
+  });
+
+  return result;
+}
+
 /**
  * Get the API base URL based on the current environment
  *
  * Priority:
- * 1. Runtime detection (window.location) - ALWAYS FIRST
- * 2. VITE_API_URL environment variable (only as fallback)
- *
- * Logic:
- * - localhost/127.0.0.1 → http://localhost:3001/api
- * - production (any other domain) → same origin + /api
+ * 1. Capacitor native app → Production API
+ * 2. localhost/127.0.0.1 → Local dev server
+ * 3. Production web → Same origin
  *
  * @returns The API base URL (without trailing slash)
  */
 export function getApiBaseUrl(): string {
-  // ALWAYS do runtime detection first
+  // Check for Capacitor native app FIRST
+  if (isCapacitorNative()) {
+    console.log('[Config] 📱 Capacitor native app detected');
+    console.log('[Config] API URL:', PRODUCTION_API_URL);
+    return PRODUCTION_API_URL;
+  }
+
+  // Check for localhost development
   const isLocalhost = window.location.hostname === 'localhost' ||
                       window.location.hostname === '127.0.0.1';
 
@@ -28,9 +76,9 @@ export function getApiBaseUrl(): string {
     return url;
   }
 
-  // Production: use same origin (works for Railway, Vercel, etc.)
+  // Production web: use same origin (works for Railway, Vercel, etc.)
   const url = `${window.location.origin}/api`;
-  console.log('[Config] 🚀 Production mode detected');
+  console.log('[Config] 🚀 Production web detected');
   console.log('[Config] Origin:', window.location.origin);
   console.log('[Config] Hostname:', window.location.hostname);
   console.log('[Config] Protocol:', window.location.protocol);

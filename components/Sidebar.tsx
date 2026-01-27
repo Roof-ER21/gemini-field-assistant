@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   MessageSquare,
@@ -9,11 +9,14 @@ import {
   Building2,
   Radio,
   Upload,
-  Shield
+  Shield,
+  Briefcase,
+  Users
 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { messagingService } from '../services/messagingService';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team';
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {
@@ -55,14 +58,45 @@ const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
 const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickAction }) => {
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread message count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const data = await messagingService.getUnreadCount();
+        setUnreadCount(data.total_unread);
+      } catch (e) {
+        console.error('Error fetching unread count:', e);
+      }
+    };
+
+    fetchUnread();
+
+    // Poll every 30 seconds for new messages
+    const interval = setInterval(fetchUnread, 30000);
+
+    // Also listen for real-time updates
+    messagingService.connect();
+    const unsub = messagingService.onNewMessage(() => {
+      fetchUnread();
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsub();
+    };
+  }, []);
 
   const navItems = [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
+    { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
     { id: 'image', label: 'Upload Analysis', desc: 'Docs & photos review', icon: Image },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
+    { id: 'documentjob', label: 'Jobs', desc: 'Manage your jobs', icon: Briefcase },
     { id: 'maps', label: 'Insurance Co', desc: 'Insurance directory', icon: Building2 },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
   ];
@@ -91,6 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePanel === item.id;
+          const badge = (item as any).badge;
 
           return (
             <div
@@ -98,8 +133,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
               onClick={() => setActivePanel(item.id as PanelType)}
               className={`roof-er-nav-item ${isActive ? 'active' : ''}`}
             >
-              <div className="roof-er-nav-item-icon">
+              <div className="roof-er-nav-item-icon" style={{ position: 'relative' }}>
                 <Icon className="w-5 h-5" />
+                {badge > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      background: 'var(--roof-red)',
+                      color: 'white',
+                      fontSize: '0.65rem',
+                      fontWeight: '700',
+                      minWidth: '16px',
+                      height: '16px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 4px'
+                    }}
+                  >
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </div>
               <div className="roof-er-nav-item-content">
                 <div className="roof-er-nav-item-title">{item.label}</div>

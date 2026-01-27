@@ -8,6 +8,8 @@ import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
+import AIDisclosureModal, { hasAIConsent } from './components/AIDisclosureModal';
+import MessagingPanel from './components/MessagingPanel';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -20,7 +22,7 @@ const KnowledgePanel = lazy(() => import('./components/KnowledgePanel'));
 const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
 const LivePanel = lazy(() => import('./components/LivePanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team';
 
 // Loading fallback component for lazy-loaded panels
 const PanelLoader: React.FC = () => (
@@ -54,13 +56,22 @@ const App: React.FC = () => {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [initialQuickAction, setInitialQuickAction] = useState<'email' | 'transcribe' | 'image'>('email');
   const [showChatHistory, setShowChatHistory] = useState(false);
+  const [showAIDisclosure, setShowAIDisclosure] = useState(false);
+  const [aiConsented, setAIConsented] = useState(false);
 
-  // Check authentication on mount
+  // Check authentication and AI consent on mount
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
+
+      // Check if user has consented to AI features
+      const consent = hasAIConsent();
+      setAIConsented(consent);
+      if (!consent) {
+        setShowAIDisclosure(true);
+      }
     }
 
     // Clear any old user_uploads from localStorage
@@ -76,6 +87,7 @@ const App: React.FC = () => {
   const pageTitles: Record<PanelType, string> = {
     home: 'Home',
     chat: 'Chat',
+    team: 'Team Messages',
     knowledge: 'Knowledge Base',
     image: 'Upload Analysis',
     transcribe: 'Transcription',
@@ -122,7 +134,26 @@ const App: React.FC = () => {
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
+
+      // Check if user has consented to AI features
+      const consent = hasAIConsent();
+      setAIConsented(consent);
+      if (!consent) {
+        setShowAIDisclosure(true);
+      }
     }
+  };
+
+  const handleAIConsentAccept = () => {
+    setAIConsented(true);
+    setShowAIDisclosure(false);
+  };
+
+  const handleAIConsentDecline = () => {
+    // Allow limited functionality without AI features
+    setAIConsented(false);
+    setShowAIDisclosure(false);
+    // Could redirect to a limited mode or show a warning
   };
 
   const handleLogout = () => {
@@ -201,7 +232,28 @@ const App: React.FC = () => {
           </Suspense>
         );
       case 'documentjob':
-        return <DocumentJobPanel onClose={() => setActivePanel('home')} />;
+        return (
+          <DocumentJobPanel
+            onClose={() => setActivePanel('home')}
+            onNavigateToChat={(context) => {
+              localStorage.setItem('job_chat_context', context);
+              setActivePanel('chat');
+            }}
+            onNavigateToEmail={(context) => {
+              setEmailContext({ template: '', context: context });
+              setActivePanel('email');
+            }}
+            onNavigateToUpload={() => setActivePanel('image')}
+            onNavigateToInsurance={() => setActivePanel('maps')}
+            onNavigateToKnowledge={() => setActivePanel('knowledge')}
+          />
+        );
+      case 'team':
+        return (
+          <MessagingPanel
+            onClose={() => setActivePanel('home')}
+          />
+        );
       default:
         return <HomePage setActivePanel={setActivePanel} />;
     }
@@ -223,16 +275,15 @@ const App: React.FC = () => {
 
           <div className="roof-er-logo">
             <img
-              src="/roofer-logo-icon.png"
-              alt="ROOFER"
+              src="/roofer-s21-logo.webp"
+              alt="ROOFER S21"
               style={{
-                height: '40px',
+                height: '44px',
                 width: 'auto',
                 filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
               }}
             />
           </div>
-          <div className="roof-er-app-title">S21 FIELD AI</div>
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>
         </div>
         <div className="roof-er-header-actions">
@@ -274,6 +325,14 @@ const App: React.FC = () => {
         <UserProfile
           onClose={() => setShowUserProfile(false)}
           onLogout={handleLogout}
+        />
+      )}
+
+      {/* AI Disclosure Modal */}
+      {showAIDisclosure && (
+        <AIDisclosureModal
+          onAccept={handleAIConsentAccept}
+          onDecline={handleAIConsentDecline}
         />
       )}
 

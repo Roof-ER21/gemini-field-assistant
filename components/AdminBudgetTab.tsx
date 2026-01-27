@@ -519,7 +519,7 @@ const AdminBudgetTab: React.FC = () => {
     switch (severity) {
       case 'critical': return '#dc2626';
       case 'warning': return '#d97706';
-      default: return '#2563eb';
+      default: return '#6b7280';
     }
   };
 
@@ -904,7 +904,7 @@ const AdminBudgetTab: React.FC = () => {
                         color: getSeverityColor(alert.severity),
                         textTransform: 'uppercase'
                       }}>
-                        {alert.severity === 'critical' ? '🔴' : alert.severity === 'warning' ? '🟡' : '🔵'}
+                        {alert.severity === 'critical' ? '🔴' : alert.severity === 'warning' ? '🟡' : '⚪'}
                         {alert.severity}
                       </div>
                     </td>
