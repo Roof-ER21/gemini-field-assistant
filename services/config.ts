@@ -3,8 +3,8 @@
  * Handles environment-aware API URL detection
  */
 
-// Production API URL for native apps
-const PRODUCTION_API_URL = 'https://a21.up.railway.app/api';
+// Production API URL for native apps (Susan 21 = sa21)
+const PRODUCTION_API_URL = 'https://sa21.up.railway.app/api';
 
 /**
  * Detect if running in a Capacitor native app
