@@ -4240,8 +4240,8 @@ try {
 // MESSAGING ROUTES SETUP
 // ============================================================================
 
-// Middleware to extract user ID for messaging routes
-app.use('/api/messages', async (req: express.Request & { userId?: string; userEmail?: string }, res, next) => {
+// Middleware to extract user ID for messaging and team routes
+const authMiddleware = async (req: express.Request & { userId?: string; userEmail?: string }, res: express.Response, next: express.NextFunction) => {
   const email = getRequestEmail(req);
   if (email) {
     try {
@@ -4258,7 +4258,11 @@ app.use('/api/messages', async (req: express.Request & { userId?: string; userEm
     }
   }
   next();
-});
+};
+
+// Apply auth middleware to messaging routes
+app.use('/api/messages', authMiddleware);
+app.use('/api/team', authMiddleware);
 
 // Register messaging routes
 app.use('/api/messages', createMessagingRoutes(pool));

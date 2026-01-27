@@ -278,8 +278,6 @@ const App: React.FC = () => {
               src="/roofer-s21-logo.webp"
               alt="ROOFER S21"
               style={{
-                height: '44px',
-                width: 'auto',
                 filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
               }}
             />
@@ -380,32 +378,11 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Floating Quick Action Button (mobile-first) */}
+      {/* Floating Quick Action Button (mobile only) */}
       <button
-        className="fixed bottom-5 right-5 md:hidden shadow-lg"
+        className="roof-er-floating-quick-action"
         aria-label="Open quick actions"
         onClick={() => { setInitialQuickAction('email'); setShowQuickActions(true); }}
-        style={{
-          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-          color: '#ffffff',
-          border: '2px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '9999px',
-          padding: '16px 24px',
-          fontSize: '16px',
-          fontWeight: '700',
-          boxShadow: '0 8px 24px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.3)',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          zIndex: 40
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 12px 32px rgba(239, 68, 68, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.4)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 8px 24px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.3)';
-        }}
       >
         + Quick Actions
       </button>

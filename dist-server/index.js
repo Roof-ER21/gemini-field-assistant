@@ -3766,8 +3766,8 @@ catch (e) {
 // ============================================================================
 // MESSAGING ROUTES SETUP
 // ============================================================================
-// Middleware to extract user ID for messaging routes
-app.use('/api/messages', async (req, res, next) => {
+// Middleware to extract user ID for messaging and team routes
+const authMiddleware = async (req, res, next) => {
     const email = getRequestEmail(req);
     if (email) {
         try {
@@ -3782,7 +3782,10 @@ app.use('/api/messages', async (req, res, next) => {
         }
     }
     next();
-});
+};
+// Apply auth middleware to messaging routes
+app.use('/api/messages', authMiddleware);
+app.use('/api/team', authMiddleware);
 // Register messaging routes
 app.use('/api/messages', createMessagingRoutes(pool));
 app.use('/api', createMessagingRoutes(pool)); // Also mount /api/team
