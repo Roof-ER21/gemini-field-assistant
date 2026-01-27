@@ -7,8 +7,11 @@
 
 import pg from 'pg';
 import * as dotenv from 'dotenv';
+import fs from 'fs';
 
-dotenv.config({ path: '.env.local' });
+// Load .env.local if it exists, otherwise load .env
+const envPath = fs.existsSync('.env.local') ? '.env.local' : '.env';
+dotenv.config({ path: envPath });
 
 const { Pool } = pg;
 

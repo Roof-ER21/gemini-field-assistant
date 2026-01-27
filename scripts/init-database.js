@@ -22,9 +22,11 @@ if (!DATABASE_URL) {
 console.log('🔗 Connecting to PostgreSQL...');
 
 // Create connection pool
+// SSL is only required for production (Railway)
+const isProduction = DATABASE_URL.includes('railway') || process.env.NODE_ENV === 'production';
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Railway requires SSL
+  ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 
 async function initializeDatabase() {

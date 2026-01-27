@@ -139,11 +139,11 @@ async function main() {
   console.log('🚀 Starting database migrations...');
   console.log(`🔗 Database: ${databaseUrl.replace(/:[^:@]+@/, ':****@')}`);
 
+  // SSL is only required for production (Railway)
+  const isProduction = databaseUrl.includes('railway') || process.env.NODE_ENV === 'production';
   const client = new Client({
     connectionString: databaseUrl,
-    ssl: {
-      rejectUnauthorized: false
-    }
+    ssl: isProduction ? { rejectUnauthorized: false } : false
   });
 
   try {

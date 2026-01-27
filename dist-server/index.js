@@ -3738,20 +3738,6 @@ try {
             res.set('Cache-Control', 'no-store, max-age=0');
             res.sendFile(path.join(distDir, 'index.html'));
         });
-        // SPA fallback only for non-asset, non-API GET requests that accept HTML
-        app.get('*', (req, res, next) => {
-            if (req.method !== 'GET')
-                return next();
-            if (req.path.startsWith('/api'))
-                return res.status(404).json({ error: 'API route not found' });
-            // Do not hijack real asset requests (contain a dot extension or /assets)
-            if (req.path.includes('.') || req.path.startsWith('/assets'))
-                return next();
-            if (!req.accepts('html'))
-                return next();
-            res.set('Cache-Control', 'no-store, max-age=0');
-            res.sendFile(path.join(distDir, 'index.html'));
-        });
         console.log('✅ Static file serving configured for production');
     }
     else {
@@ -3764,7 +3750,7 @@ catch (e) {
     console.log('💡 App will continue but static files will not be served');
 }
 // ============================================================================
-// MESSAGING ROUTES SETUP
+// MESSAGING ROUTES SETUP (must be before SPA fallback)
 // ============================================================================
 // Middleware to extract user ID for messaging and team routes
 const authMiddleware = async (req, res, next) => {
@@ -3789,6 +3775,25 @@ app.use('/api/team', authMiddleware);
 // Register messaging routes
 app.use('/api/messages', createMessagingRoutes(pool));
 app.use('/api', createMessagingRoutes(pool)); // Also mount /api/team
+// ============================================================================
+// SPA FALLBACK (must be after all API routes)
+// ============================================================================
+// SPA fallback only for non-asset, non-API GET requests that accept HTML
+app.get('*', (req, res, next) => {
+    if (req.method !== 'GET')
+        return next();
+    if (req.path.startsWith('/api'))
+        return res.status(404).json({ error: 'API route not found' });
+    // Do not hijack real asset requests (contain a dot extension or /assets)
+    if (req.path.includes('.') || req.path.startsWith('/assets'))
+        return next();
+    if (!req.accepts('html'))
+        return next();
+    // Send index.html for SPA routing
+    const distDir = path.join(process.cwd(), 'dist');
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.sendFile(path.join(distDir, 'index.html'));
+});
 // ============================================================================
 // START SERVER
 // ============================================================================
