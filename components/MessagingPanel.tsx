@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import TeamPanel from './TeamPanel';
 import ConversationView from './ConversationView';
-import { messagingService, TeamMember } from '../services/messagingService';
+import { messagingService, TeamMember, Conversation } from '../services/messagingService';
 
 interface MessagingPanelProps {
   onClose?: () => void;
@@ -14,8 +14,8 @@ interface MessagingPanelProps {
 
 const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
   const [activeConversation, setActiveConversation] = useState<{
-    id: string;
-    participant: TeamMember;
+    conversation: Conversation;
+    participant?: TeamMember | null;
   } | null>(null);
 
   // Connect to WebSocket on mount
@@ -38,8 +38,8 @@ const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
     };
   }, []);
 
-  const handleOpenConversation = (conversationId: string, participant: TeamMember) => {
-    setActiveConversation({ id: conversationId, participant });
+  const handleOpenConversation = (conversation: Conversation, participant?: TeamMember | null) => {
+    setActiveConversation({ conversation, participant });
   };
 
   const handleBackToTeam = () => {
@@ -63,7 +63,7 @@ const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
     >
       {activeConversation ? (
         <ConversationView
-          conversationId={activeConversation.id}
+          conversation={activeConversation.conversation}
           participant={activeConversation.participant}
           onBack={handleBackToTeam}
         />

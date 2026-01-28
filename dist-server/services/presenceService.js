@@ -267,6 +267,14 @@ export class PresenceService {
             readAt: new Date()
         });
     }
+    // Emit reaction updates
+    emitReactionUpdate(conversationId, messageId, reactions) {
+        this.io.to(`conversation:${conversationId}`).emit('message:reaction', {
+            conversationId,
+            messageId,
+            reactions
+        });
+    }
     // Emit notification to a specific user
     emitNotification(userId, notification) {
         // Send to all sockets for this user

@@ -22,7 +22,7 @@ import RoofFeed from './RoofFeed';
 
 interface TeamPanelProps {
   onClose: () => void;
-  onOpenConversation: (conversationId: string, participant: TeamMember) => void;
+  onOpenConversation: (conversation: Conversation, participant?: TeamMember | null) => void;
 }
 
 const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) => {
@@ -32,6 +32,9 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof'>('messages');
   const [totalUnread, setTotalUnread] = useState(0);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<Set<string>>(new Set());
 
   const currentUser = authService.getCurrentUser();
 
@@ -93,7 +96,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
     try {
       const conversationId = await messagingService.getOrCreateDirectConversation(member.userId);
       if (conversationId) {
-        onOpenConversation(conversationId, member);
+        const convData = await messagingService.getConversations();
+        const conversation = convData.conversations.find(c => c.id === conversationId);
+        if (conversation) {
+          onOpenConversation(conversation, member);
+        }
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -102,21 +109,41 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
 
   // Open existing conversation
   const handleOpenConversation = (conversation: Conversation) => {
-    // Find the other participant
-    const otherParticipant = conversation.participants?.find(
-      p => p.email !== currentUser?.email
-    );
+    if (conversation.type === 'direct') {
+      const otherParticipant = conversation.participants?.find(
+        p => p.email !== currentUser?.email
+      );
 
-    if (otherParticipant) {
-      const member: TeamMember = {
-        userId: otherParticipant.user_id,
-        name: otherParticipant.name,
-        email: otherParticipant.email,
-        username: otherParticipant.username,
-        status: 'offline', // Will be updated by presence
-        lastSeen: new Date()
-      };
-      onOpenConversation(conversation.id, member);
+      if (otherParticipant) {
+        const member: TeamMember = {
+          userId: otherParticipant.user_id,
+          name: otherParticipant.name,
+          email: otherParticipant.email,
+          username: otherParticipant.username,
+          status: 'offline', // Will be updated by presence
+          lastSeen: new Date()
+        };
+        onOpenConversation(conversation, member);
+      }
+    } else {
+      onOpenConversation(conversation, null);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!groupName.trim() || selectedGroupMembers.size < 2) return;
+    try {
+      const participantIds = Array.from(selectedGroupMembers);
+      const newConversation = await messagingService.createGroupConversation(groupName.trim(), participantIds);
+      if (newConversation) {
+        setShowGroupModal(false);
+        setGroupName('');
+        setSelectedGroupMembers(new Set());
+        await fetchData();
+        onOpenConversation(newConversation, null);
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
     }
   };
 
@@ -148,6 +175,20 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
     const statusDiff = statusOrder[a.status] - statusOrder[b.status];
     if (statusDiff !== 0) return statusDiff;
     return a.name.localeCompare(b.name);
+  });
+
+  const filteredConversations = conversations.filter(conv => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    if (conv.type === 'group') {
+      return (conv.name || '').toLowerCase().includes(query);
+    }
+    const other = conv.participants?.find(p => p.email !== currentUser?.email);
+    return (
+      other?.name?.toLowerCase().includes(query) ||
+      other?.email?.toLowerCase().includes(query) ||
+      other?.username?.toLowerCase().includes(query)
+    );
   });
 
   // Status indicator component
@@ -363,6 +404,24 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               }}
             />
           </div>
+          {activeTab === 'messages' && (
+            <button
+              onClick={() => setShowGroupModal(true)}
+              style={{
+                marginTop: '0.75rem',
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(13, 148, 136, 0.4)',
+                background: 'rgba(13, 148, 136, 0.1)',
+                color: 'var(--text-primary)',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Create Group Chat
+            </button>
+          )}
         </div>
       )}
 
@@ -384,10 +443,28 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                 Click the Team tab to start chatting with a colleague
               </p>
             </div>
+          ) : filteredConversations.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              No conversations match your search
+            </div>
           ) : (
-            conversations.map(conv => {
+            filteredConversations.map(conv => {
               const otherParticipant = conv.participants?.find(p => p.email !== currentUser?.email);
               const teamMember = teamMembers.find(m => m.userId === otherParticipant?.user_id);
+              const isGroup = conv.type === 'group';
+              const displayName = isGroup ? (conv.name || 'Group Chat') : (otherParticipant?.name || 'Unknown');
+              const lastContent = conv.last_message?.content as any;
+              const subtitle = isGroup
+                ? `${conv.participants.length} members`
+                : (conv.last_message?.message_type === 'text'
+                  ? (lastContent?.attachments?.length
+                    ? (lastContent.attachments.length === 1 ? 'Shared a photo' : 'Shared photos')
+                    : lastContent?.text || 'Message')
+                  : conv.last_message?.message_type === 'shared_chat'
+                    ? 'Shared AI chat'
+                    : conv.last_message?.message_type === 'shared_email'
+                      ? 'Shared email'
+                      : 'Message');
 
               return (
                 <div
@@ -414,7 +491,9 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                         width: '40px',
                         height: '40px',
                         borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+                        background: isGroup
+                          ? 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)'
+                          : 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -423,11 +502,13 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                         fontSize: '1rem'
                       }}
                     >
-                      {otherParticipant?.name?.charAt(0).toUpperCase() || '?'}
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
-                    <div style={{ position: 'absolute', bottom: '-2px', right: '-2px' }}>
-                      <StatusIndicator status={teamMember?.status || 'offline'} />
-                    </div>
+                    {!isGroup && (
+                      <div style={{ position: 'absolute', bottom: '-2px', right: '-2px' }}>
+                        <StatusIndicator status={teamMember?.status || 'offline'} />
+                      </div>
+                    )}
                   </div>
 
                   {/* Info */}
@@ -442,7 +523,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        {otherParticipant?.name || 'Unknown'}
+                        {displayName}
                       </span>
                       {conv.last_message && (
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -462,16 +543,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                         gap: '0.5rem'
                       }}
                     >
-                      {conv.last_message?.message_type === 'shared_chat' && (
-                        <span style={{ color: 'var(--roof-red)' }}>Shared AI chat</span>
+                      {conv.last_message ? (
+                        <span>{subtitle}</span>
+                      ) : (
+                        'No messages yet'
                       )}
-                      {conv.last_message?.message_type === 'shared_email' && (
-                        <span style={{ color: 'var(--roof-red)' }}>Shared email</span>
-                      )}
-                      {conv.last_message?.message_type === 'text' && (
-                        <span>{(conv.last_message.content as any)?.text || 'Message'}</span>
-                      )}
-                      {!conv.last_message && 'No messages yet'}
                     </div>
                   </div>
 
@@ -590,6 +666,129 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
           )
         )}
       </div>
+
+      {showGroupModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setShowGroupModal(false)}
+        >
+          <div
+            style={{
+              width: '92%',
+              maxWidth: '420px',
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>New Group Chat</h3>
+            <p style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              Add at least 2 teammates.
+            </p>
+
+            <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Group name
+            </label>
+            <input
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="e.g. Roof Crew"
+              style={{
+                width: '100%',
+                marginTop: '0.35rem',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)'
+              }}
+            />
+
+            <div style={{ marginTop: '1rem', maxHeight: '260px', overflow: 'auto' }}>
+              {teamMembers.map(member => {
+                const checked = selectedGroupMembers.has(member.userId);
+                return (
+                  <label
+                    key={member.userId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.5rem 0',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setSelectedGroupMembers(prev => {
+                          const next = new Set(prev);
+                          if (next.has(member.userId)) {
+                            next.delete(member.userId);
+                          } else {
+                            next.add(member.userId);
+                          }
+                          return next;
+                        });
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{member.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{member.email}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button
+                onClick={() => setShowGroupModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                disabled={!groupName.trim() || selectedGroupMembers.size < 2}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: (!groupName.trim() || selectedGroupMembers.size < 2)
+                    ? 'var(--bg-tertiary)'
+                    : 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)',
+                  color: 'white',
+                  cursor: (!groupName.trim() || selectedGroupMembers.size < 2) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

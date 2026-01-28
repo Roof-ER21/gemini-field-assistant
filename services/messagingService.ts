@@ -65,12 +65,24 @@ export interface Message {
     mentioned_user_id: string;
     is_read: boolean;
   }>;
+  reactions?: Array<{
+    emoji: string;
+    count: number;
+    user_ids: string[];
+  }>;
 }
 
 export interface MessageContent {
   type: 'text' | 'shared_chat' | 'shared_email' | 'system';
   text?: string;
   mentioned_users?: string[];
+  attachments?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    size: number;
+    url: string;
+  }>;
   shared_data?: {
     original_query?: string;
     ai_response?: string;
@@ -104,6 +116,7 @@ type PresenceUpdateCallback = (update: { userId: string; status: string; timesta
 type MessageCallback = (message: Message) => void;
 type TypingCallback = (data: { userId: string; conversationId: string; isTyping: boolean }) => void;
 type NotificationCallback = (notification: Notification) => void;
+type ReactionCallback = (data: { conversationId: string; messageId: string; reactions: Message['reactions'] }) => void;
 
 class MessagingService {
   private socket: Socket | null = null;
@@ -116,6 +129,7 @@ class MessagingService {
   private messageListeners: Set<MessageCallback> = new Set();
   private typingListeners: Set<TypingCallback> = new Set();
   private notificationListeners: Set<NotificationCallback> = new Set();
+  private reactionListeners: Set<ReactionCallback> = new Set();
 
   // Heartbeat
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -187,6 +201,10 @@ class MessagingService {
     this.socket.on('message:notification', (data: { conversationId: string; messageId: string }) => {
       // Trigger unread count refresh
       this.messageListeners.forEach(listener => listener(data as any));
+    });
+
+    this.socket.on('message:reaction', (data: { conversationId: string; messageId: string; reactions: any[] }) => {
+      this.reactionListeners.forEach(listener => listener(data));
     });
 
     // Typing events
@@ -290,6 +308,11 @@ class MessagingService {
     return () => this.notificationListeners.delete(callback);
   }
 
+  onReactionUpdate(callback: ReactionCallback): () => void {
+    this.reactionListeners.add(callback);
+    return () => this.reactionListeners.delete(callback);
+  }
+
   // ============================================================================
   // REST API METHODS
   // ============================================================================
@@ -361,6 +384,29 @@ class MessagingService {
       return data.conversation?.id || null;
     } catch (error) {
       console.error('[Messaging] Error creating conversation:', error);
+      return null;
+    }
+  }
+
+  // Create a new group conversation
+  async createGroupConversation(name: string, participantIds: string[]): Promise<Conversation | null> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/conversations`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          type: 'group',
+          name,
+          participant_ids: participantIds
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to create group conversation');
+
+      const data = await response.json();
+      return data.conversation || null;
+    } catch (error) {
+      console.error('[Messaging] Error creating group conversation:', error);
       return null;
     }
   }
@@ -576,6 +622,25 @@ class MessagingService {
   // Check if connected
   getConnectionStatus(): boolean {
     return this.isConnected;
+  }
+
+  // Toggle an emoji reaction on a message
+  async toggleReaction(messageId: string, emoji: string): Promise<Message['reactions']> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/reactions/${messageId}`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ emoji })
+      });
+
+      if (!response.ok) throw new Error('Failed to update reaction');
+
+      const data = await response.json();
+      return data.reactions || [];
+    } catch (error) {
+      console.error('[Messaging] Error toggling reaction:', error);
+      return [];
+    }
   }
 }
 

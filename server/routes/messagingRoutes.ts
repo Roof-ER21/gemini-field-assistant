@@ -19,6 +19,13 @@ interface MessageContent {
   type: 'text' | 'shared_chat' | 'shared_email' | 'system';
   text?: string;
   mentioned_users?: string[];
+  attachments?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    size: number;
+    url: string;
+  }>;
   shared_data?: {
     original_query?: string;
     ai_response?: string;
@@ -36,6 +43,9 @@ function getMessagePreview(content: MessageContent, maxLength = 100): string {
     return content.text.length > maxLength
       ? content.text.substring(0, maxLength) + '...'
       : content.text;
+  }
+  if (content.attachments && content.attachments.length > 0) {
+    return content.attachments.length === 1 ? 'Shared a photo' : 'Shared photos';
   }
   if (content.type === 'shared_chat') {
     return 'Shared a Susan AI conversation';
@@ -197,6 +207,10 @@ export function createMessagingRoutes(pool: pg.Pool) {
         success: false,
         error: 'Direct conversations must have exactly one other participant'
       });
+    }
+
+    if (type === 'group' && (!name || !name.trim())) {
+      return res.status(400).json({ success: false, error: 'Group name required' });
     }
 
     const client = await pool.connect();
@@ -381,7 +395,27 @@ export function createMessagingRoutes(pool: pg.Pool) {
             )
             FROM message_mentions mm
             WHERE mm.message_id = m.id
-          ) as mentions
+          ) as mentions,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'emoji', r.emoji,
+                  'count', r.reaction_count,
+                  'user_ids', r.user_ids
+                )
+              )
+              FROM (
+                SELECT emoji,
+                  COUNT(*)::integer as reaction_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_reactions
+                WHERE message_id = m.id
+                GROUP BY emoji
+              ) r
+            ),
+            '[]'::jsonb
+          ) as reactions
         FROM team_messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.conversation_id = $1
@@ -550,7 +584,27 @@ export function createMessagingRoutes(pool: pg.Pool) {
             'username', LOWER(SPLIT_PART(u.email, '@', 1)),
             'name', u.name,
             'email', u.email
-          ) as sender
+          ) as sender,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'emoji', r.emoji,
+                  'count', r.reaction_count,
+                  'user_ids', r.user_ids
+                )
+              )
+              FROM (
+                SELECT emoji,
+                  COUNT(*)::integer as reaction_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_reactions
+                WHERE message_id = m.id
+                GROUP BY emoji
+              ) r
+            ),
+            '[]'::jsonb
+          ) as reactions
         FROM team_messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.id = $1`,
@@ -580,6 +634,109 @@ export function createMessagingRoutes(pool: pg.Pool) {
   // ============================================================================
   // READ RECEIPTS & NOTIFICATIONS
   // ============================================================================
+
+  /**
+   * POST /api/messages/reactions/:messageId
+   * Toggle an emoji reaction on a message
+   */
+  router.post('/reactions/:messageId', async (req: AuthRequest, res: Response) => {
+    const userId = req.userId;
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    if (!emoji || typeof emoji !== 'string') {
+      return res.status(400).json({ success: false, error: 'Emoji required' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const messageResult = await client.query(
+        'SELECT conversation_id FROM team_messages WHERE id = $1',
+        [messageId]
+      );
+
+      if (messageResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: 'Message not found' });
+      }
+
+      const conversationId = messageResult.rows[0].conversation_id;
+
+      // Verify user is participant
+      const participantCheck = await client.query(
+        'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+        [conversationId, userId]
+      );
+
+      if (participantCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const existingReaction = await client.query(
+        `SELECT id FROM message_reactions
+         WHERE message_id = $1 AND user_id = $2 AND emoji = $3`,
+        [messageId, userId, emoji]
+      );
+
+      if (existingReaction.rows.length > 0) {
+        await client.query(
+          'DELETE FROM message_reactions WHERE id = $1',
+          [existingReaction.rows[0].id]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO message_reactions (message_id, user_id, emoji)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+          [messageId, userId, emoji]
+        );
+      }
+
+      const reactionsResult = await client.query(
+        `SELECT jsonb_agg(
+            jsonb_build_object(
+              'emoji', r.emoji,
+              'count', r.reaction_count,
+              'user_ids', r.user_ids
+            )
+          ) as reactions
+         FROM (
+           SELECT emoji,
+             COUNT(*)::integer as reaction_count,
+             jsonb_agg(user_id) as user_ids
+           FROM message_reactions
+           WHERE message_id = $1
+           GROUP BY emoji
+         ) r`,
+        [messageId]
+      );
+
+      await client.query('COMMIT');
+
+      const reactions = reactionsResult.rows[0]?.reactions || [];
+
+      const presenceService = getPresenceService();
+      if (presenceService) {
+        presenceService.emitReactionUpdate(conversationId, messageId, reactions);
+      }
+
+      res.json({ success: true, reactions });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error toggling reaction:', error);
+      res.status(500).json({ success: false, error: 'Failed to update reaction' });
+    } finally {
+      client.release();
+    }
+  });
 
   /**
    * POST /api/messages/mark-read

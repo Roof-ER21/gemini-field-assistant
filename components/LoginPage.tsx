@@ -163,7 +163,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   return (
     <div
       style={{
-        minHeight: '100vh',
         minHeight: '100dvh',
         width: '100%',
         background: '#000000',
