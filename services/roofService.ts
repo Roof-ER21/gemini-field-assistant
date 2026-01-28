@@ -89,9 +89,13 @@ class RoofService {
 
   private getHeaders(): HeadersInit {
     const user = authService.getCurrentUser();
+    const email = user?.email || '';
+    if (!email) {
+      console.warn('[Roof] Warning: No user email available for request');
+    }
     return {
       'Content-Type': 'application/json',
-      'x-user-email': user?.email || ''
+      'x-user-email': email
     };
   }
 

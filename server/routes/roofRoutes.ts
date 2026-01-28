@@ -113,8 +113,15 @@ export function createRoofRoutes(pool: pg.Pool) {
         shared_content?: SharedContent;
       };
 
+      console.log('[Roof] POST /posts - email header:', userEmail);
+
       if (!content || content.trim().length === 0) {
         return res.status(400).json({ success: false, error: 'Content is required' });
+      }
+
+      if (!userEmail) {
+        console.log('[Roof] POST /posts - No email header provided');
+        return res.status(401).json({ success: false, error: 'Authentication required - no email header' });
       }
 
       // Get user ID from email
@@ -123,7 +130,8 @@ export function createRoofRoutes(pool: pg.Pool) {
         [userEmail]
       );
       if (userResult.rows.length === 0) {
-        return res.status(401).json({ success: false, error: 'User not found' });
+        console.log('[Roof] POST /posts - User not found for email:', userEmail);
+        return res.status(401).json({ success: false, error: `User not found: ${userEmail}` });
       }
       const userId = userResult.rows[0].id;
 

@@ -76,13 +76,19 @@ export function createRoofRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { content, post_type, shared_content } = req.body;
+            console.log('[Roof] POST /posts - email header:', userEmail);
             if (!content || content.trim().length === 0) {
                 return res.status(400).json({ success: false, error: 'Content is required' });
+            }
+            if (!userEmail) {
+                console.log('[Roof] POST /posts - No email header provided');
+                return res.status(401).json({ success: false, error: 'Authentication required - no email header' });
             }
             // Get user ID from email
             const userResult = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [userEmail]);
             if (userResult.rows.length === 0) {
-                return res.status(401).json({ success: false, error: 'User not found' });
+                console.log('[Roof] POST /posts - User not found for email:', userEmail);
+                return res.status(401).json({ success: false, error: `User not found: ${userEmail}` });
             }
             const userId = userResult.rows[0].id;
             // Create the post
