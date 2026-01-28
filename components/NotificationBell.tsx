@@ -95,9 +95,13 @@ const NotificationBell: React.FC = () => {
   };
 
   const handleNotificationClick = async (notification: Notification) => {
+    console.log('[Notifications] Clicked notification:', notification.id, notification.type);
+
     // Mark as read if not already
     if (!notification.is_read) {
+      console.log('[Notifications] Marking as read...');
       const success = await messagingService.markNotificationRead(notification.id);
+      console.log('[Notifications] Mark as read result:', success);
       if (success) {
         setNotifications(prev =>
           prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n)

@@ -218,7 +218,10 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
           notifications.map((notification) => (
             <div
               key={notification.id}
-              onClick={() => onNotificationClick?.(notification)}
+              onClick={() => {
+                console.log('[NotificationsPanel] Notification clicked:', notification.id);
+                onNotificationClick?.(notification);
+              }}
               style={{
                 padding: '0.75rem',
                 borderRadius: '8px',
