@@ -3,7 +3,7 @@
  * Features: Job list, detail view, create/edit, kanban pipeline, integrations
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   FileText, X, Plus, Search, Filter, ChevronRight, ChevronDown,
   Phone, Mail, MapPin, Calendar, DollarSign, Shield, User, Building,
@@ -21,6 +21,73 @@ import {
   JOB_STATUS_GROUPS
 } from '../types/job';
 import { authService } from '../services/authService';
+
+// ============ Form Field Components (defined outside to prevent re-creation) ============
+
+interface InputFieldProps {
+  label: string;
+  value: string | number | undefined;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+const FormInputField: React.FC<InputFieldProps> = ({ label, value, onChange, type = 'text', placeholder, required }) => (
+  <div style={{ marginBottom: '1rem' }}>
+    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
+      {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
+    </label>
+    <input
+      type={type}
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{
+        width: '100%',
+        padding: '0.75rem',
+        background: 'rgba(255, 255, 255, 0.05)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        borderRadius: '8px',
+        color: '#fff',
+        fontSize: '0.9375rem',
+      }}
+    />
+  </div>
+);
+
+interface SelectFieldProps {
+  label: string;
+  value: string | undefined;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}
+
+const FormSelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, options }) => (
+  <div style={{ marginBottom: '1rem' }}>
+    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
+      {label}
+    </label>
+    <select
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        width: '100%',
+        padding: '0.75rem',
+        background: 'rgba(255, 255, 255, 0.05)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        borderRadius: '8px',
+        color: '#fff',
+        fontSize: '0.9375rem',
+      }}
+    >
+      <option value="" style={{ background: '#1a1a2e' }}>Select...</option>
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value} style={{ background: '#1a1a2e' }}>{opt.label}</option>
+      ))}
+    </select>
+  </div>
+);
 
 interface DocumentJobPanelProps {
   onClose: () => void;
@@ -59,15 +126,44 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   // Accordion state for detail view
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basic', 'property']));
 
+  // Loading state
+  const [isLoading, setIsLoading] = useState(false);
+
   // Load jobs on mount
   useEffect(() => {
     loadJobs();
   }, []);
 
-  const loadJobs = () => {
-    const allJobs = jobService.getAllJobs();
-    setJobs(allJobs);
+  const loadJobs = async () => {
+    setIsLoading(true);
+    try {
+      const allJobs = await jobService.fetchJobs();
+      setJobs(allJobs);
+    } catch (error) {
+      console.error('Failed to load jobs:', error);
+      // Fallback to cached/local data
+      setJobs(jobService.getAllJobs());
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // Helper to update nested job fields
+  const updateJobField = useCallback((path: string, value: any) => {
+    const parts = path.split('.');
+    setEditingJob((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      let current: any = updated;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) current[parts[i]] = {};
+        else current[parts[i]] = { ...current[parts[i]] };
+        current = current[parts[i]];
+      }
+      current[parts[parts.length - 1]] = value;
+      return updated;
+    });
+  }, []);
 
   // Build context string from job for AI features
   const buildJobContext = (job: Job): string => {
@@ -208,7 +304,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
     setViewMode('edit');
   };
 
-  const handleSaveJob = () => {
+  const handleSaveJob = async () => {
     if (!editingJob) return;
 
     if (!editingJob.customer?.name?.trim()) {
@@ -222,47 +318,68 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
 
     const userId = currentUser?.email || 'unknown';
 
-    if (viewMode === 'create') {
-      const newJob = jobService.createJob(userId, editingJob);
-      toast.success('Job Created', `Job ${newJob.jobNumber} created successfully`);
-    } else {
-      jobService.updateJob(editingJob.id!, editingJob);
-      toast.success('Job Updated', 'Job saved successfully');
-    }
+    try {
+      if (viewMode === 'create') {
+        const newJob = await jobService.createJob(userId, editingJob);
+        toast.success('Job Created', `Job ${newJob.jobNumber} created successfully`);
+      } else {
+        await jobService.updateJob(editingJob.id!, editingJob);
+        toast.success('Job Updated', 'Job saved successfully');
+      }
 
-    loadJobs();
-    setEditingJob(null);
-    setViewMode('list');
+      await loadJobs();
+      setEditingJob(null);
+      setViewMode('list');
+    } catch (error) {
+      toast.error('Error', 'Failed to save job. Please try again.');
+      console.error('Save job error:', error);
+    }
   };
 
-  const handleDeleteJob = (jobId: string) => {
+  const handleDeleteJob = async (jobId: string) => {
     if (confirm('Are you sure you want to delete this job? This cannot be undone.')) {
-      jobService.deleteJob(jobId);
-      toast.success('Job Deleted', 'Job has been removed');
-      loadJobs();
-      if (selectedJobId === jobId) {
-        setSelectedJobId(null);
-        setViewMode('list');
+      try {
+        await jobService.deleteJob(jobId);
+        toast.success('Job Deleted', 'Job has been removed');
+        await loadJobs();
+        if (selectedJobId === jobId) {
+          setSelectedJobId(null);
+          setViewMode('list');
+        }
+      } catch (error) {
+        toast.error('Error', 'Failed to delete job');
       }
     }
   };
 
-  const handleStatusChange = (jobId: string, status: JobStatus) => {
-    jobService.updateStatus(jobId, status);
-    loadJobs();
-    toast.success('Status Updated', `Job moved to ${getStageInfo(status).label}`);
+  const handleStatusChange = async (jobId: string, status: JobStatus) => {
+    try {
+      await jobService.updateStatus(jobId, status);
+      await loadJobs();
+      toast.success('Status Updated', `Job moved to ${getStageInfo(status).label}`);
+    } catch (error) {
+      toast.error('Error', 'Failed to update status');
+    }
   };
 
-  const handleAddNote = (jobId: string, text: string) => {
+  const handleAddNote = async (jobId: string, text: string) => {
     const author = currentUser?.name || 'Unknown';
-    jobService.addNote(jobId, text, author);
-    loadJobs();
-    toast.success('Note Added', 'Note saved to job');
+    try {
+      await jobService.addNote(jobId, text, author);
+      await loadJobs();
+      toast.success('Note Added', 'Note saved to job');
+    } catch (error) {
+      toast.error('Error', 'Failed to add note');
+    }
   };
 
-  const handleToggleAction = (jobId: string, actionId: string) => {
-    jobService.toggleAction(jobId, actionId);
-    loadJobs();
+  const handleToggleAction = async (jobId: string, actionId: string) => {
+    try {
+      await jobService.toggleAction(jobId, actionId);
+      await loadJobs();
+    } catch (error) {
+      console.error('Failed to toggle action:', error);
+    }
   };
 
   const handleViewJob = (jobId: string) => {
@@ -1066,81 +1183,6 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   const renderForm = () => {
     if (!editingJob) return null;
 
-    const updateField = (path: string, value: any) => {
-      const parts = path.split('.');
-      setEditingJob((prev) => {
-        const updated = { ...prev };
-        let current: any = updated;
-        for (let i = 0; i < parts.length - 1; i++) {
-          if (!current[parts[i]]) current[parts[i]] = {};
-          current = current[parts[i]];
-        }
-        current[parts[parts.length - 1]] = value;
-        return updated;
-      });
-    };
-
-    const InputField: React.FC<{
-      label: string;
-      path: string;
-      value: any;
-      type?: string;
-      placeholder?: string;
-      required?: boolean;
-    }> = ({ label, path, value, type = 'text', placeholder, required }) => (
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
-          {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
-        </label>
-        <input
-          type={type}
-          value={value || ''}
-          onChange={(e) => updateField(path, e.target.value)}
-          placeholder={placeholder}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '0.9375rem',
-          }}
-        />
-      </div>
-    );
-
-    const SelectField: React.FC<{
-      label: string;
-      path: string;
-      value: any;
-      options: { value: string; label: string }[];
-    }> = ({ label, path, value, options }) => (
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
-          {label}
-        </label>
-        <select
-          value={value || ''}
-          onChange={(e) => updateField(path, e.target.value)}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '0.9375rem',
-          }}
-        >
-          <option value="" style={{ background: '#1a1a2e' }}>Select...</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value} style={{ background: '#1a1a2e' }}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-    );
-
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
@@ -1155,15 +1197,15 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontSize: '1rem' }}>
               <User style={{ width: '1.25rem', height: '1.25rem' }} /> Customer Information
             </h3>
-            <InputField label="Customer Name" path="customer.name" value={editingJob.customer?.name} placeholder="John Smith" required />
+            <FormInputField label="Customer Name" value={editingJob.customer?.name} onChange={(v) => updateJobField('customer.name', v)} placeholder="John Smith" required />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <InputField label="Phone" path="customer.phone" value={editingJob.customer?.phone} type="tel" placeholder="(555) 123-4567" />
-              <InputField label="Email" path="customer.email" value={editingJob.customer?.email} type="email" placeholder="john@email.com" />
+              <FormInputField label="Phone" value={editingJob.customer?.phone} onChange={(v) => updateJobField('customer.phone', v)} type="tel" placeholder="(555) 123-4567" />
+              <FormInputField label="Email" value={editingJob.customer?.email} onChange={(v) => updateJobField('customer.email', v)} type="email" placeholder="john@email.com" />
             </div>
-            <SelectField
+            <FormSelectField
               label="Preferred Contact"
-              path="customer.preferredContact"
               value={editingJob.customer?.preferredContact}
+              onChange={(v) => updateJobField('customer.preferredContact', v)}
               options={[
                 { value: 'call', label: 'Phone Call' },
                 { value: 'text', label: 'Text Message' },
@@ -1183,20 +1225,20 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a1a1aa', fontSize: '1rem' }}>
               <Home style={{ width: '1.25rem', height: '1.25rem' }} /> Property Details
             </h3>
-            <InputField label="Street Address" path="property.address" value={editingJob.property?.address} placeholder="123 Main Street" required />
+            <FormInputField label="Street Address" value={editingJob.property?.address} onChange={(v) => updateJobField('property.address', v)} placeholder="123 Main Street" required />
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
-              <InputField label="City" path="property.city" value={editingJob.property?.city} placeholder="Richmond" required />
-              <SelectField
+              <FormInputField label="City" value={editingJob.property?.city} onChange={(v) => updateJobField('property.city', v)} placeholder="Richmond" required />
+              <FormSelectField
                 label="State"
-                path="property.state"
                 value={editingJob.property?.state}
+                onChange={(v) => updateJobField('property.state', v)}
                 options={[
                   { value: 'VA', label: 'Virginia' },
                   { value: 'MD', label: 'Maryland' },
                   { value: 'PA', label: 'Pennsylvania' },
                 ]}
               />
-              <InputField label="ZIP" path="property.zip" value={editingJob.property?.zip} placeholder="23220" />
+              <FormInputField label="ZIP" value={editingJob.property?.zip} onChange={(v) => updateJobField('property.zip', v)} placeholder="23220" />
             </div>
           </div>
 
@@ -1212,16 +1254,16 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               <Briefcase style={{ width: '1.25rem', height: '1.25rem' }} /> Job Details
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <SelectField
+              <FormSelectField
                 label="Status"
-                path="status"
                 value={editingJob.status}
+                onChange={(v) => updateJobField('status', v)}
                 options={JOB_PIPELINE_STAGES.map(s => ({ value: s.id, label: s.label }))}
               />
-              <SelectField
+              <FormSelectField
                 label="Priority"
-                path="priority"
                 value={editingJob.priority}
+                onChange={(v) => updateJobField('priority', v)}
                 options={[
                   { value: 'low', label: 'Low' },
                   { value: 'medium', label: 'Medium' },
@@ -1230,16 +1272,16 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 ]}
               />
             </div>
-            <SelectField
+            <FormSelectField
               label="Lead Source"
-              path="leadSource"
               value={editingJob.leadSource}
+              onChange={(v) => updateJobField('leadSource', v)}
               options={LEAD_SOURCES}
             />
-            <InputField
+            <FormInputField
               label="Estimate Amount"
-              path="financials.estimateAmount"
               value={editingJob.financials?.estimateAmount}
+              onChange={(v) => updateJobField('financials.estimateAmount', v)}
               type="number"
               placeholder="5000"
             />
@@ -1256,19 +1298,19 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a1a1aa', fontSize: '1rem' }}>
               <Shield style={{ width: '1.25rem', height: '1.25rem' }} /> Insurance (Optional)
             </h3>
-            <SelectField
+            <FormSelectField
               label="Insurance Company"
-              path="insurance.company"
               value={editingJob.insurance?.company}
+              onChange={(v) => updateJobField('insurance.company', v)}
               options={INSURANCE_COMPANIES.map(c => ({ value: c, label: c }))}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <InputField label="Claim Number" path="insurance.claimNumber" value={editingJob.insurance?.claimNumber} placeholder="CLM-12345" />
-              <InputField label="Adjuster Name" path="insurance.adjusterName" value={editingJob.insurance?.adjusterName} placeholder="Jane Doe" />
+              <FormInputField label="Claim Number" value={editingJob.insurance?.claimNumber} onChange={(v) => updateJobField('insurance.claimNumber', v)} placeholder="CLM-12345" />
+              <FormInputField label="Adjuster Name" value={editingJob.insurance?.adjusterName} onChange={(v) => updateJobField('insurance.adjusterName', v)} placeholder="Jane Doe" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <InputField label="Adjuster Phone" path="insurance.adjusterPhone" value={editingJob.insurance?.adjusterPhone} type="tel" />
-              <InputField label="Deductible" path="insurance.deductible" value={editingJob.insurance?.deductible} type="number" placeholder="1000" />
+              <FormInputField label="Adjuster Phone" value={editingJob.insurance?.adjusterPhone} onChange={(v) => updateJobField('insurance.adjusterPhone', v)} type="tel" />
+              <FormInputField label="Deductible" value={editingJob.insurance?.deductible} onChange={(v) => updateJobField('insurance.deductible', v)} type="number" placeholder="1000" />
             </div>
           </div>
 

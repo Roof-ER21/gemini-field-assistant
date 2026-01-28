@@ -1,7 +1,7 @@
 /**
  * Job Service
  * Handles all CRUD operations for job management
- * Uses localStorage with optional API sync
+ * Uses API with database persistence, falls back to localStorage for offline
  */
 
 import {
@@ -13,12 +13,16 @@ import {
   createEmptyJob,
   JOB_STATUS_GROUPS
 } from '../types/job';
+import { authService } from './authService';
 
-const STORAGE_KEY = 'susan21_jobs';
-const JOB_COUNTER_KEY = 'susan21_job_counter';
+const API_BASE = '/api/jobs';
+const STORAGE_KEY = 'susan21_jobs_offline';
+const PENDING_SYNC_KEY = 'susan21_jobs_pending_sync';
 
 class JobService {
   private static instance: JobService;
+  private cache: Job[] | null = null;
+  private pendingSync: { action: string; data: any }[] = [];
 
   static getInstance(): JobService {
     if (!JobService.instance) {
@@ -27,19 +31,54 @@ class JobService {
     return JobService.instance;
   }
 
+  private getHeaders(): HeadersInit {
+    const user = authService.getCurrentUser();
+    return {
+      'Content-Type': 'application/json',
+      'x-user-email': user?.email || '',
+    };
+  }
+
   // ============ CRUD Operations ============
 
   /**
-   * Get all jobs
+   * Get all jobs from API
+   */
+  async fetchJobs(filters?: {
+    status?: string;
+    priority?: string;
+    search?: string;
+  }): Promise<Job[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.priority) params.set('priority', filters.priority);
+      if (filters?.search) params.set('search', filters.search);
+
+      const url = params.toString() ? `${API_BASE}?${params}` : API_BASE;
+      const response = await fetch(url, { headers: this.getHeaders() });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch jobs');
+      }
+
+      const data = await response.json();
+      this.cache = data.jobs;
+      this.saveToLocalStorage(data.jobs);
+      return data.jobs;
+    } catch (error) {
+      console.error('[JobService] API error, using localStorage:', error);
+      return this.getFromLocalStorage();
+    }
+  }
+
+  /**
+   * Get all jobs (sync version for backwards compatibility)
    */
   getAllJobs(): Job[] {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('[JobService] Error getting jobs:', error);
-      return [];
-    }
+    // Return cached data if available, otherwise localStorage
+    if (this.cache) return this.cache;
+    return this.getFromLocalStorage();
   }
 
   /**
@@ -52,6 +91,29 @@ class JobService {
   /**
    * Get a single job by ID
    */
+  async fetchJob(jobId: string): Promise<Job | null> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}`, {
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch job');
+      }
+
+      const data = await response.json();
+      return data.job;
+    } catch (error) {
+      console.error('[JobService] Error fetching job:', error);
+      const jobs = this.getAllJobs();
+      return jobs.find(j => j.id === jobId) || null;
+    }
+  }
+
+  /**
+   * Get a single job by ID (sync version)
+   */
   getJob(jobId: string): Job | null {
     const jobs = this.getAllJobs();
     return jobs.find(job => job.id === jobId) || null;
@@ -60,73 +122,93 @@ class JobService {
   /**
    * Create a new job
    */
-  createJob(userId: string, data?: Partial<Job>): Job {
-    const jobs = this.getAllJobs();
-    const newJob: Job = {
-      ...createEmptyJob(userId),
-      ...data,
-      id: Date.now().toString(),
-      jobNumber: this.generateNextJobNumber(),
-      userId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  async createJob(userId: string, data?: Partial<Job>): Promise<Job> {
+    try {
+      const response = await fetch(API_BASE, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+      });
 
-    // Auto-generate title if not provided
-    if (!newJob.title && newJob.property?.address) {
-      newJob.title = `${newJob.property.address} - ${newJob.customer?.name || 'New Job'}`;
-    } else if (!newJob.title) {
-      newJob.title = `Job ${newJob.jobNumber}`;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create job');
+      }
+
+      const result = await response.json();
+
+      // Update cache
+      if (this.cache) {
+        this.cache.unshift(result.job);
+      }
+
+      console.log('[JobService] Created job:', result.job.jobNumber);
+      return result.job;
+    } catch (error) {
+      console.error('[JobService] API error, creating locally:', error);
+      // Fallback to local creation
+      return this.createJobLocally(userId, data);
     }
-
-    jobs.unshift(newJob); // Add to beginning
-    this.saveJobs(jobs);
-
-    console.log('[JobService] Created job:', newJob.id);
-    return newJob;
   }
 
   /**
    * Update an existing job
    */
-  updateJob(jobId: string, updates: Partial<Job>): Job | null {
-    const jobs = this.getAllJobs();
-    const index = jobs.findIndex(job => job.id === jobId);
+  async updateJob(jobId: string, updates: Partial<Job>): Promise<Job | null> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(updates),
+      });
 
-    if (index === -1) {
-      console.error('[JobService] Job not found:', jobId);
-      return null;
+      if (!response.ok) {
+        throw new Error('Failed to update job');
+      }
+
+      const result = await response.json();
+
+      // Update cache
+      if (this.cache) {
+        const index = this.cache.findIndex(j => j.id === jobId);
+        if (index !== -1) {
+          this.cache[index] = result.job;
+        }
+      }
+
+      console.log('[JobService] Updated job:', result.job.jobNumber);
+      return result.job;
+    } catch (error) {
+      console.error('[JobService] API error, updating locally:', error);
+      return this.updateJobLocally(jobId, updates);
     }
-
-    const updatedJob: Job = {
-      ...jobs[index],
-      ...updates,
-      id: jobId, // Preserve ID
-      updatedAt: new Date().toISOString(),
-    };
-
-    jobs[index] = updatedJob;
-    this.saveJobs(jobs);
-
-    console.log('[JobService] Updated job:', jobId);
-    return updatedJob;
   }
 
   /**
    * Delete a job
    */
-  deleteJob(jobId: string): boolean {
-    const jobs = this.getAllJobs();
-    const filtered = jobs.filter(job => job.id !== jobId);
+  async deleteJob(jobId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
 
-    if (filtered.length === jobs.length) {
-      console.error('[JobService] Job not found:', jobId);
-      return false;
+      if (!response.ok) {
+        throw new Error('Failed to delete job');
+      }
+
+      // Update cache
+      if (this.cache) {
+        this.cache = this.cache.filter(j => j.id !== jobId);
+      }
+
+      console.log('[JobService] Deleted job:', jobId);
+      return true;
+    } catch (error) {
+      console.error('[JobService] API error, deleting locally:', error);
+      return this.deleteJobLocally(jobId);
     }
-
-    this.saveJobs(filtered);
-    console.log('[JobService] Deleted job:', jobId);
-    return true;
   }
 
   // ============ Status Management ============
@@ -134,8 +216,32 @@ class JobService {
   /**
    * Update job status
    */
-  updateStatus(jobId: string, status: JobStatus): Job | null {
-    return this.updateJob(jobId, { status });
+  async updateStatus(jobId: string, status: JobStatus): Promise<Job | null> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}/status`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status');
+      }
+
+      // Update cache
+      if (this.cache) {
+        const job = this.cache.find(j => j.id === jobId);
+        if (job) {
+          job.status = status;
+          job.updatedAt = new Date().toISOString();
+        }
+      }
+
+      return this.getJob(jobId);
+    } catch (error) {
+      console.error('[JobService] Error updating status:', error);
+      return this.updateJobLocally(jobId, { status });
+    }
   }
 
   /**
@@ -159,74 +265,24 @@ class JobService {
   /**
    * Add a note to a job
    */
-  addNote(jobId: string, text: string, author: string, type?: JobNote['type']): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
+  async addNote(jobId: string, text: string, author: string, type?: JobNote['type']): Promise<Job | null> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}/notes`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ text, type }),
+      });
 
-    const note: JobNote = {
-      id: Date.now().toString(),
-      text,
-      createdAt: new Date().toISOString(),
-      author,
-      type: type || 'general',
-    };
+      if (!response.ok) {
+        throw new Error('Failed to add note');
+      }
 
-    const updatedNotes = [note, ...job.notes];
-    return this.updateJob(jobId, { notes: updatedNotes });
-  }
-
-  /**
-   * Update a note
-   */
-  updateNote(jobId: string, noteId: string, text: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const updatedNotes = job.notes.map(note =>
-      note.id === noteId ? { ...note, text } : note
-    );
-    return this.updateJob(jobId, { notes: updatedNotes });
-  }
-
-  /**
-   * Delete a note
-   */
-  deleteNote(jobId: string, noteId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const updatedNotes = job.notes.filter(note => note.id !== noteId);
-    return this.updateJob(jobId, { notes: updatedNotes });
-  }
-
-  // ============ Attachments Management ============
-
-  /**
-   * Add an attachment to a job
-   */
-  addAttachment(jobId: string, attachment: Omit<JobAttachment, 'id' | 'createdAt'>): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const newAttachment: JobAttachment = {
-      ...attachment,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedAttachments = [...job.attachments, newAttachment];
-    return this.updateJob(jobId, { attachments: updatedAttachments });
-  }
-
-  /**
-   * Remove an attachment
-   */
-  removeAttachment(jobId: string, attachmentId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const updatedAttachments = job.attachments.filter(a => a.id !== attachmentId);
-    return this.updateJob(jobId, { attachments: updatedAttachments });
+      // Refresh the job from cache
+      return this.fetchJob(jobId);
+    } catch (error) {
+      console.error('[JobService] Error adding note:', error);
+      return this.addNoteLocally(jobId, text, author, type);
+    }
   }
 
   // ============ Actions/Tasks Management ============
@@ -234,112 +290,88 @@ class JobService {
   /**
    * Add an action item
    */
-  addAction(jobId: string, description: string, dueDate?: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
+  async addAction(jobId: string, description: string, dueDate?: string): Promise<Job | null> {
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}/actions`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ description, dueDate }),
+      });
 
-    const action: JobAction = {
-      id: Date.now().toString(),
-      description,
-      dueDate,
-      completed: false,
-    };
+      if (!response.ok) {
+        throw new Error('Failed to add action');
+      }
 
-    const updatedActions = [...job.actions, action];
-    return this.updateJob(jobId, { actions: updatedActions });
+      return this.fetchJob(jobId);
+    } catch (error) {
+      console.error('[JobService] Error adding action:', error);
+      return this.addActionLocally(jobId, description, dueDate);
+    }
   }
 
   /**
    * Toggle action completion
    */
-  toggleAction(jobId: string, actionId: string): Job | null {
+  async toggleAction(jobId: string, actionId: string): Promise<Job | null> {
     const job = this.getJob(jobId);
     if (!job) return null;
 
-    const updatedActions = job.actions.map(action =>
-      action.id === actionId
-        ? {
-            ...action,
-            completed: !action.completed,
-            completedAt: !action.completed ? new Date().toISOString() : undefined,
-          }
-        : action
-    );
-    return this.updateJob(jobId, { actions: updatedActions });
-  }
+    const action = job.actions.find(a => a.id === actionId);
+    if (!action) return null;
 
-  /**
-   * Delete an action
-   */
-  deleteAction(jobId: string, actionId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const updatedActions = job.actions.filter(a => a.id !== actionId);
-    return this.updateJob(jobId, { actions: updatedActions });
-  }
-
-  // ============ Search & Filter ============
-
-  /**
-   * Search jobs by text
-   */
-  searchJobs(query: string): Job[] {
-    const lowerQuery = query.toLowerCase();
-    return this.getAllJobs().filter(job =>
-      job.title.toLowerCase().includes(lowerQuery) ||
-      job.customer.name.toLowerCase().includes(lowerQuery) ||
-      job.property.address.toLowerCase().includes(lowerQuery) ||
-      job.property.city.toLowerCase().includes(lowerQuery) ||
-      job.jobNumber.toLowerCase().includes(lowerQuery) ||
-      job.insurance?.company?.toLowerCase().includes(lowerQuery) ||
-      job.insurance?.claimNumber?.toLowerCase().includes(lowerQuery)
-    );
-  }
-
-  /**
-   * Filter jobs by multiple criteria
-   */
-  filterJobs(filters: {
-    status?: JobStatus[];
-    priority?: Job['priority'][];
-    state?: Job['property']['state'][];
-    dateRange?: { start: string; end: string };
-    hasInsurance?: boolean;
-  }): Job[] {
-    let jobs = this.getAllJobs();
-
-    if (filters.status?.length) {
-      jobs = jobs.filter(job => filters.status!.includes(job.status));
-    }
-    if (filters.priority?.length) {
-      jobs = jobs.filter(job => filters.priority!.includes(job.priority));
-    }
-    if (filters.state?.length) {
-      jobs = jobs.filter(job => filters.state!.includes(job.property.state));
-    }
-    if (filters.hasInsurance !== undefined) {
-      jobs = jobs.filter(job =>
-        filters.hasInsurance
-          ? !!job.insurance?.company
-          : !job.insurance?.company
-      );
-    }
-    if (filters.dateRange) {
-      jobs = jobs.filter(job => {
-        const date = new Date(job.createdAt);
-        return date >= new Date(filters.dateRange!.start) &&
-               date <= new Date(filters.dateRange!.end);
+    try {
+      const response = await fetch(`${API_BASE}/${jobId}/actions/${actionId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ completed: !action.completed }),
       });
-    }
 
-    return jobs;
+      if (!response.ok) {
+        throw new Error('Failed to toggle action');
+      }
+
+      // Update cache
+      action.completed = !action.completed;
+      action.completedAt = action.completed ? new Date().toISOString() : undefined;
+
+      return job;
+    } catch (error) {
+      console.error('[JobService] Error toggling action:', error);
+      return this.toggleActionLocally(jobId, actionId);
+    }
   }
 
   // ============ Statistics ============
 
   /**
    * Get job statistics
+   */
+  async fetchStats(): Promise<{
+    total: number;
+    active: number;
+    won: number;
+    lost: number;
+    needsAction: number;
+    totalValue: number;
+  }> {
+    try {
+      const response = await fetch(`${API_BASE}/stats/summary`, {
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch stats');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[JobService] Error fetching stats:', error);
+      return this.getStats();
+    }
+  }
+
+  /**
+   * Get job statistics (sync version from cache)
    */
   getStats(userId?: string): {
     total: number;
@@ -380,109 +412,223 @@ class JobService {
     };
   }
 
-  // ============ Integration Helpers ============
+  // ============ Search ============
 
   /**
-   * Link a chat session to a job
+   * Search jobs by text
    */
-  linkChatSession(jobId: string, sessionId: string): Job | null {
-    return this.updateJob(jobId, { linkedChatSessionId: sessionId });
+  searchJobs(query: string): Job[] {
+    const lowerQuery = query.toLowerCase();
+    return this.getAllJobs().filter(job =>
+      job.title.toLowerCase().includes(lowerQuery) ||
+      job.customer.name.toLowerCase().includes(lowerQuery) ||
+      job.property.address.toLowerCase().includes(lowerQuery) ||
+      job.property.city.toLowerCase().includes(lowerQuery) ||
+      job.jobNumber.toLowerCase().includes(lowerQuery) ||
+      job.insurance?.company?.toLowerCase().includes(lowerQuery) ||
+      job.insurance?.claimNumber?.toLowerCase().includes(lowerQuery)
+    );
   }
 
-  /**
-   * Link a transcript to a job
-   */
-  linkTranscript(jobId: string, transcriptId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
+  // ============ Local Storage Fallback Methods ============
 
-    const linkedTranscriptIds = [...(job.linkedTranscriptIds || []), transcriptId];
-    return this.updateJob(jobId, { linkedTranscriptIds });
+  private getFromLocalStorage(): Job[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('[JobService] Error reading localStorage:', error);
+      return [];
+    }
   }
 
-  /**
-   * Link an email to a job
-   */
-  linkEmail(jobId: string, emailId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const linkedEmailIds = [...(job.linkedEmailIds || []), emailId];
-    return this.updateJob(jobId, { linkedEmailIds });
-  }
-
-  /**
-   * Link an image analysis to a job
-   */
-  linkImageAnalysis(jobId: string, analysisId: string): Job | null {
-    const job = this.getJob(jobId);
-    if (!job) return null;
-
-    const linkedImageAnalysisIds = [...(job.linkedImageAnalysisIds || []), analysisId];
-    return this.updateJob(jobId, { linkedImageAnalysisIds });
-  }
-
-  // ============ Private Helpers ============
-
-  private saveJobs(jobs: Job[]): void {
+  private saveToLocalStorage(jobs: Job[]): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
     } catch (error) {
-      console.error('[JobService] Error saving jobs:', error);
+      console.error('[JobService] Error saving to localStorage:', error);
     }
   }
 
-  private generateNextJobNumber(): string {
-    try {
-      const year = new Date().getFullYear();
-      const counterKey = `${JOB_COUNTER_KEY}_${year}`;
-      let counter = parseInt(localStorage.getItem(counterKey) || '0', 10);
-      counter++;
-      localStorage.setItem(counterKey, counter.toString());
-      return `${year}-${counter.toString().padStart(4, '0')}`;
-    } catch {
-      // Fallback to random
-      const year = new Date().getFullYear();
-      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      return `${year}-${random}`;
+  private createJobLocally(userId: string, data?: Partial<Job>): Job {
+    const jobs = this.getFromLocalStorage();
+    const year = new Date().getFullYear();
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+
+    const newJob: Job = {
+      ...createEmptyJob(userId),
+      ...data,
+      id: Date.now().toString(),
+      jobNumber: `${year}-${random}`,
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (!newJob.title && newJob.property?.address) {
+      newJob.title = `${newJob.property.address} - ${newJob.customer?.name || 'New Job'}`;
+    } else if (!newJob.title) {
+      newJob.title = `Job ${newJob.jobNumber}`;
     }
+
+    jobs.unshift(newJob);
+    this.saveToLocalStorage(jobs);
+    this.cache = jobs;
+
+    // Queue for sync
+    this.queueForSync('create', newJob);
+
+    return newJob;
   }
 
-  // ============ Import/Export ============
+  private updateJobLocally(jobId: string, updates: Partial<Job>): Job | null {
+    const jobs = this.getFromLocalStorage();
+    const index = jobs.findIndex(job => job.id === jobId);
 
-  /**
-   * Export all jobs as JSON
-   */
-  exportJobs(): string {
-    const jobs = this.getAllJobs();
-    return JSON.stringify(jobs, null, 2);
+    if (index === -1) return null;
+
+    const updatedJob: Job = {
+      ...jobs[index],
+      ...updates,
+      id: jobId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    jobs[index] = updatedJob;
+    this.saveToLocalStorage(jobs);
+    this.cache = jobs;
+
+    this.queueForSync('update', { id: jobId, updates });
+
+    return updatedJob;
   }
 
-  /**
-   * Import jobs from JSON
-   */
-  importJobs(jsonString: string, merge: boolean = true): number {
+  private deleteJobLocally(jobId: string): boolean {
+    const jobs = this.getFromLocalStorage();
+    const filtered = jobs.filter(job => job.id !== jobId);
+
+    if (filtered.length === jobs.length) return false;
+
+    this.saveToLocalStorage(filtered);
+    this.cache = filtered;
+
+    this.queueForSync('delete', { id: jobId });
+
+    return true;
+  }
+
+  private addNoteLocally(jobId: string, text: string, author: string, type?: JobNote['type']): Job | null {
+    const jobs = this.getFromLocalStorage();
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return null;
+
+    const note: JobNote = {
+      id: Date.now().toString(),
+      text,
+      createdAt: new Date().toISOString(),
+      author,
+      type: type || 'general',
+    };
+
+    job.notes.unshift(note);
+    job.updatedAt = new Date().toISOString();
+    this.saveToLocalStorage(jobs);
+    this.cache = jobs;
+
+    return job;
+  }
+
+  private addActionLocally(jobId: string, description: string, dueDate?: string): Job | null {
+    const jobs = this.getFromLocalStorage();
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return null;
+
+    const action: JobAction = {
+      id: Date.now().toString(),
+      description,
+      dueDate,
+      completed: false,
+    };
+
+    job.actions.push(action);
+    job.updatedAt = new Date().toISOString();
+    this.saveToLocalStorage(jobs);
+    this.cache = jobs;
+
+    return job;
+  }
+
+  private toggleActionLocally(jobId: string, actionId: string): Job | null {
+    const jobs = this.getFromLocalStorage();
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return null;
+
+    const action = job.actions.find(a => a.id === actionId);
+    if (!action) return null;
+
+    action.completed = !action.completed;
+    action.completedAt = action.completed ? new Date().toISOString() : undefined;
+    job.updatedAt = new Date().toISOString();
+
+    this.saveToLocalStorage(jobs);
+    this.cache = jobs;
+
+    return job;
+  }
+
+  private queueForSync(action: string, data: any): void {
     try {
-      const importedJobs: Job[] = JSON.parse(jsonString);
-
-      if (!Array.isArray(importedJobs)) {
-        throw new Error('Invalid format: expected array');
-      }
-
-      if (merge) {
-        const existingJobs = this.getAllJobs();
-        const existingIds = new Set(existingJobs.map(j => j.id));
-        const newJobs = importedJobs.filter(j => !existingIds.has(j.id));
-        this.saveJobs([...existingJobs, ...newJobs]);
-        return newJobs.length;
-      } else {
-        this.saveJobs(importedJobs);
-        return importedJobs.length;
-      }
+      const pending = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || '[]');
+      pending.push({ action, data, timestamp: Date.now() });
+      localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(pending));
     } catch (error) {
-      console.error('[JobService] Import error:', error);
+      console.error('[JobService] Error queuing for sync:', error);
+    }
+  }
+
+  // ============ Sync ============
+
+  /**
+   * Sync pending local changes to server
+   */
+  async syncPendingChanges(): Promise<number> {
+    try {
+      const pending = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || '[]');
+      if (pending.length === 0) return 0;
+
+      let synced = 0;
+      for (const item of pending) {
+        try {
+          if (item.action === 'create') {
+            await this.createJob(item.data.userId, item.data);
+            synced++;
+          } else if (item.action === 'update') {
+            await this.updateJob(item.data.id, item.data.updates);
+            synced++;
+          } else if (item.action === 'delete') {
+            await this.deleteJob(item.data.id);
+            synced++;
+          }
+        } catch (error) {
+          console.error('[JobService] Error syncing item:', error);
+        }
+      }
+
+      // Clear synced items
+      localStorage.setItem(PENDING_SYNC_KEY, '[]');
+      return synced;
+    } catch (error) {
+      console.error('[JobService] Error syncing:', error);
       return 0;
     }
+  }
+
+  /**
+   * Clear cache and force refresh from API
+   */
+  async refresh(): Promise<Job[]> {
+    this.cache = null;
+    return this.fetchJobs();
   }
 
   /**
@@ -490,6 +636,8 @@ class JobService {
    */
   clearAllJobs(): void {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(PENDING_SYNC_KEY);
+    this.cache = null;
     console.log('[JobService] All jobs cleared');
   }
 }

@@ -8,6 +8,15 @@
 
 BEGIN;
 
+-- Create update_updated_at_column function if not exists
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 -- ============================================================================
 -- 1. API PROVIDERS TABLE
 -- ============================================================================
@@ -163,7 +172,7 @@ COMMENT ON COLUMN budget_alerts.user_id IS 'NULL for company-wide alerts';
 CREATE OR REPLACE VIEW user_api_usage_summary AS
 SELECT
     u.id AS user_id,
-    u.username,
+    COALESCE(u.name, SPLIT_PART(u.email, '@', 1)) AS username,
     u.email,
     COUNT(*) AS total_requests,
     SUM(CASE WHEN success THEN 1 ELSE 0 END) AS successful_requests,
@@ -173,14 +182,14 @@ SELECT
     SUM(total_tokens) AS total_tokens,
     SUM(estimated_cost) AS total_cost,
     AVG(duration_ms) AS avg_duration_ms,
-    MAX(created_at) AS last_api_call,
+    MAX(aul.created_at) AS last_api_call,
     ub.monthly_budget,
     ub.current_month_spend,
     ROUND((ub.current_month_spend / NULLIF(ub.monthly_budget, 0) * 100), 2) AS budget_usage_percentage
 FROM users u
 LEFT JOIN api_usage_log aul ON u.id = aul.user_id
 LEFT JOIN user_budgets ub ON u.id = ub.user_id
-GROUP BY u.id, u.username, u.email, ub.monthly_budget, ub.current_month_spend;
+GROUP BY u.id, u.name, u.email, ub.monthly_budget, ub.current_month_spend;
 
 COMMENT ON VIEW user_api_usage_summary IS 'Per-user API usage statistics and budget status';
 
