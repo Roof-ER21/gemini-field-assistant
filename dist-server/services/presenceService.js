@@ -216,23 +216,24 @@ export class PresenceService {
     }
     async getPresenceList() {
         try {
+            // Query ALL users, with presence data if available
             const result = await this.pool.query(`SELECT
-           up.user_id as "userId",
-           up.status,
-           up.last_seen as "lastSeen",
-           up.device_type as "deviceType",
+           u.id as "userId",
            u.name,
            u.email,
-           COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username
-         FROM user_presence up
-         JOIN users u ON up.user_id = u.id
+           COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username,
+           COALESCE(up.status, 'offline') as status,
+           COALESCE(up.last_seen, u.last_login_at, NOW()) as "lastSeen",
+           COALESCE(up.device_type, 'unknown') as "deviceType"
+         FROM users u
+         LEFT JOIN user_presence up ON u.id = up.user_id
          ORDER BY
-           CASE up.status
+           CASE COALESCE(up.status, 'offline')
              WHEN 'online' THEN 1
              WHEN 'away' THEN 2
              ELSE 3
            END,
-           up.last_seen DESC`);
+           u.name ASC`);
             return result.rows;
         }
         catch (error) {
