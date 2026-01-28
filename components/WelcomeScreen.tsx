@@ -31,11 +31,11 @@ const SimpleFallback: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => (
         <Sparkles className="h-12 w-12 text-white" strokeWidth={2} />
       </div>
       <h1 className="text-5xl font-bold">
-        <span className="text-white">Susan</span>
-        <span className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 bg-clip-text text-transparent ml-2">21</span>
+        <span className="text-white">ROOFER</span>
+        <span className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 bg-clip-text text-transparent ml-2">S21</span>
       </h1>
       <p className="text-xl text-zinc-400 max-w-lg mx-auto">
-        Your premium AI-powered roofing assistant with advanced capabilities
+        The Roof Docs - Your premium AI-powered assistant with Egyptian-themed intelligence
       </p>
       <button
         onClick={onGetStarted}
@@ -171,10 +171,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
           {/* Title */}
           <div className="space-y-4 s21-card-glass inline-block text-left">
-            <motion.h1 variants={itemVariants} className="s21-header-title">S21 CORE</motion.h1>
-            <div className="s21-header-subtitle">Field Assistant</div>
+            <motion.h1 variants={itemVariants} className="s21-header-title">ROOFER S21</motion.h1>
+            <div className="s21-header-subtitle">The Roof Docs</div>
             <motion.p variants={itemVariants} className="text-lg text-[color:var(--s21-text-secondary)] max-w-2xl">
-              Your premium AI-powered roofing assistant with advanced capabilities designed for storm restoration professionals.
+              Your premium AI-powered assistant with Egyptian-themed intelligence, designed for storm restoration professionals.
             </motion.p>
           </div>
 
@@ -262,7 +262,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
             Ready to Get Started?
           </h3>
           <p className="text-[#a1a1aa] max-w-lg mx-auto">
-            Start chatting with S21 and experience the power of multi-provider AI assistance
+            Start chatting with ROOFER S21 and experience the power of multi-provider AI assistance
           </p>
           <motion.button
             onClick={onGetStarted}

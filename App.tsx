@@ -276,10 +276,7 @@ const App: React.FC = () => {
           <div className="roof-er-logo">
             <img
               src="/roofer-s21-logo.webp"
-              alt="ROOFER S21"
-              style={{
-                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
-              }}
+              alt="ROOFER S21 - The Roof Docs"
             />
           </div>
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>

@@ -25,7 +25,7 @@ interface SidebarProps {
   onQuickAction?: (action: QuickActionType) => void;
 }
 
-// Custom S21 Triangle Icon Component
+// Custom Egyptian Pyramid S21 Icon Component
 const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}
@@ -33,25 +33,49 @@ const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
+    {/* Pyramid base */}
     <path
-      d="M12 4L20 20H4L12 4Z"
-      fill="currentColor"
+      d="M12 3L22 21H2L12 3Z"
+      fill="url(#pyramid-gradient)"
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+    {/* Pyramid details - Egyptian stepped effect */}
+    <path
+      d="M12 3L18 15H6L12 3Z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="0.5"
+      opacity="0.4"
+    />
+    <path
+      d="M12 3L15 10H9L12 3Z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="0.5"
+      opacity="0.3"
+    />
+    {/* S21 text */}
     <text
       x="12"
-      y="17"
+      y="18.5"
       fontFamily="sans-serif"
-      fontSize="7"
+      fontSize="6"
       fontWeight="bold"
-      fill="#000000"
+      fill="#1a1a1a"
       textAnchor="middle"
     >
       S21
     </text>
+    {/* Gradient definition */}
+    <defs>
+      <linearGradient id="pyramid-gradient" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
+        <stop offset="100%" stopColor="currentColor" stopOpacity="0.7" />
+      </linearGradient>
+    </defs>
   </svg>
 );
 

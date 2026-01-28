@@ -150,12 +150,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             }}
           >
             <img
-              src="/roofer-logo-icon.png"
-              alt="Roofer"
+              src="/roofer-s21-logo.webp"
+              alt="ROOFER S21"
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                objectFit: 'contain',
+                padding: '8px'
               }}
               onError={(e) => {
                 // Fallback to gradient if image fails
@@ -172,8 +173,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               letterSpacing: '-0.02em'
             }}
           >
-            <span style={{ color: '#ffffff' }}>Susan</span>
-            <span style={{ color: '#dc2626', marginLeft: '6px' }}>21</span>
+            <span style={{ color: '#ffffff' }}>ROOFER</span>
+            <span style={{ color: '#dc2626', marginLeft: '6px' }}>S21</span>
           </h1>
           <p
             style={{
@@ -182,7 +183,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               margin: 0
             }}
           >
-            Your intelligent field assistant
+            The Roof Docs AI Assistant
           </p>
         </div>
 
@@ -522,7 +523,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           }}
         >
           <p style={{ fontSize: '13px', color: '#52525b', margin: '0 0 4px 0' }}>
-            Susan 21 Assistant
+            ROOFER S21 - The Roof Docs
           </p>
           <p style={{ fontSize: '11px', color: '#3f3f46', margin: '0 0 12px 0' }}>
             Secure email authentication

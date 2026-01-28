@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { connectTranscriptionStream } from '../services/geminiService';
+import { connectTranscriptionStream, generateEmail } from '../services/geminiService';
 import { Session, LiveServerMessage } from '@google/genai';
 import { Message } from '../types';
 import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -18,6 +18,12 @@ import { authService } from '../services/authService';
 import { activityService } from '../services/activityService';
 import { useToast } from './Toast';
 import ShareModal from './ShareModal';
+import { analyzeRoofImage } from '../services/imageAnalysisService';
+import {
+  checkEmailCompliance,
+  getCompliancePromptInstructions,
+  ComplianceResult
+} from '../services/emailComplianceService';
 
 /**
  * Extract and compress key context from conversation history
@@ -157,12 +163,28 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; content: string; type: string }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; content: string; type: string; preview?: string; file?: File }>>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [messageToShare, setMessageToShare] = useState<Message | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+
+  // Email generation state
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailRecipientType, setEmailRecipientType] = useState<'adjuster' | 'homeowner' | 'insurance' | 'custom'>('adjuster');
+  const [emailTone, setEmailTone] = useState<'professional' | 'formal' | 'friendly'>('professional');
+  const [emailKeyPoints, setEmailKeyPoints] = useState('');
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [generatedEmailData, setGeneratedEmailData] = useState<{
+    messageId: string;
+    email: string;
+    compliance: ComplianceResult | null;
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Refs for voice transcription
   const sessionPromiseRef = useRef<Promise<Session> | null>(null);
@@ -336,9 +358,142 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setUserInput(prev => prev.replace(`[Attached: ${fileName}]`, '').trim());
   };
 
+  // Email generation detection and handling
+  const detectEmailRequest = (text: string): boolean => {
+    const emailPatterns = [
+      /^\/email/i,
+      /^\/write\s+email/i,
+      /^\/draft\s+email/i,
+      /generate\s+(?:an?\s+)?email/i,
+      /write\s+(?:an?\s+)?email/i,
+      /draft\s+(?:an?\s+)?email/i,
+      /create\s+(?:an?\s+)?email/i,
+      /compose\s+(?:an?\s+)?email/i,
+    ];
+    return emailPatterns.some(pattern => pattern.test(text.trim()));
+  };
+
+  const handleEmailGeneration = async () => {
+    if (!emailKeyPoints.trim()) {
+      toast.warning('Please provide key points for the email');
+      return;
+    }
+
+    setIsGeneratingEmail(true);
+    try {
+      // Build context from conversation
+      const conversationContext = messages.slice(-6).map(m =>
+        `${m.sender === 'user' ? 'User' : 'S21'}: ${m.text}`
+      ).join('\n');
+
+      const recipientLabels = {
+        adjuster: 'Insurance Adjuster',
+        homeowner: 'Homeowner',
+        insurance: 'Insurance Company',
+        custom: 'Recipient'
+      };
+
+      const stateInfo = selectedState ? ` (State: ${selectedState})` : '';
+
+      const emailPrompt = `${getCompliancePromptInstructions()}
+
+You are generating an email for a roofing contractor to send to: ${recipientLabels[emailRecipientType]}${stateInfo}
+
+Tone: ${emailTone.charAt(0).toUpperCase() + emailTone.slice(1)}
+
+Key Points to Include:
+${emailKeyPoints}
+
+Recent Conversation Context:
+${conversationContext}
+
+Generate a professional, compliant email that:
+1. Uses contractor-focused language (not insurance interpretation)
+2. Follows compliance guidelines strictly
+3. Is specific and actionable
+4. Matches the ${emailTone} tone appropriate for ${recipientLabels[emailRecipientType]}
+5. Incorporates ${selectedState ? selectedState + '-specific' : 'general tri-state'} building codes and requirements where relevant
+
+Generate ONLY the email body text, no subject line or metadata.`;
+
+      const emailBody = await generateEmail(
+        recipientLabels[emailRecipientType],
+        `Email to ${recipientLabels[emailRecipientType]}`,
+        emailPrompt
+      );
+
+      // Check compliance
+      const compliance = checkEmailCompliance(emailBody);
+
+      // Create a bot message with the email
+      const emailMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: `EMAIL_GENERATED:${emailRecipientType}:${emailTone}\n\n${emailBody}`,
+        sender: 'bot',
+      };
+
+      setMessages(prev => [...prev, emailMessage]);
+      setGeneratedEmailData({
+        messageId: emailMessage.id,
+        email: emailBody,
+        compliance
+      });
+
+      // Persist email message
+      databaseService.saveChatMessage({
+        message_id: emailMessage.id,
+        sender: 'bot',
+        content: emailMessage.text,
+        state: selectedState || undefined,
+        session_id: currentSessionId,
+      });
+
+      setShowEmailDialog(false);
+      setEmailKeyPoints('');
+
+      if (!compliance.canSend) {
+        toast.warning('Email generated with compliance warnings', 'Please review before sending');
+      } else {
+        toast.success('Email generated successfully');
+      }
+    } catch (error) {
+      console.error('Failed to generate email:', error);
+      toast.error('Failed to generate email', 'Please try again');
+    } finally {
+      setIsGeneratingEmail(false);
+    }
+  };
+
+  const handleCopyEmail = async (emailText: string) => {
+    try {
+      await navigator.clipboard.writeText(emailText);
+      toast.success('Email copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy email');
+    }
+  };
+
+  const handleOpenInEmailPanel = (emailText: string) => {
+    if (onStartEmail) {
+      onStartEmail('custom', emailText);
+      toast.success('Email opened in Email Panel');
+    }
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!userInput.trim() || isLoading) return;
+
+    // Check if this is an email generation request
+    if (detectEmailRequest(userInput)) {
+      setShowEmailDialog(true);
+      // Extract any key points from the message
+      const keyPointsMatch = userInput.match(/(?:about|for|regarding)\s+(.+)$/i);
+      if (keyPointsMatch) {
+        setEmailKeyPoints(keyPointsMatch[1]);
+      }
+      return;
+    }
 
     if (showWelcome) {
       setShowWelcome(false);
@@ -705,8 +860,145 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     return paragraphs[0] || text.slice(0, 500);
   };
 
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    const imageFiles = files.filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+    const docFiles = files.filter(f => !imageFiles.includes(f));
+
+    if (imageFiles.length > 0) {
+      await handleImageFiles(imageFiles);
+    }
+
+    if (docFiles.length > 0) {
+      for (const file of docFiles) {
+        handleFileUpload({ target: { files: [file] } } as any);
+      }
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    await handleImageFiles(Array.from(files));
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const handleImageFiles = async (files: File[]) => {
+    setIsAnalyzingImage(true);
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
+        toast.warning('Invalid file type', `${file.name} is not an image file.`);
+        continue;
+      }
+
+      try {
+        let processedFile = file;
+        if (/\.(heic|heif)$/i.test(file.name)) {
+          try {
+            const heic2any = (await import('heic2any')).default as any;
+            const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+            processedFile = new File([blob as BlobPart], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+          } catch (err) {
+            toast.error('HEIC conversion failed', 'Please convert to JPG/PNG first.');
+            continue;
+          }
+        }
+
+        const preview = await fileToDataURL(processedFile);
+        toast.info('Analyzing image', 'Susan is analyzing the roof damage...');
+        const assessment = await analyzeRoofImage(processedFile);
+
+        const analysisText = `**Image Analysis: ${file.name}**\n\n${assessment.analysis.damageDetected ? '🔴 **DAMAGE DETECTED**' : '✅ **NO DAMAGE DETECTED**'}\n\n**Severity:** ${assessment.analysis.severity.toUpperCase()}\n**Urgency:** ${assessment.analysis.urgency.toUpperCase()}\n**Claim Viability:** ${assessment.analysis.claimViability.toUpperCase()}\n\n**Affected Area:** ${assessment.analysis.affectedArea}\n**Estimated Size:** ${assessment.analysis.estimatedSize}\n\n${assessment.analysis.damageType.length > 0 ? `**Damage Types:** ${assessment.analysis.damageType.join(', ')}\n\n` : ''}**For Adjuster:**\n${assessment.analysis.policyLanguage}\n\n**Key Insurance Arguments:**\n${assessment.analysis.insuranceArguments.map((arg, i) => `${i + 1}. ${arg}`).join('\n')}\n\n**Recommendations:**\n${assessment.analysis.recommendations.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}${assessment.followUpQuestions.length > 0 ? `\n\n**Follow-up Questions:**\n${assessment.followUpQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}` : ''}`.trim();
+
+        setUploadedFiles(prev => [...prev, { name: file.name, content: analysisText, type: 'image', preview, file: processedFile }]);
+        setUserInput((prev) => prev ? `${prev}\n\n[Image: ${file.name}]` : `[Image: ${file.name}]\n\n${analysisText}`);
+        toast.success('Image analyzed', `Susan has analyzed ${file.name}`);
+      } catch (error) {
+        toast.error('Image analysis failed', (error as Error).message);
+      }
+    }
+
+    setIsAnalyzingImage(false);
+  };
+
+  const fileToDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   return (
-    <div className="roof-er-content-area">
+    <div
+      className="roof-er-content-area"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag-drop overlay */}
+      {isDragging && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(220, 38, 38, 0.1)',
+          border: '3px dashed var(--roof-red)',
+          borderRadius: '12px',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none'
+        }}>
+          <div style={{
+            background: 'var(--bg-elevated)',
+            padding: '24px 48px',
+            borderRadius: '12px',
+            border: '2px solid var(--roof-red)',
+            fontSize: '18px',
+            fontWeight: 600,
+            color: 'var(--text-primary)'
+          }}>
+            <ImageIcon className="w-8 h-8 inline mr-3" style={{ color: 'var(--roof-red)' }} />
+            Drop files here to upload
+          </div>
+        </div>
+      )}
+
       {/* Chat History Sidebar */}
       <ChatHistorySidebar
         isOpen={showHistorySidebar}
@@ -764,7 +1056,164 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
                 <div className="roof-er-message-content">
                   <div className="roof-er-message-text">
-                    {msg.sender === 'bot' ? (
+                    {msg.sender === 'bot' && msg.text.startsWith('EMAIL_GENERATED:') ? (
+                      // Special rendering for generated emails
+                      (() => {
+                        const [header, ...bodyParts] = msg.text.split('\n\n');
+                        const [, recipientType, tone] = header.split(':');
+                        const emailBody = bodyParts.join('\n\n');
+                        const emailData = generatedEmailData?.messageId === msg.id ? generatedEmailData : null;
+                        const compliance = emailData?.compliance;
+
+                        return (
+                          <div style={{
+                            background: 'var(--bg-elevated)',
+                            border: '2px solid var(--roof-red)',
+                            borderRadius: '12px',
+                            padding: '20px',
+                            marginTop: '8px'
+                          }}>
+                            {/* Email Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                              <Mail className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text-primary)' }}>
+                                  Generated Email
+                                </div>
+                                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                  To: {recipientType.charAt(0).toUpperCase() + recipientType.slice(1)} • Tone: {tone.charAt(0).toUpperCase() + tone.slice(1)}
+                                </div>
+                              </div>
+                              {compliance && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {compliance.canSend ? (
+                                    <ShieldCheck className="w-5 h-5" style={{ color: '#10b981' }} />
+                                  ) : (
+                                    <ShieldAlert className="w-5 h-5" style={{ color: '#f59e0b' }} />
+                                  )}
+                                  <span style={{ fontSize: '13px', fontWeight: 500, color: compliance.canSend ? '#10b981' : '#f59e0b' }}>
+                                    {compliance.score}/100
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Compliance Warnings */}
+                            {compliance && (compliance.violations.length > 0 || compliance.warnings.length > 0) && (
+                              <div style={{ marginBottom: '16px', padding: '12px', background: compliance.violations.length > 0 ? '#fef2f2' : '#fffbeb', borderRadius: '8px', border: `1px solid ${compliance.violations.length > 0 ? '#fecaca' : '#fde68a'}` }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                  {compliance.violations.length > 0 ? (
+                                    <XCircle className="w-4 h-4" style={{ color: '#dc2626' }} />
+                                  ) : (
+                                    <AlertTriangle className="w-4 h-4" style={{ color: '#d97706' }} />
+                                  )}
+                                  <span style={{ fontSize: '13px', fontWeight: 600, color: compliance.violations.length > 0 ? '#dc2626' : '#d97706' }}>
+                                    {compliance.violations.length > 0 ? 'Critical Violations Found' : 'Compliance Warnings'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                  {compliance.summary}
+                                </div>
+                                {compliance.violations.length > 0 && (
+                                  <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                                    {compliance.violations.slice(0, 2).map((v, i) => (
+                                      <div key={i} style={{ marginTop: i > 0 ? '4px' : 0 }}>
+                                        • Found: "<span style={{ fontWeight: 600 }}>{v.found}</span>" - {v.why}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Email Body */}
+                            <div style={{
+                              background: 'white',
+                              padding: '16px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
+                              fontSize: '14px',
+                              lineHeight: '1.6',
+                              color: 'var(--text-primary)',
+                              whiteSpace: 'pre-wrap',
+                              fontFamily: 'system-ui, -apple-system, sans-serif'
+                            }}>
+                              {emailBody}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleCopyEmail(emailBody)}
+                                style={{
+                                  padding: '10px 16px',
+                                  background: 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  color: 'white',
+                                  fontSize: '14px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  transition: 'all 0.2s',
+                                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
+                                }}
+                              >
+                                <Copy className="w-4 h-4" />
+                                Copy Email
+                              </button>
+                              {onStartEmail && (
+                                <button
+                                  onClick={() => handleOpenInEmailPanel(emailBody)}
+                                  style={{
+                                    padding: '10px 16px',
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    transition: 'all 0.2s'
+                                  }}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                  Edit in Email Panel
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setMessageToShare(msg);
+                                  setShareModalOpen(true);
+                                }}
+                                style={{
+                                  padding: '10px 16px',
+                                  background: 'var(--bg-elevated)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '8px',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '14px',
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <Users className="w-4 h-4" />
+                                Share with Team
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : msg.sender === 'bot' ? (
                       <S21ResponseFormatter
                         content={msg.text}
                         onStartEmail={onStartEmail}
@@ -920,6 +1369,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           style={{ display: 'none' }}
         />
 
+        {/* Image Upload Input (Hidden) */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          multiple
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+        />
+
         {/* Uploaded Files Display */}
         {uploadedFiles.length > 0 && (
           <div style={{
@@ -934,28 +1393,52 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               <div
                 key={file.name}
                 style={{
-                  padding: '6px 12px',
+                  padding: file.preview ? '6px' : '6px 12px',
                   background: 'var(--roof-red)',
                   borderRadius: '6px',
                   color: 'white',
                   fontSize: '13px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  position: 'relative'
                 }}
               >
-                <FileText className="w-4 h-4" />
-                <span>{file.name}</span>
+                {file.preview ? (
+                  <img
+                    src={file.preview}
+                    alt={file.name}
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      objectFit: 'cover',
+                      borderRadius: '4px'
+                    }}
+                  />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+                    {file.name}
+                  </span>
+                  {file.type === 'image' && (
+                    <span style={{ fontSize: '10px', opacity: 0.8 }}>
+                      {isAnalyzingImage ? 'Analyzing...' : 'Analyzed'}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => removeUploadedFile(file.name)}
                   style={{
-                    background: 'none',
+                    background: 'rgba(0,0,0,0.3)',
                     border: 'none',
                     color: 'white',
                     cursor: 'pointer',
-                    padding: '2px',
+                    padding: '4px',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    borderRadius: '4px'
                   }}
                   title="Remove file"
                 >
@@ -982,10 +1465,31 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <button
               type="button"
               className="roof-er-action-btn"
+              title="Upload Images (Auto-analyzes roof damage)"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isAnalyzingImage}
+            >
+              <ImageIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="roof-er-action-btn"
               title="Attach Document (PDF, DOCX, TXT, MD)"
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="roof-er-action-btn"
+              title="Generate Email"
+              onClick={() => setShowEmailDialog(true)}
+              style={{
+                background: showEmailDialog ? 'var(--roof-red)' : undefined,
+                color: showEmailDialog ? 'white' : undefined
+              }}
+            >
+              <Mail className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -1007,6 +1511,252 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Email Generation Dialog */}
+      {showEmailDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowEmailDialog(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Dialog Header */}
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Mail className="w-6 h-6" style={{ color: 'var(--roof-red)' }} />
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                    Generate Email
+                  </h2>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                    Susan will create a compliant, professional email
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmailDialog(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Dialog Body */}
+            <div style={{ padding: '24px' }}>
+              {/* Recipient Type */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Recipient Type
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {[
+                    { value: 'adjuster', label: 'Insurance Adjuster', icon: '👨‍💼' },
+                    { value: 'homeowner', label: 'Homeowner', icon: '🏠' },
+                    { value: 'insurance', label: 'Insurance Company', icon: '🏢' },
+                    { value: 'custom', label: 'Other', icon: '📧' }
+                  ].map((type) => (
+                    <button
+                      key={type.value}
+                      onClick={() => setEmailRecipientType(type.value as any)}
+                      style={{
+                        padding: '12px',
+                        background: emailRecipientType === type.value ? 'var(--roof-red)' : 'var(--bg-elevated)',
+                        border: `2px solid ${emailRecipientType === type.value ? 'var(--roof-red)' : 'var(--border-color)'}`,
+                        borderRadius: '8px',
+                        color: emailRecipientType === type.value ? 'white' : 'var(--text-primary)',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <span>{type.icon}</span>
+                      <span>{type.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tone */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Tone
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[
+                    { value: 'professional', label: 'Professional', icon: '💼' },
+                    { value: 'formal', label: 'Formal', icon: '📋' },
+                    { value: 'friendly', label: 'Friendly', icon: '😊' }
+                  ].map((tone) => (
+                    <button
+                      key={tone.value}
+                      onClick={() => setEmailTone(tone.value as any)}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: emailTone === tone.value ? 'var(--roof-red)' : 'var(--bg-elevated)',
+                        border: `2px solid ${emailTone === tone.value ? 'var(--roof-red)' : 'var(--border-color)'}`,
+                        borderRadius: '8px',
+                        color: emailTone === tone.value ? 'white' : 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>{tone.icon}</span>
+                      <span>{tone.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Key Points */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Key Points to Include
+                </label>
+                <textarea
+                  value={emailKeyPoints}
+                  onChange={(e) => setEmailKeyPoints(e.target.value)}
+                  placeholder="E.g., partial approval for hail damage, need full replacement, Maryland matching requirements..."
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    color: 'var(--text-primary)',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                  Tip: Include claim details, damage type, and desired outcome
+                </div>
+              </div>
+
+              {/* State Context Info */}
+              {selectedState && (
+                <div style={{
+                  padding: '12px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '20px'
+                }}>
+                  Email will use <span style={{ fontWeight: 600, color: 'var(--roof-red)' }}>{selectedState}</span> building codes and regulations
+                </div>
+              )}
+            </div>
+
+            {/* Dialog Footer */}
+            <div style={{
+              padding: '20px 24px',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => {
+                  setShowEmailDialog(false);
+                  setEmailKeyPoints('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEmailGeneration}
+                disabled={isGeneratingEmail || !emailKeyPoints.trim()}
+                style={{
+                  padding: '10px 24px',
+                  background: isGeneratingEmail || !emailKeyPoints.trim() ? 'var(--bg-secondary)' : 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: isGeneratingEmail || !emailKeyPoints.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
+                }}
+              >
+                {isGeneratingEmail ? (
+                  <>
+                    <Spinner />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Email
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share Modal */}
       <ShareModal

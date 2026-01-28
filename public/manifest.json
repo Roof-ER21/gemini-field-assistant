@@ -1,7 +1,7 @@
 {
-  "name": "S21 Field AI - Roof-ER Assistant",
-  "short_name": "S21 Field AI",
-  "description": "Susan/Agnes AI Field Assistant for Roof-ER Sales Reps - Insurance claims, training, and knowledge base",
+  "name": "ROOFER S21 - The Roof Docs AI Assistant",
+  "short_name": "ROOFER S21",
+  "description": "The Roof Docs AI Assistant - Egyptian-themed AI for insurance claims, training, and knowledge base",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
@@ -29,9 +29,9 @@
   "categories": ["business", "productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "Chat with Susan",
-      "short_name": "Susan",
-      "description": "Start chatting with Susan AI",
+      "name": "Chat with S21 AI",
+      "short_name": "S21 Chat",
+      "description": "Start chatting with ROOFER S21 AI",
       "url": "/?persona=susan",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
