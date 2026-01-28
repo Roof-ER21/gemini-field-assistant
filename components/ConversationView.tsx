@@ -742,6 +742,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             {messages.map((message, index) => {
               const isOwn = message.sender_id === currentUser?.id;
               const showDateHeader = shouldShowDateHeader(message, index);
+              const senderLabel = isOwn ? 'You' : (message.sender?.name || 'Teammate');
 
               return (
                 <React.Fragment key={message.id}>
@@ -786,6 +787,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                         color: isOwn ? 'white' : 'var(--text-primary)'
                       }}
                     >
+                      <div
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          marginBottom: '0.25rem',
+                          opacity: isOwn ? 0.9 : 0.8,
+                          color: isOwn ? 'rgba(255,255,255,0.9)' : 'var(--text-secondary)'
+                        }}
+                      >
+                        {senderLabel}
+                      </div>
                       {renderMessageContent(message)}
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>

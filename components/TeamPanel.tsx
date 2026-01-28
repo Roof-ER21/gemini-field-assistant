@@ -454,17 +454,23 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               const isGroup = conv.type === 'group';
               const displayName = isGroup ? (conv.name || 'Group Chat') : (otherParticipant?.name || 'Unknown');
               const lastContent = conv.last_message?.content as any;
-              const subtitle = isGroup
-                ? `${conv.participants.length} members`
-                : (conv.last_message?.message_type === 'text'
+              const lastSenderName = conv.last_message?.sender_id === currentUser?.id
+                ? 'You'
+                : (conv.last_message?.sender_name || otherParticipant?.name || 'Someone');
+              const messagePreview = conv.last_message
+                ? (conv.last_message.message_type === 'text'
                   ? (lastContent?.attachments?.length
                     ? (lastContent.attachments.length === 1 ? 'Shared a photo' : 'Shared photos')
                     : lastContent?.text || 'Message')
-                  : conv.last_message?.message_type === 'shared_chat'
+                  : conv.last_message.message_type === 'shared_chat'
                     ? 'Shared AI chat'
-                    : conv.last_message?.message_type === 'shared_email'
+                    : conv.last_message.message_type === 'shared_email'
                       ? 'Shared email'
-                      : 'Message');
+                      : 'Message')
+                : '';
+              const subtitle = conv.last_message
+                ? messagePreview
+                : (isGroup ? `${conv.participants.length} members` : 'No messages yet');
 
               return (
                 <div
@@ -544,9 +550,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                       }}
                     >
                       {conv.last_message ? (
-                        <span>{subtitle}</span>
+                        <span>
+                          {lastSenderName}: {subtitle}
+                        </span>
                       ) : (
-                        'No messages yet'
+                        subtitle
                       )}
                     </div>
                   </div>
