@@ -13,7 +13,7 @@
     --s21-text-secondary: #a8b2d1;
     --s21-success: #10b981;
     --s21-warning: #f59e0b;
-    --app-bg-image: url('/branding/command-center-bg.png');
+    --app-bg-image: url('/branding/command-center-bg.webp');
   }
 
   .theme-s21 {
