@@ -172,6 +172,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [learningSummary, setLearningSummary] = useState<any | null>(null);
+  const [showLearningPanel, setShowLearningPanel] = useState(true);
   const [feedbackModal, setFeedbackModal] = useState<{
     messageId: string;
     rating: 1 | -1;
@@ -1211,6 +1212,97 @@ Generate ONLY the email body text, no subject line or metadata.`;
           </div>
         ) : (
           <div className="roof-er-message-container">
+            {/* Susan Learning Panel */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(24,24,24,0.85), rgba(12,12,12,0.75))',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '14px',
+                padding: '12px 14px',
+                marginBottom: '14px',
+                backdropFilter: 'blur(10px) saturate(120%)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                  Susan Learning
+                </div>
+                <button
+                  onClick={() => setShowLearningPanel(prev => !prev)}
+                  style={{
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: showLearningPanel ? 'rgba(220,38,38,0.18)' : 'rgba(255,255,255,0.04)',
+                    color: 'var(--text-primary)',
+                    borderRadius: '999px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showLearningPanel ? 'Hide' : 'Show'}
+                </button>
+              </div>
+
+              {showLearningPanel && (
+                <div style={{ marginTop: '10px', display: 'grid', gap: '8px' }}>
+                  {!learningSummary && (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      No feedback yet. Use “Helpful” or “Needs work” on Susan replies to teach her.
+                    </div>
+                  )}
+
+                  {learningSummary && (
+                    <>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#86efac', fontWeight: 600 }}>Working</span>
+                        {(learningSummary.positive_tags || []).slice(0, 4).map((tag: any) => (
+                          <span
+                            key={`pos-${tag.tag}`}
+                            style={{
+                              fontSize: '0.7rem',
+                              color: '#bbf7d0',
+                              border: '1px solid rgba(34,197,94,0.35)',
+                              background: 'rgba(34,197,94,0.12)',
+                              padding: '2px 8px',
+                              borderRadius: '999px'
+                            }}
+                          >
+                            {tag.tag} · {tag.count}
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#fecaca', fontWeight: 600 }}>Needs work</span>
+                        {(learningSummary.negative_tags || []).slice(0, 4).map((tag: any) => (
+                          <span
+                            key={`neg-${tag.tag}`}
+                            style={{
+                              fontSize: '0.7rem',
+                              color: '#fecaca',
+                              border: '1px solid rgba(248,113,113,0.35)',
+                              background: 'rgba(248,113,113,0.12)',
+                              padding: '2px 8px',
+                              borderRadius: '999px'
+                            }}
+                          >
+                            {tag.tag} · {tag.count}
+                          </span>
+                        ))}
+                      </div>
+                      {(learningSummary.recent_wins?.length || learningSummary.recent_issues?.length) && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          <span style={{ color: '#e5e7eb' }}>Recent wins:</span>{' '}
+                          {(learningSummary.recent_wins || []).map((w: any) => w.comment).filter(Boolean).slice(0, 2).join(' • ') || 'N/A'}
+                          <span style={{ color: '#e5e7eb' }}>  |  Recent issues:</span>{' '}
+                          {(learningSummary.recent_issues || []).map((w: any) => w.comment).filter(Boolean).slice(0, 2).join(' • ') || 'N/A'}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {messages.map((msg) => (
               <div key={msg.id} className={`roof-er-message ${msg.sender === 'user' ? 'user' : 'ai'}`}>
                 <div className="roof-er-message-avatar">
