@@ -86,7 +86,7 @@ export function createMessagingRoutes(pool) {
             SELECT jsonb_agg(
               jsonb_build_object(
                 'user_id', u.id,
-                'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
+                'username', LOWER(SPLIT_PART(u.email, '@', 1)),
                 'name', u.name,
                 'email', u.email
               )
@@ -215,7 +215,7 @@ export function createMessagingRoutes(pool) {
             SELECT jsonb_agg(
               jsonb_build_object(
                 'user_id', u.id,
-                'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
+                'username', LOWER(SPLIT_PART(u.email, '@', 1)),
                 'name', u.name,
                 'email', u.email
               )
@@ -275,7 +275,7 @@ export function createMessagingRoutes(pool) {
           m.updated_at,
           jsonb_build_object(
             'id', u.id,
-            'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
+            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
             'name', u.name,
             'email', u.email
           ) as sender,
@@ -396,7 +396,7 @@ export function createMessagingRoutes(pool) {
           m.*,
           jsonb_build_object(
             'id', u.id,
-            'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
+            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
             'name', u.name,
             'email', u.email
           ) as sender
