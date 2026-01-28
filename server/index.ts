@@ -4128,6 +4128,592 @@ app.put('/api/admin/budget/company', async (req, res) => {
 });
 
 // ============================================================================
+// USER MEMORY ENDPOINTS
+// ============================================================================
+
+// Save user memories
+app.post('/api/memory', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const { memories } = req.body as {
+      memories: Array<{
+        memory_type: string;
+        category: string;
+        key: string;
+        value: string;
+        confidence: number;
+        source_type?: string;
+        source_session_id?: string;
+        source_message_id?: string;
+      }>;
+    };
+
+    if (!Array.isArray(memories) || memories.length === 0) {
+      return res.status(400).json({ error: 'No memories provided' });
+    }
+
+    const savedMemories = [];
+
+    for (const memory of memories) {
+      // Use upsert to update existing or insert new
+      const result = await pool.query(
+        `INSERT INTO user_memory (user_id, memory_type, category, key, value, confidence, source_type, source_session_id, source_message_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (user_id, memory_type, category, key)
+         DO UPDATE SET
+           value = CASE WHEN EXCLUDED.confidence >= user_memory.confidence THEN EXCLUDED.value ELSE user_memory.value END,
+           confidence = GREATEST(EXCLUDED.confidence, user_memory.confidence),
+           source_type = EXCLUDED.source_type,
+           source_session_id = EXCLUDED.source_session_id,
+           last_updated = NOW()
+         RETURNING id, memory_type, category, key, value, confidence`,
+        [
+          userId,
+          memory.memory_type,
+          memory.category,
+          memory.key,
+          memory.value,
+          memory.confidence,
+          memory.source_type || 'conversation',
+          memory.source_session_id,
+          memory.source_message_id
+        ]
+      );
+
+      if (result.rows.length > 0) {
+        savedMemories.push(result.rows[0]);
+      }
+    }
+
+    console.log(`✅ Saved ${savedMemories.length} memories for user ${email}`);
+    return res.json({ success: true, memories: savedMemories });
+  } catch (error) {
+    console.error('Error saving memories:', error);
+    return res.status(500).json({ error: 'Failed to save memories' });
+  }
+});
+
+// Get all user memories
+app.get('/api/memory', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { limit = 20 } = req.query as { limit?: any };
+
+    const result = await pool.query(
+      `SELECT m.* FROM user_memory m
+       JOIN users u ON m.user_id = u.id
+       WHERE LOWER(u.email) = LOWER($1)
+         AND (m.expires_at IS NULL OR m.expires_at > NOW())
+         AND m.confidence >= 0.5
+       ORDER BY m.confidence DESC, m.times_referenced DESC, m.last_accessed DESC
+       LIMIT $2`,
+      [email, Number(limit) || 20]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching memories:', error);
+    return res.status(500).json({ error: 'Failed to fetch memories' });
+  }
+});
+
+// Get relevant memories for a query
+app.get('/api/memory/relevant', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { query, limit = 10 } = req.query as { query?: string; limit?: any };
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query parameter required' });
+    }
+
+    // Use the database function for relevance search
+    const result = await pool.query(
+      `SELECT * FROM get_relevant_memories(
+         (SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1),
+         $2,
+         $3
+       )`,
+      [email, query, Number(limit) || 10]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching relevant memories:', error);
+    return res.status(500).json({ error: 'Failed to fetch relevant memories' });
+  }
+});
+
+// Update memory feedback
+app.post('/api/memory/:memoryId/feedback', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { memoryId } = req.params;
+    const { feedback } = req.body as { feedback: 'helpful' | 'incorrect' | 'outdated' | 'irrelevant' };
+
+    if (!feedback) {
+      return res.status(400).json({ error: 'Feedback type required' });
+    }
+
+    // Update memory based on feedback
+    let updateQuery = '';
+    if (feedback === 'helpful') {
+      updateQuery = `
+        UPDATE user_memory SET
+          times_helpful = times_helpful + 1,
+          confidence = LEAST(1.0, confidence + 0.1),
+          last_updated = NOW()
+        WHERE id = $1
+        RETURNING *`;
+    } else if (feedback === 'incorrect') {
+      updateQuery = `
+        UPDATE user_memory SET
+          times_incorrect = times_incorrect + 1,
+          confidence = GREATEST(0, confidence - 0.3),
+          last_updated = NOW()
+        WHERE id = $1
+        RETURNING *`;
+    } else if (feedback === 'outdated' || feedback === 'irrelevant') {
+      updateQuery = `
+        UPDATE user_memory SET
+          confidence = GREATEST(0, confidence - 0.2),
+          last_updated = NOW()
+        WHERE id = $1
+        RETURNING *`;
+    }
+
+    const result = await pool.query(updateQuery, [memoryId]);
+
+    // Log feedback
+    await pool.query(
+      `INSERT INTO memory_feedback (memory_id, user_id, feedback_type)
+       SELECT $1, u.id, $2
+       FROM users u WHERE LOWER(u.email) = LOWER($3)`,
+      [memoryId, feedback, email]
+    );
+
+    return res.json({ success: true, memory: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating memory feedback:', error);
+    return res.status(500).json({ error: 'Failed to update memory' });
+  }
+});
+
+// Delete a memory
+app.delete('/api/memory/:memoryId', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { memoryId } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM user_memory
+       WHERE id = $1 AND user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($2))
+       RETURNING id`,
+      [memoryId, email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Memory not found' });
+    }
+
+    return res.json({ success: true, deleted: memoryId });
+  } catch (error) {
+    console.error('Error deleting memory:', error);
+    return res.status(500).json({ error: 'Failed to delete memory' });
+  }
+});
+
+// Save conversation summary
+app.post('/api/memory/summaries', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const {
+      session_id,
+      summary,
+      key_facts,
+      decisions_reached,
+      open_questions,
+      action_items,
+      topics,
+      insurers_mentioned,
+      states_mentioned,
+      job_numbers_mentioned,
+      message_count,
+      user_sentiment,
+      conversation_start,
+      conversation_end
+    } = req.body;
+
+    if (!session_id || !summary) {
+      return res.status(400).json({ error: 'session_id and summary required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO conversation_summaries (
+         user_id, session_id, summary, key_facts, decisions_reached,
+         open_questions, action_items, topics, insurers_mentioned,
+         states_mentioned, job_numbers_mentioned, message_count,
+         user_sentiment, conversation_start, conversation_end
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT (user_id, session_id)
+       DO UPDATE SET
+         summary = EXCLUDED.summary,
+         key_facts = EXCLUDED.key_facts,
+         decisions_reached = EXCLUDED.decisions_reached,
+         open_questions = EXCLUDED.open_questions,
+         action_items = EXCLUDED.action_items,
+         topics = EXCLUDED.topics,
+         insurers_mentioned = EXCLUDED.insurers_mentioned,
+         states_mentioned = EXCLUDED.states_mentioned,
+         job_numbers_mentioned = EXCLUDED.job_numbers_mentioned,
+         message_count = EXCLUDED.message_count,
+         user_sentiment = EXCLUDED.user_sentiment
+       RETURNING *`,
+      [
+        userId,
+        session_id,
+        summary,
+        JSON.stringify(key_facts || []),
+        JSON.stringify(decisions_reached || []),
+        JSON.stringify(open_questions || []),
+        JSON.stringify(action_items || []),
+        JSON.stringify(topics || []),
+        JSON.stringify(insurers_mentioned || []),
+        JSON.stringify(states_mentioned || []),
+        JSON.stringify(job_numbers_mentioned || []),
+        message_count || 0,
+        user_sentiment,
+        conversation_start,
+        conversation_end
+      ]
+    );
+
+    console.log(`✅ Saved conversation summary for session ${session_id}`);
+    return res.json({ success: true, summary: result.rows[0] });
+  } catch (error) {
+    console.error('Error saving conversation summary:', error);
+    return res.status(500).json({ error: 'Failed to save summary' });
+  }
+});
+
+// Get conversation summaries
+app.get('/api/memory/summaries', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { limit = 10 } = req.query as { limit?: any };
+
+    const result = await pool.query(
+      `SELECT cs.* FROM conversation_summaries cs
+       JOIN users u ON cs.user_id = u.id
+       WHERE LOWER(u.email) = LOWER($1)
+       ORDER BY cs.created_at DESC
+       LIMIT $2`,
+      [email, Number(limit) || 10]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching conversation summaries:', error);
+    return res.status(500).json({ error: 'Failed to fetch summaries' });
+  }
+});
+
+// ============================================================================
+// EMAIL PATTERN ENDPOINTS
+// ============================================================================
+
+// Track email generation
+app.post('/api/email-patterns', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const {
+      email_type,
+      insurer,
+      state,
+      subject_template,
+      arguments_used,
+      primary_argument,
+      code_citations,
+      tone,
+      source_job_id,
+      source_email_id
+    } = req.body;
+
+    if (!email_type) {
+      return res.status(400).json({ error: 'email_type required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO email_patterns (
+         user_id, email_type, insurer, state, subject_template,
+         arguments_used, primary_argument, code_citations, tone,
+         source_job_id, source_email_id, sent_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+       RETURNING *`,
+      [
+        userId,
+        email_type,
+        insurer,
+        state,
+        subject_template,
+        JSON.stringify(arguments_used || []),
+        primary_argument,
+        JSON.stringify(code_citations || []),
+        tone || 'professional',
+        source_job_id,
+        source_email_id
+      ]
+    );
+
+    console.log(`✅ Tracked email pattern: ${email_type} for ${insurer || 'unknown insurer'}`);
+    return res.json({ success: true, id: result.rows[0].id, pattern: result.rows[0] });
+  } catch (error) {
+    console.error('Error tracking email pattern:', error);
+    return res.status(500).json({ error: 'Failed to track email pattern' });
+  }
+});
+
+// Update email outcome
+app.patch('/api/email-patterns/:patternId/outcome', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { patternId } = req.params;
+    const {
+      outcome,
+      outcome_notes,
+      response_time_days,
+      amount_approved,
+      is_successful,
+      success_factors,
+      outcome_recorded_at
+    } = req.body;
+
+    if (!outcome) {
+      return res.status(400).json({ error: 'outcome required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE email_patterns SET
+         outcome = $2,
+         outcome_notes = $3,
+         response_time_days = $4,
+         amount_approved = $5,
+         is_successful = $6,
+         success_factors = $7,
+         outcome_recorded_at = $8,
+         updated_at = NOW()
+       WHERE id = $1 AND user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($9))
+       RETURNING *`,
+      [
+        patternId,
+        outcome,
+        outcome_notes,
+        response_time_days,
+        amount_approved,
+        is_successful !== undefined ? is_successful : (outcome === 'approved' || outcome === 'partial'),
+        JSON.stringify(success_factors || []),
+        outcome_recorded_at || new Date().toISOString(),
+        email
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pattern not found' });
+    }
+
+    console.log(`✅ Updated email pattern ${patternId} outcome: ${outcome}`);
+    return res.json({ success: true, pattern: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating email pattern outcome:', error);
+    return res.status(500).json({ error: 'Failed to update outcome' });
+  }
+});
+
+// Get email patterns (with filters)
+app.get('/api/email-patterns', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const {
+      insurer,
+      state,
+      email_type,
+      outcome,
+      successful_only,
+      limit = 20
+    } = req.query as {
+      insurer?: string;
+      state?: string;
+      email_type?: string;
+      outcome?: string;
+      successful_only?: string;
+      limit?: any;
+    };
+
+    let query = `
+      SELECT ep.* FROM email_patterns ep
+      JOIN users u ON ep.user_id = u.id
+      WHERE LOWER(u.email) = LOWER($1)
+    `;
+    const params: any[] = [email];
+    let paramIndex = 2;
+
+    if (insurer) {
+      query += ` AND LOWER(ep.insurer) = LOWER($${paramIndex++})`;
+      params.push(insurer);
+    }
+
+    if (state) {
+      query += ` AND ep.state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    if (email_type) {
+      query += ` AND ep.email_type = $${paramIndex++}`;
+      params.push(email_type);
+    }
+
+    if (outcome) {
+      query += ` AND ep.outcome = $${paramIndex++}`;
+      params.push(outcome);
+    }
+
+    if (successful_only === 'true') {
+      query += ` AND ep.is_successful = true`;
+    }
+
+    query += ` ORDER BY ep.created_at DESC LIMIT $${paramIndex}`;
+    params.push(Number(limit) || 20);
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching email patterns:', error);
+    return res.status(500).json({ error: 'Failed to fetch email patterns' });
+  }
+});
+
+// Get email pattern success rates
+app.get('/api/email-patterns/success-rates', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { insurer, state } = req.query as { insurer?: string; state?: string };
+
+    let query = `
+      SELECT * FROM email_pattern_success_rates
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (insurer) {
+      query += ` AND LOWER(insurer) = LOWER($${paramIndex++})`;
+      params.push(insurer);
+    }
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    query += ` ORDER BY success_rate_pct DESC NULLS LAST`;
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching success rates:', error);
+    return res.status(500).json({ error: 'Failed to fetch success rates' });
+  }
+});
+
+// ============================================================================
+// JOB CONVERSATION ENDPOINTS
+// ============================================================================
+
+// Get conversations linked to a job
+app.get('/api/jobs/:jobId/conversations', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { jobId } = req.params;
+
+    const result = await pool.query(
+      `SELECT cs.session_id, cs.summary, jcl.job_specific_decisions as key_decisions,
+              cs.topics, cs.created_at as timestamp
+       FROM job_conversation_links jcl
+       JOIN conversation_summaries cs ON jcl.summary_id = cs.id
+       JOIN users u ON jcl.user_id = u.id
+       WHERE jcl.job_id = $1 AND LOWER(u.email) = LOWER($2)
+       ORDER BY cs.created_at DESC
+       LIMIT 20`,
+      [jobId, email]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching job conversations:', error);
+    return res.status(500).json({ error: 'Failed to fetch job conversations' });
+  }
+});
+
+// Link a conversation to a job
+app.post('/api/jobs/:jobId/conversations', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const { jobId } = req.params;
+    const { session_id, summary, key_decisions, topics } = req.body;
+
+    if (!session_id || !summary) {
+      return res.status(400).json({ error: 'session_id and summary required' });
+    }
+
+    // First, ensure the conversation summary exists
+    const summaryResult = await pool.query(
+      `INSERT INTO conversation_summaries (user_id, session_id, summary, topics, message_count)
+       VALUES ($1, $2, $3, $4, 0)
+       ON CONFLICT (user_id, session_id) DO UPDATE SET summary = EXCLUDED.summary
+       RETURNING id`,
+      [userId, session_id, summary, JSON.stringify(topics || [])]
+    );
+
+    const summaryId = summaryResult.rows[0].id;
+
+    // Create the link
+    await pool.query(
+      `INSERT INTO job_conversation_links (job_id, summary_id, user_id, job_specific_decisions)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (job_id, summary_id) DO UPDATE SET
+         job_specific_decisions = EXCLUDED.job_specific_decisions`,
+      [jobId, summaryId, userId, JSON.stringify(key_decisions || [])]
+    );
+
+    console.log(`✅ Linked conversation ${session_id} to job ${jobId}`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error linking conversation to job:', error);
+    return res.status(500).json({ error: 'Failed to link conversation' });
+  }
+});
+
+// ============================================================================
 // INSURANCE COMPANIES ENDPOINTS
 // ============================================================================
 

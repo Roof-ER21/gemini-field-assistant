@@ -24,6 +24,9 @@ import {
   getCompliancePromptInstructions,
   ComplianceResult
 } from '../services/emailComplianceService';
+import { memoryService, ExtractedMemory } from '../services/memoryService';
+import { jobContextService } from '../services/jobContextService';
+import { emailPatternService, EmailType } from '../services/emailPatternService';
 
 /**
  * Extract and compress key context from conversation history
@@ -448,6 +451,26 @@ Generate ONLY the email body text, no subject line or metadata.`;
         session_id: currentSessionId,
       });
 
+      // Track email pattern for learning
+      try {
+        const emailTypeMap: Record<string, EmailType> = {
+          'adjuster': 'supplement',
+          'homeowner': 'follow_up',
+          'insurance': 'dispute',
+          'custom': 'general'
+        };
+        await emailPatternService.trackEmailGeneration({
+          emailType: emailTypeMap[emailRecipientType] || 'general',
+          state: selectedState || undefined,
+          body: emailBody,
+          tone: emailTone as 'professional' | 'firm' | 'urgent' | 'collaborative' | 'friendly',
+          sourceEmailId: emailMessage.id,
+        });
+        console.log('[Memory] Tracked email pattern for learning');
+      } catch (patternError) {
+        console.warn('[Memory] Error tracking email pattern:', patternError);
+      }
+
       setShowEmailDialog(false);
       setEmailKeyPoints('');
 
@@ -546,6 +569,38 @@ Generate ONLY the email body text, no subject line or metadata.`;
         systemPrompt += `\n\nCURRENT STATE CONTEXT: ${selectedState}\nThe user is working in ${selectedState}. Tailor all advice, building codes, and strategies specifically for ${selectedState}.`;
       } else {
         systemPrompt += `\n\nNO STATE SELECTED: Do not assume a state. Provide guidance that is valid across Virginia (VA), Maryland (MD), and Pennsylvania (PA). Where requirements differ, explicitly call out differences per state. Do not apply MD-only matching rules unless the user confirms Maryland.`;
+      }
+
+      // MEMORY ENHANCEMENT: Build user context from persistent memories
+      try {
+        const userMemoryContext = await memoryService.buildUserContext();
+        if (userMemoryContext) {
+          systemPrompt += userMemoryContext;
+          console.log('[Memory] Added user memory context to prompt');
+        }
+
+        // Check for job mentions and add job context
+        const jobContext = await jobContextService.buildContextFromQuery(originalQuery);
+        if (jobContext) {
+          systemPrompt += jobContext;
+          console.log('[Memory] Added job context to prompt');
+        }
+
+        // If query relates to email, add pattern insights
+        const emailKeywords = /\b(email|write|send|draft|compose|letter)\b/i;
+        if (emailKeywords.test(originalQuery)) {
+          // Detect email type and get insights
+          const emailInsights = await emailPatternService.buildEmailInsights({
+            state: selectedState || undefined,
+          });
+          if (emailInsights) {
+            systemPrompt += emailInsights;
+            console.log('[Memory] Added email pattern insights to prompt');
+          }
+        }
+      } catch (memoryError) {
+        console.warn('[Memory] Error loading memory context:', memoryError);
+        // Continue without memory - don't block the main flow
       }
 
       let userPrompt = originalQuery;
@@ -648,6 +703,39 @@ Generate ONLY the email body text, no subject line or metadata.`;
         sources: sources.length > 0 ? sources : undefined,
         session_id: currentSessionId,
       });
+
+      // MEMORY EXTRACTION: Extract and save memories from this exchange
+      try {
+        const recentExchange = [
+          { sender: 'user' as const, text: originalQuery },
+          { sender: 'bot' as const, text: responseText }
+        ];
+        const extractedMemories = memoryService.extractMemoriesFromConversation(
+          recentExchange,
+          currentSessionId
+        );
+
+        if (extractedMemories.length > 0) {
+          await memoryService.saveMemories(extractedMemories, currentSessionId);
+          console.log(`[Memory] Extracted and saved ${extractedMemories.length} memories`);
+        }
+
+        // Auto-link conversation to job if job was detected
+        const detectedJob = await jobContextService.getDetectedJob(originalQuery);
+        if (detectedJob) {
+          await jobContextService.linkConversationToJob(
+            currentSessionId,
+            detectedJob.id,
+            `Discussion about: ${originalQuery.substring(0, 100)}${originalQuery.length > 100 ? '...' : ''}`,
+            [], // key decisions will be extracted later
+            recentContext.damageDetails || []
+          );
+          console.log(`[Memory] Linked conversation to job ${detectedJob.jobNumber}`);
+        }
+      } catch (memoryError) {
+        console.warn('[Memory] Error saving memories:', memoryError);
+        // Don't block - memory is enhancement, not critical
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
