@@ -29,6 +29,7 @@ import {
   Conversation
 } from '../services/messagingService';
 import { authService } from '../services/authService';
+import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface ConversationViewProps {
   conversation: Conversation;
@@ -53,6 +54,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const [attachments, setAttachments] = useState<MessageContent['attachments']>([]);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [teamMap, setTeamMap] = useState<Record<string, TeamMember>>({});
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[]>([]);
@@ -74,7 +76,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentUser = authService.getCurrentUser();
-  const canSend = inputText.trim().length > 0 || (attachments && attachments.length > 0);
+  const canSend = (inputText.trim().length > 0 || (attachments && attachments.length > 0)) && !uploadingAttachments;
 
   const conversationId = conversation.id;
 
@@ -99,6 +101,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const groupMembers = React.useMemo(() => {
     return (conversation.participants || []).filter(p => p.email !== currentUser?.email);
   }, [conversation.participants, currentUser?.email]);
+
+  const otherDisplayName = otherParticipant
+    ? formatDisplayName(otherParticipant.name, otherParticipant.email)
+    : 'Teammate';
 
   // Fetch messages
   const fetchMessages = useCallback(async (beforeMessageId?: string) => {
@@ -819,7 +825,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const mentionMatches = mentionSearchText
     ? availableMentions.filter(p =>
         p.username.toLowerCase().startsWith(mentionSearchText.toLowerCase()) ||
-        p.name.toLowerCase().includes(mentionSearchText.toLowerCase())
+        (p.name || '').toLowerCase().includes(mentionSearchText.toLowerCase())
       )
     : availableMentions;
 
@@ -827,6 +833,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     if (!files || files.length === 0) return;
     const maxSize = 10 * 1024 * 1024;
     const newAttachments: NonNullable<MessageContent['attachments']> = [];
+    setUploadingAttachments(true);
 
     for (const file of Array.from(files)) {
       if (file.size > maxSize) {
@@ -841,13 +848,24 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         reader.readAsDataURL(file);
       });
 
-      newAttachments.push({
-        id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      const uploaded = await messagingService.uploadAttachment({
         name: file.name,
-        type: file.type,
+        type: file.type || 'application/octet-stream',
         size: file.size,
-        url: dataUrl
+        dataUrl
       });
+
+      if (uploaded) {
+        newAttachments.push(uploaded);
+      } else {
+        newAttachments.push({
+          id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size,
+          url: dataUrl
+        });
+      }
     }
 
     if (newAttachments.length > 0) {
@@ -857,6 +875,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    setUploadingAttachments(false);
   };
 
   return (
@@ -912,7 +931,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   fontWeight: '600'
                 }}
               >
-                {otherParticipant.name.charAt(0).toUpperCase()}
+                {otherDisplayName.charAt(0).toUpperCase()}
               </div>
               <div style={{ position: 'absolute', bottom: '-2px', right: '-2px' }}>
                 <StatusIndicator status={teamMap[otherParticipant.userId]?.status || otherParticipant.status} />
@@ -921,7 +940,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
 
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                {otherParticipant.name}
+                {otherDisplayName}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 {(teamMap[otherParticipant.userId]?.status || otherParticipant.status) === 'online' ? (
@@ -1091,7 +1110,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                     }}
                   >
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      {result.sender?.name || 'Teammate'} • {new Date(result.created_at).toLocaleString()}
+                      {formatDisplayName(result.sender?.name, result.sender?.email)} • {new Date(result.created_at).toLocaleString()}
                     </div>
                     <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
                       {(() => {
@@ -1125,22 +1144,31 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             ) : (
               <div style={{ display: 'grid', gap: '0.5rem' }}>
                 {pinnedMessages.slice(0, 5).map((pin) => (
-                  <div
+                  <button
                     key={pin.id}
+                    onClick={() => {
+                      const target = document.getElementById(`message-${pin.message_id}`);
+                      if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setShowPinTray(false);
+                      }
+                    }}
                     style={{
                       padding: '0.5rem 0.75rem',
                       background: 'var(--bg-primary)',
                       borderRadius: '8px',
-                      border: '1px solid rgba(234,179,8,0.2)'
+                      border: '1px solid rgba(234,179,8,0.2)',
+                      textAlign: 'left',
+                      cursor: 'pointer'
                     }}
                   >
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      {pin.message?.sender?.name || 'Teammate'} • {new Date(pin.message?.created_at).toLocaleString()}
+                      {formatDisplayName(pin.message?.sender?.name, pin.message?.sender?.email)} • {new Date(pin.message?.created_at).toLocaleString()}
                     </div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
                       {(pin.message?.content as MessageContent)?.text || 'Message'}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1180,7 +1208,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             {messages.map((message, index) => {
               const isOwn = message.sender_id === currentUser?.id;
               const showDateHeader = shouldShowDateHeader(message, index);
-              const senderLabel = isOwn ? 'You' : (message.sender?.name || 'Teammate');
+              const senderLabel = isOwn ? 'You' : formatDisplayName(message.sender?.name, message.sender?.email);
 
               return (
                 <React.Fragment key={message.id}>
@@ -1206,6 +1234,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   )}
 
                   <div
+                    id={`message-${message.id}`}
                     style={{
                       display: 'flex',
                       justifyContent: isOwn ? 'flex-end' : 'flex-start',
@@ -1353,7 +1382,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                         (() => {
                           const seenBy = message.read_receipts
                             .filter(id => id !== currentUser?.id)
-                            .map(id => teamMap[id]?.name || conversation.participants.find(p => p.user_id === id)?.name || 'Teammate');
+                            .map(id => {
+                              const participant = conversation.participants.find(p => p.user_id === id);
+                              const name = teamMap[id]?.name || participant?.name;
+                              const email = teamMap[id]?.email || participant?.email;
+                              return formatDisplayName(name, email);
+                            });
                           if (seenBy.length === 0) return null;
                           return (
                             <div style={{ fontSize: '0.65rem', marginTop: '0.15rem', opacity: 0.7 }}>
@@ -1430,55 +1464,58 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 No matches
               </div>
             ) : (
-              mentionMatches.map((person) => (
-                <button
-                  key={person.id}
-                  onClick={() => {
-                    const lastAtIndex = inputText.lastIndexOf('@');
-                    const newText = inputText.slice(0, lastAtIndex) + '@' + person.username + ' ';
-                    setInputText(newText);
-                    setShowMentionDropdown(false);
-                    inputRef.current?.focus();
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div
+              mentionMatches.map((person) => {
+                const displayName = formatDisplayName(person.name, person.email);
+                return (
+                  <button
+                    key={person.id}
+                    onClick={() => {
+                      const lastAtIndex = inputText.lastIndexOf('@');
+                      const newText = inputText.slice(0, lastAtIndex) + '@' + person.username + ' ';
+                      setInputText(newText);
+                      setShowMentionDropdown(false);
+                      inputRef.current?.focus();
+                    }}
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      width: '100%',
+                      padding: '0.75rem 1rem',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: '600',
-                      fontSize: '0.875rem'
+                      gap: '0.75rem',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: 'var(--text-primary)'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    {person.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: '500' }}>{person.name}</div>
-                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                      @{person.username}
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontWeight: '600',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
-                  </div>
-                </button>
-              ))
+                    <div>
+                      <div style={{ fontWeight: '500' }}>{displayName}</div>
+                      <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                        @{person.username}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         )}
@@ -1682,6 +1719,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {uploadingAttachments && (
+          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            Uploading attachments...
           </div>
         )}
       </div>

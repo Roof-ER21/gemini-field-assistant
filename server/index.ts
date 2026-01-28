@@ -771,6 +771,107 @@ app.get('/api/chat/messages', async (req, res) => {
   }
 });
 
+// Save feedback on Susan responses
+app.post('/api/chat/feedback', async (req, res) => {
+  try {
+    const { message_id, session_id, rating, tags, comment, response_excerpt } = req.body;
+    const email = getRequestEmail(req);
+    const userId = await getOrCreateUserIdByEmail(email);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    if (![1, -1].includes(rating)) {
+      return res.status(400).json({ error: 'Rating must be 1 or -1' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO chat_feedback
+       (user_id, session_id, message_id, rating, tags, comment, response_excerpt)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        userId,
+        session_id || null,
+        message_id || null,
+        rating,
+        tags && Array.isArray(tags) ? tags : null,
+        comment || null,
+        response_excerpt || null
+      ]
+    );
+
+    res.json({ success: true, feedback: result.rows[0] });
+  } catch (error) {
+    console.error('Error saving chat feedback:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get learning summary from feedback
+app.get('/api/chat/learning', async (req, res) => {
+  try {
+    const windowDays = parseInt((req.query.window_days as string) || '45');
+    const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+    const [positiveTags, negativeTags, recentWins, recentIssues] = await Promise.all([
+      pool.query(
+        `SELECT tag, COUNT(*)::int as count
+         FROM (
+           SELECT unnest(tags) as tag
+           FROM chat_feedback
+           WHERE rating = 1 AND tags IS NOT NULL AND created_at >= $1
+         ) t
+         GROUP BY tag
+         ORDER BY count DESC
+         LIMIT 6`,
+        [windowStart]
+      ),
+      pool.query(
+        `SELECT tag, COUNT(*)::int as count
+         FROM (
+           SELECT unnest(tags) as tag
+           FROM chat_feedback
+           WHERE rating = -1 AND tags IS NOT NULL AND created_at >= $1
+         ) t
+         GROUP BY tag
+         ORDER BY count DESC
+         LIMIT 6`,
+        [windowStart]
+      ),
+      pool.query(
+        `SELECT comment, response_excerpt, created_at
+         FROM chat_feedback
+         WHERE rating = 1 AND comment IS NOT NULL AND created_at >= $1
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [windowStart]
+      ),
+      pool.query(
+        `SELECT comment, response_excerpt, created_at
+         FROM chat_feedback
+         WHERE rating = -1 AND comment IS NOT NULL AND created_at >= $1
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [windowStart]
+      )
+    ]);
+
+    res.json({
+      success: true,
+      window_days: windowDays,
+      positive_tags: positiveTags.rows,
+      negative_tags: negativeTags.rows,
+      recent_wins: recentWins.rows,
+      recent_issues: recentIssues.rows
+    });
+  } catch (error) {
+    console.error('Error fetching learning summary:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // ============================================================================
 // DOCUMENT TRACKING ENDPOINTS
 // ============================================================================
@@ -4759,6 +4860,22 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   console.error('Server error:', err);
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
+
+// ============================================================================
+// UPLOADS (Static)
+// ============================================================================
+
+try {
+  const uploadsDir = path.resolve(__dirname, '../uploads');
+  if (fs.existsSync(uploadsDir)) {
+    app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
+    console.log('✅ Uploads static serving enabled:', uploadsDir);
+  } else {
+    console.log('⚠️  uploads directory not found at:', uploadsDir);
+  }
+} catch (e) {
+  console.error('❌ Error configuring uploads serving:', e);
+}
 
 // ============================================================================
 // STATIC FILE SERVING (Production)

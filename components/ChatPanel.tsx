@@ -7,7 +7,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -171,6 +171,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [messageToShare, setMessageToShare] = useState<Message | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [learningSummary, setLearningSummary] = useState<any | null>(null);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    messageId: string;
+    rating: 1 | -1;
+    responseExcerpt: string;
+  } | null>(null);
+  const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({});
 
   // Email generation state
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -203,11 +212,35 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     { code: 'PA', name: 'Pennsylvania', color: '#DC2626' }
   ];
 
+  const positiveFeedbackTags = [
+    'Clear',
+    'Actionable',
+    'Accurate',
+    'Helpful tone',
+    'Great citations',
+    'Saved time'
+  ];
+
+  const negativeFeedbackTags = [
+    'Too generic',
+    'Incorrect',
+    'Missing details',
+    'Too long',
+    'Not insurance-specific',
+    'Confusing'
+  ];
+
   // Effect to initialize and load messages from localStorage
   useEffect(() => {
     multiAI.getAvailableProviders().then(providers => {
       setAvailableProviders(providers);
       console.log('Available AI providers:', providers.length);
+    });
+
+    databaseService.getChatLearningSummary().then((summary) => {
+      if (summary) {
+        setLearningSummary(summary);
+      }
     });
 
     // Load saved state selection
@@ -503,6 +536,29 @@ Generate ONLY the email body text, no subject line or metadata.`;
     }
   };
 
+  const handleSubmitFeedback = async () => {
+    if (!feedbackModal) return;
+
+    await databaseService.submitChatFeedback({
+      message_id: feedbackModal.messageId,
+      session_id: currentSessionId,
+      rating: feedbackModal.rating,
+      tags: feedbackTags,
+      comment: feedbackComment.trim() || undefined,
+      response_excerpt: feedbackModal.responseExcerpt
+    });
+
+    setFeedbackGiven(prev => ({ ...prev, [feedbackModal.messageId]: true }));
+    setFeedbackModal(null);
+    setFeedbackTags([]);
+    setFeedbackComment('');
+
+    const updatedSummary = await databaseService.getChatLearningSummary();
+    if (updatedSummary) {
+      setLearningSummary(updatedSummary);
+    }
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!userInput.trim() || isLoading) return;
@@ -605,6 +661,20 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
       let userPrompt = originalQuery;
       let sources: any[] = [];
+      let learningContext = '';
+
+      if (learningSummary) {
+        const positives = learningSummary.positive_tags?.map((t: any) => t.tag).join(', ');
+        const negatives = learningSummary.negative_tags?.map((t: any) => t.tag).join(', ');
+        const wins = learningSummary.recent_wins?.map((w: any) => w.comment).filter(Boolean).slice(0, 3).join(' | ');
+        const issues = learningSummary.recent_issues?.map((w: any) => w.comment).filter(Boolean).slice(0, 3).join(' | ');
+
+        learningContext = `\n\nTEAM FEEDBACK SUMMARY (use to improve future answers):\n` +
+          `- What works: ${positives || 'No strong signal yet'}\n` +
+          `- Needs improvement: ${negatives || 'No strong signal yet'}\n` +
+          `- Recent wins: ${wins || 'N/A'}\n` +
+          `- Recent issues: ${issues || 'N/A'}\n`;
+      }
 
       // Include uploaded file content in the prompt
       if (uploadedFiles.length > 0) {
@@ -626,6 +696,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
         }
         sources = ragContext.sources;
         console.log(`[RAG] Found ${sources.length} relevant documents${selectedState ? ` (State: ${selectedState})` : ''}`);
+      }
+
+      if (learningContext) {
+        systemPrompt += learningContext;
       }
 
       // Build conversation context with compression for older messages
@@ -1380,6 +1454,56 @@ Generate ONLY the email body text, no subject line or metadata.`;
                         <Users className="w-4 h-4" />
                         Share with Team
                       </button>
+                      {!feedbackGiven[msg.id] && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setFeedbackModal({ messageId: msg.id, rating: 1, responseExcerpt: msg.text.slice(0, 400) });
+                              setFeedbackTags([]);
+                              setFeedbackComment('');
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              background: 'rgba(34,197,94,0.12)',
+                              border: '1px solid rgba(34,197,94,0.45)',
+                              borderRadius: '999px',
+                              color: '#bbf7d0',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <ThumbsUp className="w-3.5 h-3.5" />
+                            Helpful
+                          </button>
+                          <button
+                            onClick={() => {
+                              setFeedbackModal({ messageId: msg.id, rating: -1, responseExcerpt: msg.text.slice(0, 400) });
+                              setFeedbackTags([]);
+                              setFeedbackComment('');
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              background: 'rgba(248,113,113,0.12)',
+                              border: '1px solid rgba(248,113,113,0.45)',
+                              borderRadius: '999px',
+                              color: '#fecaca',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <ThumbsDown className="w-3.5 h-3.5" />
+                            Needs work
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                   <div className="roof-er-message-time">
@@ -1404,6 +1528,105 @@ Generate ONLY the email body text, no subject line or metadata.`;
           </div>
         )}
       </div>
+
+      {feedbackModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setFeedbackModal(null)}
+        >
+          <div
+            style={{
+              width: '92%',
+              maxWidth: '420px',
+              background: 'var(--bg-elevated)',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid var(--border-color)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+              {feedbackModal.rating === 1 ? 'What worked?' : 'What needs improvement?'}
+            </h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {(feedbackModal.rating === 1 ? positiveFeedbackTags : negativeFeedbackTags).map(tag => {
+                const selected = feedbackTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      setFeedbackTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag]);
+                    }}
+                    style={{
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '999px',
+                      border: selected ? '1px solid var(--roof-red)' : '1px solid var(--border-color)',
+                      background: selected ? 'rgba(220,38,38,0.18)' : 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              value={feedbackComment}
+              onChange={(e) => setFeedbackComment(e.target.value)}
+              placeholder="Optional notes..."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem',
+                resize: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setFeedbackModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitFeedback}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white'
+                }}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="roof-er-input-area">

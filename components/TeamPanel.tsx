@@ -19,6 +19,7 @@ import {
 import { messagingService, TeamMember, Conversation } from '../services/messagingService';
 import { authService } from '../services/authService';
 import RoofFeed from './RoofFeed';
+import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface TeamPanelProps {
   onClose: () => void;
@@ -35,6 +36,9 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<Set<string>>(new Set());
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
 
   const currentUser = authService.getCurrentUser();
 
@@ -190,6 +194,12 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       other?.username?.toLowerCase().includes(query)
     );
   });
+
+  const conversationMap = React.useMemo(() => {
+    const map = new Map<string, Conversation>();
+    conversations.forEach(conv => map.set(conv.id, conv));
+    return map;
+  }, [conversations]);
 
   // Status indicator component
   const StatusIndicator: React.FC<{ status: TeamMember['status'] }> = ({ status }) => {
@@ -405,22 +415,38 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             />
           </div>
           {activeTab === 'messages' && (
-            <button
-              onClick={() => setShowGroupModal(true)}
-              style={{
-                marginTop: '0.75rem',
-                width: '100%',
-                padding: '0.6rem 0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(13, 148, 136, 0.4)',
-                background: 'rgba(13, 148, 136, 0.1)',
-                color: 'var(--text-primary)',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >
-              Create Group Chat
-            </button>
+            <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+              <button
+                onClick={() => setShowGroupModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(13, 148, 136, 0.4)',
+                  background: 'rgba(13, 148, 136, 0.1)',
+                  color: 'var(--text-primary)',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Create Group Chat
+              </button>
+              <button
+                onClick={() => setShowGlobalSearch(true)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(220, 38, 38, 0.4)',
+                  background: 'rgba(220, 38, 38, 0.12)',
+                  color: 'var(--text-primary)',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Search Messages
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -452,11 +478,13 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               const otherParticipant = conv.participants?.find(p => p.email !== currentUser?.email);
               const teamMember = teamMembers.find(m => m.userId === otherParticipant?.user_id);
               const isGroup = conv.type === 'group';
-              const displayName = isGroup ? (conv.name || 'Group Chat') : (otherParticipant?.name || 'Unknown');
+              const displayName = isGroup
+                ? (conv.name || 'Group Chat')
+                : formatDisplayName(otherParticipant?.name, otherParticipant?.email);
               const lastContent = conv.last_message?.content as any;
               const lastSenderName = conv.last_message?.sender_id === currentUser?.id
                 ? 'You'
-                : (conv.last_message?.sender_name || otherParticipant?.name || 'Someone');
+                : formatDisplayName(conv.last_message?.sender_name || otherParticipant?.name, otherParticipant?.email);
               const messagePreview = conv.last_message
                 ? (conv.last_message.message_type === 'text'
                   ? (lastContent?.attachments?.length
@@ -627,7 +655,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                       fontSize: '1rem'
                     }}
                   >
-                    {member.name.charAt(0).toUpperCase()}
+                    {formatDisplayName(member.name, member.email).charAt(0).toUpperCase()}
                   </div>
                   <div style={{ position: 'absolute', bottom: '-2px', right: '-2px' }}>
                     <StatusIndicator status={member.status} />
@@ -637,7 +665,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                 {/* Info */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
-                    {member.name}
+                    {formatDisplayName(member.name, member.email)}
                   </div>
                   <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span>@{member.username || member.email.split('@')[0]}</span>
@@ -757,7 +785,9 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                       }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{member.name}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {formatDisplayName(member.name, member.email)}
+                      </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{member.email}</div>
                     </div>
                   </label>
@@ -797,6 +827,122 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               >
                 Create
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGlobalSearch && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setShowGlobalSearch(false)}
+        >
+          <div
+            style={{
+              width: '92%',
+              maxWidth: '520px',
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Search Messages</h3>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                value={globalSearchQuery}
+                onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                placeholder="Search all conversations..."
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+              <button
+                onClick={async () => {
+                  if (!globalSearchQuery.trim()) return;
+                  const results = await messagingService.searchMessages(globalSearchQuery);
+                  setGlobalSearchResults(results);
+                }}
+                style={{
+                  padding: '0.6rem 0.9rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Search
+              </button>
+            </div>
+
+            <div style={{ marginTop: '1rem', maxHeight: '320px', overflow: 'auto', display: 'grid', gap: '0.5rem' }}>
+              {globalSearchResults.length === 0 ? (
+                <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  {globalSearchQuery ? 'No results yet.' : 'Type a query to search.'}
+                </div>
+              ) : (
+                globalSearchResults.map((result) => {
+                  const conv = conversationMap.get(result.conversation_id);
+                  const isGroup = conv?.type === 'group';
+                  const displayName = isGroup
+                    ? (conv?.name || result.conversation_name || 'Group Chat')
+                    : formatDisplayName(
+                        conv?.participants?.find(p => p.email !== currentUser?.email)?.name || result.conversation_name,
+                        conv?.participants?.find(p => p.email !== currentUser?.email)?.email
+                      );
+                  const content = result.content as any;
+                  const preview = result.message_type === 'poll'
+                    ? (content?.poll?.question || 'Poll')
+                    : result.message_type === 'event'
+                      ? (content?.event?.title || 'Event')
+                      : content?.attachments?.length
+                        ? 'Attachment'
+                        : content?.text || 'Message';
+
+                  return (
+                    <button
+                      key={result.id}
+                      onClick={() => {
+                        if (!conv) return;
+                        setShowGlobalSearch(false);
+                        setGlobalSearchResults([]);
+                        handleOpenConversation(conv);
+                      }}
+                      style={{
+                        padding: '0.6rem 0.75rem',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {displayName} • {formatDisplayName(result.sender?.name, result.sender?.email)}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', marginTop: '0.25rem' }}>
+                        {preview}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

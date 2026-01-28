@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { RoofPost, roofService } from '../services/roofService';
 import { authService } from '../services/authService';
+import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface PostCardProps {
   post: RoofPost;
@@ -32,6 +33,7 @@ const PostCard: React.FC<PostCardProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const currentUser = authService.getCurrentUser();
   const isAuthor = currentUser?.email?.toLowerCase() === post.author_email.toLowerCase();
+  const authorName = formatDisplayName(post.author_name, post.author_email);
 
   // Get initials for avatar
   const getInitials = (name: string) => {
@@ -135,7 +137,7 @@ const PostCard: React.FC<PostCardProps> = ({
               fontWeight: 700
             }}
           >
-            {getInitials(post.author_name)}
+            {getInitials(authorName)}
           </div>
 
           {/* Name and time */}
@@ -147,7 +149,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 fontSize: '14px'
               }}
             >
-              {post.author_name}
+              {authorName}
             </div>
             <div
               style={{

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { roofService, PostComment } from '../services/roofService';
 import { authService } from '../services/authService';
+import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface CommentSectionProps {
   postId: string;
@@ -418,6 +419,8 @@ const CommentItem: React.FC<CommentItemProps> = ({
   renderContent,
   isReply = false
 }) => {
+  const authorName = formatDisplayName(comment.author_name, comment.author_email);
+
   return (
     <div style={{ display: 'flex', gap: '10px' }}>
       {/* Avatar */}
@@ -436,14 +439,14 @@ const CommentItem: React.FC<CommentItemProps> = ({
           flexShrink: 0
         }}
       >
-        {getInitials(comment.author_name)}
+        {getInitials(authorName)}
       </div>
 
       <div style={{ flex: 1 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
           <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-            {comment.author_name}
+            {authorName}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
             {roofService.formatRelativeTime(comment.created_at)}

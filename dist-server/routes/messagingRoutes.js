@@ -4,6 +4,9 @@
  */
 import express from 'express';
 import { getPresenceService } from '../services/presenceService.js';
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
 const router = express.Router();
 // Helper to get message preview
 function getMessagePreview(content, maxLength = 100) {
@@ -601,6 +604,60 @@ export function createMessagingRoutes(pool) {
         }
     });
     // ============================================================================
+    // ATTACHMENTS (Server-side uploads)
+    // ============================================================================
+    /**
+     * POST /api/messages/attachments
+     * Upload an attachment (base64) and return a hosted URL
+     */
+    router.post('/attachments', async (req, res) => {
+        const userId = req.userId;
+        const { name, type, data_url, size } = req.body;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (!name || !type || !data_url) {
+            return res.status(400).json({ success: false, error: 'Attachment name, type, and data_url required' });
+        }
+        const maxSize = 10 * 1024 * 1024;
+        if (size && size > maxSize) {
+            return res.status(400).json({ success: false, error: 'Attachment too large (max 10MB)' });
+        }
+        const match = /^data:(.+);base64,(.+)$/.exec(data_url);
+        if (!match) {
+            return res.status(400).json({ success: false, error: 'Invalid data URL' });
+        }
+        const mimeType = match[1];
+        const base64Data = match[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+        if (buffer.length > maxSize) {
+            return res.status(400).json({ success: false, error: 'Attachment too large (max 10MB)' });
+        }
+        const ext = path.extname(name) || `.${mimeType.split('/')[1] || 'bin'}`;
+        const safeExt = ext.slice(0, 10);
+        const fileName = `${randomUUID()}${safeExt}`;
+        const uploadsDir = path.resolve(process.cwd(), 'uploads', 'messages');
+        try {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            fs.writeFileSync(path.join(uploadsDir, fileName), buffer);
+            const url = `/uploads/messages/${fileName}`;
+            res.json({
+                success: true,
+                attachment: {
+                    id: randomUUID(),
+                    name,
+                    type: mimeType,
+                    size: buffer.length,
+                    url
+                }
+            });
+        }
+        catch (error) {
+            console.error('Error saving attachment:', error);
+            res.status(500).json({ success: false, error: 'Failed to save attachment' });
+        }
+    });
+    // ============================================================================
     // READ RECEIPTS & NOTIFICATIONS
     // ============================================================================
     /**
@@ -699,6 +756,8 @@ export function createMessagingRoutes(pool) {
           m.message_type,
           m.content,
           m.created_at,
+          c.type as conversation_type,
+          c.name as conversation_name,
           jsonb_build_object(
             'id', u.id,
             'username', LOWER(SPLIT_PART(u.email, '@', 1)),
@@ -708,6 +767,7 @@ export function createMessagingRoutes(pool) {
         FROM team_messages m
         INNER JOIN users u ON u.id = m.sender_id
         INNER JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+        INNER JOIN conversations c ON c.id = m.conversation_id
         WHERE cp.user_id = $1
           AND (
             LOWER(COALESCE(m.content->>'text', m.content->'poll'->>'question', m.content->'event'->>'title', '')) LIKE $2

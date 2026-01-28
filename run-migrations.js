@@ -189,6 +189,13 @@ async function main() {
       console.error('❌ Migration 015 failed, but continuing verification...');
     }
 
+    const migration016Path = path.join(__dirname, 'database/migrations/016_chat_feedback.sql');
+    const success016 = await runMigration(client, migration016Path);
+
+    if (!success016) {
+      console.error('❌ Migration 016 failed, but continuing verification...');
+    }
+
     // Verify everything
     await verifyTables(client);
     await testBudgetAPI(client);

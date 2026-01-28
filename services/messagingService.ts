@@ -690,6 +690,35 @@ class MessagingService {
     return this.isConnected;
   }
 
+  // Upload attachment to server
+  async uploadAttachment(file: { name: string; type: string; size: number; dataUrl: string }): Promise<MessageContent['attachments'][number] | null> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/attachments`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data_url: file.dataUrl
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to upload attachment');
+
+      const data = await response.json();
+      if (!data.attachment) return null;
+      const apiBase = this.getApiUrl();
+      if (apiBase && data.attachment.url?.startsWith('/')) {
+        data.attachment.url = `${apiBase}${data.attachment.url}`;
+      }
+      return data.attachment;
+    } catch (error) {
+      console.error('[Messaging] Error uploading attachment:', error);
+      return null;
+    }
+  }
+
   // Search messages
   async searchMessages(query: string, conversationId?: string): Promise<Message[]> {
     try {

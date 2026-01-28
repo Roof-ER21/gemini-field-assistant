@@ -44,6 +44,26 @@ export interface ChatSession {
   messages?: ChatMessage[];
 }
 
+export interface ChatFeedback {
+  id: string;
+  user_id?: string;
+  session_id?: string;
+  message_id?: string;
+  rating: 1 | -1;
+  tags?: string[];
+  comment?: string;
+  response_excerpt?: string;
+  created_at?: Date;
+}
+
+export interface ChatLearningSummary {
+  window_days: number;
+  positive_tags: Array<{ tag: string; count: number }>;
+  negative_tags: Array<{ tag: string; count: number }>;
+  recent_wins: Array<{ comment: string; response_excerpt?: string; created_at: string }>;
+  recent_issues: Array<{ comment: string; response_excerpt?: string; created_at: string }>;
+}
+
 export interface DocumentView {
   id: string;
   user_id: string;
@@ -297,6 +317,56 @@ export class DatabaseService {
       if (res.ok) return await res.json();
     } catch {}
     return [];
+  }
+
+  async submitChatFeedback(feedback: Partial<ChatFeedback>): Promise<void> {
+    if (this.useLocalStorage) {
+      const feedbackStr = localStorage.getItem('chat_feedback') || '[]';
+      const feedbacks = JSON.parse(feedbackStr);
+      feedbacks.push({ ...feedback, created_at: new Date().toISOString() });
+      localStorage.setItem('chat_feedback', JSON.stringify(feedbacks));
+      return;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      const response = await fetch(`${this.apiBaseUrl}/chat/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+        body: JSON.stringify(feedback),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[DB] ❌ Failed to submit feedback:', response.status, errorText);
+      }
+    } catch (e) {
+      console.error('[DB] ❌ Failed to submit feedback - Exception:', (e as Error).message);
+    }
+  }
+
+  async getChatLearningSummary(windowDays: number = 45): Promise<ChatLearningSummary | null> {
+    if (this.useLocalStorage) {
+      return null;
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/chat/learning?window_days=${windowDays}`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {})
+        }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to fetch learning summary:', (e as Error).message);
+    }
+    return null;
   }
 
   // ============================================================================
