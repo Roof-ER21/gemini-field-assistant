@@ -33,9 +33,9 @@ const StateCodeReference: React.FC<StateCodeReferenceProps> = ({ selectedState }
       matchingRequired: true,
       primaryStrategy: 'IRC R908.3 Matching Requirements',
       tips: [
-        'Maryland REQUIRES insurance companies to account for matching',
+        'Maryland building codes require uniform appearance across roof planes',
         'Use matching arguments AGGRESSIVELY - this is your strongest argument',
-        'Insurance must pay for full replacement if matching is impossible',
+        'Code-compliant work requires full replacement when matching is impossible',
         'Cite IRC R908.3 and state-specific matching regulations'
       ],
       codes: ['IRC R908.3', 'MD Building Code R908.3', 'Matching Requirements']

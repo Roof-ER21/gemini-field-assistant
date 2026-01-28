@@ -4,16 +4,16 @@
 
 ### Maryland (MD) - Matching IS Required
 
-**Maryland DOES require insurance companies to account for matching.**
+**Maryland building codes require contractors to ensure uniform appearance across roof planes (IRC R908.3).**
 
 - Use matching arguments aggressively in MD claims
 - IRC R908.3 matching requirements fully apply
-- Insurance must pay for full replacement if matching is impossible
-- This is your strongest argument in MD
+- Code-compliant work requires full replacement when matching materials are unavailable
+- This is your strongest contractor documentation argument in MD
 
 ### Virginia (VA) & Pennsylvania (PA) - Matching NOT Required
 
-**Virginia and Pennsylvania do NOT require insurance companies to account for matching.**
+**Virginia and Pennsylvania building codes do NOT have the same matching requirements.**
 
 - Matching only applies if homeowner has a matching endorsement on their policy
 - **CRITICAL: Do NOT use matching arguments in VA/PA unless you confirm they have a matching endorsement**
