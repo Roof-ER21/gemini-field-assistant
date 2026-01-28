@@ -1,0 +1,60 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                EMAIL VERIFICATION CODE - QUICK FIX                   ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+PROBLEM: Users not receiving verification code emails
+
+ROOT CAUSE: No email provider API key configured
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                         5-MINUTE FIX                                 ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+1. GET API KEY
+   → Visit: https://resend.com/
+   → Sign up (free: 3,000 emails/month)
+   → Copy API key (starts with "re_")
+
+2. ADD TO .ENV.LOCAL
+   → Edit: /Users/a21/gemini-field-assistant/.env.local
+   → Add line: RESEND_API_KEY=re_your_actual_key_here
+
+3. RESTART SERVER
+   → Run: pkill -f "tsx watch server/index.ts"
+   → Run: npm run server:dev
+
+4. VERIFY
+   → Check logs for: "✅ Email service initialized with Resend"
+
+5. TEST
+   → Try login with: careers@theroofdocs.com
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                         VERIFY LOGS                                  ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+BEFORE FIX:
+   RESEND_API_KEY: ❌ NOT SET
+   📧 Email service in console mode (development)
+
+AFTER FIX:
+   RESEND_API_KEY: ✅ SET
+   ✅ Email service initialized with Resend
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                    ALTERNATIVE PROVIDERS                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+SendGrid:    SENDGRID_API_KEY=SG.xxxxx
+Gmail SMTP:  SMTP_HOST=smtp.gmail.com
+             SMTP_USER=your@gmail.com
+             SMTP_PASS=app-password
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                       MORE INFO                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Complete Guide:  EMAIL_SETUP_GUIDE.md
+Full Summary:    EMAIL_FIX_SUMMARY.md
+Test Script:     node test-email-service.js [email]
+

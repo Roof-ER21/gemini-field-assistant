@@ -158,6 +158,17 @@ export function createMessagingRoutes(pool) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            // Validate that all participant IDs exist in the users table
+            const participantCheck = await client.query(`SELECT id FROM users WHERE id = ANY($1::uuid[])`, [participant_ids]);
+            if (participantCheck.rows.length !== participant_ids.length) {
+                await client.query('ROLLBACK');
+                const foundIds = participantCheck.rows.map(r => r.id);
+                const missingIds = participant_ids.filter(id => !foundIds.includes(id));
+                return res.status(400).json({
+                    success: false,
+                    error: `Invalid participant ID(s): ${missingIds.join(', ')}`
+                });
+            }
             // Check if direct conversation already exists
             if (type === 'direct') {
                 const existingConv = await client.query(`SELECT c.id
@@ -375,8 +386,9 @@ export function createMessagingRoutes(pool) {
            LIMIT 1`, [conversationId, userId]);
                 if (otherParticipant.rows.length > 0) {
                     const senderInfo = await client.query('SELECT name FROM users WHERE id = $1', [userId]);
-                    await client.query(`INSERT INTO team_notifications (user_id, type, message_id, conversation_id, title, body, data)
-             VALUES ($1, 'direct_message', $2, $3, $4, $5, $6)`, [
+                    const notificationResult = await client.query(`INSERT INTO team_notifications (user_id, type, message_id, conversation_id, title, body, data)
+             VALUES ($1, 'direct_message', $2, $3, $4, $5, $6)
+             RETURNING *`, [
                         otherParticipant.rows[0].user_id,
                         message.id,
                         conversationId,
@@ -388,6 +400,11 @@ export function createMessagingRoutes(pool) {
                             conversation_id: conversationId
                         })
                     ]);
+                    // Emit notification via WebSocket
+                    const presenceService = getPresenceService();
+                    if (presenceService) {
+                        presenceService.emitNotification(otherParticipant.rows[0].user_id, notificationResult.rows[0]);
+                    }
                 }
             }
             await client.query('COMMIT');

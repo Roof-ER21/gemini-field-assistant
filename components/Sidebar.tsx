@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
+import NotificationBell from './NotificationBell';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team';
 type QuickActionType = 'email' | 'transcribe' | 'image';
@@ -143,6 +144,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
 
   return (
     <div className="roof-er-sidebar">
+      {/* Notification Bell - Top Right */}
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
+        <NotificationBell />
+      </div>
+
       {/* Navigation Section */}
       <div className="roof-er-sidebar-section">
         <div className="roof-er-sidebar-title">Navigation</div>

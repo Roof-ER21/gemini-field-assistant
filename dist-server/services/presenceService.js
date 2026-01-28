@@ -267,6 +267,16 @@ export class PresenceService {
             readAt: new Date()
         });
     }
+    // Emit notification to a specific user
+    emitNotification(userId, notification) {
+        // Send to all sockets for this user
+        const userSocketSet = this.userSockets.get(userId);
+        if (userSocketSet) {
+            userSocketSet.forEach(socketId => {
+                this.io.to(socketId).emit('notification:new', notification);
+            });
+        }
+    }
     // Periodic cleanup job to mark stale connections as offline
     startCleanupJob() {
         setInterval(async () => {

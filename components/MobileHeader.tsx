@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, MessageSquare, Image, Mic, Mail, Map, Radio, BookOpen } from 'lucide-react';
 import Logo from './icons/Logo';
 import { cn } from '../lib/utils';
+import NotificationBell from './NotificationBell';
 
 type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
 
@@ -56,36 +57,42 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
             </div>
           </div>
 
-          {/* Menu Button */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="h-10 w-10 rounded-xl bg-[#171717] border border-[#262626] flex items-center justify-center shadow-lg touch-target"
-          >
-            <AnimatePresence mode="wait">
-              {isMenuOpen ? (
-                <motion.div
-                  key="close"
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <X className="h-5 w-5 text-[#dc2626]" strokeWidth={2.5} />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="menu"
-                  initial={{ rotate: 90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: -90, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Menu className="h-5 w-5 text-[#a1a1aa]" strokeWidth={2.5} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            {/* Notification Bell */}
+            <NotificationBell />
+
+            {/* Menu Button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="h-10 w-10 rounded-xl bg-[#171717] border border-[#262626] flex items-center justify-center shadow-lg touch-target"
+            >
+              <AnimatePresence mode="wait">
+                {isMenuOpen ? (
+                  <motion.div
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <X className="h-5 w-5 text-[#dc2626]" strokeWidth={2.5} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="menu"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Menu className="h-5 w-5 text-[#a1a1aa]" strokeWidth={2.5} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          </div>
         </div>
       </motion.header>
 

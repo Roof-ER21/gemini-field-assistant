@@ -103,6 +103,7 @@ export interface Notification {
 type PresenceUpdateCallback = (update: { userId: string; status: string; timestamp: Date }) => void;
 type MessageCallback = (message: Message) => void;
 type TypingCallback = (data: { userId: string; conversationId: string; isTyping: boolean }) => void;
+type NotificationCallback = (notification: Notification) => void;
 
 class MessagingService {
   private socket: Socket | null = null;
@@ -114,6 +115,7 @@ class MessagingService {
   private presenceListeners: Set<PresenceUpdateCallback> = new Set();
   private messageListeners: Set<MessageCallback> = new Set();
   private typingListeners: Set<TypingCallback> = new Set();
+  private notificationListeners: Set<NotificationCallback> = new Set();
 
   // Heartbeat
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -188,6 +190,11 @@ class MessagingService {
     // Typing events
     this.socket.on('typing:update', (data: { userId: string; conversationId: string; isTyping: boolean }) => {
       this.typingListeners.forEach(listener => listener(data));
+    });
+
+    // Notification events
+    this.socket.on('notification:new', (notification: Notification) => {
+      this.notificationListeners.forEach(listener => listener(notification));
     });
   }
 
@@ -274,6 +281,11 @@ class MessagingService {
   onTyping(callback: TypingCallback): () => void {
     this.typingListeners.add(callback);
     return () => this.typingListeners.delete(callback);
+  }
+
+  onNotification(callback: NotificationCallback): () => void {
+    this.notificationListeners.add(callback);
+    return () => this.notificationListeners.delete(callback);
   }
 
   // ============================================================================
@@ -508,6 +520,24 @@ class MessagingService {
     } catch (error) {
       console.error('[Messaging] Error fetching notifications:', error);
       return [];
+    }
+  }
+
+  // Get unread notification count only
+  async getUnreadNotificationCount(): Promise<number> {
+    try {
+      const response = await fetch(
+        `${this.getApiUrl()}/api/messages/notifications?unread_only=true&limit=1`,
+        { headers: this.getHeaders() }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch notification count');
+
+      const data = await response.json();
+      return data.unread_count || 0;
+    } catch (error) {
+      console.error('[Messaging] Error fetching notification count:', error);
+      return 0;
     }
   }
 

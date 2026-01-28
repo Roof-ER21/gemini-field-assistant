@@ -204,6 +204,22 @@ export function createMessagingRoutes(pool: pg.Pool) {
     try {
       await client.query('BEGIN');
 
+      // Validate that all participant IDs exist in the users table
+      const participantCheck = await client.query(
+        `SELECT id FROM users WHERE id = ANY($1::uuid[])`,
+        [participant_ids]
+      );
+
+      if (participantCheck.rows.length !== participant_ids.length) {
+        await client.query('ROLLBACK');
+        const foundIds = participantCheck.rows.map(r => r.id);
+        const missingIds = participant_ids.filter(id => !foundIds.includes(id));
+        return res.status(400).json({
+          success: false,
+          error: `Invalid participant ID(s): ${missingIds.join(', ')}`
+        });
+      }
+
       // Check if direct conversation already exists
       if (type === 'direct') {
         const existingConv = await client.query(
@@ -494,9 +510,10 @@ export function createMessagingRoutes(pool: pg.Pool) {
             [userId]
           );
 
-          await client.query(
+          const notificationResult = await client.query(
             `INSERT INTO team_notifications (user_id, type, message_id, conversation_id, title, body, data)
-             VALUES ($1, 'direct_message', $2, $3, $4, $5, $6)`,
+             VALUES ($1, 'direct_message', $2, $3, $4, $5, $6)
+             RETURNING *`,
             [
               otherParticipant.rows[0].user_id,
               message.id,
@@ -510,6 +527,15 @@ export function createMessagingRoutes(pool: pg.Pool) {
               })
             ]
           );
+
+          // Emit notification via WebSocket
+          const presenceService = getPresenceService();
+          if (presenceService) {
+            presenceService.emitNotification(
+              otherParticipant.rows[0].user_id,
+              notificationResult.rows[0]
+            );
+          }
         }
       }
 
