@@ -88,8 +88,29 @@ class RoofService {
   }
 
   private getHeaders(): HeadersInit {
-    const user = authService.getCurrentUser();
-    const email = user?.email || '';
+    // Try authService first
+    let email = authService.getCurrentUser()?.email || '';
+
+    // Fallback: try to get email directly from localStorage
+    if (!email) {
+      try {
+        const storedToken = localStorage.getItem('s21_auth_token');
+        if (storedToken) {
+          const authData = JSON.parse(storedToken);
+          email = authData?.user?.email || '';
+        }
+        if (!email) {
+          const storedUser = localStorage.getItem('s21_auth_user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            email = user?.email || '';
+          }
+        }
+      } catch (e) {
+        console.warn('[Roof] Error reading auth from localStorage:', e);
+      }
+    }
+
     if (!email) {
       console.warn('[Roof] Warning: No user email available for request');
     }
