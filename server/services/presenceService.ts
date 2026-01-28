@@ -305,7 +305,7 @@ export class PresenceService {
            u.id as "userId",
            u.name,
            u.email,
-           COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username,
+           LOWER(SPLIT_PART(u.email, '@', 1)) as username,
            COALESCE(up.status, 'offline') as status,
            COALESCE(up.last_seen, u.last_login_at, NOW()) as "lastSeen",
            COALESCE(up.device_type, 'unknown') as "deviceType"

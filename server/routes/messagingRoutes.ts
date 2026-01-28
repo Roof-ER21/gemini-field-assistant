@@ -70,7 +70,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
            u.id as "userId",
            u.name,
            u.email,
-           COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username,
+           LOWER(SPLIT_PART(u.email, '@', 1)) as username,
            COALESCE(up.status, 'offline') as status,
            COALESCE(up.last_seen, u.last_login_at) as "lastSeen"
          FROM users u
