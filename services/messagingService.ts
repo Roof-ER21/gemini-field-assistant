@@ -133,7 +133,9 @@ class MessagingService {
       return;
     }
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // Use VITE_API_URL if set, otherwise use current origin (for production)
+    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    console.log('[Messaging] Connecting to WebSocket at:', serverUrl);
 
     this.socket = io(serverUrl, {
       auth: { email: user.email },
