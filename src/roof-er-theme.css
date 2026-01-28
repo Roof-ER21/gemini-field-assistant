@@ -10,12 +10,12 @@
   --roof-red-darker: #8a1528;
 
   /* Background Colors */
-  --bg-primary: rgba(10, 10, 10, 0.85);
-  --bg-secondary: rgba(15, 15, 15, 0.78);
-  --bg-tertiary: rgba(22, 22, 22, 0.74);
-  --bg-elevated: rgba(26, 26, 26, 0.82);
-  --bg-hover: rgba(37, 37, 37, 0.82);
-  --bg-card: rgba(30, 30, 30, 0.84);
+  --bg-primary: rgba(10, 10, 10, 0.62);
+  --bg-secondary: rgba(15, 15, 15, 0.56);
+  --bg-tertiary: rgba(22, 22, 22, 0.52);
+  --bg-elevated: rgba(26, 26, 26, 0.64);
+  --bg-hover: rgba(37, 37, 37, 0.64);
+  --bg-card: rgba(30, 30, 30, 0.66);
 
   /* Glass accents */
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -101,6 +101,8 @@ html, body {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  min-height: 100vh;
+  background: transparent;
 }
 
 /* Header Styles */

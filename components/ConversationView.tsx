@@ -34,12 +34,14 @@ import { formatDisplayName } from '../utils/formatDisplayName';
 interface ConversationViewProps {
   conversation: Conversation;
   participant?: TeamMember | null;
+  highlightMessageId?: string;
   onBack: () => void;
 }
 
 const ConversationView: React.FC<ConversationViewProps> = ({
   conversation,
   participant,
+  highlightMessageId,
   onBack
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,6 +62,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [showPinTray, setShowPinTray] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
@@ -74,6 +77,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingScrollIdRef = useRef<string | null>(null);
+  const loadingHighlightRef = useRef(false);
 
   const currentUser = authService.getCurrentUser();
   const canSend = (inputText.trim().length > 0 || (attachments && attachments.length > 0)) && !uploadingAttachments;
@@ -136,6 +141,28 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       setLoading(false);
     }
   }, [conversationId]);
+
+  const scrollToMessage = useCallback(async (messageId: string) => {
+    if (!messageId) return;
+    pendingScrollIdRef.current = messageId;
+
+    const target = document.getElementById(`message-${messageId}`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(messageId);
+      pendingScrollIdRef.current = null;
+      window.setTimeout(() => {
+        setHighlightedMessageId((prev) => (prev === messageId ? null : prev));
+      }, 2500);
+      return;
+    }
+
+    if (hasMore && !loadingHighlightRef.current) {
+      loadingHighlightRef.current = true;
+      await fetchMessages(messages[0]?.id);
+      loadingHighlightRef.current = false;
+    }
+  }, [fetchMessages, hasMore, messages]);
 
   const refreshPins = useCallback(async () => {
     const pins = await messagingService.getPins(conversationId);
@@ -228,6 +255,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       messagingService.leaveConversation(conversationId);
     };
   }, [conversationId, currentUser?.id, fetchMessages, refreshPins]);
+
+  // Scroll/highlight when a specific message is requested (search/notification)
+  useEffect(() => {
+    if (highlightMessageId) {
+      scrollToMessage(highlightMessageId);
+    }
+  }, [highlightMessageId, scrollToMessage]);
+
+  // If we were waiting for a message to load, retry after new messages arrive
+  useEffect(() => {
+    if (pendingScrollIdRef.current) {
+      scrollToMessage(pendingScrollIdRef.current);
+    }
+  }, [messages, hasMore, scrollToMessage]);
 
   // Load team members for presence display
   useEffect(() => {
@@ -1100,13 +1141,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             {searchResults.length > 0 && (
               <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
                 {searchResults.slice(0, 10).map(result => (
-                  <div
+                  <button
                     key={`search-${result.id}`}
+                    onClick={() => scrollToMessage(result.id)}
                     style={{
+                      width: '100%',
                       padding: '0.5rem 0.75rem',
                       background: 'var(--bg-primary)',
                       borderRadius: '8px',
-                      border: '1px solid var(--border-color)'
+                      border: '1px solid var(--border-color)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
                     }}
                   >
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
@@ -1121,7 +1166,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                         return content.text || 'Message';
                       })()}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1147,11 +1192,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   <button
                     key={pin.id}
                     onClick={() => {
-                      const target = document.getElementById(`message-${pin.message_id}`);
-                      if (target) {
-                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        setShowPinTray(false);
-                      }
+                      scrollToMessage(pin.message_id);
+                      setShowPinTray(false);
                     }}
                     style={{
                       padding: '0.5rem 0.75rem',
@@ -1209,6 +1251,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
               const isOwn = message.sender_id === currentUser?.id;
               const showDateHeader = shouldShowDateHeader(message, index);
               const senderLabel = isOwn ? 'You' : formatDisplayName(message.sender?.name, message.sender?.email);
+              const isHighlighted = highlightedMessageId === message.id;
 
               return (
                 <React.Fragment key={message.id}>
@@ -1251,7 +1294,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                         background: isOwn
                           ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
                           : 'var(--bg-secondary)',
-                        color: isOwn ? 'white' : 'var(--text-primary)'
+                        color: isOwn ? 'white' : 'var(--text-primary)',
+                        boxShadow: isHighlighted ? '0 0 0 2px rgba(234,179,8,0.55), 0 0 18px rgba(234,179,8,0.35)' : 'none',
+                        transition: 'box-shadow 0.3s ease'
                       }}
                     >
                       <div

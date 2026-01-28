@@ -16,6 +16,7 @@ const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
   const [activeConversation, setActiveConversation] = useState<{
     conversation: Conversation;
     participant?: TeamMember | null;
+    highlightMessageId?: string;
   } | null>(null);
 
   // Connect to WebSocket on mount
@@ -38,8 +39,12 @@ const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
     };
   }, []);
 
-  const handleOpenConversation = (conversation: Conversation, participant?: TeamMember | null) => {
-    setActiveConversation({ conversation, participant });
+  const handleOpenConversation = (
+    conversation: Conversation,
+    participant?: TeamMember | null,
+    highlightMessageId?: string
+  ) => {
+    setActiveConversation({ conversation, participant, highlightMessageId });
   };
 
   const handleBackToTeam = () => {
@@ -58,13 +63,14 @@ const MessagingPanel: React.FC<MessagingPanelProps> = ({ onClose }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--bg-primary)'
+        background: 'transparent'
       }}
     >
       {activeConversation ? (
         <ConversationView
           conversation={activeConversation.conversation}
           participant={activeConversation.participant}
+          highlightMessageId={activeConversation.highlightMessageId}
           onBack={handleBackToTeam}
         />
       ) : (

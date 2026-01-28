@@ -23,7 +23,7 @@ import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface TeamPanelProps {
   onClose: () => void;
-  onOpenConversation: (conversation: Conversation, participant?: TeamMember | null) => void;
+  onOpenConversation: (conversation: Conversation, participant?: TeamMember | null, highlightMessageId?: string) => void;
 }
 
 const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) => {
@@ -231,9 +231,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: 'var(--bg-primary)',
+        background: 'rgba(10, 10, 10, 0.55)',
         borderRadius: '12px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(14px) saturate(120%)'
       }}
     >
       {/* Header */}
@@ -922,7 +924,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                         if (!conv) return;
                         setShowGlobalSearch(false);
                         setGlobalSearchResults([]);
-                        handleOpenConversation(conv);
+                        handleOpenConversation(conv, undefined, result.id);
                       }}
                       style={{
                         padding: '0.6rem 0.75rem',
