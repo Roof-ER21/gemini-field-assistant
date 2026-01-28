@@ -94,6 +94,34 @@ const NotificationBell: React.FC = () => {
     }
   };
 
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already
+    if (!notification.is_read) {
+      const success = await messagingService.markNotificationRead(notification.id);
+      if (success) {
+        setNotifications(prev =>
+          prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    }
+
+    // Close the panel
+    setIsOpen(false);
+
+    // Navigate based on notification type
+    // For now, we'll dispatch a custom event that the app can listen for
+    const event = new CustomEvent('notification-click', {
+      detail: {
+        type: notification.type,
+        conversationId: notification.conversation_id,
+        messageId: notification.message_id,
+        notification
+      }
+    });
+    window.dispatchEvent(event);
+  };
+
   return (
     <div style={{ position: 'relative' }} ref={bellRef}>
       {/* Bell Icon Button */}
@@ -158,6 +186,7 @@ const NotificationBell: React.FC = () => {
             onClose={() => setIsOpen(false)}
             onMarkAllRead={handleMarkAllRead}
             onRefresh={fetchNotifications}
+            onNotificationClick={handleNotificationClick}
           />
         </div>
       )}

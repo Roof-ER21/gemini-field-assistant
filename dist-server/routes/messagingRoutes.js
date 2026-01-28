@@ -580,6 +580,27 @@ export function createMessagingRoutes(pool) {
         }
     });
     /**
+     * POST /api/messages/notifications/:id/read
+     * Mark a single notification as read
+     */
+    router.post('/notifications/:id/read', async (req, res) => {
+        const userId = req.userId;
+        const { id } = req.params;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        try {
+            await pool.query(`UPDATE team_notifications
+         SET is_read = true, read_at = NOW()
+         WHERE id = $1 AND user_id = $2`, [id, userId]);
+            res.json({ success: true });
+        }
+        catch (error) {
+            console.error('Error marking notification as read:', error);
+            res.status(500).json({ success: false, error: 'Failed to mark notification as read' });
+        }
+    });
+    /**
      * POST /api/messages/notifications/mark-all-read
      * Mark all notifications as read
      */

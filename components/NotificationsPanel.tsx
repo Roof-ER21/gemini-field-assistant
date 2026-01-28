@@ -24,6 +24,7 @@ interface NotificationsPanelProps {
   onClose: () => void;
   onMarkAllRead: () => void;
   onRefresh: () => void;
+  onNotificationClick?: (notification: Notification) => void;
 }
 
 const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
@@ -32,7 +33,8 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   unreadCount,
   onClose,
   onMarkAllRead,
-  onRefresh
+  onRefresh,
+  onNotificationClick
 }) => {
   // Always use fixed positioning to prevent overflow issues
   // The panel appears from the sidebar which is narrow, so we need
@@ -216,6 +218,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
           notifications.map((notification) => (
             <div
               key={notification.id}
+              onClick={() => onNotificationClick?.(notification)}
               style={{
                 padding: '0.75rem',
                 borderRadius: '8px',

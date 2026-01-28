@@ -52,7 +52,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://api.together.xyz"],
+            connectSrc: ["'self'", "wss:", "ws:", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://api.together.xyz"],
             fontSrc: ["'self'", "data:"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],

@@ -541,6 +541,21 @@ class MessagingService {
     }
   }
 
+  // Mark a single notification as read
+  async markNotificationRead(notificationId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('[Messaging] Error marking notification as read:', error);
+      return false;
+    }
+  }
+
   // Mark all notifications as read
   async markAllNotificationsRead(): Promise<boolean> {
     try {
