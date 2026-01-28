@@ -275,6 +275,29 @@ export class PresenceService {
             reactions
         });
     }
+    // Emit pin updates
+    emitPinUpdate(conversationId, messageId) {
+        this.io.to(`conversation:${conversationId}`).emit('message:pin', {
+            conversationId,
+            messageId
+        });
+    }
+    // Emit poll vote updates
+    emitPollVoteUpdate(conversationId, messageId, votes) {
+        this.io.to(`conversation:${conversationId}`).emit('message:poll', {
+            conversationId,
+            messageId,
+            votes
+        });
+    }
+    // Emit event RSVP updates
+    emitEventRsvpUpdate(conversationId, messageId, rsvps) {
+        this.io.to(`conversation:${conversationId}`).emit('message:event', {
+            conversationId,
+            messageId,
+            rsvps
+        });
+    }
     // Emit notification to a specific user
     emitNotification(userId, notification) {
         // Send to all sockets for this user

@@ -14,7 +14,12 @@ import {
   Copy,
   Check,
   Paperclip,
-  Smile
+  Smile,
+  Search,
+  Pin,
+  Calendar,
+  BarChart3,
+  X
 } from 'lucide-react';
 import {
   messagingService,
@@ -48,6 +53,19 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const [attachments, setAttachments] = useState<MessageContent['attachments']>([]);
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   const [teamMap, setTeamMap] = useState<Record<string, TeamMember>>({});
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
+  const [showPinTray, setShowPinTray] = useState(false);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDateTime, setEventDateTime] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -93,7 +111,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       if (beforeMessageId) {
         setMessages(prev => [...data.messages, ...prev]);
       } else {
-        setMessages(data.messages);
+        setMessages(data.messages.map(msg => ({
+          ...msg,
+          reactions: msg.reactions || [],
+          read_receipts: msg.read_receipts || [],
+          poll_votes: msg.poll_votes || [],
+          event_rsvps: msg.event_rsvps || [],
+          is_pinned: msg.is_pinned || false
+        })));
         // Mark as read
         messagingService.markAsRead(conversationId);
       }
@@ -106,10 +131,21 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }
   }, [conversationId]);
 
+  const refreshPins = useCallback(async () => {
+    const pins = await messagingService.getPins(conversationId);
+    setPinnedMessages(pins);
+    const pinnedIds = new Set(pins.map((pin) => pin.message_id));
+    setMessages(prev => prev.map(msg => ({
+      ...msg,
+      is_pinned: pinnedIds.has(msg.id)
+    })));
+  }, [conversationId]);
+
   // Initial load
   useEffect(() => {
     setLoading(true);
     fetchMessages();
+    refreshPins();
 
     // Join conversation room
     messagingService.joinConversation(conversationId);
@@ -117,7 +153,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     // Listen for new messages
     const unsubMessage = messagingService.onNewMessage((message) => {
       if (message.conversation_id === conversationId) {
-        setMessages(prev => [...prev, { ...message, reactions: message.reactions || [] }]);
+        setMessages(prev => [...prev, {
+          ...message,
+          reactions: message.reactions || [],
+          read_receipts: message.read_receipts || [],
+          poll_votes: message.poll_votes || [],
+          event_rsvps: message.event_rsvps || [],
+          is_pinned: message.is_pinned || false
+        }]);
         // Mark as read if it's from the other person
         if (message.sender_id !== currentUser?.id) {
           messagingService.markAsRead(conversationId);
@@ -139,13 +182,46 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       )));
     });
 
+    const unsubRead = messagingService.onReadReceipt((data) => {
+      if (data.conversationId !== conversationId) return;
+      setMessages(prev => prev.map(msg => {
+        if (!data.messageIds.includes(msg.id)) return msg;
+        const existing = new Set(msg.read_receipts || []);
+        existing.add(data.userId);
+        return { ...msg, read_receipts: Array.from(existing) };
+      }));
+    });
+
+    const unsubPin = messagingService.onPinUpdate((data) => {
+      if (data.conversationId !== conversationId) return;
+      refreshPins();
+    });
+
+    const unsubPoll = messagingService.onPollVoteUpdate((data) => {
+      if (data.conversationId !== conversationId) return;
+      setMessages(prev => prev.map(msg => (
+        msg.id === data.messageId ? { ...msg, poll_votes: data.votes || [] } : msg
+      )));
+    });
+
+    const unsubEvent = messagingService.onEventRsvpUpdate((data) => {
+      if (data.conversationId !== conversationId) return;
+      setMessages(prev => prev.map(msg => (
+        msg.id === data.messageId ? { ...msg, event_rsvps: data.rsvps || [] } : msg
+      )));
+    });
+
     return () => {
       unsubMessage();
       unsubTyping();
       unsubReaction();
+      unsubRead();
+      unsubPin();
+      unsubPoll();
+      unsubEvent();
       messagingService.leaveConversation(conversationId);
     };
-  }, [conversationId, currentUser?.id, fetchMessages]);
+  }, [conversationId, currentUser?.id, fetchMessages, refreshPins]);
 
   // Load team members for presence display
   useEffect(() => {
@@ -248,6 +324,51 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
+  const handleCreatePoll = async () => {
+    const trimmedOptions = pollOptions.map(opt => opt.trim()).filter(Boolean);
+    if (!pollQuestion.trim() || trimmedOptions.length < 2) return;
+
+    const content: MessageContent = {
+      type: 'poll',
+      poll: {
+        question: pollQuestion.trim(),
+        options: trimmedOptions
+      }
+    };
+
+    const message = await messagingService.sendMessage(conversationId, content);
+    if (message) {
+      setMessages(prev => [...prev, message]);
+      setShowPollModal(false);
+      setPollQuestion('');
+      setPollOptions(['', '']);
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    if (!eventTitle.trim() || !eventDateTime) return;
+
+    const content: MessageContent = {
+      type: 'event',
+      event: {
+        title: eventTitle.trim(),
+        datetime: eventDateTime,
+        location: eventLocation.trim() || undefined,
+        description: eventDescription.trim() || undefined
+      }
+    };
+
+    const message = await messagingService.sendMessage(conversationId, content);
+    if (message) {
+      setMessages(prev => [...prev, message]);
+      setShowEventModal(false);
+      setEventTitle('');
+      setEventDateTime('');
+      setEventLocation('');
+      setEventDescription('');
+    }
+  };
+
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -330,8 +451,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const renderMessageContent = (message: Message) => {
     const content = message.content as MessageContent;
     const isOwn = message.sender_id === currentUser?.id;
+    const effectiveType = content.type || message.message_type;
 
-    if (content.type === 'shared_chat') {
+    if (effectiveType === 'shared_chat') {
       return (
         <div
           style={{
@@ -414,7 +536,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       );
     }
 
-    if (content.type === 'shared_email') {
+    if (effectiveType === 'shared_email') {
       return (
         <div
           style={{
@@ -498,6 +620,111 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       );
     }
 
+    if (effectiveType === 'poll') {
+      const question = content.poll?.question || 'Poll';
+      const options = content.poll?.options || [];
+      const votes = message.poll_votes || [];
+      const totalVotes = votes.reduce((sum, v) => sum + v.count, 0);
+      const myVote = votes.find(v => v.user_ids?.includes(currentUser?.id || ''));
+
+      return (
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{question}</div>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {options.map((opt, index) => {
+              const voteData = votes.find(v => v.option_index === index);
+              const count = voteData?.count || 0;
+              const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+              const selected = myVote?.option_index === index;
+              return (
+                <button
+                  key={`${message.id}-opt-${index}`}
+                  onClick={() => handleVotePoll(message.id, index)}
+                  style={{
+                    border: selected ? '1px solid rgba(34,197,94,0.8)' : '1px solid var(--border-color)',
+                    background: selected ? 'rgba(34,197,94,0.12)' : 'var(--bg-primary)',
+                    color: 'inherit',
+                    textAlign: 'left',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                    <span>{opt}</span>
+                    <span>{count}</span>
+                  </div>
+                  <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '999px', marginTop: '0.35rem' }}>
+                    <div
+                      style={{
+                        width: `${percent}%`,
+                        height: '100%',
+                        borderRadius: '999px',
+                        background: selected ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                      }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
+            {totalVotes} vote{totalVotes === 1 ? '' : 's'}
+          </div>
+        </div>
+      );
+    }
+
+    if (effectiveType === 'event') {
+      const event = content.event;
+      const rsvps = message.event_rsvps || [];
+      const counts = {
+        going: rsvps.find(r => r.status === 'going')?.count || 0,
+        maybe: rsvps.find(r => r.status === 'maybe')?.count || 0,
+        declined: rsvps.find(r => r.status === 'declined')?.count || 0
+      };
+      const myStatus = rsvps.find(r => r.user_ids?.includes(currentUser?.id || ''))?.status;
+
+      return (
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{event?.title || 'Event'}</div>
+          {event?.datetime && (
+            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.25rem' }}>
+              {new Date(event.datetime).toLocaleString()}
+            </div>
+          )}
+          {event?.location && (
+            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.25rem' }}>
+              {event.location}
+            </div>
+          )}
+          {event?.description && (
+            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '0.5rem' }}>
+              {event.description}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {(['going', 'maybe', 'declined'] as const).map(status => (
+              <button
+                key={`${message.id}-${status}`}
+                onClick={() => handleRsvpEvent(message.id, status)}
+                style={{
+                  padding: '0.35rem 0.7rem',
+                  borderRadius: '999px',
+                  border: myStatus === status ? '1px solid rgba(34,197,94,0.8)' : '1px solid var(--border-color)',
+                  background: myStatus === status ? 'rgba(34,197,94,0.12)' : 'var(--bg-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem'
+                }}
+              >
+                {status === 'going' ? 'Going' : status === 'maybe' ? 'Maybe' : 'Declined'} · {counts[status]}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     // Default text message
     return (
       <>
@@ -509,16 +736,39 @@ const ConversationView: React.FC<ConversationViewProps> = ({
         {content.attachments && content.attachments.length > 0 && (
           <div style={{ display: 'grid', gap: '0.5rem', marginTop: content.text ? '0.5rem' : 0 }}>
             {content.attachments.map((file) => (
-              <img
-                key={file.id}
-                src={file.url}
-                alt={file.name}
-                style={{
-                  maxWidth: '240px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)'
-                }}
-              />
+              file.type.startsWith('image/') ? (
+                <img
+                  key={file.id}
+                  src={file.url}
+                  alt={file.name}
+                  style={{
+                    maxWidth: '240px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0,0,0,0.1)'
+                  }}
+                />
+              ) : (
+                <a
+                  key={file.id}
+                  href={file.url}
+                  download={file.name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-primary)',
+                    color: 'inherit',
+                    textDecoration: 'none',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>File</span>
+                  <span>{file.name}</span>
+                </a>
+              )
             ))}
           </div>
         )}
@@ -532,6 +782,28 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     const reactions = await messagingService.toggleReaction(messageId, emoji);
     setMessages(prev => prev.map(msg => (
       msg.id === messageId ? { ...msg, reactions } : msg
+    )));
+  };
+
+  const handleTogglePin = async (messageId: string) => {
+    const pinned = await messagingService.togglePin(conversationId, messageId);
+    setMessages(prev => prev.map(msg => (
+      msg.id === messageId ? { ...msg, is_pinned: pinned } : msg
+    )));
+    refreshPins();
+  };
+
+  const handleVotePoll = async (messageId: string, optionIndex: number) => {
+    const votes = await messagingService.voteOnPoll(messageId, optionIndex);
+    setMessages(prev => prev.map(msg => (
+      msg.id === messageId ? { ...msg, poll_votes: votes } : msg
+    )));
+  };
+
+  const handleRsvpEvent = async (messageId: string, status: 'going' | 'maybe' | 'declined') => {
+    const rsvps = await messagingService.rsvpToEvent(messageId, status);
+    setMessages(prev => prev.map(msg => (
+      msg.id === messageId ? { ...msg, event_rsvps: rsvps } : msg
     )));
   };
 
@@ -553,15 +825,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({
 
   const handleFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize = 10 * 1024 * 1024;
     const newAttachments: NonNullable<MessageContent['attachments']> = [];
 
     for (const file of Array.from(files)) {
-      if (!allowed.includes(file.type)) {
-        console.warn(`Unsupported file type: ${file.type}`);
-        continue;
-      }
       if (file.size > maxSize) {
         console.warn(`File too large: ${file.name}`);
         continue;
@@ -698,6 +965,45 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             </div>
           </>
         )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            onClick={() => setShowSearch(prev => !prev)}
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              background: showSearch ? 'rgba(220,38,38,0.15)' : 'var(--bg-primary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Search messages"
+          >
+            <Search style={{ width: '16px', height: '16px' }} />
+          </button>
+          <button
+            onClick={() => setShowPinTray(prev => !prev)}
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              background: showPinTray ? 'rgba(234,179,8,0.2)' : 'var(--bg-primary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Pinned messages"
+          >
+            <Pin style={{ width: '16px', height: '16px' }} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -709,6 +1015,138 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           padding: '1rem'
         }}
       >
+        {showSearch && (
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              padding: '0.75rem',
+              marginBottom: '1rem'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Search style={{ width: '16px', height: '16px', color: 'var(--text-secondary)' }} />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search in this conversation..."
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  color: 'var(--text-primary)'
+                }}
+              />
+              <button
+                onClick={async () => {
+                  if (!searchQuery.trim()) return;
+                  const results = await messagingService.searchMessages(searchQuery, conversationId);
+                  setSearchResults(results);
+                }}
+                style={{
+                  padding: '0.4rem 0.7rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem'
+                }}
+              >
+                Search
+              </button>
+              <button
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchResults([]);
+                }}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X style={{ width: '14px', height: '14px' }} />
+              </button>
+            </div>
+            {searchResults.length > 0 && (
+              <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+                {searchResults.slice(0, 10).map(result => (
+                  <div
+                    key={`search-${result.id}`}
+                    style={{
+                      padding: '0.5rem 0.75rem',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                      {result.sender?.name || 'Teammate'} • {new Date(result.created_at).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                      {(() => {
+                        const content = result.content as MessageContent;
+                        if (result.message_type === 'poll') return content.poll?.question || 'Poll';
+                        if (result.message_type === 'event') return content.event?.title || 'Event';
+                        if (content.attachments?.length) return 'Attachment';
+                        return content.text || 'Message';
+                      })()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {showPinTray && (
+          <div
+            style={{
+              background: 'rgba(234,179,8,0.08)',
+              border: '1px solid rgba(234,179,8,0.35)',
+              borderRadius: '12px',
+              padding: '0.75rem',
+              marginBottom: '1rem'
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Pinned messages</div>
+            {pinnedMessages.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>No pins yet.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {pinnedMessages.slice(0, 5).map((pin) => (
+                  <div
+                    key={pin.id}
+                    style={{
+                      padding: '0.5rem 0.75rem',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(234,179,8,0.2)'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                      {pin.message?.sender?.name || 'Teammate'} • {new Date(pin.message?.created_at).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                      {(pin.message?.content as MessageContent)?.text || 'Message'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
             Loading messages...
@@ -878,6 +1316,24 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                             </div>
                           )}
                         </div>
+                        <button
+                          onClick={() => handleTogglePin(message.id)}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            border: message.is_pinned ? '1px solid rgba(234,179,8,0.9)' : '1px solid var(--border-color)',
+                            background: message.is_pinned ? 'rgba(234,179,8,0.2)' : 'var(--bg-primary)',
+                            color: message.is_pinned ? '#facc15' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title={message.is_pinned ? 'Unpin' : 'Pin'}
+                        >
+                          <Pin style={{ width: '13px', height: '13px' }} />
+                        </button>
                       </div>
 
                       <div
@@ -893,6 +1349,19 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                         <span>{formatTime(message.created_at)}</span>
                         {message.is_edited && <span>(edited)</span>}
                       </div>
+                      {isOwn && message.read_receipts && message.read_receipts.length > 0 && (
+                        (() => {
+                          const seenBy = message.read_receipts
+                            .filter(id => id !== currentUser?.id)
+                            .map(id => teamMap[id]?.name || conversation.participants.find(p => p.user_id === id)?.name || 'Teammate');
+                          if (seenBy.length === 0) return null;
+                          return (
+                            <div style={{ fontSize: '0.65rem', marginTop: '0.15rem', opacity: 0.7 }}>
+                              Seen by {seenBy.join(', ')}
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   </div>
                 </React.Fragment>
@@ -1039,6 +1508,42 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           >
             <Paperclip style={{ width: '18px', height: '18px' }} />
           </button>
+          <button
+            onClick={() => setShowPollModal(true)}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-primary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Create poll"
+          >
+            <BarChart3 style={{ width: '18px', height: '18px' }} />
+          </button>
+          <button
+            onClick={() => setShowEventModal(true)}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-primary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Create event"
+          >
+            <Calendar style={{ width: '18px', height: '18px' }} />
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -1123,17 +1628,37 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {attachments.map((file) => (
               <div key={file.id} style={{ position: 'relative' }}>
-                <img
-                  src={file.url}
-                  alt={file.name}
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    objectFit: 'cover',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)'
-                  }}
-                />
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={file.url}
+                    alt={file.name}
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '96px',
+                      height: '64px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.7rem',
+                      padding: '0.25rem',
+                      textAlign: 'center'
+                    }}
+                  >
+                    {file.name}
+                  </div>
+                )}
                 <button
                   onClick={() => setAttachments(prev => (prev || []).filter(att => att.id !== file.id))}
                   style={{
@@ -1160,6 +1685,228 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         )}
       </div>
+
+      {showPollModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setShowPollModal(false)}
+        >
+          <div
+            style={{
+              width: '92%',
+              maxWidth: '420px',
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid var(--border-color)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.75rem' }}>Create Poll</h3>
+            <input
+              value={pollQuestion}
+              onChange={(e) => setPollQuestion(e.target.value)}
+              placeholder="Poll question"
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem'
+              }}
+            />
+            {pollOptions.map((opt, idx) => (
+              <input
+                key={`poll-opt-${idx}`}
+                value={opt}
+                onChange={(e) => {
+                  const next = [...pollOptions];
+                  next[idx] = e.target.value;
+                  setPollOptions(next);
+                }}
+                placeholder={`Option ${idx + 1}`}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  marginBottom: '0.5rem'
+                }}
+              />
+            ))}
+            <button
+              onClick={() => setPollOptions(prev => [...prev, ''])}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                borderRadius: '8px',
+                border: '1px dashed var(--border-color)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                marginBottom: '0.75rem'
+              }}
+            >
+              Add option
+            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setShowPollModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePoll}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white'
+                }}
+              >
+                Post Poll
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEventModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setShowEventModal(false)}
+        >
+          <div
+            style={{
+              width: '92%',
+              maxWidth: '420px',
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid var(--border-color)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: '0.75rem' }}>Create Event</h3>
+            <input
+              value={eventTitle}
+              onChange={(e) => setEventTitle(e.target.value)}
+              placeholder="Event title"
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem'
+              }}
+            />
+            <input
+              value={eventDateTime}
+              onChange={(e) => setEventDateTime(e.target.value)}
+              type="datetime-local"
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem'
+              }}
+            />
+            <input
+              value={eventLocation}
+              onChange={(e) => setEventLocation(e.target.value)}
+              placeholder="Location (optional)"
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem'
+              }}
+            />
+            <textarea
+              value={eventDescription}
+              onChange={(e) => setEventDescription(e.target.value)}
+              placeholder="Description (optional)"
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem',
+                resize: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setShowEventModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateEvent}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white'
+                }}
+              >
+                Post Event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes typingDot {

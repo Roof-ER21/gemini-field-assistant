@@ -175,6 +175,20 @@ async function main() {
       console.error('❌ Migration 013 failed, but continuing verification...');
     }
 
+    const migration014Path = path.join(__dirname, 'database/migrations/014_message_pins.sql');
+    const success014 = await runMigration(client, migration014Path);
+
+    if (!success014) {
+      console.error('❌ Migration 014 failed, but continuing verification...');
+    }
+
+    const migration015Path = path.join(__dirname, 'database/migrations/015_message_polls_events.sql');
+    const success015 = await runMigration(client, migration015Path);
+
+    if (!success015) {
+      console.error('❌ Migration 015 failed, but continuing verification...');
+    }
+
     // Verify everything
     await verifyTables(client);
     await testBudgetAPI(client);

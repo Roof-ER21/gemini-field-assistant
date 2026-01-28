@@ -47,7 +47,7 @@ export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
-  message_type: 'text' | 'shared_chat' | 'shared_email' | 'system';
+  message_type: 'text' | 'shared_chat' | 'shared_email' | 'system' | 'poll' | 'event';
   content: MessageContent;
   is_edited: boolean;
   edited_at: string | null;
@@ -70,10 +70,22 @@ export interface Message {
     count: number;
     user_ids: string[];
   }>;
+  read_receipts?: string[];
+  poll_votes?: Array<{
+    option_index: number;
+    count: number;
+    user_ids: string[];
+  }>;
+  event_rsvps?: Array<{
+    status: 'going' | 'maybe' | 'declined';
+    count: number;
+    user_ids: string[];
+  }>;
+  is_pinned?: boolean;
 }
 
 export interface MessageContent {
-  type: 'text' | 'shared_chat' | 'shared_email' | 'system';
+  type: 'text' | 'shared_chat' | 'shared_email' | 'system' | 'poll' | 'event';
   text?: string;
   mentioned_users?: string[];
   attachments?: Array<{
@@ -83,6 +95,16 @@ export interface MessageContent {
     size: number;
     url: string;
   }>;
+  poll?: {
+    question: string;
+    options: string[];
+  };
+  event?: {
+    title: string;
+    datetime: string;
+    location?: string;
+    description?: string;
+  };
   shared_data?: {
     original_query?: string;
     ai_response?: string;
@@ -117,6 +139,10 @@ type MessageCallback = (message: Message) => void;
 type TypingCallback = (data: { userId: string; conversationId: string; isTyping: boolean }) => void;
 type NotificationCallback = (notification: Notification) => void;
 type ReactionCallback = (data: { conversationId: string; messageId: string; reactions: Message['reactions'] }) => void;
+type ReadReceiptCallback = (data: { conversationId: string; userId: string; messageIds: string[]; readAt: string }) => void;
+type PinCallback = (data: { conversationId: string; messageId: string }) => void;
+type PollVoteCallback = (data: { conversationId: string; messageId: string; votes: Message['poll_votes'] }) => void;
+type EventRsvpCallback = (data: { conversationId: string; messageId: string; rsvps: Message['event_rsvps'] }) => void;
 
 class MessagingService {
   private socket: Socket | null = null;
@@ -130,6 +156,10 @@ class MessagingService {
   private typingListeners: Set<TypingCallback> = new Set();
   private notificationListeners: Set<NotificationCallback> = new Set();
   private reactionListeners: Set<ReactionCallback> = new Set();
+  private readReceiptListeners: Set<ReadReceiptCallback> = new Set();
+  private pinListeners: Set<PinCallback> = new Set();
+  private pollVoteListeners: Set<PollVoteCallback> = new Set();
+  private eventRsvpListeners: Set<EventRsvpCallback> = new Set();
 
   // Heartbeat
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -205,6 +235,22 @@ class MessagingService {
 
     this.socket.on('message:reaction', (data: { conversationId: string; messageId: string; reactions: any[] }) => {
       this.reactionListeners.forEach(listener => listener(data));
+    });
+
+    this.socket.on('message:read', (data: { conversationId: string; userId: string; messageIds: string[]; readAt: string }) => {
+      this.readReceiptListeners.forEach(listener => listener(data));
+    });
+
+    this.socket.on('message:pin', (data: { conversationId: string; messageId: string }) => {
+      this.pinListeners.forEach(listener => listener(data));
+    });
+
+    this.socket.on('message:poll', (data: { conversationId: string; messageId: string; votes: any[] }) => {
+      this.pollVoteListeners.forEach(listener => listener(data));
+    });
+
+    this.socket.on('message:event', (data: { conversationId: string; messageId: string; rsvps: any[] }) => {
+      this.eventRsvpListeners.forEach(listener => listener(data));
     });
 
     // Typing events
@@ -311,6 +357,26 @@ class MessagingService {
   onReactionUpdate(callback: ReactionCallback): () => void {
     this.reactionListeners.add(callback);
     return () => this.reactionListeners.delete(callback);
+  }
+
+  onReadReceipt(callback: ReadReceiptCallback): () => void {
+    this.readReceiptListeners.add(callback);
+    return () => this.readReceiptListeners.delete(callback);
+  }
+
+  onPinUpdate(callback: PinCallback): () => void {
+    this.pinListeners.add(callback);
+    return () => this.pinListeners.delete(callback);
+  }
+
+  onPollVoteUpdate(callback: PollVoteCallback): () => void {
+    this.pollVoteListeners.add(callback);
+    return () => this.pollVoteListeners.delete(callback);
+  }
+
+  onEventRsvpUpdate(callback: EventRsvpCallback): () => void {
+    this.eventRsvpListeners.add(callback);
+    return () => this.eventRsvpListeners.delete(callback);
   }
 
   // ============================================================================
@@ -622,6 +688,103 @@ class MessagingService {
   // Check if connected
   getConnectionStatus(): boolean {
     return this.isConnected;
+  }
+
+  // Search messages
+  async searchMessages(query: string, conversationId?: string): Promise<Message[]> {
+    try {
+      const params = new URLSearchParams();
+      params.append('query', query);
+      if (conversationId) params.append('conversation_id', conversationId);
+
+      const response = await fetch(`${this.getApiUrl()}/api/messages/search?${params}`, {
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) throw new Error('Failed to search messages');
+
+      const data = await response.json();
+      return data.results || [];
+    } catch (error) {
+      console.error('[Messaging] Error searching messages:', error);
+      return [];
+    }
+  }
+
+  // Get pinned messages for a conversation
+  async getPins(conversationId: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/conversations/${conversationId}/pins`, {
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch pins');
+
+      const data = await response.json();
+      return data.pins || [];
+    } catch (error) {
+      console.error('[Messaging] Error fetching pins:', error);
+      return [];
+    }
+  }
+
+  // Toggle pin for a message
+  async togglePin(conversationId: string, messageId: string): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${this.getApiUrl()}/api/messages/conversations/${conversationId}/pins/${messageId}`,
+        {
+          method: 'POST',
+          headers: this.getHeaders()
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to update pin');
+
+      const data = await response.json();
+      return data.pinned === true;
+    } catch (error) {
+      console.error('[Messaging] Error toggling pin:', error);
+      return false;
+    }
+  }
+
+  // Vote on a poll
+  async voteOnPoll(messageId: string, optionIndex: number): Promise<Message['poll_votes']> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/polls/${messageId}/vote`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ option_index: optionIndex })
+      });
+
+      if (!response.ok) throw new Error('Failed to vote on poll');
+
+      const data = await response.json();
+      return data.votes || [];
+    } catch (error) {
+      console.error('[Messaging] Error voting on poll:', error);
+      return [];
+    }
+  }
+
+  // RSVP to an event
+  async rsvpToEvent(messageId: string, status: 'going' | 'maybe' | 'declined'): Promise<Message['event_rsvps']> {
+    try {
+      const response = await fetch(`${this.getApiUrl()}/api/messages/events/${messageId}/rsvp`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) throw new Error('Failed to update RSVP');
+
+      const data = await response.json();
+      return data.rsvps || [];
+    } catch (error) {
+      console.error('[Messaging] Error updating RSVP:', error);
+      return [];
+    }
   }
 
   // Toggle an emoji reaction on a message

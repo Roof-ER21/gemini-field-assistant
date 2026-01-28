@@ -462,6 +462,10 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                   ? (lastContent?.attachments?.length
                     ? (lastContent.attachments.length === 1 ? 'Shared a photo' : 'Shared photos')
                     : lastContent?.text || 'Message')
+                  : conv.last_message.message_type === 'poll'
+                    ? (lastContent?.poll?.question ? `Poll: ${lastContent.poll.question}` : 'Poll')
+                    : conv.last_message.message_type === 'event'
+                      ? (lastContent?.event?.title ? `Event: ${lastContent.event.title}` : 'Event')
                   : conv.last_message.message_type === 'shared_chat'
                     ? 'Shared AI chat'
                     : conv.last_message.message_type === 'shared_email'

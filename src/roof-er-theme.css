@@ -10,12 +10,12 @@
   --roof-red-darker: #8a1528;
 
   /* Background Colors */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #0f0f0f;
-  --bg-tertiary: #161616;
-  --bg-elevated: #1a1a1a;
-  --bg-hover: #252525;
-  --bg-card: #1e1e1e;
+  --bg-primary: rgba(10, 10, 10, 0.9);
+  --bg-secondary: rgba(15, 15, 15, 0.88);
+  --bg-tertiary: rgba(22, 22, 22, 0.85);
+  --bg-elevated: rgba(26, 26, 26, 0.9);
+  --bg-hover: rgba(37, 37, 37, 0.9);
+  --bg-card: rgba(30, 30, 30, 0.92);
 
   /* Text Colors */
   --text-primary: #ffffff;

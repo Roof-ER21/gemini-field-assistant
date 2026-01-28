@@ -15,6 +15,12 @@ function getMessagePreview(content, maxLength = 100) {
     if (content.attachments && content.attachments.length > 0) {
         return content.attachments.length === 1 ? 'Shared a photo' : 'Shared photos';
     }
+    if (content.type === 'poll') {
+        return content.poll?.question ? `Poll: ${content.poll.question}` : 'Created a poll';
+    }
+    if (content.type === 'event') {
+        return content.event?.title ? `Event: ${content.event.title}` : 'Created an event';
+    }
     if (content.type === 'shared_chat') {
         return 'Shared a Susan AI conversation';
     }
@@ -326,7 +332,59 @@ export function createMessagingRoutes(pool) {
               ) r
             ),
             '[]'::jsonb
-          ) as reactions
+          ) as reactions,
+          COALESCE(
+            (
+              SELECT jsonb_agg(user_id)
+              FROM message_read_receipts
+              WHERE message_id = m.id
+            ),
+            '[]'::jsonb
+          ) as read_receipts,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'option_index', v.option_index,
+                  'count', v.vote_count,
+                  'user_ids', v.user_ids
+                )
+              )
+              FROM (
+                SELECT option_index,
+                  COUNT(*)::integer as vote_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_poll_votes
+                WHERE message_id = m.id
+                GROUP BY option_index
+              ) v
+            ),
+            '[]'::jsonb
+          ) as poll_votes,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'status', r.status,
+                  'count', r.rsvp_count,
+                  'user_ids', r.user_ids
+                )
+              )
+              FROM (
+                SELECT status,
+                  COUNT(*)::integer as rsvp_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_event_rsvps
+                WHERE message_id = m.id
+                GROUP BY status
+              ) r
+            ),
+            '[]'::jsonb
+          ) as event_rsvps,
+          EXISTS (
+            SELECT 1 FROM message_pins mp
+            WHERE mp.message_id = m.id
+          ) as is_pinned
         FROM team_messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.conversation_id = $1
@@ -365,7 +423,7 @@ export function createMessagingRoutes(pool) {
         if (!userId) {
             return res.status(401).json({ success: false, error: 'Authentication required' });
         }
-        if (!message_type || !['text', 'shared_chat', 'shared_email', 'system'].includes(message_type)) {
+        if (!message_type || !['text', 'shared_chat', 'shared_email', 'system', 'poll', 'event'].includes(message_type)) {
             return res.status(400).json({ success: false, error: 'Invalid message type' });
         }
         if (!content) {
@@ -385,6 +443,10 @@ export function createMessagingRoutes(pool) {
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *`, [conversationId, userId, message_type, JSON.stringify(content), parent_message_id || null]);
             const message = messageResult.rows[0];
+            // Create read receipt for sender
+            await client.query(`INSERT INTO message_read_receipts (message_id, user_id, read_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (message_id, user_id) DO UPDATE SET read_at = NOW()`, [message.id, userId]);
             // Process mentions
             let mentionsCreated = 0;
             if (content.mentioned_users && Array.isArray(content.mentioned_users)) {
@@ -462,7 +524,59 @@ export function createMessagingRoutes(pool) {
               ) r
             ),
             '[]'::jsonb
-          ) as reactions
+          ) as reactions,
+          COALESCE(
+            (
+              SELECT jsonb_agg(user_id)
+              FROM message_read_receipts
+              WHERE message_id = m.id
+            ),
+            '[]'::jsonb
+          ) as read_receipts,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'option_index', v.option_index,
+                  'count', v.vote_count,
+                  'user_ids', v.user_ids
+                )
+              )
+              FROM (
+                SELECT option_index,
+                  COUNT(*)::integer as vote_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_poll_votes
+                WHERE message_id = m.id
+                GROUP BY option_index
+              ) v
+            ),
+            '[]'::jsonb
+          ) as poll_votes,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'status', r.status,
+                  'count', r.rsvp_count,
+                  'user_ids', r.user_ids
+                )
+              )
+              FROM (
+                SELECT status,
+                  COUNT(*)::integer as rsvp_count,
+                  jsonb_agg(user_id) as user_ids
+                FROM message_event_rsvps
+                WHERE message_id = m.id
+                GROUP BY status
+              ) r
+            ),
+            '[]'::jsonb
+          ) as event_rsvps,
+          EXISTS (
+            SELECT 1 FROM message_pins mp
+            WHERE mp.message_id = m.id
+          ) as is_pinned
         FROM team_messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.id = $1`, [message.id]);
@@ -561,6 +675,265 @@ export function createMessagingRoutes(pool) {
         }
     });
     /**
+     * GET /api/messages/search
+     * Search messages by text within a conversation or across all conversations
+     */
+    router.get('/search', async (req, res) => {
+        const userId = req.userId;
+        const query = req.query.query || '';
+        const conversationId = req.query.conversation_id;
+        const limit = parseInt(req.query.limit) || 50;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (!query.trim()) {
+            return res.status(400).json({ success: false, error: 'Search query required' });
+        }
+        try {
+            const params = [userId, `%${query.toLowerCase()}%`];
+            let sql = `
+        SELECT
+          m.id,
+          m.conversation_id,
+          m.sender_id,
+          m.message_type,
+          m.content,
+          m.created_at,
+          jsonb_build_object(
+            'id', u.id,
+            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+            'name', u.name,
+            'email', u.email
+          ) as sender
+        FROM team_messages m
+        INNER JOIN users u ON u.id = m.sender_id
+        INNER JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+        WHERE cp.user_id = $1
+          AND (
+            LOWER(COALESCE(m.content->>'text', m.content->'poll'->>'question', m.content->'event'->>'title', '')) LIKE $2
+            OR LOWER(u.name) LIKE $2
+          )
+      `;
+            if (conversationId) {
+                params.push(conversationId);
+                sql += ` AND m.conversation_id = $${params.length}`;
+            }
+            sql += ` ORDER BY m.created_at DESC LIMIT $${params.length + 1}`;
+            params.push(limit);
+            const result = await pool.query(sql, params);
+            res.json({ success: true, results: result.rows });
+        }
+        catch (error) {
+            console.error('Error searching messages:', error);
+            res.status(500).json({ success: false, error: 'Failed to search messages' });
+        }
+    });
+    /**
+     * GET /api/messages/conversations/:id/pins
+     * List pinned messages for a conversation
+     */
+    router.get('/conversations/:id/pins', async (req, res) => {
+        const userId = req.userId;
+        const conversationId = req.params.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        try {
+            const participantCheck = await pool.query('SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2', [conversationId, userId]);
+            if (participantCheck.rows.length === 0) {
+                return res.status(403).json({ success: false, error: 'Access denied' });
+            }
+            const result = await pool.query(`SELECT
+           mp.id,
+           mp.message_id,
+           mp.created_at,
+           jsonb_build_object(
+             'id', m.id,
+             'conversation_id', m.conversation_id,
+             'sender_id', m.sender_id,
+             'message_type', m.message_type,
+             'content', m.content,
+             'created_at', m.created_at,
+             'sender', jsonb_build_object(
+               'id', u.id,
+               'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+               'name', u.name,
+               'email', u.email
+             )
+           ) as message
+         FROM message_pins mp
+         INNER JOIN team_messages m ON m.id = mp.message_id
+         INNER JOIN users u ON u.id = m.sender_id
+         WHERE mp.conversation_id = $1
+         ORDER BY mp.created_at DESC`, [conversationId]);
+            res.json({ success: true, pins: result.rows });
+        }
+        catch (error) {
+            console.error('Error fetching pins:', error);
+            res.status(500).json({ success: false, error: 'Failed to fetch pins' });
+        }
+    });
+    /**
+     * POST /api/messages/conversations/:id/pins/:messageId
+     * Toggle pin on a message
+     */
+    router.post('/conversations/:id/pins/:messageId', async (req, res) => {
+        const userId = req.userId;
+        const conversationId = req.params.id;
+        const messageId = req.params.messageId;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const participantCheck = await client.query('SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2', [conversationId, userId]);
+            if (participantCheck.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ success: false, error: 'Access denied' });
+            }
+            const existingPin = await client.query(`SELECT id FROM message_pins WHERE conversation_id = $1 AND message_id = $2`, [conversationId, messageId]);
+            if (existingPin.rows.length > 0) {
+                await client.query('DELETE FROM message_pins WHERE id = $1', [existingPin.rows[0].id]);
+            }
+            else {
+                await client.query(`INSERT INTO message_pins (conversation_id, message_id, pinned_by)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (conversation_id, message_id) DO NOTHING`, [conversationId, messageId, userId]);
+            }
+            await client.query('COMMIT');
+            const presenceService = getPresenceService();
+            if (presenceService) {
+                presenceService.emitPinUpdate(conversationId, messageId);
+            }
+            res.json({ success: true, pinned: existingPin.rows.length === 0 });
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error toggling pin:', error);
+            res.status(500).json({ success: false, error: 'Failed to update pin' });
+        }
+        finally {
+            client.release();
+        }
+    });
+    /**
+     * POST /api/messages/polls/:messageId/vote
+     * Vote on a poll message
+     */
+    router.post('/polls/:messageId/vote', async (req, res) => {
+        const userId = req.userId;
+        const { messageId } = req.params;
+        const { option_index } = req.body;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (typeof option_index !== 'number') {
+            return res.status(400).json({ success: false, error: 'Option index required' });
+        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const messageResult = await client.query('SELECT conversation_id FROM team_messages WHERE id = $1', [messageId]);
+            if (messageResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, error: 'Message not found' });
+            }
+            const conversationId = messageResult.rows[0].conversation_id;
+            await client.query(`INSERT INTO message_poll_votes (message_id, user_id, option_index)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (message_id, user_id) DO UPDATE SET option_index = $3, created_at = NOW()`, [messageId, userId, option_index]);
+            const votesResult = await client.query(`SELECT jsonb_agg(
+            jsonb_build_object(
+              'option_index', v.option_index,
+              'count', v.vote_count,
+              'user_ids', v.user_ids
+            )
+          ) as votes
+         FROM (
+           SELECT option_index,
+             COUNT(*)::integer as vote_count,
+             jsonb_agg(user_id) as user_ids
+           FROM message_poll_votes
+           WHERE message_id = $1
+           GROUP BY option_index
+         ) v`, [messageId]);
+            await client.query('COMMIT');
+            const votes = votesResult.rows[0]?.votes || [];
+            const presenceService = getPresenceService();
+            if (presenceService) {
+                presenceService.emitPollVoteUpdate(conversationId, messageId, votes);
+            }
+            res.json({ success: true, votes });
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error voting on poll:', error);
+            res.status(500).json({ success: false, error: 'Failed to vote on poll' });
+        }
+        finally {
+            client.release();
+        }
+    });
+    /**
+     * POST /api/messages/events/:messageId/rsvp
+     * RSVP to an event message
+     */
+    router.post('/events/:messageId/rsvp', async (req, res) => {
+        const userId = req.userId;
+        const { messageId } = req.params;
+        const { status } = req.body;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (!status || !['going', 'maybe', 'declined'].includes(status)) {
+            return res.status(400).json({ success: false, error: 'Invalid RSVP status' });
+        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const messageResult = await client.query('SELECT conversation_id FROM team_messages WHERE id = $1', [messageId]);
+            if (messageResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, error: 'Message not found' });
+            }
+            const conversationId = messageResult.rows[0].conversation_id;
+            await client.query(`INSERT INTO message_event_rsvps (message_id, user_id, status)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (message_id, user_id) DO UPDATE SET status = $3, created_at = NOW()`, [messageId, userId, status]);
+            const rsvpResult = await client.query(`SELECT jsonb_agg(
+            jsonb_build_object(
+              'status', r.status,
+              'count', r.rsvp_count,
+              'user_ids', r.user_ids
+            )
+          ) as rsvps
+         FROM (
+           SELECT status,
+             COUNT(*)::integer as rsvp_count,
+             jsonb_agg(user_id) as user_ids
+           FROM message_event_rsvps
+           WHERE message_id = $1
+           GROUP BY status
+         ) r`, [messageId]);
+            await client.query('COMMIT');
+            const rsvps = rsvpResult.rows[0]?.rsvps || [];
+            const presenceService = getPresenceService();
+            if (presenceService) {
+                presenceService.emitEventRsvpUpdate(conversationId, messageId, rsvps);
+            }
+            res.json({ success: true, rsvps });
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error updating RSVP:', error);
+            res.status(500).json({ success: false, error: 'Failed to update RSVP' });
+        }
+        finally {
+            client.release();
+        }
+    });
+    /**
      * POST /api/messages/mark-read
      * Mark messages as read
      */
@@ -578,6 +951,16 @@ export function createMessagingRoutes(pool) {
                 await client.query(`UPDATE conversation_participants
            SET last_read_at = NOW()
            WHERE conversation_id = $1 AND user_id = $2`, [conversation_id, userId]);
+                const messageRows = await client.query(`SELECT id FROM team_messages
+           WHERE conversation_id = $1 AND sender_id != $2
+           ORDER BY created_at DESC
+           LIMIT 100`, [conversation_id, userId]);
+                const messageIds = messageRows.rows.map(r => r.id);
+                for (const messageId of messageIds) {
+                    await client.query(`INSERT INTO message_read_receipts (message_id, user_id, read_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (message_id, user_id) DO UPDATE SET read_at = NOW()`, [messageId, userId]);
+                }
                 // Mark mentions as read
                 await client.query(`UPDATE message_mentions
            SET is_read = true
@@ -588,7 +971,7 @@ export function createMessagingRoutes(pool) {
                 // Emit read receipt via WebSocket
                 const presenceService = getPresenceService();
                 if (presenceService) {
-                    presenceService.emitReadReceipt(conversation_id, userId, []);
+                    presenceService.emitReadReceipt(conversation_id, userId, messageIds);
                 }
             }
             else if (message_ids && message_ids.length > 0) {
