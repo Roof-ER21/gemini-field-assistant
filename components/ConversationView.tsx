@@ -127,6 +127,26 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     }, 2000);
   };
 
+  // Parse @mentions from text and resolve to user IDs
+  const parseMentions = (text: string): string[] => {
+    const mentionPattern = /@(\w+(?:\.\w+)*)/g;
+    const mentionedUserIds: string[] = [];
+    let match;
+
+    while ((match = mentionPattern.exec(text)) !== null) {
+      const mentionedUsername = match[1].toLowerCase();
+      // Check if it matches the participant's username or email prefix
+      const participantUsername = participant.username?.toLowerCase() ||
+        participant.email.split('@')[0].toLowerCase();
+
+      if (mentionedUsername === participantUsername) {
+        mentionedUserIds.push(participant.userId);
+      }
+    }
+
+    return [...new Set(mentionedUserIds)]; // Remove duplicates
+  };
+
   // Send message
   const handleSend = async () => {
     const text = inputText.trim();
@@ -136,9 +156,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     messagingService.stopTyping(conversationId);
 
     try {
+      // Parse mentions from the message text
+      const mentionedUserIds = parseMentions(text);
+
       const content: MessageContent = {
         type: 'text',
-        text
+        text,
+        ...(mentionedUserIds.length > 0 && { mentioned_users: mentionedUserIds })
       };
 
       const message = await messagingService.sendMessage(conversationId, content);
