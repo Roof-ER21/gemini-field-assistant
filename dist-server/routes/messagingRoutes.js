@@ -580,6 +580,27 @@ export function createMessagingRoutes(pool) {
         }
     });
     /**
+     * POST /api/messages/notifications/mark-all-read
+     * Mark all notifications as read
+     * NOTE: This must come BEFORE :id/read to avoid Express matching "mark-all-read" as an id
+     */
+    router.post('/notifications/mark-all-read', async (req, res) => {
+        const userId = req.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        try {
+            await pool.query(`UPDATE team_notifications
+         SET is_read = true, read_at = NOW()
+         WHERE user_id = $1 AND is_read = false`, [userId]);
+            res.json({ success: true });
+        }
+        catch (error) {
+            console.error('Error marking notifications as read:', error);
+            res.status(500).json({ success: false, error: 'Failed to mark notifications as read' });
+        }
+    });
+    /**
      * POST /api/messages/notifications/:id/read
      * Mark a single notification as read
      */
@@ -598,26 +619,6 @@ export function createMessagingRoutes(pool) {
         catch (error) {
             console.error('Error marking notification as read:', error);
             res.status(500).json({ success: false, error: 'Failed to mark notification as read' });
-        }
-    });
-    /**
-     * POST /api/messages/notifications/mark-all-read
-     * Mark all notifications as read
-     */
-    router.post('/notifications/mark-all-read', async (req, res) => {
-        const userId = req.userId;
-        if (!userId) {
-            return res.status(401).json({ success: false, error: 'Authentication required' });
-        }
-        try {
-            await pool.query(`UPDATE team_notifications
-         SET is_read = true, read_at = NOW()
-         WHERE user_id = $1 AND is_read = false`, [userId]);
-            res.json({ success: true });
-        }
-        catch (error) {
-            console.error('Error marking notifications as read:', error);
-            res.status(500).json({ success: false, error: 'Failed to mark notifications as read' });
         }
     });
     return router;
