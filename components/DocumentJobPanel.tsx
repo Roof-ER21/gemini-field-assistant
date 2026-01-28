@@ -1449,12 +1449,16 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           </div>
         </div>
 
-        {/* Save Button */}
+        {/* Save Button - Sticky Footer */}
         <div style={{
           padding: '1rem 1.5rem',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           gap: '1rem',
+          background: 'linear-gradient(to top, rgba(26, 26, 46, 1) 0%, rgba(26, 26, 46, 0.98) 100%)',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
         }}>
           <button
             onClick={() => {
