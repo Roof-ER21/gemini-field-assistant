@@ -42,6 +42,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const [sending, setSending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionSearchText, setMentionSearchText] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentUser = authService.getCurrentUser();
+
+  // Get participant username for mentions
+  const participantUsername = participant.username || participant.email.split('@')[0];
 
   // Fetch messages
   const fetchMessages = useCallback(async (beforeMessageId?: string) => {
@@ -656,11 +661,79 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       {/* Input */}
       <div
         style={{
+          position: 'relative',
           padding: '0.75rem 1rem',
           borderTop: '1px solid var(--border-color)',
           background: 'var(--bg-secondary)'
         }}
       >
+        {/* @ Mention Dropdown */}
+        {showMentionDropdown && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '1rem',
+              right: '1rem',
+              marginBottom: '0.5rem',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+              zIndex: 100
+            }}
+          >
+            <button
+              onClick={() => {
+                // Insert @username at the @ position
+                const lastAtIndex = inputText.lastIndexOf('@');
+                const newText = inputText.slice(0, lastAtIndex) + '@' + participantUsername + ' ';
+                setInputText(newText);
+                setShowMentionDropdown(false);
+                inputRef.current?.focus();
+              }}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                color: 'var(--text-primary)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontWeight: '600',
+                  fontSize: '0.875rem'
+                }}
+              >
+                {participant.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight: '500' }}>{participant.name}</div>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                  @{participantUsername}
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
         <div
           style={{
             display: 'flex',
@@ -672,11 +745,27 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             ref={inputRef}
             value={inputText}
             onChange={(e) => {
-              setInputText(e.target.value);
+              const value = e.target.value;
+              setInputText(value);
               handleTyping();
+
+              // Check for @ mention trigger
+              const lastAtIndex = value.lastIndexOf('@');
+              if (lastAtIndex !== -1) {
+                const textAfterAt = value.slice(lastAtIndex + 1);
+                // Show dropdown if @ is at end or followed by partial match
+                if (textAfterAt === '' || participantUsername.toLowerCase().startsWith(textAfterAt.toLowerCase())) {
+                  setShowMentionDropdown(true);
+                  setMentionSearchText(textAfterAt);
+                } else {
+                  setShowMentionDropdown(false);
+                }
+              } else {
+                setShowMentionDropdown(false);
+              }
             }}
             onKeyDown={handleKeyPress}
-            placeholder="Type a message..."
+            placeholder="Type a message... (use @ to mention)"
             rows={1}
             style={{
               flex: 1,
