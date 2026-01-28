@@ -17,6 +17,7 @@ import { emailService, LoginNotificationData, ChatNotificationData, Verification
 import { cronService } from './services/cronService.js';
 import { initializePresenceService } from './services/presenceService.js';
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
+import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 
 const { Pool } = pg;
@@ -4842,6 +4843,10 @@ app.use('/api', createMessagingRoutes(pool)); // Also mount /api/team
 // Register job routes
 app.use('/api/jobs', authMiddleware);
 app.use('/api/jobs', jobRoutes);
+
+// Register roof (team feed) routes
+app.use('/api/roof', authMiddleware);
+app.use('/api/roof', createRoofRoutes(pool));
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)

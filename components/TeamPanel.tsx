@@ -13,10 +13,12 @@ import {
   RefreshCw,
   X,
   ChevronRight,
-  Bell
+  Bell,
+  Home
 } from 'lucide-react';
 import { messagingService, TeamMember, Conversation } from '../services/messagingService';
 import { authService } from '../services/authService';
+import RoofFeed from './RoofFeed';
 
 interface TeamPanelProps {
   onClose: () => void;
@@ -28,7 +30,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'team' | 'messages'>('messages');
+  const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof'>('messages');
   const [totalUnread, setTotalUnread] = useState(0);
 
   const currentUser = authService.getCurrentUser();
@@ -309,42 +311,66 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             <Users style={{ width: '16px', height: '16px' }} />
             Team ({onlineCount})
           </button>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div style={{ padding: '0.75rem 1rem' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: 'var(--bg-secondary)',
-            borderRadius: '8px',
-            padding: '0.5rem 0.75rem'
-          }}
-        >
-          <Search style={{ width: '16px', height: '16px', color: 'var(--text-secondary)' }} />
-          <input
-            type="text"
-            placeholder={activeTab === 'messages' ? 'Search conversations...' : 'Search team members...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+          <button
+            onClick={() => setActiveTab('roof')}
             style={{
               flex: 1,
-              background: 'transparent',
+              padding: '0.5rem',
+              borderRadius: '8px',
               border: 'none',
-              outline: 'none',
-              fontSize: '0.875rem',
-              color: 'var(--text-primary)'
+              background: activeTab === 'roof' ? 'var(--roof-red)' : 'var(--bg-secondary)',
+              color: activeTab === 'roof' ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
             }}
-          />
+          >
+            <Home style={{ width: '16px', height: '16px' }} />
+            Roof
+          </button>
         </div>
       </div>
 
+      {/* Search - hidden for roof tab */}
+      {activeTab !== 'roof' && (
+        <div style={{ padding: '0.75rem 1rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              padding: '0.5rem 0.75rem'
+            }}
+          >
+            <Search style={{ width: '16px', height: '16px', color: 'var(--text-secondary)' }} />
+            <input
+              type="text"
+              placeholder={activeTab === 'messages' ? 'Search conversations...' : 'Search team members...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontSize: '0.875rem',
+                color: 'var(--text-primary)'
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 0.5rem 1rem' }}>
-        {loading ? (
+      <div style={{ flex: 1, overflow: 'auto', padding: activeTab === 'roof' ? 0 : '0 0.5rem 1rem' }}>
+        {activeTab === 'roof' ? (
+          <RoofFeed />
+        ) : loading ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             Loading...
           </div>

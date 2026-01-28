@@ -3,7 +3,7 @@
  * Shows mentions, direct messages, and shared content
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   X,
@@ -34,6 +34,14 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onMarkAllRead,
   onRefresh
 }) => {
+  // Track mobile state for responsive positioning
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 480);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 480);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   // Format time ago
   const formatTimeAgo = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -69,12 +77,13 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   return (
     <div
       style={{
-        position: 'absolute',
-        top: 'calc(100% + 8px)',
-        right: 0,
-        width: '360px',
-        maxWidth: '90vw',
-        maxHeight: '600px',
+        position: isMobile ? 'fixed' : 'absolute',
+        top: isMobile ? '60px' : 'calc(100% + 8px)',
+        right: isMobile ? '8px' : 0,
+        left: isMobile ? '8px' : 'auto',
+        width: isMobile ? 'auto' : '360px',
+        maxWidth: isMobile ? 'none' : '90vw',
+        maxHeight: isMobile ? 'calc(100vh - 80px)' : '600px',
         background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         borderRadius: '12px',

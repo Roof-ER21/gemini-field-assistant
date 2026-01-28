@@ -1,22 +1,25 @@
 /**
  * ShareModal - Modal for sharing Susan AI content with teammates
  * Used by ChatPanel and EmailPanel to share responses/drafts
+ * Supports Direct Message or Post to The Roof
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   X,
   Search,
-  Circle,
   Send,
   Bot,
   Mail,
   Users,
   Check,
-  Loader
+  Loader,
+  Home,
+  MessageSquare
 } from 'lucide-react';
 import { messagingService, TeamMember } from '../services/messagingService';
 import { authService } from '../services/authService';
+import { roofService, SharedContent } from '../services/roofService';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -53,6 +56,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [note, setNote] = useState('');
   const [success, setSuccess] = useState(false);
+  const [shareType, setShareType] = useState<'dm' | 'roof'>('dm');
+  const [roofPostContent, setRoofPostContent] = useState('');
 
   const currentUser = authService.getCurrentUser();
 
@@ -79,6 +84,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
       setSelectedMember(null);
       setNote('');
       setSuccess(false);
+      setShareType('dm');
+      setRoofPostContent('');
     }
   }, [isOpen, currentUser?.email]);
 
@@ -139,6 +146,48 @@ const ShareModal: React.FC<ShareModalProps> = ({
     } catch (error) {
       console.error('Error sharing:', error);
       alert('Failed to share. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Handle post to The Roof
+  const handlePostToRoof = async () => {
+    if (!roofPostContent.trim()) return;
+
+    setSending(true);
+    try {
+      // Build shared content
+      const sharedContent: SharedContent = contentType === 'chat'
+        ? {
+            type: 'susan_chat',
+            original_query: originalQuery,
+            ai_response: aiResponse,
+            session_id: sessionId
+          }
+        : {
+            type: 'susan_email',
+            email_subject: emailSubject,
+            email_body: emailBody,
+            email_metadata: emailMetadata
+          };
+
+      const postType = contentType === 'chat' ? 'shared_chat' : 'shared_email';
+      const newPost = await roofService.createPost(
+        roofPostContent.trim(),
+        postType,
+        sharedContent
+      );
+
+      if (newPost) {
+        setSuccess(true);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Error posting to Roof:', error);
+      alert('Failed to post. Please try again.');
     } finally {
       setSending(false);
     }
@@ -241,18 +290,26 @@ const ShareModal: React.FC<ShareModalProps> = ({
                 width: '60px',
                 height: '60px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                background: shareType === 'roof'
+                  ? 'linear-gradient(135deg, var(--roof-red) 0%, var(--roof-red-dark) 100%)'
+                  : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 1rem'
               }}
             >
-              <Check style={{ width: '32px', height: '32px', color: 'white' }} />
+              {shareType === 'roof' ? (
+                <Home style={{ width: '32px', height: '32px', color: 'white' }} />
+              ) : (
+                <Check style={{ width: '32px', height: '32px', color: 'white' }} />
+              )}
             </div>
-            <h3 style={{ margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>Shared!</h3>
+            <h3 style={{ margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>
+              {shareType === 'roof' ? 'Posted!' : 'Shared!'}
+            </h3>
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              Sent to {selectedMember?.name}
+              {shareType === 'roof' ? 'Posted to The Roof' : `Sent to ${selectedMember?.name}`}
             </p>
           </div>
         ) : (
@@ -284,7 +341,74 @@ const ShareModal: React.FC<ShareModalProps> = ({
               </div>
             </div>
 
-            {/* Search */}
+            {/* Share Type Toggle */}
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                display: 'flex',
+                gap: '0.5rem',
+                borderBottom: '1px solid var(--border-color)'
+              }}
+            >
+              <button
+                onClick={() => setShareType('dm')}
+                style={{
+                  flex: 1,
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '8px',
+                  border: shareType === 'dm'
+                    ? '2px solid var(--roof-red)'
+                    : '1px solid var(--border-color)',
+                  background: shareType === 'dm'
+                    ? 'rgba(220, 38, 38, 0.1)'
+                    : 'transparent',
+                  color: shareType === 'dm'
+                    ? 'var(--roof-red)'
+                    : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: shareType === 'dm' ? '600' : '500',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <MessageSquare style={{ width: '16px', height: '16px' }} />
+                Direct Message
+              </button>
+              <button
+                onClick={() => setShareType('roof')}
+                style={{
+                  flex: 1,
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '8px',
+                  border: shareType === 'roof'
+                    ? '2px solid var(--roof-red)'
+                    : '1px solid var(--border-color)',
+                  background: shareType === 'roof'
+                    ? 'rgba(220, 38, 38, 0.1)'
+                    : 'transparent',
+                  color: shareType === 'roof'
+                    ? 'var(--roof-red)'
+                    : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: shareType === 'roof' ? '600' : '500',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <Home style={{ width: '16px', height: '16px' }} />
+                Post to The Roof
+              </button>
+            </div>
+
+            {shareType === 'dm' ? (
+              <>
+                {/* Search */}
             <div style={{ padding: '0.75rem 1rem' }}>
               <div
                 style={{
@@ -428,6 +552,58 @@ const ShareModal: React.FC<ShareModalProps> = ({
                 />
               </div>
             )}
+              </>
+            ) : (
+              /* Post to Roof Section */
+              <div style={{ padding: '1rem' }}>
+                <div
+                  style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <Home style={{ width: '18px', height: '18px', color: 'var(--roof-red)' }} />
+                    <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      Post to The Roof
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Share this with your entire team. Everyone will see your post.
+                  </p>
+                  <textarea
+                    value={roofPostContent}
+                    onChange={(e) => setRoofPostContent(e.target.value)}
+                    placeholder="Add a comment about what you're sharing..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                    maxLength={2000}
+                  />
+                  <div
+                    style={{
+                      textAlign: 'right',
+                      fontSize: '0.75rem',
+                      color: roofPostContent.length > 1800 ? 'var(--roof-red)' : 'var(--text-secondary)',
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    {roofPostContent.length}/2000
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Footer */}
             <div
@@ -453,38 +629,73 @@ const ShareModal: React.FC<ShareModalProps> = ({
               >
                 Cancel
               </button>
-              <button
-                onClick={handleShare}
-                disabled={!selectedMember || sending}
-                style={{
-                  flex: 1,
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: selectedMember
-                    ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                    : 'var(--bg-tertiary)',
-                  color: selectedMember ? 'white' : 'var(--text-secondary)',
-                  cursor: selectedMember ? 'pointer' : 'not-allowed',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                {sending ? (
-                  <>
-                    <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send style={{ width: '16px', height: '16px' }} />
-                    Share
-                  </>
-                )}
-              </button>
+              {shareType === 'dm' ? (
+                <button
+                  onClick={handleShare}
+                  disabled={!selectedMember || sending}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: selectedMember
+                      ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                      : 'var(--bg-tertiary)',
+                    color: selectedMember ? 'white' : 'var(--text-secondary)',
+                    cursor: selectedMember ? 'pointer' : 'not-allowed',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  {sending ? (
+                    <>
+                      <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send style={{ width: '16px', height: '16px' }} />
+                      Share
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handlePostToRoof}
+                  disabled={!roofPostContent.trim() || sending}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: roofPostContent.trim()
+                      ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                      : 'var(--bg-tertiary)',
+                    color: roofPostContent.trim() ? 'white' : 'var(--text-secondary)',
+                    cursor: roofPostContent.trim() ? 'pointer' : 'not-allowed',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  {sending ? (
+                    <>
+                      <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                      Posting...
+                    </>
+                  ) : (
+                    <>
+                      <Home style={{ width: '16px', height: '16px' }} />
+                      Post to Roof
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </>
         )}
