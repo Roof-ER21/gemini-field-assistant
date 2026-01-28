@@ -310,7 +310,6 @@ export class PresenceService {
            COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username
          FROM user_presence up
          JOIN users u ON up.user_id = u.id
-         WHERE u.is_active = true OR u.is_active IS NULL
          ORDER BY
            CASE up.status
              WHEN 'online' THEN 1

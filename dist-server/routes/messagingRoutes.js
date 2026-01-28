@@ -46,7 +46,6 @@ export function createMessagingRoutes(pool) {
            COALESCE(up.last_seen, u.last_login_at) as "lastSeen"
          FROM users u
          LEFT JOIN user_presence up ON u.id = up.user_id
-         WHERE u.is_active = true OR u.is_active IS NULL
          ORDER BY
            CASE COALESCE(up.status, 'offline')
              WHEN 'online' THEN 1
