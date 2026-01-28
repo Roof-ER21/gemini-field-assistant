@@ -947,6 +947,7 @@ function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 // Send verification code endpoint
+// NOTE: Returns code directly for display (email not required)
 app.post('/api/auth/send-verification-code', async (req, res) => {
     try {
         const { email } = req.body;
@@ -970,44 +971,36 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
         const expiresAt = Date.now() + (expiresInMinutes * 60 * 1000);
         // Store code for later verification
         verificationCodes.set(email.toLowerCase(), { code, expiresAt });
-        // Send email with verification code
-        const emailSent = await emailService.sendVerificationCode({
-            email,
-            code,
-            expiresInMinutes
-        });
-        if (emailSent) {
-            res.json({
-                success: true,
-                message: 'Verification code sent to your email',
+        // Try to send email (but don't fail if it doesn't work)
+        let emailSent = false;
+        try {
+            emailSent = await emailService.sendVerificationCode({
+                email,
+                code,
                 expiresInMinutes
             });
         }
-        else {
-            // Email failed but code is stored - in development mode, this is acceptable
-            const config = emailService.getConfig();
-            if (config.provider === 'console') {
-                // In console mode (development), return success with dev indicator
-                res.json({
-                    success: true,
-                    message: 'Verification code sent (check server console in development)',
-                    expiresInMinutes,
-                    developmentMode: true
-                });
-            }
-            else {
-                res.status(500).json({
-                    success: false,
-                    error: 'Failed to send verification email. Please try again.'
-                });
-            }
+        catch (emailError) {
+            console.log('Email sending failed (code will be displayed on screen):', emailError);
         }
+        // Always return success with the code for display
+        // This allows admins/team members to share the code verbally or via messaging
+        console.log(`[AUTH] Verification code for ${email}: ${code}`);
+        res.json({
+            success: true,
+            message: emailSent
+                ? 'Verification code sent to your email'
+                : 'Verification code generated',
+            expiresInMinutes,
+            verificationCode: code, // Always include code for display
+            emailSent // Let frontend know if email was actually sent
+        });
     }
     catch (error) {
         console.error('Error sending verification code:', error);
         res.status(500).json({
             success: false,
-            error: 'An error occurred while sending the verification code'
+            error: 'An error occurred while generating the verification code'
         });
     }
 });

@@ -24,7 +24,9 @@ export interface LoginResult {
   user?: AuthUser;
   message: string;
   autoLoginSuccess?: boolean; // True if auto-login token was used
-  developmentMode?: boolean; // True if verification code was logged to console (dev only)
+  developmentMode?: boolean; // True if verification code should be displayed on screen
+  verificationCode?: string; // The verification code to display (when email not sent)
+  emailSent?: boolean; // True if email was actually sent
 }
 
 interface StoredAuth {
@@ -124,9 +126,15 @@ class AuthService {
 
   /**
    * Send verification code via backend API
-   * The backend handles code generation, storage, and email delivery
+   * The backend handles code generation, storage, and returns the code for display
    */
-  private async sendVerificationCode(email: string): Promise<{ success: boolean; developmentMode?: boolean; message: string }> {
+  private async sendVerificationCode(email: string): Promise<{
+    success: boolean;
+    developmentMode?: boolean;
+    message: string;
+    verificationCode?: string;
+    emailSent?: boolean;
+  }> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
         method: 'POST',
@@ -141,8 +149,10 @@ class AuthService {
       if (response.ok && result.success) {
         return {
           success: true,
-          developmentMode: result.developmentMode,
-          message: result.message
+          developmentMode: !result.emailSent,  // Show code if email wasn't sent
+          message: result.message,
+          verificationCode: result.verificationCode,
+          emailSent: result.emailSent
         };
       }
 
@@ -253,11 +263,13 @@ class AuthService {
       if (sendResult.success) {
         return {
           success: true,
-          message: sendResult.developmentMode
-            ? 'Verification code sent (check server console in development)'
-            : 'Verification code sent! Check your email.',
+          message: sendResult.emailSent
+            ? 'Verification code sent! Check your email.'
+            : 'Verification code generated - share it with the user.',
           autoLoginSuccess: false,
-          developmentMode: sendResult.developmentMode
+          developmentMode: !sendResult.emailSent,  // Show code display when email not sent
+          verificationCode: sendResult.verificationCode,
+          emailSent: sendResult.emailSent
         };
       } else {
         return {

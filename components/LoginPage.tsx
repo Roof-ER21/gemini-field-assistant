@@ -6,38 +6,68 @@
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import LegalPage from './LegalPage';
-import { Mail, User, ArrowLeft, Shield } from 'lucide-react';
+import { Mail, User, ArrowLeft, Shield, Copy, Check, Eye, EyeOff } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  // Load saved email/name from localStorage (persists across app closes)
+  const savedEmail = localStorage.getItem('s21_login_email') || '';
+  const savedName = localStorage.getItem('s21_login_name') || '';
+
   const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(savedEmail);
   const [code, setCode] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(savedName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
   const [showDevLogin, setShowDevLogin] = useState(false);
   const [isDevelopmentMode, setIsDevelopmentMode] = useState(false);
+  const [displayedCode, setDisplayedCode] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+
+  // Save email/name as user types (so they don't lose it if app closes)
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    localStorage.setItem('s21_login_email', value);
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    localStorage.setItem('s21_login_name', value);
+  };
+
+  // Clear saved login info after successful login
+  const clearSavedLoginInfo = () => {
+    localStorage.removeItem('s21_login_email');
+    localStorage.removeItem('s21_login_name');
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setCodeCopied(false);
 
     try {
       const result = await authService.requestLoginCode(email, name, rememberMe);
       if (result.success) {
         if (result.autoLoginSuccess) {
+          clearSavedLoginInfo();
           onLoginSuccess();
           return;
         }
         setStep('code');
         setIsDevelopmentMode(result.developmentMode || false);
+        // Store the verification code if returned (for display when email not sent)
+        if (result.verificationCode) {
+          setDisplayedCode(result.verificationCode);
+        }
       } else {
         setError(result.message);
       }
@@ -45,6 +75,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    if (displayedCode) {
+      try {
+        await navigator.clipboard.writeText(displayedCode);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = displayedCode;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      }
     }
   };
 
@@ -56,6 +106,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     try {
       const result = await authService.verifyLoginCode(email, code, name, rememberMe);
       if (result.success) {
+        clearSavedLoginInfo();
         onLoginSuccess();
       } else {
         setError(result.message);
@@ -75,6 +126,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     try {
       const result = await authService.quickLogin(email, name || undefined, rememberMe);
       if (result.success) {
+        clearSavedLoginInfo();
         onLoginSuccess();
       } else {
         setError(result.message);
@@ -195,7 +247,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => handleEmailChange(e.target.value)}
                 placeholder="you@company.com"
                 required
                 autoComplete="email"
@@ -217,7 +269,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="John Smith"
                 required
                 autoComplete="name"
@@ -369,7 +421,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             {/* Back Button */}
             <button
               type="button"
-              onClick={() => { setStep('email'); setCode(''); setError(''); }}
+              onClick={() => { setStep('email'); setCode(''); setError(''); setDisplayedCode(null); setShowCode(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -388,25 +440,86 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </button>
 
             <p style={{ fontSize: '14px', color: '#a1a1aa', margin: '0 0 4px 0' }}>
-              We sent a code to
+              Logging in as
             </p>
             <p style={{ fontSize: '15px', fontWeight: '600', color: '#dc2626', margin: '0 0 20px 0' }}>
               {email}
             </p>
 
-            {isDevelopmentMode && (
+            {/* Display Verification Code Prominently */}
+            {displayedCode && (
               <div
                 style={{
-                  padding: '12px',
-                  marginBottom: '16px',
-                  borderRadius: '10px',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  padding: '16px',
+                  marginBottom: '20px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+                  border: '1px solid #dc2626',
                   textAlign: 'center'
                 }}
               >
-                <p style={{ fontSize: '12px', color: '#71717a', margin: 0 }}>
-                  Dev Mode: Check server console for code
+                <p style={{ fontSize: '12px', color: '#a1a1aa', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Verification Code
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                  <span
+                    style={{
+                      fontSize: '32px',
+                      fontWeight: '700',
+                      color: '#ffffff',
+                      letterSpacing: '0.15em',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {showCode ? displayedCode : '••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCode(!showCode)}
+                    style={{
+                      padding: '8px',
+                      background: '#262626',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title={showCode ? 'Hide code' : 'Show code'}
+                  >
+                    {showCode
+                      ? <EyeOff style={{ width: '18px', height: '18px', color: '#a1a1aa' }} />
+                      : <Eye style={{ width: '18px', height: '18px', color: '#a1a1aa' }} />
+                    }
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  style={{
+                    marginTop: '12px',
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: codeCopied ? '#22c55e' : '#dc2626',
+                    background: codeCopied ? 'rgba(34, 197, 94, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                    border: `1px solid ${codeCopied ? '#22c55e' : '#dc2626'}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {codeCopied
+                    ? <><Check style={{ width: '14px', height: '14px' }} /> Copied!</>
+                    : <><Copy style={{ width: '14px', height: '14px' }} /> Copy Code</>
+                  }
+                </button>
+                <p style={{ fontSize: '11px', color: '#71717a', margin: '12px 0 0 0' }}>
+                  Share this code via message, call, or in person
                 </p>
               </div>
             )}
