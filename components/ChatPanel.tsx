@@ -656,6 +656,17 @@ Generate ONLY the email body text, no subject line or metadata.`;
     setIsLoading(true);
 
     try {
+      let currentGlobalLearnings = globalLearningHints;
+      try {
+        const refreshedContext = await buildSusanContext(30);
+        const refreshedLearnings = extractGlobalLearnings(refreshedContext);
+        setSusanContext(refreshedContext);
+        setGlobalLearningHints(refreshedLearnings);
+        currentGlobalLearnings = refreshedLearnings;
+      } catch (refreshError) {
+        console.warn('[SusanContext] Failed to refresh global learnings:', refreshError);
+      }
+
       const queryType = personalityHelpers.detectQueryType(originalQuery);
       const useRAG = ragService.shouldUseRAG(originalQuery);
       let systemPrompt = SYSTEM_PROMPT;
@@ -697,6 +708,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
       } catch (memoryError) {
         console.warn('[Memory] Error loading memory context:', memoryError);
         // Continue without memory - don't block the main flow
+      }
+
+      if (currentGlobalLearnings.length > 0) {
+        systemPrompt += `\n\nGLOBAL LEARNINGS (apply when relevant):\n${currentGlobalLearnings.map(item => `- ${item}`).join('\n')}`;
       }
 
       let userPrompt = originalQuery;
@@ -799,7 +814,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
         }
       }
 
-      const appliedGlobal = currentUser?.role === 'admin' ? globalLearningHints : [];
+      const appliedGlobal = currentUser?.role === 'admin' ? currentGlobalLearnings : [];
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: responseText,

@@ -3,6 +3,7 @@ import { RefreshCw, TrendingUp, TrendingDown, CheckCircle, XCircle } from 'lucid
 import { databaseService } from '../services/databaseService';
 import { getApiBaseUrl } from '../services/config';
 import { authService } from '../services/authService';
+import { memoryService, UserMemory } from '../services/memoryService';
 
 const windows = [
   { label: '7 days', value: 7 },
@@ -36,6 +37,11 @@ const LearningDashboard: React.FC = () => {
   const [pendingCandidates, setPendingCandidates] = useState<any[]>([]);
   const [followups, setFollowups] = useState<any[]>([]);
   const [outcomeNotes, setOutcomeNotes] = useState<Record<string, string>>({});
+  const [memories, setMemories] = useState<UserMemory[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [editingContent, setEditingContent] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [mergeTargets, setMergeTargets] = useState<Record<string, string>>({});
   const isAdmin = authService.getCurrentUser()?.role === 'admin';
 
   const fetchSummary = async (days = windowDays) => {
@@ -53,14 +59,27 @@ const LearningDashboard: React.FC = () => {
       if (selectedState) params.set('state', selectedState);
       params.set('limit', '8');
       const email = authService.getCurrentUser()?.email || '';
-      const globalRes = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
-        headers: {
-          ...(email ? { 'x-user-email': email } : {})
+      const isAdmin = authService.getCurrentUser()?.role === 'admin';
+      if (isAdmin) {
+        const adminApproved = await fetch(`${apiBaseUrl}/admin/learning?status=approved`, {
+          headers: {
+            ...(email ? { 'x-user-email': email } : {})
+          }
+        });
+        if (adminApproved.ok) {
+          const payload = await adminApproved.json();
+          setGlobalLearnings(payload.candidates || []);
         }
-      });
-      if (globalRes.ok) {
-        const payload = await globalRes.json();
-        setGlobalLearnings(payload.learnings || []);
+      } else {
+        const globalRes = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
+          headers: {
+            ...(email ? { 'x-user-email': email } : {})
+          }
+        });
+        if (globalRes.ok) {
+          const payload = await globalRes.json();
+          setGlobalLearnings(payload.learnings || []);
+        }
       }
 
       if (isAdmin) {
@@ -78,6 +97,11 @@ const LearningDashboard: React.FC = () => {
       } else {
         setPendingCandidates([]);
       }
+
+      setMemoryLoading(true);
+      const memoryList = await memoryService.getAllUserMemories(40);
+      setMemories(memoryList);
+      setMemoryLoading(false);
     } catch (err) {
       setError((err as Error).message || 'Failed to load learning data');
     } finally {
@@ -116,6 +140,63 @@ const LearningDashboard: React.FC = () => {
       }
     });
     setPendingCandidates(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleLearningUpdate = async (id: string, content: string) => {
+    const apiBaseUrl = getApiBaseUrl();
+    const email = authService.getCurrentUser()?.email || '';
+    const res = await fetch(`${apiBaseUrl}/admin/learning/${id}/update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(email ? { 'x-user-email': email } : {})
+      },
+      body: JSON.stringify({ content })
+    });
+    if (res.ok) {
+      const payload = await res.json();
+      setGlobalLearnings(prev => prev.map(l => (l.id === id ? payload.learning : l)));
+      setPendingCandidates(prev => prev.map(l => (l.id === id ? payload.learning : l)));
+      setEditingId(null);
+    }
+  };
+
+  const handleLearningDisable = async (id: string) => {
+    const apiBaseUrl = getApiBaseUrl();
+    const email = authService.getCurrentUser()?.email || '';
+    await fetch(`${apiBaseUrl}/admin/learning/${id}/disable`, {
+      method: 'POST',
+      headers: {
+        ...(email ? { 'x-user-email': email } : {})
+      }
+    });
+    setGlobalLearnings(prev => prev.filter(l => l.id !== id));
+  };
+
+  const handleLearningMerge = async (sourceId: string, targetId: string) => {
+    const apiBaseUrl = getApiBaseUrl();
+    const email = authService.getCurrentUser()?.email || '';
+    await fetch(`${apiBaseUrl}/admin/learning/merge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(email ? { 'x-user-email': email } : {})
+      },
+      body: JSON.stringify({ source_id: sourceId, target_id: targetId })
+    });
+    setPendingCandidates(prev => prev.filter(c => c.id !== sourceId));
+    fetchSummary(windowDays);
+  };
+
+  const handleMemoryFeedback = async (memoryId: string, feedback: 'helpful' | 'incorrect' | 'irrelevant') => {
+    await memoryService.updateMemoryFeedback(memoryId, feedback);
+    const updated = await memoryService.getAllUserMemories(40);
+    setMemories(updated);
+  };
+
+  const handleMemoryDelete = async (memoryId: string) => {
+    await memoryService.deleteMemory(memoryId);
+    setMemories(prev => prev.filter(m => m.id !== memoryId));
   };
 
   return (
@@ -324,6 +405,85 @@ const LearningDashboard: React.FC = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Your Memory</div>
+                {memoryLoading && (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading memories...</div>
+                )}
+                {!memoryLoading && memories.length === 0 && (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No saved memories yet</div>
+                )}
+                {!memoryLoading && memories.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.6rem' }}>
+                    {memories.map((memory) => (
+                      <div key={memory.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.6rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                          {memory.category} · {memory.memory_type} · {Math.round((memory.confidence || 0) * 100)}%
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{memory.value}</div>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => handleMemoryFeedback(memory.id, 'helpful')}
+                            style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(34,197,94,0.5)',
+                              background: 'rgba(34,197,94,0.12)',
+                              color: '#bbf7d0',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Helpful
+                          </button>
+                          <button
+                            onClick={() => handleMemoryFeedback(memory.id, 'incorrect')}
+                            style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(248,113,113,0.5)',
+                              background: 'rgba(248,113,113,0.12)',
+                              color: '#fecaca',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Incorrect
+                          </button>
+                          <button
+                            onClick={() => handleMemoryFeedback(memory.id, 'irrelevant')}
+                            style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(148,163,184,0.5)',
+                              background: 'rgba(148,163,184,0.12)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Irrelevant
+                          </button>
+                          <button
+                            onClick={() => handleMemoryDelete(memory.id)}
+                            style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(248,113,113,0.5)',
+                              background: 'rgba(248,113,113,0.08)',
+                              color: '#fecaca',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Forget
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Global Learnings (Approved)</div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
                   {globalLearnings.length === 0 && (
@@ -331,8 +491,95 @@ const LearningDashboard: React.FC = () => {
                   )}
                   {globalLearnings.map((l: any) => (
                     <div key={l.id} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {l.content}
+                      {editingId === l.id ? (
+                        <textarea
+                          value={editingContent[l.id] ?? l.content}
+                          onChange={(e) => setEditingContent(prev => ({ ...prev, [l.id]: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            minHeight: '70px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            background: 'rgba(12,12,12,0.55)',
+                            color: 'var(--text-primary)',
+                            padding: '0.5rem',
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      ) : (
+                        <div>{l.content}</div>
+                      )}
                       {l.helpful_count ? <span style={{ marginLeft: '0.4rem', color: 'var(--text-tertiary)' }}>· {l.helpful_count} wins</span> : null}
+                      {isAdmin && (
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                          {editingId === l.id ? (
+                            <>
+                              <button
+                                onClick={() => handleLearningUpdate(l.id, editingContent[l.id] ?? l.content)}
+                                style={{
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '8px',
+                                  border: '1px solid rgba(34,197,94,0.6)',
+                                  background: 'rgba(34,197,94,0.15)',
+                                  color: '#bbf7d0',
+                                  cursor: 'pointer',
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                style={{
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '8px',
+                                  border: '1px solid rgba(148,163,184,0.5)',
+                                  background: 'rgba(148,163,184,0.1)',
+                                  color: 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingId(l.id);
+                                  setEditingContent(prev => ({ ...prev, [l.id]: l.content }));
+                                }}
+                                style={{
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '8px',
+                                  border: '1px solid rgba(148,163,184,0.5)',
+                                  background: 'rgba(148,163,184,0.1)',
+                                  color: 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleLearningDisable(l.id)}
+                                style={{
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '8px',
+                                  border: '1px solid rgba(248,113,113,0.6)',
+                                  background: 'rgba(248,113,113,0.15)',
+                                  color: '#fecaca',
+                                  cursor: 'pointer',
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                Disable
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -400,11 +647,29 @@ const LearningDashboard: React.FC = () => {
                   )}
                   {pendingCandidates.map((c: any) => (
                     <div key={c.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{c.content}</div>
+                      {editingId === c.id ? (
+                        <textarea
+                          value={editingContent[c.id] ?? c.content}
+                          onChange={(e) => setEditingContent(prev => ({ ...prev, [c.id]: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            minHeight: '70px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            background: 'rgba(12,12,12,0.55)',
+                            color: 'var(--text-primary)',
+                            padding: '0.5rem',
+                            fontSize: '0.8rem',
+                            marginBottom: '0.4rem'
+                          }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{c.content}</div>
+                      )}
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                         {c.scope_state ? `State: ${c.scope_state} · ` : ''}{c.scope_insurer ? `Insurer: ${c.scope_insurer} · ` : ''}{c.scope_adjuster ? `Adjuster: ${c.scope_adjuster}` : ''}
                       </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => handleAdminDecision(c.id, 'approve')}
                           style={{
@@ -441,6 +706,95 @@ const LearningDashboard: React.FC = () => {
                           <XCircle className="w-3.5 h-3.5" />
                           Reject
                         </button>
+                        {editingId === c.id ? (
+                          <>
+                            <button
+                              onClick={() => handleLearningUpdate(c.id, editingContent[c.id] ?? c.content)}
+                              style={{
+                                padding: '0.35rem 0.7rem',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(34,197,94,0.6)',
+                                background: 'rgba(34,197,94,0.15)',
+                                color: '#bbf7d0',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              Save edit
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              style={{
+                                padding: '0.35rem 0.7rem',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(148,163,184,0.5)',
+                                background: 'rgba(148,163,184,0.1)',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingId(c.id);
+                              setEditingContent(prev => ({ ...prev, [c.id]: c.content }));
+                            }}
+                            style={{
+                              padding: '0.35rem 0.7rem',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(148,163,184,0.5)',
+                              background: 'rgba(148,163,184,0.1)',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          <select
+                            value={mergeTargets[c.id] || ''}
+                            onChange={(e) => setMergeTargets(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            style={{
+                              padding: '0.3rem 0.5rem',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              background: 'rgba(12,12,12,0.6)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.7rem'
+                            }}
+                          >
+                            <option value="">Merge into...</option>
+                            {globalLearnings.map((g: any) => (
+                              <option key={`merge-${c.id}-${g.id}`} value={g.id}>
+                                {g.content?.slice(0, 40) || g.id}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => {
+                              const targetId = mergeTargets[c.id];
+                              if (targetId) handleLearningMerge(c.id, targetId);
+                            }}
+                            disabled={!mergeTargets[c.id]}
+                            style={{
+                              padding: '0.35rem 0.7rem',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(59,130,246,0.6)',
+                              background: mergeTargets[c.id] ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.05)',
+                              color: mergeTargets[c.id] ? '#bfdbfe' : 'var(--text-tertiary)',
+                              cursor: mergeTargets[c.id] ? 'pointer' : 'not-allowed',
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            Merge
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

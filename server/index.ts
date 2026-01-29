@@ -1386,6 +1386,182 @@ app.post('/api/admin/learning/:id/reject', async (req, res) => {
   }
 });
 
+app.post('/api/admin/learning/:id/update', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { content, scope_state, scope_insurer, scope_adjuster } = req.body || {};
+
+    if (!content || !String(content).trim()) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    const normalizedStateRaw = normalizeScopeValue(scope_state);
+    const normalizedState = normalizedStateRaw ? normalizedStateRaw.toUpperCase() : null;
+    const normalizedInsurer = normalizeScopeValue(scope_insurer);
+    const normalizedAdjuster = normalizeScopeValue(scope_adjuster);
+
+    const normalizedKey = normalizeLearningText(String(content));
+    const scopeKey = buildScopeKey(normalizedState, normalizedInsurer, normalizedAdjuster);
+
+    const conflict = await pool.query(
+      `SELECT id FROM global_learnings
+       WHERE normalized_key = $1 AND scope_key = $2 AND id <> $3`,
+      [normalizedKey, scopeKey, id]
+    );
+    if (conflict.rows.length > 0) {
+      return res.status(409).json({ error: 'A learning with this content and scope already exists' });
+    }
+
+    const result = await pool.query(
+      `UPDATE global_learnings
+       SET content = $2,
+           normalized_key = $3,
+           scope_state = $4,
+           scope_insurer = $5,
+           scope_adjuster = $6,
+           scope_key = $7,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id, String(content).trim(), normalizedKey, normalizedState, normalizedInsurer, normalizedAdjuster, scopeKey]
+    );
+
+    res.json({ success: true, learning: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating global learning:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post('/api/admin/learning/:id/disable', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    await pool.query(
+      `UPDATE global_learnings
+       SET status = 'disabled', updated_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disabling global learning:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post('/api/admin/learning/:id/enable', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    await pool.query(
+      `UPDATE global_learnings
+       SET status = 'approved', updated_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error enabling global learning:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post('/api/admin/learning/merge', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      client.release();
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { source_id, target_id, content } = req.body || {};
+    if (!source_id || !target_id || source_id === target_id) {
+      client.release();
+      return res.status(400).json({ error: 'source_id and target_id are required' });
+    }
+
+    await client.query('BEGIN');
+    const source = await client.query('SELECT * FROM global_learnings WHERE id = $1', [source_id]);
+    const target = await client.query('SELECT * FROM global_learnings WHERE id = $1', [target_id]);
+
+    if (source.rows.length === 0 || target.rows.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(404).json({ error: 'Learning not found' });
+    }
+
+    const mergedContent = String(content || target.rows[0].content).trim();
+    const normalizedKey = normalizeLearningText(mergedContent);
+    const scopeKey = buildScopeKey(target.rows[0].scope_state, target.rows[0].scope_insurer, target.rows[0].scope_adjuster);
+
+    const conflict = await client.query(
+      `SELECT id FROM global_learnings
+       WHERE normalized_key = $1 AND scope_key = $2 AND id <> $3`,
+      [normalizedKey, scopeKey, target_id]
+    );
+    if (conflict.rows.length > 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(409).json({ error: 'A learning with this content and scope already exists' });
+    }
+
+    await client.query(
+      `UPDATE global_learnings
+       SET content = $2,
+           normalized_key = $3,
+           helpful_count = COALESCE(helpful_count, 0) + $4,
+           total_count = COALESCE(total_count, 0) + $5,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [
+        target_id,
+        mergedContent,
+        normalizedKey,
+        Number(source.rows[0].helpful_count || 0),
+        Number(source.rows[0].total_count || 0)
+      ]
+    );
+
+    await client.query(
+      `UPDATE global_learning_sources
+       SET global_learning_id = $1
+       WHERE global_learning_id = $2`,
+      [target_id, source_id]
+    );
+
+    await client.query('DELETE FROM global_learnings WHERE id = $1', [source_id]);
+
+    await client.query('COMMIT');
+    client.release();
+    res.json({ success: true });
+  } catch (error) {
+    client.release();
+    console.error('Error merging global learnings:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // ============================================================================
 // DOCUMENT TRACKING ENDPOINTS
 // ============================================================================
