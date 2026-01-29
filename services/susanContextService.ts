@@ -1,5 +1,7 @@
 import { memoryService } from './memoryService';
 import { databaseService } from './databaseService';
+import { getApiBaseUrl } from './config';
+import { authService } from './authService';
 
 type LearningSummary = {
   positive_tags?: Array<{ tag: string; count: number }>;
@@ -10,6 +12,7 @@ type LearningSummary = {
 
 export async function buildSusanContext(windowDays: number = 45): Promise<string> {
   const blocks: string[] = [];
+  const apiBaseUrl = getApiBaseUrl();
 
   try {
     const memoryBlock = await memoryService.buildUserContext();
@@ -18,6 +21,38 @@ export async function buildSusanContext(windowDays: number = 45): Promise<string
     }
   } catch (error) {
     console.warn('[SusanContext] Memory context failed:', (error as Error).message);
+  }
+
+  try {
+    const memories = await memoryService.getAllUserMemories(25);
+    const memoryState = memories.find(m => m.category === 'state')?.value;
+    const memoryInsurer = memories.find(m => m.category === 'insurer')?.value;
+    const selectedState = localStorage.getItem('selectedState') || memoryState || '';
+    const lastInsurer = localStorage.getItem('susan_last_insurer') || memoryInsurer || '';
+    const lastAdjuster = localStorage.getItem('susan_last_adjuster') || '';
+
+    const params = new URLSearchParams();
+    if (selectedState) params.set('state', selectedState);
+    if (lastInsurer) params.set('insurer', lastInsurer);
+    if (lastAdjuster) params.set('adjuster', lastAdjuster);
+    params.set('limit', '6');
+
+    const email = authService.getCurrentUser()?.email || '';
+    const res = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
+      headers: {
+        ...(email ? { 'x-user-email': email } : {})
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const learnings = Array.isArray(data.learnings) ? data.learnings : [];
+      if (learnings.length > 0) {
+        const lines = learnings.map((l: any) => `- ${l.content}`).join('\n');
+        blocks.push(`[GLOBAL LEARNINGS]\n${lines}`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Global learnings failed:', (error as Error).message);
   }
 
   try {

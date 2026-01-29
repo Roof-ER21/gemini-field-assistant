@@ -15,7 +15,7 @@ import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { emailService } from './services/emailService.js';
 import { cronService } from './services/cronService.js';
-import { initializePresenceService } from './services/presenceService.js';
+import { initializePresenceService, getPresenceService } from './services/presenceService.js';
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
@@ -155,6 +155,49 @@ function normalizeEmail(email) {
 function getRequestEmail(req) {
     const headerEmail = normalizeEmail(req.header('x-user-email'));
     return headerEmail || 'demo@roofer.com';
+}
+const GLOBAL_LEARNING_THRESHOLD = parseInt(process.env.GLOBAL_LEARNING_THRESHOLD || '2', 10);
+function normalizeLearningText(text) {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+function buildScopeKey(state, insurer, adjuster) {
+    const s = (state || '').toLowerCase().trim();
+    const i = (insurer || '').toLowerCase().trim();
+    const a = (adjuster || '').toLowerCase().trim();
+    return `${s}|${i}|${a}`;
+}
+function isGlobalLearningEligible(text) {
+    const lowered = text.toLowerCase();
+    if (/call me|address me|my name is|remind me|every morning|daily reminder|text me|ping me|my schedule|my preference/.test(lowered)) {
+        return false;
+    }
+    return text.trim().length >= 10;
+}
+function buildLearningCandidate(comment, responseExcerpt) {
+    if (comment && comment.trim())
+        return comment.trim();
+    if (responseExcerpt && responseExcerpt.trim()) {
+        const firstLine = responseExcerpt.split('\n').map(line => line.trim()).find(line => line.length > 10);
+        return (firstLine || responseExcerpt).slice(0, 240).trim();
+    }
+    return '';
+}
+async function getUserMemoryValue(userId, category) {
+    try {
+        const result = await pool.query(`SELECT value
+       FROM user_memory
+       WHERE user_id = $1 AND category = $2
+       ORDER BY confidence DESC, last_updated DESC
+       LIMIT 1`, [userId, category]);
+        return result.rows[0]?.value || null;
+    }
+    catch (error) {
+        return null;
+    }
 }
 async function callGroq(messages) {
     const apiKey = groqKey;
@@ -727,7 +770,7 @@ app.get('/api/chat/messages', async (req, res) => {
 // Save feedback on Susan responses
 app.post('/api/chat/feedback', async (req, res) => {
     try {
-        const { message_id, session_id, rating, tags, comment, response_excerpt } = req.body;
+        const { message_id, session_id, rating, tags, comment, response_excerpt, context_state, context_insurer, context_adjuster } = req.body;
         const email = getRequestEmail(req);
         const userId = await getOrCreateUserIdByEmail(email);
         if (!userId) {
@@ -736,9 +779,22 @@ app.post('/api/chat/feedback', async (req, res) => {
         if (![1, -1].includes(rating)) {
             return res.status(400).json({ error: 'Rating must be 1 or -1' });
         }
+        let normalizedState = context_state ? String(context_state).toUpperCase() : null;
+        let normalizedInsurer = context_insurer ? String(context_insurer).trim() : null;
+        const normalizedAdjuster = context_adjuster ? String(context_adjuster).trim() : null;
+        if (!normalizedState) {
+            const memoryState = await getUserMemoryValue(userId, 'state');
+            if (memoryState)
+                normalizedState = memoryState.toUpperCase();
+        }
+        if (!normalizedInsurer) {
+            const memoryInsurer = await getUserMemoryValue(userId, 'insurer');
+            if (memoryInsurer)
+                normalizedInsurer = memoryInsurer;
+        }
         const result = await pool.query(`INSERT INTO chat_feedback
-       (user_id, session_id, message_id, rating, tags, comment, response_excerpt)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (user_id, session_id, message_id, rating, tags, comment, response_excerpt, context_state, context_insurer, context_adjuster)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`, [
             userId,
             session_id || null,
@@ -746,8 +802,80 @@ app.post('/api/chat/feedback', async (req, res) => {
             rating,
             tags && Array.isArray(tags) ? tags : null,
             comment || null,
-            response_excerpt || null
+            response_excerpt || null,
+            normalizedState,
+            normalizedInsurer,
+            normalizedAdjuster
         ]);
+        // Schedule follow-up reminders at 1 and 2 weeks
+        try {
+            const feedbackId = result.rows[0]?.id;
+            const now = new Date();
+            if (feedbackId) {
+                const due7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const due14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+                await pool.query(`INSERT INTO feedback_followups (feedback_id, user_id, reminder_number, due_at)
+           VALUES ($1, $2, 1, $3), ($1, $2, 2, $4)`, [feedbackId, userId, due7, due14]);
+            }
+        }
+        catch (reminderError) {
+            console.warn('Failed to schedule feedback follow-ups:', reminderError);
+        }
+        // Promote global learning candidate when helpful
+        try {
+            if (rating === 1) {
+                const candidate = buildLearningCandidate(comment, response_excerpt);
+                if (candidate && isGlobalLearningEligible(candidate)) {
+                    const normalizedKey = normalizeLearningText(candidate);
+                    const scopeKey = buildScopeKey(normalizedState, normalizedInsurer, normalizedAdjuster);
+                    const existing = await pool.query(`SELECT id, helpful_count, status
+             FROM global_learnings
+             WHERE normalized_key = $1 AND scope_key = $2`, [normalizedKey, scopeKey]);
+                    if (existing.rows.length > 0) {
+                        const current = existing.rows[0];
+                        const nextHelpful = (current.helpful_count || 0) + 1;
+                        const nextStatus = current.status === 'approved' || current.status === 'rejected'
+                            ? current.status
+                            : nextHelpful >= GLOBAL_LEARNING_THRESHOLD
+                                ? 'ready'
+                                : 'pending';
+                        await pool.query(`UPDATE global_learnings
+               SET helpful_count = helpful_count + 1,
+                   total_count = total_count + 1,
+                   last_feedback_at = NOW(),
+                   status = $2,
+                   updated_at = NOW()
+               WHERE id = $1`, [current.id, nextStatus]);
+                        await pool.query(`INSERT INTO global_learning_sources (global_learning_id, feedback_id)
+               VALUES ($1, $2)
+               ON CONFLICT DO NOTHING`, [current.id, result.rows[0].id]);
+                    }
+                    else {
+                        const status = GLOBAL_LEARNING_THRESHOLD <= 1 ? 'ready' : 'pending';
+                        const insert = await pool.query(`INSERT INTO global_learnings
+               (normalized_key, scope_key, scope_state, scope_insurer, scope_adjuster, content, status, helpful_count, total_count, last_feedback_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 1, NOW())
+               RETURNING id`, [
+                            normalizedKey,
+                            scopeKey,
+                            normalizedState,
+                            normalizedInsurer,
+                            normalizedAdjuster,
+                            candidate,
+                            status
+                        ]);
+                        if (insert.rows[0]?.id) {
+                            await pool.query(`INSERT INTO global_learning_sources (global_learning_id, feedback_id)
+                 VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING`, [insert.rows[0].id, result.rows[0].id]);
+                        }
+                    }
+                }
+            }
+        }
+        catch (learningError) {
+            console.warn('Global learning update failed:', learningError);
+        }
         res.json({ success: true, feedback: result.rows[0] });
     }
     catch (error) {
@@ -829,6 +957,169 @@ app.get('/api/chat/learning', async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching learning summary:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get pending feedback follow-ups
+app.get('/api/chat/feedback/followups', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        const status = req.query.status || 'pending';
+        const params = [userId];
+        let where = 'f.user_id = $1';
+        if (status !== 'all') {
+            params.push(status);
+            where += ` AND f.status = $${params.length}`;
+        }
+        const result = await pool.query(`SELECT f.*, cf.comment, cf.response_excerpt, cf.context_state, cf.context_insurer, cf.context_adjuster
+       FROM feedback_followups f
+       JOIN chat_feedback cf ON cf.id = f.feedback_id
+       WHERE ${where}
+       ORDER BY f.due_at ASC
+       LIMIT 50`, params);
+        res.json({ followups: result.rows });
+    }
+    catch (error) {
+        console.error('Error fetching feedback followups:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Submit outcome for a feedback item (completes follow-ups)
+app.post('/api/chat/feedback/:id/outcome', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        const { id } = req.params;
+        const { outcome_status, outcome_notes } = req.body;
+        if (!outcome_status) {
+            return res.status(400).json({ error: 'Outcome status is required' });
+        }
+        await pool.query(`UPDATE chat_feedback
+       SET outcome_status = $1,
+           outcome_notes = $2,
+           outcome_recorded_at = NOW()
+       WHERE id = $3 AND user_id = $4`, [outcome_status, outcome_notes || null, id, userId]);
+        await pool.query(`UPDATE feedback_followups
+       SET status = 'completed', sent_at = COALESCE(sent_at, NOW())
+       WHERE feedback_id = $1 AND user_id = $2`, [id, userId]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error updating feedback outcome:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get approved global learnings (context-aware)
+app.get('/api/learning/global', async (req, res) => {
+    try {
+        const state = req.query.state || null;
+        const insurer = req.query.insurer || null;
+        const adjuster = req.query.adjuster || null;
+        const limit = Math.min(parseInt(req.query.limit || '6', 10), 20);
+        const params = ['approved'];
+        let where = `status = $1`;
+        if (state) {
+            params.push(state.toUpperCase());
+            where += ` AND (scope_state IS NULL OR scope_state = $${params.length})`;
+        }
+        else {
+            where += ` AND scope_state IS NULL`;
+        }
+        if (insurer) {
+            params.push(insurer.toLowerCase());
+            where += ` AND (scope_insurer IS NULL OR LOWER(scope_insurer) = $${params.length})`;
+        }
+        else {
+            where += ` AND scope_insurer IS NULL`;
+        }
+        if (adjuster) {
+            params.push(adjuster.toLowerCase());
+            where += ` AND (scope_adjuster IS NULL OR LOWER(scope_adjuster) = $${params.length})`;
+        }
+        else {
+            where += ` AND scope_adjuster IS NULL`;
+        }
+        params.push(limit);
+        const result = await pool.query(`SELECT id, content, scope_state, scope_insurer, scope_adjuster, helpful_count, updated_at
+       FROM global_learnings
+       WHERE ${where}
+       ORDER BY helpful_count DESC, updated_at DESC
+       LIMIT $${params.length}`, params);
+        res.json({ learnings: result.rows });
+    }
+    catch (error) {
+        console.error('Error fetching global learnings:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Admin: list global learning candidates
+app.get('/api/admin/learning', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const status = req.query.status || 'ready';
+        const params = [];
+        let where = '';
+        if (status !== 'all') {
+            params.push(status);
+            where = `WHERE status = $1`;
+        }
+        const result = await pool.query(`SELECT id, content, scope_state, scope_insurer, scope_adjuster, helpful_count, total_count, status, updated_at
+       FROM global_learnings
+       ${where}
+       ORDER BY updated_at DESC
+       LIMIT 50`, params);
+        res.json({ candidates: result.rows });
+    }
+    catch (error) {
+        console.error('Error fetching global learning candidates:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/:id/approve', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        const adminId = await getOrCreateUserIdByEmail(email);
+        await pool.query(`UPDATE global_learnings
+       SET status = 'approved', approved_by = $2, approved_at = NOW(), updated_at = NOW()
+       WHERE id = $1`, [id, adminId]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error approving global learning:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/:id/reject', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        await pool.query(`UPDATE global_learnings
+       SET status = 'rejected', updated_at = NOW()
+       WHERE id = $1`, [id]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error rejecting global learning:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -4457,6 +4748,45 @@ app.get('*', (req, res, next) => {
 // ============================================================================
 // START SERVER
 // ============================================================================
+async function processFeedbackFollowups() {
+    try {
+        const due = await pool.query(`SELECT f.id, f.feedback_id, f.user_id, f.reminder_number, f.due_at,
+              u.email
+       FROM feedback_followups f
+       JOIN users u ON u.id = f.user_id
+       WHERE f.status = 'pending' AND f.due_at <= NOW()
+       ORDER BY f.due_at ASC
+       LIMIT 100`);
+        if (due.rows.length === 0)
+            return;
+        const presence = getPresenceService();
+        for (const row of due.rows) {
+            const title = row.reminder_number === 1 ? 'Susan follow-up (1 week)' : 'Susan follow-up (2 weeks)';
+            const body = 'How did the outcome go? Tap to update the result so Susan can learn.';
+            const notificationResult = await pool.query(`INSERT INTO team_notifications (user_id, type, title, body, data)
+         VALUES ($1, 'system', $2, $3, $4)
+         RETURNING *`, [
+                row.user_id,
+                title,
+                body,
+                {
+                    feedback_id: row.feedback_id,
+                    reminder_number: row.reminder_number,
+                    due_at: row.due_at
+                }
+            ]);
+            await pool.query(`UPDATE feedback_followups
+         SET status = 'sent', sent_at = NOW()
+         WHERE id = $1`, [row.id]);
+            if (presence) {
+                presence.emitNotification(row.user_id, notificationResult.rows[0]);
+            }
+        }
+    }
+    catch (error) {
+        console.error('Failed to process feedback followups:', error);
+    }
+}
 httpServer.listen(PORT, () => {
     console.log(`🚀 API Server running on port ${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
@@ -4478,5 +4808,8 @@ httpServer.listen(PORT, () => {
         console.error('⚠️  Failed to start cron jobs:', error);
         console.log('💡 Email notifications will still work via manual triggers');
     }
+    // Process feedback follow-up reminders hourly
+    processFeedbackFollowups();
+    setInterval(processFeedbackFollowups, 60 * 60 * 1000);
 });
 export default app;

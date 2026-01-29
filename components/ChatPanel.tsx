@@ -182,6 +182,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   } | null>(null);
   const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
   const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackInsurer, setFeedbackInsurer] = useState('');
+  const [feedbackAdjuster, setFeedbackAdjuster] = useState('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({});
 
   // Email generation state
@@ -547,19 +549,31 @@ Generate ONLY the email body text, no subject line or metadata.`;
   const handleSubmitFeedback = async () => {
     if (!feedbackModal) return;
 
+    if (feedbackInsurer.trim()) {
+      localStorage.setItem('susan_last_insurer', feedbackInsurer.trim());
+    }
+    if (feedbackAdjuster.trim()) {
+      localStorage.setItem('susan_last_adjuster', feedbackAdjuster.trim());
+    }
+
     await databaseService.submitChatFeedback({
       message_id: feedbackModal.messageId,
       session_id: currentSessionId,
       rating: feedbackModal.rating,
       tags: feedbackTags,
       comment: feedbackComment.trim() || undefined,
-      response_excerpt: feedbackModal.responseExcerpt
+      response_excerpt: feedbackModal.responseExcerpt,
+      context_state: selectedState || undefined,
+      context_insurer: feedbackInsurer.trim() || undefined,
+      context_adjuster: feedbackAdjuster.trim() || undefined
     });
 
     setFeedbackGiven(prev => ({ ...prev, [feedbackModal.messageId]: true }));
     setFeedbackModal(null);
     setFeedbackTags([]);
     setFeedbackComment('');
+    setFeedbackInsurer('');
+    setFeedbackAdjuster('');
 
     const updatedSummary = await databaseService.getChatLearningSummary();
     if (updatedSummary) {
@@ -1560,6 +1574,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                               setFeedbackModal({ messageId: msg.id, rating: 1, responseExcerpt: msg.text.slice(0, 400) });
                               setFeedbackTags([]);
                               setFeedbackComment('');
+                              setFeedbackInsurer(localStorage.getItem('susan_last_insurer') || '');
+                              setFeedbackAdjuster(localStorage.getItem('susan_last_adjuster') || '');
                             }}
                             style={{
                               padding: '8px 12px',
@@ -1583,6 +1599,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                               setFeedbackModal({ messageId: msg.id, rating: -1, responseExcerpt: msg.text.slice(0, 400) });
                               setFeedbackTags([]);
                               setFeedbackComment('');
+                              setFeedbackInsurer(localStorage.getItem('susan_last_insurer') || '');
+                              setFeedbackAdjuster(localStorage.getItem('susan_last_adjuster') || '');
                             }}
                             style={{
                               padding: '8px 12px',
@@ -1695,6 +1713,34 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 resize: 'none'
               }}
             />
+            <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <input
+                value={feedbackInsurer}
+                onChange={(e) => setFeedbackInsurer(e.target.value)}
+                placeholder="Insurance company (optional)"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+              <input
+                value={feedbackAdjuster}
+                onChange={(e) => setFeedbackAdjuster(e.target.value)}
+                placeholder="Adjuster name (optional)"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 onClick={() => setFeedbackModal(null)}

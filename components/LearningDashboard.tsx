@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, CheckCircle, XCircle } from 'lucide-react';
 import { databaseService } from '../services/databaseService';
+import { getApiBaseUrl } from '../services/config';
+import { authService } from '../services/authService';
 
 const windows = [
   { label: '7 days', value: 7 },
@@ -30,6 +32,10 @@ const LearningDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<any | null>(null);
+  const [globalLearnings, setGlobalLearnings] = useState<any[]>([]);
+  const [pendingCandidates, setPendingCandidates] = useState<any[]>([]);
+  const [followups, setFollowups] = useState<any[]>([]);
+  const [outcomeNotes, setOutcomeNotes] = useState<Record<string, string>>({});
 
   const fetchSummary = async (days = windowDays) => {
     try {
@@ -37,6 +43,36 @@ const LearningDashboard: React.FC = () => {
       setError(null);
       const data = await databaseService.getChatLearningSummary(days);
       setSummary(data);
+      const followupData = await databaseService.getFeedbackFollowups('pending');
+      setFollowups(followupData);
+
+      const apiBaseUrl = getApiBaseUrl();
+      const selectedState = localStorage.getItem('selectedState') || '';
+      const params = new URLSearchParams();
+      if (selectedState) params.set('state', selectedState);
+      params.set('limit', '8');
+      const email = authService.getCurrentUser()?.email || '';
+      const globalRes = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {})
+        }
+      });
+      if (globalRes.ok) {
+        const payload = await globalRes.json();
+        setGlobalLearnings(payload.learnings || []);
+      }
+
+      const adminRes = await fetch(`${apiBaseUrl}/admin/learning?status=ready`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {})
+        }
+      });
+      if (adminRes.ok) {
+        const payload = await adminRes.json();
+        setPendingCandidates(payload.candidates || []);
+      } else {
+        setPendingCandidates([]);
+      }
     } catch (err) {
       setError((err as Error).message || 'Failed to load learning data');
     } finally {
@@ -56,6 +92,26 @@ const LearningDashboard: React.FC = () => {
   const negativeClusters = clusterTags(summary?.negative_tags || []);
   const weeklyDelta = (weekly.total_last7 || 0) - (weekly.total_prev7 || 0);
   const weeklyTrend = weeklyDelta === 0 ? 'flat' : weeklyDelta > 0 ? 'up' : 'down';
+
+  const handleOutcomeSubmit = async (feedbackId: string, status: string) => {
+    const notes = outcomeNotes[feedbackId];
+    const ok = await databaseService.submitFeedbackOutcome(feedbackId, status, notes);
+    if (ok) {
+      setFollowups(prev => prev.filter(f => f.feedback_id !== feedbackId));
+    }
+  };
+
+  const handleAdminDecision = async (id: string, decision: 'approve' | 'reject') => {
+    const apiBaseUrl = getApiBaseUrl();
+    const email = authService.getCurrentUser()?.email || '';
+    await fetch(`${apiBaseUrl}/admin/learning/${id}/${decision}`, {
+      method: 'POST',
+      headers: {
+        ...(email ? { 'x-user-email': email } : {})
+      }
+    });
+    setPendingCandidates(prev => prev.filter(c => c.id !== id));
+  };
 
   return (
     <div className="roof-er-content-area">
@@ -260,6 +316,129 @@ const LearningDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Global Learnings (Approved)</div>
+                <div style={{ display: 'grid', gap: '0.6rem' }}>
+                  {globalLearnings.length === 0 && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No approved learnings yet</span>
+                  )}
+                  {globalLearnings.map((l: any) => (
+                    <div key={l.id} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {l.content}
+                      {l.helpful_count ? <span style={{ marginLeft: '0.4rem', color: 'var(--text-tertiary)' }}>· {l.helpful_count} wins</span> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Outcome Follow-ups</div>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {followups.length === 0 && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No follow-ups due</span>
+                  )}
+                  {followups.map((f: any) => (
+                    <div key={f.feedback_id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
+                        Due {new Date(f.due_at).toLocaleDateString()}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                        {f.comment || f.response_excerpt || 'Follow-up on Susan response'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                        {['full_approved', 'partial', 'denied', 'no_response'].map((status) => (
+                          <button
+                            key={`${f.feedback_id}-${status}`}
+                            onClick={() => handleOutcomeSubmit(f.feedback_id, status)}
+                            style={{
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              background: 'rgba(12,12,12,0.5)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {status.replace('_', ' ')}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        value={outcomeNotes[f.feedback_id] || ''}
+                        onChange={(e) => setOutcomeNotes(prev => ({ ...prev, [f.feedback_id]: e.target.value }))}
+                        placeholder="Optional notes"
+                        style={{
+                          width: '100%',
+                          padding: '0.4rem 0.6rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(12,12,12,0.45)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.75rem'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {pendingCandidates.length > 0 && (
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Admin: Ready for Approval</div>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {pendingCandidates.map((c: any) => (
+                    <div key={c.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{c.content}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
+                        {c.scope_state ? `State: ${c.scope_state} · ` : ''}{c.scope_insurer ? `Insurer: ${c.scope_insurer} · ` : ''}{c.scope_adjuster ? `Adjuster: ${c.scope_adjuster}` : ''}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleAdminDecision(c.id, 'approve')}
+                          style={{
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(34,197,94,0.6)',
+                            background: 'rgba(34,197,94,0.15)',
+                            color: '#bbf7d0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleAdminDecision(c.id, 'reject')}
+                          style={{
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(248,113,113,0.6)',
+                            background: 'rgba(248,113,113,0.15)',
+                            color: '#fecaca',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

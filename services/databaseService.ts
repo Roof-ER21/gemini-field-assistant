@@ -53,7 +53,27 @@ export interface ChatFeedback {
   tags?: string[];
   comment?: string;
   response_excerpt?: string;
+  context_state?: string;
+  context_insurer?: string;
+  context_adjuster?: string;
+  outcome_status?: string;
+  outcome_notes?: string;
+  outcome_recorded_at?: Date;
   created_at?: Date;
+}
+
+export interface FeedbackFollowup {
+  id: string;
+  feedback_id: string;
+  user_id: string;
+  reminder_number: number;
+  due_at: string;
+  status: string;
+  comment?: string;
+  response_excerpt?: string;
+  context_state?: string;
+  context_insurer?: string;
+  context_adjuster?: string;
 }
 
 export interface ChatLearningSummary {
@@ -345,6 +365,51 @@ export class DatabaseService {
       }
     } catch (e) {
       console.error('[DB] ❌ Failed to submit feedback - Exception:', (e as Error).message);
+    }
+  }
+
+  async getFeedbackFollowups(status: 'pending' | 'sent' | 'all' = 'pending'): Promise<FeedbackFollowup[]> {
+    if (this.useLocalStorage) {
+      return [];
+    }
+
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/chat/feedback/followups?status=${status}`, {
+        headers: {
+          ...(email ? { 'x-user-email': email } : {})
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.followups || [];
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to fetch feedback followups:', (e as Error).message);
+    }
+    return [];
+  }
+
+  async submitFeedbackOutcome(feedbackId: string, outcomeStatus: string, outcomeNotes?: string): Promise<boolean> {
+    if (this.useLocalStorage) return false;
+
+    try {
+      const email = this.getAuthEmail();
+      const res = await fetch(`${this.apiBaseUrl}/chat/feedback/${feedbackId}/outcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {})
+        },
+        body: JSON.stringify({
+          outcome_status: outcomeStatus,
+          outcome_notes: outcomeNotes || undefined
+        })
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[DB] Failed to submit feedback outcome:', (e as Error).message);
+      return false;
     }
   }
 
