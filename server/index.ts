@@ -70,7 +70,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
@@ -82,7 +82,7 @@ app.use(helmet({
         "https://api.interactivehailmaps.com",
         "https://maps.interactivehailmaps.com"
       ],
-      fontSrc: ["'self'", "data:"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
@@ -424,6 +424,9 @@ app.get('/api/version', (req, res) => {
     builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
   });
 });
+
+// Register hail history routes early to avoid proxy ordering issues
+app.use('/api/hail', hailRoutes);
 
 // One-time migration runner for analytics tables (admin only)
 app.post('/api/admin/run-analytics-migration', async (req, res) => {
@@ -5687,18 +5690,6 @@ app.use('/api/jobs', jobRoutes);
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
-
-// Register hail history routes
-app.use('/api/hail', authMiddleware);
-app.use('/api/hail', hailRoutes);
-
-// Hail status fallback (direct) for quick diagnostics
-app.get('/api/hail/status', (_req, res) => {
-  res.json({
-    configured: hailMapsService.isConfigured(),
-    provider: 'Interactive Hail Maps'
-  });
-});
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
