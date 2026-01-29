@@ -143,6 +143,17 @@ function buildContextSummary(context: ConversationContext): string {
   return `[CONVERSATION CONTEXT FROM EARLIER MESSAGES]\n${parts.join('\n')}\n[END CONTEXT]`;
 }
 
+function extractGlobalLearnings(context: string): string[] {
+  if (!context) return [];
+  const match = context.match(/\[GLOBAL LEARNINGS\]([\s\S]*?)(?:\n\[|$)/);
+  if (!match) return [];
+  return match[1]
+    .split('\n')
+    .map(line => line.replace(/^-+\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 interface ChatPanelProps {
   onStartEmail?: (template: string, context: string) => void;
   onOpenDocument?: (documentPath: string) => void;
@@ -174,6 +185,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [learningSummary, setLearningSummary] = useState<any | null>(null);
   const [susanContext, setSusanContext] = useState('');
+  const [globalLearningHints, setGlobalLearningHints] = useState<string[]>([]);
   const [showLearningPanel, setShowLearningPanel] = useState(true);
   const [feedbackModal, setFeedbackModal] = useState<{
     messageId: string;
@@ -249,8 +261,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     });
 
     buildSusanContext(30)
-      .then(context => setSusanContext(context))
-      .catch(() => setSusanContext(''));
+      .then(context => {
+        setSusanContext(context);
+        setGlobalLearningHints(extractGlobalLearnings(context));
+      })
+      .catch(() => {
+        setSusanContext('');
+        setGlobalLearningHints([]);
+      });
 
     // Load saved state selection
     const savedState = localStorage.getItem('selectedState');
@@ -781,11 +799,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
         }
       }
 
+      const appliedGlobal = currentUser?.role === 'admin' ? globalLearningHints : [];
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: responseText,
         sender: 'bot',
         sources: sources.length > 0 ? sources : undefined,
+        ...(appliedGlobal.length > 0 ? { applied_global: appliedGlobal } : {})
       };
       setMessages(prev => [...prev, botMessage]);
 
@@ -1499,6 +1519,26 @@ Generate ONLY the email body text, no subject line or metadata.`;
                       msg.text
                     )}
                   </div>
+                  {msg.sender === 'bot' && msg.applied_global && msg.applied_global.length > 0 && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(34,197,94,0.35)',
+                      background: 'rgba(34,197,94,0.08)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.8rem'
+                    }}>
+                      <div style={{ fontWeight: 600, color: '#bbf7d0', marginBottom: '6px' }}>
+                        Admin: Applied global learnings
+                      </div>
+                      <div style={{ display: 'grid', gap: '4px' }}>
+                        {msg.applied_global.map((item, idx) => (
+                          <div key={`${msg.id}-global-${idx}`}>• {item}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {msg.sender === 'bot' && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
                       {responseHasEmailContent(msg.text) && onStartEmail && (

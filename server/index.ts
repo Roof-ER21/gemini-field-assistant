@@ -188,6 +188,15 @@ function getRequestEmail(req: express.Request): string {
 }
 
 const GLOBAL_LEARNING_THRESHOLD = parseInt(process.env.GLOBAL_LEARNING_THRESHOLD || '2', 10);
+const NULL_SCOPE_VALUES = new Set(['all', 'any', 'n/a', 'na', 'none', 'unknown', 'unsure', 'tbd', '-']);
+
+function normalizeScopeValue(value?: string | null): string | null {
+  if (value === undefined || value === null) return null;
+  const cleaned = String(value).trim();
+  if (!cleaned) return null;
+  if (NULL_SCOPE_VALUES.has(cleaned.toLowerCase())) return null;
+  return cleaned;
+}
 
 function normalizeLearningText(text: string): string {
   return text
@@ -951,9 +960,10 @@ app.post('/api/chat/feedback', async (req, res) => {
       return res.status(400).json({ error: 'Rating must be 1 or -1' });
     }
 
-    let normalizedState = context_state ? String(context_state).toUpperCase() : null;
-    let normalizedInsurer = context_insurer ? String(context_insurer).trim() : null;
-    const normalizedAdjuster = context_adjuster ? String(context_adjuster).trim() : null;
+    const normalizedStateRaw = normalizeScopeValue(context_state);
+    let normalizedState = normalizedStateRaw ? normalizedStateRaw.toUpperCase() : null;
+    let normalizedInsurer = normalizeScopeValue(context_insurer);
+    const normalizedAdjuster = normalizeScopeValue(context_adjuster);
 
     if (!normalizedState) {
       const memoryState = await getUserMemoryValue(userId, 'state');

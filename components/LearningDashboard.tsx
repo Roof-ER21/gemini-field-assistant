@@ -36,6 +36,7 @@ const LearningDashboard: React.FC = () => {
   const [pendingCandidates, setPendingCandidates] = useState<any[]>([]);
   const [followups, setFollowups] = useState<any[]>([]);
   const [outcomeNotes, setOutcomeNotes] = useState<Record<string, string>>({});
+  const isAdmin = authService.getCurrentUser()?.role === 'admin';
 
   const fetchSummary = async (days = windowDays) => {
     try {
@@ -62,14 +63,18 @@ const LearningDashboard: React.FC = () => {
         setGlobalLearnings(payload.learnings || []);
       }
 
-      const adminRes = await fetch(`${apiBaseUrl}/admin/learning?status=ready`, {
-        headers: {
-          ...(email ? { 'x-user-email': email } : {})
+      if (isAdmin) {
+        const adminRes = await fetch(`${apiBaseUrl}/admin/learning?status=ready`, {
+          headers: {
+            ...(email ? { 'x-user-email': email } : {})
+          }
+        });
+        if (adminRes.ok) {
+          const payload = await adminRes.json();
+          setPendingCandidates(payload.candidates || []);
+        } else {
+          setPendingCandidates([]);
         }
-      });
-      if (adminRes.ok) {
-        const payload = await adminRes.json();
-        setPendingCandidates(payload.candidates || []);
       } else {
         setPendingCandidates([]);
       }
@@ -386,10 +391,13 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            {pendingCandidates.length > 0 && (
+            {isAdmin && (
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Admin: Ready for Approval</div>
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {pendingCandidates.length === 0 && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No candidates ready yet</span>
+                  )}
                   {pendingCandidates.map((c: any) => (
                     <div key={c.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{c.content}</div>

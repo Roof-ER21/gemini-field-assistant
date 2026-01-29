@@ -3,6 +3,7 @@ export interface Message {
   id: string;
   text: string;
   sender: 'user' | 'bot';
+  applied_global?: string[];
   sources?: Array<{
     document: {
       name: string;
