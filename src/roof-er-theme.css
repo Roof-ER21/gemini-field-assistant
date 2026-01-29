@@ -66,6 +66,7 @@
   --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-red: 0 2px 10px rgba(196, 30, 58, 0.2);
   --shadow-red-lg: 0 8px 24px rgba(196, 30, 58, 0.3);
+  --shadow-glass: 0 10px 30px rgba(0, 0, 0, 0.35);
 
   /* Transitions */
   --transition-fast: 0.15s ease;
@@ -87,7 +88,7 @@
 }
 
 html, body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -131,6 +132,8 @@ html, body {
   display: flex;
   align-items: center;
   gap: 16px;
+  font-family: 'Rajdhani', 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  letter-spacing: 0.02em;
 }
 
 .roof-er-subtitle {
@@ -140,8 +143,8 @@ html, body {
 }
 
 .roof-er-menu-btn {
-  background: var(--bg-hover);
-  border: 2px solid var(--border-default);
+  background: linear-gradient(135deg, rgba(32, 32, 32, 0.6), rgba(18, 18, 18, 0.5));
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
   padding: 10px;
   border-radius: var(--radius-md);
@@ -155,8 +158,8 @@ html, body {
 }
 
 .roof-er-menu-btn:hover {
-  background: var(--bg-elevated);
-  border-color: var(--roof-red);
+  background: linear-gradient(135deg, rgba(40, 40, 40, 0.7), rgba(20, 20, 20, 0.6));
+  border-color: rgba(220, 38, 38, 0.6);
   transform: scale(1.05);
 }
 
@@ -194,6 +197,8 @@ html, body {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+  font-family: 'Rajdhani', 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  letter-spacing: 0.02em;
 }
 
 .roof-er-page-subtitle {
@@ -260,7 +265,7 @@ html, body {
 /* Sidebar Styles */
 .roof-er-sidebar {
   width: 280px;
-  background: rgba(12, 12, 12, 0.54);
+  background: linear-gradient(180deg, rgba(16, 16, 16, 0.56), rgba(10, 10, 10, 0.48));
   border-right: 1px solid var(--glass-border);
   padding: 20px;
   overflow-y: auto;
@@ -286,8 +291,8 @@ html, body {
 }
 
 .roof-er-nav-item {
-  background: linear-gradient(135deg, rgba(30, 30, 30, 0.78), rgba(18, 18, 18, 0.72));
-  border: 1px solid var(--glass-border);
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.68), rgba(16, 16, 16, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 12px;
   cursor: pointer;
@@ -295,12 +300,14 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .roof-er-nav-item:hover {
-  background: var(--bg-hover);
-  border-color: var(--roof-red);
+  background: linear-gradient(135deg, rgba(36, 36, 36, 0.75), rgba(18, 18, 18, 0.65));
+  border-color: rgba(220, 38, 38, 0.5);
   transform: translateX(4px);
+  box-shadow: var(--shadow-glass);
 }
 
 .roof-er-nav-item.active {
@@ -339,19 +346,21 @@ html, body {
 
 /* Quick Action Cards */
 .roof-er-action-card {
-  background: linear-gradient(135deg, rgba(28, 28, 28, 0.8), rgba(18, 18, 18, 0.74));
-  border: 1px solid var(--glass-border);
+  background: linear-gradient(135deg, rgba(28, 28, 28, 0.68), rgba(16, 16, 16, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 12px;
   cursor: pointer;
   transition: all var(--transition-normal);
   backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: var(--shadow-sm);
 }
 
 .roof-er-action-card:hover {
-  background: var(--bg-hover);
-  border-color: var(--roof-red);
+  background: linear-gradient(135deg, rgba(34, 34, 34, 0.75), rgba(16, 16, 16, 0.65));
+  border-color: rgba(220, 38, 38, 0.5);
   transform: translateX(4px);
+  box-shadow: var(--shadow-glass);
 }
 
 .roof-er-action-card-title {
@@ -452,12 +461,13 @@ html, body {
 }
 
 .roof-er-message-content {
-  background: linear-gradient(135deg, rgba(30, 30, 30, 0.78), rgba(18, 18, 18, 0.72));
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.72), rgba(14, 14, 14, 0.62));
   padding: 12px 16px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   flex: 1;
   backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: var(--shadow-sm);
 }
 
 .roof-er-message.user .roof-er-message-content {
@@ -479,11 +489,11 @@ html, body {
 
 /* Input Area */
 .roof-er-input-area {
-  background: linear-gradient(180deg, rgba(22, 22, 22, 0.82), rgba(12, 12, 12, 0.76));
-  border-top: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, rgba(20, 20, 20, 0.78), rgba(12, 12, 12, 0.7));
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px) saturate(120%);
 }
 
@@ -527,8 +537,8 @@ html, body {
 
 .roof-er-input-field {
   flex: 1;
-  background: var(--bg-hover);
-  border: 2px solid var(--border-default);
+  background: rgba(14, 14, 14, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-lg);
   padding: 14px 18px;
   color: var(--text-primary);
@@ -541,8 +551,9 @@ html, body {
 
 .roof-er-input-field:focus {
   outline: none;
-  border-color: var(--roof-red);
-  background: var(--bg-elevated);
+  border-color: rgba(220, 38, 38, 0.7);
+  background: rgba(18, 18, 18, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 
 .roof-er-input-field::placeholder {
@@ -555,8 +566,8 @@ html, body {
 }
 
 .roof-er-action-btn {
-  background: var(--bg-hover);
-  border: 2px solid var(--border-default);
+  background: rgba(18, 18, 18, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
   width: 48px;
   height: 48px;
@@ -570,18 +581,19 @@ html, body {
 }
 
 .roof-er-action-btn:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-strong);
+  background: rgba(26, 26, 26, 0.7);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .roof-er-send-btn {
-  background: var(--roof-red);
-  border-color: var(--roof-red);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border-color: rgba(220, 38, 38, 0.6);
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35);
 }
 
 .roof-er-send-btn:hover {
-  background: var(--roof-red-dark);
-  border-color: var(--roof-red-dark);
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  border-color: rgba(239, 68, 68, 0.7);
   transform: scale(1.05);
 }
 
@@ -691,13 +703,14 @@ html, body {
 }
 
 .roof-er-doc-card {
-  background: linear-gradient(135deg, rgba(30, 30, 30, 0.8), rgba(18, 18, 18, 0.74));
-  border: 1px solid var(--glass-border);
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.68), rgba(14, 14, 14, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   padding: 16px;
   cursor: pointer;
   transition: all var(--transition-normal);
   backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: var(--shadow-sm);
 }
 
 .roof-er-doc-card:hover {
@@ -726,8 +739,8 @@ html, body {
 
 /* Upload Zone */
 .roof-er-upload-zone {
-  background: linear-gradient(135deg, rgba(28, 28, 28, 0.78), rgba(16, 16, 16, 0.7));
-  border: 2px dashed var(--glass-border);
+  background: linear-gradient(135deg, rgba(22, 22, 22, 0.65), rgba(12, 12, 12, 0.58));
+  border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-lg);
   padding: 60px 40px;
   text-align: center;
@@ -846,6 +859,8 @@ html, body {
   font-weight: 600;
   margin-bottom: 20px;
   color: var(--text-primary);
+  font-family: 'Rajdhani', 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  letter-spacing: 0.02em;
 }
 
 /* Search Bar */
@@ -857,8 +872,8 @@ html, body {
 
 .roof-er-search-input {
   width: 100%;
-  background: var(--bg-elevated);
-  border: 2px solid var(--border-default);
+  background: rgba(16, 16, 16, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
   color: var(--text-primary);
@@ -868,7 +883,8 @@ html, body {
 
 .roof-er-search-input:focus {
   outline: none;
-  border-color: var(--roof-red);
+  border-color: rgba(220, 38, 38, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 
 .roof-er-search-input::placeholder {
