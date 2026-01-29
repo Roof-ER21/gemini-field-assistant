@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, DragEvent } from 'react';
 import { Upload, FileText, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
-import { multiAI } from '../services/multiProviderAI';
-import { SYSTEM_PROMPT } from '../config/s21Personality';
+import { getApiBaseUrl } from '../services/config';
+import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import { useToast } from './Toast';
 
@@ -87,6 +87,7 @@ const DocumentAnalysisPanel: React.FC = () => {
   const MAX_PDF_PAGES = 12;
   const MAX_TEXT_CHARS = 30000;
   const AI_TIMEOUT_MS = 120000;
+  const apiBaseUrl = getApiBaseUrl();
 
   // Clear any existing user uploads from localStorage on mount
   useEffect(() => {
@@ -388,16 +389,30 @@ Format your response as JSON with this structure:
 }`;
 
       // Call multiAI service
-      console.log('Sending request to AI service...');
+      console.log('Sending request to Susan server...');
       setAnalysisPhase('Analyzing with Susan...');
       const cancelPromise = new Promise<never>((_, reject) => {
         cancelRef.current = () => reject(new Error('Analysis cancelled.'));
       });
       const aiResponse = await Promise.race([
-        multiAI.generate([
-          { role: 'system' as const, content: SYSTEM_PROMPT },
-          { role: 'user' as const, content: analysisPrompt }
-        ]),
+        fetch(`${apiBaseUrl}/documents/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authService.getCurrentUser()?.email
+              ? { 'x-user-email': authService.getCurrentUser()?.email as string }
+              : {})
+          },
+          body: JSON.stringify({
+            prompt: analysisPrompt
+          })
+        }).then(async (res) => {
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(payload.error || `Analysis failed: ${res.status}`);
+          }
+          return payload;
+        }),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('AI analysis timed out. Please try again with fewer pages or smaller files.')), AI_TIMEOUT_MS);
         }),
@@ -410,7 +425,7 @@ Format your response as JSON with this structure:
       // Parse AI response with improved error handling
       let analysis: any;
       try {
-        const content = aiResponse.content.trim();
+        const content = (aiResponse?.content || '').trim();
 
         // Try direct JSON parse first
         try {
@@ -448,13 +463,13 @@ Format your response as JSON with this structure:
 
       } catch (parseError) {
         console.error('Failed to parse AI response:', parseError);
-        console.error('Raw AI response:', aiResponse.content);
+        console.error('Raw AI response:', aiResponse?.content);
 
         // Create fallback analysis with raw response
         analysis = {
           approvalStatus: 'unknown',
           insuranceData: {},
-          summary: 'AI response could not be parsed. Raw response:\n\n' + aiResponse.content,
+          summary: 'AI response could not be parsed. Raw response:\n\n' + (aiResponse?.content || ''),
           keyFindings: ['Unable to extract structured data - review raw response above'],
           damageDescriptions: [],
           recommendations: ['Review raw AI response', 'Consider re-analyzing documents'],

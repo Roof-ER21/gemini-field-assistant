@@ -12,6 +12,7 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { GoogleGenAI } from '@google/genai';
 import { emailService } from './services/emailService.js';
 import { cronService } from './services/cronService.js';
 import { initializePresenceService } from './services/presenceService.js';
@@ -25,6 +26,8 @@ const PORT = process.env.PORT || 3001;
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// AI clients (server-side)
+const geminiClient = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 // ============================================================================
 // DATABASE CONNECTION
 // ============================================================================
@@ -147,6 +150,82 @@ function normalizeEmail(email) {
 function getRequestEmail(req) {
     const headerEmail = normalizeEmail(req.header('x-user-email'));
     return headerEmail || 'demo@roofer.com';
+}
+async function callGroq(messages) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey)
+        throw new Error('GROQ_API_KEY not set');
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+            messages,
+            temperature: 0.2,
+            max_tokens: 2048
+        }),
+        signal: AbortSignal.timeout(60000)
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq error ${response.status}: ${errorText}`);
+    }
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+}
+async function callTogether(messages) {
+    const apiKey = process.env.TOGETHER_API_KEY;
+    if (!apiKey)
+        throw new Error('TOGETHER_API_KEY not set');
+    const response = await fetch('https://api.together.xyz/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: process.env.TOGETHER_MODEL || 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+            messages,
+            temperature: 0.2,
+            max_tokens: 2048
+        }),
+        signal: AbortSignal.timeout(60000)
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Together error ${response.status}: ${errorText}`);
+    }
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+}
+async function callGemini(prompt) {
+    if (!geminiClient)
+        throw new Error('GEMINI_API_KEY not set');
+    const result = await geminiClient.models.generateContent({
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    });
+    const text = result?.text;
+    if (typeof text === 'string' && text.trim())
+        return text;
+    const parts = result?.candidates?.[0]?.content?.parts || [];
+    return parts.map((p) => p.text || '').join('') || '';
+}
+async function generateDocumentAnalysis(prompt) {
+    const messages = [{ role: 'user', content: prompt }];
+    if (process.env.GROQ_API_KEY) {
+        return { content: await callGroq(messages), provider: 'groq' };
+    }
+    if (process.env.TOGETHER_API_KEY) {
+        return { content: await callTogether(messages), provider: 'together' };
+    }
+    if (process.env.GEMINI_API_KEY) {
+        return { content: await callGemini(prompt), provider: 'gemini' };
+    }
+    throw new Error('No AI providers configured for document analysis');
 }
 // Get or create a user by email, marking admin based on env
 async function getOrCreateUserIdByEmail(email) {
@@ -727,6 +806,25 @@ app.get('/api/chat/learning', async (req, res) => {
 // ============================================================================
 // DOCUMENT TRACKING ENDPOINTS
 // ============================================================================
+// Analyze document text with server-side AI (avoids browser CORS issues)
+app.post('/api/documents/analyze', async (req, res) => {
+    try {
+        const { prompt } = req.body || {};
+        if (!prompt || typeof prompt !== 'string') {
+            return res.status(400).json({ error: 'Prompt is required for analysis' });
+        }
+        const trimmed = prompt.trim();
+        if (!trimmed) {
+            return res.status(400).json({ error: 'Prompt is empty' });
+        }
+        const result = await generateDocumentAnalysis(trimmed);
+        res.json({ success: true, ...result });
+    }
+    catch (error) {
+        console.error('Error running document analysis:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // Track document view
 app.post('/api/documents/track-view', async (req, res) => {
     try {
