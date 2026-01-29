@@ -22,9 +22,24 @@ interface DisplayEvent {
 
 const formatDate = (value: string) => {
   if (!value) return 'Unknown date';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  // Parse as local date to avoid timezone shift
+  // Input format is typically "YYYY-MM-DD" or "MM/DD/YYYY"
+  const parts = value.includes('-')
+    ? value.split('T')[0].split('-')
+    : value.split('/');
+
+  if (parts.length >= 3) {
+    // Handle YYYY-MM-DD format
+    if (value.includes('-') && parts[0].length === 4) {
+      const [year, month, day] = parts.map(Number);
+      return new Date(year, month - 1, day).toLocaleDateString();
+    }
+    // Handle MM/DD/YYYY format
+    const [month, day, year] = parts.map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString();
+  }
+
+  return value;
 };
 
 const inferSeverity = (eventType: string, magnitude: number | null): 'minor' | 'moderate' | 'severe' => {
@@ -77,8 +92,27 @@ const mergeAllEvents = (results: HailSearchResult): DisplayEvent[] => {
     });
   });
 
-  // Sort by date descending
-  return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Sort: IHM first, then NOAA, then by date descending within each group
+  return events.sort((a, b) => {
+    // IHM always comes first
+    if (a.dataSource === 'IHM' && b.dataSource !== 'IHM') return -1;
+    if (b.dataSource === 'IHM' && a.dataSource !== 'IHM') return 1;
+    // Within same source, sort by date descending
+    const dateA = a.date.includes('-')
+      ? a.date.split('T')[0].split('-').map(Number)
+      : a.date.split('/').map(Number);
+    const dateB = b.date.includes('-')
+      ? b.date.split('T')[0].split('-').map(Number)
+      : b.date.split('/').map(Number);
+    // Compare as YYYYMMDD integers
+    const numA = a.date.includes('-')
+      ? dateA[0] * 10000 + dateA[1] * 100 + dateA[2]
+      : dateA[2] * 10000 + dateA[0] * 100 + dateA[1];
+    const numB = b.date.includes('-')
+      ? dateB[0] * 10000 + dateB[1] * 100 + dateB[2]
+      : dateB[2] * 10000 + dateB[0] * 100 + dateB[1];
+    return numB - numA;
+  });
 };
 
 const buildHailSummary = (address: string, months: number, events: HailEvent[]) => {
