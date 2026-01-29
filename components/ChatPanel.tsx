@@ -328,6 +328,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setUserInput((prev) => prev || `I’m working with ${name}. Provide state-aware guidance and common claim handling practices for this insurer.`);
         localStorage.removeItem('chat_quick_company');
       }
+      const quickHail = localStorage.getItem('chat_quick_hail');
+      if (quickHail) {
+        const { address, months, summary } = JSON.parse(quickHail);
+        if (summary) {
+          localStorage.setItem('susan_hail_context', summary);
+        }
+        setUserInput((prev) => prev || `Draft an adjuster email for ${address} citing documented hail events from the last ${months} months. Use the hail history provided.`);
+        localStorage.removeItem('chat_quick_hail');
+      }
       const quickAssessment = localStorage.getItem('chat_quick_assessment');
       if (quickAssessment) {
         const { summary } = JSON.parse(quickAssessment);
@@ -479,10 +488,18 @@ Generate a professional, compliant email that:
 
 Generate ONLY the email body text, no subject line or metadata.`;
 
+      const finalEmailPrompt = (() => {
+        const hailContextLocal = localStorage.getItem('susan_hail_context');
+        if (hailContextLocal && (emailRecipientType === 'adjuster' || emailRecipientType === 'insurance')) {
+          return `${emailPrompt}\n\nHAIL HISTORY (use to cite specific storm dates and hail sizes):\n${hailContextLocal}\n`;
+        }
+        return emailPrompt;
+      })();
+
       const emailBody = await generateEmail(
         recipientLabels[emailRecipientType],
         `Email to ${recipientLabels[emailRecipientType]}`,
-        emailPrompt,
+        finalEmailPrompt,
         susanContext
       );
 
@@ -691,6 +708,11 @@ Generate ONLY the email body text, no subject line or metadata.`;
         if (jobContext) {
           systemPrompt += jobContext;
           console.log('[Memory] Added job context to prompt');
+        }
+
+        const hailContext = localStorage.getItem('susan_hail_context');
+        if (hailContext) {
+          systemPrompt += `\n\nHAIL HISTORY CONTEXT:\n${hailContext}\nUse these documented storm dates and hail sizes when relevant, especially for adjuster emails.`;
         }
 
         // If query relates to email, add pattern insights

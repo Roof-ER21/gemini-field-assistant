@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, Search, Phone, Mail, ExternalLink, Smartphone, Pin, MessageCircle } from 'lucide-react';
+import HailHistoryPanel from './HailHistoryPanel';
 
 interface InsuranceCompany {
   name: string;
@@ -513,6 +514,9 @@ const MapsPanel: React.FC<MapsPanelProps> = ({ onOpenChat }) => {
   return (
     <div className="roof-er-content-area">
       <div className="roof-er-content-scroll">
+        <div style={{ marginBottom: '1.25rem' }}>
+          <HailHistoryPanel onOpenChat={onOpenChat} />
+        </div>
         <div className="roof-er-page-title">
           <Building2 className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
           Insurance Companies Directory

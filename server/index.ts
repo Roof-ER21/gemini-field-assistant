@@ -20,6 +20,7 @@ import { initializePresenceService, getPresenceService } from './services/presen
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
+import hailRoutes from './routes/hailRoutes.js';
 
 const { Pool } = pg;
 const app = express();
@@ -70,7 +71,16 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "wss:", "ws:", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://api.together.xyz"],
+      connectSrc: [
+        "'self'",
+        "wss:",
+        "ws:",
+        "https://generativelanguage.googleapis.com",
+        "https://api.groq.com",
+        "https://api.together.xyz",
+        "https://api.interactivehailmaps.com",
+        "https://maps.interactivehailmaps.com"
+      ],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -5676,6 +5686,10 @@ app.use('/api/jobs', jobRoutes);
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
+
+// Register hail history routes
+app.use('/api/hail', authMiddleware);
+app.use('/api/hail', hailRoutes);
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
