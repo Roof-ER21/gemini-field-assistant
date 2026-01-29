@@ -125,10 +125,15 @@ class HailMapsService {
   private parseMarkerId(payload: any): string | null {
     if (!payload) return null;
     return (
+      payload.AddressMarker_id ||
+      payload.AddressMarker_Id ||
+      payload.addressMarkerId ||
       payload.markerId ||
       payload.marker_id ||
       payload.id ||
       payload.address_id ||
+      payload.data?.AddressMarker_id ||
+      payload.data?.AddressMarker_Id ||
       payload.data?.markerId ||
       payload.data?.marker_id ||
       null
@@ -136,7 +141,7 @@ class HailMapsService {
   }
 
   async createAddressMonitor(params: { street: string; city: string; state: string; zip: string }): Promise<{ markerId: string; raw: any }> {
-    const response = await this.request<any>('/ExternalApi/AddressMonitoringImport', {
+    const response = await this.request<any>('/ExternalApi/AddressMonitoringImport2g', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -159,7 +164,7 @@ class HailMapsService {
 
   async searchByMarkerId(markerId: string, months = 24): Promise<HailSearchResult> {
     const params = new URLSearchParams({
-      AddressMarker_Id: markerId,
+      AddressMarker_id: markerId,
       Months: String(months)
     });
     const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`);

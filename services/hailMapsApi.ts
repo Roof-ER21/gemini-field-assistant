@@ -43,7 +43,10 @@ export const hailMapsApi = {
     const response = await fetch(`${apiBaseUrl}/hail/search?${query}`, {
       headers: getHeaders()
     });
-    if (!response.ok) throw new Error('Hail history search failed');
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || 'Hail history search failed');
+    }
     return response.json();
   },
 
@@ -57,7 +60,10 @@ export const hailMapsApi = {
     const response = await fetch(`${apiBaseUrl}/hail/search?${params}`, {
       headers: getHeaders()
     });
-    if (!response.ok) throw new Error('Hail history search failed');
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || 'Hail history search failed');
+    }
     return response.json();
   },
 

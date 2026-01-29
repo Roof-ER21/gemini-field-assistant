@@ -100,10 +100,13 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
   };
 
   return (
-    <div style={{ padding: '1rem', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(12,12,12,0.5)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+    <div style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid rgba(220,38,38,0.4)', background: 'linear-gradient(135deg, rgba(36,10,10,0.85) 0%, rgba(12,12,12,0.6) 100%)', boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem' }}>
         <Cloud style={{ width: '18px', height: '18px', color: 'var(--roof-red)' }} />
-        <div style={{ fontWeight: 600 }}>Hail History</div>
+        <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Hail History</div>
+        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+          Enterprise IHM
+        </span>
       </div>
 
       {configured === false && (
@@ -214,8 +217,20 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
       </div>
 
       {error && (
-        <div style={{ marginTop: '0.75rem', color: '#fecaca', fontSize: '0.85rem' }}>
-          {error}
+        <div
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.65rem 0.75rem',
+            borderRadius: '10px',
+            border: '1px solid rgba(248,113,113,0.45)',
+            background: 'rgba(248,113,113,0.12)',
+            color: '#fecaca',
+            fontSize: '0.85rem'
+          }}
+        >
+          {error.includes('API route not found')
+            ? 'Hail history API not reachable. Please redeploy the latest backend build.'
+            : error}
         </div>
       )}
 
