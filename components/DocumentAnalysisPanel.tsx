@@ -525,7 +525,17 @@ Format your response as JSON with this structure:
 
   return (
     <div className="roof-er-content-area">
-      <div className="roof-er-content-scroll" style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+      <div
+        className="roof-er-content-scroll"
+        style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          padding: '2rem',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
+          overflowX: 'auto'
+        }}
+      >
 
         {/* Header */}
         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
@@ -554,10 +564,18 @@ Format your response as JSON with this structure:
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1.5rem',
+            minWidth: '860px',
+            overflowX: 'auto'
+          }}
+        >
 
           {/* Left Column - Upload & Settings */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
 
             {/* Drag & Drop Upload Zone */}
             <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', padding: '1.5rem' }}>
@@ -750,7 +768,15 @@ Format your response as JSON with this structure:
           </div>
 
           {/* Right Column - Results */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+              minWidth: 0,
+              overflowX: 'auto'
+            }}
+          >
 
             {analysisResult ? (
               <>
