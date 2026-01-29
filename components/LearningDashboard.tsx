@@ -28,6 +28,15 @@ const clusterTags = (tags: Array<{ tag: string; count: number }>) => {
   return Array.from(clusters.values()).sort((a, b) => b.total - a.total);
 };
 
+const buildMergeOptions = (approved: any[], pending: any[]) => {
+  const merged = new Map<string, any>();
+  [...approved, ...pending].forEach((item) => {
+    if (!item?.id) return;
+    merged.set(item.id, item);
+  });
+  return Array.from(merged.values());
+};
+
 const LearningDashboard: React.FC = () => {
   const [windowDays, setWindowDays] = useState(30);
   const [loading, setLoading] = useState(false);
@@ -43,6 +52,8 @@ const LearningDashboard: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [mergeTargets, setMergeTargets] = useState<Record<string, string>>({});
   const isAdmin = authService.getCurrentUser()?.role === 'admin';
+  const mergeOptions = buildMergeOptions(globalLearnings, pendingCandidates);
+  const hasMergeTargets = (id: string) => mergeOptions.some((g: any) => g.id && g.id !== id);
 
   const fetchSummary = async (days = windowDays) => {
     try {
@@ -140,6 +151,7 @@ const LearningDashboard: React.FC = () => {
       }
     });
     setPendingCandidates(prev => prev.filter(c => c.id !== id));
+    fetchSummary(windowDays);
   };
 
   const handleLearningUpdate = async (id: string, content: string) => {
@@ -158,6 +170,7 @@ const LearningDashboard: React.FC = () => {
       setGlobalLearnings(prev => prev.map(l => (l.id === id ? payload.learning : l)));
       setPendingCandidates(prev => prev.map(l => (l.id === id ? payload.learning : l)));
       setEditingId(null);
+      fetchSummary(windowDays);
     }
   };
 
@@ -760,21 +773,24 @@ const LearningDashboard: React.FC = () => {
                           <select
                             value={mergeTargets[c.id] || ''}
                             onChange={(e) => setMergeTargets(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            disabled={!hasMergeTargets(c.id)}
                             style={{
                               padding: '0.3rem 0.5rem',
                               borderRadius: '8px',
                               border: '1px solid rgba(255,255,255,0.12)',
-                              background: 'rgba(12,12,12,0.6)',
-                              color: 'var(--text-secondary)',
+                              background: hasMergeTargets(c.id) ? 'rgba(12,12,12,0.6)' : 'rgba(12,12,12,0.35)',
+                              color: hasMergeTargets(c.id) ? 'var(--text-secondary)' : 'var(--text-tertiary)',
                               fontSize: '0.7rem'
                             }}
                           >
                             <option value="">Merge into...</option>
-                            {globalLearnings.map((g: any) => (
-                              <option key={`merge-${c.id}-${g.id}`} value={g.id}>
-                                {g.content?.slice(0, 40) || g.id}
-                              </option>
-                            ))}
+                            {mergeOptions
+                              .filter((g: any) => g.id !== c.id)
+                              .map((g: any) => (
+                                <option key={`merge-${c.id}-${g.id}`} value={g.id}>
+                                  {(g.content || g.id).slice(0, 40)}
+                                </option>
+                              ))}
                           </select>
                           <button
                             onClick={() => {
