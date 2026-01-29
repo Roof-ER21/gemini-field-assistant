@@ -379,12 +379,14 @@ html, body {
 .roof-er-content-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: stretch;
   max-width: 100%;
+  min-height: 0;
   box-sizing: border-box;
 }
 
@@ -660,11 +662,12 @@ html, body {
 .roof-er-knowledge-scroll {
   flex: 1;
   overflow-y: auto !important;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 20px;
   display: block !important;
   height: 100%;
   max-width: 100%;
+  min-height: 0;
   box-sizing: border-box;
 }
 
