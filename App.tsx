@@ -60,6 +60,17 @@ const App: React.FC = () => {
   const [showAIDisclosure, setShowAIDisclosure] = useState(false);
   const [aiConsented, setAIConsented] = useState(false);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail || {};
+      if (detail.type === 'system' && detail.notification?.data?.feedback_id) {
+        setActivePanel('learning');
+      }
+    };
+    window.addEventListener('notification-click', handler as EventListener);
+    return () => window.removeEventListener('notification-click', handler as EventListener);
+  }, []);
+
   // Check authentication and AI consent on mount
   useEffect(() => {
     const user = authService.getCurrentUser();
