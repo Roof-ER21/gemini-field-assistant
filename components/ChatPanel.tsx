@@ -476,9 +476,25 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     return { isHailRequest: false, address: null };
   };
 
+  // Common multi-word cities in our service areas
+  const MULTI_WORD_CITIES = [
+    'falls church', 'fairfax station', 'great falls', 'fort belvoir', 'mount vernon',
+    'kings park', 'burke centre', 'fair oaks', 'oak hill', 'reston town',
+    'arlington heights', 'college park', 'takoma park', 'silver spring', 'bethesda chevy chase',
+    'glen echo', 'cabin john', 'potomac falls', 'sterling park', 'south riding',
+    'stone ridge', 'ashburn farm', 'broadlands', 'lansdowne', 'leesburg',
+    'round hill', 'purcellville', 'hamilton', 'lovettsville', 'waterford',
+    'new york', 'los angeles', 'san francisco', 'san diego', 'las vegas',
+    'salt lake', 'kansas city', 'oklahoma city', 'new orleans', 'baton rouge',
+    'little rock', 'fort worth', 'el paso', 'san antonio', 'corpus christi',
+    'virginia beach', 'newport news', 'hampton roads', 'colonial heights',
+  ];
+
+  const VALID_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+
   const parseAddress = (rawAddress: string): { street: string; city: string; state: string; zip: string } | null => {
     // Normalize: remove extra spaces, handle "VA, 20120" -> "VA 20120"
-    let normalized = rawAddress.trim();
+    let normalized = rawAddress.trim().replace(/\s+/g, ' ');
     // Handle comma before zip: "VA, 20120" -> "VA 20120"
     normalized = normalized.replace(/,\s*(\d{5}(?:-\d{4})?)/, ' $1');
 
@@ -504,8 +520,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     }
 
+    // Try to find multi-word cities first (without commas)
+    const lowerNormalized = normalized.toLowerCase();
+    for (const city of MULTI_WORD_CITIES) {
+      // Pattern: "street... <multi-word-city> ST" or "street... <multi-word-city> ST 12345"
+      const cityPattern = new RegExp(`^(.+?)\\s+(${city})\\s+([A-Z]{2})(?:\\s+(\\d{5}(?:-\\d{4})?))?$`, 'i');
+      const match = normalized.match(cityPattern);
+      if (match && VALID_STATES.includes(match[3].toUpperCase())) {
+        return {
+          street: match[1].trim(),
+          city: match[2].trim(),
+          state: match[3].trim().toUpperCase(),
+          zip: match[4]?.trim() || '00000'
+        };
+      }
+    }
+
     // Try to parse addresses WITHOUT commas: "123 Main St City ST" or "123 Main St City ST 12345"
-    // Look for state abbreviation near the end
+    // Look for state abbreviation near the end (single-word cities)
     const noCommaPatterns = [
       // With zip: "123 Main St Vienna VA 22182"
       /^(.+?)\s+([A-Za-z]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
@@ -515,21 +547,26 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     for (const pattern of noCommaPatterns) {
       const match = normalized.match(pattern);
-      if (match) {
-        // Validate that match[3] is a valid US state abbreviation
-        const validStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
-        if (validStates.includes(match[3].toUpperCase())) {
-          return {
-            street: match[1].trim(),
-            city: match[2].trim(),
-            state: match[3].trim().toUpperCase(),
-            zip: match[4]?.trim() || '00000'
-          };
-        }
+      if (match && VALID_STATES.includes(match[3].toUpperCase())) {
+        return {
+          street: match[1].trim(),
+          city: match[2].trim(),
+          state: match[3].trim().toUpperCase(),
+          zip: match[4]?.trim() || '00000'
+        };
       }
     }
 
     return null;
+  };
+
+  // Check if an address looks incomplete (missing city/state)
+  const isIncompleteAddress = (address: string): boolean => {
+    const normalized = address.trim();
+    // Has a street number but no state abbreviation at end
+    const hasStreetNumber = /^\d+\s+/.test(normalized);
+    const hasState = new RegExp(`\\b(${VALID_STATES.join('|')})\\b`, 'i').test(normalized);
+    return hasStreetNumber && !hasState;
   };
 
   const formatHailResponseForUser = (results: any, address: string): string => {
@@ -832,57 +869,80 @@ Generate ONLY the email body text, no subject line or metadata.`;
     // Check if this is a hail/storm lookup request
     const hailRequest = detectHailLookupRequest(userInput);
     if (hailRequest.isHailRequest && hailRequest.address) {
+      // Add user message first
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: userInput,
+        sender: 'user',
+      }]);
+      setUserInput('');
+
       const parsedAddress = parseAddress(hailRequest.address);
-      if (parsedAddress) {
-        // Show loading state
-        setIsLoading(true);
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: userInput,
-          sender: 'user',
-        }]);
-        setUserInput('');
 
-        try {
-          // Look up hail data
-          const hailResults = await hailMapsApi.searchByAddress(parsedAddress, 24);
-          const hailContext = formatHailResultsForSusan(hailResults, hailRequest.address);
+      // CRITICAL: If we can't parse the address, ASK FOR CLARIFICATION - NEVER fall through to Susan
+      if (!parsedAddress) {
+        const isIncomplete = isIncompleteAddress(hailRequest.address);
+        const clarificationMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: isIncomplete
+            ? `I found the street address **"${hailRequest.address}"** but I need the **city and state** to look up storm data.\n\n**Please provide the full address**, for example:\n• "${hailRequest.address}, Fairfax, VA 22030"\n• "${hailRequest.address}, Falls Church, VA"\n\n⚠️ *I only report verified storm data from official sources. I will never guess or estimate storm history.*`
+            : `I couldn't parse that address format. **Please provide the address like this:**\n\n• "123 Main St, Vienna, VA 22182"\n• "123 Main St, Falls Church, VA"\n\nMake sure to include the **city** and **state**.\n\n⚠️ *I only report verified storm data from official sources. I will never guess or estimate storm history.*`,
+          sender: 'assistant',
+        };
+        setMessages(prev => [...prev, clarificationMessage]);
+        return; // STOP HERE - do not fall through to Susan
+      }
 
-          // Store in localStorage for future reference
-          localStorage.setItem('susan_hail_context', hailContext);
+      // We have a valid parsed address - proceed with lookup
+      setIsLoading(true);
 
-          // Create response with hail data
-          const responseMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            text: formatHailResponseForUser(hailResults, hailRequest.address),
-            sender: 'assistant',
-          };
+      try {
+        // Look up hail data with timeout protection
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000)
+        );
 
-          // Create follow-up question to guide user on next steps
-          const totalEvents = (hailResults.events?.length || 0) + (hailResults.noaaEvents?.length || 0);
-          const followUpMessage: Message = {
-            id: (Date.now() + 2).toString(),
-            text: totalEvents > 0
-              ? `I found **${totalEvents} storm events** in that area. What would you like to do next?\n\n• **Generate an adjuster email** with these storm dates\n• **Search another address** nearby\n• **Get more details** about a specific storm\n• **Help me understand** how to use this data with my customer`
-              : `I didn't find any significant storm events in that area within the past 2 years. Would you like to:\n\n• **Search another address** nearby\n• **Expand the search radius** for this location\n• **Ask me something else** about this property`,
-            sender: 'assistant',
-          };
+        const hailResults = await Promise.race([
+          hailMapsApi.searchByAddress(parsedAddress, 24),
+          timeoutPromise
+        ]) as any;
 
-          setMessages(prev => [...prev, responseMessage, followUpMessage]);
-          setIsLoading(false);
-          return;
-        } catch (error) {
-          console.error('Hail lookup failed:', error);
-          // Fall through to normal chat handling with error context
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            text: `I attempted to look up hail data for **${hailRequest.address}**, but encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}.\n\nPlease verify the address format (e.g., "123 Main St, City, ST 12345") and try again.`,
-            sender: 'assistant',
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          setIsLoading(false);
-          return;
-        }
+        const hailContext = formatHailResultsForSusan(hailResults, hailRequest.address);
+
+        // Store in localStorage for future reference
+        localStorage.setItem('susan_hail_context', hailContext);
+
+        // Create response with hail data
+        const responseMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: formatHailResponseForUser(hailResults, hailRequest.address),
+          sender: 'assistant',
+        };
+
+        // Create follow-up question to guide user on next steps
+        const totalEvents = (hailResults.events?.length || 0) + (hailResults.noaaEvents?.length || 0);
+        const followUpMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          text: totalEvents > 0
+            ? `I found **${totalEvents} storm events** in that area. What would you like to do next?\n\n• **Generate an adjuster email** with these storm dates\n• **Search another address** nearby\n• **Get more details** about a specific storm\n• **Help me understand** how to use this data with my customer`
+            : `I didn't find any significant storm events in that area within the past 2 years. Would you like to:\n\n• **Search another address** nearby\n• **Expand the search radius** for this location\n• **Ask me something else** about this property`,
+          sender: 'assistant',
+        };
+
+        setMessages(prev => [...prev, responseMessage, followUpMessage]);
+        setIsLoading(false);
+        return;
+      } catch (error) {
+        console.error('Hail lookup failed:', error);
+        // CRITICAL: Show clear error - NEVER let Susan make up data
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: `⚠️ **Storm Data Lookup Failed**\n\nI couldn't retrieve storm data for **${hailRequest.address}**.\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n\n**Please try:**\n• Check the address format (e.g., "123 Main St, City, ST 12345")\n• Try again in a moment\n• Use the Hail History panel for manual lookup\n\n*I will never guess or fabricate storm data. All data must come from verified sources (Interactive Hail Maps, NOAA).*`,
+          sender: 'assistant',
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setIsLoading(false);
+        return; // STOP HERE - do not fall through to Susan
       }
     }
 
