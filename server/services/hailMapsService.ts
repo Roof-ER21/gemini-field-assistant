@@ -36,6 +36,8 @@ export interface HailSearchResult {
 }
 
 type HailHistoryResponse = {
+  Success?: boolean;
+  ImpactDates?: any[];
   events?: any[];
   results?: any[];
   data?: any[];
@@ -86,26 +88,34 @@ class HailMapsService {
   }
 
   private normalizeEvents(payload: HailHistoryResponse): HailEvent[] {
-    const items = payload.events || payload.results || payload.data || payload.storms || [];
+    // IHM returns ImpactDates array
+    const items = payload.ImpactDates || payload.events || payload.results || payload.data || payload.storms || [];
     if (!Array.isArray(items)) return [];
 
     return items.map((event: any, index: number) => {
+      // IHM uses SizeAtLocation, SizeWithin1Mile, SizeWithin3Mile, SizeWithin10Mile
+      // Pick the closest non-null size
       const hailSize =
+        event.SizeAtLocation ??
+        event.SizeWithin1Mile ??
+        event.SizeWithin3Mile ??
+        event.SizeWithin10Mile ??
         event.hailSize ??
         event.hail_size ??
-        event.hail_size_inches ??
         event.size ??
-        event.hail_size_in ??
         null;
 
-      const windSpeed = event.windSpeed ?? event.wind_speed ?? event.wind_speed_mph ?? null;
-      const severity = event.severity || this.inferSeverity(Number(hailSize));
+      // IHM uses FileDate for storm date
+      const date = event.FileDate || event.date || event.event_date || event.storm_date || '';
+
+      const windSpeed = event.windSpeed ?? event.wind_speed ?? event.WindSpeed ?? null;
+      const severity = this.inferSeverity(Number(hailSize));
 
       return {
-        id: String(event.id || event.event_id || event.hail_id || `${Date.now()}-${index}`),
-        date: String(event.date || event.event_date || event.storm_date || event.occurred_at || ''),
-        latitude: Number(event.latitude || event.lat || event.center_lat || 0),
-        longitude: Number(event.longitude || event.lng || event.center_lng || 0),
+        id: String(event.id || event.event_id || `ihm-${date}-${index}`),
+        date: String(date),
+        latitude: Number(event.latitude || event.lat || event.Lat || 0),
+        longitude: Number(event.longitude || event.lng || event.Long || 0),
         hailSize: hailSize !== null ? Number(hailSize) : null,
         windSpeed: windSpeed !== null ? Number(windSpeed) : null,
         severity: severity as HailEvent['severity'],
