@@ -72,12 +72,15 @@ const DocumentAnalysisPanel: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisPhase, setAnalysisPhase] = useState<string>('');
+  const [analysisElapsed, setAnalysisElapsed] = useState<number>(0);
   const [propertyAddress, setPropertyAddress] = useState('');
   const [claimDate, setClaimDate] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [showChatWithSusan, setShowChatWithSusan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef<null | (() => void)>(null);
+  const cancelFlagRef = useRef(false);
 
   const MAX_FILES = 20;
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -94,6 +97,18 @@ const DocumentAnalysisPanel: React.FC = () => {
       console.warn('Could not clear user_uploads:', error);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isAnalyzing) {
+      setAnalysisElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setAnalysisElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isAnalyzing]);
 
   // ============================================================================
   // FILE HANDLING
@@ -191,6 +206,7 @@ const DocumentAnalysisPanel: React.FC = () => {
     setIsAnalyzing(true);
     setAnalysisPhase('Preparing files...');
     setAnalysisResult(null);
+    cancelFlagRef.current = false;
 
     try {
       // Update all files to processing
@@ -202,6 +218,7 @@ const DocumentAnalysisPanel: React.FC = () => {
 
       for (let idx = 0; idx < files.length; idx += 1) {
         const uploadedFile = files[idx];
+        if (cancelFlagRef.current) throw new Error('Analysis cancelled.');
         setAnalysisPhase(`Extracting text (${idx + 1}/${files.length})...`);
         try {
           let text = '';
@@ -373,6 +390,9 @@ Format your response as JSON with this structure:
       // Call multiAI service
       console.log('Sending request to AI service...');
       setAnalysisPhase('Analyzing with Susan...');
+      const cancelPromise = new Promise<never>((_, reject) => {
+        cancelRef.current = () => reject(new Error('Analysis cancelled.'));
+      });
       const aiResponse = await Promise.race([
         multiAI.generate([
           { role: 'system' as const, content: SYSTEM_PROMPT },
@@ -380,7 +400,8 @@ Format your response as JSON with this structure:
         ]),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('AI analysis timed out. Please try again with fewer pages or smaller files.')), AI_TIMEOUT_MS);
-        })
+        }),
+        cancelPromise
       ]);
 
       console.log('AI Response received:', aiResponse);
@@ -497,6 +518,7 @@ Format your response as JSON with this structure:
     } finally {
       setIsAnalyzing(false);
       setAnalysisPhase('');
+      cancelRef.current = null;
     }
   };
 
@@ -570,6 +592,45 @@ Format your response as JSON with this structure:
             Powered by <span style={{ fontWeight: 600, color: 'var(--roof-red)' }}>Susan AI</span>
           </p>
         </div>
+
+        {isAnalyzing && (
+          <div
+            style={{
+              marginBottom: '1.5rem',
+              padding: '0.75rem 1rem',
+              borderRadius: '12px',
+              border: '1px solid rgba(220,38,38,0.4)',
+              background: 'rgba(220,38,38,0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}
+          >
+            <div style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+              {analysisPhase || 'Analyzing documents...'} <span style={{ color: 'var(--text-secondary)' }}>({analysisElapsed}s)</span>
+            </div>
+            <button
+              onClick={() => {
+                cancelFlagRef.current = true;
+                cancelRef.current?.();
+                setIsAnalyzing(false);
+                setAnalysisPhase('');
+              }}
+              style={{
+                padding: '0.4rem 0.75rem',
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'rgba(0,0,0,0.2)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '0.8rem'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Supported Formats */}
         <div style={{ marginBottom: '1.5rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', padding: '1rem' }}>
