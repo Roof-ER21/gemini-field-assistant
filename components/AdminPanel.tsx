@@ -595,7 +595,7 @@ const AdminPanel: React.FC = () => {
       background: '#0f0f0f',
       minHeight: '100vh',
       overflowY: 'auto',
-      overflowX: 'auto',
+      overflowX: 'hidden',
       maxWidth: '100vw',
       boxSizing: 'border-box',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"

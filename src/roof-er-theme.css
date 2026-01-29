@@ -379,7 +379,7 @@ html, body {
 .roof-er-content-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -388,6 +388,11 @@ html, body {
   max-width: 100%;
   min-height: 0;
   box-sizing: border-box;
+}
+
+.roof-er-content-scroll * {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .roof-er-message-container {
@@ -662,13 +667,19 @@ html, body {
 .roof-er-knowledge-scroll {
   flex: 1;
   overflow-y: auto !important;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: block !important;
   height: 100%;
   max-width: 100%;
   min-height: 0;
   box-sizing: border-box;
+}
+
+.roof-er-content-area pre,
+.roof-er-content-area code {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Knowledge Base Cards */

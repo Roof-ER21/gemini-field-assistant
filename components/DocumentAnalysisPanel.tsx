@@ -532,8 +532,7 @@ Format your response as JSON with this structure:
           margin: '0 auto',
           padding: '2rem',
           justifyContent: 'flex-start',
-          alignItems: 'stretch',
-          overflowX: 'auto'
+          alignItems: 'stretch'
         }}
       >
 
@@ -567,10 +566,8 @@ Format your response as JSON with this structure:
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '1.5rem',
-            minWidth: '860px',
-            overflowX: 'auto'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '1.5rem'
           }}
         >
 
@@ -773,8 +770,7 @@ Format your response as JSON with this structure:
               display: 'flex',
               flexDirection: 'column',
               gap: '1.5rem',
-              minWidth: 0,
-              overflowX: 'auto'
+              minWidth: 0
             }}
           >
 

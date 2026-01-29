@@ -123,7 +123,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       width: '100%',
       height: '100%',
       overflowY: 'auto',
-      overflowX: 'auto',
+      overflowX: 'hidden',
       background: 'var(--bg-primary)',
       padding: '0',
       boxSizing: 'border-box'
