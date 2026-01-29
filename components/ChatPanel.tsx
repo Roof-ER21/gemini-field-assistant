@@ -28,6 +28,7 @@ import { memoryService, ExtractedMemory } from '../services/memoryService';
 import { buildSusanContext } from '../services/susanContextService';
 import { jobContextService } from '../services/jobContextService';
 import { emailPatternService, EmailType } from '../services/emailPatternService';
+import { hailMapsApi } from '../services/hailMapsApi';
 
 /**
  * Extract and compress key context from conversation history
@@ -445,6 +446,190 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     return emailPatterns.some(pattern => pattern.test(text.trim()));
   };
 
+  const detectHailLookupRequest = (input: string): { isHailRequest: boolean; address: string | null } => {
+    // Patterns that indicate a hail/storm lookup request
+    const hailPatterns = [
+      /(?:storm|hail|weather)\s+(?:dates?|history|events?|data)\s+(?:for|at)\s+(.+)/i,
+      /(?:look\s*up|check|find|get|search)\s+(?:storm|hail|weather)\s+(?:for|at)\s+(.+)/i,
+      /(?:any|what)\s+(?:storm|hail)\s+(?:events?|dates?|history)\s+(?:for|at)\s+(.+)/i,
+      /(?:storms?|hail)\s+(?:at|for)\s+(.+)/i,
+      /(?:check|lookup|look up)\s+(?:storms?|hail)\s+(?:at|for)\s+(.+)/i,
+    ];
+
+    for (const pattern of hailPatterns) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        // Clean up the address
+        let address = match[1].trim();
+        // Remove trailing punctuation
+        address = address.replace(/[?.!]+$/, '').trim();
+        return { isHailRequest: true, address };
+      }
+    }
+
+    return { isHailRequest: false, address: null };
+  };
+
+  const parseAddress = (rawAddress: string): { street: string; city: string; state: string; zip: string } | null => {
+    // Try to parse: "123 Main St, City, ST 12345" or "123 Main St, City, ST"
+    const patterns = [
+      // Full address with zip
+      /^(.+?),\s*([^,]+),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)$/i,
+      // Address without zip
+      /^(.+?),\s*([^,]+),\s*([A-Z]{2})$/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = rawAddress.match(pattern);
+      if (match) {
+        return {
+          street: match[1].trim(),
+          city: match[2].trim(),
+          state: match[3].trim().toUpperCase(),
+          zip: match[4]?.trim() || '00000' // Default zip if not provided
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const formatHailResponseForUser = (results: any, address: string): string => {
+    const allEvents: any[] = [];
+
+    results.events?.forEach((e: any) => {
+      allEvents.push({
+        date: e.date,
+        type: 'hail',
+        size: e.hailSize,
+        source: 'IHM',
+        certified: false
+      });
+    });
+
+    results.noaaEvents?.forEach((e: any) => {
+      allEvents.push({
+        date: e.date,
+        type: e.eventType,
+        magnitude: e.magnitude,
+        unit: e.magnitudeUnit,
+        source: 'NOAA',
+        certified: true,
+        narrative: e.narrative
+      });
+    });
+
+    if (allEvents.length === 0) {
+      return `I looked up the storm history for **${address}** and found **no documented hail or wind events** in the past 24 months.\n\nThis could mean:\n- The area hasn't experienced significant storms\n- Events weren't reported to NOAA\n- The address may need verification\n\nWould you like me to search with a different address or time range?`;
+    }
+
+    // Sort: IHM first, then NOAA, by date
+    allEvents.sort((a, b) => {
+      if (a.source === 'IHM' && b.source !== 'IHM') return -1;
+      if (b.source === 'IHM' && a.source !== 'IHM') return 1;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+
+    let response = `## Storm History for ${address}\n\n`;
+    response += `Found **${allEvents.length} storm events** in the past 24 months:\n\n`;
+
+    const noaaEvents = allEvents.filter(e => e.certified);
+    const ihmEvents = allEvents.filter(e => !e.certified);
+
+    if (ihmEvents.length > 0) {
+      response += `### Interactive Hail Maps Data\n`;
+      ihmEvents.forEach(e => {
+        response += `- **${e.date}**: Hail ${e.size ? `${e.size}"` : '(size not recorded)'}\n`;
+      });
+      response += `\n`;
+    }
+
+    if (noaaEvents.length > 0) {
+      response += `### ✓ NOAA Certified Data\n`;
+      response += `*Official government source - legally defensible for insurance claims*\n\n`;
+      noaaEvents.forEach(e => {
+        response += `- **${e.date}**: ${e.type.charAt(0).toUpperCase() + e.type.slice(1)}`;
+        if (e.magnitude) response += ` (${e.magnitude} ${e.unit})`;
+        response += `\n`;
+        if (e.narrative) response += `  *${e.narrative.slice(0, 120)}${e.narrative.length > 120 ? '...' : ''}*\n`;
+      });
+    }
+
+    response += `\n---\n`;
+    response += `Would you like me to:\n`;
+    response += `- Generate an adjuster email with these storm dates?\n`;
+    response += `- Look up another address?\n`;
+    response += `- Download a full report?`;
+
+    return response;
+  };
+
+  const formatHailResultsForSusan = (results: any, address: string): string => {
+    const allEvents: any[] = [];
+
+    // Combine IHM and NOAA events
+    results.events?.forEach((e: any) => {
+      allEvents.push({
+        date: e.date,
+        type: 'hail',
+        size: e.hailSize,
+        source: 'Interactive Hail Maps',
+        certified: false
+      });
+    });
+
+    results.noaaEvents?.forEach((e: any) => {
+      allEvents.push({
+        date: e.date,
+        type: e.eventType,
+        magnitude: e.magnitude,
+        unit: e.magnitudeUnit,
+        source: 'NOAA Storm Events Database',
+        certified: true,
+        narrative: e.narrative,
+        location: e.location
+      });
+    });
+
+    if (allEvents.length === 0) {
+      return `HAIL LOOKUP RESULT for ${address}:\nNo storm events found in the database for this location in the past 24 months.`;
+    }
+
+    // Sort by date descending
+    allEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    let summary = `HAIL/STORM LOOKUP RESULT for ${address}:\n`;
+    summary += `Found ${allEvents.length} storm events:\n\n`;
+
+    // NOAA certified events first
+    const noaaEvents = allEvents.filter(e => e.certified);
+    const ihmEvents = allEvents.filter(e => !e.certified);
+
+    if (noaaEvents.length > 0) {
+      summary += `NOAA CERTIFIED DATA (Official Government Source):\n`;
+      noaaEvents.forEach(e => {
+        summary += `- ${e.date}: ${e.type.toUpperCase()}`;
+        if (e.magnitude) summary += ` (${e.magnitude} ${e.unit})`;
+        if (e.narrative) summary += ` - ${e.narrative.slice(0, 100)}`;
+        summary += `\n`;
+      });
+      summary += `\n`;
+    }
+
+    if (ihmEvents.length > 0) {
+      summary += `INTERACTIVE HAIL MAPS DATA:\n`;
+      ihmEvents.forEach(e => {
+        summary += `- ${e.date}: ${e.type.toUpperCase()}`;
+        if (e.size) summary += ` (${e.size}" hail)`;
+        summary += `\n`;
+      });
+    }
+
+    summary += `\nSource verification: NOAA data from ncei.noaa.gov/stormevents`;
+
+    return summary;
+  };
+
   const handleEmailGeneration = async () => {
     if (!emailKeyPoints.trim()) {
       toast.warning('Please provide key points for the email');
@@ -629,6 +814,52 @@ Generate ONLY the email body text, no subject line or metadata.`;
         setEmailKeyPoints(keyPointsMatch[1]);
       }
       return;
+    }
+
+    // Check if this is a hail/storm lookup request
+    const hailRequest = detectHailLookupRequest(userInput);
+    if (hailRequest.isHailRequest && hailRequest.address) {
+      const parsedAddress = parseAddress(hailRequest.address);
+      if (parsedAddress) {
+        // Show loading state
+        setIsLoading(true);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: userInput,
+          sender: 'user',
+        }]);
+        setUserInput('');
+
+        try {
+          // Look up hail data
+          const hailResults = await hailMapsApi.searchByAddress(parsedAddress, 24);
+          const hailContext = formatHailResultsForSusan(hailResults, hailRequest.address);
+
+          // Store in localStorage for future reference
+          localStorage.setItem('susan_hail_context', hailContext);
+
+          // Create response with hail data
+          const responseMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: formatHailResponseForUser(hailResults, hailRequest.address),
+            sender: 'assistant',
+          };
+          setMessages(prev => [...prev, responseMessage]);
+          setIsLoading(false);
+          return;
+        } catch (error) {
+          console.error('Hail lookup failed:', error);
+          // Fall through to normal chat handling with error context
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: `I attempted to look up hail data for **${hailRequest.address}**, but encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}.\n\nPlease verify the address format (e.g., "123 Main St, City, ST 12345") and try again.`,
+            sender: 'assistant',
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          setIsLoading(false);
+          return;
+        }
+      }
     }
 
     if (showWelcome) {
