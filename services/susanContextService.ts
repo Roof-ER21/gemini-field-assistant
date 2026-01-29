@@ -14,6 +14,7 @@ export async function buildSusanContext(windowDays: number = 45): Promise<string
   const blocks: string[] = [];
   const apiBaseUrl = getApiBaseUrl();
 
+  // 1. User-specific memory context
   try {
     const memoryBlock = await memoryService.buildUserContext();
     if (memoryBlock) {
@@ -21,6 +22,59 @@ export async function buildSusanContext(windowDays: number = 45): Promise<string
     }
   } catch (error) {
     console.warn('[SusanContext] Memory context failed:', (error as Error).message);
+  }
+
+  // 2. Recent storm lookups (for quick reference)
+  try {
+    const memories = await memoryService.getAllUserMemories(100);
+    const stormMemories = memories
+      .filter(m => m.category === 'storm_verification')
+      .slice(0, 3);
+
+    if (stormMemories.length > 0) {
+      const stormSummaries = stormMemories.map(m => {
+        try {
+          const data = JSON.parse(m.value);
+          return `${data.address}: ${data.events.length} events (${data.city}, ${data.state})`;
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      if (stormSummaries.length > 0) {
+        blocks.push(`[RECENT STORM LOOKUPS]\n${stormSummaries.join('\n')}`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Storm memory failed:', (error as Error).message);
+  }
+
+  // 3. Successful email patterns (what's worked before)
+  try {
+    const memories = await memoryService.getAllUserMemories(200);
+    const successfulEmails = memories
+      .filter(m => m.category === 'email_success' && m.confidence > 0.7)
+      .slice(0, 3);
+
+    if (successfulEmails.length > 0) {
+      const emailInsights: string[] = [];
+      for (const mem of successfulEmails) {
+        try {
+          const pattern = JSON.parse(mem.value);
+          if (pattern.outcome === 'success') {
+            emailInsights.push(`${pattern.situation} (${pattern.state || 'any state'}): Success rate ${(mem.confidence * 100).toFixed(0)}%`);
+          }
+        } catch {
+          // Skip invalid patterns
+        }
+      }
+
+      if (emailInsights.length > 0) {
+        blocks.push(`[SUCCESSFUL EMAIL PATTERNS]\n${emailInsights.join('\n')}`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Email pattern memory failed:', (error as Error).message);
   }
 
   try {

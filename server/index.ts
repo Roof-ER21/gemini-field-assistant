@@ -21,6 +21,7 @@ import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
+import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
 
 const { Pool } = pg;
@@ -59,6 +60,9 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('✅ Database connected successfully at', res.rows[0].now);
   }
 });
+
+// Make pool available to routes via app.get('pool')
+app.set('pool', pool);
 
 // ============================================================================
 // MIDDLEWARE
@@ -5690,6 +5694,10 @@ app.use('/api/jobs', jobRoutes);
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
+
+// Register storm memory routes
+app.use('/api/storm-memory', authMiddleware);
+app.use('/api/storm-memory', stormMemoryRoutes);
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)

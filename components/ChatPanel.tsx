@@ -29,6 +29,7 @@ import { buildSusanContext } from '../services/susanContextService';
 import { jobContextService } from '../services/jobContextService';
 import { emailPatternService, EmailType } from '../services/emailPatternService';
 import { hailMapsApi } from '../services/hailMapsApi';
+import { stormMemoryApi } from '../services/stormMemoryApi';
 
 /**
  * Extract and compress key context from conversation history
@@ -779,7 +780,24 @@ Generate ONLY the email body text, no subject line or metadata.`;
           tone: emailTone as 'professional' | 'firm' | 'urgent' | 'collaborative' | 'friendly',
           sourceEmailId: emailMessage.id,
         });
-        console.log('[Memory] Tracked email pattern for learning');
+
+        // 🧠 SUSAN LEARNING: Save email pattern to memory
+        const context = extractConversationContext(messages);
+        const situation = context.claimType
+          ? `${context.claimType.toLowerCase().replace(/\s+/g, '_')}_${selectedState || 'unknown'}`
+          : 'general';
+
+        await memoryService.saveEmailPattern({
+          emailType: emailRecipientType,
+          situation,
+          insurer: context.insurer || undefined,
+          state: selectedState || undefined,
+          templateUsed: emailBody.substring(0, 200), // First 200 chars as template identifier
+          outcome: 'pending',
+          sentDate: new Date().toISOString(),
+        });
+
+        console.log('[Memory] 🧠 Susan tracked email pattern for learning');
       } catch (patternError) {
         console.warn('[Memory] Error tracking email pattern:', patternError);
       }
@@ -837,6 +855,37 @@ Generate ONLY the email body text, no subject line or metadata.`;
       context_insurer: feedbackInsurer.trim() || undefined,
       context_adjuster: feedbackAdjuster.trim() || undefined
     });
+
+    // 🧠 SUSAN LEARNING: Save conversation outcome to memory
+    const messageIndex = messages.findIndex(m => m.id === feedbackModal.messageId);
+    if (messageIndex > 0) {
+      const userMessage = messages[messageIndex - 1]; // Get the user's question
+      const susanResponse = messages[messageIndex]; // Susan's response
+
+      // Determine situation from context
+      let situation = 'general';
+      const context = extractConversationContext(messages.slice(0, messageIndex + 1));
+      if (context.claimType) {
+        situation = context.claimType.toLowerCase().replace(/\s+/g, '_');
+        if (context.state) situation += `_${context.state.toLowerCase()}`;
+      }
+
+      await memoryService.learnFromOutcome(feedbackModal.messageId, {
+        sessionId: currentSessionId,
+        userQuery: userMessage.text,
+        susanResponse: susanResponse.text,
+        userFeedback: feedbackModal.rating,
+        feedbackTags: feedbackTags,
+        feedbackComment: feedbackComment.trim() || undefined,
+        situation,
+        state: selectedState || context.state || undefined,
+        insurer: feedbackInsurer.trim() || context.insurer || undefined,
+        wasHelpful: feedbackModal.rating === 1,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`[ChatPanel] 🧠 Susan learned from ${feedbackModal.rating === 1 ? 'positive' : 'negative'} feedback`);
+    }
 
     setFeedbackGiven(prev => ({ ...prev, [feedbackModal.messageId]: true }));
     setFeedbackModal(null);
@@ -897,7 +946,26 @@ Generate ONLY the email body text, no subject line or metadata.`;
       setIsLoading(true);
 
       try {
-        // Look up hail data with timeout protection
+        // 🧠 STEP 1: Check if we have recent cached storm data
+        const cachedLookup = await stormMemoryApi.getStormByAddress(hailRequest.address);
+
+        if (cachedLookup && cachedLookup.eventCount > 0) {
+          const ageDays = Math.floor((Date.now() - new Date(cachedLookup.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+
+          // If data is less than 7 days old, offer to use cached data
+          if (ageDays < 7) {
+            const cachedMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              text: `🧠 **I remember this location!**\n\nI looked up **${cachedLookup.address}** ${ageDays} days ago and found **${cachedLookup.eventCount} storm events**.\n\nWould you like me to:\n• **Use the cached data** (fast)\n• **Look up fresh data** (may find new events)\n\nThe cached data includes:\n${cachedLookup.stormEvents.slice(0, 3).map((e: any) => `• ${e.date}: ${e.eventType}${e.magnitude ? ` (${e.magnitude} ${e.magnitudeUnit})` : ''}`).join('\n')}${cachedLookup.eventCount > 3 ? `\n• ... and ${cachedLookup.eventCount - 3} more events` : ''}`,
+              sender: 'assistant',
+            };
+            setMessages(prev => [...prev, cachedMessage]);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // 🌐 STEP 2: Look up hail data with timeout protection
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000)
         );
@@ -912,6 +980,20 @@ Generate ONLY the email body text, no subject line or metadata.`;
         // Store in localStorage for future reference
         localStorage.setItem('susan_hail_context', hailContext);
 
+        // 💾 STEP 3: Save verified storm data to storm memory database
+        await stormMemoryApi.saveStormLookup({
+          address: hailRequest.address,
+          city: parsedAddress.city,
+          state: parsedAddress.state,
+          zipCode: parsedAddress.zip,
+          latitude: hailResults.searchArea.center.lat,
+          longitude: hailResults.searchArea.center.lng,
+          results: hailResults,
+        });
+
+        const totalEvents = (hailResults.events?.length || 0) + (hailResults.noaaEvents?.length || 0);
+        console.log(`[ChatPanel] 💾 Saved storm lookup for ${hailRequest.address} (${totalEvents} events)`);
+
         // Create response with hail data
         const responseMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -920,7 +1002,6 @@ Generate ONLY the email body text, no subject line or metadata.`;
         };
 
         // Create follow-up question to guide user on next steps
-        const totalEvents = (hailResults.events?.length || 0) + (hailResults.noaaEvents?.length || 0);
         const followUpMessage: Message = {
           id: (Date.now() + 2).toString(),
           text: totalEvents > 0
@@ -1028,6 +1109,15 @@ Generate ONLY the email body text, no subject line or metadata.`;
         const hailContext = localStorage.getItem('susan_hail_context');
         if (hailContext) {
           systemPrompt += `\n\nHAIL HISTORY CONTEXT:\n${hailContext}\nUse these documented storm dates and hail sizes when relevant, especially for adjuster emails.`;
+        }
+
+        // 🧠 STORM MEMORY: Add context from previous storm lookups
+        const stormMemoryContext = await stormMemoryApi.getMemoryContext({
+          address: originalQuery // Try to extract address from query if present
+        });
+        if (stormMemoryContext) {
+          systemPrompt += stormMemoryContext;
+          console.log('[StormMemory] Added storm memory context to prompt');
         }
 
         // If query relates to email, add pattern insights

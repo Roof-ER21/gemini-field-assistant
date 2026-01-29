@@ -11,8 +11,8 @@ import { authService } from './authService';
 // TYPES
 // ============================================================================
 
-export type MemoryType = 'fact' | 'preference' | 'pattern' | 'outcome' | 'context';
-export type MemorySourceType = 'conversation' | 'explicit' | 'inferred' | 'feedback';
+export type MemoryType = 'fact' | 'preference' | 'pattern' | 'outcome' | 'context' | 'storm_data' | 'email_pattern' | 'success_pattern';
+export type MemorySourceType = 'conversation' | 'explicit' | 'inferred' | 'feedback' | 'storm_lookup' | 'email_sent' | 'outcome_feedback';
 export type MemoryCategory =
   | 'insurer'
   | 'state'
@@ -23,7 +23,11 @@ export type MemoryCategory =
   | 'expertise'
   | 'workflow'
   | 'company'
-  | 'general';
+  | 'general'
+  | 'storm_verification'
+  | 'email_success'
+  | 'conversation_outcome'
+  | 'team_pattern';
 
 export interface UserMemory {
   id: string;
@@ -79,6 +83,68 @@ export interface ExtractedMemory {
   value: string;
   confidence: number;
   source_type: MemorySourceType;
+}
+
+// ============================================================================
+// SUSAN LEARNING TYPES
+// ============================================================================
+
+export interface StormDataMemory {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  events: Array<{
+    date: string;
+    type: 'hail' | 'wind' | 'storm';
+    size?: string;
+    magnitude?: string;
+    source: 'IHM' | 'NOAA';
+    certified: boolean;
+  }>;
+  lookupDate: string;
+  verified: boolean;
+}
+
+export interface EmailPatternMemory {
+  emailType: 'adjuster' | 'homeowner' | 'insurance' | 'custom';
+  situation: string; // e.g., "partial_approval_md", "denial_va", "supplement_pa"
+  insurer?: string;
+  state?: string;
+  templateUsed: string;
+  outcome?: 'success' | 'failure' | 'pending';
+  openRate?: boolean;
+  responseReceived?: boolean;
+  claimWon?: boolean;
+  feedbackRating?: 1 | -1;
+  sentDate: string;
+  outcomeDate?: string;
+}
+
+export interface ConversationOutcome {
+  sessionId: string;
+  userQuery: string;
+  susanResponse: string;
+  userFeedback?: 1 | -1; // thumbs up/down
+  feedbackTags?: string[];
+  feedbackComment?: string;
+  situation: string;
+  state?: string;
+  insurer?: string;
+  wasHelpful: boolean;
+  timestamp: string;
+}
+
+export interface SuccessPattern {
+  patternType: 'response_approach' | 'documentation_strategy' | 'code_citation' | 'email_template';
+  situation: string; // What scenario this pattern works for
+  state?: string;
+  insurer?: string;
+  successCount: number;
+  failureCount: number;
+  successRate: number;
+  exampleText?: string;
+  lastUsed: string;
 }
 
 // ============================================================================
@@ -738,6 +804,405 @@ class MemoryService {
     } catch {
       return [];
     }
+  }
+
+  // ============================================================================
+  // SUSAN LEARNING - STORM DATA MEMORY
+  // ============================================================================
+
+  /**
+   * Save verified storm data for future reference
+   */
+  async saveStormMemory(stormData: StormDataMemory): Promise<void> {
+    const email = this.getAuthEmail();
+    if (!email) return;
+
+    const memory: ExtractedMemory = {
+      memory_type: 'storm_data',
+      category: 'storm_verification',
+      key: `storm_${stormData.address.toLowerCase().replace(/\s+/g, '_')}`,
+      value: JSON.stringify(stormData),
+      confidence: stormData.verified ? 1.0 : 0.8,
+      source_type: 'storm_lookup',
+    };
+
+    await this.saveMemories([memory]);
+    console.log(`[MemoryService] Saved storm data for ${stormData.address}`);
+  }
+
+  /**
+   * Get stored storm data for an address or nearby area
+   */
+  async getStormMemory(address: string): Promise<StormDataMemory | null> {
+    const email = this.getAuthEmail();
+    if (!email) return null;
+
+    const memories = this.useLocalStorage
+      ? this.getMemoriesFromLocalStorage(email)
+      : await this.getAllUserMemories(100);
+
+    // Look for exact address match first
+    const addressKey = `storm_${address.toLowerCase().replace(/\s+/g, '_')}`;
+    let stormMemory = memories.find(
+      m => m.category === 'storm_verification' && m.key === addressKey
+    );
+
+    // If no exact match, look for same city/state
+    if (!stormMemory && address.includes(',')) {
+      const [, cityState] = address.split(',');
+      if (cityState) {
+        stormMemory = memories.find(
+          m => m.category === 'storm_verification' &&
+          m.value.toLowerCase().includes(cityState.trim().toLowerCase())
+        );
+      }
+    }
+
+    if (stormMemory) {
+      try {
+        return JSON.parse(stormMemory.value) as StormDataMemory;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  // ============================================================================
+  // SUSAN LEARNING - EMAIL PATTERN TRACKING
+  // ============================================================================
+
+  /**
+   * Track email sent with initial context
+   */
+  async saveEmailPattern(pattern: EmailPatternMemory): Promise<string> {
+    const email = this.getAuthEmail();
+    if (!email) return '';
+
+    const patternId = crypto.randomUUID();
+    const memory: ExtractedMemory = {
+      memory_type: 'email_pattern',
+      category: 'email_success',
+      key: `email_${patternId}`,
+      value: JSON.stringify(pattern),
+      confidence: 0.5, // Start neutral, update based on outcome
+      source_type: 'email_sent',
+    };
+
+    await this.saveMemories([memory]);
+    console.log(`[MemoryService] Saved email pattern: ${pattern.situation}`);
+    return patternId;
+  }
+
+  /**
+   * Update email pattern with outcome (success/failure)
+   */
+  async updateEmailOutcome(
+    patternId: string,
+    outcome: {
+      success: boolean;
+      openRate?: boolean;
+      responseReceived?: boolean;
+      claimWon?: boolean;
+      feedbackRating?: 1 | -1;
+    }
+  ): Promise<void> {
+    const email = this.getAuthEmail();
+    if (!email) return;
+
+    const memories = this.useLocalStorage
+      ? this.getMemoriesFromLocalStorage(email)
+      : await this.getAllUserMemories(500);
+
+    const emailMemory = memories.find(
+      m => m.category === 'email_success' && m.key === `email_${patternId}`
+    );
+
+    if (emailMemory) {
+      try {
+        const pattern: EmailPatternMemory = JSON.parse(emailMemory.value);
+        pattern.outcome = outcome.success ? 'success' : 'failure';
+        pattern.openRate = outcome.openRate;
+        pattern.responseReceived = outcome.responseReceived;
+        pattern.claimWon = outcome.claimWon;
+        pattern.feedbackRating = outcome.feedbackRating;
+        pattern.outcomeDate = new Date().toISOString();
+
+        emailMemory.value = JSON.stringify(pattern);
+
+        // Update confidence based on outcome
+        if (outcome.success) {
+          emailMemory.confidence = Math.min(1.0, emailMemory.confidence + 0.2);
+          emailMemory.times_helpful++;
+        } else {
+          emailMemory.confidence = Math.max(0.1, emailMemory.confidence - 0.3);
+          emailMemory.times_incorrect++;
+        }
+
+        emailMemory.last_updated = new Date().toISOString();
+
+        // Save updated memory
+        if (this.useLocalStorage) {
+          const storageKey = `user_memories_${email}`;
+          localStorage.setItem(storageKey, JSON.stringify(memories));
+        } else {
+          // API update would go here
+          console.log(`[MemoryService] Updated email outcome for ${patternId}`);
+        }
+      } catch (error) {
+        console.error('[MemoryService] Error updating email outcome:', error);
+      }
+    }
+  }
+
+  /**
+   * Get successful email patterns for a situation
+   */
+  async getSuccessfulEmailPatterns(
+    situation: string,
+    state?: string,
+    insurer?: string,
+    limit: number = 5
+  ): Promise<EmailPatternMemory[]> {
+    const email = this.getAuthEmail();
+    if (!email) return [];
+
+    const memories = this.useLocalStorage
+      ? this.getMemoriesFromLocalStorage(email)
+      : await this.getAllUserMemories(500);
+
+    const emailMemories = memories
+      .filter(m => m.category === 'email_success' && m.confidence > 0.6)
+      .map(m => {
+        try {
+          return JSON.parse(m.value) as EmailPatternMemory;
+        } catch {
+          return null;
+        }
+      })
+      .filter((p): p is EmailPatternMemory => p !== null)
+      .filter(p => {
+        // Match situation
+        if (!p.situation.includes(situation)) return false;
+        // Match state if provided
+        if (state && p.state && p.state !== state) return false;
+        // Match insurer if provided
+        if (insurer && p.insurer && !p.insurer.toLowerCase().includes(insurer.toLowerCase())) return false;
+        // Only successful patterns
+        return p.outcome === 'success';
+      })
+      .slice(0, limit);
+
+    return emailMemories;
+  }
+
+  // ============================================================================
+  // SUSAN LEARNING - CONVERSATION OUTCOMES
+  // ============================================================================
+
+  /**
+   * Learn from conversation outcome (thumbs up/down feedback)
+   */
+  async learnFromOutcome(
+    conversationId: string,
+    outcome: ConversationOutcome
+  ): Promise<void> {
+    const email = this.getAuthEmail();
+    if (!email) return;
+
+    const memory: ExtractedMemory = {
+      memory_type: 'outcome',
+      category: 'conversation_outcome',
+      key: `outcome_${conversationId}`,
+      value: JSON.stringify(outcome),
+      confidence: outcome.wasHelpful ? 0.9 : 0.3,
+      source_type: 'outcome_feedback',
+    };
+
+    await this.saveMemories([memory]);
+
+    // If helpful, extract what made it successful
+    if (outcome.wasHelpful && outcome.feedbackTags) {
+      await this.extractSuccessPatterns(outcome);
+    }
+
+    console.log(`[MemoryService] Learned from outcome: ${outcome.wasHelpful ? 'helpful' : 'not helpful'}`);
+  }
+
+  /**
+   * Extract success patterns from positive feedback
+   */
+  private async extractSuccessPatterns(outcome: ConversationOutcome): Promise<void> {
+    // Identify what made this response successful
+    const patterns: string[] = [];
+
+    if (outcome.feedbackTags?.includes('Clear')) {
+      patterns.push('clear_communication');
+    }
+    if (outcome.feedbackTags?.includes('Actionable')) {
+      patterns.push('actionable_steps');
+    }
+    if (outcome.feedbackTags?.includes('Great citations')) {
+      patterns.push('strong_citations');
+    }
+    if (outcome.susanResponse.includes('[') && outcome.susanResponse.includes(']')) {
+      patterns.push('used_citations');
+    }
+    if (outcome.susanResponse.includes('Step 1') || outcome.susanResponse.includes('Step 2')) {
+      patterns.push('step_by_step_format');
+    }
+
+    // Save as success patterns
+    for (const patternType of patterns) {
+      const successPattern: SuccessPattern = {
+        patternType: 'response_approach',
+        situation: outcome.situation,
+        state: outcome.state,
+        insurer: outcome.insurer,
+        successCount: 1,
+        failureCount: 0,
+        successRate: 1.0,
+        exampleText: outcome.susanResponse.substring(0, 500),
+        lastUsed: outcome.timestamp,
+      };
+
+      const memory: ExtractedMemory = {
+        memory_type: 'success_pattern',
+        category: 'team_pattern',
+        key: `success_${patternType}_${outcome.situation}`,
+        value: JSON.stringify(successPattern),
+        confidence: 0.8,
+        source_type: 'outcome_feedback',
+      };
+
+      await this.saveMemories([memory]);
+    }
+  }
+
+  // ============================================================================
+  // SUSAN LEARNING - QUERY METHODS FOR SUSAN TO USE
+  // ============================================================================
+
+  /**
+   * Get relevant memories for current conversation context
+   * Susan calls this to recall what she knows that's relevant
+   */
+  async getRelevantMemoriesForContext(context: {
+    query: string;
+    state?: string;
+    insurer?: string;
+    situation?: string;
+  }): Promise<{
+    facts: UserMemory[];
+    stormData: StormDataMemory | null;
+    successPatterns: SuccessPattern[];
+    emailPatterns: EmailPatternMemory[];
+  }> {
+    // Get general relevant memories
+    const facts = await this.getRelevantMemories(context.query, 10);
+
+    // Get storm data if address mentioned
+    let stormData: StormDataMemory | null = null;
+    const addressMatch = context.query.match(/\b\d+\s+[\w\s]+(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|ct|court)\b/i);
+    if (addressMatch) {
+      stormData = await this.getStormMemory(addressMatch[0]);
+    }
+
+    // Get success patterns for this situation
+    const email = this.getAuthEmail();
+    const successPatterns: SuccessPattern[] = [];
+    if (email && context.situation) {
+      const memories = this.useLocalStorage
+        ? this.getMemoriesFromLocalStorage(email)
+        : await this.getAllUserMemories(500);
+
+      const successMemories = memories
+        .filter(m => m.category === 'team_pattern' && m.confidence > 0.7)
+        .filter(m => {
+          const situationMatch = !context.situation || m.key.includes(context.situation);
+          const stateMatch = !context.state || m.value.includes(context.state);
+          return situationMatch && stateMatch;
+        })
+        .slice(0, 5);
+
+      for (const mem of successMemories) {
+        try {
+          successPatterns.push(JSON.parse(mem.value));
+        } catch {
+          // Skip invalid patterns
+        }
+      }
+    }
+
+    // Get successful email patterns for similar situations
+    const emailPatterns = context.situation
+      ? await this.getSuccessfulEmailPatterns(context.situation, context.state, context.insurer, 3)
+      : [];
+
+    return {
+      facts,
+      stormData,
+      successPatterns,
+      emailPatterns,
+    };
+  }
+
+  /**
+   * Get success patterns for a specific situation
+   * Susan calls this to see what's worked before
+   */
+  async getSuccessPatterns(situation: string): Promise<string[]> {
+    const email = this.getAuthEmail();
+    if (!email) return [];
+
+    const memories = this.useLocalStorage
+      ? this.getMemoriesFromLocalStorage(email)
+      : await this.getAllUserMemories(500);
+
+    const patterns = memories
+      .filter(m => m.category === 'team_pattern' || m.category === 'conversation_outcome')
+      .filter(m => m.confidence > 0.7)
+      .filter(m => {
+        try {
+          const data = JSON.parse(m.value);
+          return data.wasHelpful || data.successRate > 0.7;
+        } catch {
+          return false;
+        }
+      })
+      .map(m => {
+        try {
+          const data = JSON.parse(m.value);
+          if (data.exampleText) return data.exampleText;
+          if (data.susanResponse) return data.susanResponse.substring(0, 200);
+          return null;
+        } catch {
+          return null;
+        }
+      })
+      .filter((p): p is string => p !== null)
+      .slice(0, 5);
+
+    return patterns;
+  }
+
+  /**
+   * Get aggregated team learning insights
+   * Cross-user patterns that work (privacy-preserved)
+   */
+  async getTeamLearningInsights(): Promise<{
+    topSuccessPatterns: string[];
+    commonPitfalls: string[];
+    insurerInsights: Record<string, string>;
+  }> {
+    // In a real implementation, this would query aggregated (anonymized) data
+    // For now, return empty structure
+    return {
+      topSuccessPatterns: [],
+      commonPitfalls: [],
+      insurerInsights: {},
+    };
   }
 }
 
