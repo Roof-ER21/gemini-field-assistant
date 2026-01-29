@@ -11,6 +11,7 @@ import { useToast } from './Toast';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
 import { databaseService } from '../services/databaseService';
+import { buildSusanContext } from '../services/susanContextService';
 import {
   checkEmailCompliance,
   autoFixViolations,
@@ -186,12 +187,19 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
 
   // Share Modal State
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [susanContext, setSusanContext] = useState('');
 
   useEffect(() => {
     if (selectedTemplate) {
       loadTemplate(selectedTemplate);
     }
   }, [selectedTemplate]);
+
+  useEffect(() => {
+    buildSusanContext(30)
+      .then(context => setSusanContext(context))
+      .catch(() => setSusanContext(''));
+  }, []);
 
   // Initialize state from global selection used in Chat
   useEffect(() => {
@@ -435,7 +443,7 @@ IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipien
 If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.
       `.trim();
 
-      const response = await generateEmail(recipientName, subject, keyPoints);
+      const response = await generateEmail(recipientName, subject, keyPoints, susanContext);
       setGeneratedEmail(response);
       setEditableEmailBody(response);
 
@@ -467,7 +475,7 @@ Provide a concise 3-4 sentence explanation of WHY this email approach works from
 Keep it practical and actionable. Use confident language.
       `.trim();
 
-      const whyResponse = await generateEmail('', 'Why It Works', whyItWorksPrompt);
+      const whyResponse = await generateEmail('', 'Why It Works', whyItWorksPrompt, susanContext);
       setWhyItWorks(whyResponse);
 
       // Save email to history
@@ -504,7 +512,7 @@ Keep it practical and actionable. Use confident language.
       };
 
       const enhancePrompt = `${prompts[type]}\n\n${generatedEmail}\n\nReturn ONLY the improved email, no explanations.`;
-      const enhanced = await generateEmail('', 'Enhanced Email', enhancePrompt);
+      const enhanced = await generateEmail('', 'Enhanced Email', enhancePrompt, susanContext);
       setGeneratedEmail(enhanced);
       setEditableEmailBody(enhanced);
 
@@ -599,7 +607,7 @@ GOOD QUESTIONS (ASK THESE):
 Return ONLY the questions, one per line, numbered 1-4. No explanations or preamble.
       `.trim();
 
-      const questionsResponse = await generateEmail('', 'Email Questions', questionPrompt);
+      const questionsResponse = await generateEmail('', 'Email Questions', questionPrompt, susanContext);
 
       // Parse questions from response
       const parsedQuestions = questionsResponse
@@ -670,7 +678,7 @@ EXAMPLE OF WHAT TO DO:
 Return ONLY the refined email from the rep's perspective. No explanations, no meta-commentary, no mentions of Susan or AI.
       `.trim();
 
-      const refinedEmail = await generateEmail('', 'Refined Email', refinePrompt);
+      const refinedEmail = await generateEmail('', 'Refined Email', refinePrompt, susanContext);
       setGeneratedEmail(refinedEmail);
       setEditableEmailBody(refinedEmail);
 

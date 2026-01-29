@@ -25,6 +25,7 @@ import {
   ComplianceResult
 } from '../services/emailComplianceService';
 import { memoryService, ExtractedMemory } from '../services/memoryService';
+import { buildSusanContext } from '../services/susanContextService';
 import { jobContextService } from '../services/jobContextService';
 import { emailPatternService, EmailType } from '../services/emailPatternService';
 
@@ -172,6 +173,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [learningSummary, setLearningSummary] = useState<any | null>(null);
+  const [susanContext, setSusanContext] = useState('');
   const [showLearningPanel, setShowLearningPanel] = useState(true);
   const [feedbackModal, setFeedbackModal] = useState<{
     messageId: string;
@@ -243,6 +245,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setLearningSummary(summary);
       }
     });
+
+    buildSusanContext(30)
+      .then(context => setSusanContext(context))
+      .catch(() => setSusanContext(''));
 
     // Load saved state selection
     const savedState = localStorage.getItem('selectedState');
@@ -456,7 +462,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
       const emailBody = await generateEmail(
         recipientLabels[emailRecipientType],
         `Email to ${recipientLabels[emailRecipientType]}`,
-        emailPrompt
+        emailPrompt,
+        susanContext
       );
 
       // Check compliance
@@ -1098,7 +1105,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
         const preview = await fileToDataURL(processedFile);
         toast.info('Analyzing image', 'Susan is analyzing the roof damage...');
-        const assessment = await analyzeRoofImage(processedFile);
+        const assessment = await analyzeRoofImage(processedFile, susanContext);
 
         const analysisText = `**Image Analysis: ${file.name}**\n\n${assessment.analysis.damageDetected ? '🔴 **DAMAGE DETECTED**' : '✅ **NO DAMAGE DETECTED**'}\n\n**Severity:** ${assessment.analysis.severity.toUpperCase()}\n**Urgency:** ${assessment.analysis.urgency.toUpperCase()}\n**Claim Viability:** ${assessment.analysis.claimViability.toUpperCase()}\n\n**Affected Area:** ${assessment.analysis.affectedArea}\n**Estimated Size:** ${assessment.analysis.estimatedSize}\n\n${assessment.analysis.damageType.length > 0 ? `**Damage Types:** ${assessment.analysis.damageType.join(', ')}\n\n` : ''}**For Adjuster:**\n${assessment.analysis.policyLanguage}\n\n**Key Insurance Arguments:**\n${assessment.analysis.insuranceArguments.map((arg, i) => `${i + 1}. ${arg}`).join('\n')}\n\n**Recommendations:**\n${assessment.analysis.recommendations.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}${assessment.followUpQuestions.length > 0 ? `\n\n**Follow-up Questions:**\n${assessment.followUpQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}` : ''}`.trim();
 

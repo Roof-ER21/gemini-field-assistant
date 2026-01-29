@@ -21,6 +21,7 @@ import {
 } from '../services/transcriptionService';
 import { databaseService } from '../services/databaseService';
 import { env } from '../src/config/env';
+import { buildSusanContext } from '../services/susanContextService';
 
 const TranscriptionPanel: React.FC = () => {
   const toast = useToast();
@@ -32,6 +33,7 @@ const TranscriptionPanel: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcripts, setTranscripts] = useState<MeetingTranscript[]>([]);
   const [selectedTranscript, setSelectedTranscript] = useState<MeetingTranscript | null>(null);
+  const [susanContext, setSusanContext] = useState('');
   const [meetingType, setMeetingType] = useState<'initial' | 'inspection' | 'followup' | 'closing' | 'other'>('initial');
   const [error, setError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +56,12 @@ const TranscriptionPanel: React.FC = () => {
   // Load saved transcripts
   useEffect(() => {
     setTranscripts(getSavedTranscripts());
+  }, []);
+
+  useEffect(() => {
+    buildSusanContext(30)
+      .then(context => setSusanContext(context))
+      .catch(() => setSusanContext(''));
   }, []);
 
   // Timer for duration
@@ -180,7 +188,7 @@ const TranscriptionPanel: React.FC = () => {
       }
 
       // Transcribe
-      const transcript = await transcribeAudio(audioBlob, meetingType);
+      const transcript = await transcribeAudio(audioBlob, meetingType, susanContext);
       transcript.duration = recordedDuration;
 
       setTranscripts(prev => [transcript, ...prev]);
@@ -260,7 +268,7 @@ const TranscriptionPanel: React.FC = () => {
       const audioBlob = new Blob([await file.arrayBuffer()], { type: file.type });
 
       // Transcribe
-      const transcript = await transcribeAudio(audioBlob, meetingType);
+      const transcript = await transcribeAudio(audioBlob, meetingType, susanContext);
 
       // Calculate approximate duration (not exact without decoding audio)
       transcript.duration = Math.floor(file.size / 16000); // Rough estimate

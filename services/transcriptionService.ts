@@ -169,7 +169,8 @@ export function resumeRecording(state: RecordingState): void {
  */
 export async function transcribeAudio(
   audioBlob: Blob,
-  meetingType: 'initial' | 'inspection' | 'followup' | 'closing' | 'other' = 'other'
+  meetingType: 'initial' | 'inspection' | 'followup' | 'closing' | 'other' = 'other',
+  context?: string
 ): Promise<MeetingTranscript> {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
@@ -188,7 +189,10 @@ export async function transcribeAudio(
     throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');
   }
 
+  const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `You are a sales conversation analyzer for a roofing company. Transcribe this audio recording and analyze it for key sales insights.
+
+${contextBlock}
 
 MEETING TYPE: ${meetingType}
 

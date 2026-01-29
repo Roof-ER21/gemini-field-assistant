@@ -19,6 +19,7 @@ import {
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import { knowledgeService } from '../services/knowledgeService';
+import { buildSusanContext } from '../services/susanContextService';
 
 interface ImageUpload {
   file: File;
@@ -49,6 +50,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
   const [userUploads, setUserUploads] = useState<Array<{ id: string; name: string; path: string }>>([]);
   const [viewKind, setViewKind] = useState<'all' | 'images' | 'docs'>('all');
   const [viewPinned, setViewPinned] = useState(false);
+  const [susanContext, setSusanContext] = useState('');
   const [pinned, setPinned] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('image_go_to') || '[]')); } catch { return new Set(); }
   });
@@ -70,6 +72,12 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
         'tool'
       );
     }
+  }, []);
+
+  useEffect(() => {
+    buildSusanContext(30)
+      .then(context => setSusanContext(context))
+      .catch(() => setSusanContext(''));
   }, []);
 
   // Clear any existing user uploads from localStorage on mount
@@ -228,7 +236,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
       );
 
       try {
-        const assessment = await analyzeRoofImage(upload.file);
+        const assessment = await analyzeRoofImage(upload.file, susanContext);
 
         // Update status to completed
         setImageUploads(prev =>
@@ -472,7 +480,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
       setIsAnalyzing(true);
       setError('');
 
-      const updated = await answerFollowUpQuestion(selectedAssessment, questionIndex, questionAnswer);
+      const updated = await answerFollowUpQuestion(selectedAssessment, questionIndex, questionAnswer, susanContext);
 
       setAssessments(prev => prev.map(a => a.id === updated.id ? updated : a));
       setSelectedAssessment(updated);

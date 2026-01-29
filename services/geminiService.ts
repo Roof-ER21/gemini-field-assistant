@@ -62,10 +62,13 @@ export async function analyzeImage(
 export async function generateEmail(
   recipient: string,
   subject: string,
-  keyPoints: string
+  keyPoints: string,
+  context?: string
 ): Promise<string> {
   const client = ensureGemini();
+  const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `
+    ${contextBlock}
     Generate a professional email with the following details:
     To: ${recipient}
     Subject: ${subject}

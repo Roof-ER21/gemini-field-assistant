@@ -43,7 +43,8 @@ export interface SafetyHazard {
  * Analyze roof damage from an image
  */
 export async function analyzeRoofImage(
-  imageFile: File
+  imageFile: File,
+  context?: string
 ): Promise<DamageAssessment> {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
@@ -56,7 +57,10 @@ export async function analyzeRoofImage(
   // Initialize Gemini AI
   const genAI = new GoogleGenAI({ apiKey });
 
+  const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. Your role is to analyze roof damage photos and provide INSURANCE-FOCUSED guidance - NOT retail sales talk.
+
+${contextBlock}
 
 CRITICAL MINDSET:
 - Think like an insurance adjuster, not a salesperson
@@ -192,7 +196,8 @@ REMEMBER: You're helping document a CLAIM, not make a SALE. Focus on coverage, n
 export async function answerFollowUpQuestion(
   assessment: DamageAssessment,
   questionIndex: number,
-  answer: string
+  answer: string,
+  context?: string
 ): Promise<DamageAssessment> {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
@@ -210,7 +215,10 @@ export async function answerFollowUpQuestion(
   // Initialize Gemini AI
   const genAI = new GoogleGenAI({ apiKey });
 
+  const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. You previously analyzed a roof damage photo and asked follow-up questions.
+
+${contextBlock}
 
 PREVIOUS ANALYSIS:
 ${assessment.rawResponse}
@@ -284,13 +292,14 @@ FORMAT YOUR RESPONSE AS JSON:
  * Analyze multiple images in batch
  */
 export async function analyzeBatchImages(
-  imageFiles: File[]
+  imageFiles: File[],
+  context?: string
 ): Promise<DamageAssessment[]> {
   const results: DamageAssessment[] = [];
 
   for (const file of imageFiles) {
     try {
-      const assessment = await analyzeRoofImage(file);
+      const assessment = await analyzeRoofImage(file, context);
       results.push(assessment);
     } catch (error) {
       console.error(`Failed to analyze ${file.name}:`, error);

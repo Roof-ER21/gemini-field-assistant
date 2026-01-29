@@ -3,6 +3,7 @@ import { Upload, FileText, X, Download, AlertCircle, CheckCircle } from 'lucide-
 import { getApiBaseUrl } from '../services/config';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
+import { buildSusanContext } from '../services/susanContextService';
 import { useToast } from './Toast';
 
 // ============================================================================
@@ -78,6 +79,7 @@ const DocumentAnalysisPanel: React.FC = () => {
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [showChatWithSusan, setShowChatWithSusan] = useState(false);
+  const [susanContext, setSusanContext] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef<null | (() => void)>(null);
   const cancelFlagRef = useRef(false);
@@ -97,6 +99,12 @@ const DocumentAnalysisPanel: React.FC = () => {
     } catch (error) {
       console.warn('Could not clear user_uploads:', error);
     }
+  }, []);
+
+  useEffect(() => {
+    buildSusanContext(30)
+      .then(context => setSusanContext(context))
+      .catch(() => setSusanContext(''));
   }, []);
 
   useEffect(() => {
@@ -307,10 +315,13 @@ const DocumentAnalysisPanel: React.FC = () => {
         additionalNotes ? `Additional Notes: ${additionalNotes}` : ''
       ].filter(Boolean).join('\n');
 
+      const susanContextBlock = susanContext ? `\n${susanContext}\n` : '';
       const analysisPrompt = `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
 
 ${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
+
+${susanContextBlock}
 
 IMPORTANT INSTRUCTIONS FOR INSURANCE ESTIMATES:
 

@@ -33,7 +33,8 @@ export async function handleImageFiles(
   toast: any,
   setUploadedFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>,
   setUserInput: React.Dispatch<React.SetStateAction<string>>,
-  setIsAnalyzingImage: React.Dispatch<React.SetStateAction<boolean>>
+  setIsAnalyzingImage: React.Dispatch<React.SetStateAction<boolean>>,
+  context?: string
 ): Promise<void> {
   setIsAnalyzingImage(true);
 
@@ -67,7 +68,7 @@ export async function handleImageFiles(
 
       // Analyze image with Susan
       toast.info('Analyzing image', 'Susan is analyzing the roof damage...');
-      const assessment = await analyzeRoofImage(processedFile);
+      const assessment = await analyzeRoofImage(processedFile, context);
 
       // Create analysis summary for chat
       const analysisText = `
