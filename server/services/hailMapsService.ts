@@ -87,7 +87,7 @@ class HailMapsService {
     return res.json() as Promise<T>;
   }
 
-  private normalizeEvents(payload: HailHistoryResponse): HailEvent[] {
+  private normalizeEvents(payload: HailHistoryResponse, defaultCoords?: { lat: number; lng: number }): HailEvent[] {
     // IHM returns ImpactDates array
     const items = payload.ImpactDates || payload.events || payload.results || payload.data || payload.storms || [];
     if (!Array.isArray(items)) return [];
@@ -111,11 +111,15 @@ class HailMapsService {
       const windSpeed = event.windSpeed ?? event.wind_speed ?? event.WindSpeed ?? null;
       const severity = this.inferSeverity(Number(hailSize));
 
+      // Use event coordinates if available, otherwise fall back to default (address location)
+      const latitude = Number(event.latitude || event.lat || event.Lat || defaultCoords?.lat || 0);
+      const longitude = Number(event.longitude || event.lng || event.Long || defaultCoords?.lng || 0);
+
       return {
         id: String(event.id || event.event_id || `ihm-${date}-${index}`),
         date: String(date),
-        latitude: Number(event.latitude || event.lat || event.Lat || 0),
-        longitude: Number(event.longitude || event.lng || event.Long || 0),
+        latitude,
+        longitude,
         hailSize: hailSize !== null ? Number(hailSize) : null,
         windSpeed: windSpeed !== null ? Number(windSpeed) : null,
         severity: severity as HailEvent['severity'],
@@ -150,7 +154,7 @@ class HailMapsService {
     );
   }
 
-  async createAddressMonitor(params: { street: string; city: string; state: string; zip: string }): Promise<{ markerId: string; raw: any }> {
+  async createAddressMonitor(params: { street: string; city: string; state: string; zip: string }): Promise<{ markerId: string; lat?: number; lng?: number; raw: any }> {
     const response = await this.request<any>('/ExternalApi/AddressMonitoringImport2g', {
       method: 'POST',
       headers: {
@@ -169,22 +173,26 @@ class HailMapsService {
       throw new Error('IHM API response missing markerId');
     }
 
-    return { markerId, raw: response };
+    // Extract coordinates if available in the response
+    const lat = response?.Lat || response?.latitude || response?.lat || response?.data?.Lat;
+    const lng = response?.Long || response?.longitude || response?.lng || response?.data?.Long;
+
+    return { markerId, lat, lng, raw: response };
   }
 
-  async searchByMarkerId(markerId: string, months = 24): Promise<HailSearchResult> {
+  async searchByMarkerId(markerId: string, months = 24, coords?: { lat: number; lng: number }): Promise<HailSearchResult> {
     const params = new URLSearchParams({
       AddressMarker_id: markerId,
       Months: String(months)
     });
     const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`);
-    const events = this.normalizeEvents(data);
+    const events = this.normalizeEvents(data, coords);
 
     return {
       events,
       totalCount: events.length,
       searchArea: {
-        center: { lat: events[0]?.latitude || 0, lng: events[0]?.longitude || 0 },
+        center: { lat: coords?.lat || events[0]?.latitude || 0, lng: coords?.lng || events[0]?.longitude || 0 },
         radiusMiles: 0
       },
       raw: data
@@ -193,7 +201,8 @@ class HailMapsService {
 
   async searchByAddress(params: { street: string; city: string; state: string; zip: string }, months = 24): Promise<HailSearchResult> {
     const monitor = await this.createAddressMonitor(params);
-    return this.searchByMarkerId(monitor.markerId, months);
+    const coords = monitor.lat && monitor.lng ? { lat: monitor.lat, lng: monitor.lng } : undefined;
+    return this.searchByMarkerId(monitor.markerId, months, coords);
   }
 
   async searchByCoordinates(lat: number, lng: number, months = 24, radiusMiles = 0): Promise<HailSearchResult> {
