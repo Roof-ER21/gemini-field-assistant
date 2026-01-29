@@ -19,6 +19,7 @@ import { initializePresenceService, getPresenceService } from './services/presen
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
+import hailRoutes from './routes/hailRoutes.js';
 const { Pool } = pg;
 const app = express();
 const httpServer = http.createServer(app);
@@ -58,10 +59,19 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "wss:", "ws:", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://api.together.xyz"],
-            fontSrc: ["'self'", "data:"],
+            connectSrc: [
+                "'self'",
+                "wss:",
+                "ws:",
+                "https://generativelanguage.googleapis.com",
+                "https://api.groq.com",
+                "https://api.together.xyz",
+                "https://api.interactivehailmaps.com",
+                "https://maps.interactivehailmaps.com"
+            ],
+            fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
             frameSrc: ["'none'"],
@@ -165,6 +175,17 @@ function getRequestEmail(req) {
     return headerEmail || 'demo@roofer.com';
 }
 const GLOBAL_LEARNING_THRESHOLD = parseInt(process.env.GLOBAL_LEARNING_THRESHOLD || '2', 10);
+const NULL_SCOPE_VALUES = new Set(['all', 'any', 'n/a', 'na', 'none', 'unknown', 'unsure', 'tbd', '-']);
+function normalizeScopeValue(value) {
+    if (value === undefined || value === null)
+        return null;
+    const cleaned = String(value).trim();
+    if (!cleaned)
+        return null;
+    if (NULL_SCOPE_VALUES.has(cleaned.toLowerCase()))
+        return null;
+    return cleaned;
+}
 function normalizeLearningText(text) {
     return text
         .toLowerCase()
@@ -353,6 +374,8 @@ app.get('/api/version', (req, res) => {
         builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
     });
 });
+// Register hail history routes early to avoid proxy ordering issues
+app.use('/api/hail', hailRoutes);
 // One-time migration runner for analytics tables (admin only)
 app.post('/api/admin/run-analytics-migration', async (req, res) => {
     try {
@@ -787,9 +810,10 @@ app.post('/api/chat/feedback', async (req, res) => {
         if (![1, -1].includes(rating)) {
             return res.status(400).json({ error: 'Rating must be 1 or -1' });
         }
-        let normalizedState = context_state ? String(context_state).toUpperCase() : null;
-        let normalizedInsurer = context_insurer ? String(context_insurer).trim() : null;
-        const normalizedAdjuster = context_adjuster ? String(context_adjuster).trim() : null;
+        const normalizedStateRaw = normalizeScopeValue(context_state);
+        let normalizedState = normalizedStateRaw ? normalizedStateRaw.toUpperCase() : null;
+        let normalizedInsurer = normalizeScopeValue(context_insurer);
+        const normalizedAdjuster = normalizeScopeValue(context_adjuster);
         if (!normalizedState) {
             const memoryState = await getUserMemoryValue(userId, 'state');
             if (memoryState)
@@ -1128,6 +1152,141 @@ app.post('/api/admin/learning/:id/reject', async (req, res) => {
     }
     catch (error) {
         console.error('Error rejecting global learning:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/:id/update', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        const { content, scope_state, scope_insurer, scope_adjuster } = req.body || {};
+        if (!content || !String(content).trim()) {
+            return res.status(400).json({ error: 'Content is required' });
+        }
+        const normalizedStateRaw = normalizeScopeValue(scope_state);
+        const normalizedState = normalizedStateRaw ? normalizedStateRaw.toUpperCase() : null;
+        const normalizedInsurer = normalizeScopeValue(scope_insurer);
+        const normalizedAdjuster = normalizeScopeValue(scope_adjuster);
+        const normalizedKey = normalizeLearningText(String(content));
+        const scopeKey = buildScopeKey(normalizedState, normalizedInsurer, normalizedAdjuster);
+        const conflict = await pool.query(`SELECT id FROM global_learnings
+       WHERE normalized_key = $1 AND scope_key = $2 AND id <> $3`, [normalizedKey, scopeKey, id]);
+        if (conflict.rows.length > 0) {
+            return res.status(409).json({ error: 'A learning with this content and scope already exists' });
+        }
+        const result = await pool.query(`UPDATE global_learnings
+       SET content = $2,
+           normalized_key = $3,
+           scope_state = $4,
+           scope_insurer = $5,
+           scope_adjuster = $6,
+           scope_key = $7,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`, [id, String(content).trim(), normalizedKey, normalizedState, normalizedInsurer, normalizedAdjuster, scopeKey]);
+        res.json({ success: true, learning: result.rows[0] });
+    }
+    catch (error) {
+        console.error('Error updating global learning:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/:id/disable', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        await pool.query(`UPDATE global_learnings
+       SET status = 'disabled', updated_at = NOW()
+       WHERE id = $1`, [id]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error disabling global learning:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/:id/enable', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { id } = req.params;
+        await pool.query(`UPDATE global_learnings
+       SET status = 'approved', updated_at = NOW()
+       WHERE id = $1`, [id]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error enabling global learning:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post('/api/admin/learning/merge', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const email = getRequestEmail(req);
+        const adminCheck = await isAdmin(email);
+        if (!adminCheck) {
+            client.release();
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { source_id, target_id, content } = req.body || {};
+        if (!source_id || !target_id || source_id === target_id) {
+            client.release();
+            return res.status(400).json({ error: 'source_id and target_id are required' });
+        }
+        await client.query('BEGIN');
+        const source = await client.query('SELECT * FROM global_learnings WHERE id = $1', [source_id]);
+        const target = await client.query('SELECT * FROM global_learnings WHERE id = $1', [target_id]);
+        if (source.rows.length === 0 || target.rows.length === 0) {
+            await client.query('ROLLBACK');
+            client.release();
+            return res.status(404).json({ error: 'Learning not found' });
+        }
+        const mergedContent = String(content || target.rows[0].content).trim();
+        const normalizedKey = normalizeLearningText(mergedContent);
+        const scopeKey = buildScopeKey(target.rows[0].scope_state, target.rows[0].scope_insurer, target.rows[0].scope_adjuster);
+        const conflict = await client.query(`SELECT id FROM global_learnings
+       WHERE normalized_key = $1 AND scope_key = $2 AND id <> $3`, [normalizedKey, scopeKey, target_id]);
+        if (conflict.rows.length > 0) {
+            await client.query('ROLLBACK');
+            client.release();
+            return res.status(409).json({ error: 'A learning with this content and scope already exists' });
+        }
+        await client.query(`UPDATE global_learnings
+       SET content = $2,
+           normalized_key = $3,
+           helpful_count = COALESCE(helpful_count, 0) + $4,
+           total_count = COALESCE(total_count, 0) + $5,
+           updated_at = NOW()
+       WHERE id = $1`, [
+            target_id,
+            mergedContent,
+            normalizedKey,
+            Number(source.rows[0].helpful_count || 0),
+            Number(source.rows[0].total_count || 0)
+        ]);
+        await client.query(`UPDATE global_learning_sources
+       SET global_learning_id = $1
+       WHERE global_learning_id = $2`, [target_id, source_id]);
+        await client.query('DELETE FROM global_learnings WHERE id = $1', [source_id]);
+        await client.query('COMMIT');
+        client.release();
+        res.json({ success: true });
+    }
+    catch (error) {
+        client.release();
+        console.error('Error merging global learnings:', error);
         res.status(500).json({ error: error.message });
     }
 });
