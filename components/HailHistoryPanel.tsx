@@ -34,10 +34,19 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
   const [results, setResults] = useState<HailSearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [configured, setConfigured] = useState(true);
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    hailMapsApi.getStatus().then(status => setConfigured(status.configured)).catch(() => setConfigured(false));
+    hailMapsApi.getStatus()
+      .then(status => {
+        setConfigured(status.configured);
+        setStatusMessage(null);
+      })
+      .catch(() => {
+        setConfigured(null);
+        setStatusMessage('Hail Maps status endpoint unavailable. You can still try a search.');
+      });
   }, []);
 
   const handleSearch = async () => {
@@ -90,23 +99,27 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
     return { color: '#fde68a', background: 'rgba(253,224,71,0.15)', border: '1px solid rgba(253,224,71,0.35)' };
   };
 
-  if (!configured) {
-    return (
-      <div style={{ padding: '1rem', borderRadius: '14px', border: '1px solid rgba(251,191,36,0.35)', background: 'rgba(251,191,36,0.1)' }}>
-        <div style={{ color: '#fde68a', fontWeight: 600 }}>Hail Maps not configured</div>
-        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
-          Set IHM_API_KEY and IHM_API_SECRET in Railway to enable hail history.
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: '1rem', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(12,12,12,0.5)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
         <Cloud style={{ width: '18px', height: '18px', color: 'var(--roof-red)' }} />
         <div style={{ fontWeight: 600 }}>Hail History</div>
       </div>
+
+      {configured === false && (
+        <div style={{ marginBottom: '0.75rem', padding: '0.65rem 0.75rem', borderRadius: '10px', border: '1px solid rgba(251,191,36,0.35)', background: 'rgba(251,191,36,0.1)' }}>
+          <div style={{ color: '#fde68a', fontWeight: 600, fontSize: '0.85rem' }}>Hail Maps not configured</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+            Set IHM_API_KEY and IHM_API_SECRET in Railway to enable hail history.
+          </div>
+        </div>
+      )}
+
+      {statusMessage && (
+        <div style={{ marginBottom: '0.75rem', padding: '0.65rem 0.75rem', borderRadius: '10px', border: '1px solid rgba(148,163,184,0.35)', background: 'rgba(148,163,184,0.1)' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{statusMessage}</div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <input
