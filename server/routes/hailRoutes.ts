@@ -14,15 +14,15 @@ router.get('/status', (_req, res) => {
 // POST /api/hail/monitor
 router.post('/monitor', async (req, res) => {
   try {
-    const { address } = req.body as { address?: string };
-    if (!address) {
-      return res.status(400).json({ error: 'Address required' });
+    const { street, city, state, zip } = req.body as { street?: string; city?: string; state?: string; zip?: string };
+    if (!street || !city || !state || !zip) {
+      return res.status(400).json({ error: 'street, city, state, and zip are required' });
     }
     if (!hailMapsService.isConfigured()) {
       return res.status(503).json({ error: 'Hail maps service not configured' });
     }
 
-    const result = await hailMapsService.createAddressMonitor(address);
+    const result = await hailMapsService.createAddressMonitor({ street, city, state, zip });
     res.json(result);
   } catch (error) {
     console.error('❌ Hail monitor error:', error);
