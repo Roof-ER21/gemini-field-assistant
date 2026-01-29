@@ -1,3 +1,5 @@
+import { weatherService, WeatherEvent } from './weatherService.js';
+
 export interface HailEvent {
   id: string;
   date: string;
@@ -27,6 +29,7 @@ export interface HailSearchParams {
 
 export interface HailSearchResult {
   events: HailEvent[];
+  windEvents?: WeatherEvent[];
   totalCount: number;
   searchArea: {
     center: { lat: number; lng: number };
@@ -221,11 +224,19 @@ class HailMapsService {
       AddressMarker_id: markerId,
       Months: String(months)
     });
-    const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`);
+
+    const [data, windEvents] = await Promise.all([
+      this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`),
+      coords && weatherService.isConfigured()
+        ? weatherService.getStormEvents(coords.lat, coords.lng, months)
+        : Promise.resolve([])
+    ]);
+
     const events = this.normalizeEvents(data, coords);
 
     return {
       events,
+      windEvents: windEvents.filter(e => e.type === 'wind' || e.type === 'tornado'),
       totalCount: events.length,
       searchArea: {
         center: { lat: coords?.lat || events[0]?.latitude || 0, lng: coords?.lng || events[0]?.longitude || 0 },
@@ -238,6 +249,8 @@ class HailMapsService {
   async searchByAddress(params: { street: string; city: string; state: string; zip: string }, months = 24): Promise<HailSearchResult> {
     const monitor = await this.createAddressMonitor(params);
     const coords = monitor.lat && monitor.lng ? { lat: monitor.lat, lng: monitor.lng } : undefined;
+
+    // searchByMarkerId now handles wind data fetching
     return this.searchByMarkerId(monitor.markerId, months, coords);
   }
 
@@ -249,11 +262,18 @@ class HailMapsService {
     });
     if (radiusMiles > 0) params.set('Radius', String(radiusMiles));
 
-    const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForLatLong?${params.toString()}`);
-    const events = this.normalizeEvents(data);
+    const [data, windEvents] = await Promise.all([
+      this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForLatLong?${params.toString()}`),
+      weatherService.isConfigured()
+        ? weatherService.getStormEvents(lat, lng, months)
+        : Promise.resolve([])
+    ]);
+
+    const events = this.normalizeEvents(data, { lat, lng });
 
     return {
       events,
+      windEvents: windEvents.filter(e => e.type === 'wind' || e.type === 'tornado'),
       totalCount: events.length,
       searchArea: {
         center: { lat, lng },
