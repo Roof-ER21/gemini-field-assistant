@@ -287,6 +287,51 @@ export function createRoofRoutes(pool: pg.Pool) {
     }
   });
 
+  /**
+   * POST /api/roof/posts/:id/pin
+   * Toggle pinned status (author only)
+   */
+  router.post('/posts/:id/pin', async (req: AuthRequest, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      const { id } = req.params;
+
+      if (!userEmail) {
+        return res.status(401).json({ success: false, error: 'User email is required' });
+      }
+
+      const userResult = await pool.query(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+        [userEmail]
+      );
+      const userId = userResult.rows[0]?.id;
+      if (!userId) {
+        return res.status(404).json({ success: false, error: 'User not found' });
+      }
+
+      const postResult = await pool.query(
+        'SELECT author_id FROM team_posts WHERE id = $1',
+        [id]
+      );
+      if (postResult.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Post not found' });
+      }
+      if (postResult.rows[0].author_id !== userId) {
+        return res.status(403).json({ success: false, error: 'Only the author can pin this post' });
+      }
+
+      const updated = await pool.query(
+        'UPDATE team_posts SET is_pinned = NOT is_pinned, updated_at = NOW() WHERE id = $1 RETURNING is_pinned',
+        [id]
+      );
+
+      res.json({ success: true, is_pinned: updated.rows[0]?.is_pinned });
+    } catch (error) {
+      console.error('Error toggling post pin:', error);
+      res.status(500).json({ success: false, error: 'Failed to toggle pin' });
+    }
+  });
+
   // ============================================================================
   // LIKES
   // ============================================================================

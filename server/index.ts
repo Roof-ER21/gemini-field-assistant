@@ -909,7 +909,11 @@ app.get('/api/chat/learning', async (req, res) => {
     const windowDays = parseInt((req.query.window_days as string) || '45');
     const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
-    const [positiveTags, negativeTags, recentWins, recentIssues] = await Promise.all([
+    const now = new Date();
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const prevWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [positiveTags, negativeTags, recentWins, recentIssues, totals] = await Promise.all([
       pool.query(
         `SELECT tag, COUNT(*)::int as count
          FROM (
@@ -949,8 +953,24 @@ app.get('/api/chat/learning', async (req, res) => {
          ORDER BY created_at DESC
          LIMIT 5`,
         [windowStart]
+      ),
+      pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE created_at >= $1)::int as total_last7,
+           COUNT(*) FILTER (WHERE created_at >= $2 AND created_at < $1)::int as total_prev7,
+           COUNT(*) FILTER (WHERE rating = 1 AND created_at >= $1)::int as positive_last7,
+           COUNT(*) FILTER (WHERE rating = -1 AND created_at >= $1)::int as negative_last7,
+           COUNT(*) FILTER (WHERE rating = 1 AND created_at >= $2 AND created_at < $1)::int as positive_prev7,
+           COUNT(*) FILTER (WHERE rating = -1 AND created_at >= $2 AND created_at < $1)::int as negative_prev7,
+           COUNT(*) FILTER (WHERE created_at >= $3)::int as total_window,
+           COUNT(*) FILTER (WHERE rating = 1 AND created_at >= $3)::int as positive_window,
+           COUNT(*) FILTER (WHERE rating = -1 AND created_at >= $3)::int as negative_window
+         FROM chat_feedback`,
+        [weekStart, prevWeekStart, windowStart]
       )
     ]);
+
+    const totalsRow = totals.rows[0] || {};
 
     res.json({
       success: true,
@@ -958,7 +978,20 @@ app.get('/api/chat/learning', async (req, res) => {
       positive_tags: positiveTags.rows,
       negative_tags: negativeTags.rows,
       recent_wins: recentWins.rows,
-      recent_issues: recentIssues.rows
+      recent_issues: recentIssues.rows,
+      totals: {
+        total_window: totalsRow.total_window || 0,
+        positive_window: totalsRow.positive_window || 0,
+        negative_window: totalsRow.negative_window || 0
+      },
+      weekly: {
+        total_last7: totalsRow.total_last7 || 0,
+        total_prev7: totalsRow.total_prev7 || 0,
+        positive_last7: totalsRow.positive_last7 || 0,
+        negative_last7: totalsRow.negative_last7 || 0,
+        positive_prev7: totalsRow.positive_prev7 || 0,
+        negative_prev7: totalsRow.negative_prev7 || 0
+      }
     });
   } catch (error) {
     console.error('Error fetching learning summary:', error);

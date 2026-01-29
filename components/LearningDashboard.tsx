@@ -8,6 +8,23 @@ const windows = [
   { label: '90 days', value: 90 }
 ];
 
+const normalizeTag = (tag: string) => tag.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const clusterTags = (tags: Array<{ tag: string; count: number }>) => {
+  const clusters = new Map<string, { label: string; total: number; items: Array<{ tag: string; count: number }> }>();
+  tags.forEach((t) => {
+    const normalized = normalizeTag(t.tag || '');
+    if (!normalized) return;
+    const base = normalized.split(/[:\-–—]/)[0].trim() || normalized;
+    const key = base.length < 3 ? normalized : base;
+    const existing = clusters.get(key) || { label: key, total: 0, items: [] };
+    existing.total += t.count || 0;
+    existing.items.push(t);
+    clusters.set(key, existing);
+  });
+  return Array.from(clusters.values()).sort((a, b) => b.total - a.total);
+};
+
 const LearningDashboard: React.FC = () => {
   const [windowDays, setWindowDays] = useState(30);
   const [loading, setLoading] = useState(false);
@@ -33,6 +50,12 @@ const LearningDashboard: React.FC = () => {
 
   const positiveTotal = (summary?.positive_tags || []).reduce((sum: number, t: any) => sum + (t.count || 0), 0);
   const negativeTotal = (summary?.negative_tags || []).reduce((sum: number, t: any) => sum + (t.count || 0), 0);
+  const totals = summary?.totals || {};
+  const weekly = summary?.weekly || {};
+  const positiveClusters = clusterTags(summary?.positive_tags || []);
+  const negativeClusters = clusterTags(summary?.negative_tags || []);
+  const weeklyDelta = (weekly.total_last7 || 0) - (weekly.total_prev7 || 0);
+  const weeklyTrend = weeklyDelta === 0 ? 'flat' : weeklyDelta > 0 ? 'up' : 'down';
 
   return (
     <div className="roof-er-content-area">
@@ -105,6 +128,27 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Weekly Insight</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                  {weekly.total_last7 || 0} feedback
+                </div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {weeklyTrend === 'up' ? '▲' : weeklyTrend === 'down' ? '▼' : '•'} {Math.abs(weeklyDelta)} vs prior 7 days
+                </div>
+              </div>
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Window Totals</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                  {totals.total_window || 0} entries
+                </div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {totals.positive_window || 0} 👍 • {totals.negative_window || 0} 👎
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Top “Working” Tags</div>
@@ -150,6 +194,38 @@ const LearningDashboard: React.FC = () => {
                   ))}
                   {(summary.negative_tags || []).length === 0 && (
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No tags yet</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Working Tag Clusters</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {positiveClusters.slice(0, 6).map((cluster) => (
+                    <div key={`pos-cluster-${cluster.label}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <span>{cluster.label}</span>
+                      <span>{cluster.total}</span>
+                    </div>
+                  ))}
+                  {positiveClusters.length === 0 && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No clusters yet</span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Needs Work Clusters</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {negativeClusters.slice(0, 6).map((cluster) => (
+                    <div key={`neg-cluster-${cluster.label}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <span>{cluster.label}</span>
+                      <span>{cluster.total}</span>
+                    </div>
+                  ))}
+                  {negativeClusters.length === 0 && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No clusters yet</span>
                   )}
                 </div>
               </div>

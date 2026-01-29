@@ -10,7 +10,8 @@ import {
   Trash2,
   Bot,
   Mail,
-  MoreHorizontal
+  MoreHorizontal,
+  Pin
 } from 'lucide-react';
 import { RoofPost, roofService } from '../services/roofService';
 import { authService } from '../services/authService';
@@ -21,15 +22,18 @@ interface PostCardProps {
   onLikeChange?: (postId: string, newCount: number, userLiked: boolean) => void;
   onDelete?: (postId: string) => void;
   onOpenComments?: (postId: string) => void;
+  onPinChange?: (postId: string, isPinned: boolean) => void;
 }
 
 const PostCard: React.FC<PostCardProps> = ({
   post,
   onLikeChange,
   onDelete,
-  onOpenComments
+  onOpenComments,
+  onPinChange
 }) => {
   const [isLiking, setIsLiking] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const currentUser = authService.getCurrentUser();
   const isAuthor = currentUser?.email?.toLowerCase() === post.author_email.toLowerCase();
@@ -78,6 +82,19 @@ const PostCard: React.FC<PostCardProps> = ({
       }
     }
     setShowMenu(false);
+  };
+
+  const handleTogglePin = async () => {
+    if (!isAuthor || isPinning) return;
+    setIsPinning(true);
+    try {
+      const updated = await roofService.togglePin(post.id);
+      if (typeof updated === 'boolean' && onPinChange) {
+        onPinChange(post.id, updated);
+      }
+    } finally {
+      setIsPinning(false);
+    }
   };
 
   // Render @mentions with highlighting
@@ -166,15 +183,30 @@ const PostCard: React.FC<PostCardProps> = ({
 
         {/* Menu button (for author only) */}
         {isAuthor && (
-          <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
+            <button
+              onClick={handleTogglePin}
+              title={post.is_pinned ? 'Unpin post' : 'Pin post'}
+              style={{
+                background: post.is_pinned ? 'rgba(234,179,8,0.15)' : 'transparent',
+                border: post.is_pinned ? '1px solid rgba(234,179,8,0.6)' : '1px solid var(--glass-border)',
+                padding: '6px',
+                cursor: isPinning ? 'default' : 'pointer',
+                borderRadius: '8px',
+                color: post.is_pinned ? '#facc15' : 'var(--text-secondary)',
+                opacity: isPinning ? 0.6 : 1
+              }}
+            >
+              <Pin style={{ width: '16px', height: '16px' }} />
+            </button>
             <button
               onClick={() => setShowMenu(!showMenu)}
               style={{
                 background: 'transparent',
-                border: 'none',
-                padding: '8px',
+                border: '1px solid var(--glass-border)',
+                padding: '6px',
                 cursor: 'pointer',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 color: 'var(--text-secondary)'
               }}
             >

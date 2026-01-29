@@ -270,6 +270,31 @@ class RoofService {
     }
   }
 
+  /**
+   * Toggle pinned status for a post (author only)
+   */
+  async togglePin(postId: string): Promise<boolean | null> {
+    try {
+      const response = await fetch(
+        `${this.getApiUrl()}/api/roof/posts/${postId}/pin`,
+        {
+          method: 'POST',
+          headers: this.getHeaders()
+        }
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Roof] Error toggling pin:', response.status, errorText);
+        return null;
+      }
+      const data = await response.json();
+      return typeof data.is_pinned === 'boolean' ? data.is_pinned : null;
+    } catch (error) {
+      console.error('[Roof] Error toggling pin:', error);
+      return null;
+    }
+  }
+
   // ============================================================================
   // COMMENTS
   // ============================================================================

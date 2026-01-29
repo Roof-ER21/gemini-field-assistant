@@ -28,6 +28,8 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
   const [offset, setOffset] = useState(0);
   const [showComposer, setShowComposer] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'pinned' | 'shared' | 'announcements'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'likes' | 'comments'>('newest');
   const feedRef = useRef<HTMLDivElement>(null);
 
   const LIMIT = 20;
@@ -106,6 +108,12 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
     setPosts(prev => prev.filter(p => p.id !== postId));
   };
 
+  const handlePinChange = (postId: string, isPinned: boolean) => {
+    setPosts(prev =>
+      prev.map(p => (p.id === postId ? { ...p, is_pinned: isPinned } : p))
+    );
+  };
+
   // Handle comment count update
   const handleCommentAdded = (postId: string) => {
     setPosts(prev =>
@@ -116,6 +124,26 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
       )
     );
   };
+
+  const visiblePosts = React.useMemo(() => {
+    let next = [...posts];
+    if (filter === 'pinned') {
+      next = next.filter(p => p.is_pinned);
+    } else if (filter === 'shared') {
+      next = next.filter(p => p.post_type === 'shared_chat' || p.post_type === 'shared_email');
+    } else if (filter === 'announcements') {
+      next = next.filter(p => p.post_type === 'announcement');
+    }
+
+    if (sortBy === 'likes') {
+      next.sort((a, b) => (b.like_count || 0) - (a.like_count || 0));
+    } else if (sortBy === 'comments') {
+      next.sort((a, b) => (b.comment_count || 0) - (a.comment_count || 0));
+    } else {
+      next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+    return next;
+  }, [posts, filter, sortBy]);
 
   return (
     <div
@@ -204,15 +232,58 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
           </div>
         </div>
 
-        <p
-          style={{
-            margin: '8px 0 0',
-            fontSize: '13px',
-            color: 'var(--text-secondary)'
-          }}
-        >
-          Share wins, tips, and Susan AI insights with your team
-        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+              flex: '1 1 220px'
+            }}
+          >
+            Share wins, tips, and Susan AI insights with your team
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'pinned', label: 'Pinned' },
+              { id: 'shared', label: 'Shared' },
+              { id: 'announcements', label: 'Announcements' }
+            ].map(option => (
+              <button
+                key={option.id}
+                onClick={() => setFilter(option.id as typeof filter)}
+                style={{
+                  padding: '0.35rem 0.7rem',
+                  borderRadius: '999px',
+                  border: filter === option.id ? '1px solid rgba(220,38,38,0.7)' : '1px solid rgba(255,255,255,0.12)',
+                  background: filter === option.id ? 'rgba(220,38,38,0.18)' : 'rgba(12,12,12,0.35)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            style={{
+              padding: '0.35rem 0.6rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(12,12,12,0.35)',
+              color: 'var(--text-primary)',
+              fontSize: '0.75rem'
+            }}
+          >
+            <option value="newest">Newest</option>
+            <option value="likes">Most liked</option>
+            <option value="comments">Most commented</option>
+          </select>
+        </div>
       </div>
 
       {/* Posts feed */}
@@ -246,7 +317,7 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
               }}
             />
           </div>
-        ) : posts.length === 0 ? (
+        ) : visiblePosts.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -269,12 +340,13 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
           </div>
         ) : (
           <>
-            {posts.map(post => (
+            {visiblePosts.map(post => (
               <PostCard
                 key={post.id}
                 post={post}
                 onLikeChange={handleLikeChange}
                 onDelete={handleDelete}
+                onPinChange={handlePinChange}
                 onOpenComments={setSelectedPostId}
               />
             ))}
@@ -298,7 +370,7 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
               </div>
             )}
 
-            {!hasMore && posts.length > 0 && (
+            {!hasMore && visiblePosts.length > 0 && (
               <div
                 style={{
                   textAlign: 'center',
