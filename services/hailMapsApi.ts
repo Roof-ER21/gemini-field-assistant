@@ -32,12 +32,15 @@ const getHeaders = () => {
 };
 
 export const hailMapsApi = {
-  async searchByAddress(address: string, months = 24): Promise<HailSearchResult> {
-    const params = new URLSearchParams({
-      address,
+  async searchByAddress(params: { street: string; city: string; state: string; zip: string }, months = 24): Promise<HailSearchResult> {
+    const query = new URLSearchParams({
+      street: params.street,
+      city: params.city,
+      state: params.state,
+      zip: params.zip,
       months: months.toString()
     });
-    const response = await fetch(`${apiBaseUrl}/hail/search?${params}`, {
+    const response = await fetch(`${apiBaseUrl}/hail/search?${query}`, {
       headers: getHeaders()
     });
     if (!response.ok) throw new Error('Hail history search failed');

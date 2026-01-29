@@ -39,7 +39,7 @@ RESEND_API_KEY=re_6GVYbR5u_Cky9agmkxFdBBcqhEa15egME
 # Interactive Hail Maps (Enterprise)
 IHM_API_KEY=your_ihm_api_key_here
 IHM_API_SECRET=your_ihm_api_secret_here
-IHM_BASE_URL=https://api.interactivehailmaps.com
+IHM_BASE_URL=https://maps.interactivehailmaps.com
 
 # Admin Email (Client-side hint for UI)
 VITE_ADMIN_EMAIL=ahmed.mahmoud@theroofdocs.com

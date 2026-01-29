@@ -26,7 +26,10 @@ const buildHailSummary = (address: string, months: number, events: HailEvent[]) 
 };
 
 const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
-  const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [stateCode, setStateCode] = useState('');
+  const [zip, setZip] = useState('');
   const [months, setMonths] = useState(24);
   const [results, setResults] = useState<HailSearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,12 +41,20 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
   }, []);
 
   const handleSearch = async () => {
-    if (!address.trim()) return;
+    if (!street.trim() || !city.trim() || !stateCode.trim() || !zip.trim()) return;
     setLoading(true);
     setError(null);
     setResults(null);
     try {
-      const data = await hailMapsApi.searchByAddress(address.trim(), months);
+      const data = await hailMapsApi.searchByAddress(
+        {
+          street: street.trim(),
+          city: city.trim(),
+          state: stateCode.trim(),
+          zip: zip.trim()
+        },
+        months
+      );
       setResults(data);
     } catch (err) {
       setError((err as Error).message || 'Failed to fetch hail history');
@@ -52,16 +63,21 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
     }
   };
 
+  const fullAddress = useMemo(() => {
+    if (!street || !city || !stateCode || !zip) return '';
+    return `${street.trim()}, ${city.trim()}, ${stateCode.trim()} ${zip.trim()}`;
+  }, [street, city, stateCode, zip]);
+
   const hailSummary = useMemo(() => {
-    if (!results?.events?.length) return '';
-    return buildHailSummary(address.trim(), months, results.events);
-  }, [address, months, results]);
+    if (!results?.events?.length || !fullAddress) return '';
+    return buildHailSummary(fullAddress, months, results.events);
+  }, [fullAddress, months, results]);
 
   const handleGenerateEmail = () => {
     if (!hailSummary) return;
     localStorage.setItem('susan_hail_context', hailSummary);
     localStorage.setItem('chat_quick_hail', JSON.stringify({
-      address: address.trim(),
+      address: fullAddress,
       months,
       summary: hailSummary
     }));
@@ -94,12 +110,56 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="Enter address..."
+          value={street}
+          onChange={(e) => setStreet(e.target.value)}
+          placeholder="Street address"
           style={{
             flex: 1,
             minWidth: '220px',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)'
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <input
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="City"
+          style={{
+            minWidth: '160px',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)'
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <input
+          value={stateCode}
+          onChange={(e) => setStateCode(e.target.value.toUpperCase())}
+          placeholder="State"
+          maxLength={2}
+          style={{
+            minWidth: '80px',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            textTransform: 'uppercase'
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <input
+          value={zip}
+          onChange={(e) => setZip(e.target.value)}
+          placeholder="ZIP"
+          style={{
+            minWidth: '90px',
             padding: '0.6rem 0.75rem',
             borderRadius: '8px',
             border: '1px solid var(--border-color)',
@@ -125,15 +185,15 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
         </select>
         <button
           onClick={handleSearch}
-          disabled={loading || !address.trim()}
+          disabled={loading || !street.trim() || !city.trim() || !stateCode.trim() || !zip.trim()}
           style={{
             padding: '0.6rem 0.9rem',
             borderRadius: '8px',
             border: 'none',
             background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
             color: 'white',
-            cursor: loading || !address.trim() ? 'not-allowed' : 'pointer',
-            opacity: loading || !address.trim() ? 0.6 : 1
+            cursor: loading || !street.trim() || !city.trim() || !stateCode.trim() || !zip.trim() ? 'not-allowed' : 'pointer',
+            opacity: loading || !street.trim() || !city.trim() || !stateCode.trim() || !zip.trim() ? 0.6 : 1
           }}
         >
           {loading ? 'Searching...' : 'Search'}

@@ -37,7 +37,7 @@ router.get('/search', async (req, res) => {
       return res.status(503).json({ error: 'Hail maps service not configured' });
     }
 
-    const { address, lat, lng, months = '24', radius = '0', marker_id } = req.query;
+    const { address, lat, lng, months = '24', radius = '0', marker_id, street, city, state, zip } = req.query;
     const monthsNum = parseInt(months as string, 10);
     const radiusNum = parseFloat(radius as string);
 
@@ -46,8 +46,19 @@ router.get('/search', async (req, res) => {
       return res.json(data);
     }
 
-    if (address) {
-      const data = await hailMapsService.searchByAddress(address as string, monthsNum);
+    if (street || city || state || zip) {
+      if (!street || !city || !state || !zip) {
+        return res.status(400).json({ error: 'street, city, state, and zip are required' });
+      }
+      const data = await hailMapsService.searchByAddress(
+        {
+          street: String(street),
+          city: String(city),
+          state: String(state),
+          zip: String(zip)
+        },
+        monthsNum
+      );
       return res.json(data);
     }
 
@@ -61,7 +72,11 @@ router.get('/search', async (req, res) => {
       return res.json(data);
     }
 
-    return res.status(400).json({ error: 'Provide address, marker_id, or lat/lng' });
+    if (address) {
+      return res.status(400).json({ error: 'Use street, city, state, and zip for address search' });
+    }
+
+    return res.status(400).json({ error: 'Provide street/city/state/zip, marker_id, or lat/lng' });
   } catch (error) {
     console.error('❌ Hail search error:', error);
     res.status(500).json({ error: (error as Error).message });

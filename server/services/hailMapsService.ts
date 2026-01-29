@@ -50,7 +50,7 @@ class HailMapsService {
   constructor() {
     this.apiKey = process.env.IHM_API_KEY || '';
     this.apiSecret = process.env.IHM_API_SECRET || '';
-    this.baseUrl = process.env.IHM_BASE_URL || 'https://api.interactivehailmaps.com';
+    this.baseUrl = process.env.IHM_BASE_URL || 'https://maps.interactivehailmaps.com';
 
     if (!this.apiKey || !this.apiSecret) {
       console.warn('⚠️ IHM_API_KEY or IHM_API_SECRET not configured');
@@ -135,13 +135,18 @@ class HailMapsService {
     );
   }
 
-  async createAddressMonitor(address: string): Promise<{ markerId: string; raw: any }> {
-    const response = await this.request<any>('/address/monitor', {
+  async createAddressMonitor(params: { street: string; city: string; state: string; zip: string }): Promise<{ markerId: string; raw: any }> {
+    const response = await this.request<any>('/ExternalApi/AddressMonitoringImport', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ address })
+      body: JSON.stringify({
+        street: params.street.trim(),
+        city: params.city.trim(),
+        state: params.state.trim().toUpperCase(),
+        zip: params.zip.trim()
+      })
     });
 
     const markerId = this.parseMarkerId(response);
@@ -153,8 +158,11 @@ class HailMapsService {
   }
 
   async searchByMarkerId(markerId: string, months = 24): Promise<HailSearchResult> {
-    const params = new URLSearchParams({ months: String(months) });
-    const data = await this.request<HailHistoryResponse>(`/hail/history/marker/${markerId}?${params}`);
+    const params = new URLSearchParams({
+      AddressMarker_Id: markerId,
+      Months: String(months)
+    });
+    const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`);
     const events = this.normalizeEvents(data);
 
     return {
@@ -168,20 +176,20 @@ class HailMapsService {
     };
   }
 
-  async searchByAddress(address: string, months = 24): Promise<HailSearchResult> {
-    const monitor = await this.createAddressMonitor(address);
+  async searchByAddress(params: { street: string; city: string; state: string; zip: string }, months = 24): Promise<HailSearchResult> {
+    const monitor = await this.createAddressMonitor(params);
     return this.searchByMarkerId(monitor.markerId, months);
   }
 
   async searchByCoordinates(lat: number, lng: number, months = 24, radiusMiles = 0): Promise<HailSearchResult> {
     const params = new URLSearchParams({
-      lat: String(lat),
-      lng: String(lng),
-      months: String(months)
+      Lat: String(lat),
+      Long: String(lng),
+      Months: String(months)
     });
-    if (radiusMiles > 0) params.set('radius', String(radiusMiles));
+    if (radiusMiles > 0) params.set('Radius', String(radiusMiles));
 
-    const data = await this.request<HailHistoryResponse>(`/hail/history?${params}`);
+    const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForLatLong?${params.toString()}`);
     const events = this.normalizeEvents(data);
 
     return {
