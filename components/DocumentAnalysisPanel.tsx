@@ -71,6 +71,7 @@ const DocumentAnalysisPanel: React.FC = () => {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisPhase, setAnalysisPhase] = useState<string>('');
   const [propertyAddress, setPropertyAddress] = useState('');
   const [claimDate, setClaimDate] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
@@ -80,6 +81,9 @@ const DocumentAnalysisPanel: React.FC = () => {
 
   const MAX_FILES = 20;
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_PDF_PAGES = 12;
+  const MAX_TEXT_CHARS = 30000;
+  const AI_TIMEOUT_MS = 120000;
 
   // Clear any existing user uploads from localStorage on mount
   useEffect(() => {
@@ -185,6 +189,7 @@ const DocumentAnalysisPanel: React.FC = () => {
     }
 
     setIsAnalyzing(true);
+    setAnalysisPhase('Preparing files...');
     setAnalysisResult(null);
 
     try {
@@ -195,7 +200,9 @@ const DocumentAnalysisPanel: React.FC = () => {
       const extractedTexts: string[] = [];
       const processedDocs: any[] = [];
 
-      for (const uploadedFile of files) {
+      for (let idx = 0; idx < files.length; idx += 1) {
+        const uploadedFile = files[idx];
+        setAnalysisPhase(`Extracting text (${idx + 1}/${files.length})...`);
         try {
           let text = '';
           const file = uploadedFile.file;
@@ -216,11 +223,15 @@ const DocumentAnalysisPanel: React.FC = () => {
               });
 
               const pdf = await loadingTask.promise;
-              for (let i = 1; i <= pdf.numPages; i++) {
+              const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES);
+              for (let i = 1; i <= pageLimit; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
                 const pageText = textContent.items.map((item: any) => item.str || '').join(' ');
                 text += `\n--- Page ${i} ---\n${pageText}\n`;
+              }
+              if (pdf.numPages > MAX_PDF_PAGES) {
+                text += `\n--- NOTE: Truncated to first ${MAX_PDF_PAGES} pages for performance ---\n`;
               }
             } catch (pdfError) {
               throw new Error(`PDF extraction failed: ${(pdfError as Error).message}`);
@@ -268,7 +279,10 @@ const DocumentAnalysisPanel: React.FC = () => {
       }
 
       // Build analysis prompt
-      const combinedText = extractedTexts.join('\n');
+      let combinedText = extractedTexts.join('\n');
+      if (combinedText.length > MAX_TEXT_CHARS) {
+        combinedText = combinedText.slice(0, MAX_TEXT_CHARS) + '\n\n--- NOTE: Content truncated for performance ---\n';
+      }
       const contextInfo = [
         propertyAddress ? `Property Address: ${propertyAddress}` : '',
         claimDate ? `Claim/Loss Date: ${claimDate}` : '',
@@ -358,12 +372,19 @@ Format your response as JSON with this structure:
 
       // Call multiAI service
       console.log('Sending request to AI service...');
-      const aiResponse = await multiAI.generate([
-        { role: 'system' as const, content: SYSTEM_PROMPT },
-        { role: 'user' as const, content: analysisPrompt }
+      setAnalysisPhase('Analyzing with Susan...');
+      const aiResponse = await Promise.race([
+        multiAI.generate([
+          { role: 'system' as const, content: SYSTEM_PROMPT },
+          { role: 'user' as const, content: analysisPrompt }
+        ]),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('AI analysis timed out. Please try again with fewer pages or smaller files.')), AI_TIMEOUT_MS);
+        })
       ]);
 
       console.log('AI Response received:', aiResponse);
+      setAnalysisPhase('Parsing results...');
 
       // Parse AI response with improved error handling
       let analysis: any;
@@ -475,6 +496,7 @@ Format your response as JSON with this structure:
       })));
     } finally {
       setIsAnalyzing(false);
+      setAnalysisPhase('');
     }
   };
 
@@ -756,7 +778,7 @@ Format your response as JSON with this structure:
               {isAnalyzing ? (
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                   <span className="animate-spin">⚙️</span>
-                  Analyzing Documents...
+                  {analysisPhase ? analysisPhase : 'Analyzing Documents...'}
                 </span>
               ) : (
                 `Analyze ${files.length} Document${files.length !== 1 ? 's' : ''} with Susan`
