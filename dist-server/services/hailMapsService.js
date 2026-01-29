@@ -1,4 +1,5 @@
 import { weatherService } from './weatherService.js';
+import { noaaStormService } from './noaaStormService.js';
 class HailMapsService {
     apiKey;
     apiSecret;
@@ -155,17 +156,22 @@ class HailMapsService {
             AddressMarker_id: markerId,
             Months: String(months)
         });
-        const [data, windEvents] = await Promise.all([
+        const years = Math.ceil(months / 12);
+        const [data, windEvents, noaaEvents] = await Promise.all([
             this.request(`/ExternalApi/ImpactDatesForAddressMarker?${params.toString()}`),
             coords && weatherService.isConfigured()
                 ? weatherService.getStormEvents(coords.lat, coords.lng, months)
+                : Promise.resolve([]),
+            coords
+                ? noaaStormService.getStormEvents(coords.lat, coords.lng, 10, years)
                 : Promise.resolve([])
         ]);
         const events = this.normalizeEvents(data, coords);
         return {
             events,
             windEvents: windEvents.filter(e => e.type === 'wind' || e.type === 'tornado'),
-            totalCount: events.length,
+            noaaEvents,
+            totalCount: events.length + noaaEvents.length,
             searchArea: {
                 center: { lat: coords?.lat || events[0]?.latitude || 0, lng: coords?.lng || events[0]?.longitude || 0 },
                 radiusMiles: 0
@@ -187,17 +193,21 @@ class HailMapsService {
         });
         if (radiusMiles > 0)
             params.set('Radius', String(radiusMiles));
-        const [data, windEvents] = await Promise.all([
+        const years = Math.ceil(months / 12);
+        const noaaRadius = Math.max(radiusMiles, 10); // Default to 10 miles for NOAA
+        const [data, windEvents, noaaEvents] = await Promise.all([
             this.request(`/ExternalApi/ImpactDatesForLatLong?${params.toString()}`),
             weatherService.isConfigured()
                 ? weatherService.getStormEvents(lat, lng, months)
-                : Promise.resolve([])
+                : Promise.resolve([]),
+            noaaStormService.getStormEvents(lat, lng, noaaRadius, years)
         ]);
         const events = this.normalizeEvents(data, { lat, lng });
         return {
             events,
             windEvents: windEvents.filter(e => e.type === 'wind' || e.type === 'tornado'),
-            totalCount: events.length,
+            noaaEvents,
+            totalCount: events.length + noaaEvents.length,
             searchArea: {
                 center: { lat, lng },
                 radiusMiles
