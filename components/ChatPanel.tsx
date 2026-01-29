@@ -454,6 +454,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       /(?:any|what)\s+(?:storm|hail)\s+(?:events?|dates?|history)\s+(?:for|at)\s+(.+)/i,
       /(?:storms?|hail)\s+(?:at|for)\s+(.+)/i,
       /(?:check|lookup|look up)\s+(?:storms?|hail)\s+(?:at|for)\s+(.+)/i,
+      // New patterns for natural queries
+      /(?:was|were)\s+there\s+(?:any\s+)?(?:storms?|hail)\s+(?:at|for)\s+(.+)/i,
+      /(?:any\s+)?(?:storms?|hail)\s+(?:at|for|near)\s+(.+)/i,
+      /(?:did|has)\s+(?:it\s+)?(?:hail|storm)\s+(?:at|near)\s+(.+)/i,
     ];
 
     for (const pattern of hailPatterns) {
@@ -461,6 +465,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       if (match && match[1]) {
         // Clean up the address
         let address = match[1].trim();
+        // Remove trailing phrases like "in the past 2 years", "recently", "last year", etc.
+        address = address.replace(/\s+(?:in\s+the\s+(?:past|last)\s+\d+\s+(?:years?|months?)|recently|last\s+(?:year|month)|this\s+(?:year|month)).*$/i, '').trim();
         // Remove trailing punctuation
         address = address.replace(/[?.!]+$/, '').trim();
         return { isHailRequest: true, address };
@@ -471,16 +477,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const parseAddress = (rawAddress: string): { street: string; city: string; state: string; zip: string } | null => {
+    // Normalize: remove extra spaces, handle "VA, 20120" -> "VA 20120"
+    let normalized = rawAddress.trim();
+    // Handle comma before zip: "VA, 20120" -> "VA 20120"
+    normalized = normalized.replace(/,\s*(\d{5}(?:-\d{4})?)/, ' $1');
+
     // Try to parse: "123 Main St, City, ST 12345" or "123 Main St, City, ST"
     const patterns = [
-      // Full address with zip
-      /^(.+?),\s*([^,]+),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)$/i,
+      // Full address with zip (zip may have comma before it)
+      /^(.+?),\s*([^,]+),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
+      // Full address with zip attached to state
+      /^(.+?),\s*([^,]+),\s*([A-Z]{2})(\d{5}(?:-\d{4})?)$/i,
       // Address without zip
       /^(.+?),\s*([^,]+),\s*([A-Z]{2})$/i,
     ];
 
     for (const pattern of patterns) {
-      const match = rawAddress.match(pattern);
+      const match = normalized.match(pattern);
       if (match) {
         return {
           street: match[1].trim(),
