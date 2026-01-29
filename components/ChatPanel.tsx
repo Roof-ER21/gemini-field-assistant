@@ -504,6 +504,31 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     }
 
+    // Try to parse addresses WITHOUT commas: "123 Main St City ST" or "123 Main St City ST 12345"
+    // Look for state abbreviation near the end
+    const noCommaPatterns = [
+      // With zip: "123 Main St Vienna VA 22182"
+      /^(.+?)\s+([A-Za-z]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
+      // Without zip: "123 Main St Vienna VA"
+      /^(.+?)\s+([A-Za-z]+)\s+([A-Z]{2})$/i,
+    ];
+
+    for (const pattern of noCommaPatterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        // Validate that match[3] is a valid US state abbreviation
+        const validStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+        if (validStates.includes(match[3].toUpperCase())) {
+          return {
+            street: match[1].trim(),
+            city: match[2].trim(),
+            state: match[3].trim().toUpperCase(),
+            zip: match[4]?.trim() || '00000'
+          };
+        }
+      }
+    }
+
     return null;
   };
 
