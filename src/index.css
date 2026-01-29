@@ -21,7 +21,7 @@
     background-image:
       radial-gradient(circle at 20% 20%, rgba(233, 69, 96, 0.25), transparent 45%),
       radial-gradient(circle at 80% 10%, rgba(16, 185, 129, 0.22), transparent 40%),
-      linear-gradient(160deg, rgba(8, 10, 18, 0.68), rgba(14, 18, 30, 0.78)),
+      linear-gradient(180deg, rgba(8, 10, 18, 0.58), rgba(8, 10, 18, 0.58)),
       var(--app-bg-image);
     background-size: cover;
     background-repeat: no-repeat;
@@ -36,7 +36,7 @@
     background-image:
       radial-gradient(circle at 20% 20%, rgba(233, 69, 96, 0.25), transparent 45%),
       radial-gradient(circle at 80% 10%, rgba(16, 185, 129, 0.22), transparent 40%),
-      linear-gradient(160deg, rgba(8, 10, 18, 0.68), rgba(14, 18, 30, 0.78)),
+      linear-gradient(180deg, rgba(8, 10, 18, 0.58), rgba(8, 10, 18, 0.58)),
       var(--app-bg-image);
     background-size: cover;
     background-repeat: no-repeat;
@@ -46,6 +46,9 @@
 
   @media (max-width: 768px) {
     .theme-s21 {
+      background-attachment: scroll;
+    }
+    body.theme-s21 {
       background-attachment: scroll;
     }
   }
