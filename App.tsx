@@ -104,7 +104,7 @@ const App: React.FC = () => {
     image: 'Upload Analysis',
     transcribe: 'Transcription',
     email: 'Email Generator',
-    maps: 'Insurance Co',
+    maps: 'Hail & Insurance',
     live: 'Live Conversation',
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',

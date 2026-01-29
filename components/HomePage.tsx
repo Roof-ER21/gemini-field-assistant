@@ -50,8 +50,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     },
     {
       id: 'maps',
-      title: 'Insurance Directory',
-      description: 'Find insurance contacts',
+      title: 'Hail + Insurance',
+      description: 'Hail history & adjuster contacts',
       icon: Building2,
       color: '#8b5cf6',
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
@@ -104,8 +104,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     },
     {
       id: 'maps',
-      title: 'Insurance Companies',
-      description: 'Directory of 50+ insurance contacts with login portals',
+      title: 'Hail & Insurance',
+      description: 'Hail history search + 50+ insurance contacts',
       icon: Building2,
       stats: '50+ Companies'
     }

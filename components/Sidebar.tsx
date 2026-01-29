@@ -124,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
     { id: 'documentjob', label: 'Jobs', desc: 'Manage your jobs', icon: Briefcase },
-    { id: 'maps', label: 'Insurance Co', desc: 'Insurance directory', icon: Building2 },
+    { id: 'maps', label: 'Hail & Insurance', desc: 'Hail history + directory', icon: Building2 },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
   ];
 
