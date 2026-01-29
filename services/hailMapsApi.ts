@@ -12,8 +12,39 @@ export interface HailEvent {
   source: string;
 }
 
+export interface NOAAStormEvent {
+  id: string;
+  eventType: 'hail' | 'wind' | 'tornado';
+  date: string;
+  state: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+  magnitude: number | null;
+  magnitudeUnit: string;
+  source: string;
+  narrative: string;
+  dataSource: 'NOAA Storm Events Database';
+  certified: true;
+}
+
+export interface WeatherEvent {
+  id: string;
+  date: string;
+  type: 'hail' | 'wind' | 'tornado' | 'other';
+  latitude: number;
+  longitude: number;
+  hailSize?: number | null;
+  windSpeed?: number | null;
+  description?: string;
+  severity: 'minor' | 'moderate' | 'severe';
+  source: string;
+}
+
 export interface HailSearchResult {
   events: HailEvent[];
+  windEvents?: WeatherEvent[];
+  noaaEvents?: NOAAStormEvent[];
   totalCount: number;
   searchArea: {
     center: { lat: number; lng: number };

@@ -1,9 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Cloud, AlertTriangle, Calendar, Wind, Mail } from 'lucide-react';
+import { Cloud, AlertTriangle, Calendar, Wind, Mail, FileText, Download, Printer, Database, Tornado } from 'lucide-react';
 import { hailMapsApi, HailEvent, HailSearchResult } from '../services/hailMapsApi';
 
 interface HailHistoryPanelProps {
   onOpenChat?: () => void;
+}
+
+interface DisplayEvent {
+  id: string;
+  date: string;
+  type: 'hail' | 'wind' | 'tornado';
+  magnitude: number | null;
+  unit: string;
+  severity: 'minor' | 'moderate' | 'severe';
+  source: string;
+  dataSource: 'IHM' | 'NOAA' | 'Visual Crossing';
+  certified: boolean;
+  narrative?: string;
+  location?: string;
 }
 
 const formatDate = (value: string) => {
@@ -11,6 +25,60 @@ const formatDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString();
+};
+
+const inferSeverity = (eventType: string, magnitude: number | null): 'minor' | 'moderate' | 'severe' => {
+  if (eventType === 'tornado') return 'severe';
+  if (eventType === 'wind' && magnitude) {
+    if (magnitude >= 75) return 'severe';
+    if (magnitude >= 58) return 'moderate';
+    return 'minor';
+  }
+  if (eventType === 'hail' && magnitude) {
+    if (magnitude >= 2) return 'severe';
+    if (magnitude >= 1) return 'moderate';
+    return 'minor';
+  }
+  return 'moderate';
+};
+
+const mergeAllEvents = (results: HailSearchResult): DisplayEvent[] => {
+  const events: DisplayEvent[] = [];
+
+  // IHM events
+  results.events?.forEach(e => {
+    events.push({
+      id: e.id,
+      date: e.date,
+      type: 'hail',
+      magnitude: e.hailSize,
+      unit: 'inches',
+      severity: e.severity,
+      source: e.source || 'IHM',
+      dataSource: 'IHM',
+      certified: false
+    });
+  });
+
+  // NOAA events
+  results.noaaEvents?.forEach(e => {
+    events.push({
+      id: e.id,
+      date: e.date,
+      type: e.eventType,
+      magnitude: e.magnitude,
+      unit: e.magnitudeUnit,
+      severity: inferSeverity(e.eventType, e.magnitude),
+      source: e.source,
+      dataSource: 'NOAA',
+      certified: true,
+      narrative: e.narrative,
+      location: e.location
+    });
+  });
+
+  // Sort by date descending
+  return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 const buildHailSummary = (address: string, months: number, events: HailEvent[]) => {
@@ -81,6 +149,102 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
     if (!results?.events?.length || !fullAddress) return '';
     return buildHailSummary(fullAddress, months, results.events);
   }, [fullAddress, months, results]);
+
+  const generateReport = () => {
+    if (!results || !fullAddress) return '';
+
+    const allEvents = mergeAllEvents(results);
+    const reportDate = new Date().toLocaleDateString();
+
+    let report = `
+WEATHER HISTORY REPORT
+Generated: ${reportDate}
+Property: ${fullAddress}
+Period: Last ${months} months
+
+═══════════════════════════════════════════════════════════════
+
+SUMMARY
+Total Events Found: ${allEvents.length}
+- Hail Events: ${allEvents.filter(e => e.type === 'hail').length}
+- Wind Events: ${allEvents.filter(e => e.type === 'wind').length}
+- Tornado Events: ${allEvents.filter(e => e.type === 'tornado').length}
+
+═══════════════════════════════════════════════════════════════
+
+CERTIFIED NOAA DATA (Official US Government Source)
+Source: NOAA National Weather Service Storm Events Database
+Verification: https://www.ncei.noaa.gov/stormevents/
+
+${allEvents.filter(e => e.dataSource === 'NOAA').map(e => `
+Date: ${formatDate(e.date)}
+Type: ${e.type.toUpperCase()}
+Magnitude: ${e.magnitude ?? 'N/A'} ${e.unit}
+Severity: ${e.severity.toUpperCase()}
+Reported By: ${e.source}
+${e.location ? `Location: ${e.location}` : ''}
+${e.narrative ? `Details: ${e.narrative}` : ''}
+---`).join('\n')}
+
+═══════════════════════════════════════════════════════════════
+
+INTERACTIVE HAIL MAPS DATA
+Source: Interactive Hail Maps (Enterprise)
+
+${allEvents.filter(e => e.dataSource === 'IHM').map(e => `
+Date: ${formatDate(e.date)}
+Hail Size: ${e.magnitude ?? 'N/A'}"
+Severity: ${e.severity.toUpperCase()}
+---`).join('\n')}
+
+═══════════════════════════════════════════════════════════════
+
+This report contains data from official government sources (NOAA)
+and commercial weather services (Interactive Hail Maps).
+
+NOAA data is certified and legally defensible for insurance claims.
+`;
+
+    return report;
+  };
+
+  const handleDownloadReport = () => {
+    const report = generateReport();
+    if (!report) return;
+
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `weather-report-${fullAddress.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintReport = () => {
+    const report = generateReport();
+    if (!report) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Weather History Report - ${fullAddress}</title>
+          <style>
+            body { font-family: 'Courier New', monospace; padding: 20px; white-space: pre-wrap; }
+            @media print { body { font-size: 11px; } }
+          </style>
+        </head>
+        <body>${report}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
 
   const handleGenerateEmail = () => {
     if (!hailSummary) return;
@@ -236,70 +400,167 @@ const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
 
       {results && (
         <div style={{ marginTop: '0.9rem' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.6rem' }}>
-            Found {results.totalCount} hail events
+          {/* Summary counts by source */}
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <span style={{ fontWeight: 600 }}>Total: {mergeAllEvents(results).length}</span>
+            </div>
+            {results.noaaEvents && results.noaaEvents.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(34,197,94,0.15)', color: '#86efac' }}>
+                <Database style={{ width: '12px', height: '12px' }} />
+                NOAA Certified: {results.noaaEvents.length}
+              </div>
+            )}
+            {results.events && results.events.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#93c5fd' }}>
+                IHM: {results.events.length}
+              </div>
+            )}
           </div>
 
-          {results.events.length === 0 ? (
+          {mergeAllEvents(results).length === 0 ? (
             <div style={{ padding: '0.75rem', borderRadius: '10px', border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.12)', color: '#bbf7d0' }}>
-              No hail events reported for this address in the selected period.
+              No weather events reported for this address in the selected period.
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              {results.events.map(event => (
-                <div key={event.id} style={{ padding: '0.65rem 0.75rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(12,12,12,0.45)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '999px',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        ...severityStyle(event.severity)
-                      }}>
-                        {event.severity.toUpperCase()}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                        <Calendar style={{ width: '14px', height: '14px' }} />
-                        {formatDate(event.date)}
+            <>
+              {/* Event list with source badges */}
+              <div style={{ display: 'grid', gap: '0.6rem', maxHeight: '400px', overflowY: 'auto' }}>
+                {mergeAllEvents(results).map(event => (
+                  <div key={event.id} style={{
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '10px',
+                    border: event.certified ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    background: event.certified ? 'rgba(34,197,94,0.08)' : 'rgba(12,12,12,0.45)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {/* Event type icon */}
+                        {event.type === 'tornado' ? (
+                          <Tornado style={{ width: '14px', height: '14px', color: '#f87171' }} />
+                        ) : event.type === 'wind' ? (
+                          <Wind style={{ width: '14px', height: '14px', color: '#60a5fa' }} />
+                        ) : (
+                          <Cloud style={{ width: '14px', height: '14px', color: '#fbbf24' }} />
+                        )}
+
+                        {/* Severity badge */}
+                        <span style={{
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '999px',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          ...severityStyle(event.severity)
+                        }}>
+                          {event.severity.toUpperCase()}
+                        </span>
+
+                        {/* Date */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                          <Calendar style={{ width: '14px', height: '14px' }} />
+                          {formatDate(event.date)}
+                        </div>
+
+                        {/* Data source badge */}
+                        <span style={{
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: '4px',
+                          fontSize: '0.65rem',
+                          fontWeight: 500,
+                          background: event.dataSource === 'NOAA' ? 'rgba(34,197,94,0.2)' : 'rgba(59,130,246,0.2)',
+                          color: event.dataSource === 'NOAA' ? '#86efac' : '#93c5fd',
+                          border: event.dataSource === 'NOAA' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(59,130,246,0.3)'
+                        }}>
+                          {event.dataSource === 'NOAA' ? '✓ NOAA Certified' : 'IHM'}
+                        </span>
                       </div>
                     </div>
-                    <AlertTriangle style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
-                  </div>
-                  <div style={{ marginTop: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                    Hail size: {event.hailSize !== null ? `${event.hailSize}"` : 'unknown'}
-                    {event.windSpeed ? (
-                      <span style={{ marginLeft: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Wind style={{ width: '12px', height: '12px' }} />
-                        {event.windSpeed} mph
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
-          <button
-            onClick={handleGenerateEmail}
-            disabled={!hailSummary}
-            style={{
-              marginTop: '0.85rem',
-              padding: '0.6rem 0.9rem',
-              borderRadius: '10px',
-              border: '1px solid rgba(59,130,246,0.5)',
-              background: 'rgba(59,130,246,0.12)',
-              color: '#bfdbfe',
-              cursor: hailSummary ? 'pointer' : 'not-allowed',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              fontWeight: 600
-            }}
-          >
-            <Mail style={{ width: '16px', height: '16px' }} />
-            Generate Adjuster Email
-          </button>
+                    {/* Event details */}
+                    <div style={{ marginTop: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                      {event.type === 'hail' && `Hail size: ${event.magnitude !== null ? `${event.magnitude}"` : 'unknown'}`}
+                      {event.type === 'wind' && `Wind: ${event.magnitude !== null ? `${event.magnitude} ${event.unit}` : 'unknown'}`}
+                      {event.type === 'tornado' && 'Tornado reported'}
+                      {event.source && <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>• {event.source}</span>}
+                    </div>
+
+                    {/* Narrative for NOAA events */}
+                    {event.narrative && (
+                      <div style={{ marginTop: '0.3rem', fontSize: '0.75rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                        {event.narrative.slice(0, 150)}{event.narrative.length > 150 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleGenerateEmail}
+                  disabled={mergeAllEvents(results).length === 0}
+                  style={{
+                    padding: '0.6rem 0.9rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(59,130,246,0.5)',
+                    background: 'rgba(59,130,246,0.12)',
+                    color: '#bfdbfe',
+                    cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontWeight: 600,
+                    opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
+                  }}
+                >
+                  <Mail style={{ width: '16px', height: '16px' }} />
+                  Generate Adjuster Email
+                </button>
+
+                <button
+                  onClick={handleDownloadReport}
+                  disabled={mergeAllEvents(results).length === 0}
+                  style={{
+                    padding: '0.6rem 0.9rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(34,197,94,0.5)',
+                    background: 'rgba(34,197,94,0.12)',
+                    color: '#bbf7d0',
+                    cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontWeight: 600,
+                    opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
+                  }}
+                >
+                  <Download style={{ width: '16px', height: '16px' }} />
+                  Download Report
+                </button>
+
+                <button
+                  onClick={handlePrintReport}
+                  disabled={mergeAllEvents(results).length === 0}
+                  style={{
+                    padding: '0.6rem 0.9rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(148,163,184,0.5)',
+                    background: 'rgba(148,163,184,0.12)',
+                    color: '#cbd5e1',
+                    cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontWeight: 600,
+                    opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
+                  }}
+                >
+                  <Printer style={{ width: '16px', height: '16px' }} />
+                  Print Report
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
