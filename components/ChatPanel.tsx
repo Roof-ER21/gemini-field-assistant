@@ -832,7 +832,18 @@ Generate ONLY the email body text, no subject line or metadata.`;
             text: formatHailResponseForUser(hailResults, hailRequest.address),
             sender: 'assistant',
           };
-          setMessages(prev => [...prev, responseMessage]);
+
+          // Create follow-up question to guide user on next steps
+          const totalEvents = (hailResults.events?.length || 0) + (hailResults.noaaEvents?.length || 0);
+          const followUpMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            text: totalEvents > 0
+              ? `I found **${totalEvents} storm events** in that area. What would you like to do next?\n\n• **Generate an adjuster email** with these storm dates\n• **Search another address** nearby\n• **Get more details** about a specific storm\n• **Help me understand** how to use this data with my customer`
+              : `I didn't find any significant storm events in that area within the past 2 years. Would you like to:\n\n• **Search another address** nearby\n• **Expand the search radius** for this location\n• **Ask me something else** about this property`,
+            sender: 'assistant',
+          };
+
+          setMessages(prev => [...prev, responseMessage, followUpMessage]);
           setIsLoading(false);
           return;
         } catch (error) {
@@ -2784,3 +2795,4 @@ Generate ONLY the email body text, no subject line or metadata.`;
 };
 
 export default ChatPanel;
+
