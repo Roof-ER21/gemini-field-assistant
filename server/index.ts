@@ -21,6 +21,7 @@ import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
+import { hailMapsService } from './services/hailMapsService.js';
 
 const { Pool } = pg;
 const app = express();
@@ -5690,6 +5691,14 @@ app.use('/api/roof', createRoofRoutes(pool));
 // Register hail history routes
 app.use('/api/hail', authMiddleware);
 app.use('/api/hail', hailRoutes);
+
+// Hail status fallback (direct) for quick diagnostics
+app.get('/api/hail/status', (_req, res) => {
+  res.json({
+    configured: hailMapsService.isConfigured(),
+    provider: 'Interactive Hail Maps'
+  });
+});
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
