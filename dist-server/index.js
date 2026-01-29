@@ -27,7 +27,12 @@ const PORT = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // AI clients (server-side)
-const geminiClient = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+const getEnvKey = (key) => process.env[key] || process.env[`VITE_${key}`];
+const geminiKey = getEnvKey('GEMINI_API_KEY');
+const groqKey = getEnvKey('GROQ_API_KEY');
+const togetherKey = getEnvKey('TOGETHER_API_KEY');
+const hfKey = getEnvKey('HF_API_KEY') || getEnvKey('HUGGINGFACE_API_KEY');
+const geminiClient = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
 // ============================================================================
 // DATABASE CONNECTION
 // ============================================================================
@@ -152,7 +157,7 @@ function getRequestEmail(req) {
     return headerEmail || 'demo@roofer.com';
 }
 async function callGroq(messages) {
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = groqKey;
     if (!apiKey)
         throw new Error('GROQ_API_KEY not set');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -177,7 +182,7 @@ async function callGroq(messages) {
     return data.choices?.[0]?.message?.content || '';
 }
 async function callTogether(messages) {
-    const apiKey = process.env.TOGETHER_API_KEY;
+    const apiKey = togetherKey;
     if (!apiKey)
         throw new Error('TOGETHER_API_KEY not set');
     const response = await fetch('https://api.together.xyz/v1/chat/completions', {
@@ -276,15 +281,11 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/providers/status', (req, res) => {
     try {
         const status = {
-            groq: Boolean(process.env.GROQ_API_KEY),
-            together: Boolean(process.env.TOGETHER_API_KEY),
-            huggingface: Boolean(process.env.HF_API_KEY || process.env.HUGGINGFACE_API_KEY),
-            gemini: Boolean(process.env.GEMINI_API_KEY),
-            anyConfigured: Boolean(process.env.GROQ_API_KEY ||
-                process.env.TOGETHER_API_KEY ||
-                process.env.HF_API_KEY ||
-                process.env.HUGGINGFACE_API_KEY ||
-                process.env.GEMINI_API_KEY),
+            groq: Boolean(groqKey),
+            together: Boolean(togetherKey),
+            huggingface: Boolean(hfKey),
+            gemini: Boolean(geminiKey),
+            anyConfigured: Boolean(groqKey || togetherKey || hfKey || geminiKey),
             environment: process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || 'unknown'
         };
         res.json(status);
