@@ -94,6 +94,31 @@ class HailMapsService {
             payload.data?.marker_id ||
             null);
     }
+    async geocodeAddress(params) {
+        try {
+            const query = encodeURIComponent(`${params.street}, ${params.city}, ${params.state} ${params.zip}`);
+            const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`;
+            const res = await fetch(geocodeUrl, {
+                headers: {
+                    'User-Agent': 'GeminiFieldAssistant/1.0'
+                }
+            });
+            if (!res.ok)
+                return null;
+            const data = await res.json();
+            if (data && data.length > 0) {
+                return {
+                    lat: parseFloat(data[0].lat),
+                    lng: parseFloat(data[0].lon)
+                };
+            }
+            return null;
+        }
+        catch (error) {
+            console.error('Geocoding error:', error);
+            return null;
+        }
+    }
     async createAddressMonitor(params) {
         const response = await this.request('/ExternalApi/AddressMonitoringImport2g', {
             method: 'POST',
@@ -111,9 +136,17 @@ class HailMapsService {
         if (!markerId) {
             throw new Error('IHM API response missing markerId');
         }
-        // Extract coordinates if available in the response
-        const lat = response?.Lat || response?.latitude || response?.lat || response?.data?.Lat;
-        const lng = response?.Long || response?.longitude || response?.lng || response?.data?.Long;
+        // Extract coordinates from IHM response if available
+        let lat = response?.Lat || response?.latitude || response?.lat || response?.data?.Lat;
+        let lng = response?.Long || response?.longitude || response?.lng || response?.data?.Long;
+        // Fallback to geocoding if IHM doesn't provide coordinates
+        if (!lat || !lng) {
+            const geocoded = await this.geocodeAddress(params);
+            if (geocoded) {
+                lat = geocoded.lat;
+                lng = geocoded.lng;
+            }
+        }
         return { markerId, lat, lng, raw: response };
     }
     async searchByMarkerId(markerId, months = 24, coords) {
