@@ -123,15 +123,16 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: 'var(--bg-primary)'
+        background: 'transparent'
       }}
     >
       {/* Header */}
       <div
         style={{
           padding: '16px',
-          borderBottom: '1px solid var(--border-color)',
-          background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(185, 28, 28, 0.05) 100%)'
+          borderBottom: '1px solid var(--glass-border)',
+          background: 'rgba(12, 12, 12, 0.65)',
+          backdropFilter: 'blur(12px) saturate(120%)'
         }}
       >
         <div
@@ -221,7 +222,10 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '16px'
+          overflowX: 'hidden',
+          padding: '16px',
+          background: 'rgba(8, 8, 8, 0.25)',
+          backdropFilter: 'blur(8px) saturate(120%)'
         }}
       >
         {loading ? (

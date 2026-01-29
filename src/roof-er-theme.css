@@ -380,7 +380,7 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba(12, 12, 12, 0.52);
+  background: rgba(10, 10, 10, 0.38);
   overflow: hidden;
   backdrop-filter: blur(12px) saturate(120%);
 }
@@ -402,6 +402,7 @@ html, body {
 .roof-er-content-scroll * {
   overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
 }
 
 .roof-er-message-container {
@@ -499,14 +500,16 @@ html, body {
 
 .roof-er-quick-commands {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
-  overflow-x: auto;
-  max-width: 1000px;
+  overflow-x: hidden;
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
+  justify-content: center;
 }
 
 .roof-er-quick-cmd {
@@ -692,6 +695,20 @@ html, body {
 .roof-er-content-area code {
   white-space: pre-wrap;
   word-break: break-word;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.roof-er-content-area table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.roof-er-content-area th,
+.roof-er-content-area td {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Knowledge Base Cards */
@@ -1200,14 +1217,9 @@ html, body {
   }
 
   .roof-er-quick-commands {
-    overflow-x: scroll;
-    scrollbar-width: none;
+    overflow-x: hidden;
     padding: 8px 0;
     gap: 10px;
-  }
-
-  .roof-er-quick-commands::-webkit-scrollbar {
-    display: none;
   }
 
   /* Touch-friendly sidebar nav items */

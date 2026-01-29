@@ -537,6 +537,40 @@ Format your response as JSON with this structure:
     }
   };
 
+  const handleDownloadReport = () => {
+    if (!analysisResult) return;
+    try {
+      const payload = {
+        generated_at: analysisResult.timestamp,
+        insuranceData: analysisResult.insuranceData,
+        analysis: analysisResult.analysis,
+        documents: analysisResult.documents
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `susan-document-analysis-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Report downloaded');
+    } catch (error) {
+      toast.error('Download failed', (error as Error).message);
+    }
+  };
+
+  const handleCopySummary = async () => {
+    if (!analysisResult?.analysis?.summary) return;
+    try {
+      await navigator.clipboard.writeText(analysisResult.analysis.summary);
+      toast.success('Summary copied');
+    } catch (error) {
+      toast.error('Copy failed', (error as Error).message);
+    }
+  };
+
   // ============================================================================
   // RENDER HELPERS
   // ============================================================================
@@ -887,6 +921,40 @@ Format your response as JSON with this structure:
                       </div>
                     </div>
                     {getApprovalStatusBadge(analysisResult.analysis.approvalStatus)}
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', padding: '1rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <button
+                      onClick={handleCopySummary}
+                      style={{
+                        padding: '0.6rem 0.9rem',
+                        borderRadius: '999px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(18,18,18,0.6)',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Copy Summary
+                    </button>
+                    <button
+                      onClick={handleDownloadReport}
+                      style={{
+                        padding: '0.6rem 0.9rem',
+                        borderRadius: '999px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(18,18,18,0.6)',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Download Report
+                    </button>
                   </div>
                 </div>
 

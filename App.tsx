@@ -10,6 +10,7 @@ import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import AIDisclosureModal, { hasAIConsent } from './components/AIDisclosureModal';
 import MessagingPanel from './components/MessagingPanel';
+import LearningDashboard from './components/LearningDashboard';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -22,7 +23,7 @@ const KnowledgePanel = lazy(() => import('./components/KnowledgePanel'));
 const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
 const LivePanel = lazy(() => import('./components/LivePanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning';
 
 // Loading fallback component for lazy-loaded panels
 const PanelLoader: React.FC = () => (
@@ -96,7 +97,8 @@ const App: React.FC = () => {
     live: 'Live Conversation',
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
-    documentjob: 'Document Job'
+    documentjob: 'Document Job',
+    learning: 'Susan Learning'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -248,6 +250,8 @@ const App: React.FC = () => {
             onNavigateToKnowledge={() => setActivePanel('knowledge')}
           />
         );
+      case 'learning':
+        return <LearningDashboard />;
       case 'team':
         return (
           <MessagingPanel

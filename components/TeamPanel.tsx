@@ -395,9 +395,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              background: 'var(--bg-secondary)',
-              borderRadius: '8px',
-              padding: '0.5rem 0.75rem'
+              background: 'rgba(14, 14, 14, 0.55)',
+              borderRadius: '10px',
+              padding: '0.5rem 0.75rem',
+              border: '1px solid var(--glass-border)',
+              backdropFilter: 'blur(10px) saturate(120%)'
             }}
           >
             <Search style={{ width: '16px', height: '16px', color: 'var(--text-secondary)' }} />
@@ -454,7 +456,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: activeTab === 'roof' ? 0 : '0 0.5rem 1rem' }}>
+      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: activeTab === 'roof' ? 0 : '0 0.5rem 1rem' }}>
         {activeTab === 'roof' ? (
           <RoofFeed />
         ) : loading ? (
@@ -515,14 +517,24 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                     alignItems: 'center',
                     gap: '0.75rem',
                     padding: '0.75rem',
-                    borderRadius: '8px',
+                    borderRadius: '12px',
                     cursor: 'pointer',
                     marginBottom: '0.25rem',
-                    background: conv.unread_count > 0 ? 'rgba(220, 38, 38, 0.1)' : 'transparent',
-                    border: conv.unread_count > 0 ? '1px solid rgba(220, 38, 38, 0.2)' : '1px solid transparent'
+                    background: conv.unread_count > 0 ? 'rgba(220, 38, 38, 0.12)' : 'rgba(12, 12, 12, 0.35)',
+                    border: conv.unread_count > 0 ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid var(--glass-border)',
+                    boxShadow: 'var(--shadow-glass)',
+                    backdropFilter: 'blur(10px) saturate(120%)'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = conv.unread_count > 0 ? 'rgba(220, 38, 38, 0.1)' : 'transparent'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = conv.unread_count > 0
+                      ? 'rgba(220, 38, 38, 0.2)'
+                      : 'rgba(18, 18, 18, 0.6)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = conv.unread_count > 0
+                      ? 'rgba(220, 38, 38, 0.12)'
+                      : 'rgba(12, 12, 12, 0.35)';
+                  }}
                 >
                   {/* Avatar with status */}
                   <div style={{ position: 'relative' }}>

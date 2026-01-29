@@ -105,11 +105,13 @@ const PostCard: React.FC<PostCardProps> = ({
   return (
     <div
       style={{
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border-color)',
-        borderRadius: '12px',
+        background: 'linear-gradient(135deg, rgba(18, 18, 18, 0.7), rgba(10, 10, 10, 0.6))',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '14px',
         padding: '16px',
-        marginBottom: '12px'
+        marginBottom: '12px',
+        boxShadow: 'var(--shadow-glass)',
+        backdropFilter: 'blur(10px) saturate(120%)'
       }}
     >
       {/* Header: Author and timestamp */}
@@ -226,7 +228,8 @@ const PostCard: React.FC<PostCardProps> = ({
           lineHeight: 1.6,
           marginBottom: '12px',
           whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word'
+          wordBreak: 'break-word',
+          overflowWrap: 'anywhere'
         }}
       >
         {renderContent(post.content)}
@@ -236,11 +239,12 @@ const PostCard: React.FC<PostCardProps> = ({
       {post.shared_content && (
         <div
           style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '8px',
+            background: 'rgba(12, 12, 12, 0.55)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '10px',
             padding: '12px',
-            marginBottom: '12px'
+            marginBottom: '12px',
+            backdropFilter: 'blur(8px) saturate(120%)'
           }}
         >
           <div
@@ -274,7 +278,9 @@ const PostCard: React.FC<PostCardProps> = ({
                 lineHeight: 1.5,
                 maxHeight: '150px',
                 overflow: 'hidden',
-                position: 'relative'
+                position: 'relative',
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere'
               }}
             >
               {post.shared_content.ai_response.substring(0, 300)}
