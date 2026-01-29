@@ -103,6 +103,14 @@ const generalLimiter = rateLimit({
     message: 'Too many requests from this IP, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        if (req.method !== 'GET')
+            return false;
+        const path = req.path || '';
+        return (path === '/chat/learning' ||
+            path === '/learning/global' ||
+            path.startsWith('/chat/feedback/followups'));
+    },
 });
 // Stricter rate limiting for write operations
 const writeLimiter = rateLimit({
