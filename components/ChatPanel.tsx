@@ -1618,7 +1618,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 </div>
                 <div className="roof-er-message-content">
                   <div className="roof-er-message-text">
-                    {msg.sender === 'bot' && msg.text.startsWith('HAIL_RESULTS:') ? (
+                    {(msg.sender === 'bot' || msg.sender === 'assistant') && msg.text.startsWith('HAIL_RESULTS:') ? (
                       // Special rendering for hail lookup results
                       (() => {
                         try {
