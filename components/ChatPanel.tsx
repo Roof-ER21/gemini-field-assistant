@@ -7,7 +7,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -543,38 +543,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    let response = `## Storm History for ${address}\n\n`;
-    response += `Found **${allEvents.length} storm events** in the past 24 months:\n\n`;
-
-    const noaaEvents = allEvents.filter(e => e.certified);
-    const ihmEvents = allEvents.filter(e => !e.certified);
-
-    if (ihmEvents.length > 0) {
-      response += `### Interactive Hail Maps Data\n`;
-      ihmEvents.forEach(e => {
-        response += `- **${e.date}**: Hail ${e.size ? `${e.size}"` : '(size not recorded)'}\n`;
-      });
-      response += `\n`;
-    }
-
-    if (noaaEvents.length > 0) {
-      response += `### ✓ NOAA Certified Data\n`;
-      response += `*Official government source - legally defensible for insurance claims*\n\n`;
-      noaaEvents.forEach(e => {
-        response += `- **${e.date}**: ${e.type.charAt(0).toUpperCase() + e.type.slice(1)}`;
-        if (e.magnitude) response += ` (${e.magnitude} ${e.unit})`;
-        response += `\n`;
-        if (e.narrative) response += `  *${e.narrative.slice(0, 120)}${e.narrative.length > 120 ? '...' : ''}*\n`;
-      });
-    }
-
-    response += `\n---\n`;
-    response += `Would you like me to:\n`;
-    response += `- Generate an adjuster email with these storm dates?\n`;
-    response += `- Look up another address?\n`;
-    response += `- Download a full report?`;
-
-    return response;
+    // Return special format for custom rendering
+    return `HAIL_RESULTS:${JSON.stringify({
+      address,
+      totalCount: allEvents.length,
+      ihmEvents: allEvents.filter(e => !e.certified),
+      noaaEvents: allEvents.filter(e => e.certified)
+    })}`;
   };
 
   const formatHailResultsForSusan = (results: any, address: string): string => {
@@ -1632,7 +1607,257 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 </div>
                 <div className="roof-er-message-content">
                   <div className="roof-er-message-text">
-                    {msg.sender === 'bot' && msg.text.startsWith('EMAIL_GENERATED:') ? (
+                    {msg.sender === 'bot' && msg.text.startsWith('HAIL_RESULTS:') ? (
+                      // Special rendering for hail lookup results
+                      (() => {
+                        try {
+                          const data = JSON.parse(msg.text.replace('HAIL_RESULTS:', ''));
+                          const { address, totalCount, ihmEvents, noaaEvents } = data;
+
+                          return (
+                            <div style={{
+                              background: 'linear-gradient(135deg, rgba(16,24,32,0.95) 0%, rgba(8,12,16,0.98) 100%)',
+                              border: '1px solid rgba(34,197,94,0.3)',
+                              borderRadius: '16px',
+                              padding: '20px',
+                              marginTop: '8px'
+                            }}>
+                              {/* Header */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '10px',
+                                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}>
+                                  <Cloud style={{ width: '20px', height: '20px', color: 'white' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 700, fontSize: '16px', color: 'white' }}>
+                                    Storm History Report
+                                  </div>
+                                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginTop: '2px' }}>
+                                    {address}
+                                  </div>
+                                </div>
+                                <div style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '20px',
+                                  background: 'rgba(34,197,94,0.15)',
+                                  border: '1px solid rgba(34,197,94,0.3)',
+                                  color: '#86efac',
+                                  fontSize: '14px',
+                                  fontWeight: 600
+                                }}>
+                                  {totalCount} Events
+                                </div>
+                              </div>
+
+                              {/* IHM Section */}
+                              {ihmEvents.length > 0 && (
+                                <div style={{ marginBottom: '16px' }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    marginBottom: '10px',
+                                    color: '#60a5fa',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    <span style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      background: '#60a5fa'
+                                    }} />
+                                    Interactive Hail Maps ({ihmEvents.length})
+                                  </div>
+                                  <div style={{ display: 'grid', gap: '8px' }}>
+                                    {ihmEvents.slice(0, 5).map((e: any, i: number) => (
+                                      <div key={i} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '10px 14px',
+                                        background: 'rgba(96,165,250,0.08)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(96,165,250,0.2)'
+                                      }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                          <Calendar style={{ width: '14px', height: '14px', color: '#60a5fa' }} />
+                                          <span style={{ color: 'white', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
+                                        </div>
+                                        <span style={{
+                                          color: '#fbbf24',
+                                          fontSize: '13px',
+                                          padding: '2px 8px',
+                                          background: 'rgba(251,191,36,0.1)',
+                                          borderRadius: '4px'
+                                        }}>
+                                          Hail {e.size ? `${e.size}"` : ''}
+                                        </span>
+                                      </div>
+                                    ))}
+                                    {ihmEvents.length > 5 && (
+                                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
+                                        + {ihmEvents.length - 5} more events
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* NOAA Section */}
+                              {noaaEvents.length > 0 && (
+                                <div style={{ marginBottom: '16px' }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    marginBottom: '10px',
+                                    color: '#86efac',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    <span style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      background: '#22c55e'
+                                    }} />
+                                    ✓ NOAA Certified Data ({noaaEvents.length})
+                                  </div>
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: 'rgba(134,239,172,0.7)',
+                                    marginBottom: '10px',
+                                    padding: '8px 12px',
+                                    background: 'rgba(34,197,94,0.08)',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(34,197,94,0.15)'
+                                  }}>
+                                    Official U.S. Government source • Legally defensible for insurance claims
+                                  </div>
+                                  <div style={{ display: 'grid', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                                    {noaaEvents.slice(0, 10).map((e: any, i: number) => (
+                                      <div key={i} style={{
+                                        padding: '12px 14px',
+                                        background: 'rgba(34,197,94,0.06)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(34,197,94,0.15)'
+                                      }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: e.narrative ? '6px' : 0 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <Calendar style={{ width: '14px', height: '14px', color: '#86efac' }} />
+                                            <span style={{ color: 'white', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
+                                          </div>
+                                          <span style={{
+                                            color: e.type === 'hail' ? '#fbbf24' : e.type === 'tornado' ? '#f87171' : '#60a5fa',
+                                            fontSize: '13px',
+                                            padding: '2px 8px',
+                                            background: e.type === 'hail' ? 'rgba(251,191,36,0.1)' : e.type === 'tornado' ? 'rgba(248,113,113,0.1)' : 'rgba(96,165,250,0.1)',
+                                            borderRadius: '4px',
+                                            textTransform: 'capitalize'
+                                          }}>
+                                            {e.type} {e.magnitude ? `(${e.magnitude} ${e.unit})` : ''}
+                                          </span>
+                                        </div>
+                                        {e.narrative && (
+                                          <div style={{
+                                            fontSize: '12px',
+                                            color: 'rgba(255,255,255,0.5)',
+                                            lineHeight: '1.4',
+                                            marginTop: '4px'
+                                          }}>
+                                            {e.narrative.slice(0, 150)}{e.narrative.length > 150 ? '...' : ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {noaaEvents.length > 10 && (
+                                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
+                                        + {noaaEvents.length - 10} more events
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Citation */}
+                              <div style={{
+                                marginTop: '12px',
+                                padding: '10px 14px',
+                                background: 'rgba(255,255,255,0.03)',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                                color: 'rgba(255,255,255,0.4)'
+                              }}>
+                                <strong style={{ color: 'rgba(255,255,255,0.6)' }}>Data Sources:</strong> NOAA Storm Events Database (ncei.noaa.gov/stormevents) • Interactive Hail Maps
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div style={{
+                                display: 'flex',
+                                gap: '10px',
+                                marginTop: '16px',
+                                paddingTop: '16px',
+                                borderTop: '1px solid rgba(255,255,255,0.1)',
+                                flexWrap: 'wrap'
+                              }}>
+                                <button
+                                  onClick={() => {
+                                    const summary = `Storm dates for ${address}:\n${[...ihmEvents, ...noaaEvents].map((e: any) => `${e.date}: ${e.type}${e.magnitude ? ` (${e.magnitude} ${e.unit})` : e.size ? ` (${e.size}")` : ''}`).join('\n')}`;
+                                    localStorage.setItem('susan_hail_context', summary);
+                                    setUserInput('Generate an adjuster email using these storm dates');
+                                  }}
+                                  style={{
+                                    padding: '10px 16px',
+                                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <Mail style={{ width: '14px', height: '14px' }} />
+                                  Generate Adjuster Email
+                                </button>
+                                <button
+                                  onClick={() => setUserInput('Look up another address')}
+                                  style={{
+                                    padding: '10px 16px',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    borderRadius: '8px',
+                                    color: 'rgba(255,255,255,0.8)',
+                                    fontSize: '13px',
+                                    fontWeight: 500,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Search Another Address
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        } catch (e) {
+                          return <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{msg.text}</div>;
+                        }
+                      })()
+                    ) : msg.sender === 'bot' && msg.text.startsWith('EMAIL_GENERATED:') ? (
                       // Special rendering for generated emails
                       (() => {
                         const [header, ...bodyParts] = msg.text.split('\n\n');
