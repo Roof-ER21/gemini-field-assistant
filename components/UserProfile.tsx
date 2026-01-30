@@ -177,7 +177,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
         justifyContent: 'center',
         padding: '20px',
         paddingTop: '60px',
-        overflowY: 'auto'
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}
     >
       <div

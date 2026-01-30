@@ -498,6 +498,7 @@ Ask permission to address their specific concern directly: "What's the main thin
             disabled={isLoading}
             style={{
               flex: 1,
+              boxSizing: 'border-box',
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '12px',

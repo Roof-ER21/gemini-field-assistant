@@ -418,7 +418,12 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
         </div>
 
         {/* Document Grid */}
-        <div className="roof-er-doc-grid">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px'
+        }}>
           {loading ? (
             <div style={{
               gridColumn: '1 / -1',

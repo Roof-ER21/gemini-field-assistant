@@ -76,7 +76,7 @@ export class PresenceService {
 
         // Get user from database
         const result = await this.pool.query(
-          'SELECT id, email, name, username FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+          'SELECT id, email, name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
           [email.toLowerCase()]
         );
 

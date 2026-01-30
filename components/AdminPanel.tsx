@@ -788,7 +788,10 @@ const AdminPanel: React.FC = () => {
         borderBottom: '1px solid #262626',
         padding: '1rem 2rem',
         display: 'flex',
-        gap: '1rem'
+        gap: '1rem',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        flexWrap: 'nowrap'
       }}>
         <button
           onClick={() => setActiveTab('users')}
