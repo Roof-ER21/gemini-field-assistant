@@ -51,8 +51,9 @@ class HailMapsService {
                 event.hail_size ??
                 event.size ??
                 null;
-            // IHM uses FileDate for storm date
-            const date = event.FileDate || event.date || event.event_date || event.storm_date || '';
+            // IHM uses FileDate for storm date - normalize to Eastern timezone for consistency
+            const rawDate = event.FileDate || event.date || event.event_date || event.storm_date || '';
+            const date = this.normalizeToEastern(rawDate);
             const windSpeed = event.windSpeed ?? event.wind_speed ?? event.WindSpeed ?? null;
             const severity = this.inferSeverity(Number(hailSize));
             // Use event coordinates if available, otherwise fall back to default (address location)
@@ -79,6 +80,26 @@ class HailMapsService {
         if (hailSize >= 1)
             return 'moderate';
         return 'minor';
+    }
+    /**
+     * Normalize date to Eastern timezone (America/New_York) for consistency
+     * This ensures IHM and NOAA dates match when displaying the same storm
+     */
+    normalizeToEastern(dateStr) {
+        if (!dateStr)
+            return '';
+        try {
+            // IHM dates may be in format "MM/DD/YYYY", "YYYY-MM-DD", or ISO format
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+                // Convert to Eastern timezone - en-CA locale gives YYYY-MM-DD format
+                return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            }
+            return dateStr;
+        }
+        catch {
+            return dateStr;
+        }
     }
     parseMarkerId(payload) {
         if (!payload)
