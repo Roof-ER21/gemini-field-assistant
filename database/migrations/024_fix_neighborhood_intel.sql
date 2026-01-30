@@ -153,9 +153,9 @@ SELECT
   u.name as rep_name,
   u.email as rep_email,
   cs.linked_property_id,
-  cp.monitor_hail,
-  cp.monitor_wind,
-  cp.monitor_tornado,
+  cp.notify_on_hail as monitor_hail,
+  cp.notify_on_wind as monitor_wind,
+  cp.notify_on_tornado as monitor_tornado,
   CASE
     WHEN cs.status IN ('interested', 'lead', 'appointment_set') THEN 'hot'
     WHEN cs.status = 'return_visit' THEN 'warm'
