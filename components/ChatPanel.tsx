@@ -2670,17 +2670,45 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
         {/* Input Wrapper */}
         <form onSubmit={handleSendMessage} className="roof-er-input-wrapper">
-          <textarea
-            ref={textareaRef}
-            className="roof-er-input-field"
-            placeholder="Ask me anything about roofing, sales, products, or field work..."
-            value={userInput}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyPress}
-            rows={1}
-            disabled={isLoading || isVoiceRecording}
-          />
-          <div className="roof-er-input-actions" style={{ position: 'relative' }}>
+          {/* Text input with image button inside */}
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <textarea
+              ref={textareaRef}
+              className="roof-er-input-field"
+              placeholder="Ask me anything..."
+              value={userInput}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyPress}
+              rows={1}
+              disabled={isLoading || isVoiceRecording}
+              style={{ paddingRight: '44px' }}
+            />
+            {/* Image button inside text input */}
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isAnalyzingImage}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px'
+              }}
+              title="Attach image"
+            >
+              <ImageIcon className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="roof-er-input-actions" style={{ position: 'relative', zIndex: 100 }}>
             {/* More Actions Menu Button */}
             <button
               type="button"
@@ -2701,10 +2729,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-default)',
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                 padding: '8px',
                 minWidth: '200px',
-                zIndex: 1000
+                zIndex: 9999
               }}>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
                   Quick Actions:
@@ -2809,10 +2837,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-default)',
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                 padding: '8px',
                 minWidth: '160px',
-                zIndex: 1000
+                zIndex: 9999
               }}>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
                   Select State:
@@ -2883,17 +2911,6 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 )}
               </div>
             )}
-
-            {/* Attachment Button - For images */}
-            <button
-              type="button"
-              className="roof-er-action-btn"
-              title="Attach images"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={isAnalyzingImage}
-            >
-              <ImageIcon className="w-5 h-5" />
-            </button>
 
             {/* Voice Input Button */}
             <button
