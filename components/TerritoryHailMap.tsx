@@ -737,7 +737,26 @@ export default function TerritoryHailMap() {
 
         {/* Month Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-          <Filter className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+          <button
+            onClick={() => setSearchCollapsed(!searchCollapsed)}
+            title={searchCollapsed ? "Expand search" : "Collapse search"}
+            style={{
+              background: searchCollapsed ? 'var(--bg-elevated)' : 'var(--roof-red)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Filter className="w-4 h-4" style={{ color: searchCollapsed ? 'var(--text-secondary)' : 'white' }} />
+            <span style={{ fontSize: '12px', color: searchCollapsed ? 'var(--text-secondary)' : 'white' }}>
+              {searchCollapsed ? 'Search' : 'Hide'}
+            </span>
+          </button>
           <select
             value={months}
             onChange={(e) => {
@@ -765,16 +784,16 @@ export default function TerritoryHailMap() {
 
       {/* Main Content Area - Sidebar + Map */}
       <div style={{ flex: 1, position: 'relative', display: 'flex', height: 'calc(100vh - 280px)' }}>
-        {/* LEFT SIDEBAR - Event List */}
-        {(hailEvents.length > 0 || noaaEvents.length > 0) && (
-          <div style={{
-            width: '320px',
-            background: 'var(--bg-elevated)',
-            borderRight: '1px solid var(--border-default)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}>
+        {/* LEFT SIDEBAR - Always visible */}
+        <div style={{
+          width: '320px',
+          background: 'var(--bg-elevated)',
+          borderRight: '1px solid var(--border-default)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          flexShrink: 0
+        }}>
             {/* Collapsible Search Panel */}
             <div style={{
               borderBottom: '1px solid var(--border-default)',
@@ -1058,7 +1077,6 @@ export default function TerritoryHailMap() {
               )}
             </div>
           </div>
-        )}
 
         {/* Old Search Panel - Hidden */}
         {false && searchPanelOpen && (
