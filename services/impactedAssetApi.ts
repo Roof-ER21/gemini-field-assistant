@@ -66,6 +66,19 @@ export interface ImpactedAssetStats {
 }
 
 const apiBaseUrl = getApiBaseUrl();
+const impactedBase = `${apiBaseUrl}/assets`;
+
+const unwrapArray = <T>(data: any, key: string): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (data && Array.isArray(data[key])) return data[key] as T[];
+  return [];
+};
+
+const unwrapObject = <T>(data: any, key: string): T | null => {
+  if (!data) return null;
+  if (data[key]) return data[key] as T;
+  return data as T;
+};
 
 const getHeaders = () => {
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'demo@roofer.com';
@@ -96,7 +109,7 @@ export const impactedAssetApi = {
     notes?: string;
   }): Promise<CustomerProperty | null> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/property`, {
+      const response = await fetch(`${impactedBase}/properties`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
@@ -116,7 +129,7 @@ export const impactedAssetApi = {
 
       const data = await response.json();
       console.log(`[ImpactedAssetAPI] Added property: ${params.address}`);
-      return data;
+      return (data?.property || data) as CustomerProperty;
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error adding property:', error);
       return null;
@@ -137,7 +150,7 @@ export const impactedAssetApi = {
       if (params?.city) query.append('city', params.city);
       if (params?.state) query.append('state', params.state);
 
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/properties?${query}`, {
+      const response = await fetch(`${impactedBase}/properties?${query}`, {
         headers: getHeaders()
       });
 
@@ -145,7 +158,8 @@ export const impactedAssetApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<CustomerProperty>(data, 'properties');
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error getting properties:', error);
       return [];
@@ -157,7 +171,7 @@ export const impactedAssetApi = {
    */
   async updateProperty(propertyId: string, updates: Partial<CustomerProperty>): Promise<boolean> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/property/${propertyId}`, {
+      const response = await fetch(`${impactedBase}/properties/${propertyId}`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(updates)
@@ -182,7 +196,7 @@ export const impactedAssetApi = {
    */
   async deleteProperty(propertyId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/property/${propertyId}`, {
+      const response = await fetch(`${impactedBase}/properties/${propertyId}`, {
         method: 'DELETE',
         headers: getHeaders()
       });
@@ -215,7 +229,7 @@ export const impactedAssetApi = {
       if (params?.severity) query.append('severity', params.severity);
       if (params?.limit) query.append('limit', params.limit.toString());
 
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/alerts?${query}`, {
+      const response = await fetch(`${impactedBase}/alerts?${query}`, {
         headers: getHeaders()
       });
 
@@ -223,7 +237,8 @@ export const impactedAssetApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<ImpactAlert>(data, 'alerts');
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error getting alerts:', error);
       return [];
@@ -239,7 +254,7 @@ export const impactedAssetApi = {
     notes?: string;
   }): Promise<boolean> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/alert/${alertId}`, {
+      const response = await fetch(`${impactedBase}/alerts/${alertId}`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(updates)
@@ -296,7 +311,7 @@ export const impactedAssetApi = {
   async getStats(daysBack: number = 30): Promise<ImpactedAssetStats | null> {
     try {
       const query = new URLSearchParams({ days: daysBack.toString() });
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/stats?${query}`, {
+      const response = await fetch(`${impactedBase}/stats?${query}`, {
         headers: getHeaders()
       });
 
@@ -304,7 +319,8 @@ export const impactedAssetApi = {
         return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapObject<ImpactedAssetStats>(data, 'stats');
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error getting stats:', error);
       return null;
@@ -317,7 +333,7 @@ export const impactedAssetApi = {
    */
   async triggerImpactCheck(propertyId?: string): Promise<boolean> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/check`, {
+      const response = await fetch(`${impactedBase}/check-storm`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ propertyId })
@@ -342,16 +358,8 @@ export const impactedAssetApi = {
    */
   async getPendingCount(): Promise<number> {
     try {
-      const response = await fetch(`${apiBaseUrl}/impacted-assets/alerts/count?status=pending`, {
-        headers: getHeaders()
-      });
-
-      if (!response.ok) {
-        return 0;
-      }
-
-      const data = await response.json();
-      return data.count || 0;
+      const alerts = await impactedAssetApi.getAlerts({ status: 'pending', limit: 50 });
+      return Array.isArray(alerts) ? alerts.length : 0;
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error getting pending count:', error);
       return 0;

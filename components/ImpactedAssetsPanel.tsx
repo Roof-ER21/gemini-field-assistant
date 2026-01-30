@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Shield,
   Phone,
@@ -269,7 +270,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                 {stats.pendingAlerts + stats.contactedAlerts}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Quick Actions */}
@@ -762,7 +764,7 @@ const ImpactedAssetsPanel: React.FC = () => {
         )}
 
         {/* Add Property Modal */}
-        {showAddModal && (
+        {showAddModal && createPortal(
           <div
             style={{
               position: 'fixed',

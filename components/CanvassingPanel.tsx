@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MapPin,
   Phone,
@@ -1004,7 +1005,7 @@ const CanvassingPanel: React.FC = () => {
       </div>
 
       {/* Homeowner Data Entry Modal */}
-      {showHomeownerModal && (
+      {showHomeownerModal && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -1372,7 +1373,8 @@ const CanvassingPanel: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
