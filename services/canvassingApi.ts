@@ -350,7 +350,7 @@ export const canvassingApi = {
     notes?: string;
   }): Promise<CanvassingSession | null> {
     try {
-      const response = await fetch(`${apiBaseUrl}/canvassing/session/start`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/sessions`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(params)
@@ -380,7 +380,7 @@ export const canvassingApi = {
     notes?: string;
   }): Promise<CanvassingSession | null> {
     try {
-      const response = await fetch(`${apiBaseUrl}/canvassing/session/${sessionId}/end`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/sessions/${sessionId}/end`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(params || {})
