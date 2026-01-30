@@ -124,7 +124,9 @@ const allowedOrigins = [
   'https://sa21.up.railway.app',
   'http://localhost:5173',
   'http://localhost:3001',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'capacitor://localhost',  // iOS Capacitor app
+  'ionic://localhost'       // Alternative Capacitor origin
 ];
 
 app.use(cors({
