@@ -24,8 +24,9 @@ const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
 const LivePanel = lazy(() => import('./components/LivePanel'));
 const CanvassingPanel = lazy(() => import('./components/CanvassingPanel'));
 const ImpactedAssetsPanel = lazy(() => import('./components/ImpactedAssetsPanel'));
+const TerritoryManager = lazy(() => import('./components/TerritoryManager'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories';
 
 // Loading fallback component for lazy-loaded panels
 const PanelLoader: React.FC = () => (
@@ -113,7 +114,8 @@ const App: React.FC = () => {
     documentjob: 'Document Job',
     learning: 'Susan Learning',
     canvassing: 'Canvassing Tracker',
-    impacted: 'Impacted Assets'
+    impacted: 'Impacted Assets',
+    territories: 'Territory Management'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -283,6 +285,12 @@ const App: React.FC = () => {
         return (
           <Suspense fallback={<PanelLoader />}>
             <ImpactedAssetsPanel />
+          </Suspense>
+        );
+      case 'territories':
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <TerritoryManager />
           </Suspense>
         );
       default:
