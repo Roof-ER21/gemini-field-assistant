@@ -4491,10 +4491,25 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
         catch (e) {
             results.push(`⚠️ Could not check columns: ${e.message}`);
         }
-        // Drop and recreate with correct column names
+        // Drop ALL versions of the function first
         try {
-            await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(DECIMAL, DECIMAL, DECIMAL)`);
-            await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(numeric, numeric, numeric)`);
+            // Get and drop all overloads
+            const funcs = await pool.query(`
+        SELECT oid::regprocedure as sig FROM pg_proc
+        WHERE proname = 'get_neighborhood_intel'
+      `);
+            for (const f of funcs.rows) {
+                try {
+                    await pool.query(`DROP FUNCTION IF EXISTS ${f.sig}`);
+                    results.push(`Dropped: ${f.sig}`);
+                }
+                catch (e) { /* ignore */ }
+            }
+        }
+        catch (e) {
+            results.push(`⚠️ Drop old functions: ${e.message}`);
+        }
+        try {
             // Use the actual column names from the table
             await pool.query(`
         CREATE FUNCTION get_neighborhood_intel(
