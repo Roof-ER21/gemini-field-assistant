@@ -320,7 +320,22 @@ export const impactedAssetApi = {
       }
 
       const data = await response.json();
-      return unwrapObject<ImpactedAssetStats>(data, 'stats');
+      const stats = unwrapObject<any>(data, 'stats');
+      if (!stats) return null;
+      const pending = stats.pendingAlerts ?? stats.alertsPending ?? 0;
+      const converted = stats.conversions ?? stats.alertsConverted ?? 0;
+      const totalAlerts = stats.totalAlerts ?? (pending + converted);
+      return {
+        totalProperties: stats.totalProperties ?? 0,
+        activeProperties: stats.activeProperties ?? stats.totalProperties ?? 0,
+        pendingAlerts: pending,
+        contactedAlerts: stats.contactedAlerts ?? Math.max(totalAlerts - pending - converted, 0),
+        conversions: converted,
+        conversionRate: stats.conversionRate ?? 0,
+        alertsByType: stats.alertsByType ?? {},
+        alertsBySeverity: stats.alertsBySeverity ?? {},
+        recentAlerts: Array.isArray(stats.recentAlerts) ? stats.recentAlerts : []
+      };
     } catch (error) {
       console.error('[ImpactedAssetAPI] Error getting stats:', error);
       return null;
