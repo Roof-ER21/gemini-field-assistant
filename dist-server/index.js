@@ -4479,14 +4479,28 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
         catch (e) {
             results.push(`⚠️ Distance function: ${e.message}`);
         }
-        // Fix get_neighborhood_intel function - using only core columns that definitely exist
+        // Check actual table columns first
+        try {
+            const cols = await pool.query(`
+        SELECT column_name, data_type FROM information_schema.columns
+        WHERE table_name = 'canvassing_status'
+        ORDER BY ordinal_position
+      `);
+            results.push('📋 canvassing_status columns: ' + cols.rows.map((r) => r.column_name).join(', '));
+        }
+        catch (e) {
+            results.push(`⚠️ Could not check columns: ${e.message}`);
+        }
+        // Drop and recreate with explicit type matching
         try {
             await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(DECIMAL, DECIMAL, DECIMAL)`);
+            await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(numeric, numeric, numeric)`);
+            // Simple function that just returns nearby addresses
             await pool.query(`
-        CREATE FUNCTION get_neighborhood_intel(
-          p_latitude DECIMAL,
-          p_longitude DECIMAL,
-          p_radius_miles DECIMAL DEFAULT 0.5
+        CREATE OR REPLACE FUNCTION get_neighborhood_intel(
+          p_lat DECIMAL,
+          p_lng DECIMAL,
+          p_radius DECIMAL DEFAULT 0.5
         )
         RETURNS TABLE (
           address TEXT,
@@ -4503,30 +4517,28 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
           contact_date TIMESTAMPTZ,
           distance_miles DECIMAL
         ) AS $$
-        BEGIN
-          RETURN QUERY
           SELECT
-            cs.address,
-            cs.status,
-            cs.homeowner_name,
-            cs.phone_number as homeowner_phone,
-            cs.email as homeowner_email,
-            cs.notes as property_notes,
-            NULL::VARCHAR as best_contact_time,
-            NULL::VARCHAR as property_type,
-            NULL::VARCHAR as roof_type,
-            NULL::INTEGER as roof_age_years,
-            cs.contacted_by,
-            cs.contact_date,
-            calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) as distance_miles
-          FROM canvassing_status cs
-          WHERE cs.latitude IS NOT NULL AND cs.longitude IS NOT NULL
-          AND calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) <= p_radius_miles
-          ORDER BY distance_miles ASC;
-        END;
-        $$ LANGUAGE plpgsql
+            address::TEXT,
+            status::VARCHAR,
+            homeowner_name::VARCHAR,
+            phone_number::VARCHAR,
+            email::VARCHAR,
+            notes::TEXT,
+            NULL::VARCHAR,
+            NULL::VARCHAR,
+            NULL::VARCHAR,
+            NULL::INTEGER,
+            contacted_by::UUID,
+            contact_date::TIMESTAMPTZ,
+            calculate_distance_miles(p_lat, p_lng, latitude, longitude)::DECIMAL
+          FROM canvassing_status
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND calculate_distance_miles(p_lat, p_lng, latitude, longitude) <= p_radius
+          ORDER BY calculate_distance_miles(p_lat, p_lng, latitude, longitude);
+        $$ LANGUAGE SQL STABLE
       `);
-            results.push('✅ get_neighborhood_intel function FIXED');
+            results.push('✅ get_neighborhood_intel function FIXED (SQL version)');
         }
         catch (e) {
             results.push(`⚠️ Intel function: ${e.message}`);
