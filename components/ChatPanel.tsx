@@ -8,7 +8,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar, MapPin, MoreHorizontal } from 'lucide-react';
+import { Send, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar, MapPin, MoreHorizontal } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -2927,23 +2927,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
               document.body
             )}
 
-            {/* Voice Input Button */}
-            <button
-              type="button"
-              className={`roof-er-action-btn ${isVoiceRecording ? 'roof-er-bg-red roof-er-text-primary' : ''}`}
-              title="Voice Input"
-              onClick={handleToggleVoiceRecording}
-              disabled={isLoading}
-            >
-              <Mic className="w-5 h-5" />
-            </button>
-
             {/* Send Button - Always visible and prominent */}
             <button
               type="submit"
               className="roof-er-action-btn roof-er-send-btn"
               title="Send Message"
-              disabled={!userInput.trim() || isLoading || isVoiceRecording}
+              disabled={!userInput.trim() || isLoading}
               style={{
                 background: 'var(--roof-red)',
                 color: 'white',
