@@ -30,7 +30,8 @@ import { hailMapsService } from './services/hailMapsService.js';
 const { Pool } = pg;
 const app = express();
 const httpServer = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 8080;
+const HOST = '0.0.0.0';
 
 // Railway runs behind a proxy/load balancer
 app.set('trust proxy', 1);
@@ -5790,7 +5791,7 @@ async function processFeedbackFollowups(): Promise<void> {
   }
 }
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, HOST, () => {
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 
