@@ -138,6 +138,65 @@ const getHeaders = () => {
   };
 };
 
+const unwrapArray = <T>(data: any, key: string): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (data && Array.isArray(data[key])) return data[key] as T[];
+  return [];
+};
+
+const unwrapObject = <T>(data: any, key: string): T | null => {
+  if (!data) return null;
+  if (data[key]) return data[key] as T;
+  return data as T;
+};
+
+const buildNeighborhoodIntel = (entries: any[]): NeighborhoodIntel => {
+  const totalProperties = entries.length;
+  const canvassedProperties = entries.filter(entry => entry?.status && entry.status !== 'not_contacted').length;
+  const interestedStatuses = new Set(['interested', 'lead', 'appointment_set', 'sold']);
+  const interestedProperties = entries.filter(entry => interestedStatuses.has(entry?.status)).length;
+  const leadsCount = entries.filter(entry => entry?.status === 'lead').length;
+
+  const roofAges = entries
+    .map(entry => Number(entry?.roofAgeYears ?? entry?.roof_age_years))
+    .filter(value => Number.isFinite(value) && value > 0);
+  const averageRoofAge = roofAges.length > 0
+    ? Math.round((roofAges.reduce((sum, value) => sum + value, 0) / roofAges.length) * 10) / 10
+    : undefined;
+
+  const roofTypeCounts = new Map<string, number>();
+  entries.forEach(entry => {
+    const roofType = (entry?.roofType ?? entry?.roof_type ?? '').toString().trim();
+    if (!roofType) return;
+    roofTypeCounts.set(roofType, (roofTypeCounts.get(roofType) || 0) + 1);
+  });
+
+  const commonRoofTypes = Array.from(roofTypeCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({ type, count }));
+
+  const hotspots = entries
+    .filter(entry => entry?.address)
+    .slice(0, 10)
+    .map(entry => ({
+      address: entry.address as string,
+      latitude: Number(entry?.latitude ?? entry?.lat ?? 0),
+      longitude: Number(entry?.longitude ?? entry?.lng ?? 0),
+      status: (entry?.status || 'contacted') as CanvassingStatus
+    }));
+
+  return {
+    totalProperties,
+    canvassedProperties,
+    interestedProperties,
+    leadsCount,
+    averageRoofAge,
+    commonRoofTypes,
+    recentActivity: entries as CanvassingEntry[],
+    hotspots
+  };
+};
+
 export const canvassingApi = {
   /**
    * Mark an address with canvassing status
@@ -206,7 +265,8 @@ export const canvassingApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<CanvassingEntry>(data, 'entries');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting area canvassing:', error);
       return [];
@@ -236,7 +296,8 @@ export const canvassingApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<CanvassingEntry>(data, 'entries');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting nearby canvassing:', error);
       return [];
@@ -256,7 +317,8 @@ export const canvassingApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<CanvassingEntry>(data, 'followUps');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting follow-ups:', error);
       return [];
@@ -337,7 +399,8 @@ export const canvassingApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<CanvassingSession>(data, 'sessions');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting session history:', error);
       return [];
@@ -358,7 +421,8 @@ export const canvassingApi = {
         return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapObject<CanvassingStats>(data, 'stats');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting user stats:', error);
       return null;
@@ -371,7 +435,7 @@ export const canvassingApi = {
   async getTeamStats(daysBack: number = 30): Promise<TeamCanvassingStats | null> {
     try {
       const query = new URLSearchParams({ days: daysBack.toString() });
-      const response = await fetch(`${apiBaseUrl}/canvassing/stats/team?${query}`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/team-stats?${query}`, {
         headers: getHeaders()
       });
 
@@ -379,7 +443,8 @@ export const canvassingApi = {
         return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapObject<TeamCanvassingStats>(data, 'stats');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting team stats:', error);
       return null;
@@ -408,7 +473,8 @@ export const canvassingApi = {
         return [];
       }
 
-      return await response.json();
+      const data = await response.json();
+      return unwrapArray<HeatmapPoint>(data, 'heatmap');
     } catch (error) {
       console.error('[CanvassingAPI] Error getting heatmap data:', error);
       return [];
@@ -451,7 +517,7 @@ export const canvassingApi = {
         radius: radiusMiles.toString()
       });
 
-      const response = await fetch(`${apiBaseUrl}/canvassing/intel/neighborhood?${query}`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/intel?${query}`, {
         headers: getHeaders()
       });
 
@@ -459,7 +525,9 @@ export const canvassingApi = {
         return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      const entries = unwrapArray<any>(data, 'intel');
+      return buildNeighborhoodIntel(entries);
     } catch (error) {
       console.error('[CanvassingAPI] Error getting neighborhood intel:', error);
       return null;
@@ -471,7 +539,7 @@ export const canvassingApi = {
    */
   async getTeamIntelStats(): Promise<TeamIntelStats | null> {
     try {
-      const response = await fetch(`${apiBaseUrl}/canvassing/intel/team`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/intel/stats`, {
         headers: getHeaders()
       });
 
@@ -479,7 +547,18 @@ export const canvassingApi = {
         return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      const stats = unwrapObject<any>(data, 'stats');
+      if (!stats) return null;
+      if (stats.totalTeamMembers !== undefined) {
+        return stats as TeamIntelStats;
+      }
+      return {
+        totalTeamMembers: 0,
+        activeToday: 0,
+        topPerformers: [],
+        recentLeads: []
+      };
     } catch (error) {
       console.error('[CanvassingAPI] Error getting team intel stats:', error);
       return null;

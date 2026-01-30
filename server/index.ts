@@ -86,6 +86,8 @@ app.use(helmet({
         "https://generativelanguage.googleapis.com",
         "https://api.groq.com",
         "https://api.together.xyz",
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com",
         "https://api.interactivehailmaps.com",
         "https://maps.interactivehailmaps.com"
       ],

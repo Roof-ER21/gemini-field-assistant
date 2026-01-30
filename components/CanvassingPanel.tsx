@@ -82,12 +82,15 @@ const CanvassingPanel: React.FC = () => {
         canvassingApi.getSessionHistory(10)
       ]);
 
+      const safeFollowUps = Array.isArray(followUpsData) ? followUpsData : [];
+      const safeSessions = Array.isArray(sessionsData) ? sessionsData : [];
+
       setStats(statsData);
-      setFollowUps(followUpsData);
-      setSessions(sessionsData);
+      setFollowUps(safeFollowUps);
+      setSessions(safeSessions);
 
       // Check if there's an active session (no end time)
-      const active = sessionsData.find(s => !s.endTime);
+      const active = safeSessions.find(s => !s.endTime);
       setActiveSession(active || null);
 
       // Get recent activity from nearby (if geolocation available)
@@ -102,7 +105,8 @@ const CanvassingPanel: React.FC = () => {
             lng,
             radiusMiles: 5
           });
-          setRecentActivity(nearby.slice(0, 10));
+          const safeNearby = Array.isArray(nearby) ? nearby : [];
+          setRecentActivity(safeNearby.slice(0, 10));
         });
       }
     } catch (error) {
@@ -282,6 +286,11 @@ const CanvassingPanel: React.FC = () => {
     return `${hours}h ${minutes}m`;
   };
 
+  const contactRate = stats?.contactRate ?? 0;
+  const leadRate = stats?.leadRate ?? 0;
+  const conversionRate = stats?.conversionRate ?? 0;
+  const statusBreakdown = stats?.statusBreakdown ?? {};
+
   if (loading) {
     return (
       <div className="roof-er-content-area">
@@ -379,7 +388,7 @@ const CanvassingPanel: React.FC = () => {
                 {stats.totalContacts}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                {stats.contactRate.toFixed(1)}% contact rate
+                {contactRate.toFixed(1)}% contact rate
               </div>
             </div>
 
@@ -396,7 +405,7 @@ const CanvassingPanel: React.FC = () => {
                 {stats.totalLeads}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                {stats.leadRate.toFixed(1)}% lead rate
+                {leadRate.toFixed(1)}% lead rate
               </div>
             </div>
 
@@ -413,7 +422,7 @@ const CanvassingPanel: React.FC = () => {
                 {stats.totalSales}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                {stats.conversionRate.toFixed(1)}% conversion
+                {conversionRate.toFixed(1)}% conversion
               </div>
             </div>
           </div>
@@ -519,7 +528,7 @@ const CanvassingPanel: React.FC = () => {
               Status Breakdown
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-              {Object.entries(stats.statusBreakdown).map(([status, count]) => (
+              {Object.entries(statusBreakdown).map(([status, count]) => (
                 <div
                   key={status}
                   style={{
