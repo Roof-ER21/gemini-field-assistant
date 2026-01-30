@@ -27,6 +27,11 @@ const config: CapacitorConfig = {
     Keyboard: {
       resize: 'body',
       resizeOnFullScreen: true
+    },
+    // Push Notifications (Firebase Cloud Messaging)
+    PushNotifications: {
+      // Show notifications when app is in foreground
+      presentationOptions: ['badge', 'sound', 'alert']
     }
   }
 };

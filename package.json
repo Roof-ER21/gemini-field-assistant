@@ -38,6 +38,7 @@
     "@capacitor/cli": "^7.4.5",
     "@capacitor/core": "^8.0.1",
     "@capacitor/ios": "^8.0.1",
+    "@capacitor/push-notifications": "^8.0.0",
     "@google/genai": "^1.27.0",
     "audio-recorder-polyfill": "^0.4.1",
     "class-variance-authority": "^0.7.1",
