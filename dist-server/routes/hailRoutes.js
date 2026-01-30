@@ -1,6 +1,51 @@
 import { Router } from 'express';
 import { hailMapsService } from '../services/hailMapsService.js';
 const router = Router();
+/**
+ * Multi-provider geocoding - Census Bureau + Nominatim fallback
+ */
+const geocodeForHailSearch = async (params) => {
+    const { address = '', city = '', state = '', zip = '' } = params;
+    // Try Census Bureau first (best for US addresses)
+    if (address && city && state) {
+        try {
+            const addressLine = `${address}, ${city}, ${state} ${zip}`.trim();
+            const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?` +
+                `address=${encodeURIComponent(addressLine)}&` +
+                `benchmark=Public_AR_Current&format=json`;
+            console.log('🔍 Hail search geocoding with Census Bureau:', addressLine);
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.result?.addressMatches?.length > 0) {
+                const coords = data.result.addressMatches[0].coordinates;
+                console.log('✅ Census geocoding succeeded:', coords);
+                return { lat: coords.y, lng: coords.x };
+            }
+        }
+        catch (e) {
+            console.error('Census geocoding error:', e);
+        }
+    }
+    // Fallback to Nominatim
+    try {
+        const queryParts = [address, city, state, zip].filter(Boolean);
+        const query = queryParts.join(', ');
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
+        console.log('🔍 Hail search geocoding with Nominatim:', query);
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
+        });
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+            console.log('✅ Nominatim geocoding succeeded');
+            return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        }
+    }
+    catch (e) {
+        console.error('Nominatim geocoding error:', e);
+    }
+    return null;
+};
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
     res.json({
@@ -114,32 +159,14 @@ router.post('/search-advanced', async (req, res) => {
         }
         // If we have address/city/state but no zip, geocode first
         if ((address || city) && state && !zip && !lat && !lng) {
-            // Use Nominatim geocoding to get coordinates
-            const geocodeQuery = address
-                ? `${address}, ${city || ''}, ${state}`.trim()
-                : `${city}, ${state}`.trim();
-            try {
-                const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQuery)}&format=json&limit=1`;
-                const geocodeResponse = await fetch(geocodeUrl, {
-                    headers: {
-                        'User-Agent': 'RoofER-GeminiFieldAssistant/1.0'
-                    }
-                });
-                if (!geocodeResponse.ok) {
-                    return res.status(400).json({ error: 'Failed to geocode address. Please provide ZIP code or coordinates.' });
-                }
-                const geocodeData = await geocodeResponse.json();
-                if (!geocodeData || geocodeData.length === 0) {
-                    return res.status(400).json({ error: 'Address not found. Please provide ZIP code or coordinates.' });
-                }
-                lat = parseFloat(geocodeData[0].lat);
-                lng = parseFloat(geocodeData[0].lon);
-                console.log(`✅ Geocoded "${geocodeQuery}" to ${lat}, ${lng}`);
+            // Use multi-provider geocoding (Census Bureau + Nominatim fallback)
+            const geocodeResult = await geocodeForHailSearch({ address, city, state });
+            if (!geocodeResult) {
+                return res.status(400).json({ error: 'Address not found. Try adding a ZIP code for better results.' });
             }
-            catch (geocodeError) {
-                console.error('❌ Geocoding error:', geocodeError);
-                return res.status(400).json({ error: 'Failed to geocode address. Please provide ZIP code or coordinates.' });
-            }
+            lat = geocodeResult.lat;
+            lng = geocodeResult.lng;
+            console.log(`✅ Geocoded "${address}, ${city}, ${state}" to ${lat}, ${lng}`);
         }
         // Search by coordinates
         if (lat && lng) {
