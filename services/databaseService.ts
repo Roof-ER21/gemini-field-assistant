@@ -492,7 +492,8 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API call
+    // Note: Sessions are automatically saved via individual message saves
+    // The backend groups messages by session_id when retrieving
   }
 
   async getChatSessions(limit: number = 20): Promise<ChatSession[]> {
@@ -510,7 +511,26 @@ export class DatabaseService {
       return sessions.slice(0, limit);
     }
 
-    // TODO: Implement API endpoint for sessions if needed
+    try {
+      const email = this.getAuthEmail();
+      const response = await fetch(`${this.apiBaseUrl}/chat/sessions?limit=${limit}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+
+      if (response.ok) {
+        const sessions = await response.json();
+        console.log('[DB] ✅ Loaded', sessions.length, 'chat sessions from database');
+        return sessions;
+      } else {
+        console.error('[DB] ❌ Failed to load sessions - HTTP', response.status);
+      }
+    } catch (error) {
+      console.error('[DB] ❌ Error loading sessions:', (error as Error).message);
+    }
+
     return [];
   }
 
@@ -521,7 +541,29 @@ export class DatabaseService {
       return sessions[sessionId] || null;
     }
 
-    // TODO: Implement API endpoint for a single session if needed
+    try {
+      const email = this.getAuthEmail();
+      const response = await fetch(`${this.apiBaseUrl}/chat/sessions/${sessionId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+
+      if (response.ok) {
+        const session = await response.json();
+        console.log('[DB] ✅ Loaded session', sessionId, 'with', session.messages?.length, 'messages');
+        return session;
+      } else if (response.status === 404) {
+        console.warn('[DB] ⚠️ Session not found:', sessionId);
+        return null;
+      } else {
+        console.error('[DB] ❌ Failed to load session - HTTP', response.status);
+      }
+    } catch (error) {
+      console.error('[DB] ❌ Error loading session:', (error as Error).message);
+    }
+
     return null;
   }
 
@@ -534,7 +576,25 @@ export class DatabaseService {
       return;
     }
 
-    // TODO: Implement API endpoint for deletion if needed
+    try {
+      const email = this.getAuthEmail();
+      const response = await fetch(`${this.apiBaseUrl}/chat/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(email ? { 'x-user-email': email } : {}),
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DB] ✅ Deleted session', sessionId, '- removed', result.deleted, 'messages');
+      } else {
+        console.error('[DB] ❌ Failed to delete session - HTTP', response.status);
+      }
+    } catch (error) {
+      console.error('[DB] ❌ Error deleting session:', (error as Error).message);
+    }
   }
 
   async exportChatSession(sessionId: string, format: 'json' | 'txt' = 'json'): Promise<string> {
