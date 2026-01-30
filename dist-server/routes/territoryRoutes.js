@@ -42,6 +42,69 @@ router.get('/', async (req, res) => {
     }
 });
 /**
+ * GET /api/territories/leaderboard
+ * Get territory performance leaderboard
+ * NOTE: Must be before /:id to avoid being caught by parameterized route
+ */
+router.get('/leaderboard', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const service = createTerritoryService(pool);
+        const leaderboard = await service.getLeaderboard();
+        res.json({ success: true, leaderboard });
+    }
+    catch (error) {
+        console.error('❌ Error getting leaderboard:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+/**
+ * GET /api/territories/find
+ * Find territory containing a point
+ * NOTE: Must be before /:id to avoid being caught by parameterized route
+ */
+router.get('/find', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const { lat, lng } = req.query;
+        if (!lat || !lng) {
+            return res.status(400).json({ error: 'lat and lng query parameters are required' });
+        }
+        const service = createTerritoryService(pool);
+        const territory = await service.findTerritoryByPoint(parseFloat(lat), parseFloat(lng));
+        res.json({ success: true, territory });
+    }
+    catch (error) {
+        console.error('❌ Error finding territory:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+/**
+ * GET /api/territories/active-checkin
+ * Get the user's active check-in
+ * NOTE: Must be before /:id to avoid being caught by parameterized route
+ */
+router.get('/active-checkin', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const userEmail = req.headers['x-user-email'];
+        if (!userEmail) {
+            return res.status(401).json({ error: 'User email required' });
+        }
+        const userId = await getUserIdFromEmail(pool, userEmail);
+        if (!userId) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const service = createTerritoryService(pool);
+        const checkIn = await service.getActiveCheckIn(userId);
+        res.json({ success: true, checkIn });
+    }
+    catch (error) {
+        console.error('❌ Error getting active check-in:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+/**
  * GET /api/territories/:id
  * Get a specific territory
  */
@@ -203,75 +266,6 @@ router.post('/check-out/:checkInId', async (req, res) => {
     }
     catch (error) {
         console.error('❌ Error checking out:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-/**
- * GET /api/territories/active-checkin
- * Get the user's active check-in
- */
-router.get('/active-checkin', async (req, res) => {
-    try {
-        const pool = getPool(req);
-        const userEmail = req.headers['x-user-email'];
-        if (!userEmail) {
-            return res.status(401).json({ error: 'User email required' });
-        }
-        const userId = await getUserIdFromEmail(pool, userEmail);
-        if (!userId) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        const service = createTerritoryService(pool);
-        const checkIn = await service.getActiveCheckIn(userId);
-        res.json({
-            success: true,
-            checkIn,
-        });
-    }
-    catch (error) {
-        console.error('❌ Error getting active check-in:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-/**
- * GET /api/territories/leaderboard
- * Get territory performance leaderboard
- */
-router.get('/leaderboard', async (req, res) => {
-    try {
-        const pool = getPool(req);
-        const service = createTerritoryService(pool);
-        const leaderboard = await service.getLeaderboard();
-        res.json({
-            success: true,
-            leaderboard,
-        });
-    }
-    catch (error) {
-        console.error('❌ Error getting leaderboard:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-/**
- * GET /api/territories/find
- * Find territory containing a point
- */
-router.get('/find', async (req, res) => {
-    try {
-        const pool = getPool(req);
-        const { lat, lng } = req.query;
-        if (!lat || !lng) {
-            return res.status(400).json({ error: 'lat and lng query parameters are required' });
-        }
-        const service = createTerritoryService(pool);
-        const territory = await service.findTerritoryByPoint(parseFloat(lat), parseFloat(lng));
-        res.json({
-            success: true,
-            territory,
-        });
-    }
-    catch (error) {
-        console.error('❌ Error finding territory:', error);
         res.status(500).json({ error: error.message });
     }
 });
