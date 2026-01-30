@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygo
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
-import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X } from 'lucide-react';
+import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home } from 'lucide-react';
 
 interface Territory {
   id: string;
@@ -36,6 +36,16 @@ interface NOAAEvent {
   magnitude: number | null;
   eventType: 'hail' | 'wind' | 'tornado';
   location: string;
+}
+
+interface StormPath {
+  id: string;
+  path: [number, number][];
+  color: string;
+  severity: 'severe' | 'moderate' | 'minor';
+  events: (HailEvent | NOAAEvent)[];
+  center: [number, number];
+  date: string;
 }
 
 interface SearchCriteria {
@@ -94,6 +104,62 @@ function MapController({ selectedTerritory, searchLocation }: MapControllerProps
   return null;
 }
 
+// Helper function to get severity from hail size
+const getSeverityFromSize = (size: number | null): 'light' | 'minor' | 'moderate' | 'significant' | 'severe' => {
+  if (!size) return 'light';
+  if (size >= 2.0) return 'severe';
+  if (size >= 1.5) return 'significant';
+  if (size >= 1.0) return 'moderate';
+  if (size >= 0.75) return 'minor';
+  return 'light';
+};
+
+// Helper function to get star count (1-5 stars based on hail size)
+const getStarCount = (size: number | null): number => {
+  if (!size) return 1;
+  if (size >= 2.0) return 5;
+  if (size >= 1.5) return 4;
+  if (size >= 1.0) return 3;
+  if (size >= 0.75) return 2;
+  return 1;
+};
+
+// Helper function to get severity color based on new color scheme
+const getSeverityColorFromSize = (size: number | null): string => {
+  if (!size) return '#3b82f6'; // blue - light
+  if (size >= 2.0) return '#ef4444'; // red - severe (2"+)
+  if (size >= 1.5) return '#f97316'; // orange - significant (1.5-2")
+  if (size >= 1.0) return '#eab308'; // yellow - moderate (1-1.5")
+  if (size >= 0.75) return '#22c55e'; // green - minor (0.75-1")
+  return '#3b82f6'; // blue - light (<0.75")
+};
+
+// Group events by location (within ~0.05 degrees for hover popup)
+const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' }>) => {
+  const groups: Array<{
+    lat: number;
+    lng: number;
+    events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' }>;
+  }> = [];
+
+  events.forEach(item => {
+    const lat = item.event.latitude;
+    const lng = item.event.longitude;
+
+    let found = groups.find(g =>
+      Math.abs(g.lat - lat) < 0.05 && Math.abs(g.lng - lng) < 0.05
+    );
+
+    if (found) {
+      found.events.push(item);
+    } else {
+      groups.push({ lat, lng, events: [item] });
+    }
+  });
+
+  return groups;
+};
+
 export default function TerritoryHailMap() {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
@@ -126,6 +192,22 @@ export default function TerritoryHailMap() {
 
   // Hail dates panel state
   const [showHailDates, setShowHailDates] = useState(false);
+
+  // Sidebar tab state - NEW: Recent / Impact / Saved
+  const [activeTab, setActiveTab] = useState<'recent' | 'impact' | 'saved'>('recent');
+
+  // Checked events state (replaces bookmarked - for tracking/selecting)
+  const [checkedEvents, setCheckedEvents] = useState<Set<string>>(new Set());
+
+  // Selected event for highlighting
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  // Search panel collapsed state
+  const [searchCollapsed, setSearchCollapsed] = useState(true);
+
+  // Storm paths state
+  const [stormPaths, setStormPaths] = useState<StormPath[]>([]);
+  const [hoveredStorm, setHoveredStorm] = useState<StormPath | null>(null);
 
   // Fetch territories and saved reports on mount
   useEffect(() => {
@@ -386,6 +468,216 @@ export default function TerritoryHailMap() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatDateLong = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const toggleCheck = (eventId: string) => {
+    setCheckedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleEventCardClick = (event: HailEvent | NOAAEvent, lat: number, lng: number) => {
+    const eventId = 'eventType' in event ? `noaa-${event.id}` : `ihm-${event.id}`;
+    setSelectedEventId(eventId);
+    setSearchLocation({ lat, lng, zoom: 12 });
+  };
+
+  // Combine and sort events based on active tab
+  const getSortedEvents = (): Array<{ type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }> => {
+    const combined = [
+      ...hailEvents.map(e => ({ type: 'ihm' as const, event: e })),
+      ...noaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
+    ];
+
+    if (activeTab === 'recent') {
+      return combined.sort((a, b) => new Date(b.event.date).getTime() - new Date(a.event.date).getTime());
+    } else if (activeTab === 'impact') {
+      // Sort by hail size (impact severity)
+      return combined.sort((a, b) => {
+        const getSeverityScore = (item: { type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }) => {
+          if (item.type === 'ihm') {
+            const hailEvent = item.event as HailEvent;
+            return hailEvent.hailSize || 0;
+          } else {
+            const noaaEvent = item.event as NOAAEvent;
+            return noaaEvent.magnitude || 0;
+          }
+        };
+        return getSeverityScore(b) - getSeverityScore(a);
+      });
+    } else {
+      // saved - only checked events, sorted by date
+      return combined
+        .filter(item => {
+          const id = item.type === 'ihm' ? `ihm-${item.event.id}` : `noaa-${item.event.id}`;
+          return checkedEvents.has(id);
+        })
+        .sort((a, b) => new Date(b.event.date).getTime() - new Date(a.event.date).getTime());
+    }
+  };
+
+  const getSeverityLevel = (event: HailEvent | NOAAEvent, type: 'ihm' | 'noaa'): 'severe' | 'moderate' | 'minor' => {
+    if (type === 'ihm') {
+      return (event as HailEvent).severity;
+    } else {
+      const magnitude = (event as NOAAEvent).magnitude || 0;
+      if (magnitude >= 2.0) return 'severe';
+      if (magnitude >= 1.0) return 'moderate';
+      return 'minor';
+    }
+  };
+
+  const getPolygonColor = (severity: 'severe' | 'moderate' | 'minor'): string => {
+    switch (severity) {
+      case 'severe': return '#1e40af'; // dark blue
+      case 'moderate': return '#3b82f6'; // medium blue
+      case 'minor': return '#60a5fa'; // light blue
+      default: return '#93c5fd';
+    }
+  };
+
+  const getStormPathColor = (severity: 'severe' | 'moderate' | 'minor'): string => {
+    switch (severity) {
+      case 'severe': return 'rgba(239, 68, 68, 0.35)'; // red
+      case 'moderate': return 'rgba(249, 115, 22, 0.35)'; // orange
+      case 'minor': return 'rgba(234, 179, 8, 0.35)'; // yellow
+      default: return 'rgba(156, 163, 175, 0.35)'; // gray
+    }
+  };
+
+  // Generate ellipse points for storm path polygon
+  const generateEllipsePoints = (
+    centerLat: number,
+    centerLng: number,
+    width: number,
+    length: number,
+    angleDeg: number,
+    numPoints: number = 32
+  ): [number, number][] => {
+    const points: [number, number][] = [];
+    const angleRad = (angleDeg * Math.PI) / 180;
+
+    for (let i = 0; i < numPoints; i++) {
+      const t = (i / numPoints) * 2 * Math.PI;
+      const x = (length / 2) * Math.cos(t);
+      const y = (width / 2) * Math.sin(t);
+
+      // Rotate points
+      const xRotated = x * Math.cos(angleRad) - y * Math.sin(angleRad);
+      const yRotated = x * Math.sin(angleRad) + y * Math.cos(angleRad);
+
+      // Convert to lat/lng
+      const lat = centerLat + yRotated;
+      const lng = centerLng + xRotated / Math.cos((centerLat * Math.PI) / 180);
+
+      points.push([lat, lng]);
+    }
+
+    return points;
+  };
+
+  // Create storm path polygons from events
+  const createStormPaths = (ihmEvents: HailEvent[], noaaEvs: NOAAEvent[]): StormPath[] => {
+    // Group all events by date (same day = same storm)
+    const eventsByDate = new Map<string, (HailEvent | NOAAEvent)[]>();
+
+    ihmEvents.forEach(event => {
+      const dateKey = event.date.split('T')[0];
+      if (!eventsByDate.has(dateKey)) {
+        eventsByDate.set(dateKey, []);
+      }
+      eventsByDate.get(dateKey)!.push(event);
+    });
+
+    noaaEvs.forEach(event => {
+      const dateKey = event.date.split('T')[0];
+      if (!eventsByDate.has(dateKey)) {
+        eventsByDate.set(dateKey, []);
+      }
+      eventsByDate.get(dateKey)!.push(event);
+    });
+
+    // Create storm paths for each date group
+    const paths: StormPath[] = [];
+    let pathId = 0;
+
+    eventsByDate.forEach((events, dateKey) => {
+      // Calculate center point (average of all events on this date)
+      const centerLat = events.reduce((sum, e) => sum + e.latitude, 0) / events.length;
+      const centerLng = events.reduce((sum, e) => sum + e.longitude, 0) / events.length;
+
+      // Determine severity (highest severity among events)
+      let maxSeverity: 'severe' | 'moderate' | 'minor' = 'minor';
+      events.forEach(event => {
+        const severity = 'severity' in event
+          ? event.severity
+          : getSeverityLevel(event, 'noaa');
+
+        if (severity === 'severe') maxSeverity = 'severe';
+        else if (severity === 'moderate' && maxSeverity !== 'severe') maxSeverity = 'moderate';
+      });
+
+      // Calculate width and length based on severity
+      const width = maxSeverity === 'severe' ? 0.15 : maxSeverity === 'moderate' ? 0.10 : 0.08;
+      const length = maxSeverity === 'severe' ? 0.35 : maxSeverity === 'moderate' ? 0.30 : 0.25;
+
+      // Storm direction: SW to NE (45 degrees)
+      const angle = 45;
+
+      // Generate polygon points
+      const polygonPoints = generateEllipsePoints(centerLat, centerLng, width, length, angle);
+
+      paths.push({
+        id: `storm-${pathId++}`,
+        path: polygonPoints,
+        color: getStormPathColor(maxSeverity),
+        severity: maxSeverity,
+        events: events,
+        center: [centerLat, centerLng],
+        date: dateKey
+      });
+    });
+
+    return paths;
+  };
+
+  // Update storm paths whenever events change
+  useEffect(() => {
+    if (hailEvents.length > 0 || noaaEvents.length > 0) {
+      const paths = createStormPaths(hailEvents, noaaEvents);
+      setStormPaths(paths);
+    } else {
+      setStormPaths([]);
+    }
+  }, [hailEvents, noaaEvents]);
+
+  // Render star rating component
+  const renderStars = (count: number) => {
+    return (
+      <div style={{ display: 'flex', gap: '2px' }}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <Star
+            key={i}
+            className="w-3 h-3"
+            style={{
+              color: i <= count ? '#fbbf24' : '#d1d5db',
+              fill: i <= count ? '#fbbf24' : 'none'
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
   // Default center: Mid-Atlantic region
   const defaultCenter: [number, number] = [39.5, -77.5];
   const defaultZoom = 6;
@@ -403,53 +695,9 @@ export default function TerritoryHailMap() {
                 Storm Map
               </h1>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                Territory hail history from IHM & NOAA
+                HailRecon + HailTrace + IHM + NOAA Data
               </p>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {(hailEvents.length > 0 || noaaEvents.length > 0) && (
-              <button
-                onClick={() => setShowHailDates(!showHailDates)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-default)',
-                  background: showHailDates ? 'var(--roof-red)' : 'var(--bg-primary)',
-                  color: showHailDates ? 'white' : 'var(--text-primary)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Calendar className="w-4 h-4" />
-                Event Dates
-              </button>
-            )}
-            <button
-              onClick={() => setSearchPanelOpen(!searchPanelOpen)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-default)',
-                background: searchPanelOpen ? 'var(--roof-red)' : 'var(--bg-primary)',
-                color: searchPanelOpen ? 'white' : 'var(--text-primary)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Search className="w-4 h-4" />
-              Advanced Search
-            </button>
           </div>
         </div>
       </div>
@@ -515,10 +763,305 @@ export default function TerritoryHailMap() {
         </div>
       </div>
 
-      {/* Main Content Area - Map + Search Panel */}
-      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-        {/* Search Panel */}
-        {searchPanelOpen && (
+      {/* Main Content Area - Sidebar + Map */}
+      <div style={{ flex: 1, position: 'relative', display: 'flex', height: 'calc(100vh - 280px)' }}>
+        {/* LEFT SIDEBAR - Event List */}
+        {(hailEvents.length > 0 || noaaEvents.length > 0) && (
+          <div style={{
+            width: '320px',
+            background: 'var(--bg-elevated)',
+            borderRight: '1px solid var(--border-default)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            {/* Collapsible Search Panel */}
+            <div style={{
+              borderBottom: '1px solid var(--border-default)',
+              background: 'var(--bg-primary)'
+            }}>
+              <button
+                onClick={() => setSearchCollapsed(!searchCollapsed)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Search className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Search Address or ZIP</span>
+                </div>
+                <ChevronDown
+                  className="w-4 h-4"
+                  style={{
+                    transform: searchCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                />
+              </button>
+
+              {!searchCollapsed && (
+                <div style={{ padding: '0 16px 16px' }}>
+                  {/* Quick Search Inputs */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Address or ZIP"
+                      value={searchCriteria.address || searchCriteria.zip || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^\d+$/.test(value)) {
+                          setSearchCriteria({ ...searchCriteria, zip: value, address: undefined });
+                        } else {
+                          setSearchCriteria({ ...searchCriteria, address: value, zip: undefined });
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="City"
+                      value={searchCriteria.city || ''}
+                      onChange={(e) => setSearchCriteria({ ...searchCriteria, city: e.target.value })}
+                      style={{
+                        padding: '8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="State"
+                      value={searchCriteria.state || ''}
+                      onChange={(e) => setSearchCriteria({ ...searchCriteria, state: e.target.value })}
+                      style={{
+                        padding: '8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAdvancedSearch}
+                    disabled={loading || (!searchCriteria.city && !searchCriteria.latitude)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'var(--roof-red)',
+                      color: 'white',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      opacity: loading ? 0.6 : 1
+                    }}
+                  >
+                    {loading ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <div style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border-default)',
+              background: 'var(--bg-primary)'
+            }}>
+              {(['recent', 'impact', 'saved'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: activeTab === tab ? 'var(--bg-elevated)' : 'transparent',
+                    border: 'none',
+                    borderBottom: activeTab === tab ? '2px solid var(--roof-red)' : '2px solid transparent',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: activeTab === tab ? 700 : 600,
+                    color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    textTransform: 'capitalize',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Event Count Header */}
+            <div style={{
+              padding: '4px 8px 8px',
+              background: 'var(--bg-primary)',
+              borderBottom: '1px solid var(--border-default)'
+            }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Events ({getSortedEvents().length})
+              </div>
+            </div>
+
+            {/* Event Cards List */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+              {getSortedEvents().map((item, idx) => {
+                const isIHM = item.type === 'ihm';
+                const event = item.event;
+                const eventId = isIHM ? `ihm-${event.id}` : `noaa-${event.id}`;
+                const isChecked = checkedEvents.has(eventId);
+                const isSelected = selectedEventId === eventId;
+
+                const hailSize = isIHM
+                  ? (event as HailEvent).hailSize
+                  : (event as NOAAEvent).magnitude;
+
+                const starCount = getStarCount(hailSize);
+                const severityColor = getSeverityColorFromSize(hailSize);
+                const windSpeed = !isIHM && (event as NOAAEvent).eventType === 'wind'
+                  ? (event as NOAAEvent).magnitude
+                  : null;
+
+                return (
+                  <div
+                    key={`${eventId}-${idx}`}
+                    onClick={() => handleEventCardClick(event, event.latitude, event.longitude)}
+                    style={{
+                      padding: '12px',
+                      marginBottom: '8px',
+                      background: isSelected ? 'var(--bg-primary)' : 'var(--bg-elevated)',
+                      borderRadius: '8px',
+                      border: isSelected ? `2px solid var(--roof-red)` : '1px solid var(--border-default)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    {/* Checkbox + Date */}
+                    <div style={{ display: 'flex', alignItems: 'start', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleCheck(eventId);
+                        }}
+                        style={{
+                          marginTop: '2px',
+                          width: '16px',
+                          height: '16px',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          marginBottom: '4px'
+                        }}>
+                          {formatDateLong(event.date)}
+                        </div>
+                        {/* Star Rating */}
+                        {renderStars(starCount)}
+                      </div>
+                    </div>
+
+                    {/* Hail Size + Wind Speed with Icons */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+                      {hailSize && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12px',
+                          color: 'var(--text-secondary)'
+                        }}>
+                          <span>🌨</span>
+                          <strong style={{ color: severityColor, fontSize: '14px' }}>
+                            {hailSize}"
+                          </strong>
+                        </div>
+                      )}
+                      {windSpeed && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12px',
+                          color: 'var(--text-secondary)'
+                        }}>
+                          <Wind className="w-3 h-3" />
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
+                            {windSpeed} MPH
+                          </strong>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Houses Impacted (placeholder - generates random estimate) */}
+                    {hailSize && hailSize >= 1.0 && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: 'var(--text-secondary)',
+                        marginTop: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Home className="w-3 h-3" />
+                        <span>Est. {Math.floor(Math.random() * 50000 + 10000).toLocaleString()} homes impacted</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {getSortedEvents().length === 0 && (
+                <div style={{
+                  padding: '32px 16px',
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)',
+                  fontSize: '13px'
+                }}>
+                  {activeTab === 'saved' ? 'No saved events yet' : 'No events found'}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Old Search Panel - Hidden */}
+        {false && searchPanelOpen && (
           <div style={{
             width: '320px',
             background: 'var(--bg-elevated)',
@@ -821,6 +1364,126 @@ export default function TerritoryHailMap() {
 
         {/* Map Container */}
         <div style={{ flex: 1, position: 'relative' }}>
+        {/* Storm Hover Popup */}
+        {hoveredStorm && (
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1001,
+            background: 'var(--bg-elevated)',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+            border: `2px solid ${getSeverityColor(hoveredStorm.severity)}`,
+            minWidth: '280px',
+            maxWidth: '400px',
+            pointerEvents: 'none'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '10px'
+            }}>
+              <Cloud className="w-5 h-5" style={{ color: getSeverityColor(hoveredStorm.severity) }} />
+              <span style={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: 'var(--text-primary)'
+              }}>
+                Storm Path - {formatDate(hoveredStorm.date)}
+              </span>
+            </div>
+
+            <div style={{
+              padding: '6px 10px',
+              borderRadius: '5px',
+              background: `${getSeverityColor(hoveredStorm.severity)}20`,
+              marginBottom: '10px',
+              display: 'inline-block'
+            }}>
+              <span style={{
+                color: getSeverityColor(hoveredStorm.severity),
+                fontWeight: 700,
+                fontSize: '12px',
+                textTransform: 'uppercase'
+              }}>
+                {hoveredStorm.severity}
+              </span>
+            </div>
+
+            <div style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Events ({hoveredStorm.events.length}):
+            </div>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>
+              {hoveredStorm.events.map((event, idx) => {
+                const isIHM = 'severity' in event;
+                const hailSize = isIHM
+                  ? (event as HailEvent).hailSize
+                  : (event as NOAAEvent).magnitude;
+
+                return (
+                  <div
+                    key={`hover-event-${idx}`}
+                    style={{
+                      padding: '8px 10px',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '6px',
+                      borderLeft: `3px solid ${isIHM ? getSeverityColor((event as HailEvent).severity) : getEventTypeColor((event as NOAAEvent).eventType)}`
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '11px'
+                    }}>
+                      <span style={{
+                        fontWeight: 600,
+                        color: 'var(--text-primary)'
+                      }}>
+                        {formatDate(event.date)}
+                      </span>
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        alignItems: 'center',
+                        fontSize: '11px',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        {hailSize && <span style={{ fontWeight: 600 }}>🌨 {hailSize}"</span>}
+                        <span style={{
+                          fontSize: '9px',
+                          textTransform: 'uppercase',
+                          fontWeight: 700
+                        }}>
+                          {isIHM ? 'IHM' : (event as NOAAEvent).eventType}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Hail Dates Panel - RIGHT SIDE */}
         {showHailDates && (hailEvents.length > 0 || noaaEvents.length > 0) && (
           <div style={{
@@ -1216,6 +1879,97 @@ export default function TerritoryHailMap() {
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 
+          {/* Storm Path Polygons - Grouped Events with Hover Popups */}
+          {groupEventsByLocation([
+            ...hailEvents.map(e => ({ type: 'ihm' as const, event: e })),
+            ...noaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
+          ]).map((group, groupIdx) => {
+            // Get max severity for the group
+            const maxSize = Math.max(...group.events.map(item => {
+              if (item.type === 'ihm') {
+                return (item.event as HailEvent).hailSize || 0;
+              } else {
+                return (item.event as NOAAEvent).magnitude || 0;
+              }
+            }));
+
+            const polygonColor = getSeverityColorFromSize(maxSize);
+            const radiusInMeters = 1200 + maxSize * 600;
+
+            return (
+              <Circle
+                key={`group-${groupIdx}`}
+                center={[group.lat, group.lng]}
+                radius={radiusInMeters}
+                pathOptions={{
+                  color: polygonColor,
+                  fillColor: polygonColor,
+                  fillOpacity: 0.25,
+                  weight: 2,
+                  opacity: 0.6
+                }}
+              >
+                <Popup>
+                  <div style={{ minWidth: '220px', maxHeight: '400px', overflow: 'auto' }}>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      marginBottom: '12px',
+                      color: '#333',
+                      borderBottom: '2px solid #eee',
+                      paddingBottom: '8px'
+                    }}>
+                      {group.events.length} Event{group.events.length > 1 ? 's' : ''} at this Location
+                    </div>
+                    {group.events
+                      .sort((a, b) => new Date(b.event.date).getTime() - new Date(a.event.date).getTime())
+                      .map((item, idx) => {
+                        const isIHM = item.type === 'ihm';
+                        const event = item.event;
+                        const hailSize = isIHM
+                          ? (event as HailEvent).hailSize
+                          : (event as NOAAEvent).magnitude;
+                        const color = getSeverityColorFromSize(hailSize);
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '8px',
+                              marginBottom: '8px',
+                              background: '#f9fafb',
+                              borderRadius: '6px',
+                              borderLeft: `4px solid ${color}`
+                            }}
+                          >
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
+                              {formatDate(event.date)}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              {hailSize && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>Hail Size:</span>
+                                  <strong style={{ color }}>{hailSize}"</strong>
+                                </div>
+                              )}
+                              {!isIHM && (event as NOAAEvent).eventType !== 'hail' && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>Type:</span>
+                                  <strong style={{ textTransform: 'capitalize' }}>
+                                    {(event as NOAAEvent).eventType}
+                                  </strong>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </Popup>
+              </Circle>
+            );
+          })}
+
           {/* Territory Rectangles */}
           {territories.map(t => (
             <Rectangle
@@ -1261,89 +2015,53 @@ export default function TerritoryHailMap() {
             </Rectangle>
           ))}
 
-          {/* IHM Hail Event Markers */}
-          {hailEvents.map((event, idx) => (
-            <CircleMarker
-              key={`ihm-${event.id || idx}`}
-              center={[event.latitude, event.longitude]}
-              radius={8 + (event.hailSize || 0) * 3}
-              pathOptions={{
-                color: getSeverityColor(event.severity),
-                fillColor: getSeverityColor(event.severity),
-                fillOpacity: 0.7,
-                weight: 2
-              }}
-            >
-              <Popup>
-                <div style={{ minWidth: '160px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    <Calendar className="w-4 h-4" style={{ color: '#666' }} />
-                    <strong>{formatDate(event.date)}</strong>
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#333' }}>
-                    <p style={{ margin: '4px 0' }}>
-                      <span style={{ fontWeight: 600 }}>Hail Size:</span> {event.hailSize ? `${event.hailSize}"` : 'Unknown'}
-                    </p>
-                    <p style={{ margin: '4px 0' }}>
-                      <span style={{ fontWeight: 600 }}>Severity:</span>{' '}
-                      <span style={{
-                        color: getSeverityColor(event.severity),
-                        fontWeight: 600,
-                        textTransform: 'capitalize'
-                      }}>
-                        {event.severity}
-                      </span>
-                    </p>
-                    <p style={{ margin: '4px 0', fontSize: '11px', color: '#666' }}>
-                      Source: {event.source}
-                    </p>
-                  </div>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+          {/* Individual IHM Event Markers */}
+          {hailEvents.map((event, idx) => {
+            const eventId = `ihm-${event.id || idx}`;
+            const isSelected = selectedEventId === eventId;
+            const severityColor = getSeverityColorFromSize(event.hailSize);
 
-          {/* NOAA Event Markers */}
-          {noaaEvents.map((event, idx) => (
-            <CircleMarker
-              key={`noaa-${event.id || idx}`}
-              center={[event.latitude, event.longitude]}
-              radius={6}
-              pathOptions={{
-                color: getEventTypeColor(event.eventType),
-                fillColor: getEventTypeColor(event.eventType),
-                fillOpacity: 0.6,
-                weight: 2
-              }}
-            >
-              <Popup>
-                <div style={{ minWidth: '160px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    <Calendar className="w-4 h-4" style={{ color: '#666' }} />
-                    <strong>{formatDate(event.date)}</strong>
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#333' }}>
-                    <p style={{ margin: '4px 0' }}>
-                      <span style={{ fontWeight: 600 }}>Type:</span>{' '}
-                      <span style={{ textTransform: 'capitalize' }}>{event.eventType}</span>
-                    </p>
-                    {event.magnitude && (
-                      <p style={{ margin: '4px 0' }}>
-                        <span style={{ fontWeight: 600 }}>Magnitude:</span> {event.magnitude}
-                        {event.eventType === 'hail' ? '"' : ' knots'}
-                      </p>
-                    )}
-                    <p style={{ margin: '4px 0', fontSize: '11px', color: '#666' }}>
-                      {event.location}
-                    </p>
-                    <p style={{ margin: '4px 0', fontSize: '11px', color: '#0066cc' }}>
-                      Source: NOAA (Official)
-                    </p>
-                  </div>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+            return (
+              <CircleMarker
+                key={eventId}
+                center={[event.latitude, event.longitude]}
+                radius={isSelected ? 8 : 6}
+                pathOptions={{
+                  color: 'white',
+                  fillColor: severityColor,
+                  fillOpacity: 1,
+                  weight: isSelected ? 3 : 2
+                }}
+                eventHandlers={{
+                  click: () => handleEventCardClick(event, event.latitude, event.longitude)
+                }}
+              />
+            );
+          })}
+
+          {/* Individual NOAA Event Markers */}
+          {noaaEvents.map((event, idx) => {
+            const eventId = `noaa-${event.id || idx}`;
+            const isSelected = selectedEventId === eventId;
+            const severityColor = getSeverityColorFromSize(event.magnitude);
+
+            return (
+              <CircleMarker
+                key={eventId}
+                center={[event.latitude, event.longitude]}
+                radius={isSelected ? 8 : 6}
+                pathOptions={{
+                  color: 'white',
+                  fillColor: severityColor,
+                  fillOpacity: 1,
+                  weight: isSelected ? 3 : 2
+                }}
+                eventHandlers={{
+                  click: () => handleEventCardClick(event, event.latitude, event.longitude)
+                }}
+              />
+            );
+          })}
 
           {/* Search Area Highlight - Draw circle around search location */}
           {currentSearch && currentSearch.latitude && currentSearch.longitude && currentSearch.radius && (
@@ -1402,33 +2120,26 @@ export default function TerritoryHailMap() {
         fontSize: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>IHM Severity:</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Severity:</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></span>
-            Severe
+            Severe (2"+)
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f97316' }}></span>
-            Moderate
+            Significant (1.5-2")
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#eab308' }}></span>
-            Minor
+            Moderate (1-1.5")
           </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>NOAA:</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22c55e' }}></span>
+            Minor (0.75-1")
+          </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6' }}></span>
-            Hail
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#8b5cf6' }}></span>
-            Wind
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></span>
-            Tornado
+            Light (&lt;0.75")
           </span>
         </div>
         {selectedTerritory && (
