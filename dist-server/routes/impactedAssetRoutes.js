@@ -199,7 +199,9 @@ router.post('/properties', async (req, res) => {
         const service = createImpactedAssetService(pool);
         const property = await service.addCustomerProperty({
             userId,
-            ...req.body
+            ...req.body,
+            latitude, // Use geocoded values (or provided values)
+            longitude
         });
         console.log(`✅ Added customer property: ${customerName} at ${address}`);
         res.json({
