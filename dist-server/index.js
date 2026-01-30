@@ -4344,6 +4344,94 @@ app.post('/api/admin/run-migration-006', async (req, res) => {
         });
     }
 });
+// Migration 031-033: Hail Reports & Territory Fixes
+app.post('/api/admin/run-migration-031-033', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const isAdminUser = await isAdmin(email);
+        if (!isAdminUser) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        console.log('🔧 Running Migrations 031-033: Hail Reports & Territory Fixes...');
+        const results = [];
+        // Migration 031: Hail Reports Table
+        try {
+            await pool.query(`
+        CREATE TABLE IF NOT EXISTS hail_reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          search_criteria JSONB NOT NULL,
+          results_count INTEGER DEFAULT 0,
+          ihm_events_count INTEGER DEFAULT 0,
+          noaa_events_count INTEGER DEFAULT 0,
+          max_hail_size DECIMAL(4, 2),
+          avg_hail_size DECIMAL(4, 2),
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          last_accessed_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_hail_reports_user ON hail_reports(user_id);
+        CREATE INDEX IF NOT EXISTS idx_hail_reports_created ON hail_reports(created_at DESC);
+      `);
+            results.push('✅ Migration 031: hail_reports table created');
+        }
+        catch (e) {
+            results.push(`⚠️ Migration 031: ${e.message}`);
+        }
+        // Migration 032: Fix Duplicate Territories
+        try {
+            // Delete duplicates, keeping oldest
+            await pool.query(`
+        WITH duplicates AS (
+          SELECT id, name, ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at ASC) as rn
+          FROM territories WHERE archived_at IS NULL
+        )
+        DELETE FROM territories WHERE id IN (SELECT id FROM duplicates WHERE rn > 1)
+      `);
+            // Add unique constraint if not exists
+            await pool.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'territories_name_unique') THEN
+            ALTER TABLE territories ADD CONSTRAINT territories_name_unique UNIQUE (name);
+          END IF;
+        END $$;
+      `);
+            const countResult = await pool.query(`SELECT COUNT(*) FROM territories WHERE archived_at IS NULL`);
+            results.push(`✅ Migration 032: Territory duplicates fixed (${countResult.rows[0].count} unique territories)`);
+        }
+        catch (e) {
+            results.push(`⚠️ Migration 032: ${e.message}`);
+        }
+        // Migration 033: Hail Knowledge for Susan
+        try {
+            await pool.query(`
+        CREATE TABLE IF NOT EXISTS hail_knowledge (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          report_id UUID REFERENCES hail_reports(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          embedding_text TEXT,
+          location_name VARCHAR(255),
+          date_range VARCHAR(100),
+          event_count INTEGER,
+          max_severity VARCHAR(20),
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_hail_knowledge_report ON hail_knowledge(report_id);
+      `);
+            results.push('✅ Migration 033: hail_knowledge table created');
+        }
+        catch (e) {
+            results.push(`⚠️ Migration 033: ${e.message}`);
+        }
+        console.log('✅ Migrations 031-033 completed');
+        res.json({ success: true, results });
+    }
+    catch (error) {
+        console.error('❌ Migrations 031-033 failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // 2. Get budget overview stats (admin only)
 app.get('/api/admin/budget/overview', async (req, res) => {
     try {
