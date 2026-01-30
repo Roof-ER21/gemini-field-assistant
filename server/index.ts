@@ -464,6 +464,118 @@ app.get('/api/version', (req, res) => {
   });
 });
 
+// ============================================================================
+// AI GENERATION ENDPOINT - Server-side AI generation for production
+// ============================================================================
+
+app.post('/api/ai/generate', async (req, res) => {
+  try {
+    const { messages, options } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    // Try providers in order: Groq (fastest), Together, Gemini, HuggingFace
+    let content = '';
+    let provider = '';
+    let model = '';
+
+    // Convert messages to the format each provider expects
+    const formattedMessages = messages.map((m: any) => ({
+      role: m.role || 'user',
+      content: m.content || ''
+    }));
+
+    // Try Groq first (fastest)
+    if (groqKey) {
+      try {
+        content = await callGroq(formattedMessages);
+        provider = 'groq';
+        model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+      } catch (groqError) {
+        console.warn('[AI] Groq failed, trying next provider:', (groqError as Error).message);
+      }
+    }
+
+    // Try Together next
+    if (!content && togetherKey) {
+      try {
+        content = await callTogether(formattedMessages);
+        provider = 'together';
+        model = process.env.TOGETHER_MODEL || 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo';
+      } catch (togetherError) {
+        console.warn('[AI] Together failed, trying next provider:', (togetherError as Error).message);
+      }
+    }
+
+    // Try Gemini
+    if (!content && geminiKey) {
+      try {
+        // Gemini takes a simple prompt, combine messages
+        const prompt = formattedMessages.map((m: any) =>
+          `${m.role === 'system' ? 'Instructions: ' : m.role === 'user' ? 'User: ' : 'Assistant: '}${m.content}`
+        ).join('\n\n');
+        content = await callGemini(prompt);
+        provider = 'gemini';
+        model = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+      } catch (geminiError) {
+        console.warn('[AI] Gemini failed:', (geminiError as Error).message);
+      }
+    }
+
+    // Try HuggingFace as last resort
+    if (!content && hfKey) {
+      try {
+        const hfResponse = await fetch('https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${hfKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: formattedMessages.map((m: any) => m.content).join('\n'),
+            parameters: { max_new_tokens: 1024, temperature: 0.7 }
+          }),
+          signal: AbortSignal.timeout(60000)
+        });
+
+        if (hfResponse.ok) {
+          const hfData = await hfResponse.json();
+          content = hfData[0]?.generated_text || '';
+          provider = 'huggingface';
+          model = 'meta-llama/Llama-3.2-3B-Instruct';
+        }
+      } catch (hfError) {
+        console.warn('[AI] HuggingFace failed:', (hfError as Error).message);
+      }
+    }
+
+    if (!content) {
+      return res.status(503).json({
+        error: 'No AI providers available. Please check server configuration.',
+        providers: {
+          groq: Boolean(groqKey),
+          together: Boolean(togetherKey),
+          gemini: Boolean(geminiKey),
+          huggingface: Boolean(hfKey)
+        }
+      });
+    }
+
+    res.json({
+      content,
+      provider,
+      model,
+      tokensUsed: content.length // Rough estimate
+    });
+
+  } catch (error) {
+    console.error('[AI] Generation error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Register hail history routes early to avoid proxy ordering issues
 app.use('/api/hail', hailRoutes);
 

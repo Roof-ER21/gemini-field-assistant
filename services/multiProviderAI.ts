@@ -2,9 +2,12 @@
  * Multi-Provider AI Service
  * Supports: Groq, Together AI, Ollama (local), Hugging Face, and Gemini (fallback)
  * Smart routing based on task type and availability
+ *
+ * In production, AI generation is routed through the backend API to keep API keys secure.
  */
 
 import { env } from '../src/config/env';
+import { getApiBaseUrl } from './config';
 import { GoogleGenAI } from '@google/genai';
 
 export interface AIMessage {
@@ -83,12 +86,20 @@ export class MultiProviderAI {
 
   /**
    * Generate AI response with automatic provider selection
+   * In production, routes through backend API for security
    */
   async generate(messages: AIMessage[], options?: {
     provider?: AIProvider;
     temperature?: number;
     maxTokens?: number;
   }): Promise<AIResponse> {
+    // In production (Capacitor/Railway), use backend API for AI generation
+    // This keeps API keys secure on the server
+    if (this.isProductionMode()) {
+      return await this.generateViaBackend(messages, options);
+    }
+
+    // Local development - direct API calls (requires local env vars)
     const provider = options?.provider || await this.selectBestProvider();
 
     try {
@@ -111,6 +122,47 @@ export class MultiProviderAI {
       // Fallback to next available provider
       return await this.generateWithFallback(messages, provider, options);
     }
+  }
+
+  /**
+   * Check if running in production mode (Capacitor app or non-localhost)
+   */
+  private isProductionMode(): boolean {
+    // Check for Capacitor native environment
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      return true;
+    }
+    // Check for non-localhost (Railway deployment)
+    if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Generate AI response via backend API (production mode)
+   */
+  private async generateViaBackend(messages: AIMessage[], options?: any): Promise<AIResponse> {
+    const response = await fetch(`${getApiBaseUrl()}/ai/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ messages, options }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Backend AI error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      content: data.content,
+      provider: data.provider,
+      model: data.model,
+      tokensUsed: data.tokensUsed,
+    };
   }
 
   /**
@@ -384,8 +436,29 @@ export class MultiProviderAI {
 
   /**
    * Get available providers
+   * In production, queries the backend for actual provider status
    */
   async getAvailableProviders(): Promise<AIProvider[]> {
+    // In production, get provider status from backend
+    if (this.isProductionMode()) {
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/providers/status`);
+        if (response.ok) {
+          const status = await response.json();
+          const available: AIProvider[] = [];
+          if (status.groq) available.push('groq');
+          if (status.together) available.push('together');
+          if (status.huggingface) available.push('huggingface');
+          if (status.gemini) available.push('gemini');
+          console.log('[AI] Backend providers:', available);
+          return available;
+        }
+      } catch (error) {
+        console.warn('[AI] Could not fetch provider status from backend:', error);
+      }
+    }
+
+    // Local development - check local env vars
     const available: AIProvider[] = [];
 
     if (await this.isOllamaAvailable()) available.push('ollama');
