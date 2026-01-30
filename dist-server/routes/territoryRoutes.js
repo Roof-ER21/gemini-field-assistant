@@ -15,6 +15,49 @@ const getUserIdFromEmail = async (pool, email) => {
 };
 const router = Router();
 /**
+ * Auto-seed default territories if none exist
+ */
+async function seedDefaultTerritories(pool) {
+    // Check if default territories exist
+    const check = await pool.query("SELECT COUNT(*) FROM territories WHERE name IN ('DMV', 'PA', 'RA')");
+    if (parseInt(check.rows[0].count) >= 3) {
+        return; // Already seeded
+    }
+    console.log('🌱 Seeding default territories: DMV, PA, RA...');
+    const territories = [
+        {
+            name: 'DMV',
+            description: 'Northern Virginia & Maryland metro area',
+            color: '#3b82f6',
+            north_lat: 39.5, south_lat: 38.5,
+            east_lng: -76.5, west_lng: -77.5,
+            center_lat: 39.0, center_lng: -77.0
+        },
+        {
+            name: 'PA',
+            description: 'Pennsylvania state coverage',
+            color: '#22c55e',
+            north_lat: 42.3, south_lat: 39.7,
+            east_lng: -74.7, west_lng: -80.5,
+            center_lat: 41.0, center_lng: -77.5
+        },
+        {
+            name: 'RA',
+            description: 'Richmond, Virginia metro area',
+            color: '#f59e0b',
+            north_lat: 37.8, south_lat: 37.3,
+            east_lng: -77.2, west_lng: -77.7,
+            center_lat: 37.55, center_lng: -77.45
+        }
+    ];
+    for (const t of territories) {
+        await pool.query(`INSERT INTO territories (id, name, description, color, north_lat, south_lat, east_lng, west_lng, center_lat, center_lng, is_shared, created_at, updated_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW(), NOW())
+       ON CONFLICT DO NOTHING`, [t.name, t.description, t.color, t.north_lat, t.south_lat, t.east_lng, t.west_lng, t.center_lat, t.center_lng]);
+    }
+    console.log('✅ Default territories seeded');
+}
+/**
  * GET /api/territories
  * Get all territories for the authenticated user
  */
@@ -29,6 +72,8 @@ router.get('/', async (req, res) => {
         if (!userId) {
             return res.status(404).json({ error: 'User not found' });
         }
+        // Auto-seed default territories if needed
+        await seedDefaultTerritories(pool);
         const service = createTerritoryService(pool);
         const territories = await service.getUserTerritories(userId);
         res.json({

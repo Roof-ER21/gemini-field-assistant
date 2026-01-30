@@ -107,7 +107,7 @@ export function createTerritoryService(pool: Pool) {
       LEFT JOIN users u ON t.owner_id = u.id
       LEFT JOIN territory_assignments ta ON t.id = ta.territory_id AND ta.user_id = $1
       WHERE t.archived_at IS NULL
-      AND (t.owner_id = $1 OR ta.user_id = $1)
+      AND (t.owner_id = $1 OR ta.user_id = $1 OR t.is_shared = true)
       ORDER BY t.name`,
       [userId]
     );
