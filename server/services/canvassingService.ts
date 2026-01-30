@@ -20,7 +20,8 @@ export type CanvassingStatus =
   | 'interested'
   | 'lead'
   | 'appointment_set'
-  | 'sold';
+  | 'sold'
+  | 'customer';
 
 export interface CanvassingEntry {
   id: string;
@@ -45,6 +46,16 @@ export interface CanvassingEntry {
   lastAttemptDate?: string;
   relatedStormEventId?: string;
   territory?: string;
+  // Neighborhood Intel fields
+  homeownerPhone?: string;
+  homeownerEmail?: string;
+  propertyNotes?: string;
+  bestContactTime?: string;
+  propertyType?: string;
+  roofType?: string;
+  roofAgeYears?: number;
+  autoMonitor?: boolean;
+  linkedPropertyId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,6 +115,16 @@ export class CanvassingService {
     relatedStormEventId?: string;
     territory?: string;
     sessionId?: string;
+    // Neighborhood Intel fields
+    homeownerPhone?: string;
+    homeownerEmail?: string;
+    propertyNotes?: string;
+    bestContactTime?: string;
+    propertyType?: string;
+    roofType?: string;
+    roofAgeYears?: number;
+    autoMonitor?: boolean;
+    linkedPropertyId?: string;
   }): Promise<CanvassingEntry> {
     const {
       address,
@@ -124,7 +145,17 @@ export class CanvassingService {
       followUpNotes,
       relatedStormEventId,
       territory,
-      sessionId
+      sessionId,
+      // Neighborhood Intel fields
+      homeownerPhone,
+      homeownerEmail,
+      propertyNotes,
+      bestContactTime,
+      propertyType,
+      roofType,
+      roofAgeYears,
+      autoMonitor,
+      linkedPropertyId
     } = params;
 
     // Upsert the canvassing status
@@ -133,8 +164,10 @@ export class CanvassingService {
         address, status, contacted_by, contact_date, contact_method,
         street_address, city, state, zip_code, latitude, longitude,
         homeowner_name, phone_number, email, notes,
-        follow_up_date, follow_up_notes, related_storm_event_id, territory
-      ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        follow_up_date, follow_up_notes, related_storm_event_id, territory,
+        homeowner_phone, homeowner_email, property_notes, best_contact_time,
+        property_type, roof_type, roof_age_years, auto_monitor, linked_property_id
+      ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       ON CONFLICT (address, team_id)
       DO UPDATE SET
         status = EXCLUDED.status,
@@ -147,6 +180,15 @@ export class CanvassingService {
         notes = COALESCE(EXCLUDED.notes, canvassing_status.notes),
         follow_up_date = COALESCE(EXCLUDED.follow_up_date, canvassing_status.follow_up_date),
         follow_up_notes = COALESCE(EXCLUDED.follow_up_notes, canvassing_status.follow_up_notes),
+        homeowner_phone = COALESCE(EXCLUDED.homeowner_phone, canvassing_status.homeowner_phone),
+        homeowner_email = COALESCE(EXCLUDED.homeowner_email, canvassing_status.homeowner_email),
+        property_notes = COALESCE(EXCLUDED.property_notes, canvassing_status.property_notes),
+        best_contact_time = COALESCE(EXCLUDED.best_contact_time, canvassing_status.best_contact_time),
+        property_type = COALESCE(EXCLUDED.property_type, canvassing_status.property_type),
+        roof_type = COALESCE(EXCLUDED.roof_type, canvassing_status.roof_type),
+        roof_age_years = COALESCE(EXCLUDED.roof_age_years, canvassing_status.roof_age_years),
+        auto_monitor = COALESCE(EXCLUDED.auto_monitor, canvassing_status.auto_monitor),
+        linked_property_id = COALESCE(EXCLUDED.linked_property_id, canvassing_status.linked_property_id),
         updated_at = NOW()
       RETURNING *`,
       [
@@ -167,7 +209,17 @@ export class CanvassingService {
         followUpDate || null,
         followUpNotes || null,
         relatedStormEventId || null,
-        territory || null
+        territory || null,
+        // Neighborhood Intel fields
+        homeownerPhone || null,
+        homeownerEmail || null,
+        propertyNotes || null,
+        bestContactTime || null,
+        propertyType || null,
+        roofType || null,
+        roofAgeYears || null,
+        autoMonitor !== undefined ? autoMonitor : true,
+        linkedPropertyId || null
       ]
     );
 
@@ -569,6 +621,106 @@ export class CanvassingService {
   }
 
   // ============================================================================
+  // NEIGHBORHOOD INTEL
+  // ============================================================================
+
+  /**
+   * Get neighborhood intelligence for an area
+   */
+  async getNeighborhoodIntel(
+    latitude: number,
+    longitude: number,
+    radiusMiles: number = 0.5
+  ): Promise<Array<{
+    address: string;
+    status: string;
+    homeownerName?: string;
+    homeownerPhone?: string;
+    homeownerEmail?: string;
+    propertyNotes?: string;
+    bestContactTime?: string;
+    propertyType?: string;
+    roofType?: string;
+    roofAgeYears?: number;
+    contactedBy?: string;
+    contactDate?: string;
+    distanceMiles: number;
+  }>> {
+    const result = await this.pool.query(
+      `SELECT * FROM get_neighborhood_intel($1, $2, $3)`,
+      [latitude, longitude, radiusMiles]
+    );
+
+    return result.rows.map(row => ({
+      address: row.address,
+      status: row.status,
+      homeownerName: row.homeowner_name || undefined,
+      homeownerPhone: row.homeowner_phone || undefined,
+      homeownerEmail: row.homeowner_email || undefined,
+      propertyNotes: row.property_notes || undefined,
+      bestContactTime: row.best_contact_time || undefined,
+      propertyType: row.property_type || undefined,
+      roofType: row.roof_type || undefined,
+      roofAgeYears: row.roof_age_years || undefined,
+      contactedBy: row.contacted_by || undefined,
+      contactDate: row.contact_date || undefined,
+      distanceMiles: parseFloat(row.distance_miles)
+    }));
+  }
+
+  /**
+   * Get team-wide neighborhood intel statistics
+   */
+  async getTeamIntelStats(): Promise<{
+    totalTrackedProperties: number;
+    propertiesWithIntel: number;
+    avgRoofAge: number;
+    commonRoofTypes: Array<{ roofType: string; count: number }>;
+    statusBreakdown: Array<{ status: string; count: number }>;
+  }> {
+    const statsResult = await this.pool.query(`
+      SELECT
+        COUNT(*) as total_tracked,
+        COUNT(CASE WHEN homeowner_name IS NOT NULL THEN 1 END) as with_intel,
+        ROUND(AVG(roof_age_years), 1) as avg_roof_age
+      FROM canvassing_status
+      WHERE status NOT IN ('not_contacted', 'no_answer')
+    `);
+
+    const roofTypesResult = await this.pool.query(`
+      SELECT roof_type, COUNT(*) as count
+      FROM canvassing_status
+      WHERE roof_type IS NOT NULL
+      GROUP BY roof_type
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+
+    const statusResult = await this.pool.query(`
+      SELECT status, COUNT(*) as count
+      FROM canvassing_status
+      GROUP BY status
+      ORDER BY count DESC
+    `);
+
+    const stats = statsResult.rows[0];
+
+    return {
+      totalTrackedProperties: parseInt(stats.total_tracked) || 0,
+      propertiesWithIntel: parseInt(stats.with_intel) || 0,
+      avgRoofAge: parseFloat(stats.avg_roof_age) || 0,
+      commonRoofTypes: roofTypesResult.rows.map(row => ({
+        roofType: row.roof_type,
+        count: parseInt(row.count)
+      })),
+      statusBreakdown: statusResult.rows.map(row => ({
+        status: row.status,
+        count: parseInt(row.count)
+      }))
+    };
+  }
+
+  // ============================================================================
   // BULK OPERATIONS
   // ============================================================================
 
@@ -618,6 +770,16 @@ export class CanvassingService {
       lastAttemptDate: row.last_attempt_date || undefined,
       relatedStormEventId: row.related_storm_event_id || undefined,
       territory: row.territory || undefined,
+      // Neighborhood Intel fields
+      homeownerPhone: row.homeowner_phone || undefined,
+      homeownerEmail: row.homeowner_email || undefined,
+      propertyNotes: row.property_notes || undefined,
+      bestContactTime: row.best_contact_time || undefined,
+      propertyType: row.property_type || undefined,
+      roofType: row.roof_type || undefined,
+      roofAgeYears: row.roof_age_years || undefined,
+      autoMonitor: row.auto_monitor !== undefined ? row.auto_monitor : undefined,
+      linkedPropertyId: row.linked_property_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };

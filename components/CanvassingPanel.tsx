@@ -20,14 +20,22 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Home
+  Home,
+  Plus,
+  X,
+  Lightbulb,
+  BarChart3,
+  Building,
+  Building2
 } from 'lucide-react';
 import {
   canvassingApi,
   CanvassingEntry,
   CanvassingSession,
   CanvassingStats,
-  CanvassingStatus
+  CanvassingStatus,
+  NeighborhoodIntel,
+  TeamIntelStats
 } from '../services/canvassingApi';
 
 const CanvassingPanel: React.FC = () => {
@@ -37,7 +45,29 @@ const CanvassingPanel: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<CanvassingEntry[]>([]);
   const [sessions, setSessions] = useState<CanvassingSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'followups' | 'activity' | 'sessions'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'followups' | 'activity' | 'sessions' | 'intel'>('overview');
+
+  // Homeowner data entry modal state
+  const [showHomeownerModal, setShowHomeownerModal] = useState(false);
+  const [homeownerData, setHomeownerData] = useState({
+    address: '',
+    status: 'contacted' as CanvassingStatus,
+    homeownerName: '',
+    phoneNumber: '',
+    email: '',
+    notes: '',
+    propertyNotes: '',
+    bestContactTime: '',
+    propertyType: 'residential' as 'residential' | 'commercial' | 'multi-family',
+    roofType: '',
+    roofAgeYears: undefined as number | undefined,
+    autoMonitor: true
+  });
+
+  // Intel data
+  const [neighborhoodIntel, setNeighborhoodIntel] = useState<NeighborhoodIntel | null>(null);
+  const [teamIntel, setTeamIntel] = useState<TeamIntelStats | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -63,9 +93,13 @@ const CanvassingPanel: React.FC = () => {
       // Get recent activity from nearby (if geolocation available)
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCurrentLocation({ lat, lng });
+
           const nearby = await canvassingApi.getNearbyCanvassing({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+            lat,
+            lng,
             radiusMiles: 5
           });
           setRecentActivity(nearby.slice(0, 10));
@@ -77,6 +111,28 @@ const CanvassingPanel: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const fetchIntelData = async () => {
+    if (!currentLocation) return;
+
+    try {
+      const [neighborhood, team] = await Promise.all([
+        canvassingApi.getNeighborhoodIntel(currentLocation.lat, currentLocation.lng, 0.5),
+        canvassingApi.getTeamIntelStats()
+      ]);
+
+      setNeighborhoodIntel(neighborhood);
+      setTeamIntel(team);
+    } catch (error) {
+      console.error('Error fetching intel data:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedTab === 'intel' && currentLocation) {
+      fetchIntelData();
+    }
+  }, [selectedTab, currentLocation]);
 
   const handleStartSession = async () => {
     if (navigator.geolocation) {
@@ -124,6 +180,53 @@ const CanvassingPanel: React.FC = () => {
 
   const handleTextContact = (phoneNumber: string) => {
     window.location.href = `sms:${phoneNumber.replace(/[^0-9]/g, '')}`;
+  };
+
+  const handleOpenHomeownerModal = () => {
+    // Get current location for auto-filling address
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        setCurrentLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      });
+    }
+    setShowHomeownerModal(true);
+  };
+
+  const handleSaveHomeownerData = async () => {
+    if (!homeownerData.address) {
+      alert('Please enter an address');
+      return;
+    }
+
+    const result = await canvassingApi.markAddress({
+      ...homeownerData,
+      latitude: currentLocation?.lat,
+      longitude: currentLocation?.lng
+    });
+
+    if (result) {
+      setShowHomeownerModal(false);
+      // Reset form
+      setHomeownerData({
+        address: '',
+        status: 'contacted',
+        homeownerName: '',
+        phoneNumber: '',
+        email: '',
+        notes: '',
+        propertyNotes: '',
+        bestContactTime: '',
+        propertyType: 'residential',
+        roofType: '',
+        roofAgeYears: undefined,
+        autoMonitor: true
+      });
+      // Refresh data
+      fetchData();
+    }
   };
 
   const getStatusColor = (status: CanvassingStatus): string => {
@@ -318,15 +421,36 @@ const CanvassingPanel: React.FC = () => {
 
         {/* Quick Actions */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+          <button
+            onClick={handleOpenHomeownerModal}
+            style={{
+              flex: 1,
+              padding: '14px',
+              background: 'var(--roof-red)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            <Plus className="w-5 h-5" />
+            Mark Address
+          </button>
           {!activeSession && (
             <button
               onClick={handleStartSession}
               style={{
                 flex: 1,
                 padding: '14px',
-                background: 'var(--roof-red)',
-                color: 'white',
-                border: 'none',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -365,8 +489,8 @@ const CanvassingPanel: React.FC = () => {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)' }}>
-          {(['overview', 'followups', 'activity', 'sessions'] as const).map((tab) => (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', overflowX: 'auto' }}>
+          {(['overview', 'followups', 'activity', 'sessions', 'intel'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
@@ -379,7 +503,8 @@ const CanvassingPanel: React.FC = () => {
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                textTransform: 'capitalize'
+                textTransform: 'capitalize',
+                whiteSpace: 'nowrap'
               }}
             >
               {tab === 'followups' ? `Follow-ups (${followUps.length})` : tab}
@@ -663,7 +788,569 @@ const CanvassingPanel: React.FC = () => {
             )}
           </div>
         )}
+
+        {selectedTab === 'intel' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Lightbulb className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+              <h3 style={{ fontSize: '18px', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
+                Neighborhood Intelligence
+              </h3>
+            </div>
+
+            {!currentLocation ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
+                Enable location services to view neighborhood intel
+              </div>
+            ) : !neighborhoodIntel ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                Loading intelligence data...
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Neighborhood Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: '14px'
+                  }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Total Properties</div>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {neighborhoodIntel.totalProperties}
+                    </div>
+                  </div>
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: '14px'
+                  }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Canvassed</div>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6' }}>
+                      {neighborhoodIntel.canvassedProperties}
+                    </div>
+                  </div>
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: '14px'
+                  }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Interested</div>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>
+                      {neighborhoodIntel.interestedProperties}
+                    </div>
+                  </div>
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: '14px'
+                  }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Active Leads</div>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--roof-red)' }}>
+                      {neighborhoodIntel.leadsCount}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Common Roof Types */}
+                {neighborhoodIntel.commonRoofTypes.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Building2 className="w-4 h-4" />
+                      Common Roof Types
+                    </h4>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {neighborhoodIntel.commonRoofTypes.map((roof, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-default)',
+                            borderRadius: '6px',
+                            padding: '8px 14px',
+                            fontSize: '13px'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{roof.type}</span>
+                          <span style={{ color: 'var(--text-tertiary)', marginLeft: '6px' }}>({roof.count})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Team Intel */}
+                {teamIntel && (
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users className="w-4 h-4" />
+                      Team Performance
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '8px',
+                        padding: '12px'
+                      }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Team Members</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {teamIntel.totalTeamMembers}
+                        </div>
+                      </div>
+                      <div style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '8px',
+                        padding: '12px'
+                      }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Active Today</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981' }}>
+                          {teamIntel.activeToday}
+                        </div>
+                      </div>
+                    </div>
+                    {teamIntel.topPerformers.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Top Performers</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {teamIntel.topPerformers.slice(0, 3).map((performer, idx) => (
+                            <div
+                              key={performer.userId}
+                              style={{
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border-subtle)',
+                                borderRadius: '6px',
+                                padding: '10px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {idx + 1}. {performer.name}
+                              </div>
+                              <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                <span>{performer.doorsKnocked} doors</span>
+                                <span style={{ color: 'var(--roof-red)' }}>{performer.leads} leads</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recent Activity Hotspots */}
+                {neighborhoodIntel.hotspots.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Target className="w-4 h-4" />
+                      Activity Hotspots
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {neighborhoodIntel.hotspots.slice(0, 5).map((hotspot, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '6px',
+                            padding: '10px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                            {hotspot.address}
+                          </div>
+                          <div
+                            style={{
+                              padding: '3px 8px',
+                              background: getStatusColor(hotspot.status),
+                              color: 'white',
+                              borderRadius: '10px',
+                              fontSize: '10px',
+                              fontWeight: 600
+                            }}
+                          >
+                            {hotspot.status.replace(/_/g, ' ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Homeowner Data Entry Modal */}
+      {showHomeownerModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowHomeownerModal(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
+              border: '1px solid #262626',
+              borderRadius: '16px',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid #262626',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                Mark Address
+              </h3>
+              <button
+                onClick={() => setShowHomeownerModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Address */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Address *
+                </label>
+                <input
+                  type="text"
+                  value={homeownerData.address}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, address: e.target.value })}
+                  placeholder="123 Main St"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Status *
+                </label>
+                <select
+                  value={homeownerData.status}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, status: e.target.value as CanvassingStatus })}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="contacted">Contacted</option>
+                  <option value="no_answer">No Answer</option>
+                  <option value="not_interested">Not Interested</option>
+                  <option value="interested">Interested</option>
+                  <option value="lead">Lead</option>
+                  <option value="appointment_set">Appointment Set</option>
+                  <option value="return_visit">Return Visit</option>
+                  <option value="sold">Sold</option>
+                </select>
+              </div>
+
+              {/* Homeowner Name */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Homeowner Name
+                </label>
+                <input
+                  type="text"
+                  value={homeownerData.homeownerName}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, homeownerName: e.target.value })}
+                  placeholder="John Doe"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={homeownerData.phoneNumber}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, phoneNumber: e.target.value })}
+                  placeholder="(555) 123-4567"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={homeownerData.email}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, email: e.target.value })}
+                  placeholder="john@example.com"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Property Type */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Property Type
+                </label>
+                <select
+                  value={homeownerData.propertyType}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, propertyType: e.target.value as 'residential' | 'commercial' | 'multi-family' })}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="multi-family">Multi-Family</option>
+                </select>
+              </div>
+
+              {/* Roof Type */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Roof Type
+                </label>
+                <input
+                  type="text"
+                  value={homeownerData.roofType}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, roofType: e.target.value })}
+                  placeholder="Asphalt Shingles"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Roof Age */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Roof Age (Years)
+                </label>
+                <input
+                  type="number"
+                  value={homeownerData.roofAgeYears || ''}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, roofAgeYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                  placeholder="10"
+                  min="0"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Best Contact Time */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Best Contact Time
+                </label>
+                <input
+                  type="text"
+                  value={homeownerData.bestContactTime}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, bestContactTime: e.target.value })}
+                  placeholder="Weekdays after 5pm"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                  Notes
+                </label>
+                <textarea
+                  value={homeownerData.notes}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, notes: e.target.value })}
+                  placeholder="Additional notes..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              {/* Auto Monitor Checkbox */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="autoMonitor"
+                  checked={homeownerData.autoMonitor}
+                  onChange={(e) => setHomeownerData({ ...homeownerData, autoMonitor: e.target.checked })}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer'
+                  }}
+                />
+                <label htmlFor="autoMonitor" style={{ fontSize: '14px', color: '#ffffff', cursor: 'pointer' }}>
+                  Auto-monitor for storms
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button
+                  onClick={() => setShowHomeownerModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveHomeownerData}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

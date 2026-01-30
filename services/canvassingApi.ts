@@ -38,6 +38,13 @@ export interface CanvassingEntry {
   attemptCount: number;
   createdAt: string;
   updatedAt: string;
+  // Extended homeowner fields
+  propertyNotes?: string;
+  bestContactTime?: string;
+  propertyType?: 'residential' | 'commercial' | 'multi-family';
+  roofType?: string;
+  roofAgeYears?: number;
+  autoMonitor?: boolean;
 }
 
 export interface CanvassingSession {
@@ -83,6 +90,37 @@ export interface TeamCanvassingStats extends CanvassingStats {
   recentActivity: CanvassingEntry[];
 }
 
+export interface NeighborhoodIntel {
+  totalProperties: number;
+  canvassedProperties: number;
+  interestedProperties: number;
+  leadsCount: number;
+  averageRoofAge?: number;
+  commonRoofTypes: Array<{
+    type: string;
+    count: number;
+  }>;
+  recentActivity: CanvassingEntry[];
+  hotspots: Array<{
+    address: string;
+    latitude: number;
+    longitude: number;
+    status: CanvassingStatus;
+  }>;
+}
+
+export interface TeamIntelStats {
+  totalTeamMembers: number;
+  activeToday: number;
+  topPerformers: Array<{
+    userId: string;
+    name: string;
+    doorsKnocked: number;
+    leads: number;
+  }>;
+  recentLeads: CanvassingEntry[];
+}
+
 export interface HeatmapPoint {
   latitude: number;
   longitude: number;
@@ -117,6 +155,12 @@ export const canvassingApi = {
     email?: string;
     notes?: string;
     followUpDate?: string;
+    propertyNotes?: string;
+    bestContactTime?: string;
+    propertyType?: 'residential' | 'commercial' | 'multi-family';
+    roofType?: string;
+    roofAgeYears?: number;
+    autoMonitor?: boolean;
   }): Promise<CanvassingEntry | null> {
     try {
       const response = await fetch(`${apiBaseUrl}/canvassing/mark`, {
@@ -393,6 +437,52 @@ export const canvassingApi = {
     } catch (error) {
       console.error('[CanvassingAPI] Error updating entry:', error);
       return false;
+    }
+  },
+
+  /**
+   * Get neighborhood intelligence data
+   */
+  async getNeighborhoodIntel(lat: number, lng: number, radiusMiles: number = 0.5): Promise<NeighborhoodIntel | null> {
+    try {
+      const query = new URLSearchParams({
+        lat: lat.toString(),
+        lng: lng.toString(),
+        radius: radiusMiles.toString()
+      });
+
+      const response = await fetch(`${apiBaseUrl}/canvassing/intel/neighborhood?${query}`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[CanvassingAPI] Error getting neighborhood intel:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Get team intelligence stats
+   */
+  async getTeamIntelStats(): Promise<TeamIntelStats | null> {
+    try {
+      const response = await fetch(`${apiBaseUrl}/canvassing/intel/team`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[CanvassingAPI] Error getting team intel stats:', error);
+      return null;
     }
   }
 };

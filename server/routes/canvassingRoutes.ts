@@ -49,6 +49,16 @@ const getUserIdFromEmail = async (pool: Pool, email: string): Promise<string | n
  *   relatedStormEventId?: string;
  *   territory?: string;
  *   sessionId?: string;
+ *   // Neighborhood Intel fields
+ *   homeownerPhone?: string;
+ *   homeownerEmail?: string;
+ *   propertyNotes?: string;
+ *   bestContactTime?: string;
+ *   propertyType?: string;
+ *   roofType?: string;
+ *   roofAgeYears?: number;
+ *   autoMonitor?: boolean;
+ *   linkedPropertyId?: string;
  * }
  */
 router.post('/mark', async (req: Request, res: Response) => {
@@ -81,7 +91,8 @@ router.post('/mark', async (req: Request, res: Response) => {
       'interested',
       'lead',
       'appointment_set',
-      'sold'
+      'sold',
+      'customer'
     ];
 
     if (!validStatuses.includes(status)) {
@@ -494,6 +505,91 @@ router.get('/heatmap', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting heatmap:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/canvassing/intel
+ * Get neighborhood intelligence for an area
+ *
+ * Query params:
+ * - lat: number (required)
+ * - lng: number (required)
+ * - radius: number (miles, default: 0.5)
+ */
+router.get('/intel', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { lat, lng, radius = '0.5' } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'lat and lng query parameters are required' });
+    }
+
+    const latitude = parseFloat(lat as string);
+    const longitude = parseFloat(lng as string);
+    const radiusMiles = parseFloat(radius as string);
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMiles)) {
+      return res.status(400).json({ error: 'Invalid latitude, longitude, or radius' });
+    }
+
+    const service = createCanvassingService(pool);
+
+    const intel = await service.getNeighborhoodIntel(latitude, longitude, radiusMiles);
+
+    res.json({
+      success: true,
+      count: intel.length,
+      radiusMiles,
+      intel
+    });
+  } catch (error) {
+    console.error('❌ Error getting neighborhood intel:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/canvassing/intel/stats
+ * Get team-wide neighborhood intel statistics
+ */
+router.get('/intel/stats', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const service = createCanvassingService(pool);
+
+    const stats = await service.getTeamIntelStats();
+
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('❌ Error getting intel stats:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
