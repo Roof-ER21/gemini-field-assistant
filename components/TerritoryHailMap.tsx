@@ -391,7 +391,8 @@ export default function TerritoryHailMap() {
   const defaultZoom = 6;
 
   return (
-    <div className="roof-er-content-area" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="roof-er-content-area">
+      <div className="roof-er-content-scroll">
       {/* Header */}
       <div className="roof-er-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'space-between' }}>
@@ -1436,6 +1437,7 @@ export default function TerritoryHailMap() {
             {hailEvents.length} IHM events, {noaaEvents.length} NOAA events
           </div>
         )}
+      </div>
       </div>
     </div>
   );

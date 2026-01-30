@@ -229,7 +229,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
 
   return (
     <div className="roof-er-content-area">
-      <div className="roof-er-knowledge-scroll">
+      <div className="roof-er-content-scroll">
         <div className="roof-er-page-title">
           <BookOpen className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
           Knowledge Base

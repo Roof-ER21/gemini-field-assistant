@@ -564,7 +564,8 @@ Respond in JSON format:
   };
 
   return (
-    <div className="roof-er-content-area" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="roof-er-content-area">
+      <div className="roof-er-content-scroll">
       {/* Header with Status */}
       <div style={{
         padding: '16px 20px',
@@ -921,6 +922,7 @@ Respond in JSON format:
           }
         }
       `}</style>
+      </div>
     </div>
   );
 };
