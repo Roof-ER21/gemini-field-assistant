@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { createStormMemoryService, SaveStormLookupParams } from '../services/stormMemoryService.js';
+import { createHailKnowledgeService } from '../services/hailKnowledgeService.js';
 
 const router = Router();
 
@@ -94,6 +95,16 @@ router.post('/save', async (req: Request, res: Response) => {
     const lookup = await service.saveStormLookup(params);
 
     console.log(`✅ Saved storm lookup: ${address} (${stormEvents.length} events)`);
+
+    // Index for Susan AI knowledge base
+    try {
+      const knowledgeService = createHailKnowledgeService(pool);
+      await knowledgeService.indexStormLookup(lookup);
+      console.log(`✅ Indexed storm lookup for Susan AI: ${lookup.id}`);
+    } catch (error) {
+      console.error('⚠️ Failed to index storm lookup for Susan AI:', error);
+      // Don't fail the request if indexing fails
+    }
 
     res.json({
       success: true,
@@ -474,6 +485,16 @@ router.delete('/:lookupId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Storm lookup not found or access denied' });
     }
 
+    // Also delete from knowledge base
+    try {
+      const knowledgeService = createHailKnowledgeService(pool);
+      await knowledgeService.deleteByStormLookupId(lookupId);
+      console.log(`✅ Deleted hail knowledge for lookup: ${lookupId}`);
+    } catch (error) {
+      console.error('⚠️ Failed to delete hail knowledge:', error);
+      // Don't fail the request if knowledge deletion fails
+    }
+
     console.log(`✅ Deleted storm lookup: ${lookupId}`);
 
     res.json({
@@ -650,6 +671,55 @@ router.put('/:lookupId/outcome', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error updating outcome:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/storm-memory/knowledge/context
+ * Get hail knowledge context for Susan AI chat
+ *
+ * Query params:
+ * - query: string (required) - User's chat query
+ * - state?: string - User's state (VA, MD, PA)
+ * - limit?: number (default: 5)
+ */
+router.get('/knowledge/context', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { query, state, limit = '5' } = req.query;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'query parameter is required' });
+    }
+
+    const knowledgeService = createHailKnowledgeService(pool);
+
+    const context = await knowledgeService.getContextForChat({
+      userId,
+      userQuery: query,
+      state: state as string | undefined,
+      limit: parseInt(limit as string, 10)
+    });
+
+    res.json({
+      success: true,
+      context,
+      hasContext: context.length > 0
+    });
+  } catch (error) {
+    console.error('❌ Error getting hail knowledge context:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

@@ -340,8 +340,14 @@ const TerritoryManager: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
+        {/* Main Content - Responsive Layout */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: '24px'
+        }}
+        className="territory-grid"
+        >
           {/* Territory List */}
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-primary)' }}>
@@ -367,114 +373,133 @@ const TerritoryManager: React.FC = () => {
                     key={territory.id}
                     style={{
                       background: 'var(--bg-elevated)',
-                      border: `1px solid var(--border-default)`,
-                      borderLeft: `4px solid ${territory.color}`,
+                      border: '1px solid var(--border-default)',
                       borderRadius: '12px',
-                      padding: '20px',
+                      padding: '16px',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--roof-red)';
-                      e.currentTarget.style.transform = 'translateX(4px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-default)';
-                      e.currentTarget.style.transform = 'translateX(0)';
-                    }}
                   >
-                    {/* Territory Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
-                      <div>
-                        <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                          {territory.name}
-                        </div>
-                        {territory.description && (
-                          <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
-                            {territory.description}
+                    {/* Territory Header - Mobile Optimized */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: territory.color,
+                            borderRadius: '2px'
+                          }} />
+                          <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {territory.name}
                           </div>
-                        )}
-                        <div style={{ fontSize: '12px', color: 'var(--text-disabled)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Users className="w-3 h-3" />
-                          {territory.ownerName || 'Unassigned'}
                         </div>
-                      </div>
 
-                      {/* Check-in/out button */}
-                      {activeCheckIn?.territoryId === territory.id ? (
-                        <div style={{
-                          background: 'var(--success)',
-                          color: 'white',
-                          padding: '6px 12px',
-                          borderRadius: '9999px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <CheckCircle className="w-4 h-4" />
-                          Checked In
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleCheckIn(territory.id)}
-                          disabled={!!activeCheckIn || checkingIn}
-                          style={{
-                            background: activeCheckIn ? 'var(--bg-hover)' : 'var(--roof-red)',
+                        {/* Check-in/out button - Mobile Optimized */}
+                        {activeCheckIn?.territoryId === territory.id ? (
+                          <div style={{
+                            background: 'var(--success)',
                             color: 'white',
-                            border: 'none',
+                            padding: '8px 12px',
                             borderRadius: '8px',
-                            padding: '8px 16px',
                             fontSize: '13px',
                             fontWeight: 600,
-                            cursor: activeCheckIn ? 'not-allowed' : 'pointer',
-                            opacity: activeCheckIn || checkingIn ? 0.5 : 1,
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          Check In
-                        </button>
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Active</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleCheckIn(territory.id)}
+                            disabled={!!activeCheckIn || checkingIn}
+                            style={{
+                              background: activeCheckIn ? 'var(--bg-hover)' : 'var(--roof-red)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px 16px',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: activeCheckIn ? 'not-allowed' : 'pointer',
+                              opacity: activeCheckIn || checkingIn ? 0.5 : 1,
+                              transition: 'all 0.2s',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Check In
+                          </button>
+                        )}
+                      </div>
+
+                      {territory.description && (
+                        <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginLeft: '12px' }}>
+                          {territory.description}
+                        </div>
                       )}
+                      <div style={{ fontSize: '12px', color: 'var(--text-disabled)', marginTop: '4px', marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Users className="w-3 h-3" />
+                        {territory.ownerName || 'Unassigned'}
+                      </div>
                     </div>
 
-                    {/* Territory Stats */}
+                    {/* Territory Stats - Mobile Optimized Grid */}
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(4, 1fr)',
-                      gap: '12px',
-                      background: 'var(--bg-secondary)',
-                      padding: '12px',
-                      borderRadius: '8px'
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(70px, 1fr))',
+                      gap: '8px'
                     }}>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--roof-red)' }}>
+                      <div style={{
+                        background: 'var(--bg-secondary)',
+                        padding: '12px 8px',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
                           {territory.stats.coveragePercent}%
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginTop: '2px' }}>
                           Coverage
                         </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      <div style={{
+                        background: 'var(--bg-secondary)',
+                        padding: '12px 8px',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {territory.stats.totalLeads}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginTop: '2px' }}>
                           Leads
                         </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      <div style={{
+                        background: 'var(--bg-secondary)',
+                        padding: '12px 8px',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {territory.stats.totalAppointments}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginTop: '2px' }}>
                           Appts
                         </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--success)' }}>
+                      <div style={{
+                        background: 'var(--bg-secondary)',
+                        padding: '12px 8px',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--success)' }}>
                           {territory.stats.leadRate}%
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginTop: '2px' }}>
                           Lead Rate
                         </div>
                       </div>
@@ -485,7 +510,7 @@ const TerritoryManager: React.FC = () => {
             )}
           </div>
 
-          {/* Leaderboard Sidebar */}
+          {/* Leaderboard - Full Width on Mobile */}
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <TrendingUp className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
@@ -496,41 +521,35 @@ const TerritoryManager: React.FC = () => {
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
               borderRadius: '12px',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              maxHeight: '500px'
             }}>
               {leaderboard.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
                   No activity yet
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', maxHeight: '500px' }}>
                   {leaderboard.slice(0, 10).map((entry, index) => (
                     <div
                       key={entry.territoryId}
                       style={{
                         padding: '12px 16px',
-                        borderBottom: index < leaderboard.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                        background: index === 0 ? 'rgba(196, 30, 58, 0.1)' : 'transparent',
-                        transition: 'background 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (index !== 0) e.currentTarget.style.background = 'var(--bg-hover)';
-                      }}
-                      onMouseLeave={(e) => {
-                        if (index !== 0) e.currentTarget.style.background = 'transparent';
+                        borderBottom: index < Math.min(leaderboard.length, 10) - 1 ? '1px solid var(--border-subtle)' : 'none',
+                        background: index === 0 ? 'rgba(196, 30, 58, 0.1)' : 'transparent'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                          width: '24px',
-                          height: '24px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
-                          background: index === 0 ? 'var(--roof-red)' : 'var(--bg-hover)',
-                          color: index === 0 ? 'white' : 'var(--text-secondary)',
+                          background: index === 0 ? 'var(--roof-red)' : index === 1 ? '#f59e0b' : index === 2 ? '#22c55e' : 'var(--bg-hover)',
+                          color: index < 3 ? 'white' : 'var(--text-secondary)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '12px',
+                          fontSize: '14px',
                           fontWeight: 700,
                           flexShrink: 0
                         }}>
@@ -538,7 +557,7 @@ const TerritoryManager: React.FC = () => {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
-                            fontSize: '14px',
+                            fontSize: '15px',
                             fontWeight: 600,
                             color: 'var(--text-primary)',
                             overflow: 'hidden',
@@ -547,10 +566,10 @@ const TerritoryManager: React.FC = () => {
                           }}>
                             {entry.territoryName}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                             {entry.ownerName}
                           </div>
-                          <div style={{ fontSize: '12px', color: 'var(--roof-red)', fontWeight: 600, marginTop: '4px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--roof-red)', fontWeight: 600, marginTop: '4px' }}>
                             {entry.stats.totalLeads} leads • {entry.stats.coveragePercent}% coverage
                           </div>
                         </div>
@@ -562,6 +581,15 @@ const TerritoryManager: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Responsive CSS */}
+        <style>{`
+          @media (min-width: 768px) {
+            .territory-grid {
+              grid-template-columns: 1fr 340px !important;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );

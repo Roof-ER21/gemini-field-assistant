@@ -196,6 +196,33 @@ async function main() {
       console.error('❌ Migration 016 failed, but continuing verification...');
     }
 
+    // Run migration 031 (hail reports)
+    const migration031Path = path.join(__dirname, 'database/migrations/031_hail_reports.sql');
+    if (fs.existsSync(migration031Path)) {
+      const success031 = await runMigration(client, migration031Path);
+      if (!success031) {
+        console.error('❌ Migration 031 failed, but continuing...');
+      }
+    }
+
+    // Run migration 032 (fix duplicate territories)
+    const migration032Path = path.join(__dirname, 'database/migrations/032_fix_duplicate_territories.sql');
+    if (fs.existsSync(migration032Path)) {
+      const success032 = await runMigration(client, migration032Path);
+      if (!success032) {
+        console.error('❌ Migration 032 failed, but continuing...');
+      }
+    }
+
+    // Run migration 033 (hail knowledge for Susan)
+    const migration033Path = path.join(__dirname, 'database/migrations/033_hail_knowledge.sql');
+    if (fs.existsSync(migration033Path)) {
+      const success033 = await runMigration(client, migration033Path);
+      if (!success033) {
+        console.error('❌ Migration 033 failed, but continuing...');
+      }
+    }
+
     // Verify everything
     await verifyTables(client);
     await testBudgetAPI(client);
