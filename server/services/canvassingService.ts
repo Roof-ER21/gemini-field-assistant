@@ -543,7 +543,7 @@ export class CanvassingService {
         SUM(cs.appointments_set) as total_appointments
       FROM canvassing_sessions cs
       JOIN users u ON cs.user_id = u.id
-      WHERE cs.session_date >= CURRENT_DATE - $1
+      WHERE cs.session_date >= CURRENT_DATE - ($1 * INTERVAL '1 day')
       GROUP BY cs.user_id, u.name
       ORDER BY total_leads DESC`,
       [daysBack]
