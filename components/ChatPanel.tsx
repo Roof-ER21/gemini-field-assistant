@@ -2722,16 +2722,15 @@ Generate ONLY the email body text, no subject line or metadata.`;
             {/* More Actions Menu Dropdown */}
             {showMoreActionsMenu && (
               <div style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: '0',
-                marginBottom: '8px',
+                position: 'fixed',
+                bottom: '80px',
+                right: '16px',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                padding: '8px',
-                minWidth: '200px',
+                borderRadius: '12px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                padding: '12px',
+                minWidth: '180px',
                 zIndex: 9999
               }}>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
@@ -2830,15 +2829,14 @@ Generate ONLY the email body text, no subject line or metadata.`;
             {/* State Menu Dropdown (when opened from More menu) */}
             {showStateMenu && (
               <div style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: '0',
-                marginBottom: '8px',
+                position: 'fixed',
+                bottom: '80px',
+                right: '16px',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                padding: '8px',
+                borderRadius: '12px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                padding: '12px',
                 minWidth: '160px',
                 zIndex: 9999
               }}>
