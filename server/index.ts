@@ -32,6 +32,9 @@ const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
+// Railway runs behind a proxy/load balancer
+app.set('trust proxy', 1);
+
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -5707,7 +5710,8 @@ app.use('/api/storm-memory', stormMemoryRoutes);
 // Register canvassing routes
 app.use('/api/canvassing', canvassingRoutes);
 
-// Register impacted assets routes
+// Register impacted assets routes (support legacy + new paths)
+app.use('/api/assets', impactedAssetRoutes);
 app.use('/api/impacted-assets', impactedAssetRoutes);
 
 // Register push notification routes

@@ -1,6 +1,6 @@
 // Minimal Service Worker for S21 Field AI
 // Network-first strategy to avoid stale assets; no precache
-const VERSION = 's21-sw-v1-2025-11-03';
+const VERSION = 's21-sw-v2-2026-01-30';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -24,6 +24,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/' || url.pathname.endsWith('/index.html')) {
     return; // let the network handle it
   }
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    return; // do not intercept Google Fonts requests
+  }
 
   event.respondWith((async () => {
     try {
@@ -38,4 +41,3 @@ self.addEventListener('fetch', (event) => {
     }
   })());
 });
-

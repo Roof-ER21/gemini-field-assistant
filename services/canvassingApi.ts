@@ -413,7 +413,7 @@ export const canvassingApi = {
   async getUserStats(daysBack: number = 30): Promise<CanvassingStats | null> {
     try {
       const query = new URLSearchParams({ days: daysBack.toString() });
-      const response = await fetch(`${apiBaseUrl}/canvassing/stats/user?${query}`, {
+      const response = await fetch(`${apiBaseUrl}/canvassing/stats?${query}`, {
         headers: getHeaders()
       });
 
