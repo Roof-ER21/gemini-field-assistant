@@ -1185,8 +1185,24 @@ Generate ONLY the email body text, no subject line or metadata.`;
       }
 
       // Build conversation context with compression for older messages
-      const filteredMessages = messages
-        .filter(m => m.sender !== 'bot' || !m.text.includes('Hey there!') && !m.text.includes('Welcome back'));
+      const filteredMessages = messages.filter(m => {
+        // Skip initial welcome message
+        if (m.id === 'initial') return false;
+
+        // Skip bot messages that are welcome messages
+        if (m.sender === 'bot') {
+          const text = m.text || '';
+          if (text.includes("I'm S21 (Susan)") ||
+              text.includes("Welcome back!") ||
+              text.includes("Good morning! Susan here") ||
+              text.includes("Hey! Susan here") ||
+              text.includes("Susan still here")) {
+            return false;
+          }
+        }
+
+        return true;
+      });
 
       const recentMessages = filteredMessages.slice(-8); // Keep last 8 messages fully
       const olderMessages = filteredMessages.slice(0, -8); // Compress older messages

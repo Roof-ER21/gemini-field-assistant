@@ -1007,14 +1007,13 @@ const CanvassingPanel: React.FC = () => {
             height: '100vh',
             background: 'rgba(0, 0, 0, 0.85)',
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999,
-            padding: '16px',
-            paddingTop: '80px',
+            padding: '20px',
             overflowY: 'auto',
-            boxSizing: 'border-box',
-            WebkitOverflowScrolling: 'touch'
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowHomeownerModal(false)}
         >
@@ -1026,7 +1025,6 @@ const CanvassingPanel: React.FC = () => {
               maxWidth: '480px',
               width: 'calc(100% - 32px)',
               maxHeight: 'calc(100vh - 100px)',
-              marginBottom: '40px',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
               display: 'flex',
               flexDirection: 'column',

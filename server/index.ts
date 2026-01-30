@@ -3735,7 +3735,7 @@ COMMENT ON COLUMN budget_alerts.user_id IS 'NULL for company-wide alerts';
 CREATE OR REPLACE VIEW user_api_usage_summary AS
 SELECT
     u.id AS user_id,
-    LOWER(SPLIT_PART(u.email, '@', 1)) AS username,
+    COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) AS username,
     u.email,
     COUNT(*) AS total_requests,
     SUM(CASE WHEN success THEN 1 ELSE 0 END) AS successful_requests,

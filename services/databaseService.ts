@@ -443,7 +443,26 @@ export class DatabaseService {
       const sessionsStr = localStorage.getItem('chat_sessions') || '{}';
       const sessions = JSON.parse(sessionsStr);
 
-      const userMessages = messages.filter(m => !m.text?.includes('Hey there!') && !m.text?.includes('Welcome back'));
+      // Filter out welcome/initial messages
+      const userMessages = messages.filter(m => {
+        // Skip initial welcome message by ID
+        if (m.id === 'initial') return false;
+
+        // Skip bot messages that are welcome messages
+        if (m.sender === 'bot') {
+          const text = m.text || '';
+          // Check for all welcome message patterns
+          if (text.includes("I'm S21 (Susan)") ||
+              text.includes("Welcome back!") ||
+              text.includes("Good morning! Susan here") ||
+              text.includes("Hey! Susan here") ||
+              text.includes("Susan still here")) {
+            return false;
+          }
+        }
+
+        return true;
+      });
 
       if (userMessages.length === 0) {
         return; // Don't save empty sessions
@@ -452,11 +471,16 @@ export class DatabaseService {
       const firstUserMsg = userMessages.find(m => m.sender === 'user');
       const lastMsg = userMessages[userMessages.length - 1];
 
+      // Only save if there's at least one user message
+      if (!firstUserMsg) {
+        return;
+      }
+
       sessions[sessionId] = {
         session_id: sessionId,
         user_id: 'demo-user',
-        title: firstUserMsg?.text.slice(0, 50) || 'New Chat',
-        preview: firstUserMsg?.text.slice(0, 100) || '',
+        title: firstUserMsg.text.slice(0, 50) || 'New Chat',
+        preview: firstUserMsg.text.slice(0, 100) || '',
         message_count: userMessages.length,
         first_message_at: new Date().toISOString(),
         last_message_at: new Date().toISOString(),

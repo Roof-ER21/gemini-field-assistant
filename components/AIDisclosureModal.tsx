@@ -57,18 +57,24 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
         justifyContent: 'center',
         padding: '20px',
         background: 'rgba(0, 0, 0, 0.95)',
-        zIndex: 10001
+        zIndex: 10001,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        boxSizing: 'border-box'
       }}
     >
       <div
         style={{
           width: '100%',
           maxWidth: '380px',
+          maxHeight: 'calc(100vh - 100px)',
           background: '#0a0a0a',
           borderRadius: '20px',
           border: '1px solid #262626',
-          overflow: 'hidden',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)'
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)',
+          boxSizing: 'border-box'
         }}
       >
         {/* Header */}

@@ -730,19 +730,27 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000
+            zIndex: 2000,
+            padding: '20px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowGroupModal(false)}
         >
           <div
             style={{
-              width: '92%',
+              width: '100%',
               maxWidth: '420px',
+              maxHeight: 'calc(100vh - 100px)',
               background: 'var(--bg-primary)',
               borderRadius: '16px',
               padding: '1.25rem',
               border: '1px solid var(--border-color)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+              boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxSizing: 'border-box'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -765,7 +773,8 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                 borderRadius: '8px',
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)'
+                color: 'var(--text-primary)',
+                boxSizing: 'border-box'
               }}
             />
 
@@ -855,19 +864,27 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000
+            zIndex: 2000,
+            padding: '20px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowGlobalSearch(false)}
         >
           <div
             style={{
-              width: '92%',
+              width: '100%',
               maxWidth: '520px',
+              maxHeight: 'calc(100vh - 100px)',
               background: 'var(--bg-primary)',
               borderRadius: '16px',
               padding: '1.25rem',
               border: '1px solid var(--border-color)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+              boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxSizing: 'border-box'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -883,7 +900,8 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                   borderRadius: '8px',
                   border: '1px solid var(--border-color)',
                   background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)'
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box'
                 }}
               />
               <button

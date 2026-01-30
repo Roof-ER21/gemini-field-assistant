@@ -99,7 +99,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
            u.id as "userId",
            u.name,
            u.email,
-           LOWER(SPLIT_PART(u.email, '@', 1)) as username,
+           COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))) as username,
            COALESCE(up.status, 'offline') as status,
            COALESCE(up.last_seen, u.last_login_at) as "lastSeen"
          FROM users u
@@ -150,7 +150,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
             SELECT jsonb_agg(
               jsonb_build_object(
                 'user_id', u.id,
-                'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+                'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
                 'name', u.name,
                 'email', u.email
               )
@@ -330,7 +330,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
             SELECT jsonb_agg(
               jsonb_build_object(
                 'user_id', u.id,
-                'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+                'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
                 'name', u.name,
                 'email', u.email
               )
@@ -400,7 +400,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
           m.updated_at,
           jsonb_build_object(
             'id', u.id,
-            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+            'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
             'name', u.name,
             'email', u.email
           ) as sender,
@@ -660,7 +660,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
           m.*,
           jsonb_build_object(
             'id', u.id,
-            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+            'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
             'name', u.name,
             'email', u.email
           ) as sender,
@@ -965,7 +965,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
           c.name as conversation_name,
           jsonb_build_object(
             'id', u.id,
-            'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+            'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
             'name', u.name,
             'email', u.email
           ) as sender
@@ -1032,7 +1032,7 @@ export function createMessagingRoutes(pool: pg.Pool) {
              'created_at', m.created_at,
              'sender', jsonb_build_object(
                'id', u.id,
-               'username', LOWER(SPLIT_PART(u.email, '@', 1)),
+               'username', COALESCE(u.username, LOWER(SPLIT_PART(u.email, '@', 1))),
                'name', u.name,
                'email', u.email
              )

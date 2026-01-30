@@ -1519,7 +1519,11 @@ const AdminBudgetTab: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          backdropFilter: 'blur(4px)'
+          backdropFilter: 'blur(4px)',
+          padding: '20px',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          boxSizing: 'border-box'
         }}
         onClick={() => setShowBudgetModal(false)}>
           <div style={{
@@ -1528,7 +1532,11 @@ const AdminBudgetTab: React.FC = () => {
             borderRadius: '16px',
             padding: '32px',
             maxWidth: '500px',
-            width: '90%'
+            width: '100%',
+            maxHeight: 'calc(100vh - 100px)',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontSize: '24px', fontWeight: 700, color: '#e4e4e7', marginBottom: '24px' }}>
@@ -1551,7 +1559,8 @@ const AdminBudgetTab: React.FC = () => {
                   borderRadius: '8px',
                   color: '#e4e4e7',
                   fontSize: '16px',
-                  outline: 'none'
+                  outline: 'none',
+                  boxSizing: 'border-box'
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = '#991b1b';

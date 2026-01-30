@@ -1787,18 +1787,26 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000
+            zIndex: 2000,
+            padding: '20px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowPollModal(false)}
         >
           <div
             style={{
-              width: '92%',
+              width: '100%',
               maxWidth: '420px',
+              maxHeight: 'calc(100vh - 100px)',
               background: 'var(--bg-primary)',
               borderRadius: '16px',
               padding: '1.25rem',
-              border: '1px solid var(--border-color)'
+              border: '1px solid var(--border-color)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxSizing: 'border-box'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1814,7 +1822,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
-                marginBottom: '0.75rem'
+                marginBottom: '0.75rem',
+                boxSizing: 'border-box'
               }}
             />
             {pollOptions.map((opt, idx) => (
@@ -1834,7 +1843,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   border: '1px solid var(--border-color)',
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
-                  marginBottom: '0.5rem'
+                  marginBottom: '0.5rem',
+                  boxSizing: 'border-box'
                 }}
               />
             ))}
@@ -1894,18 +1904,26 @@ const ConversationView: React.FC<ConversationViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000
+            zIndex: 2000,
+            padding: '20px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowEventModal(false)}
         >
           <div
             style={{
-              width: '92%',
+              width: '100%',
               maxWidth: '420px',
+              maxHeight: 'calc(100vh - 100px)',
               background: 'var(--bg-primary)',
               borderRadius: '16px',
               padding: '1.25rem',
-              border: '1px solid var(--border-color)'
+              border: '1px solid var(--border-color)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxSizing: 'border-box'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1921,7 +1939,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
-                marginBottom: '0.75rem'
+                marginBottom: '0.75rem',
+                boxSizing: 'border-box'
               }}
             />
             <input
@@ -1935,7 +1954,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
-                marginBottom: '0.75rem'
+                marginBottom: '0.75rem',
+                boxSizing: 'border-box'
               }}
             />
             <input
@@ -1949,7 +1969,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
-                marginBottom: '0.75rem'
+                marginBottom: '0.75rem',
+                boxSizing: 'border-box'
               }}
             />
             <textarea
@@ -1965,7 +1986,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
                 marginBottom: '0.75rem',
-                resize: 'none'
+                resize: 'none',
+                boxSizing: 'border-box'
               }}
             />
             <div style={{ display: 'flex', gap: '0.5rem' }}>

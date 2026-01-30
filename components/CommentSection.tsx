@@ -159,7 +159,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
-        zIndex: 1050
+        zIndex: 1050,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        boxSizing: 'border-box'
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -173,7 +176,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           display: 'flex',
           flexDirection: 'column',
           border: '1px solid var(--border-color)',
-          borderBottom: 'none'
+          borderBottom: 'none',
+          boxSizing: 'border-box'
         }}
       >
         {/* Header */}
