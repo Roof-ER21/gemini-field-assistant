@@ -94,7 +94,16 @@ const ImpactedAssetsPanel: React.FC = () => {
       return;
     }
 
+    if (!newProperty.city || !newProperty.state || !newProperty.zipCode) {
+      alert('City, state, and ZIP code are required for location tracking');
+      return;
+    }
+
     const result = await impactedAssetApi.addProperty(newProperty);
+    if (!result) {
+      alert('Could not add property. Please check the address is complete and valid.');
+      return;
+    }
     if (result) {
       setShowAddModal(false);
       setNewProperty({
@@ -893,7 +902,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                      City
+                      City *
                     </label>
                     <input
                       type="text"
@@ -913,7 +922,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                   </div>
                   <div>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                      State
+                      State *
                     </label>
                     <input
                       type="text"
@@ -933,7 +942,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                   </div>
                   <div>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                      ZIP
+                      ZIP *
                     </label>
                     <input
                       type="text"

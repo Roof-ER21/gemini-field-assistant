@@ -7,6 +7,22 @@
 import { getApiBaseUrl } from './config';
 import { authService } from './authService';
 
+// Simple cache to prevent excessive API calls (prevents 429 errors)
+const cache: { [key: string]: { data: any; timestamp: number } } = {};
+const CACHE_TTL = 30000; // 30 seconds
+
+const getCached = <T>(key: string): T | null => {
+  const cached = cache[key];
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data as T;
+  }
+  return null;
+};
+
+const setCache = (key: string, data: any) => {
+  cache[key] = { data, timestamp: Date.now() };
+};
+
 export type CanvassingStatus =
   | 'not_contacted'
   | 'contacted'
@@ -408,9 +424,15 @@ export const canvassingApi = {
   },
 
   /**
-   * Get user's canvassing stats
+   * Get user's canvassing stats (cached for 30s to prevent 429 errors)
    */
   async getUserStats(daysBack: number = 30): Promise<CanvassingStats | null> {
+    const cacheKey = `stats_${daysBack}`;
+    const cached = getCached<CanvassingStats>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const query = new URLSearchParams({ days: daysBack.toString() });
       const response = await fetch(`${apiBaseUrl}/canvassing/stats?${query}`, {
@@ -418,13 +440,26 @@ export const canvassingApi = {
       });
 
       if (!response.ok) {
+        // On 429, return cached data if available (even if stale)
+        if (response.status === 429 && cache[cacheKey]) {
+          console.warn('[CanvassingAPI] Rate limited, using stale cache');
+          return cache[cacheKey].data;
+        }
         return null;
       }
 
       const data = await response.json();
-      return unwrapObject<CanvassingStats>(data, 'stats');
+      const stats = unwrapObject<CanvassingStats>(data, 'stats');
+      if (stats) {
+        setCache(cacheKey, stats);
+      }
+      return stats;
     } catch (error) {
       console.error('[CanvassingAPI] Error getting user stats:', error);
+      // Return stale cache on error
+      if (cache[cacheKey]) {
+        return cache[cacheKey].data;
+      }
       return null;
     }
   },
