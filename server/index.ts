@@ -5706,7 +5706,7 @@ app.use('/api/storm-memory', stormMemoryRoutes);
 app.use('/api/canvassing', canvassingRoutes);
 
 // Register impacted assets routes
-app.use('/api/assets', impactedAssetRoutes);
+app.use('/api/impacted-assets', impactedAssetRoutes);
 
 // Register push notification routes
 app.use('/api/push', pushRoutes);
