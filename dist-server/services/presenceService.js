@@ -41,7 +41,7 @@ export class PresenceService {
                     return next(new Error('Authentication required'));
                 }
                 // Get user from database
-                const result = await this.pool.query('SELECT id, email, name, username FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email.toLowerCase()]);
+                const result = await this.pool.query('SELECT id, email, name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email.toLowerCase()]);
                 if (result.rows.length === 0) {
                     return next(new Error('User not found'));
                 }

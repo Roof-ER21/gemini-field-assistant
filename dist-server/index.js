@@ -3201,7 +3201,7 @@ COMMENT ON COLUMN budget_alerts.user_id IS 'NULL for company-wide alerts';
 CREATE OR REPLACE VIEW user_api_usage_summary AS
 SELECT
     u.id AS user_id,
-    u.username,
+    LOWER(SPLIT_PART(u.email, '@', 1)) AS username,
     u.email,
     COUNT(*) AS total_requests,
     SUM(CASE WHEN success THEN 1 ELSE 0 END) AS successful_requests,
@@ -3218,7 +3218,7 @@ SELECT
 FROM users u
 LEFT JOIN api_usage_log aul ON u.id = aul.user_id
 LEFT JOIN user_budgets ub ON u.id = ub.user_id
-GROUP BY u.id, u.username, u.email, ub.monthly_budget, ub.current_month_spend;
+GROUP BY u.id, u.email, ub.monthly_budget, ub.current_month_spend;
 
 COMMENT ON VIEW user_api_usage_summary IS 'Per-user API usage statistics and budget status';
 
