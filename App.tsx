@@ -335,11 +335,23 @@ const App: React.FC = () => {
           <button
             className="roof-er-header-btn"
             onClick={handleOpenUserProfile}
+            title="User Settings & Profile"
           >
             <Settings className="w-4 h-4 inline mr-1" />
             Settings
           </button>
-          <button className="roof-er-header-btn">
+          <button
+            className="roof-er-header-btn"
+            onClick={() => {
+              if (activePanel === 'chat') {
+                setShowChatHistory(prev => !prev);
+              } else {
+                setActivePanel('chat');
+                setTimeout(() => setShowChatHistory(true), 100);
+              }
+            }}
+            title="View Chat History"
+          >
             <History className="w-4 h-4 inline mr-1" />
             History
           </button>
