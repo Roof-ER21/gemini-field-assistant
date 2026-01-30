@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon } from 'react-leaflet';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon, Circle } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
-import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3 } from 'lucide-react';
+import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X } from 'lucide-react';
 
 interface Territory {
   id: string;
@@ -66,18 +66,30 @@ interface SavedReport {
 }
 
 // Component to handle map bounds changes
-function MapController({ selectedTerritory }: { selectedTerritory: Territory | null }) {
+interface MapControllerProps {
+  selectedTerritory: Territory | null;
+  searchLocation: { lat: number; lng: number; zoom?: number } | null;
+}
+
+function MapController({ selectedTerritory, searchLocation }: MapControllerProps) {
   const map = useMap();
 
   useEffect(() => {
-    if (selectedTerritory) {
+    if (searchLocation) {
+      // Auto-zoom to search location
+      map.flyTo(
+        [searchLocation.lat, searchLocation.lng],
+        searchLocation.zoom || 13,
+        { duration: 1.5, easeLinearity: 0.25 }
+      );
+    } else if (selectedTerritory) {
       const bounds = new LatLngBounds(
         [selectedTerritory.south_lat, selectedTerritory.west_lng],
         [selectedTerritory.north_lat, selectedTerritory.east_lng]
       );
       map.fitBounds(bounds, { padding: [20, 20] });
     }
-  }, [selectedTerritory, map]);
+  }, [selectedTerritory, searchLocation, map]);
 
   return null;
 }
@@ -108,6 +120,12 @@ export default function TerritoryHailMap() {
     maxHailSize: number | null;
     avgHailSize: number | null;
   } | null>(null);
+
+  // Map auto-navigation state
+  const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
+
+  // Hail dates panel state
+  const [showHailDates, setShowHailDates] = useState(false);
 
   // Fetch territories and saved reports on mount
   useEffect(() => {
@@ -153,6 +171,8 @@ export default function TerritoryHailMap() {
     setSelectedTerritory(territory);
     setCurrentSearch(null);
     setSearchStats(null);
+    setSearchLocation(null);
+    setShowHailDates(false);
     fetchHailData(territory);
   };
 
@@ -203,6 +223,17 @@ export default function TerritoryHailMap() {
             ? allHailSizes.reduce((a, b) => a + b, 0) / allHailSizes.length
             : null
         });
+
+        // Auto-zoom to search location
+        if (data.searchCriteria?.latitude && data.searchCriteria?.longitude) {
+          setSearchLocation({
+            lat: data.searchCriteria.latitude,
+            lng: data.searchCriteria.longitude,
+            zoom: 13
+          });
+          // Show hail dates panel after successful search
+          setShowHailDates(true);
+        }
       } else {
         setError('Failed to search hail data');
       }
@@ -290,6 +321,16 @@ export default function TerritoryHailMap() {
           maxHailSize: report.max_hail_size,
           avgHailSize: report.avg_hail_size
         });
+
+        // Auto-zoom to search location for loaded report
+        if (report.search_criteria?.latitude && report.search_criteria?.longitude) {
+          setSearchLocation({
+            lat: report.search_criteria.latitude,
+            lng: report.search_criteria.longitude,
+            zoom: 13
+          });
+          setShowHailDates(true);
+        }
       }
     } catch (err) {
       console.error('Failed to load report:', err);
@@ -365,26 +406,50 @@ export default function TerritoryHailMap() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setSearchPanelOpen(!searchPanelOpen)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default)',
-              background: searchPanelOpen ? 'var(--roof-red)' : 'var(--bg-primary)',
-              color: searchPanelOpen ? 'white' : 'var(--text-primary)',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Search className="w-4 h-4" />
-            Advanced Search
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {(hailEvents.length > 0 || noaaEvents.length > 0) && (
+              <button
+                onClick={() => setShowHailDates(!showHailDates)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-default)',
+                  background: showHailDates ? 'var(--roof-red)' : 'var(--bg-primary)',
+                  color: showHailDates ? 'white' : 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Calendar className="w-4 h-4" />
+                Event Dates
+              </button>
+            )}
+            <button
+              onClick={() => setSearchPanelOpen(!searchPanelOpen)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-default)',
+                background: searchPanelOpen ? 'var(--roof-red)' : 'var(--bg-primary)',
+                color: searchPanelOpen ? 'white' : 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Search className="w-4 h-4" />
+              Advanced Search
+            </button>
+          </div>
         </div>
       </div>
 
@@ -755,6 +820,228 @@ export default function TerritoryHailMap() {
 
         {/* Map Container */}
         <div style={{ flex: 1, position: 'relative' }}>
+        {/* Hail Dates Panel - RIGHT SIDE */}
+        {showHailDates && (hailEvents.length > 0 || noaaEvents.length > 0) && (
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            bottom: '16px',
+            zIndex: 1000,
+            background: 'var(--bg-elevated)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            border: '1px solid var(--border-default)',
+            width: '320px',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: 'calc(100% - 32px)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px',
+              borderBottom: '1px solid var(--border-default)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+                <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  Hail Event Dates
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowHailDates(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Stats Summary */}
+            {searchStats && (
+              <div style={{
+                padding: '12px 16px',
+                background: 'var(--bg-primary)',
+                borderBottom: '1px solid var(--border-default)',
+                fontSize: '12px'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
+                      {searchStats.totalEvents}
+                    </div>
+                  </div>
+                  {searchStats.maxHailSize && (
+                    <div>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Max Size</div>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {searchStats.maxHailSize.toFixed(1)}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Events List */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+              {/* IHM Events */}
+              {hailEvents.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    padding: '8px 8px 4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    IHM Hail Events ({hailEvents.length})
+                  </div>
+                  {hailEvents
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((event, idx) => (
+                      <div
+                        key={`ihm-${event.id || idx}`}
+                        style={{
+                          padding: '12px',
+                          margin: '4px 0',
+                          background: 'var(--bg-primary)',
+                          borderRadius: '8px',
+                          border: `1px solid ${getSeverityColor(event.severity)}20`,
+                          borderLeft: `4px solid ${getSeverityColor(event.severity)}`
+                        }}
+                      >
+                        <div style={{
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          color: 'var(--text-primary)',
+                          marginBottom: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <Calendar className="w-4 h-4" style={{ color: getSeverityColor(event.severity) }} />
+                          {formatDate(event.date)}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                            <span>Hail Size:</span>
+                            <strong style={{ color: 'var(--text-primary)' }}>
+                              {event.hailSize ? `${event.hailSize}"` : 'Unknown'}
+                            </strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Severity:</span>
+                            <strong style={{
+                              color: getSeverityColor(event.severity),
+                              textTransform: 'capitalize'
+                            }}>
+                              {event.severity}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* NOAA Events */}
+              {noaaEvents.length > 0 && (
+                <div>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    padding: '8px 8px 4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    NOAA Events ({noaaEvents.length})
+                  </div>
+                  {noaaEvents
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((event, idx) => (
+                      <div
+                        key={`noaa-${event.id || idx}`}
+                        style={{
+                          padding: '12px',
+                          margin: '4px 0',
+                          background: 'var(--bg-primary)',
+                          borderRadius: '8px',
+                          border: `1px solid ${getEventTypeColor(event.eventType)}20`,
+                          borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`
+                        }}
+                      >
+                        <div style={{
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          color: 'var(--text-primary)',
+                          marginBottom: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <Calendar className="w-4 h-4" style={{ color: getEventTypeColor(event.eventType) }} />
+                          {formatDate(event.date)}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                            <span>Type:</span>
+                            <strong style={{
+                              color: getEventTypeColor(event.eventType),
+                              textTransform: 'capitalize'
+                            }}>
+                              {event.eventType}
+                            </strong>
+                          </div>
+                          {event.magnitude && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                              <span>Magnitude:</span>
+                              <strong style={{ color: 'var(--text-primary)' }}>
+                                {event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}
+                              </strong>
+                            </div>
+                          )}
+                          <div style={{
+                            fontSize: '11px',
+                            color: 'var(--text-secondary)',
+                            marginTop: '4px',
+                            fontStyle: 'italic'
+                          }}>
+                            {event.location}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {hailEvents.length === 0 && noaaEvents.length === 0 && (
+                <div style={{
+                  padding: '32px 16px',
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)',
+                  fontSize: '13px'
+                }}>
+                  No hail events found in this area
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Search Stats Panel */}
         {searchStats && currentSearch && (
           <div style={{
@@ -926,7 +1213,7 @@ export default function TerritoryHailMap() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          <MapController selectedTerritory={selectedTerritory} />
+          <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 
           {/* Territory Rectangles */}
           {territories.map(t => (
@@ -1059,31 +1346,45 @@ export default function TerritoryHailMap() {
 
           {/* Search Area Highlight - Draw circle around search location */}
           {currentSearch && currentSearch.latitude && currentSearch.longitude && currentSearch.radius && (
-            <CircleMarker
-              center={[currentSearch.latitude, currentSearch.longitude]}
-              radius={Math.min(currentSearch.radius * 0.5, 100)}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.1,
-                weight: 2,
-                dashArray: '10, 5'
-              }}
-            >
-              <Popup>
-                <div style={{ minWidth: '160px' }}>
-                  <strong>Search Center</strong>
-                  <p style={{ margin: '4px 0', fontSize: '12px' }}>
-                    Radius: {currentSearch.radius} miles
-                  </p>
-                  {currentSearch.city && (
+            <>
+              {/* Center marker */}
+              <CircleMarker
+                center={[currentSearch.latitude, currentSearch.longitude]}
+                radius={10}
+                pathOptions={{
+                  color: '#3b82f6',
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.8,
+                  weight: 3
+                }}
+              >
+                <Popup>
+                  <div style={{ minWidth: '160px' }}>
+                    <strong>Search Center</strong>
                     <p style={{ margin: '4px 0', fontSize: '12px' }}>
-                      {currentSearch.city}, {currentSearch.state}
+                      Radius: {currentSearch.radius} miles
                     </p>
-                  )}
-                </div>
-              </Popup>
-            </CircleMarker>
+                    {currentSearch.city && (
+                      <p style={{ margin: '4px 0', fontSize: '12px' }}>
+                        {currentSearch.city}, {currentSearch.state}
+                      </p>
+                    )}
+                  </div>
+                </Popup>
+              </CircleMarker>
+              {/* Radius circle - convert miles to meters */}
+              <Circle
+                center={[currentSearch.latitude, currentSearch.longitude]}
+                radius={currentSearch.radius * 1609.34}
+                pathOptions={{
+                  color: '#3b82f6',
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.05,
+                  weight: 2,
+                  dashArray: '10, 5'
+                }}
+              />
+            </>
           )}
         </MapContainer>
       </div>

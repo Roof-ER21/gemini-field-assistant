@@ -390,7 +390,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden' }}>
+      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0 }}>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
@@ -426,7 +426,7 @@ const App: React.FC = () => {
           />
         </div>
 
-        <main className="flex-1" style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <main className="flex-1" style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ErrorBoundary>
             {renderPanel()}
           </ErrorBoundary>

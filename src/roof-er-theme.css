@@ -269,10 +269,13 @@ html, body {
   border-right: 1px solid var(--glass-border);
   padding: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 24px;
   backdrop-filter: blur(16px) saturate(120%);
+  height: 100%;
+  min-height: 0;
 }
 
 .roof-er-sidebar-section {
@@ -387,6 +390,8 @@ html, body {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+  min-height: 0;
+  height: 100%;
 }
 
 .roof-er-content-area::before {
@@ -413,9 +418,10 @@ html, body {
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+  height: 100%;
 }
 
-/* Chat-specific: content at bottom */
+/* Chat-specific: content at bottom - ONLY for chat messages container */
 .roof-er-content-scroll.chat-scroll {
   justify-content: flex-end;
 }
@@ -1028,6 +1034,10 @@ html, body {
 /* Sidebar Wrapper for Mobile */
 .roof-er-sidebar-wrapper {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Mobile Overlay */
@@ -1114,6 +1124,9 @@ html, body {
     width: 280px;
     z-index: 999;
     transition: left 0.3s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Show sidebar when mobile-open */
@@ -1130,6 +1143,10 @@ html, body {
     display: flex;
     height: 100%;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
   }
 
   /* Touch-friendly header */
