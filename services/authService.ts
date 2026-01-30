@@ -209,6 +209,58 @@ class AuthService {
   }
 
   /**
+   * Try auto-login with existing token (does NOT send verification code)
+   * Returns success if valid token exists and auto-login was performed
+   */
+  async tryAutoLogin(email: string, rememberMe: boolean = false): Promise<LoginResult> {
+    try {
+      const storedToken = localStorage.getItem(this.TOKEN_KEY);
+      if (!storedToken) {
+        return { success: false, message: 'No stored token' };
+      }
+
+      const authData: StoredAuth = JSON.parse(storedToken);
+      const now = Date.now();
+
+      // Check if token is valid and for the same email
+      if (authData.user.email.toLowerCase() === email.toLowerCase() &&
+          authData.rememberMe &&
+          now < authData.expiresAt) {
+
+        // Valid token found - perform auto-login
+        console.log('✅ Auto-login successful. Token expires:', new Date(authData.expiresAt).toISOString());
+
+        const user: AuthUser = {
+          ...authData.user,
+          last_login_at: new Date()
+        };
+
+        this.currentUser = user;
+        localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
+        this.refreshToken(user, rememberMe);
+        await databaseService.setCurrentUser(user);
+
+        try {
+          await activityService.logLogin();
+        } catch (err) {
+          console.error('Failed to log login activity:', err);
+        }
+
+        return {
+          success: true,
+          user,
+          message: 'Auto-login successful!'
+        };
+      }
+
+      return { success: false, message: 'Token expired or email mismatch' };
+    } catch (err) {
+      console.error('Auto-login error:', err);
+      return { success: false, message: 'Auto-login failed' };
+    }
+  }
+
+  /**
    * Login with email (Step 1: Request verification code)
    * Now checks for valid auto-login token first - if found and valid, skips verification
    */

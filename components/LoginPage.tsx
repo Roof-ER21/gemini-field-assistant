@@ -54,15 +54,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      // First check for auto-login (existing token)
-      const autoResult = await authService.requestLoginCode(email, undefined, rememberMe);
-      if (autoResult.success && autoResult.autoLoginSuccess) {
+      // First check for auto-login (existing valid token) - doesn't send code
+      const autoLoginResult = await authService.tryAutoLogin(email, rememberMe);
+      if (autoLoginResult.success) {
         clearSavedLoginInfo();
         onLoginSuccess();
         return;
       }
 
-      // Check if user exists
+      // Check if user exists in database
       const result = await authService.checkEmail(email);
 
       if (!result.success) {
@@ -76,10 +76,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         setExistingUserName(result.name || '');
         setIsSignup(false);
 
-        // Automatically send verification code
+        // Send ONE verification code
         const loginResult = await authService.requestLoginCode(email, result.name || '', rememberMe);
         if (loginResult.success) {
           if (loginResult.autoLoginSuccess) {
+            // Shouldn't happen since we already checked, but handle it
             clearSavedLoginInfo();
             onLoginSuccess();
             return;
@@ -88,19 +89,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           setStep('code');
         } else {
           setError(loginResult.message);
-          setLoading(false);
         }
       } else if (result.canSignup) {
         // New user - go to signup step
         setIsSignup(true);
         setStep('signup');
-        setLoading(false);
       } else {
         setError('This email domain is not allowed. Please use your @theroofdocs.com email.');
-        setLoading(false);
       }
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
+    } finally {
       setLoading(false);
     }
   };
