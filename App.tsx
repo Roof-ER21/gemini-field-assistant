@@ -22,8 +22,10 @@ const DocumentAnalysisPanel = lazy(() => import('./components/DocumentAnalysisPa
 const KnowledgePanel = lazy(() => import('./components/KnowledgePanel'));
 const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
 const LivePanel = lazy(() => import('./components/LivePanel'));
+const CanvassingPanel = lazy(() => import('./components/CanvassingPanel'));
+const ImpactedAssetsPanel = lazy(() => import('./components/ImpactedAssetsPanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted';
 
 // Loading fallback component for lazy-loaded panels
 const PanelLoader: React.FC = () => (
@@ -109,7 +111,9 @@ const App: React.FC = () => {
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
     documentjob: 'Document Job',
-    learning: 'Susan Learning'
+    learning: 'Susan Learning',
+    canvassing: 'Canvassing Tracker',
+    impacted: 'Impacted Assets'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -268,6 +272,18 @@ const App: React.FC = () => {
           <MessagingPanel
             onClose={() => setActivePanel('home')}
           />
+        );
+      case 'canvassing':
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <CanvassingPanel />
+          </Suspense>
+        );
+      case 'impacted':
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <ImpactedAssetsPanel />
+          </Suspense>
         );
       default:
         return <HomePage setActivePanel={setActivePanel} />;

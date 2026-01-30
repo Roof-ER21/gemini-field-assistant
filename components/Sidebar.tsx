@@ -12,13 +12,15 @@ import {
   Shield,
   Briefcase,
   Users,
-  TrendingUp
+  TrendingUp,
+  MapPin,
+  AlertTriangle
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted';
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {
@@ -125,6 +127,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
     { id: 'documentjob', label: 'Jobs', desc: 'Manage your jobs', icon: Briefcase },
     { id: 'maps', label: 'Hail & Insurance', desc: 'Hail history + directory', icon: Building2 },
+    { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
+    { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
   ];
 

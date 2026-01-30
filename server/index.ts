@@ -22,6 +22,9 @@ import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
 import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
+import canvassingRoutes from './routes/canvassingRoutes.js';
+import impactedAssetRoutes from './routes/impactedAssetRoutes.js';
+import pushRoutes from './routes/pushRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
 
 const { Pool } = pg;
@@ -5698,6 +5701,15 @@ app.use('/api/roof', createRoofRoutes(pool));
 // Register storm memory routes
 app.use('/api/storm-memory', authMiddleware);
 app.use('/api/storm-memory', stormMemoryRoutes);
+
+// Register canvassing routes
+app.use('/api/canvassing', canvassingRoutes);
+
+// Register impacted assets routes
+app.use('/api/assets', impactedAssetRoutes);
+
+// Register push notification routes
+app.use('/api/push', pushRoutes);
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
