@@ -5091,26 +5091,26 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
       results.push(`⚠️ Distance function: ${e.message}`);
     }
 
-    // Fix get_neighborhood_intel function - simplified to avoid column mismatch
+    // Fix get_neighborhood_intel function - using only core columns that definitely exist
     try {
-      await pool.query(`
-        DROP FUNCTION IF EXISTS get_neighborhood_intel(DECIMAL, DECIMAL, DECIMAL);
+      await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(DECIMAL, DECIMAL, DECIMAL)`);
 
-        CREATE OR REPLACE FUNCTION get_neighborhood_intel(
+      await pool.query(`
+        CREATE FUNCTION get_neighborhood_intel(
           p_latitude DECIMAL,
           p_longitude DECIMAL,
           p_radius_miles DECIMAL DEFAULT 0.5
         )
         RETURNS TABLE (
           address TEXT,
-          status VARCHAR(50),
-          homeowner_name VARCHAR(255),
-          homeowner_phone VARCHAR(20),
-          homeowner_email VARCHAR(255),
+          status VARCHAR,
+          homeowner_name VARCHAR,
+          homeowner_phone VARCHAR,
+          homeowner_email VARCHAR,
           property_notes TEXT,
-          best_contact_time VARCHAR(100),
-          property_type VARCHAR(50),
-          roof_type VARCHAR(100),
+          best_contact_time VARCHAR,
+          property_type VARCHAR,
+          roof_type VARCHAR,
           roof_age_years INTEGER,
           contacted_by UUID,
           contact_date TIMESTAMPTZ,
@@ -5119,19 +5119,19 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
         BEGIN
           RETURN QUERY
           SELECT
-            cs.address::TEXT,
-            cs.status::VARCHAR(50),
-            cs.homeowner_name::VARCHAR(255),
-            COALESCE(cs.homeowner_phone, cs.phone_number)::VARCHAR(20),
-            COALESCE(cs.homeowner_email, cs.email)::VARCHAR(255),
-            cs.property_notes::TEXT,
-            cs.best_contact_time::VARCHAR(100),
-            cs.property_type::VARCHAR(50),
-            cs.roof_type::VARCHAR(100),
-            cs.roof_age_years::INTEGER,
-            cs.contacted_by::UUID,
-            cs.contact_date::TIMESTAMPTZ,
-            calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude)::DECIMAL as distance_miles
+            cs.address,
+            cs.status,
+            cs.homeowner_name,
+            cs.phone_number as homeowner_phone,
+            cs.email as homeowner_email,
+            cs.notes as property_notes,
+            NULL::VARCHAR as best_contact_time,
+            NULL::VARCHAR as property_type,
+            NULL::VARCHAR as roof_type,
+            NULL::INTEGER as roof_age_years,
+            cs.contacted_by,
+            cs.contact_date,
+            calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) as distance_miles
           FROM canvassing_status cs
           WHERE cs.latitude IS NOT NULL AND cs.longitude IS NOT NULL
           AND calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) <= p_radius_miles
