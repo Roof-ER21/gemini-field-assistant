@@ -50,6 +50,7 @@ const CanvassingPanel: React.FC = () => {
 
   // Homeowner data entry modal state
   const [showHomeownerModal, setShowHomeownerModal] = useState(false);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [homeownerData, setHomeownerData] = useState({
     address: '',
     status: 'contacted' as CanvassingStatus,
@@ -72,6 +73,12 @@ const CanvassingPanel: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setPortalRoot(document.body);
+    }
   }, []);
 
   const fetchData = async () => {
@@ -1005,7 +1012,7 @@ const CanvassingPanel: React.FC = () => {
       </div>
 
       {/* Homeowner Data Entry Modal */}
-      {showHomeownerModal && createPortal(
+      {showHomeownerModal && portalRoot && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -1374,7 +1381,7 @@ const CanvassingPanel: React.FC = () => {
             </div>
           </div>
         </div>,
-        document.body
+        portalRoot
       )}
     </div>
   );

@@ -43,6 +43,7 @@ const ImpactedAssetsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'alerts' | 'properties'>('overview');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [newProperty, setNewProperty] = useState({
     customerName: '',
     customerPhone: '',
@@ -60,6 +61,12 @@ const ImpactedAssetsPanel: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setPortalRoot(document.body);
+    }
   }, []);
 
   const fetchData = async () => {
@@ -764,7 +771,7 @@ const ImpactedAssetsPanel: React.FC = () => {
         )}
 
         {/* Add Property Modal */}
-        {showAddModal && createPortal(
+        {showAddModal && portalRoot && createPortal(
           <div
             style={{
               position: 'fixed',
@@ -1059,7 +1066,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          portalRoot
         )}
       </div>
     </div>

@@ -437,7 +437,20 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     const service = createImpactedAssetService(pool);
 
-    const stats = await service.getUserImpactStats(userId, parseInt(daysBack as string));
+    let stats;
+    try {
+      stats = await service.getUserImpactStats(userId, parseInt(daysBack as string));
+    } catch (statsError) {
+      console.warn('⚠️ Impact stats unavailable, returning defaults:', statsError);
+      stats = {
+        totalProperties: 0,
+        totalAlerts: 0,
+        alertsPending: 0,
+        alertsConverted: 0,
+        conversionRate: 0,
+        totalConversionValue: 0
+      };
+    }
 
     res.json({
       success: true,
