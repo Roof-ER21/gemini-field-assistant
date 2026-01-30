@@ -1024,9 +1024,13 @@ const CanvassingPanel: React.FC = () => {
               border: '1px solid #333',
               borderRadius: '16px',
               maxWidth: '480px',
-              width: '100%',
+              width: 'calc(100% - 32px)',
+              maxHeight: 'calc(100vh - 100px)',
               marginBottom: '40px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxSizing: 'border-box'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1036,7 +1040,8 @@ const CanvassingPanel: React.FC = () => {
               borderBottom: '1px solid #262626',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              flexShrink: 0
             }}>
               <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                 Mark Address
@@ -1056,7 +1061,7 @@ const CanvassingPanel: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1 }}>
               {/* Address */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>

@@ -789,19 +789,22 @@ const ImpactedAssetsPanel: React.FC = () => {
                 background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
                 border: '1px solid #333',
                 borderRadius: '16px',
-                padding: '24px',
                 maxWidth: '500px',
-                width: '100%',
+                width: 'calc(100% - 32px)',
+                maxHeight: 'calc(100vh - 100px)',
                 marginBottom: '40px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                boxSizing: 'border-box'
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, padding: '24px 24px 0 24px', marginBottom: '20px', color: 'var(--text-primary)', flexShrink: 0 }}>
                 Add Property to Monitor
               </h3>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 24px 24px 24px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                     Customer Name *
@@ -817,7 +820,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                       borderRadius: '6px',
                       background: 'var(--bg-secondary)',
                       color: 'var(--text-primary)',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -838,7 +842,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                         borderRadius: '6px',
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
@@ -857,7 +862,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                         borderRadius: '6px',
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
@@ -878,7 +884,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                       borderRadius: '6px',
                       background: 'var(--bg-secondary)',
                       color: 'var(--text-primary)',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -899,7 +906,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                         borderRadius: '6px',
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
@@ -918,7 +926,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                         borderRadius: '6px',
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
@@ -937,7 +946,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                         borderRadius: '6px',
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
@@ -947,7 +957,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                   <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '10px' }}>
                     Monitor for:
                   </label>
-                  <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)' }}>
                       <input
                         type="checkbox"
@@ -992,7 +1002,8 @@ const ImpactedAssetsPanel: React.FC = () => {
                       borderRadius: '6px',
                       background: 'var(--bg-secondary)',
                       color: 'var(--text-primary)',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
