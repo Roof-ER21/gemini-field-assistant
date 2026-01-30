@@ -18,8 +18,20 @@ const router = Router();
  * Auto-seed default territories if none exist
  */
 async function seedDefaultTerritories(pool) {
+    // First ensure unique constraint on name exists
+    await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'territories_name_unique'
+      ) THEN
+        ALTER TABLE territories ADD CONSTRAINT territories_name_unique UNIQUE (name);
+      END IF;
+    END $$;
+  `);
     // Check if default territories exist
-    const check = await pool.query("SELECT COUNT(*) FROM territories WHERE name IN ('DMV', 'PA', 'RA')");
+    const check = await pool.query("SELECT COUNT(*) FROM territories WHERE name IN ('DMV', 'PA', 'RA') AND archived_at IS NULL");
     if (parseInt(check.rows[0].count) >= 3) {
         return; // Already seeded
     }
@@ -53,7 +65,7 @@ async function seedDefaultTerritories(pool) {
     for (const t of territories) {
         await pool.query(`INSERT INTO territories (id, name, description, color, north_lat, south_lat, east_lng, west_lng, center_lat, center_lng, is_shared, created_at, updated_at)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW(), NOW())
-       ON CONFLICT DO NOTHING`, [t.name, t.description, t.color, t.north_lat, t.south_lat, t.east_lng, t.west_lng, t.center_lat, t.center_lng]);
+       ON CONFLICT (name) DO NOTHING`, [t.name, t.description, t.color, t.north_lat, t.south_lat, t.east_lng, t.west_lng, t.center_lat, t.center_lng]);
     }
     console.log('✅ Default territories seeded');
 }
