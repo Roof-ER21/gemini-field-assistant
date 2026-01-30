@@ -4432,6 +4432,197 @@ app.post('/api/admin/run-migration-031-033', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+// Migration 035: Canvassing Tables Fix
+app.post('/api/admin/run-migration-035', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const isAdminUser = await isAdmin(email);
+        if (!isAdminUser) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        console.log('🔧 Running Migration 035: Canvassing Tables Fix...');
+        const results = [];
+        // Create canvassing_status table with all columns
+        try {
+            await pool.query(`
+        CREATE TABLE IF NOT EXISTS canvassing_status (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          address TEXT NOT NULL,
+          street_address VARCHAR(500),
+          city VARCHAR(100),
+          state VARCHAR(2),
+          zip_code VARCHAR(10),
+          latitude DECIMAL(10, 8),
+          longitude DECIMAL(11, 8),
+          status VARCHAR(50) NOT NULL DEFAULT 'not_contacted',
+          contacted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+          contact_date TIMESTAMPTZ,
+          contact_method VARCHAR(50),
+          homeowner_name VARCHAR(255),
+          phone_number VARCHAR(20),
+          email VARCHAR(255),
+          notes TEXT,
+          follow_up_date DATE,
+          follow_up_notes TEXT,
+          related_storm_event_id UUID,
+          related_job_id UUID,
+          team_id UUID,
+          territory VARCHAR(100),
+          attempt_count INTEGER DEFAULT 1,
+          last_attempt_date TIMESTAMPTZ,
+          homeowner_phone VARCHAR(20),
+          homeowner_email VARCHAR(255),
+          property_notes TEXT,
+          best_contact_time VARCHAR(100),
+          property_type VARCHAR(50),
+          roof_type VARCHAR(100),
+          roof_age_years INTEGER,
+          auto_monitor BOOLEAN DEFAULT true,
+          linked_property_id UUID,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+            results.push('✅ canvassing_status table ready');
+        }
+        catch (e) {
+            results.push(`⚠️ canvassing_status: ${e.message}`);
+        }
+        // Create canvassing_sessions table
+        try {
+            await pool.query(`
+        CREATE TABLE IF NOT EXISTS canvassing_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          session_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          end_time TIMESTAMPTZ,
+          target_city VARCHAR(100),
+          target_state VARCHAR(2),
+          target_zip_code VARCHAR(10),
+          target_territory VARCHAR(100),
+          storm_event_id UUID,
+          doors_knocked INTEGER DEFAULT 0,
+          contacts_made INTEGER DEFAULT 0,
+          leads_generated INTEGER DEFAULT 0,
+          appointments_set INTEGER DEFAULT 0,
+          notes TEXT,
+          status VARCHAR(20) DEFAULT 'active',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+            results.push('✅ canvassing_sessions table ready');
+        }
+        catch (e) {
+            results.push(`⚠️ canvassing_sessions: ${e.message}`);
+        }
+        // Create canvassing_activity_log table
+        try {
+            await pool.query(`
+        CREATE TABLE IF NOT EXISTS canvassing_activity_log (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          canvassing_status_id UUID REFERENCES canvassing_status(id) ON DELETE CASCADE,
+          session_id UUID REFERENCES canvassing_sessions(id) ON DELETE SET NULL,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          action_type VARCHAR(50) NOT NULL,
+          previous_status VARCHAR(50),
+          new_status VARCHAR(50),
+          latitude DECIMAL(10, 8),
+          longitude DECIMAL(11, 8),
+          notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+            results.push('✅ canvassing_activity_log table ready');
+        }
+        catch (e) {
+            results.push(`⚠️ canvassing_activity_log: ${e.message}`);
+        }
+        // Create indexes
+        try {
+            await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_canvassing_status_user ON canvassing_status(contacted_by, contact_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_canvassing_status_status ON canvassing_status(status);
+        CREATE INDEX IF NOT EXISTS idx_canvassing_sessions_user ON canvassing_sessions(user_id, session_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_canvassing_activity_user ON canvassing_activity_log(user_id, created_at DESC);
+      `);
+            results.push('✅ Indexes created');
+        }
+        catch (e) {
+            results.push(`⚠️ Indexes: ${e.message}`);
+        }
+        // Create the FIXED stats function that counts from canvassing_status
+        try {
+            await pool.query(`
+        CREATE OR REPLACE FUNCTION get_user_canvassing_stats(
+          p_user_id UUID,
+          p_days_back INTEGER DEFAULT 30
+        )
+        RETURNS TABLE (
+          total_doors INTEGER,
+          total_contacts INTEGER,
+          total_leads INTEGER,
+          total_appointments INTEGER,
+          conversion_rate DECIMAL,
+          avg_doors_per_session DECIMAL
+        ) AS $$
+        DECLARE
+          v_cutoff_date DATE;
+        BEGIN
+          v_cutoff_date := CURRENT_DATE - p_days_back;
+
+          RETURN QUERY
+          WITH activity_stats AS (
+            SELECT
+              COUNT(*) as doors,
+              COUNT(*) FILTER (WHERE status IN ('contacted', 'interested', 'lead', 'appointment_set', 'sold', 'customer')) as contacts,
+              COUNT(*) FILTER (WHERE status IN ('lead', 'appointment_set', 'sold', 'customer')) as leads,
+              COUNT(*) FILTER (WHERE status IN ('appointment_set', 'sold', 'customer')) as appointments
+            FROM canvassing_status
+            WHERE contacted_by = p_user_id
+            AND contact_date >= v_cutoff_date
+          ),
+          session_stats AS (
+            SELECT
+              COUNT(*) as session_count,
+              COALESCE(SUM(doors_knocked), 0) as session_doors
+            FROM canvassing_sessions
+            WHERE user_id = p_user_id
+            AND session_date >= v_cutoff_date
+          )
+          SELECT
+            COALESCE(a.doors, 0)::INTEGER as total_doors,
+            COALESCE(a.contacts, 0)::INTEGER as total_contacts,
+            COALESCE(a.leads, 0)::INTEGER as total_leads,
+            COALESCE(a.appointments, 0)::INTEGER as total_appointments,
+            CASE WHEN a.doors > 0
+              THEN ROUND(100.0 * a.leads / a.doors, 2)
+              ELSE 0
+            END as conversion_rate,
+            CASE
+              WHEN s.session_count > 0 THEN ROUND(s.session_doors::DECIMAL / s.session_count, 2)
+              WHEN a.doors > 0 THEN a.doors::DECIMAL
+              ELSE 0
+            END as avg_doors_per_session
+          FROM activity_stats a
+          CROSS JOIN session_stats s;
+        END;
+        $$ LANGUAGE plpgsql
+      `);
+            results.push('✅ get_user_canvassing_stats function FIXED to count from canvassing_status');
+        }
+        catch (e) {
+            results.push(`⚠️ Stats function: ${e.message}`);
+        }
+        console.log('✅ Migration 035 completed');
+        res.json({ success: true, results });
+    }
+    catch (error) {
+        console.error('❌ Migration 035 failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // 2. Get budget overview stats (admin only)
 app.get('/api/admin/budget/overview', async (req, res) => {
     try {
