@@ -1710,7 +1710,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
       </div>
 
       {/* Messages Area */}
-      <div className="roof-er-content-scroll">
+      <div className="roof-er-content-scroll chat-scroll">
         {showWelcome ? (
           <div className="roof-er-welcome-screen">
             <div className="roof-er-welcome-icon">🏠</div>

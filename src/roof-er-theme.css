@@ -405,7 +405,7 @@ html, body {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: stretch;
   max-width: 100%;
   min-height: 0;
@@ -413,6 +413,11 @@ html, body {
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+}
+
+/* Chat-specific: content at bottom */
+.roof-er-content-scroll.chat-scroll {
+  justify-content: flex-end;
 }
 
 .roof-er-content-scroll * {
