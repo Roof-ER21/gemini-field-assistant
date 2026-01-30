@@ -5,6 +5,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import { authService } from './authService';
+import { getApiBaseUrl } from './config';
 
 // Types
 export interface TeamMember {
@@ -177,8 +178,10 @@ class MessagingService {
       return;
     }
 
-    // Use VITE_API_URL if set, otherwise use current origin (for production)
-    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    // Use centralized config which handles Capacitor native apps
+    const baseUrl = getApiBaseUrl();
+    // Remove /api suffix for WebSocket connection
+    const serverUrl = baseUrl.replace(/\/api$/, '');
     console.log('[Messaging] Connecting to WebSocket at:', serverUrl);
 
     this.socket = io(serverUrl, {
@@ -392,7 +395,10 @@ class MessagingService {
   }
 
   private getApiUrl(): string {
-    return import.meta.env.VITE_API_URL || '';
+    // Use centralized config which properly handles Capacitor native apps
+    const url = getApiBaseUrl();
+    // getApiBaseUrl returns URL with /api suffix, remove it since we add it in each call
+    return url.replace(/\/api$/, '');
   }
 
   // Get team members with presence

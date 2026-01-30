@@ -4,6 +4,7 @@
  */
 
 import { authService } from './authService';
+import { getApiBaseUrl } from './config';
 
 // ============================================================================
 // TYPES
@@ -121,7 +122,10 @@ class RoofService {
   }
 
   private getApiUrl(): string {
-    return import.meta.env.VITE_API_URL || '';
+    // Use centralized config which properly handles Capacitor native apps
+    const url = getApiBaseUrl();
+    // getApiBaseUrl returns URL with /api suffix, remove it since we add it in each call
+    return url.replace(/\/api$/, '');
   }
 
   // ============================================================================
