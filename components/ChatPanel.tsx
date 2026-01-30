@@ -2686,34 +2686,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
               onKeyDown={handleKeyPress}
               rows={1}
               disabled={isLoading || isVoiceRecording}
-              style={{ paddingRight: '44px' }}
             />
-            {/* Image button inside text input */}
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={isAnalyzingImage}
-              style={{
-                position: 'absolute',
-                right: '8px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                padding: '6px',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '6px'
-              }}
-              title="Attach image"
-            >
-              <ImageIcon className="w-5 h-5" />
-            </button>
           </div>
-          <div className="roof-er-input-actions" style={{ position: 'relative', zIndex: 100 }}>
+          <div className="roof-er-input-actions" style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             {/* More Actions Menu Button */}
             <button
               type="button"
@@ -2830,6 +2805,35 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 >
                   <FileText className="w-5 h-5" />
                   <span>Attach Document</span>
+                </button>
+
+                {/* Attach Image */}
+                <button
+                  onClick={() => {
+                    imageInputRef.current?.click();
+                    setShowMoreActionsMenu(false);
+                  }}
+                  disabled={isAnalyzingImage}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    opacity: isAnalyzingImage ? 0.5 : 1
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <ImageIcon className="w-5 h-5" style={{ color: '#22c55e' }} />
+                  <span>Attach Image</span>
                 </button>
               </div>,
               document.body
