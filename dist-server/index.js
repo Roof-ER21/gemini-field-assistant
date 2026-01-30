@@ -24,6 +24,7 @@ import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
 import canvassingRoutes from './routes/canvassingRoutes.js';
 import impactedAssetRoutes from './routes/impactedAssetRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
+import territoryRoutes from './routes/territoryRoutes.js';
 const { Pool } = pg;
 const app = express();
 const httpServer = http.createServer(app);
@@ -4924,6 +4925,8 @@ app.use('/api/assets', impactedAssetRoutes);
 app.use('/api/impacted-assets', impactedAssetRoutes);
 // Register push notification routes
 app.use('/api/push', pushRoutes);
+// Register territory management routes
+app.use('/api/territories', territoryRoutes);
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
 // ============================================================================
