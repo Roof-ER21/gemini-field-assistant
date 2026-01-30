@@ -1,45 +1,44 @@
 /**
  * Login Page - Clean Red/Black Design
  * Mobile-first, properly sized for all screens
+ *
+ * Flow:
+ * 1. Email entry → Check if user exists
+ * 2a. Existing user → "Welcome back" → Request code
+ * 2b. New user → "Create Account" with name → Request code
+ * 3. Enter verification code → Complete login/signup
  */
 
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import LegalPage from './LegalPage';
-import { Mail, User, ArrowLeft, Shield, Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { Mail, User, ArrowLeft, Shield, UserPlus } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  // Load saved email/name from localStorage (persists across app closes)
-  const savedEmail = localStorage.getItem('s21_login_email') || '';
-  const savedName = localStorage.getItem('s21_login_name') || '';
+type Step = 'email' | 'login' | 'signup' | 'code';
 
-  const [step, setStep] = useState<'email' | 'code'>('email');
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  // Load saved email from localStorage (persists across app closes)
+  const savedEmail = localStorage.getItem('s21_login_email') || '';
+
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState(savedEmail);
   const [code, setCode] = useState('');
-  const [name, setName] = useState(savedName);
+  const [name, setName] = useState('');
+  const [existingUserName, setExistingUserName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
-  const [showDevLogin, setShowDevLogin] = useState(false);
-  const [isDevelopmentMode, setIsDevelopmentMode] = useState(false);
-  const [displayedCode, setDisplayedCode] = useState<string | null>(null);
-  const [codeCopied, setCodeCopied] = useState(false);
-  const [showCode, setShowCode] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
 
-  // Save email/name as user types (so they don't lose it if app closes)
+  // Save email as user types (so they don't lose it if app closes)
   const handleEmailChange = (value: string) => {
     setEmail(value);
     localStorage.setItem('s21_login_email', value);
-  };
-
-  const handleNameChange = (value: string) => {
-    setName(value);
-    localStorage.setItem('s21_login_name', value);
   };
 
   // Clear saved login info after successful login
@@ -48,14 +47,57 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     localStorage.removeItem('s21_login_name');
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  // Step 1: Check if email exists
+  const handleEmailCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setCodeCopied(false);
 
     try {
-      const result = await authService.requestLoginCode(email, name, rememberMe);
+      // First check for auto-login (existing token)
+      const autoResult = await authService.requestLoginCode(email, undefined, rememberMe);
+      if (autoResult.success && autoResult.autoLoginSuccess) {
+        clearSavedLoginInfo();
+        onLoginSuccess();
+        return;
+      }
+
+      // Check if user exists
+      const result = await authService.checkEmail(email);
+
+      if (!result.success) {
+        setError(result.error || 'Failed to check email');
+        setLoading(false);
+        return;
+      }
+
+      if (result.exists) {
+        // Existing user - go to login step
+        setExistingUserName(result.name || '');
+        setIsSignup(false);
+        setStep('login');
+      } else if (result.canSignup) {
+        // New user - go to signup step
+        setIsSignup(true);
+        setStep('signup');
+      } else {
+        setError('This email domain is not allowed. Please use your @theroofdocs.com email.');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2a: Existing user requests code
+  const handleLoginRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const result = await authService.requestLoginCode(email, existingUserName, rememberMe);
       if (result.success) {
         if (result.autoLoginSuccess) {
           clearSavedLoginInfo();
@@ -63,11 +105,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           return;
         }
         setStep('code');
-        setIsDevelopmentMode(result.developmentMode || false);
-        // Store the verification code if returned (for display when email not sent)
-        if (result.verificationCode) {
-          setDisplayedCode(result.verificationCode);
-        }
       } else {
         setError(result.message);
       }
@@ -78,33 +115,41 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleCopyCode = async () => {
-    if (displayedCode) {
-      try {
-        await navigator.clipboard.writeText(displayedCode);
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
-      } catch (err) {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = displayedCode;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
+  // Step 2b: New user signs up
+  const handleSignupRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!name || name.trim().length < 2) {
+      setError('Please enter your full name');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await authService.requestSignup(email, name);
+      if (result.success) {
+        setStep('code');
+      } else {
+        setError(result.message);
       }
+    } catch (err) {
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Step 3: Verify code
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const result = await authService.verifyLoginCode(email, code, name, rememberMe);
+      const userName = isSignup ? name : existingUserName;
+      const result = await authService.verifyLoginCode(email, code, userName, rememberMe);
       if (result.success) {
         clearSavedLoginInfo();
         onLoginSuccess();
@@ -118,23 +163,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleQuickLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Go back to previous step
+  const handleBack = () => {
     setError('');
-    setLoading(true);
-
-    try {
-      const result = await authService.quickLogin(email, name || undefined, rememberMe);
-      if (result.success) {
-        clearSavedLoginInfo();
-        onLoginSuccess();
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
+    setCode('');
+    if (step === 'code') {
+      setStep(isSignup ? 'signup' : 'login');
+    } else if (step === 'login' || step === 'signup') {
+      setStep('email');
+      setName('');
+      setExistingUserName('');
     }
   };
 
@@ -149,7 +187,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     border: '1px solid #262626',
     borderRadius: '12px',
     outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s'
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    boxSizing: 'border-box'
   };
 
   const labelStyle: React.CSSProperties = {
@@ -159,6 +198,118 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     color: '#a1a1aa',
     marginBottom: '8px'
   };
+
+  const buttonStyle: React.CSSProperties = {
+    width: '100%',
+    height: '52px',
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#ffffff',
+    background: loading
+      ? '#4b1818'
+      : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: loading ? 'not-allowed' : 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: loading ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
+    transition: 'all 0.2s'
+  };
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#dc2626';
+    e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#262626';
+    e.target.style.boxShadow = 'none';
+  };
+
+  // Render error message
+  const renderError = () => error && (
+    <div
+      style={{
+        padding: '12px 14px',
+        marginBottom: '16px',
+        borderRadius: '10px',
+        background: 'rgba(220, 38, 38, 0.1)',
+        border: '1px solid rgba(220, 38, 38, 0.3)',
+        fontSize: '13px',
+        color: '#f87171'
+      }}
+    >
+      {error}
+    </div>
+  );
+
+  // Render back button
+  const renderBackButton = () => (
+    <button
+      type="button"
+      onClick={handleBack}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginBottom: '20px',
+        padding: '0',
+        fontSize: '14px',
+        color: '#71717a',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer'
+      }}
+    >
+      <ArrowLeft style={{ width: '16px', height: '16px' }} />
+      Back
+    </button>
+  );
+
+  // Render remember me checkbox
+  const renderRememberMe = () => (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        marginBottom: '20px',
+        cursor: 'pointer'
+      }}
+    >
+      <div
+        onClick={() => setRememberMe(!rememberMe)}
+        style={{
+          width: '22px',
+          height: '22px',
+          borderRadius: '6px',
+          background: rememberMe ? '#dc2626' : '#262626',
+          border: rememberMe ? 'none' : '2px solid #404040',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s',
+          cursor: 'pointer',
+          flexShrink: 0
+        }}
+      >
+        {rememberMe && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
+      <div>
+        <span style={{ fontSize: '14px', color: '#ffffff' }}>Remember me</span>
+        <p style={{ fontSize: '12px', color: '#71717a', margin: '2px 0 0 0' }}>
+          Stay logged in for 1 year
+        </p>
+      </div>
+    </label>
+  );
 
   return (
     <div
@@ -202,7 +353,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           >
             <img
               src="/roofer-s21-logo.webp"
-              alt="ROOFER S21"
+              alt="ROOF-ER S21"
               style={{
                 width: '100%',
                 height: '100%',
@@ -210,11 +361,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 padding: '8px'
               }}
               onError={(e) => {
-                // Fallback to gradient if image fails
                 e.currentTarget.parentElement!.style.background = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
                 e.currentTarget.style.display = 'none';
               }}
             />
+          </div>
+          {/* S21 above ROOF ER */}
+          <div
+            style={{
+              fontSize: '20px',
+              fontWeight: '700',
+              color: '#dc2626',
+              letterSpacing: '0.1em',
+              marginBottom: '4px'
+            }}
+          >
+            S21
           </div>
           <h1
             style={{
@@ -224,8 +386,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               letterSpacing: '-0.02em'
             }}
           >
-            <span style={{ color: '#ffffff' }}>ROOFER</span>
-            <span style={{ color: '#dc2626', marginLeft: '6px' }}>S21</span>
+            <span style={{ color: '#ffffff' }}>ROOF</span>
+            <span style={{ color: '#dc2626' }}> ER</span>
           </h1>
           <p
             style={{
@@ -238,292 +400,177 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        {step === 'email' ? (
-          <form onSubmit={handleEmailSubmit}>
-            {/* Email Input */}
+        {/* Step 1: Email Entry */}
+        {step === 'email' && (
+          <form onSubmit={handleEmailCheck}>
             <div style={{ marginBottom: '16px' }}>
               <label style={labelStyle}>Email Address</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => handleEmailChange(e.target.value)}
-                placeholder="you@company.com"
+                placeholder="you@theroofdocs.com"
                 required
                 autoComplete="email"
                 style={inputStyle}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#dc2626';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#262626';
-                  e.target.style.boxShadow = 'none';
-                }}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
               />
+              <p style={{ fontSize: '12px', color: '#52525b', margin: '8px 0 0 0' }}>
+                Use your @theroofdocs.com email
+              </p>
             </div>
 
-            {/* Name Input */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Your Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="John Smith"
-                required
-                autoComplete="name"
-                style={inputStyle}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#dc2626';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#262626';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
-            </div>
+            {renderRememberMe()}
+            {renderError()}
 
-            {/* Remember Me */}
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '20px',
-                cursor: 'pointer'
-              }}
-            >
-              <div
-                onClick={() => setRememberMe(!rememberMe)}
-                style={{
-                  width: '22px',
-                  height: '22px',
-                  borderRadius: '6px',
-                  background: rememberMe ? '#dc2626' : '#262626',
-                  border: rememberMe ? 'none' : '2px solid #404040',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  cursor: 'pointer',
-                  flexShrink: 0
-                }}
-              >
-                {rememberMe && (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <span style={{ fontSize: '14px', color: '#ffffff' }}>Remember me</span>
-                <p style={{ fontSize: '12px', color: '#71717a', margin: '2px 0 0 0' }}>
-                  Stay logged in for 1 year
-                </p>
-              </div>
-            </label>
-
-            {/* Error */}
-            {error && (
-              <div
-                style={{
-                  padding: '12px 14px',
-                  marginBottom: '16px',
-                  borderRadius: '10px',
-                  background: 'rgba(220, 38, 38, 0.1)',
-                  border: '1px solid rgba(220, 38, 38, 0.3)',
-                  fontSize: '13px',
-                  color: '#f87171'
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                height: '52px',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#ffffff',
-                background: loading
-                  ? '#4b1818'
-                  : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: loading ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
-                transition: 'all 0.2s'
-              }}
-            >
-              {loading ? (
-                'Sending...'
-              ) : (
+            <button type="submit" disabled={loading} style={buttonStyle}>
+              {loading ? 'Checking...' : (
                 <>
                   <Mail style={{ width: '18px', height: '18px' }} />
                   Continue
                 </>
               )}
             </button>
-
-            {/* Dev Login Toggle */}
-            <button
-              type="button"
-              onClick={() => setShowDevLogin(!showDevLogin)}
-              style={{
-                width: '100%',
-                marginTop: '12px',
-                padding: '8px',
-                fontSize: '12px',
-                color: '#52525b',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              {showDevLogin ? 'Hide' : 'Show'} Quick Login
-            </button>
-
-            {showDevLogin && (
-              <button
-                type="button"
-                onClick={handleQuickLogin}
-                disabled={loading || !email}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  color: '#dc2626',
-                  background: '#171717',
-                  border: '1px solid #262626',
-                  borderRadius: '10px',
-                  cursor: loading || !email ? 'not-allowed' : 'pointer',
-                  opacity: loading || !email ? 0.5 : 1
-                }}
-              >
-                Quick Login (Skip Verification)
-              </button>
-            )}
           </form>
-        ) : (
-          <form onSubmit={handleCodeSubmit}>
-            {/* Back Button */}
-            <button
-              type="button"
-              onClick={() => { setStep('email'); setCode(''); setError(''); setDisplayedCode(null); setShowCode(false); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                marginBottom: '20px',
-                padding: '0',
-                fontSize: '14px',
-                color: '#71717a',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <ArrowLeft style={{ width: '16px', height: '16px' }} />
-              Back
-            </button>
+        )}
 
-            <p style={{ fontSize: '14px', color: '#a1a1aa', margin: '0 0 4px 0' }}>
-              Logging in as
-            </p>
-            <p style={{ fontSize: '15px', fontWeight: '600', color: '#dc2626', margin: '0 0 20px 0' }}>
-              {email}
-            </p>
+        {/* Step 2a: Existing User Login */}
+        {step === 'login' && (
+          <form onSubmit={handleLoginRequest}>
+            {renderBackButton()}
 
-            {/* Display Verification Code Prominently */}
-            {displayedCode && (
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
               <div
                 style={{
-                  padding: '16px',
-                  marginBottom: '20px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
-                  border: '1px solid #dc2626',
-                  textAlign: 'center'
+                  width: '64px',
+                  height: '64px',
+                  margin: '0 auto 12px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  color: '#ffffff'
                 }}
               >
-                <p style={{ fontSize: '12px', color: '#a1a1aa', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Verification Code
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                  <span
-                    style={{
-                      fontSize: '32px',
-                      fontWeight: '700',
-                      color: '#ffffff',
-                      letterSpacing: '0.15em',
-                      fontFamily: 'monospace'
-                    }}
-                  >
-                    {showCode ? displayedCode : '••••••'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCode(!showCode)}
-                    style={{
-                      padding: '8px',
-                      background: '#262626',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    title={showCode ? 'Hide code' : 'Show code'}
-                  >
-                    {showCode
-                      ? <EyeOff style={{ width: '18px', height: '18px', color: '#a1a1aa' }} />
-                      : <Eye style={{ width: '18px', height: '18px', color: '#a1a1aa' }} />
-                    }
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyCode}
-                  style={{
-                    marginTop: '12px',
-                    padding: '8px 16px',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    color: codeCopied ? '#22c55e' : '#dc2626',
-                    background: codeCopied ? 'rgba(34, 197, 94, 0.1)' : 'rgba(220, 38, 38, 0.1)',
-                    border: `1px solid ${codeCopied ? '#22c55e' : '#dc2626'}`,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {codeCopied
-                    ? <><Check style={{ width: '14px', height: '14px' }} /> Copied!</>
-                    : <><Copy style={{ width: '14px', height: '14px' }} /> Copy Code</>
-                  }
-                </button>
-                <p style={{ fontSize: '11px', color: '#71717a', margin: '12px 0 0 0' }}>
-                  Share this code via message, call, or in person
-                </p>
+                {existingUserName.charAt(0).toUpperCase() || email.charAt(0).toUpperCase()}
               </div>
-            )}
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff', margin: '0 0 4px 0' }}>
+                Welcome back{existingUserName ? `, ${existingUserName.split(' ')[0]}` : ''}!
+              </h2>
+              <p style={{ fontSize: '14px', color: '#71717a', margin: 0 }}>
+                {email}
+              </p>
+            </div>
 
-            {/* Code Input */}
+            {renderRememberMe()}
+            {renderError()}
+
+            <button type="submit" disabled={loading} style={buttonStyle}>
+              {loading ? 'Sending code...' : (
+                <>
+                  <Mail style={{ width: '18px', height: '18px' }} />
+                  Send Verification Code
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Step 2b: New User Signup */}
+        {step === 'signup' && (
+          <form onSubmit={handleSignupRequest}>
+            {renderBackButton()}
+
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  margin: '0 auto 12px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <UserPlus style={{ width: '28px', height: '28px', color: '#ffffff' }} />
+              </div>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff', margin: '0 0 4px 0' }}>
+                Create Your Account
+              </h2>
+              <p style={{ fontSize: '14px', color: '#71717a', margin: 0 }}>
+                {email}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>Your Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Smith"
+                required
+                autoComplete="name"
+                autoFocus
+                style={inputStyle}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+              />
+            </div>
+
+            {renderRememberMe()}
+            {renderError()}
+
+            <button type="submit" disabled={loading} style={buttonStyle}>
+              {loading ? 'Creating account...' : (
+                <>
+                  <UserPlus style={{ width: '18px', height: '18px' }} />
+                  Create Account
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Step 3: Code Verification */}
+        {step === 'code' && (
+          <form onSubmit={handleCodeSubmit}>
+            {renderBackButton()}
+
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <p style={{ fontSize: '14px', color: '#a1a1aa', margin: '0 0 4px 0' }}>
+                {isSignup ? 'Creating account for' : 'Logging in as'}
+              </p>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#dc2626', margin: 0 }}>
+                {email}
+              </p>
+            </div>
+
+            <div
+              style={{
+                padding: '16px',
+                marginBottom: '20px',
+                borderRadius: '12px',
+                background: '#171717',
+                border: '1px solid #262626',
+                textAlign: 'center'
+              }}
+            >
+              <Mail style={{ width: '32px', height: '32px', color: '#dc2626', margin: '0 auto 8px' }} />
+              <p style={{ fontSize: '14px', color: '#ffffff', margin: '0 0 4px 0' }}>
+                Check your email
+              </p>
+              <p style={{ fontSize: '12px', color: '#71717a', margin: 0 }}>
+                We sent a 6-digit code to your inbox
+              </p>
+            </div>
+
             <div style={{ marginBottom: '16px' }}>
               <label style={labelStyle}>Verification Code</label>
               <input
@@ -542,72 +589,42 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   fontWeight: '700',
                   letterSpacing: '0.2em'
                 }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#dc2626';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#262626';
-                  e.target.style.boxShadow = 'none';
-                }}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
               />
             </div>
 
-            {/* Error */}
-            {error && (
-              <div
-                style={{
-                  padding: '12px 14px',
-                  marginBottom: '16px',
-                  borderRadius: '10px',
-                  background: 'rgba(220, 38, 38, 0.1)',
-                  border: '1px solid rgba(220, 38, 38, 0.3)',
-                  fontSize: '13px',
-                  color: '#f87171'
-                }}
-              >
-                {error}
-              </div>
-            )}
+            {renderError()}
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading || code.length < 6}
               style={{
-                width: '100%',
-                height: '52px',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#ffffff',
+                ...buttonStyle,
                 background: loading || code.length < 6
                   ? '#4b1818'
                   : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                border: 'none',
-                borderRadius: '12px',
                 cursor: loading || code.length < 6 ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
-                transition: 'all 0.2s'
+                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)'
               }}
             >
-              {loading ? (
-                'Verifying...'
-              ) : (
+              {loading ? 'Verifying...' : (
                 <>
                   <Shield style={{ width: '18px', height: '18px' }} />
-                  Sign In
+                  {isSignup ? 'Complete Signup' : 'Sign In'}
                 </>
               )}
             </button>
 
-            {/* Resend */}
             <button
               type="button"
-              onClick={handleEmailSubmit}
+              onClick={() => {
+                if (isSignup) {
+                  handleSignupRequest({ preventDefault: () => {} } as React.FormEvent);
+                } else {
+                  handleLoginRequest({ preventDefault: () => {} } as React.FormEvent);
+                }
+              }}
               disabled={loading}
               style={{
                 width: '100%',
@@ -635,7 +652,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           }}
         >
           <p style={{ fontSize: '13px', color: '#52525b', margin: '0 0 4px 0' }}>
-            ROOFER S21 - The Roof Docs
+            ROOF-ER S21 - The Roof Docs
           </p>
           <p style={{ fontSize: '11px', color: '#3f3f46', margin: '0 0 12px 0' }}>
             Secure email authentication

@@ -24,9 +24,15 @@ export interface LoginResult {
   user?: AuthUser;
   message: string;
   autoLoginSuccess?: boolean; // True if auto-login token was used
-  developmentMode?: boolean; // True if verification code should be displayed on screen
-  verificationCode?: string; // The verification code to display (when email not sent)
   emailSent?: boolean; // True if email was actually sent
+}
+
+export interface CheckEmailResult {
+  success: boolean;
+  exists?: boolean;
+  name?: string;
+  canSignup?: boolean;
+  error?: string;
 }
 
 interface StoredAuth {
@@ -125,18 +131,11 @@ class AuthService {
   }
 
   /**
-   * Send verification code via backend API
-   * The backend handles code generation, storage, and returns the code for display
+   * Check if email exists in system (determines login vs signup flow)
    */
-  private async sendVerificationCode(email: string): Promise<{
-    success: boolean;
-    developmentMode?: boolean;
-    message: string;
-    verificationCode?: string;
-    emailSent?: boolean;
-  }> {
+  async checkEmail(email: string): Promise<CheckEmailResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
+      const response = await fetch(`${API_BASE_URL}/auth/check-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,9 +148,49 @@ class AuthService {
       if (response.ok && result.success) {
         return {
           success: true,
-          developmentMode: !result.emailSent,  // Show code if email wasn't sent
+          exists: result.exists,
+          name: result.name,
+          canSignup: result.canSignup
+        };
+      }
+
+      return {
+        success: false,
+        error: result.error || 'Failed to check email'
+      };
+    } catch (error) {
+      console.error('Error checking email:', error);
+      return {
+        success: false,
+        error: 'Network error. Please check your connection.'
+      };
+    }
+  }
+
+  /**
+   * Send verification code via backend API
+   * The backend handles code generation, storage, and email sending
+   */
+  private async sendVerificationCode(email: string, isSignup: boolean = false, name?: string): Promise<{
+    success: boolean;
+    message: string;
+    emailSent?: boolean;
+  }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, isSignup, name }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        return {
+          success: true,
           message: result.message,
-          verificationCode: result.verificationCode,
           emailSent: result.emailSent
         };
       }
@@ -265,10 +304,8 @@ class AuthService {
           success: true,
           message: sendResult.emailSent
             ? 'Verification code sent! Check your email.'
-            : 'Verification code generated - share it with the user.',
+            : 'Unable to send email. Please contact your administrator.',
           autoLoginSuccess: false,
-          developmentMode: !sendResult.emailSent,  // Show code display when email not sent
-          verificationCode: sendResult.verificationCode,
           emailSent: sendResult.emailSent
         };
       } else {
@@ -279,6 +316,63 @@ class AuthService {
       }
     } catch (error) {
       console.error('Login error:', error);
+      return {
+        success: false,
+        message: 'An error occurred. Please try again.'
+      };
+    }
+  }
+
+  /**
+   * Request signup - sends verification code for new user
+   */
+  async requestSignup(email: string, name: string): Promise<LoginResult> {
+    try {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return {
+          success: false,
+          message: 'Please enter a valid email address'
+        };
+      }
+
+      // Domain validation (client-side hint)
+      if (!email.toLowerCase().endsWith('@theroofdocs.com')) {
+        return {
+          success: false,
+          message: 'Please use your @theroofdocs.com email address'
+        };
+      }
+
+      if (!name || name.trim().length < 2) {
+        return {
+          success: false,
+          message: 'Please enter your full name'
+        };
+      }
+
+      console.log('📧 Requesting signup verification code');
+
+      // Send verification code for signup
+      const sendResult = await this.sendVerificationCode(email, true, name);
+
+      if (sendResult.success) {
+        return {
+          success: true,
+          message: sendResult.emailSent
+            ? 'Verification code sent! Check your email.'
+            : 'Unable to send email. Please contact your administrator.',
+          emailSent: sendResult.emailSent
+        };
+      } else {
+        return {
+          success: false,
+          message: sendResult.message
+        };
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
       return {
         success: false,
         message: 'An error occurred. Please try again.'
@@ -310,70 +404,25 @@ class AuthService {
         };
       }
 
-      // Code is valid - create or update user
+      // Backend now returns user data from verify-code endpoint
+      const backendUser = verifyResult.user;
+      const isFirstLogin = verifyResult.isNew === true;
+
+      // Build AuthUser from backend response
       const user: AuthUser = {
-        id: crypto.randomUUID(),
-        email: email.toLowerCase(),
-        name: name, // Name is now required from step 1
-        role: 'sales_rep',
+        id: backendUser?.id || crypto.randomUUID(),
+        email: backendUser?.email || email.toLowerCase(),
+        name: backendUser?.name || name,
+        role: (backendUser?.role as 'sales_rep' | 'manager' | 'admin') || 'sales_rep',
         state: null,
         created_at: new Date(),
         last_login_at: new Date()
       };
 
-      let isFirstLogin = false;
+      console.log(`✅ User verified: ${user.email} (${user.name})`);
+      console.log(`🔑 First login: ${isFirstLogin}`);
 
-      // First, try to create or get user from database
-      try {
-        console.log('📝 Creating/getting user in database...');
-        const createResponse = await fetch(`${API_BASE_URL}/users`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            state: user.state
-          })
-        });
-
-        if (createResponse.ok) {
-          const dbUser = await createResponse.json();
-          user.id = dbUser.id;
-          user.name = dbUser.name || user.name;
-          user.role = dbUser.role || 'sales_rep';
-          user.state = dbUser.state;
-          user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
-          isFirstLogin = dbUser.isNew === true || !dbUser.first_login_at;
-          console.log('✅ User created/loaded in database with role:', user.role);
-          console.log(`🔑 First login: ${isFirstLogin}`);
-        } else {
-          console.warn('⚠️  Failed to create user in database, continuing with local auth');
-          // Fallback: check if user exists
-          const checkResponse = await fetch(`${API_BASE_URL}/users/${email.toLowerCase()}`);
-          if (checkResponse.ok) {
-            const dbUser = await checkResponse.json();
-            user.id = dbUser.id;
-            user.name = dbUser.name || user.name;
-            user.role = dbUser.role || 'sales_rep';
-            user.state = dbUser.state;
-            user.created_at = dbUser.created_at ? new Date(dbUser.created_at) : user.created_at;
-            isFirstLogin = !dbUser.first_login_at;
-          } else {
-            // Brand new user not in database
-            isFirstLogin = true;
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error creating/loading user from database:', error);
-        console.warn('Continuing with local authentication only');
-        isFirstLogin = true;
-      }
-
-      // Ensure configured admin has admin role on login (client-side)
+      // Ensure configured admin has admin role on login (client-side override)
       try {
         const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase();
         if (adminEmail && user.email.toLowerCase() === adminEmail) {

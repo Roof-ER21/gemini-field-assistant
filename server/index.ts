@@ -1963,7 +1963,7 @@ app.get('/api/notifications/config', async (req, res) => {
 // ============================================================================
 
 // In-memory verification code storage (with expiration)
-const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
+const verificationCodes = new Map<string, { code: string; expiresAt: number; name?: string }>();
 
 // Clean up expired codes every 5 minutes
 setInterval(() => {
@@ -1980,9 +1980,15 @@ function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Send verification code endpoint
-// NOTE: Returns code directly for display (email not required)
-app.post('/api/auth/send-verification-code', async (req, res) => {
+// Email domain validation
+const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'theroofdocs.com').split(',').map(d => d.trim().toLowerCase());
+const isAllowedEmailDomain = (email: string): boolean => {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return ALLOWED_EMAIL_DOMAINS.includes(domain);
+};
+
+// Check email endpoint - determines if user exists (login) or needs to signup
+app.post('/api/auth/check-email', async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -2002,15 +2008,94 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
       });
     }
 
+    // Domain validation
+    if (!isAllowedEmailDomain(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please use your @theroofdocs.com email address',
+        canSignup: false
+      });
+    }
+
+    // Check if user exists in database
+    const normalizedEmail = email.toLowerCase();
+    const result = await pool.query(
+      'SELECT id, name, email FROM users WHERE LOWER(email) = $1',
+      [normalizedEmail]
+    );
+
+    if (result.rows.length > 0) {
+      // User exists - login flow
+      const user = result.rows[0];
+      res.json({
+        success: true,
+        exists: true,
+        name: user.name,
+        canSignup: false
+      });
+    } else {
+      // New user - signup flow
+      res.json({
+        success: true,
+        exists: false,
+        canSignup: true
+      });
+    }
+  } catch (error) {
+    console.error('Error checking email:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An error occurred while checking email'
+    });
+  }
+});
+
+// Send verification code endpoint
+app.post('/api/auth/send-verification-code', async (req, res) => {
+  try {
+    const { email, isSignup, name } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email address is required'
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid email address'
+      });
+    }
+
+    // Domain validation
+    if (!isAllowedEmailDomain(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please use your @theroofdocs.com email address'
+      });
+    }
+
+    // For signup, require name
+    if (isSignup && !name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required for signup'
+      });
+    }
+
     // Generate code
     const code = generateVerificationCode();
     const expiresInMinutes = 10;
     const expiresAt = Date.now() + (expiresInMinutes * 60 * 1000);
 
-    // Store code for later verification
-    verificationCodes.set(email.toLowerCase(), { code, expiresAt });
+    // Store code for later verification (include name for signup)
+    verificationCodes.set(email.toLowerCase(), { code, expiresAt, name: isSignup ? name : undefined });
 
-    // Try to send email (but don't fail if it doesn't work)
+    // Try to send email
     let emailSent = false;
     try {
       emailSent = await emailService.sendVerificationCode({
@@ -2019,21 +2104,20 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
         expiresInMinutes
       });
     } catch (emailError) {
-      console.log('Email sending failed (code will be displayed on screen):', emailError);
+      console.log('Email sending failed:', emailError);
     }
 
-    // Always return success with the code for display
-    // This allows admins/team members to share the code verbally or via messaging
-    console.log(`[AUTH] Verification code for ${email}: ${code}`);
+    // Log code for debugging (but don't return to client)
+    console.log(`[AUTH] Verification code for ${email}: ${code} (email sent: ${emailSent})`);
 
+    // Return success WITHOUT the verification code (security fix)
     res.json({
       success: true,
       message: emailSent
-        ? 'Verification code sent to your email'
-        : 'Verification code generated',
+        ? 'Verification code sent to your email. Please check your inbox.'
+        : 'Unable to send email. Please contact your administrator.',
       expiresInMinutes,
-      verificationCode: code,  // Always include code for display
-      emailSent  // Let frontend know if email was actually sent
+      emailSent
     });
   } catch (error) {
     console.error('Error sending verification code:', error);
@@ -2081,12 +2165,61 @@ app.post('/api/auth/verify-code', async (req, res) => {
       });
     }
 
-    // Code is valid - delete it so it can't be reused
+    // Code is valid - check if this is a signup (name was stored with code)
+    const signupName = storedData.name;
+
+    // Delete code so it can't be reused
     verificationCodes.delete(normalizedEmail);
+
+    // Check if user exists
+    const existingUser = await pool.query(
+      'SELECT id, name, email, role FROM users WHERE LOWER(email) = $1',
+      [normalizedEmail]
+    );
+
+    let user;
+    let isNew = false;
+
+    if (existingUser.rows.length > 0) {
+      // Existing user - login
+      user = existingUser.rows[0];
+
+      // Update last login
+      await pool.query(
+        'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+        [user.id]
+      );
+    } else if (signupName) {
+      // New user - create account (signup flow)
+      const newUserId = require('uuid').v4();
+      const result = await pool.query(
+        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
+         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
+         RETURNING id, name, email, role`,
+        [newUserId, normalizedEmail, signupName]
+      );
+      user = result.rows[0];
+      isNew = true;
+
+      console.log(`[AUTH] New user created: ${user.email} (${user.name})`);
+    } else {
+      // No user and no signup name - shouldn't happen with proper flow
+      return res.status(400).json({
+        success: false,
+        error: 'User not found. Please sign up first.'
+      });
+    }
 
     res.json({
       success: true,
-      message: 'Email verified successfully'
+      message: isNew ? 'Account created successfully!' : 'Login successful',
+      isNew,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
     });
   } catch (error) {
     console.error('Error verifying code:', error);
