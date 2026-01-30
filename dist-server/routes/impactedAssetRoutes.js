@@ -7,27 +7,103 @@
 import { Router } from 'express';
 import { createImpactedAssetService } from '../services/impactedAssetService.js';
 const router = Router();
-const geocodeAddress = async (params) => {
+/**
+ * Geocode using US Census Bureau Geocoder (free, no API key required)
+ */
+const geocodeWithCensus = async (params) => {
     try {
-        const query = encodeURIComponent(`${params.address}, ${params.city}, ${params.state} ${params.zipCode}`);
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`;
-        const response = await fetch(url, {
-            headers: { 'User-Agent': 'GeminiFieldAssistant/1.0' }
-        });
-        if (!response.ok)
-            return null;
+        const addressLine = `${params.address}, ${params.city}, ${params.state} ${params.zipCode}`;
+        const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?` +
+            `address=${encodeURIComponent(addressLine)}&` +
+            `benchmark=Public_AR_Current&` +
+            `format=json`;
+        console.log('🔍 Geocoding with Census Bureau:', url);
+        const response = await fetch(url);
         const data = await response.json();
-        if (!Array.isArray(data) || data.length === 0)
-            return null;
-        return {
-            latitude: parseFloat(data[0].lat),
-            longitude: parseFloat(data[0].lon)
-        };
-    }
-    catch (error) {
-        console.error('Geocoding error:', error);
+        console.log('📍 Census response:', JSON.stringify(data, null, 2));
+        if (data.result?.addressMatches?.length > 0) {
+            const match = data.result.addressMatches[0];
+            const coords = match.coordinates;
+            return {
+                latitude: coords.y,
+                longitude: coords.x
+            };
+        }
         return null;
     }
+    catch (error) {
+        console.error('❌ Census geocoding error:', error);
+        return null;
+    }
+};
+/**
+ * Geocode using Nominatim (OpenStreetMap)
+ */
+const geocodeWithNominatim = async (params) => {
+    try {
+        // Try structured Nominatim query first
+        const structuredUrl = `https://nominatim.openstreetmap.org/search?` +
+            `street=${encodeURIComponent(params.address)}&` +
+            `city=${encodeURIComponent(params.city)}&` +
+            `state=${encodeURIComponent(params.state)}&` +
+            `postalcode=${encodeURIComponent(params.zipCode)}&` +
+            `country=USA&` +
+            `format=json&` +
+            `limit=1`;
+        console.log('🔍 Geocoding with Nominatim (structured):', structuredUrl);
+        let response = await fetch(structuredUrl, {
+            headers: { 'User-Agent': 'GeminiFieldAssistant/1.0' }
+        });
+        let data = await response.json();
+        // If structured query fails, try simple query format
+        if (!Array.isArray(data) || data.length === 0) {
+            const simpleQuery = encodeURIComponent(`${params.address}, ${params.city}, ${params.state} ${params.zipCode}, USA`);
+            const simpleUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${simpleQuery}&limit=1&countrycodes=us`;
+            console.log('🔍 Geocoding with Nominatim (simple):', simpleUrl);
+            response = await fetch(simpleUrl, {
+                headers: { 'User-Agent': 'GeminiFieldAssistant/1.0' }
+            });
+            data = await response.json();
+        }
+        if (Array.isArray(data) && data.length > 0) {
+            return {
+                latitude: parseFloat(data[0].lat),
+                longitude: parseFloat(data[0].lon)
+            };
+        }
+        return null;
+    }
+    catch (error) {
+        console.error('❌ Nominatim geocoding error:', error);
+        return null;
+    }
+};
+/**
+ * Multi-provider geocoding with fallback
+ * Tries Census Bureau first (most accurate for US addresses), then falls back to Nominatim
+ */
+const geocodeAddress = async (params) => {
+    console.log('🔍 Starting geocoding for:', {
+        address: params.address,
+        city: params.city,
+        state: params.state,
+        zipCode: params.zipCode
+    });
+    // Try Census Bureau first (best for US addresses)
+    let result = await geocodeWithCensus(params);
+    if (result) {
+        console.log('✅ Geocoded successfully with Census Bureau:', result);
+        return result;
+    }
+    // Fallback to Nominatim
+    console.log('⚠️ Census geocoding failed, trying Nominatim...');
+    result = await geocodeWithNominatim(params);
+    if (result) {
+        console.log('✅ Geocoded successfully with Nominatim:', result);
+        return result;
+    }
+    console.error('❌ All geocoding providers failed');
+    return null;
 };
 // Get pool from app
 const getPool = (req) => {
@@ -92,15 +168,32 @@ router.post('/properties', async (req, res) => {
             });
         }
         if (latitude === undefined || longitude === undefined) {
+            console.log('🔍 No coordinates provided, attempting geocoding for:', {
+                address,
+                city,
+                state,
+                zipCode
+            });
             const geo = await geocodeAddress({ address, city, state, zipCode });
             if (geo) {
                 latitude = geo.latitude;
                 longitude = geo.longitude;
+                console.log('✅ Geocoding successful:', { latitude, longitude });
+            }
+            else {
+                console.error('❌ Geocoding failed for address');
             }
         }
         if (latitude === undefined || longitude === undefined) {
             return res.status(400).json({
-                error: 'latitude and longitude are required (enable location or provide a full address for geocoding)'
+                error: 'Unable to geocode address. Please try again or enable location services.',
+                details: {
+                    address,
+                    city,
+                    state,
+                    zipCode,
+                    suggestion: 'Verify the address is correct and complete'
+                }
             });
         }
         const service = createImpactedAssetService(pool);

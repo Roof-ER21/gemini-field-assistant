@@ -885,7 +885,12 @@ export default function TerritoryHailMap() {
                   </div>
                   <button
                     onClick={handleAdvancedSearch}
-                    disabled={loading || (!searchCriteria.city && !searchCriteria.latitude)}
+                    disabled={loading || (
+                      !searchCriteria.latitude &&
+                      !searchCriteria.city &&
+                      !searchCriteria.address &&
+                      !searchCriteria.zip
+                    )}
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -896,7 +901,12 @@ export default function TerritoryHailMap() {
                       fontSize: '13px',
                       fontWeight: 600,
                       cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.6 : 1
+                      opacity: loading || (
+                        !searchCriteria.latitude &&
+                        !searchCriteria.city &&
+                        !searchCriteria.address &&
+                        !searchCriteria.zip
+                      ) ? 0.6 : 1
                     }}
                   >
                     {loading ? 'Searching...' : 'Search'}

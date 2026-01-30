@@ -74,18 +74,15 @@ router.post('/search-advanced', async (req, res) => {
         const { address, city, state, zip, latitude, longitude, startDate, endDate, minHailSize, radius = 50 } = req.body;
         let lat = latitude;
         let lng = longitude;
-        // If address provided, search by address
-        if (city || state || zip || address) {
-            if (!city || !state || !zip) {
-                return res.status(400).json({ error: 'city, state, and zip are required for address search' });
-            }
-            // Calculate months from date range or use default
-            let months = 24;
-            if (startDate && endDate) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
-            }
+        // Calculate months from date range or use default
+        let months = 24;
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
+        }
+        // If we have city, state, and zip - use address search
+        if (city && state && zip) {
             const data = await hailMapsService.searchByAddress({
                 street: address || '',
                 city,
@@ -101,17 +98,51 @@ router.post('/search-advanced', async (req, res) => {
                 ...data,
                 events: filteredEvents,
                 resultsCount: filteredEvents.length,
-                searchCriteria: { address, city, state, zip, startDate, endDate, minHailSize, radius }
+                searchCriteria: {
+                    address,
+                    city,
+                    state,
+                    zip,
+                    latitude: data.searchArea.center.lat,
+                    longitude: data.searchArea.center.lng,
+                    startDate,
+                    endDate,
+                    minHailSize,
+                    radius
+                }
             });
+        }
+        // If we have address/city/state but no zip, geocode first
+        if ((address || city) && state && !zip && !lat && !lng) {
+            // Use Nominatim geocoding to get coordinates
+            const geocodeQuery = address
+                ? `${address}, ${city || ''}, ${state}`.trim()
+                : `${city}, ${state}`.trim();
+            try {
+                const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQuery)}&format=json&limit=1`;
+                const geocodeResponse = await fetch(geocodeUrl, {
+                    headers: {
+                        'User-Agent': 'RoofER-GeminiFieldAssistant/1.0'
+                    }
+                });
+                if (!geocodeResponse.ok) {
+                    return res.status(400).json({ error: 'Failed to geocode address. Please provide ZIP code or coordinates.' });
+                }
+                const geocodeData = await geocodeResponse.json();
+                if (!geocodeData || geocodeData.length === 0) {
+                    return res.status(400).json({ error: 'Address not found. Please provide ZIP code or coordinates.' });
+                }
+                lat = parseFloat(geocodeData[0].lat);
+                lng = parseFloat(geocodeData[0].lon);
+                console.log(`✅ Geocoded "${geocodeQuery}" to ${lat}, ${lng}`);
+            }
+            catch (geocodeError) {
+                console.error('❌ Geocoding error:', geocodeError);
+                return res.status(400).json({ error: 'Failed to geocode address. Please provide ZIP code or coordinates.' });
+            }
         }
         // Search by coordinates
         if (lat && lng) {
-            let months = 24;
-            if (startDate && endDate) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
-            }
             const data = await hailMapsService.searchByCoordinates(parseFloat(lat), parseFloat(lng), months, parseFloat(radius));
             let filteredEvents = data.events || [];
             if (minHailSize) {
@@ -121,10 +152,21 @@ router.post('/search-advanced', async (req, res) => {
                 ...data,
                 events: filteredEvents,
                 resultsCount: filteredEvents.length,
-                searchCriteria: { latitude: lat, longitude: lng, startDate, endDate, minHailSize, radius }
+                searchCriteria: {
+                    address,
+                    city,
+                    state,
+                    zip,
+                    latitude: lat,
+                    longitude: lng,
+                    startDate,
+                    endDate,
+                    minHailSize,
+                    radius
+                }
             });
         }
-        return res.status(400).json({ error: 'Provide address or coordinates' });
+        return res.status(400).json({ error: 'Provide city and state (optionally address), ZIP code, or coordinates' });
     }
     catch (error) {
         console.error('❌ Advanced hail search error:', error);
