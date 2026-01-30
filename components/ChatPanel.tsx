@@ -7,7 +7,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
-import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar } from 'lucide-react';
+import { Send, Mic, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar, MapPin, MoreHorizontal } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
@@ -179,6 +179,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedState, setSelectedState] = useState<'VA' | 'MD' | 'PA' | null>(null);
+  const [showStateMenu, setShowStateMenu] = useState(false);
+  const [showMoreActionsMenu, setShowMoreActionsMenu] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; content: string; type: string; preview?: string; file?: File }>>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -368,6 +370,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    if (!showStateMenu && !showMoreActionsMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Check if click is outside the input actions area
+      if (!target.closest('.roof-er-input-actions')) {
+        setShowStateMenu(false);
+        setShowMoreActionsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showStateMenu, showMoreActionsMenu]);
 
   // Auto-resize textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -1314,7 +1333,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
       console.error("Error sending message:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Sorry, I encountered an error: ${(error as Error).message}\n\nPlease check your API keys in .env.local or install Ollama for local AI.`,
+        text: `Sorry, I encountered an error: ${(error as Error).message}\n\nIf this persists, please contact support.`,
         sender: 'bot',
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -2523,46 +2542,42 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
       {/* Input Area */}
       <div className="roof-er-input-area">
-        {/* State Selector */}
-        <div className="roof-er-quick-commands" style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '12px 16px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500, marginRight: '8px' }}>
-            Current State:
-          </span>
-          {stateOptions.map((state) => (
+        {/* State Selector - Compact Display */}
+        {selectedState && (
+          <div style={{
+            padding: '8px 16px',
+            background: 'var(--bg-elevated)',
+            borderTop: '1px solid var(--border-default)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px'
+          }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              State-specific answers for: <strong style={{
+                color: stateOptions.find(s => s.code === selectedState)?.color,
+                marginLeft: '4px'
+              }}>{stateOptions.find(s => s.code === selectedState)?.name}</strong>
+            </span>
             <button
-              key={state.code}
               onClick={() => {
-                const newState = selectedState === state.code ? null : state.code as 'VA' | 'MD' | 'PA';
-                setSelectedState(newState);
-                // Persist state selection
-                if (newState) {
-                  localStorage.setItem('selectedState', newState);
-                } else {
-                  localStorage.removeItem('selectedState');
-                }
+                setSelectedState(null);
+                localStorage.removeItem('selectedState');
               }}
               style={{
-                padding: '6px 14px',
-                background: selectedState === state.code ? state.color : 'var(--bg-elevated)',
-                border: `2px solid ${selectedState === state.code ? state.color : 'var(--border-default)'}`,
-                borderRadius: '6px',
-                color: selectedState === state.code ? 'white' : 'var(--text-primary)',
-                fontSize: '13px',
-                fontWeight: 600,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-tertiary)',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                padding: '4px 8px',
+                fontSize: '11px',
+                textDecoration: 'underline'
               }}
-              title={`${state.name} ${selectedState === state.code ? '(Active)' : ''}`}
             >
-              {state.code}
+              Clear
             </button>
-          ))}
-          {selectedState && (
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: '8px' }}>
-              S21 will tailor answers for {stateOptions.find(s => s.code === selectedState)?.name}
-            </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* File Upload Input (Hidden) */}
         <input
@@ -2665,36 +2680,222 @@ Generate ONLY the email body text, no subject line or metadata.`;
             rows={1}
             disabled={isLoading || isVoiceRecording}
           />
-          <div className="roof-er-input-actions">
+          <div className="roof-er-input-actions" style={{ position: 'relative' }}>
+            {/* More Actions Menu Button */}
             <button
               type="button"
               className="roof-er-action-btn"
-              title="Upload Images (Auto-analyzes roof damage)"
+              title="More actions"
+              onClick={() => setShowMoreActionsMenu(!showMoreActionsMenu)}
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+
+            {/* More Actions Menu Dropdown */}
+            {showMoreActionsMenu && (
+              <div style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '0',
+                marginBottom: '8px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                padding: '8px',
+                minWidth: '200px',
+                zIndex: 1000
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
+                  Quick Actions:
+                </div>
+
+                {/* Email Generation */}
+                <button
+                  onClick={() => {
+                    setShowEmailDialog(true);
+                    setShowMoreActionsMenu(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '4px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Mail className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                  <span>Generate Email</span>
+                </button>
+
+                {/* State Selector Toggle */}
+                <button
+                  onClick={() => {
+                    setShowStateMenu(!showStateMenu);
+                    setShowMoreActionsMenu(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: selectedState ? stateOptions.find(s => s.code === selectedState)?.color : 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: selectedState ? 'white' : 'var(--text-primary)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '4px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!selectedState) e.currentTarget.style.background = 'var(--bg-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!selectedState) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span>{selectedState ? `State: ${selectedState}` : 'Select State'}</span>
+                </button>
+
+                {/* Attach Document */}
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowMoreActionsMenu(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Attach Document</span>
+                </button>
+              </div>
+            )}
+
+            {/* State Menu Dropdown (when opened from More menu) */}
+            {showStateMenu && (
+              <div style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '0',
+                marginBottom: '8px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                padding: '8px',
+                minWidth: '160px',
+                zIndex: 1000
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
+                  Select State:
+                </div>
+                {stateOptions.map((state) => (
+                  <button
+                    key={state.code}
+                    onClick={() => {
+                      const newState = selectedState === state.code ? null : state.code as 'VA' | 'MD' | 'PA';
+                      setSelectedState(newState);
+                      if (newState) {
+                        localStorage.setItem('selectedState', newState);
+                      } else {
+                        localStorage.removeItem('selectedState');
+                      }
+                      setShowStateMenu(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: selectedState === state.code ? state.color : 'transparent',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: selectedState === state.code ? 'white' : 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontWeight: selectedState === state.code ? 600 : 400,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      marginBottom: '4px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedState !== state.code) {
+                        e.currentTarget.style.background = 'var(--bg-hover)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedState !== state.code) {
+                        e.currentTarget.style.background = 'transparent';
+                      }
+                    }}
+                  >
+                    {state.code} - {state.name}
+                    {selectedState === state.code && ' ✓'}
+                  </button>
+                ))}
+                {selectedState && (
+                  <button
+                    onClick={() => {
+                      setSelectedState(null);
+                      localStorage.removeItem('selectedState');
+                      setShowStateMenu(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px',
+                      background: 'transparent',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: '6px',
+                      color: 'var(--text-secondary)',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      marginTop: '4px'
+                    }}
+                  >
+                    Clear Selection
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Attachment Button - For images */}
+            <button
+              type="button"
+              className="roof-er-action-btn"
+              title="Attach images"
               onClick={() => imageInputRef.current?.click()}
               disabled={isAnalyzingImage}
             >
               <ImageIcon className="w-5 h-5" />
             </button>
-            <button
-              type="button"
-              className="roof-er-action-btn"
-              title="Attach Document (PDF, DOCX, TXT, MD)"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              className="roof-er-action-btn"
-              title="Generate Email"
-              onClick={() => setShowEmailDialog(true)}
-              style={{
-                background: showEmailDialog ? 'var(--roof-red)' : undefined,
-                color: showEmailDialog ? 'white' : undefined
-              }}
-            >
-              <Mail className="w-5 h-5" />
-            </button>
+
+            {/* Voice Input Button */}
             <button
               type="button"
               className={`roof-er-action-btn ${isVoiceRecording ? 'roof-er-bg-red roof-er-text-primary' : ''}`}
@@ -2704,11 +2905,18 @@ Generate ONLY the email body text, no subject line or metadata.`;
             >
               <Mic className="w-5 h-5" />
             </button>
+
+            {/* Send Button - Always visible and prominent */}
             <button
               type="submit"
               className="roof-er-action-btn roof-er-send-btn"
               title="Send Message"
               disabled={!userInput.trim() || isLoading || isVoiceRecording}
+              style={{
+                background: 'var(--roof-red)',
+                color: 'white',
+                minWidth: '44px'
+              }}
             >
               {isLoading ? <Spinner /> : <Send className="w-5 h-5" />}
             </button>

@@ -72,20 +72,35 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
 
       if (result.exists) {
-        // Existing user - go to login step
+        // Existing user - send code automatically and go to code entry
         setExistingUserName(result.name || '');
         setIsSignup(false);
-        setStep('login');
+
+        // Automatically send verification code
+        const loginResult = await authService.requestLoginCode(email, result.name || '', rememberMe);
+        if (loginResult.success) {
+          if (loginResult.autoLoginSuccess) {
+            clearSavedLoginInfo();
+            onLoginSuccess();
+            return;
+          }
+          // Go directly to code entry
+          setStep('code');
+        } else {
+          setError(loginResult.message);
+          setLoading(false);
+        }
       } else if (result.canSignup) {
         // New user - go to signup step
         setIsSignup(true);
         setStep('signup');
+        setLoading(false);
       } else {
         setError('This email domain is not allowed. Please use your @theroofdocs.com email.');
+        setLoading(false);
       }
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -168,7 +183,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setError('');
     setCode('');
     if (step === 'code') {
-      setStep(isSignup ? 'signup' : 'login');
+      // For existing users, go back to email (since we skip login step)
+      // For new users, go back to signup
+      if (isSignup) {
+        setStep('signup');
+      } else {
+        setStep('email');
+        setExistingUserName('');
+      }
     } else if (step === 'login' || step === 'signup') {
       setStep('email');
       setName('');

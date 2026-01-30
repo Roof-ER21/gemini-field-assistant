@@ -15,8 +15,8 @@ const getEnvVar = (key: string): string | undefined => {
 };
 
 export const env = {
-  // API Keys
-  GEMINI_API_KEY: getEnvVar('GEMINI_API_KEY') || '',
+  // API Keys - Railway uses GOOGLE_AI_API_KEY, also support GEMINI_API_KEY for backwards compatibility
+  GEMINI_API_KEY: getEnvVar('GOOGLE_AI_API_KEY') || getEnvVar('GEMINI_API_KEY') || '',
   GROQ_API_KEY: getEnvVar('GROQ_API_KEY') || '',
   TOGETHER_API_KEY: getEnvVar('TOGETHER_API_KEY') || '',
   HF_API_KEY: getEnvVar('HUGGINGFACE_API_KEY') || getEnvVar('HF_API_KEY') || '',
@@ -56,10 +56,11 @@ export const env = {
 
       if (this.isProduction) {
         console.error('🔴 Critical: Production deployment missing required API keys!');
-        console.info('➡ Set VITE_GROQ_API_KEY, VITE_TOGETHER_API_KEY, VITE_GEMINI_API_KEY (and optional VITE_HF_API_KEY) in Railway, then redeploy.');
+        console.info('➡ Set GOOGLE_AI_API_KEY (or GEMINI_API_KEY), GROQ_API_KEY, TOGETHER_API_KEY in Railway environment variables.');
+        console.info('   Railway uses raw environment variable names (not VITE_ prefix).');
         console.info('ℹ Provider status endpoint: /api/providers/status');
       } else {
-        console.info('ℹ Dev tip: add keys to .env.local using VITE_* names.');
+        console.info('ℹ Dev tip: add keys to .env.local using VITE_* prefix (e.g., VITE_GEMINI_API_KEY).');
       }
     }
 

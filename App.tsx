@@ -375,7 +375,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex flex-1">
+      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden' }}>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
@@ -411,21 +411,23 @@ const App: React.FC = () => {
           />
         </div>
 
-        <main className="flex-1">
+        <main className="flex-1" style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <ErrorBoundary>
             {renderPanel()}
           </ErrorBoundary>
         </main>
       </div>
 
-      {/* Floating Quick Action Button (mobile only) */}
-      <button
-        className="roof-er-floating-quick-action"
-        aria-label="Open quick actions"
-        onClick={() => { setInitialQuickAction('email'); setShowQuickActions(true); }}
-      >
-        + Quick Actions
-      </button>
+      {/* Floating Quick Action Button (mobile only) - Hidden on chat panel */}
+      {activePanel !== 'chat' && (
+        <button
+          className="roof-er-floating-quick-action"
+          aria-label="Open quick actions"
+          onClick={() => { setInitialQuickAction('email'); setShowQuickActions(true); }}
+        >
+          + Quick Actions
+        </button>
+      )}
 
       {/* Quick Actions Modal */}
       <QuickActionModal

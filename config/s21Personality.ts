@@ -396,7 +396,7 @@ export const CONTEXTUAL_RESPONSES = {
 export const SPECIAL_MESSAGES = {
   // Error handling
   apiError: {
-    text: "Looks like I hit a technical snag. My AI providers might be having issues. Make sure your API keys are configured in .env.local, or install Ollama for local AI backup. Want to try again?",
+    text: "Looks like I hit a technical snag. My AI providers might be having issues. Want to try again, or is there something else I can help with?",
     context: 'error'
   },
 
