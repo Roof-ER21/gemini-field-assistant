@@ -310,7 +310,7 @@ export const impactedAssetApi = {
    */
   async getStats(daysBack: number = 30): Promise<ImpactedAssetStats | null> {
     try {
-      const query = new URLSearchParams({ days: daysBack.toString() });
+      const query = new URLSearchParams({ daysBack: daysBack.toString() });
       const response = await fetch(`${impactedBase}/stats?${query}`, {
         headers: getHeaders()
       });

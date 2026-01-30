@@ -104,6 +104,7 @@ app.use(helmet({
         "https://api.together.xyz",
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
+        "https://nominatim.openstreetmap.org",
         "https://api.interactivehailmaps.com",
         "https://maps.interactivehailmaps.com"
       ],

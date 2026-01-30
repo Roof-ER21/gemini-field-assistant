@@ -11,6 +11,26 @@ import { createImpactedAssetService } from '../services/impactedAssetService.js'
 
 const router = Router();
 
+const geocodeAddress = async (params: { address: string; city: string; state: string; zipCode: string }) => {
+  try {
+    const query = encodeURIComponent(`${params.address}, ${params.city}, ${params.state} ${params.zipCode}`);
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'GeminiFieldAssistant/1.0' }
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return {
+      latitude: parseFloat(data[0].lat),
+      longitude: parseFloat(data[0].lon)
+    };
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+};
+
 // Get pool from app
 const getPool = (req: Request): Pool => {
   return req.app.get('pool');
@@ -77,15 +97,30 @@ router.post('/properties', async (req: Request, res: Response) => {
       address,
       city,
       state,
-      zipCode,
-      latitude,
-      longitude
+      zipCode
     } = req.body;
 
+    let latitude = req.body.latitude;
+    let longitude = req.body.longitude;
+
     // Validate required fields
-    if (!customerName || !address || !city || !state || !zipCode || latitude === undefined || longitude === undefined) {
+    if (!customerName || !address || !city || !state || !zipCode) {
       return res.status(400).json({
-        error: 'customerName, address, city, state, zipCode, latitude, and longitude are required'
+        error: 'customerName, address, city, and state are required'
+      });
+    }
+
+    if (latitude === undefined || longitude === undefined) {
+      const geo = await geocodeAddress({ address, city, state, zipCode });
+      if (geo) {
+        latitude = geo.latitude;
+        longitude = geo.longitude;
+      }
+    }
+
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        error: 'latitude and longitude are required (enable location or provide a full address for geocoding)'
       });
     }
 
