@@ -999,12 +999,7 @@ const CanvassingPanel: React.FC = () => {
         <div
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: '100vw',
-            height: '100vh',
+            inset: 0,
             background: 'rgba(0, 0, 0, 0.85)',
             display: 'flex',
             alignItems: 'center',
@@ -1021,7 +1016,7 @@ const CanvassingPanel: React.FC = () => {
               border: '1px solid #333',
               borderRadius: '16px',
               maxWidth: '480px',
-              width: 'calc(100% - 32px)',
+              width: '100%',
               maxHeight: '90vh',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
               boxSizing: 'border-box',

@@ -1458,7 +1458,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           background: 'linear-gradient(to top, rgba(26, 26, 46, 1) 0%, rgba(26, 26, 46, 0.98) 100%)',
           position: 'sticky',
           bottom: 0,
-          zIndex: 10,
+          zIndex: 100,
         }}>
           <button
             onClick={() => {
@@ -1629,23 +1629,38 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   // ============ Main Render ============
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'var(--bg-primary, #0a0a0a)',
-      zIndex: 99999,
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {renderHeader()}
-      {viewMode === 'list' && renderListView()}
-      {viewMode === 'kanban' && renderKanbanView()}
-      {viewMode === 'detail' && renderDetailView()}
-      {(viewMode === 'create' || viewMode === 'edit') && renderForm()}
-    </div>
+    <>
+      {/* Backdrop - prevents bleed-through */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.85)',
+        zIndex: 99998,
+      }} />
+
+      {/* Main Panel */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'var(--bg-primary, #0a0a0a)',
+        zIndex: 99999,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        {renderHeader()}
+        {viewMode === 'list' && renderListView()}
+        {viewMode === 'kanban' && renderKanbanView()}
+        {viewMode === 'detail' && renderDetailView()}
+        {(viewMode === 'create' || viewMode === 'edit') && renderForm()}
+      </div>
+    </>
   );
 };
 
