@@ -5103,14 +5103,14 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
       results.push(`⚠️ Could not check columns: ${e.message}`);
     }
 
-    // Drop and recreate with explicit type matching
+    // Drop and recreate with correct column names
     try {
       await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(DECIMAL, DECIMAL, DECIMAL)`);
       await pool.query(`DROP FUNCTION IF EXISTS get_neighborhood_intel(numeric, numeric, numeric)`);
 
-      // Simple function that just returns nearby addresses
+      // Use the actual column names from the table
       await pool.query(`
-        CREATE OR REPLACE FUNCTION get_neighborhood_intel(
+        CREATE FUNCTION get_neighborhood_intel(
           p_lat DECIMAL,
           p_lng DECIMAL,
           p_radius DECIMAL DEFAULT 0.5
@@ -5131,27 +5131,27 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
           distance_miles DECIMAL
         ) AS $$
           SELECT
-            address::TEXT,
-            status::VARCHAR,
-            homeowner_name::VARCHAR,
-            phone_number::VARCHAR,
-            email::VARCHAR,
-            notes::TEXT,
-            NULL::VARCHAR,
-            NULL::VARCHAR,
-            NULL::VARCHAR,
-            NULL::INTEGER,
-            contacted_by::UUID,
-            contact_date::TIMESTAMPTZ,
-            calculate_distance_miles(p_lat, p_lng, latitude, longitude)::DECIMAL
-          FROM canvassing_status
-          WHERE latitude IS NOT NULL
-            AND longitude IS NOT NULL
-            AND calculate_distance_miles(p_lat, p_lng, latitude, longitude) <= p_radius
-          ORDER BY calculate_distance_miles(p_lat, p_lng, latitude, longitude);
+            cs.address::TEXT,
+            cs.status::VARCHAR,
+            cs.homeowner_name::VARCHAR,
+            COALESCE(cs.homeowner_phone, cs.phone_number)::VARCHAR,
+            COALESCE(cs.homeowner_email, cs.email)::VARCHAR,
+            COALESCE(cs.property_notes, cs.notes)::TEXT,
+            cs.best_contact_time::VARCHAR,
+            cs.property_type::VARCHAR,
+            cs.roof_type::VARCHAR,
+            cs.roof_age_years::INTEGER,
+            cs.contacted_by::UUID,
+            cs.contact_date::TIMESTAMPTZ,
+            calculate_distance_miles(p_lat, p_lng, cs.latitude, cs.longitude)::DECIMAL
+          FROM canvassing_status cs
+          WHERE cs.latitude IS NOT NULL
+            AND cs.longitude IS NOT NULL
+            AND calculate_distance_miles(p_lat, p_lng, cs.latitude, cs.longitude) <= p_radius
+          ORDER BY calculate_distance_miles(p_lat, p_lng, cs.latitude, cs.longitude);
         $$ LANGUAGE SQL STABLE
       `);
-      results.push('✅ get_neighborhood_intel function FIXED (SQL version)');
+      results.push('✅ get_neighborhood_intel function FIXED (SQL version with correct columns)');
     } catch (e: any) {
       results.push(`⚠️ Intel function: ${e.message}`);
     }
