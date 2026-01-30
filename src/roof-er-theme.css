@@ -384,6 +384,9 @@ html, body {
   overflow: hidden;
   backdrop-filter: blur(10px) saturate(115%);
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .roof-er-content-area::before {
@@ -406,6 +409,7 @@ html, body {
   align-items: stretch;
   max-width: 100%;
   min-height: 0;
+  min-width: 0;
   box-sizing: border-box;
   position: relative;
   z-index: 1;

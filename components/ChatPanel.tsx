@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { connectTranscriptionStream, generateEmail } from '../services/geminiService';
 import { Session, LiveServerMessage } from '@google/genai';
@@ -218,6 +219,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement>(null);
 
   // Refs for voice transcription
   const sessionPromiseRef = useRef<Promise<Session> | null>(null);
@@ -377,8 +379,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      // Check if click is outside the input actions area
-      if (!target.closest('.roof-er-input-actions')) {
+      // Check if click is inside the input actions area OR inside the dropdown menu (portal)
+      const isInsideInputActions = target.closest('.roof-er-input-actions');
+      const isInsideDropdown = dropdownMenuRef.current?.contains(target);
+
+      if (!isInsideInputActions && !isInsideDropdown) {
         setShowStateMenu(false);
         setShowMoreActionsMenu(false);
       }
@@ -2719,21 +2724,24 @@ Generate ONLY the email body text, no subject line or metadata.`;
               <MoreHorizontal className="w-5 h-5" />
             </button>
 
-            {/* More Actions Menu Dropdown */}
-            {showMoreActionsMenu && (
-              <div style={{
-                position: 'fixed',
-                bottom: '80px',
-                right: '16px',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '12px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                padding: '12px',
-                minWidth: '180px',
-                zIndex: 9999
-              }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
+            {/* More Actions Menu Dropdown - Rendered via Portal to escape stacking context */}
+            {showMoreActionsMenu && createPortal(
+              <div
+                ref={dropdownMenuRef}
+                style={{
+                  position: 'fixed',
+                  bottom: '100px',
+                  right: '20px',
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+                  padding: '12px',
+                  minWidth: '200px',
+                  zIndex: 999999
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#888', padding: '4px 8px', marginBottom: '4px' }}>
                   Quick Actions:
                 </div>
 
@@ -2745,23 +2753,23 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   }}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     background: 'transparent',
                     border: 'none',
-                    borderRadius: '6px',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
+                    gap: '12px',
                     marginBottom: '4px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <Mail className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                  <Mail className="w-5 h-5" style={{ color: '#dc2626' }} />
                   <span>Generate Email</span>
                 </button>
 
@@ -2773,27 +2781,27 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   }}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     background: selectedState ? stateOptions.find(s => s.code === selectedState)?.color : 'transparent',
                     border: 'none',
-                    borderRadius: '6px',
-                    color: selectedState ? 'white' : 'var(--text-primary)',
-                    fontSize: '13px',
+                    borderRadius: '8px',
+                    color: selectedState ? 'white' : '#fff',
+                    fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
+                    gap: '12px',
                     marginBottom: '4px'
                   }}
                   onMouseEnter={(e) => {
-                    if (!selectedState) e.currentTarget.style.background = 'var(--bg-hover)';
+                    if (!selectedState) e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                   }}
                   onMouseLeave={(e) => {
                     if (!selectedState) e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <MapPin className="w-4 h-4" />
+                  <MapPin className="w-5 h-5" />
                   <span>{selectedState ? `State: ${selectedState}` : 'Select State'}</span>
                 </button>
 
@@ -2805,42 +2813,46 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   }}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     background: 'transparent',
                     border: 'none',
-                    borderRadius: '6px',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px'
+                    gap: '12px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-5 h-5" />
                   <span>Attach Document</span>
                 </button>
-              </div>
+              </div>,
+              document.body
             )}
 
-            {/* State Menu Dropdown (when opened from More menu) */}
-            {showStateMenu && (
-              <div style={{
-                position: 'fixed',
-                bottom: '80px',
-                right: '16px',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '12px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                padding: '12px',
-                minWidth: '160px',
-                zIndex: 9999
-              }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px', marginBottom: '4px' }}>
+            {/* State Menu Dropdown - Rendered via Portal */}
+            {showStateMenu && createPortal(
+              <div
+                ref={dropdownMenuRef}
+                style={{
+                  position: 'fixed',
+                  bottom: '100px',
+                  right: '20px',
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+                  padding: '12px',
+                  minWidth: '180px',
+                  zIndex: 999999
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#888', padding: '4px 8px', marginBottom: '4px' }}>
                   Select State:
                 </div>
                 {stateOptions.map((state) => (
@@ -2858,12 +2870,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     }}
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
+                      padding: '10px 14px',
                       background: selectedState === state.code ? state.color : 'transparent',
                       border: 'none',
-                      borderRadius: '6px',
-                      color: selectedState === state.code ? 'white' : 'var(--text-primary)',
-                      fontSize: '13px',
+                      borderRadius: '8px',
+                      color: selectedState === state.code ? 'white' : '#fff',
+                      fontSize: '14px',
                       fontWeight: selectedState === state.code ? 600 : 400,
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -2872,7 +2884,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     }}
                     onMouseEnter={(e) => {
                       if (selectedState !== state.code) {
-                        e.currentTarget.style.background = 'var(--bg-hover)';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                       }
                     }}
                     onMouseLeave={(e) => {
@@ -2894,12 +2906,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     }}
                     style={{
                       width: '100%',
-                      padding: '6px 12px',
+                      padding: '8px 14px',
                       background: 'transparent',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: '6px',
-                      color: 'var(--text-secondary)',
-                      fontSize: '12px',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '8px',
+                      color: '#888',
+                      fontSize: '13px',
                       cursor: 'pointer',
                       marginTop: '4px'
                     }}
@@ -2907,7 +2919,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     Clear Selection
                   </button>
                 )}
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Voice Input Button */}

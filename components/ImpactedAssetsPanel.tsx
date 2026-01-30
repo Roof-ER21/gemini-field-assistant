@@ -277,8 +277,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                 {stats.pendingAlerts + stats.contactedAlerts}
               </div>
             </div>
-          </div>,
-          document.body
+          </div>
         )}
 
         {/* Quick Actions */}

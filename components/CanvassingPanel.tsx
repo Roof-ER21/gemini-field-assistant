@@ -313,8 +313,8 @@ const CanvassingPanel: React.FC = () => {
   }
 
   return (
-    <div className="roof-er-content-area">
-      <div className="roof-er-content-scroll">
+    <div className="roof-er-content-area" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+      <div className="roof-er-content-scroll" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
         {/* Header */}
         <div className="roof-er-page-title">
           <MapPin className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
@@ -368,7 +368,7 @@ const CanvassingPanel: React.FC = () => {
 
         {/* Stats Dashboard */}
         {stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px', width: '100%', boxSizing: 'border-box' }}>
             <div style={{
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
@@ -535,7 +535,7 @@ const CanvassingPanel: React.FC = () => {
             <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-primary)' }}>
               Status Breakdown
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {Object.entries(statusBreakdown).map(([status, count]) => (
                 <div
                   key={status}
@@ -773,30 +773,30 @@ const CanvassingPanel: React.FC = () => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                      <div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--roof-red)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
                           {session.doorsKnocked}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Doors</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>Doors</div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#3b82f6' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
                           {session.contacts}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Contacts</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>Contacts</div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#8b5cf6' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#8b5cf6' }}>
                           {session.leads}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Leads</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>Leads</div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>
                           {session.appointments}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Appts</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>Appts</div>
                       </div>
                     </div>
                   </div>
@@ -827,7 +827,7 @@ const CanvassingPanel: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {/* Neighborhood Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-default)',
@@ -908,7 +908,7 @@ const CanvassingPanel: React.FC = () => {
                       <Users className="w-4 h-4" />
                       Team Performance
                     </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
                         background: 'var(--bg-elevated)',
                         border: '1px solid var(--border-default)',
