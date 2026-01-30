@@ -36,6 +36,18 @@ const HOST = '0.0.0.0';
 // Railway runs behind a proxy/load balancer
 app.set('trust proxy', 1);
 
+process.on('uncaughtException', (error) => {
+  console.error('🚨 Uncaught exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('🚨 Unhandled rejection:', error);
+});
+
+httpServer.on('error', (error) => {
+  console.error('🚨 HTTP server error:', error);
+});
+
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -5792,7 +5804,8 @@ async function processFeedbackFollowups(): Promise<void> {
 }
 
 httpServer.listen(PORT, HOST, () => {
-  console.log(`🚀 API Server running on port ${PORT}`);
+  console.log(`🚀 API Server running on ${HOST}:${PORT}`);
+  console.log(`🌐 NODE_ENV=${process.env.NODE_ENV || 'unknown'} PORT=${process.env.PORT || 'unset'}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 
   // Initialize WebSocket presence service
