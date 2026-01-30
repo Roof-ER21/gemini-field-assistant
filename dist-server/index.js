@@ -45,12 +45,20 @@ httpServer.on('error', (error) => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // AI clients (server-side)
+// Railway environment variables support both GOOGLE_AI_API_KEY and GEMINI_API_KEY
 const getEnvKey = (key) => process.env[key] || process.env[`VITE_${key}`];
-const geminiKey = getEnvKey('GEMINI_API_KEY');
+const geminiKey = getEnvKey('GOOGLE_AI_API_KEY') || getEnvKey('GEMINI_API_KEY');
 const groqKey = getEnvKey('GROQ_API_KEY');
 const togetherKey = getEnvKey('TOGETHER_API_KEY');
 const hfKey = getEnvKey('HF_API_KEY') || getEnvKey('HUGGINGFACE_API_KEY');
+// Initialize Gemini client if API key is available
 const geminiClient = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
+// Log AI provider availability at startup (production safe)
+console.log('🤖 AI Providers Status:');
+console.log(`  - Gemini: ${geminiClient ? '✅ Available' : '❌ Not configured'}`);
+console.log(`  - Groq: ${groqKey ? '✅ Available' : '❌ Not configured'}`);
+console.log(`  - Together: ${togetherKey ? '✅ Available' : '❌ Not configured'}`);
+console.log(`  - Hugging Face: ${hfKey ? '✅ Available' : '❌ Not configured'}`);
 // ============================================================================
 // DATABASE CONNECTION
 // ============================================================================
@@ -317,16 +325,17 @@ async function callGemini(prompt) {
 }
 async function generateDocumentAnalysis(prompt) {
     const messages = [{ role: 'user', content: prompt }];
-    if (process.env.GROQ_API_KEY) {
+    // Try providers in order: Groq (fastest), Together, Gemini
+    if (groqKey) {
         return { content: await callGroq(messages), provider: 'groq' };
     }
-    if (process.env.TOGETHER_API_KEY) {
+    if (togetherKey) {
         return { content: await callTogether(messages), provider: 'together' };
     }
-    if (process.env.GEMINI_API_KEY) {
+    if (geminiKey && geminiClient) {
         return { content: await callGemini(prompt), provider: 'gemini' };
     }
-    throw new Error('No AI providers configured for document analysis');
+    throw new Error('No AI providers configured. Please set GOOGLE_AI_API_KEY, GROQ_API_KEY, or TOGETHER_API_KEY in Railway environment variables.');
 }
 // Get or create a user by email, marking admin based on env
 async function getOrCreateUserIdByEmail(email) {
@@ -819,6 +828,121 @@ app.get('/api/chat/messages', async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching chat history:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get chat sessions (grouped conversations)
+app.get('/api/chat/sessions', async (req, res) => {
+    try {
+        const { limit = 20 } = req.query;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        console.log('[API] 📋 Fetching chat sessions for user:', email);
+        // Group messages by session_id and get session metadata
+        const result = await pool.query(`
+      SELECT
+        session_id,
+        user_id,
+        MIN(created_at) as first_message_at,
+        MAX(created_at) as last_message_at,
+        COUNT(*) as message_count,
+        MAX(CASE WHEN sender = 'user' THEN content END) as title,
+        MAX(CASE WHEN sender = 'user' THEN content END) as preview,
+        MAX(state) as state
+      FROM chat_history
+      WHERE user_id = $1 AND session_id IS NOT NULL
+      GROUP BY session_id, user_id
+      ORDER BY MAX(created_at) DESC
+      LIMIT $2
+    `, [userId, limit]);
+        const sessions = result.rows.map(row => ({
+            session_id: row.session_id,
+            user_id: row.user_id,
+            title: row.title ? row.title.slice(0, 50) : 'New Chat',
+            preview: row.preview ? row.preview.slice(0, 100) : '',
+            message_count: parseInt(row.message_count),
+            first_message_at: row.first_message_at,
+            last_message_at: row.last_message_at,
+            state: row.state
+        }));
+        console.log('[API] ✅ Found', sessions.length, 'chat sessions');
+        res.json(sessions);
+    }
+    catch (error) {
+        console.error('[API] ❌ Error fetching chat sessions:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get a specific chat session with all messages
+app.get('/api/chat/sessions/:sessionId', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        console.log('[API] 📋 Fetching session:', sessionId, 'for user:', email);
+        // Get all messages for this session
+        const result = await pool.query(`
+      SELECT * FROM chat_history
+      WHERE user_id = $1 AND session_id = $2
+      ORDER BY created_at ASC
+    `, [userId, sessionId]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        // Build session object
+        const messages = result.rows.map(row => ({
+            id: row.message_id,
+            text: row.content,
+            sender: row.sender,
+            timestamp: row.created_at,
+            state: row.state,
+            provider: row.provider,
+            sources: row.sources
+        }));
+        const session = {
+            session_id: sessionId,
+            user_id: userId,
+            title: messages.find(m => m.sender === 'user')?.text.slice(0, 50) || 'New Chat',
+            preview: messages.find(m => m.sender === 'user')?.text.slice(0, 100) || '',
+            message_count: messages.length,
+            first_message_at: result.rows[0].created_at,
+            last_message_at: result.rows[result.rows.length - 1].created_at,
+            state: result.rows.find(r => r.state)?.state,
+            messages
+        };
+        console.log('[API] ✅ Retrieved session with', messages.length, 'messages');
+        res.json(session);
+    }
+    catch (error) {
+        console.error('[API] ❌ Error fetching session:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Delete a chat session
+app.delete('/api/chat/sessions/:sessionId', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        console.log('[API] 🗑️ Deleting session:', sessionId, 'for user:', email);
+        const result = await pool.query(`
+      DELETE FROM chat_history
+      WHERE user_id = $1 AND session_id = $2
+    `, [userId, sessionId]);
+        console.log('[API] ✅ Deleted', result.rowCount, 'messages');
+        res.json({ success: true, deleted: result.rowCount });
+    }
+    catch (error) {
+        console.error('[API] ❌ Error deleting session:', error);
         res.status(500).json({ error: error.message });
     }
 });
