@@ -4,9 +4,9 @@
  */
 import { Router } from 'express';
 import { createTerritoryService } from '../services/territoryService.js';
-// Get pool from request (set by middleware)
+// Get pool from app
 const getPool = (req) => {
-    return req.pool;
+    return req.app.get('pool');
 };
 // Get user ID from email header
 const getUserIdFromEmail = async (pool, email) => {
