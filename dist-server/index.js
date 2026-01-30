@@ -4432,7 +4432,7 @@ app.post('/api/admin/run-migration-031-033', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-// Migration 036: Add missing distance function for intel
+// Migration 036: Fix neighborhood intel function
 app.post('/api/admin/run-migration-036', async (req, res) => {
     try {
         const email = getRequestEmail(req);
@@ -4440,7 +4440,7 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
         if (!isAdminUser) {
             return res.status(403).json({ error: 'Admin access required' });
         }
-        console.log('🔧 Running Migration 036: Distance function...');
+        console.log('🔧 Running Migration 036: Intel functions...');
         const results = [];
         // Create calculate_distance_miles function (Haversine formula)
         try {
@@ -4478,6 +4478,57 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
         }
         catch (e) {
             results.push(`⚠️ Distance function: ${e.message}`);
+        }
+        // Fix get_neighborhood_intel function
+        try {
+            await pool.query(`
+        CREATE OR REPLACE FUNCTION get_neighborhood_intel(
+          p_latitude DECIMAL,
+          p_longitude DECIMAL,
+          p_radius_miles DECIMAL DEFAULT 0.5
+        )
+        RETURNS TABLE (
+          address TEXT,
+          status VARCHAR,
+          homeowner_name VARCHAR,
+          homeowner_phone VARCHAR,
+          homeowner_email VARCHAR,
+          property_notes TEXT,
+          best_contact_time VARCHAR,
+          property_type VARCHAR,
+          roof_type VARCHAR,
+          roof_age_years INTEGER,
+          contacted_by UUID,
+          contact_date TIMESTAMPTZ,
+          distance_miles DECIMAL
+        ) AS $$
+        BEGIN
+          RETURN QUERY
+          SELECT
+            cs.address,
+            cs.status,
+            cs.homeowner_name,
+            COALESCE(cs.homeowner_phone, cs.phone_number) as homeowner_phone,
+            COALESCE(cs.homeowner_email, cs.email) as homeowner_email,
+            cs.property_notes,
+            cs.best_contact_time,
+            cs.property_type,
+            cs.roof_type,
+            cs.roof_age_years,
+            cs.contacted_by,
+            cs.contact_date,
+            calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) as distance_miles
+          FROM canvassing_status cs
+          WHERE cs.latitude IS NOT NULL AND cs.longitude IS NOT NULL
+          AND calculate_distance_miles(p_latitude, p_longitude, cs.latitude, cs.longitude) <= p_radius_miles
+          ORDER BY distance_miles ASC;
+        END;
+        $$ LANGUAGE plpgsql
+      `);
+            results.push('✅ get_neighborhood_intel function FIXED');
+        }
+        catch (e) {
+            results.push(`⚠️ Intel function: ${e.message}`);
         }
         console.log('✅ Migration 036 completed');
         res.json({ success: true, results });
