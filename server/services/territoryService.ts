@@ -13,10 +13,11 @@ export interface Territory {
   ownerId?: string;
   ownerName?: string;
   isShared: boolean;
-  boundary?: {
-    type: 'Polygon';
-    coordinates: number[][][];
-  };
+  // Bounding box
+  northLat?: number;
+  southLat?: number;
+  eastLng?: number;
+  westLng?: number;
   centerLat?: number;
   centerLng?: number;
   stats: {
@@ -53,7 +54,11 @@ export interface CreateTerritoryInput {
   description?: string;
   color?: string;
   ownerId: string;
-  boundary?: number[][][]; // GeoJSON polygon coordinates
+  // Bounding box
+  northLat?: number;
+  southLat?: number;
+  eastLng?: number;
+  westLng?: number;
   centerLat?: number;
   centerLng?: number;
 }
@@ -83,7 +88,10 @@ export function createTerritoryService(pool: Pool) {
         t.owner_id,
         u.name as owner_name,
         t.is_shared,
-        ST_AsGeoJSON(t.boundary)::json as boundary,
+        t.north_lat,
+        t.south_lat,
+        t.east_lng,
+        t.west_lng,
         t.center_lat,
         t.center_lng,
         t.total_addresses,
@@ -112,7 +120,10 @@ export function createTerritoryService(pool: Pool) {
       ownerId: row.owner_id,
       ownerName: row.owner_name,
       isShared: row.is_shared,
-      boundary: row.boundary,
+      northLat: parseFloat(row.north_lat) || undefined,
+      southLat: parseFloat(row.south_lat) || undefined,
+      eastLng: parseFloat(row.east_lng) || undefined,
+      westLng: parseFloat(row.west_lng) || undefined,
       centerLat: parseFloat(row.center_lat) || undefined,
       centerLng: parseFloat(row.center_lng) || undefined,
       stats: {
@@ -147,7 +158,10 @@ export function createTerritoryService(pool: Pool) {
         t.owner_id,
         u.name as owner_name,
         t.is_shared,
-        ST_AsGeoJSON(t.boundary)::json as boundary,
+        t.north_lat,
+        t.south_lat,
+        t.east_lng,
+        t.west_lng,
         t.center_lat,
         t.center_lng,
         t.total_addresses,
@@ -175,7 +189,10 @@ export function createTerritoryService(pool: Pool) {
       ownerId: row.owner_id,
       ownerName: row.owner_name,
       isShared: row.is_shared,
-      boundary: row.boundary,
+      northLat: parseFloat(row.north_lat) || undefined,
+      southLat: parseFloat(row.south_lat) || undefined,
+      eastLng: parseFloat(row.east_lng) || undefined,
+      westLng: parseFloat(row.west_lng) || undefined,
       centerLat: parseFloat(row.center_lat) || undefined,
       centerLng: parseFloat(row.center_lng) || undefined,
       stats: {
@@ -201,21 +218,21 @@ export function createTerritoryService(pool: Pool) {
    * Create a new territory
    */
   async function createTerritory(input: CreateTerritoryInput): Promise<Territory> {
-    const boundaryQuery = input.boundary
-      ? `ST_GeomFromGeoJSON('{"type":"Polygon","coordinates":${JSON.stringify(input.boundary)}}')`
-      : 'NULL';
-
     const result = await pool.query(
       `INSERT INTO territories (
-        name, description, color, owner_id, boundary, center_lat, center_lng
+        name, description, color, owner_id, north_lat, south_lat, east_lng, west_lng, center_lat, center_lng
       ) VALUES (
-        $1, $2, $3, $4, ${boundaryQuery}, $5, $6
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
       ) RETURNING id`,
       [
         input.name,
         input.description || null,
         input.color || '#dc2626',
         input.ownerId,
+        input.northLat || null,
+        input.southLat || null,
+        input.eastLng || null,
+        input.westLng || null,
         input.centerLat || null,
         input.centerLng || null,
       ]
@@ -247,6 +264,22 @@ export function createTerritoryService(pool: Pool) {
     if (updates.color !== undefined) {
       fields.push(`color = $${paramCount++}`);
       values.push(updates.color);
+    }
+    if (updates.northLat !== undefined) {
+      fields.push(`north_lat = $${paramCount++}`);
+      values.push(updates.northLat);
+    }
+    if (updates.southLat !== undefined) {
+      fields.push(`south_lat = $${paramCount++}`);
+      values.push(updates.southLat);
+    }
+    if (updates.eastLng !== undefined) {
+      fields.push(`east_lng = $${paramCount++}`);
+      values.push(updates.eastLng);
+    }
+    if (updates.westLng !== undefined) {
+      fields.push(`west_lng = $${paramCount++}`);
+      values.push(updates.westLng);
     }
     if (updates.centerLat !== undefined) {
       fields.push(`center_lat = $${paramCount++}`);
@@ -496,15 +529,16 @@ export function createTerritoryService(pool: Pool) {
   }
 
   /**
-   * Find territory containing a point
+   * Find territory containing a point (bounding box check)
    */
   async function findTerritoryByPoint(lat: number, lng: number): Promise<Territory | null> {
     const result = await pool.query(
       `SELECT t.id FROM territories t
-       WHERE ST_Contains(t.boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+       WHERE $1 BETWEEN t.south_lat AND t.north_lat
+       AND $2 BETWEEN t.west_lng AND t.east_lng
        AND t.archived_at IS NULL
        LIMIT 1`,
-      [lng, lat]
+      [lat, lng]
     );
 
     if (result.rows.length === 0) return null;

@@ -1,9 +1,6 @@
--- Territory Management System
+-- Territory Management System (Non-PostGIS version)
+-- Uses bounding box instead of polygon for portability
 -- Enables reps to define and manage their sales territories
--- Competitors: SPOTIO, HailTrace have similar features
-
--- Enable PostGIS for geographic operations (if not enabled)
-CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- Territories table
 CREATE TABLE IF NOT EXISTS territories (
@@ -17,10 +14,13 @@ CREATE TABLE IF NOT EXISTS territories (
     team_id UUID, -- For shared territories
     is_shared BOOLEAN DEFAULT FALSE,
 
-    -- Geographic boundary (polygon)
-    boundary GEOMETRY(POLYGON, 4326),
+    -- Bounding box (instead of PostGIS polygon)
+    north_lat DECIMAL(10, 8), -- Top of box
+    south_lat DECIMAL(10, 8), -- Bottom of box
+    east_lng DECIMAL(11, 8),  -- Right of box
+    west_lng DECIMAL(11, 8),  -- Left of box
 
-    -- Center point for quick lookups
+    -- Center point for display
     center_lat DECIMAL(10, 8),
     center_lng DECIMAL(11, 8),
 
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS territory_checkins (
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_territories_owner ON territories(owner_id);
-CREATE INDEX IF NOT EXISTS idx_territories_boundary ON territories USING GIST(boundary);
+CREATE INDEX IF NOT EXISTS idx_territories_bounds ON territories(north_lat, south_lat, east_lng, west_lng);
 CREATE INDEX IF NOT EXISTS idx_territories_center ON territories(center_lat, center_lng);
 CREATE INDEX IF NOT EXISTS idx_territory_assignments_user ON territory_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_territory_activity_territory ON territory_activity(territory_id);
@@ -104,14 +104,15 @@ CREATE INDEX IF NOT EXISTS idx_territory_activity_created ON territory_activity(
 CREATE INDEX IF NOT EXISTS idx_territory_checkins_user ON territory_checkins(user_id);
 CREATE INDEX IF NOT EXISTS idx_territory_checkins_active ON territory_checkins(check_out_time) WHERE check_out_time IS NULL;
 
--- Function to check if a point is within any territory
-CREATE OR REPLACE FUNCTION get_territory_for_point(lat DECIMAL, lng DECIMAL)
+-- Function to check if a point is within any territory (bounding box check)
+CREATE OR REPLACE FUNCTION get_territory_for_point(p_lat DECIMAL, p_lng DECIMAL)
 RETURNS TABLE(territory_id UUID, territory_name VARCHAR) AS $$
 BEGIN
     RETURN QUERY
     SELECT t.id, t.name
     FROM territories t
-    WHERE ST_Contains(t.boundary, ST_SetSRID(ST_MakePoint(lng, lat), 4326))
+    WHERE p_lat BETWEEN t.south_lat AND t.north_lat
+    AND p_lng BETWEEN t.west_lng AND t.east_lng
     AND t.archived_at IS NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -161,6 +162,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_territory_stats ON territory_activity;
 CREATE TRIGGER trigger_update_territory_stats
 AFTER INSERT ON territory_activity
 FOR EACH ROW
@@ -185,13 +187,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_territory_canvassing ON territory_checkins;
 CREATE TRIGGER trigger_update_territory_canvassing
 AFTER UPDATE ON territory_checkins
 FOR EACH ROW
 EXECUTE FUNCTION update_territory_canvassing_stats();
 
 -- View for territory leaderboard
-CREATE OR REPLACE VIEW territory_leaderboard AS
+DROP VIEW IF EXISTS territory_leaderboard;
+CREATE VIEW territory_leaderboard AS
 SELECT
     t.id AS territory_id,
     t.name AS territory_name,
@@ -217,30 +221,7 @@ JOIN users u ON t.owner_id = u.id
 WHERE t.archived_at IS NULL
 ORDER BY t.revenue_generated DESC;
 
--- Insert sample territory for testing (if none exist)
--- This creates a sample territory around Frederick, MD
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM territories LIMIT 1) THEN
-        INSERT INTO territories (
-            name,
-            description,
-            color,
-            boundary,
-            center_lat,
-            center_lng
-        ) VALUES (
-            'Frederick Downtown',
-            'Main canvassing area covering downtown Frederick, MD',
-            '#dc2626',
-            ST_GeomFromText('POLYGON((-77.43 39.40, -77.40 39.40, -77.40 39.43, -77.43 39.43, -77.43 39.40))', 4326),
-            39.415,
-            -77.415
-        );
-    END IF;
-END $$;
-
-COMMENT ON TABLE territories IS 'Sales territories with geographic boundaries for canvassing management';
+COMMENT ON TABLE territories IS 'Sales territories with bounding box boundaries for canvassing management';
 COMMENT ON TABLE territory_assignments IS 'Tracks which users are assigned to which territories';
 COMMENT ON TABLE territory_activity IS 'Log of all activity within territories';
 COMMENT ON TABLE territory_checkins IS 'Tracks rep check-ins/outs within territories';

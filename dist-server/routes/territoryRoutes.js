@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
         if (!userId) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const { name, description, color, boundary, centerLat, centerLng } = req.body;
+        const { name, description, color, northLat, southLat, eastLng, westLng, centerLat, centerLng } = req.body;
         if (!name) {
             return res.status(400).json({ error: 'Territory name is required' });
         }
@@ -89,7 +89,10 @@ router.post('/', async (req, res) => {
             description,
             color,
             ownerId: userId,
-            boundary,
+            northLat,
+            southLat,
+            eastLng,
+            westLng,
             centerLat,
             centerLng,
         });
