@@ -25,8 +25,9 @@ const LivePanel = lazy(() => import('./components/LivePanel'));
 const CanvassingPanel = lazy(() => import('./components/CanvassingPanel'));
 const ImpactedAssetsPanel = lazy(() => import('./components/ImpactedAssetsPanel'));
 const TerritoryManager = lazy(() => import('./components/TerritoryManager'));
+const TerritoryHailMap = lazy(() => import('./components/TerritoryHailMap'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap';
 
 // Loading fallback component for lazy-loaded panels
 const PanelLoader: React.FC = () => (
@@ -291,6 +292,12 @@ const App: React.FC = () => {
         return (
           <Suspense fallback={<PanelLoader />}>
             <TerritoryManager />
+          </Suspense>
+        );
+      case 'stormmap':
+        return (
+          <Suspense fallback={<PanelLoader />}>
+            <TerritoryHailMap />
           </Suspense>
         );
       default:
