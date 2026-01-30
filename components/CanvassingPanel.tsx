@@ -507,7 +507,7 @@ const CanvassingPanel: React.FC = () => {
                 whiteSpace: 'nowrap'
               }}
             >
-              {tab === 'followups' ? `Follow-ups (${followUps.length})` : tab}
+              {tab === 'followups' ? `Follow-Ups (${followUps?.length || 0})` : tab === 'intel' ? 'Intel' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -1003,24 +1003,30 @@ const CanvassingPanel: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.85)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
+            zIndex: 9999,
+            padding: '16px',
+            paddingTop: '80px',
+            overflowY: 'auto',
+            boxSizing: 'border-box',
+            WebkitOverflowScrolling: 'touch'
           }}
           onClick={() => setShowHomeownerModal(false)}
         >
           <div
             style={{
-              background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
-              border: '1px solid #262626',
+              background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+              border: '1px solid #333',
               borderRadius: '16px',
-              maxWidth: '500px',
+              maxWidth: '480px',
               width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto'
+              marginBottom: '40px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1069,7 +1075,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1090,7 +1097,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 >
                   <option value="contacted">Contacted</option>
@@ -1122,7 +1130,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1145,7 +1154,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1168,7 +1178,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1189,7 +1200,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 >
                   <option value="residential">Residential</option>
@@ -1216,7 +1228,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1240,7 +1253,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>
@@ -1263,7 +1277,8 @@ const CanvassingPanel: React.FC = () => {
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '14px',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box' as const
                   }}
                 />
               </div>

@@ -770,23 +770,30 @@ const ImpactedAssetsPanel: React.FC = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
+              width: '100vw',
+              height: '100vh',
+              background: 'rgba(0, 0, 0, 0.85)',
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'center',
-              zIndex: 1000
+              zIndex: 9999,
+              padding: '20px',
+              paddingTop: '60px',
+              overflowY: 'auto',
+              boxSizing: 'border-box'
             }}
             onClick={() => setShowAddModal(false)}
           >
             <div
               style={{
-                background: 'var(--bg-elevated)',
-                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+                border: '1px solid #333',
+                borderRadius: '16px',
                 padding: '24px',
                 maxWidth: '500px',
-                width: '90%',
-                maxHeight: '90vh',
-                overflow: 'auto'
+                width: '100%',
+                marginBottom: '40px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1006,7 +1013,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                       background: 'var(--bg-secondary)',
                       color: 'var(--text-primary)',
                       fontSize: '14px',
-                      resize: 'vertical'
+                      resize: 'vertical', boxSizing: 'border-box'
                     }}
                   />
                 </div>
