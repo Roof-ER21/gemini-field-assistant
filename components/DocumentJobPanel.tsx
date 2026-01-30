@@ -1636,7 +1636,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
       right: 0,
       bottom: 0,
       background: 'var(--bg-primary, #0a0a0a)',
-      zIndex: 1000,
+      zIndex: 99999,
       display: 'flex',
       flexDirection: 'column',
     }}>

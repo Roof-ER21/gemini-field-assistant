@@ -791,19 +791,19 @@ const ImpactedAssetsPanel: React.FC = () => {
                 borderRadius: '16px',
                 maxWidth: '500px',
                 width: 'calc(100% - 32px)',
-                maxHeight: 'calc(100vh - 100px)',
+                maxHeight: '90vh',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                flexDirection: 'column',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch'
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ fontSize: '20px', fontWeight: 700, padding: '24px 24px 0 24px', marginBottom: '20px', color: 'var(--text-primary)', flexShrink: 0 }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, padding: '24px 24px 0 24px', marginBottom: '20px', color: 'var(--text-primary)' }}>
                 Add Property to Monitor
               </h3>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 24px 24px 24px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 24px 24px 24px' }}>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                     Customer Name *

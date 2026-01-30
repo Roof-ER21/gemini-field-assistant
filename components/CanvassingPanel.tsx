@@ -1009,10 +1009,8 @@ const CanvassingPanel: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
+            zIndex: 99999,
             padding: '20px',
-            overflowY: 'auto',
-            WebkitOverflowScrolling: 'touch',
             boxSizing: 'border-box'
           }}
           onClick={() => setShowHomeownerModal(false)}
@@ -1024,11 +1022,11 @@ const CanvassingPanel: React.FC = () => {
               borderRadius: '16px',
               maxWidth: '480px',
               width: 'calc(100% - 32px)',
-              maxHeight: 'calc(100vh - 100px)',
+              maxHeight: '90vh',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1039,7 +1037,10 @@ const CanvassingPanel: React.FC = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              flexShrink: 0
+              position: 'sticky',
+              top: 0,
+              background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+              zIndex: 1
             }}>
               <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                 Mark Address
@@ -1059,7 +1060,7 @@ const CanvassingPanel: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1 }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Address */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
