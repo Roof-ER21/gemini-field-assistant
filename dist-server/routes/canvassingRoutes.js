@@ -338,6 +338,31 @@ router.get('/sessions', async (req, res) => {
  * Query params:
  * - daysBack?: number (default: 30)
  */
+// Alias for frontend compatibility
+router.get('/stats/user', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const userEmail = req.headers['x-user-email'];
+        if (!userEmail) {
+            return res.status(401).json({ error: 'User email required' });
+        }
+        const userId = await getUserIdFromEmail(pool, userEmail);
+        if (!userId) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const { daysBack = '30' } = req.query;
+        const service = createCanvassingService(pool);
+        const stats = await service.getUserStats(userId, parseInt(daysBack));
+        res.json({
+            success: true,
+            stats
+        });
+    }
+    catch (error) {
+        console.error('❌ Error getting stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 router.get('/stats', async (req, res) => {
     try {
         const pool = getPool(req);

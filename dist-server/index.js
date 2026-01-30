@@ -27,7 +27,19 @@ import pushRoutes from './routes/pushRoutes.js';
 const { Pool } = pg;
 const app = express();
 const httpServer = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 8080;
+const HOST = '0.0.0.0';
+// Railway runs behind a proxy/load balancer
+app.set('trust proxy', 1);
+process.on('uncaughtException', (error) => {
+    console.error('🚨 Uncaught exception:', error);
+});
+process.on('unhandledRejection', (error) => {
+    console.error('🚨 Unhandled rejection:', error);
+});
+httpServer.on('error', (error) => {
+    console.error('🚨 HTTP server error:', error);
+});
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,6 +86,9 @@ app.use(helmet({
                 "https://generativelanguage.googleapis.com",
                 "https://api.groq.com",
                 "https://api.together.xyz",
+                "https://fonts.googleapis.com",
+                "https://fonts.gstatic.com",
+                "https://nominatim.openstreetmap.org",
                 "https://api.interactivehailmaps.com",
                 "https://maps.interactivehailmaps.com"
             ],
@@ -4904,8 +4919,9 @@ app.use('/api/storm-memory', authMiddleware);
 app.use('/api/storm-memory', stormMemoryRoutes);
 // Register canvassing routes
 app.use('/api/canvassing', canvassingRoutes);
-// Register impacted assets routes
+// Register impacted assets routes (support legacy + new paths)
 app.use('/api/assets', impactedAssetRoutes);
+app.use('/api/impacted-assets', impactedAssetRoutes);
 // Register push notification routes
 app.use('/api/push', pushRoutes);
 // ============================================================================
@@ -4969,8 +4985,9 @@ async function processFeedbackFollowups() {
         console.error('Failed to process feedback followups:', error);
     }
 }
-httpServer.listen(PORT, () => {
-    console.log(`🚀 API Server running on port ${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+    console.log(`🚀 API Server running on ${HOST}:${PORT}`);
+    console.log(`🌐 NODE_ENV=${process.env.NODE_ENV || 'unknown'} PORT=${process.env.PORT || 'unset'}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
     // Initialize WebSocket presence service
     try {

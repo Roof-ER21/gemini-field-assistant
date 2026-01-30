@@ -7,6 +7,28 @@
 import { Router } from 'express';
 import { createImpactedAssetService } from '../services/impactedAssetService.js';
 const router = Router();
+const geocodeAddress = async (params) => {
+    try {
+        const query = encodeURIComponent(`${params.address}, ${params.city}, ${params.state} ${params.zipCode}`);
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`;
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'GeminiFieldAssistant/1.0' }
+        });
+        if (!response.ok)
+            return null;
+        const data = await response.json();
+        if (!Array.isArray(data) || data.length === 0)
+            return null;
+        return {
+            latitude: parseFloat(data[0].lat),
+            longitude: parseFloat(data[0].lon)
+        };
+    }
+    catch (error) {
+        console.error('Geocoding error:', error);
+        return null;
+    }
+};
 // Get pool from app
 const getPool = (req) => {
     return req.app.get('pool');
@@ -60,11 +82,25 @@ router.post('/properties', async (req, res) => {
         if (!userId) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const { customerName, address, city, state, zipCode, latitude, longitude } = req.body;
+        const { customerName, address, city, state, zipCode } = req.body;
+        let latitude = req.body.latitude;
+        let longitude = req.body.longitude;
         // Validate required fields
-        if (!customerName || !address || !city || !state || !zipCode || latitude === undefined || longitude === undefined) {
+        if (!customerName || !address || !city || !state || !zipCode) {
             return res.status(400).json({
-                error: 'customerName, address, city, state, zipCode, latitude, and longitude are required'
+                error: 'customerName, address, city, and state are required'
+            });
+        }
+        if (latitude === undefined || longitude === undefined) {
+            const geo = await geocodeAddress({ address, city, state, zipCode });
+            if (geo) {
+                latitude = geo.latitude;
+                longitude = geo.longitude;
+            }
+        }
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({
+                error: 'latitude and longitude are required (enable location or provide a full address for geocoding)'
             });
         }
         const service = createImpactedAssetService(pool);
@@ -353,7 +389,21 @@ router.get('/stats', async (req, res) => {
         }
         const { daysBack = '90' } = req.query;
         const service = createImpactedAssetService(pool);
-        const stats = await service.getUserImpactStats(userId, parseInt(daysBack));
+        let stats;
+        try {
+            stats = await service.getUserImpactStats(userId, parseInt(daysBack));
+        }
+        catch (statsError) {
+            console.warn('⚠️ Impact stats unavailable, returning defaults:', statsError);
+            stats = {
+                totalProperties: 0,
+                totalAlerts: 0,
+                alertsPending: 0,
+                alertsConverted: 0,
+                conversionRate: 0,
+                totalConversionValue: 0
+            };
+        }
         res.json({
             success: true,
             stats
