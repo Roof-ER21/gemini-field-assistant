@@ -124,19 +124,38 @@ export function createLeaderboardRoutes(pool) {
      */
     router.get('/rooftrack-status', async (_req, res) => {
         try {
+            // Check if env var is set
+            const dbUrl = process.env.ROOFTRACK_DATABASE_URL;
+            const isConfigured = !!dbUrl;
+            const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]+@/, ':****@') : 'NOT SET';
+            if (!isConfigured) {
+                return res.json({
+                    success: false,
+                    connected: false,
+                    configured: false,
+                    error: 'ROOFTRACK_DATABASE_URL environment variable not set',
+                    hint: 'Add ROOFTRACK_DATABASE_URL to Railway environment variables'
+                });
+            }
             const result = await leaderboardService.rooftrackPool.query('SELECT NOW() as time, COUNT(*) as reps FROM sales.sales_reps WHERE is_active = true');
             res.json({
                 success: true,
                 connected: true,
+                configured: true,
+                maskedUrl,
                 serverTime: result.rows[0].time,
                 activeReps: parseInt(result.rows[0].reps)
             });
         }
         catch (error) {
+            const dbUrl = process.env.ROOFTRACK_DATABASE_URL;
+            const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]+@/, ':****@') : 'NOT SET';
             console.error('❌ RoofTrack status check error:', error);
             res.json({
                 success: false,
                 connected: false,
+                configured: !!dbUrl,
+                maskedUrl,
                 error: error.message
             });
         }

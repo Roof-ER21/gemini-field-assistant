@@ -5,8 +5,17 @@
 import pg from 'pg';
 const { Pool } = pg;
 // RoofTrack database connection
+const rooftrackDbUrl = process.env.ROOFTRACK_DATABASE_URL;
+// Debug: Log connection info (hide password)
+if (rooftrackDbUrl) {
+    const masked = rooftrackDbUrl.replace(/:[^:@]+@/, ':****@');
+    console.log('🔗 RoofTrack DB URL configured:', masked);
+}
+else {
+    console.error('❌ ROOFTRACK_DATABASE_URL not set!');
+}
 const rooftrackPool = new Pool({
-    connectionString: process.env.ROOFTRACK_DATABASE_URL,
+    connectionString: rooftrackDbUrl,
     ssl: { rejectUnauthorized: false }
 });
 // Test RoofTrack connection on startup
