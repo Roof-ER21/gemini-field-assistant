@@ -113,7 +113,7 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
           monthly_revenue, yearly_revenue, all_time_revenue,
           monthly_signups, yearly_signups,
           goal_progress, current_bonus_tier, is_active
-        FROM sales.sales_reps
+        FROM sales_reps
         WHERE is_active = true
         ORDER BY monthly_signups DESC, monthly_revenue DESC
       `);
@@ -125,16 +125,22 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
   }
 
   /**
-   * Get player profiles for gamification data
+   * Get player profiles for gamification data (from user_xp table)
    */
   async function getRoofTrackPlayerProfiles(): Promise<Map<string, RoofTrackPlayerProfile>> {
     try {
+      // Try user_xp table (actual table name in RoofTrack Railway)
       const result = await rooftrackPool.query(`
         SELECT
-          id, sales_rep_id, player_level,
-          total_career_points, season_points, monthly_points,
-          current_streak, longest_streak
-        FROM sales.player_profiles
+          id,
+          user_id as sales_rep_id,
+          COALESCE(level, 1) as player_level,
+          COALESCE(total_xp, 0) as total_career_points,
+          0 as season_points,
+          0 as monthly_points,
+          COALESCE(current_streak, 0) as current_streak,
+          COALESCE(longest_streak, 0) as longest_streak
+        FROM user_xp
       `);
 
       const profileMap = new Map<string, RoofTrackPlayerProfile>();
@@ -143,7 +149,8 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
       }
       return profileMap;
     } catch (error) {
-      console.error('Error fetching RoofTrack player profiles:', error);
+      // Table might not exist or have different columns - that's OK
+      console.warn('Could not fetch user_xp data (may not exist):', (error as Error).message);
       return new Map();
     }
   }
@@ -322,7 +329,7 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
           COALESCE(SUM(monthly_signups), 0) as total_signups,
           COALESCE(AVG(monthly_revenue::numeric), 0) as avg_revenue,
           COALESCE(AVG(monthly_signups), 0) as avg_signups
-        FROM sales.sales_reps
+        FROM sales_reps
         WHERE is_active = true
       `);
 
@@ -331,7 +338,7 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
       // Get top performer
       const topResult = await rooftrackPool.query(`
         SELECT name, monthly_signups
-        FROM sales.sales_reps
+        FROM sales_reps
         WHERE is_active = true
         ORDER BY monthly_signups DESC
         LIMIT 1
@@ -344,7 +351,7 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
       // Get tier distribution
       const tierResult = await rooftrackPool.query(`
         SELECT current_bonus_tier, COUNT(*) as count
-        FROM sales.sales_reps
+        FROM sales_reps
         WHERE is_active = true
         GROUP BY current_bonus_tier
         ORDER BY current_bonus_tier
@@ -391,7 +398,7 @@ export function createLeaderboardService(geminiPool: pg.Pool) {
 
       // Get all RoofTrack sales reps
       const rooftrackReps = await rooftrackPool.query(`
-        SELECT id, email FROM sales.sales_reps WHERE is_active = true
+        SELECT id, email FROM sales_reps WHERE is_active = true
       `);
 
       // Build email -> RoofTrack ID map
