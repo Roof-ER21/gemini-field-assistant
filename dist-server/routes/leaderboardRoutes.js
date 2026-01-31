@@ -137,7 +137,7 @@ export function createLeaderboardRoutes(pool) {
                     hint: 'Add ROOFTRACK_DATABASE_URL to Railway environment variables'
                 });
             }
-            const result = await leaderboardService.rooftrackPool.query('SELECT NOW() as time, COUNT(*) as reps FROM sales.sales_reps WHERE is_active = true');
+            const result = await leaderboardService.rooftrackPool.query('SELECT NOW() as time, COUNT(*) as reps FROM sales_reps WHERE is_active = true');
             res.json({
                 success: true,
                 connected: true,
