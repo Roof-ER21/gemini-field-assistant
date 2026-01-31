@@ -4,6 +4,7 @@
  */
 import cron from 'node-cron';
 import { dailySummaryService } from './dailySummaryService.js';
+import { createSheetsService } from './sheetsService.js';
 class CronService {
     static instance;
     jobs = [];
@@ -17,7 +18,7 @@ class CronService {
     /**
      * Start all scheduled jobs
      */
-    startAll() {
+    startAll(pool) {
         console.log('🕐 Starting cron jobs for automated email notifications...');
         // Schedule 1: 5:00 AM - Morning Summary
         const job5am = cron.schedule('0 5 * * *', async () => {
@@ -107,8 +108,36 @@ class CronService {
         }, {
             timezone: "America/New_York"
         });
+        const jobs = [job5am, job12pm, job7pm, job11pm];
+        const hasSheetsCreds = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+        if (!pool) {
+            console.warn('⚠️  Sheets sync not scheduled: database pool unavailable');
+        }
+        else if (!hasSheetsCreds) {
+            console.warn('⚠️  Sheets sync not scheduled: Google Sheets credentials missing');
+        }
+        else {
+            const sheetsJob = cron.schedule('0 8,20 * * *', async () => {
+                console.log('⏰ [SHEETS] Starting Google Sheets sync...');
+                try {
+                    const sheetsService = createSheetsService(pool);
+                    const result = await sheetsService.performFullSync();
+                    if (result.success) {
+                        console.log(`✅ [SHEETS] Synced ${result.synced} of ${result.total} reps`);
+                    }
+                    else {
+                        console.error(`❌ [SHEETS] Sync failed: ${result.error || result.message}`);
+                    }
+                }
+                catch (error) {
+                    console.error('❌ [SHEETS] Sync failed:', error);
+                }
+            }, { timezone: 'America/New_York' });
+            jobs.push(sheetsJob);
+            console.log('📊 Google Sheets sync scheduled for 8:00 AM and 8:00 PM (America/New_York)');
+        }
         // Store jobs for later management
-        this.jobs = [job5am, job12pm, job7pm, job11pm];
+        this.jobs = jobs;
         console.log('✅ Cron jobs started successfully!');
         console.log('📧 Daily summary emails scheduled for:');
         console.log('   - 5:00 AM (Morning)');

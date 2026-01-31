@@ -5792,7 +5792,7 @@ httpServer.listen(PORT, HOST, () => {
     }
     // Start automated email cron jobs
     try {
-        cronService.startAll();
+        cronService.startAll(pool);
         console.log('✅ Automated email scheduling initialized');
     }
     catch (error) {

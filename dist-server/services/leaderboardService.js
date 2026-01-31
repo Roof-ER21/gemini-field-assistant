@@ -1,114 +1,144 @@
 /**
  * Leaderboard Service
- * Connects to both Gemini and RoofTrack databases to provide combined leaderboard data
+ * Provides leaderboard data from local database (synced from Google Sheets)
  */
-import pg from 'pg';
-const { Pool } = pg;
-// RoofTrack database connection
-const rooftrackDbUrl = process.env.ROOFTRACK_DATABASE_URL;
-// Debug: Log connection info (hide password)
-if (rooftrackDbUrl) {
-    const masked = rooftrackDbUrl.replace(/:[^:@]+@/, ':****@');
-    console.log('🔗 RoofTrack DB URL configured:', masked);
-}
-else {
-    console.error('❌ ROOFTRACK_DATABASE_URL not set!');
-}
-const rooftrackPool = new Pool({
-    connectionString: rooftrackDbUrl,
-    ssl: { rejectUnauthorized: false }
-});
-// Test RoofTrack connection on startup
-rooftrackPool.query('SELECT NOW()', (err, res) => {
-    if (err) {
-        console.error('❌ RoofTrack database connection error:', err.message);
-    }
-    else {
-        console.log('✅ RoofTrack database connected at', res.rows[0].now);
-    }
-});
+// Flag to indicate whether the leaderboard is ready
+// Set to true once Google Sheets integration is complete
+const LEADERBOARD_READY = true;
 // Bonus tier names
 const BONUS_TIER_NAMES = [
-    'Rookie', // 0: 0-14 signups
-    'Bronze', // 1: 15+ signups
-    'Silver', // 2: 20+ signups
-    'Gold', // 3: 25+ signups
-    'Platinum', // 4: 30+ signups
-    'Diamond', // 5: 35+ signups
-    'Elite' // 6: 40+ signups
+    'Rookie',
+    'Bronze',
+    'Silver',
+    'Gold',
+    'Platinum',
+    'Diamond',
+    'Elite'
 ];
+function toNumber(value) {
+    if (typeof value === 'number')
+        return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+        const parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+}
 export function createLeaderboardService(geminiPool) {
-    /**
-     * Get all sales reps from RoofTrack database
-     */
-    async function getRoofTrackSalesReps() {
+    async function getYearlyMetrics(year) {
         try {
-            const result = await rooftrackPool.query(`
-        SELECT
-          id, name, email, team, territory_id,
+            const result = await geminiPool.query(`SELECT sales_rep_id, signups, estimates, revenue
+         FROM sales_rep_yearly_metrics
+         WHERE year = $1`, [year]);
+            const map = new Map();
+            for (const row of result.rows) {
+                map.set(String(row.sales_rep_id), row);
+            }
+            return map;
+        }
+        catch (error) {
+            console.warn('[LEADERBOARD] Yearly metrics unavailable:', error.message);
+            return new Map();
+        }
+    }
+    async function getMonthlyMetrics(year, month) {
+        try {
+            const result = await geminiPool.query(`SELECT sales_rep_id, signups, estimates, revenue
+         FROM sales_rep_monthly_metrics
+         WHERE year = $1 AND month = $2`, [year, month]);
+            const map = new Map();
+            for (const row of result.rows) {
+                map.set(String(row.sales_rep_id), row);
+            }
+            return map;
+        }
+        catch (error) {
+            console.warn('[LEADERBOARD] Monthly metrics unavailable:', error.message);
+            return new Map();
+        }
+    }
+    function pickRevenue(metric) {
+        if (!metric)
+            return 0;
+        const revenue = toNumber(metric.revenue);
+        if (revenue > 0)
+            return revenue;
+        return toNumber(metric.estimates);
+    }
+    /**
+     * Check if leaderboard is ready
+     */
+    function isReady() {
+        return LEADERBOARD_READY;
+    }
+    /**
+     * Get all sales reps from database
+     */
+    async function getSalesReps() {
+        if (!isReady()) {
+            return [];
+        }
+        try {
+            const result = await geminiPool.query(`SELECT
+          id, name, email, team,
           monthly_revenue, yearly_revenue, all_time_revenue,
           monthly_signups, yearly_signups,
           goal_progress, current_bonus_tier, is_active
-        FROM sales_reps
-        WHERE is_active = true
-        ORDER BY monthly_signups DESC, monthly_revenue DESC
-      `);
+         FROM sales_reps
+         WHERE is_active = true
+         ORDER BY monthly_signups DESC, monthly_revenue DESC`);
             return result.rows;
         }
         catch (error) {
-            console.error('Error fetching RoofTrack sales reps:', error);
+            console.error('[LEADERBOARD] Error fetching sales reps:', error);
             return [];
         }
     }
     /**
-     * Get player profiles for gamification data (from user_xp table)
+     * Get player profiles for gamification data
      */
-    async function getRoofTrackPlayerProfiles() {
+    async function getPlayerProfiles() {
         try {
-            // Try user_xp table (actual table name in RoofTrack Railway)
-            const result = await rooftrackPool.query(`
-        SELECT
+            const result = await geminiPool.query(`SELECT
           id,
-          user_id as sales_rep_id,
-          COALESCE(level, 1) as player_level,
-          COALESCE(total_xp, 0) as total_career_points,
-          0 as season_points,
-          0 as monthly_points,
+          sales_rep_id,
+          COALESCE(player_level, 1) as player_level,
+          COALESCE(total_career_points, 0) as total_career_points,
+          COALESCE(season_points, 0) as season_points,
+          COALESCE(monthly_points, 0) as monthly_points,
           COALESCE(current_streak, 0) as current_streak,
           COALESCE(longest_streak, 0) as longest_streak
-        FROM user_xp
-      `);
+         FROM player_profiles`);
             const profileMap = new Map();
             for (const row of result.rows) {
-                profileMap.set(row.sales_rep_id, row);
+                profileMap.set(String(row.sales_rep_id), row);
             }
             return profileMap;
         }
         catch (error) {
-            // Table might not exist or have different columns - that's OK
-            console.warn('Could not fetch user_xp data (may not exist):', error.message);
+            console.warn('[LEADERBOARD] Could not fetch player profile data:', error.message);
             return new Map();
         }
     }
     /**
-     * Get user mappings from Gemini database
+     * Map sales reps to Gemini users by email
      */
     async function getUserMappings() {
         try {
-            const result = await geminiPool.query(`
-        SELECT gemini_user_id, rooftrack_sales_rep_id
-        FROM rooftrack_user_mapping
-        WHERE rooftrack_sales_rep_id IS NOT NULL
-      `);
+            const result = await geminiPool.query(`SELECT
+          s.id as sales_rep_id,
+          u.id as gemini_user_id
+         FROM sales_reps s
+         JOIN users u ON LOWER(u.email) = LOWER(s.email)
+         WHERE s.is_active = true`);
             const mappings = new Map();
             for (const row of result.rows) {
-                // Map RoofTrack ID -> Gemini ID
-                mappings.set(row.rooftrack_sales_rep_id, row.gemini_user_id);
+                mappings.set(String(row.sales_rep_id), row.gemini_user_id);
             }
             return mappings;
         }
         catch (error) {
-            console.error('Error fetching user mappings:', error);
+            console.error('[LEADERBOARD] Error fetching user mappings:', error);
             return new Map();
         }
     }
@@ -117,38 +147,50 @@ export function createLeaderboardService(geminiPool) {
      */
     async function getGeminiCanvassingStats(userId) {
         try {
-            const result = await geminiPool.query(`
-        SELECT
+            const result = await geminiPool.query(`SELECT
           COALESCE(SUM(doors_knocked), 0)::int as doors_knocked_30d,
           COALESCE(SUM(leads_generated), 0)::int as leads_generated_30d,
           COALESCE(SUM(appointments_set), 0)::int as appointments_set_30d
-        FROM canvassing_sessions
-        WHERE user_id = $1
-        AND session_date >= CURRENT_DATE - INTERVAL '30 days'
-      `, [userId]);
-            return result.rows[0] || { doors_knocked_30d: 0, leads_generated_30d: 0, appointments_set_30d: 0 };
+         FROM canvassing_sessions
+         WHERE user_id = $1
+           AND session_date >= CURRENT_DATE - INTERVAL '30 days'`, [userId]);
+            return result.rows[0] || {
+                doors_knocked_30d: 0,
+                leads_generated_30d: 0,
+                appointments_set_30d: 0
+            };
         }
         catch (error) {
-            console.error('Error fetching Gemini canvassing stats:', error);
+            console.error('[LEADERBOARD] Error fetching canvassing stats:', error);
             return { doors_knocked_30d: 0, leads_generated_30d: 0, appointments_set_30d: 0 };
         }
     }
     /**
-     * Get combined leaderboard merging RoofTrack and Gemini data
+     * Get combined leaderboard merging sales + Gemini data
      */
-    async function getCombinedLeaderboard(sortBy = 'monthly_signups', limit = 50) {
-        // Fetch all data in parallel
+    async function getCombinedLeaderboard(sortBy = 'monthly_signups', limit = 50, filters) {
+        const filterYear = filters?.year;
+        const filterMonth = filters?.month;
         const [salesReps, playerProfiles, userMappings] = await Promise.all([
-            getRoofTrackSalesReps(),
-            getRoofTrackPlayerProfiles(),
+            getSalesReps(),
+            getPlayerProfiles(),
             getUserMappings()
         ]);
-        // Build combined entries
+        let yearlyMetrics = new Map();
+        let monthlyMetrics = new Map();
+        if (filterYear) {
+            yearlyMetrics = await getYearlyMetrics(filterYear);
+            if (filterMonth) {
+                monthlyMetrics = await getMonthlyMetrics(filterYear, filterMonth);
+            }
+        }
         const entries = [];
         for (const rep of salesReps) {
-            const profile = playerProfiles.get(rep.id);
-            const geminiUserId = userMappings.get(rep.id);
-            // Get Gemini stats if user is mapped
+            const repId = String(rep.id);
+            const profile = playerProfiles.get(repId);
+            const geminiUserId = userMappings.get(repId);
+            const yearMetric = filterYear ? yearlyMetrics.get(repId) : null;
+            const monthMetric = filterYear && filterMonth ? monthlyMetrics.get(repId) : null;
             let canvassingStats = {
                 doors_knocked_30d: 0,
                 leads_generated_30d: 0,
@@ -157,21 +199,30 @@ export function createLeaderboardService(geminiPool) {
             if (geminiUserId) {
                 canvassingStats = await getGeminiCanvassingStats(geminiUserId);
             }
+            const bonusTier = rep.current_bonus_tier ?? 0;
+            const monthlySignups = filterYear
+                ? (filterMonth ? toNumber(monthMetric?.signups) : toNumber(yearMetric?.signups))
+                : toNumber(rep.monthly_signups);
+            const monthlyRevenue = filterYear
+                ? (filterMonth ? pickRevenue(monthMetric) : pickRevenue(yearMetric))
+                : toNumber(rep.monthly_revenue);
+            const yearlySignups = filterYear ? toNumber(yearMetric?.signups) : toNumber(rep.yearly_signups);
+            const yearlyRevenue = filterYear ? pickRevenue(yearMetric) : toNumber(rep.yearly_revenue);
             entries.push({
-                rank: 0, // Will be set after sorting
+                rank: 0,
                 gemini_user_id: geminiUserId || null,
-                rooftrack_sales_rep_id: rep.id,
+                rooftrack_sales_rep_id: repId,
                 name: rep.name,
-                email: rep.email,
+                email: rep.email || '',
                 team: rep.team,
-                monthly_revenue: parseFloat(rep.monthly_revenue) || 0,
-                yearly_revenue: parseFloat(rep.yearly_revenue) || 0,
-                all_time_revenue: parseFloat(rep.all_time_revenue) || 0,
-                monthly_signups: rep.monthly_signups || 0,
-                yearly_signups: rep.yearly_signups || 0,
-                goal_progress: parseFloat(rep.goal_progress) || 0,
-                bonus_tier: rep.current_bonus_tier || 0,
-                bonus_tier_name: BONUS_TIER_NAMES[rep.current_bonus_tier || 0],
+                monthly_revenue: monthlyRevenue,
+                yearly_revenue: yearlyRevenue,
+                all_time_revenue: toNumber(rep.all_time_revenue),
+                monthly_signups: monthlySignups,
+                yearly_signups: yearlySignups,
+                goal_progress: toNumber(rep.goal_progress),
+                bonus_tier: bonusTier,
+                bonus_tier_name: BONUS_TIER_NAMES[bonusTier] || 'Rookie',
                 player_level: profile?.player_level || 1,
                 career_points: profile?.total_career_points || 0,
                 current_streak: profile?.current_streak || 0,
@@ -180,13 +231,14 @@ export function createLeaderboardService(geminiPool) {
                 appointments_set_30d: canvassingStats.appointments_set_30d
             });
         }
-        // Sort by requested field
         entries.sort((a, b) => {
             switch (sortBy) {
                 case 'monthly_revenue':
                     return b.monthly_revenue - a.monthly_revenue;
                 case 'yearly_revenue':
                     return b.yearly_revenue - a.yearly_revenue;
+                case 'all_time_revenue':
+                    return b.all_time_revenue - a.all_time_revenue;
                 case 'doors_knocked':
                     return b.doors_knocked_30d - a.doors_knocked_30d;
                 case 'monthly_signups':
@@ -194,7 +246,6 @@ export function createLeaderboardService(geminiPool) {
                     return b.monthly_signups - a.monthly_signups;
             }
         });
-        // Assign ranks and limit
         return entries.slice(0, limit).map((entry, index) => ({
             ...entry,
             rank: index + 1
@@ -203,16 +254,15 @@ export function createLeaderboardService(geminiPool) {
     /**
      * Get leaderboard position for a specific user
      */
-    async function getUserLeaderboardPosition(email) {
-        const leaderboard = await getCombinedLeaderboard('monthly_signups', 1000);
+    async function getUserLeaderboardPosition(email, sortBy = 'monthly_signups', filters) {
+        const leaderboard = await getCombinedLeaderboard(sortBy, 1000, filters);
         const totalUsers = leaderboard.length;
-        const userIndex = leaderboard.findIndex(entry => entry.email.toLowerCase() === email.toLowerCase());
+        const userIndex = leaderboard.findIndex(entry => entry.email && entry.email.toLowerCase() === email.toLowerCase());
         if (userIndex === -1) {
             return { user: null, rank: 0, totalUsers, nearbyCompetitors: [] };
         }
         const user = leaderboard[userIndex];
         const rank = userIndex + 1;
-        // Get 2 users above and 2 below
         const startIndex = Math.max(0, userIndex - 2);
         const endIndex = Math.min(leaderboard.length, userIndex + 3);
         const nearbyCompetitors = leaderboard.slice(startIndex, endIndex);
@@ -221,47 +271,95 @@ export function createLeaderboardService(geminiPool) {
     /**
      * Get overall leaderboard statistics
      */
-    async function getLeaderboardStats() {
+    async function getLeaderboardStats(filters) {
         try {
-            const result = await rooftrackPool.query(`
-        SELECT
-          COUNT(*) as total_reps,
-          COALESCE(SUM(monthly_revenue::numeric), 0) as total_revenue,
-          COALESCE(SUM(monthly_signups), 0) as total_signups,
-          COALESCE(AVG(monthly_revenue::numeric), 0) as avg_revenue,
-          COALESCE(AVG(monthly_signups), 0) as avg_signups
-        FROM sales_reps
-        WHERE is_active = true
-      `);
+            const filterYear = filters?.year;
+            const filterMonth = filters?.month;
+            let result;
+            if (filterYear && filterMonth) {
+                result = await geminiPool.query(`SELECT
+            COUNT(s.id) as total_reps,
+            COALESCE(SUM(COALESCE(m.revenue::numeric, m.estimates::numeric, 0)), 0) as total_revenue,
+            COALESCE(SUM(COALESCE(m.signups::numeric, 0)), 0) as total_signups,
+            COALESCE(AVG(COALESCE(m.revenue::numeric, m.estimates::numeric, 0)), 0) as avg_revenue,
+            COALESCE(AVG(COALESCE(m.signups::numeric, 0)), 0) as avg_signups
+           FROM sales_reps s
+           LEFT JOIN sales_rep_monthly_metrics m
+             ON m.sales_rep_id = s.id
+            AND m.year = $1
+            AND m.month = $2
+           WHERE s.is_active = true`, [filterYear, filterMonth]);
+            }
+            else if (filterYear) {
+                result = await geminiPool.query(`SELECT
+            COUNT(s.id) as total_reps,
+            COALESCE(SUM(COALESCE(y.revenue::numeric, y.estimates::numeric, 0)), 0) as total_revenue,
+            COALESCE(SUM(COALESCE(y.signups::numeric, 0)), 0) as total_signups,
+            COALESCE(AVG(COALESCE(y.revenue::numeric, y.estimates::numeric, 0)), 0) as avg_revenue,
+            COALESCE(AVG(COALESCE(y.signups::numeric, 0)), 0) as avg_signups
+           FROM sales_reps s
+           LEFT JOIN sales_rep_yearly_metrics y
+             ON y.sales_rep_id = s.id
+            AND y.year = $1
+           WHERE s.is_active = true`, [filterYear]);
+            }
+            else {
+                result = await geminiPool.query(`SELECT
+            COUNT(*) as total_reps,
+            COALESCE(SUM(monthly_revenue::numeric), 0) as total_revenue,
+            COALESCE(SUM(monthly_signups), 0) as total_signups,
+            COALESCE(AVG(monthly_revenue::numeric), 0) as avg_revenue,
+            COALESCE(AVG(monthly_signups), 0) as avg_signups
+           FROM sales_reps
+           WHERE is_active = true`);
+            }
             const stats = result.rows[0];
-            // Get top performer
-            const topResult = await rooftrackPool.query(`
-        SELECT name, monthly_signups
-        FROM sales_reps
-        WHERE is_active = true
-        ORDER BY monthly_signups DESC
-        LIMIT 1
-      `);
+            let topResult;
+            if (filterYear && filterMonth) {
+                topResult = await geminiPool.query(`SELECT s.name, COALESCE(m.signups, 0) as monthly_signups
+           FROM sales_reps s
+           LEFT JOIN sales_rep_monthly_metrics m
+             ON m.sales_rep_id = s.id
+            AND m.year = $1
+            AND m.month = $2
+           WHERE s.is_active = true
+           ORDER BY COALESCE(m.signups, 0) DESC
+           LIMIT 1`, [filterYear, filterMonth]);
+            }
+            else if (filterYear) {
+                topResult = await geminiPool.query(`SELECT s.name, COALESCE(y.signups, 0) as monthly_signups
+           FROM sales_reps s
+           LEFT JOIN sales_rep_yearly_metrics y
+             ON y.sales_rep_id = s.id
+            AND y.year = $1
+           WHERE s.is_active = true
+           ORDER BY COALESCE(y.signups, 0) DESC
+           LIMIT 1`, [filterYear]);
+            }
+            else {
+                topResult = await geminiPool.query(`SELECT name, monthly_signups
+           FROM sales_reps
+           WHERE is_active = true
+           ORDER BY monthly_signups DESC
+           LIMIT 1`);
+            }
             const topPerformer = topResult.rows[0]
-                ? { name: topResult.rows[0].name, signups: topResult.rows[0].monthly_signups }
+                ? { name: topResult.rows[0].name, signups: toNumber(topResult.rows[0].monthly_signups) }
                 : null;
-            // Get tier distribution
-            const tierResult = await rooftrackPool.query(`
-        SELECT current_bonus_tier, COUNT(*) as count
-        FROM sales_reps
-        WHERE is_active = true
-        GROUP BY current_bonus_tier
-        ORDER BY current_bonus_tier
-      `);
+            const tierResult = await geminiPool.query(`SELECT current_bonus_tier, COUNT(*) as count
+         FROM sales_reps
+         WHERE is_active = true
+         GROUP BY current_bonus_tier
+         ORDER BY current_bonus_tier`);
             const tierDistribution = {};
             for (const row of tierResult.rows) {
                 const tierName = BONUS_TIER_NAMES[row.current_bonus_tier] || 'Unknown';
-                tierDistribution[tierName] = parseInt(row.count);
+                tierDistribution[tierName] = parseInt(row.count, 10);
             }
             return {
-                totalReps: parseInt(stats.total_reps),
+                totalReps: parseInt(stats.total_reps, 10),
                 totalRevenue: parseFloat(stats.total_revenue),
-                totalSignups: parseInt(stats.total_signups),
+                totalSignups: parseInt(stats.total_signups, 10),
                 avgMonthlyRevenue: parseFloat(stats.avg_revenue),
                 avgMonthlySignups: parseFloat(stats.avg_signups),
                 topPerformer,
@@ -269,7 +367,7 @@ export function createLeaderboardService(geminiPool) {
             };
         }
         catch (error) {
-            console.error('Error fetching leaderboard stats:', error);
+            console.error('[LEADERBOARD] Error fetching leaderboard stats:', error);
             return {
                 totalReps: 0,
                 totalRevenue: 0,
@@ -281,56 +379,11 @@ export function createLeaderboardService(geminiPool) {
             };
         }
     }
-    /**
-     * Sync user mappings - match Gemini users to RoofTrack by email
-     */
-    async function syncUserMappings() {
-        try {
-            // Get all Gemini users
-            const geminiUsers = await geminiPool.query(`
-        SELECT id, email FROM users WHERE is_active = true
-      `);
-            // Get all RoofTrack sales reps
-            const rooftrackReps = await rooftrackPool.query(`
-        SELECT id, email FROM sales_reps WHERE is_active = true
-      `);
-            // Build email -> RoofTrack ID map
-            const rooftrackEmailMap = new Map();
-            for (const rep of rooftrackReps.rows) {
-                rooftrackEmailMap.set(rep.email.toLowerCase(), rep.id);
-            }
-            let mapped = 0;
-            for (const user of geminiUsers.rows) {
-                const rooftrackId = rooftrackEmailMap.get(user.email.toLowerCase());
-                if (rooftrackId) {
-                    // Upsert mapping
-                    await geminiPool.query(`
-            INSERT INTO rooftrack_user_mapping (gemini_user_id, rooftrack_sales_rep_id, rooftrack_email, last_sync_at)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (gemini_user_id)
-            DO UPDATE SET
-              rooftrack_sales_rep_id = $2,
-              rooftrack_email = $3,
-              last_sync_at = NOW()
-          `, [user.id, rooftrackId, user.email.toLowerCase()]);
-                    mapped++;
-                }
-            }
-            console.log(`✅ [LEADERBOARD] Synced ${mapped} of ${geminiUsers.rows.length} users`);
-            return { mapped, total: geminiUsers.rows.length };
-        }
-        catch (error) {
-            console.error('Error syncing user mappings:', error);
-            return { mapped: 0, total: 0 };
-        }
-    }
     return {
-        getRoofTrackSalesReps,
-        getRoofTrackPlayerProfiles,
+        getSalesReps,
+        getPlayerProfiles,
         getCombinedLeaderboard,
         getUserLeaderboardPosition,
-        getLeaderboardStats,
-        syncUserMappings,
-        rooftrackPool // Expose for testing
+        getLeaderboardStats
     };
 }
