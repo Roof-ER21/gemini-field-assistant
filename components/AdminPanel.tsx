@@ -99,11 +99,59 @@ interface MigrationStatus {
   message006: string;
 }
 
+interface LeaderboardSyncStatus {
+  lastSync: string | null;
+  lastSyncStatus: 'success' | 'error' | 'never' | string;
+  lastSyncError: string | null;
+  nextSync: string | null;
+  nextSyncLocal?: string | null;
+  recordCount: number;
+}
+
+// User mapping interfaces
+interface UserMapping {
+  id: number;
+  user_id: string;
+  sales_rep_id: number;
+  notes: string | null;
+  created_at: string;
+  user_email: string;
+  user_name: string;
+  sales_rep_name: string;
+  sales_rep_email: string;
+  created_by_email: string | null;
+}
+
+interface UnmappedUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  created_at: string;
+}
+
+interface UnmappedSalesRep {
+  id: number;
+  name: string;
+  email: string;
+  team: string;
+  is_active: boolean;
+}
+
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
+
+  // User-to-Sales-Rep mapping state
+  const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
+  const [unmappedUsers, setUnmappedUsers] = useState<UnmappedUser[]>([]);
+  const [unmappedSalesReps, setUnmappedSalesReps] = useState<UnmappedSalesRep[]>([]);
+  const [mappingsLoading, setMappingsLoading] = useState(false);
+  const [selectedUnmappedUser, setSelectedUnmappedUser] = useState<string>('');
+  const [selectedUnmappedRep, setSelectedUnmappedRep] = useState<string>('');
+  const [mappingNotes, setMappingNotes] = useState('');
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -117,6 +165,10 @@ const AdminPanel: React.FC = () => {
     message005: '',
     message006: ''
   });
+
+  const [leaderboardSyncStatus, setLeaderboardSyncStatus] = useState<LeaderboardSyncStatus | null>(null);
+  const [leaderboardSyncRunning, setLeaderboardSyncRunning] = useState(false);
+  const [leaderboardSyncMessage, setLeaderboardSyncMessage] = useState<string | null>(null);
 
   // New state for emails and all messages
   const [emails, setEmails] = useState<EmailLog[]>([]);
@@ -147,6 +199,12 @@ const AdminPanel: React.FC = () => {
     }
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (isAdmin) {
+      fetchLeaderboardSyncStatus();
+    }
+  }, [isAdmin]);
+
   // Fetch emails when emails tab is active
   useEffect(() => {
     if (activeTab === 'emails' && isAdmin) {
@@ -160,6 +218,109 @@ const AdminPanel: React.FC = () => {
       fetchAllMessages();
     }
   }, [activeTab, isAdmin]);
+
+  // Fetch user mappings when mappings tab is active
+  useEffect(() => {
+    if (activeTab === 'mappings' && isAdmin) {
+      fetchUserMappings();
+    }
+  }, [activeTab, isAdmin]);
+
+  const fetchUserMappings = async () => {
+    setMappingsLoading(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const [mappingsRes, unmappedUsersRes, unmappedRepsRes] = await Promise.all([
+        fetch('/api/admin/user-mappings', { headers }),
+        fetch('/api/admin/unmapped-users', { headers }),
+        fetch('/api/admin/unmapped-sales-reps', { headers })
+      ]);
+
+      if (mappingsRes.ok) {
+        const data = await mappingsRes.json();
+        setUserMappings(data.mappings || []);
+      }
+      if (unmappedUsersRes.ok) {
+        const data = await unmappedUsersRes.json();
+        setUnmappedUsers(data.users || []);
+      }
+      if (unmappedRepsRes.ok) {
+        const data = await unmappedRepsRes.json();
+        setUnmappedSalesReps(data.salesReps || []);
+      }
+    } catch (err) {
+      console.error('Error fetching user mappings:', err);
+      toast({ title: 'Error', description: 'Failed to fetch user mappings', type: 'error' });
+    } finally {
+      setMappingsLoading(false);
+    }
+  };
+
+  const createUserMapping = async () => {
+    if (!selectedUnmappedUser || !selectedUnmappedRep) {
+      toast({ title: 'Error', description: 'Please select both a user and a sales rep', type: 'error' });
+      return;
+    }
+
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const res = await fetch('/api/admin/user-mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        },
+        body: JSON.stringify({
+          userId: selectedUnmappedUser,
+          salesRepId: parseInt(selectedUnmappedRep),
+          notes: mappingNotes || null
+        })
+      });
+
+      if (res.ok) {
+        toast({ title: 'Success', description: 'User mapping created', type: 'success' });
+        setSelectedUnmappedUser('');
+        setSelectedUnmappedRep('');
+        setMappingNotes('');
+        fetchUserMappings();
+      } else {
+        const data = await res.json();
+        toast({ title: 'Error', description: data.error || 'Failed to create mapping', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error creating user mapping:', err);
+      toast({ title: 'Error', description: 'Failed to create mapping', type: 'error' });
+    }
+  };
+
+  const deleteUserMapping = async (mappingId: number) => {
+    if (!confirm('Are you sure you want to delete this mapping?')) return;
+
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const res = await fetch(`/api/admin/user-mappings/${mappingId}`, {
+        method: 'DELETE',
+        headers: userEmail ? { 'x-user-email': userEmail } : {}
+      });
+
+      if (res.ok) {
+        toast({ title: 'Success', description: 'Mapping deleted', type: 'success' });
+        fetchUserMappings();
+      } else {
+        toast({ title: 'Error', description: 'Failed to delete mapping', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error deleting user mapping:', err);
+      toast({ title: 'Error', description: 'Failed to delete mapping', type: 'error' });
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -184,6 +345,73 @@ const AdminPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchLeaderboardSyncStatus = async () => {
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/leaderboard/sync-status', { headers });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to fetch leaderboard sync status');
+      }
+
+      setLeaderboardSyncStatus({
+        lastSync: data.lastSync || null,
+        lastSyncStatus: data.lastSyncStatus || 'never',
+        lastSyncError: data.lastSyncError || null,
+        nextSync: data.nextSync || null,
+        nextSyncLocal: data.nextSyncLocal || null,
+        recordCount: Number.isFinite(data.recordCount) ? data.recordCount : 0
+      });
+    } catch (err) {
+      setLeaderboardSyncMessage((err as Error).message);
+    }
+  };
+
+  const handleLeaderboardSync = async () => {
+    setLeaderboardSyncRunning(true);
+    setLeaderboardSyncMessage(null);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail
+        ? { 'x-user-email': userEmail, 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json' };
+
+      const response = await fetch('/api/leaderboard/sync', {
+        method: 'POST',
+        headers
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Leaderboard sync failed');
+      }
+
+      setLeaderboardSyncMessage(data.message || 'Leaderboard sync completed');
+      await fetchLeaderboardSyncStatus();
+      toast?.success?.(data.message || 'Leaderboard sync completed');
+    } catch (err) {
+      const message = (err as Error).message || 'Leaderboard sync failed';
+      setLeaderboardSyncMessage(message);
+      toast?.error?.(message);
+    } finally {
+      setLeaderboardSyncRunning(false);
+    }
+  };
+
+  const formatSyncTime = (value?: string | null): string => {
+    if (!value) return 'Never';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString();
   };
 
   const fetchUserConversations = async (userId: string) => {
@@ -778,6 +1006,113 @@ const AdminPanel: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Leaderboard Sync */}
+            <div style={{ flex: '1', minWidth: '300px' }}>
+              <div style={{
+                border: '1px solid #262626',
+                borderRadius: '8px',
+                padding: '0.75rem 1.25rem',
+                background: 'rgba(17, 17, 17, 0.6)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '0.5rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                      Leaderboard Sync
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    color: leaderboardSyncStatus?.lastSyncStatus === 'error' ? '#fca5a5' : '#86efac'
+                  }}>
+                    {leaderboardSyncStatus?.lastSyncStatus || 'unknown'}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                  Last sync: {formatSyncTime(leaderboardSyncStatus?.lastSync)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                  Next sync: {leaderboardSyncStatus?.nextSyncLocal || formatSyncTime(leaderboardSyncStatus?.nextSync)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.75rem' }}>
+                  Active reps: {leaderboardSyncStatus?.recordCount ?? 0}
+                </div>
+
+                <button
+                  onClick={handleLeaderboardSync}
+                  disabled={leaderboardSyncRunning}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 1rem',
+                    background: leaderboardSyncRunning
+                      ? '#262626'
+                      : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: leaderboardSyncRunning ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    transition: 'all 0.2s ease',
+                    opacity: leaderboardSyncRunning ? 0.7 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!leaderboardSyncRunning) {
+                      e.currentTarget.style.background = '#b91c1c';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!leaderboardSyncRunning) {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+                    }
+                  }}
+                >
+                  {leaderboardSyncRunning && (
+                    <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                  )}
+                  Sync Leaderboard Now
+                </button>
+
+                {leaderboardSyncMessage && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    background: leaderboardSyncStatus?.lastSyncStatus === 'error'
+                      ? 'rgba(153, 27, 27, 0.2)'
+                      : 'rgba(22, 101, 52, 0.2)',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    color: leaderboardSyncStatus?.lastSyncStatus === 'error' ? '#fca5a5' : '#86efac'
+                  }}>
+                    {leaderboardSyncMessage}
+                  </div>
+                )}
+
+                {leaderboardSyncStatus?.lastSyncError && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    background: 'rgba(153, 27, 27, 0.2)',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    color: '#fca5a5'
+                  }}>
+                    Error: {leaderboardSyncStatus.lastSyncError}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -896,6 +1231,26 @@ const AdminPanel: React.FC = () => {
         >
           <DollarSign style={{ width: '1.125rem', height: '1.125rem' }} />
           Budget
+        </button>
+        <button
+          onClick={() => setActiveTab('mappings')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'mappings' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Users style={{ width: '1.125rem', height: '1.125rem' }} />
+          User Mappings
         </button>
       </div>
 
@@ -2073,6 +2428,239 @@ const AdminPanel: React.FC = () => {
 
         {activeTab === 'budget' && (
           <AdminBudgetTab />
+        )}
+
+        {activeTab === 'mappings' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              border: '1px solid #262626'
+            }}>
+              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                User to Sales Rep Mappings
+              </h2>
+              <p style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+                Link app users to their sales rep records for leaderboard tracking. Users with matching emails are auto-linked.
+              </p>
+            </div>
+
+            {/* Create New Mapping */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              border: '1px solid #262626'
+            }}>
+              <h3 style={{ color: '#ffffff', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
+                Create New Mapping
+              </h3>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: '1', minWidth: '200px' }}>
+                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                    Select User (Not Yet Linked)
+                  </label>
+                  <select
+                    value={selectedUnmappedUser}
+                    onChange={(e) => setSelectedUnmappedUser(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: '#171717',
+                      border: '1px solid #262626',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="">-- Select a user --</option>
+                    {unmappedUsers.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name || user.email} ({user.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: '1', minWidth: '200px' }}>
+                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                    Select Sales Rep (Not Yet Linked)
+                  </label>
+                  <select
+                    value={selectedUnmappedRep}
+                    onChange={(e) => setSelectedUnmappedRep(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: '#171717',
+                      border: '1px solid #262626',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="">-- Select a sales rep --</option>
+                    {unmappedSalesReps.map(rep => (
+                      <option key={rep.id} value={rep.id}>
+                        {rep.name} ({rep.email || 'no email'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: '1', minWidth: '200px' }}>
+                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                    Notes (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={mappingNotes}
+                    onChange={(e) => setMappingNotes(e.target.value)}
+                    placeholder="e.g., Different email format"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: '#171717',
+                      border: '1px solid #262626',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={createUserMapping}
+                  disabled={!selectedUnmappedUser || !selectedUnmappedRep}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: selectedUnmappedUser && selectedUnmappedRep
+                      ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                      : '#262626',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: selectedUnmappedUser && selectedUnmappedRep ? 'pointer' : 'not-allowed',
+                    fontWeight: '600',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Create Link
+                </button>
+              </div>
+              {unmappedUsers.length === 0 && unmappedSalesReps.length === 0 && !mappingsLoading && (
+                <p style={{ color: '#22c55e', fontSize: '0.875rem', marginTop: '1rem' }}>
+                  All users are linked to sales reps (via email match or manual mapping).
+                </p>
+              )}
+            </div>
+
+            {/* Existing Mappings */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              border: '1px solid #262626'
+            }}>
+              <h3 style={{ color: '#ffffff', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
+                Manual Mappings ({userMappings.length})
+              </h3>
+              {mappingsLoading ? (
+                <p style={{ color: '#a1a1aa' }}>Loading...</p>
+              ) : userMappings.length === 0 ? (
+                <p style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+                  No manual mappings created yet. Users with matching emails are auto-linked.
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #262626' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>User</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Sales Rep</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Notes</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Created</th>
+                        <th style={{ textAlign: 'right', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userMappings.map(mapping => (
+                        <tr key={mapping.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ color: '#ffffff', fontSize: '0.875rem' }}>{mapping.user_name || 'Unknown'}</div>
+                            <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{mapping.user_email}</div>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ color: '#ffffff', fontSize: '0.875rem' }}>{mapping.sales_rep_name}</div>
+                            <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{mapping.sales_rep_email}</div>
+                          </td>
+                          <td style={{ padding: '0.75rem', color: '#a1a1aa', fontSize: '0.875rem' }}>
+                            {mapping.notes || '-'}
+                          </td>
+                          <td style={{ padding: '0.75rem', color: '#71717a', fontSize: '0.75rem' }}>
+                            {new Date(mapping.created_at).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                            <button
+                              onClick={() => deleteUserMapping(mapping.id)}
+                              style={{
+                                padding: '0.5rem 1rem',
+                                background: 'transparent',
+                                color: '#ef4444',
+                                border: '1px solid #ef4444',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Stats Summary */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem'
+            }}>
+              <div style={{
+                background: '#0a0a0a',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                border: '1px solid #262626',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#22c55e', fontSize: '2rem', fontWeight: '700' }}>{userMappings.length}</div>
+                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Manual Mappings</div>
+              </div>
+              <div style={{
+                background: '#0a0a0a',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                border: '1px solid #262626',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#f59e0b', fontSize: '2rem', fontWeight: '700' }}>{unmappedUsers.length}</div>
+                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Unmapped Users</div>
+              </div>
+              <div style={{
+                background: '#0a0a0a',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                border: '1px solid #262626',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#3b82f6', fontSize: '2rem', fontWeight: '700' }}>{unmappedSalesReps.length}</div>
+                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Unmapped Sales Reps</div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

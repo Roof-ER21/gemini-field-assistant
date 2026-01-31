@@ -3023,6 +3023,198 @@ app.get('/api/admin/users-basic', async (req, res) => {
   }
 });
 
+// ==========================================================================
+// User to Sales Rep Mapping API
+// Allows admins to manually link users to sales reps
+// ==========================================================================
+
+// Ensure mapping table exists
+async function ensureUserSalesRepMappingTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sales_rep_mapping (
+        id SERIAL PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id) ON DELETE CASCADE,
+        created_by UUID REFERENCES users(id),
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id),
+        UNIQUE(sales_rep_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sales_rep_mapping_user ON user_sales_rep_mapping(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sales_rep_mapping_sales_rep ON user_sales_rep_mapping(sales_rep_id)`);
+  } catch (e) {
+    // Table likely exists
+  }
+}
+ensureUserSalesRepMappingTable();
+
+// Get all user-to-sales-rep mappings
+app.get('/api/admin/user-mappings', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        m.id,
+        m.user_id,
+        m.sales_rep_id,
+        m.notes,
+        m.created_at,
+        u.email as user_email,
+        u.name as user_name,
+        s.name as sales_rep_name,
+        s.email as sales_rep_email,
+        creator.email as created_by_email
+      FROM user_sales_rep_mapping m
+      JOIN users u ON m.user_id = u.id
+      JOIN sales_reps s ON m.sales_rep_id = s.id
+      LEFT JOIN users creator ON m.created_by = creator.id
+      ORDER BY m.created_at DESC
+    `);
+
+    res.json({ success: true, mappings: result.rows });
+  } catch (error) {
+    console.error('[ADMIN] Error fetching user mappings:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get unmapped users (users without a sales rep link)
+app.get('/api/admin/unmapped-users', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await pool.query(`
+      SELECT u.id, u.email, u.name, u.role, u.created_at
+      FROM users u
+      WHERE u.id NOT IN (SELECT user_id FROM user_sales_rep_mapping)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_reps s
+          WHERE LOWER(s.email) = LOWER(u.email)
+        )
+      ORDER BY u.name
+    `);
+
+    res.json({ success: true, users: result.rows });
+  } catch (error) {
+    console.error('[ADMIN] Error fetching unmapped users:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get unmapped sales reps (reps without a user link)
+app.get('/api/admin/unmapped-sales-reps', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await pool.query(`
+      SELECT s.id, s.name, s.email, s.team, s.is_active
+      FROM sales_reps s
+      WHERE s.id NOT IN (SELECT sales_rep_id FROM user_sales_rep_mapping)
+        AND NOT EXISTS (
+          SELECT 1 FROM users u
+          WHERE LOWER(u.email) = LOWER(s.email)
+        )
+        AND s.is_active = true
+      ORDER BY s.name
+    `);
+
+    res.json({ success: true, salesReps: result.rows });
+  } catch (error) {
+    console.error('[ADMIN] Error fetching unmapped sales reps:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Create a user-to-sales-rep mapping
+app.post('/api/admin/user-mappings', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId, salesRepId, notes } = req.body;
+
+    if (!userId || !salesRepId) {
+      return res.status(400).json({ error: 'userId and salesRepId are required' });
+    }
+
+    // Get admin user id for created_by
+    const adminResult = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    const createdBy = adminResult.rows[0]?.id || null;
+
+    const result = await pool.query(`
+      INSERT INTO user_sales_rep_mapping (user_id, sales_rep_id, created_by, notes)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (user_id) DO UPDATE SET
+        sales_rep_id = EXCLUDED.sales_rep_id,
+        created_by = EXCLUDED.created_by,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      RETURNING *
+    `, [userId, salesRepId, createdBy, notes || null]);
+
+    console.log(`[ADMIN] Created user mapping: user ${userId} -> sales rep ${salesRepId}`);
+    res.json({ success: true, mapping: result.rows[0] });
+  } catch (error) {
+    console.error('[ADMIN] Error creating user mapping:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Delete a user-to-sales-rep mapping
+app.delete('/api/admin/user-mappings/:id', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM user_sales_rep_mapping WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Mapping not found' });
+    }
+
+    console.log(`[ADMIN] Deleted user mapping id: ${id}`);
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) {
+    console.error('[ADMIN] Error deleting user mapping:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==========================================================================
+// End User to Sales Rep Mapping API
+// ==========================================================================
+
 // Get all conversations for a specific user
 app.get('/api/admin/conversations', async (req, res) => {
   try {
@@ -6680,7 +6872,7 @@ httpServer.listen(PORT, HOST, () => {
 
   // Start automated email cron jobs
   try {
-    cronService.startAll();
+    cronService.startAll(pool);
     console.log('✅ Automated email scheduling initialized');
   } catch (error) {
     console.error('⚠️  Failed to start cron jobs:', error);

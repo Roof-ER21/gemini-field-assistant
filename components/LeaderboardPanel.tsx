@@ -21,6 +21,7 @@ import {
   ArrowDown,
   ChevronDown
 } from 'lucide-react';
+import { getApiBaseUrl } from '../services/config';
 
 interface LeaderboardPanelProps {
   userEmail: string;
@@ -68,28 +69,90 @@ interface LeaderboardStats {
   tierDistribution: Record<string, number>;
 }
 
-type SortBy = 'monthly_signups' | 'monthly_revenue' | 'yearly_revenue' | 'doors_knocked_30d';
+interface SyncStatus {
+  lastSync: string | null;
+  lastSyncStatus: string;
+  nextSyncLocal?: string | null;
+  nextSync?: string | null;
+  recordCount: number;
+}
+
+type SortBy =
+  | 'monthly_signups'
+  | 'monthly_revenue'
+  | 'yearly_revenue'
+  | 'all_time_revenue'
+  | 'doors_knocked_30d';
 
 const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
+  const apiBaseUrl = getApiBaseUrl();
   const [entries, setEntries] = useState<CombinedLeaderboardEntry[]>([]);
   const [currentUser, setCurrentUser] = useState<UserRankInfo | null>(null);
   const [stats, setStats] = useState<LeaderboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [comingSoon, setComingSoon] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('monthly_signups');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from(new Set([currentYear, currentYear - 1])).sort((a, b) => b - a);
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ];
 
   useEffect(() => {
     fetchLeaderboardData();
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 60 seconds (reduced from 30 to avoid rate limiting)
     const interval = setInterval(() => {
       fetchLeaderboardData();
-    }, 30000);
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, [sortBy, userEmail]);
+  }, [sortBy, userEmail, selectedYear, selectedMonth]);
+
+  useEffect(() => {
+    const loadRole = async () => {
+      try {
+        const headers = {
+          'x-user-email': userEmail,
+          'Content-Type': 'application/json'
+        };
+        const response = await fetch(`${apiBaseUrl}/users/me`, { headers });
+        if (!response.ok) return;
+        const data = await response.json();
+        setIsAdmin(data?.role === 'admin');
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    loadRole();
+  }, [apiBaseUrl, userEmail]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setSyncStatus(null);
+      return;
+    }
+    fetchSyncStatus();
+  }, [isAdmin]);
 
   const fetchLeaderboardData = async () => {
     try {
@@ -100,31 +163,96 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         'Content-Type': 'application/json'
       };
 
-      const [leaderboardRes, userRankRes, statsRes] = await Promise.all([
-        fetch(`/api/leaderboard?sortBy=${sortBy}`, { headers }),
-        fetch('/api/leaderboard/me', { headers }),
-        fetch('/api/leaderboard/stats', { headers })
-      ]);
-
-      // userRankRes may return 404 if user not in RoofTrack - that's OK
-      if (!leaderboardRes.ok || !statsRes.ok) {
-        throw new Error('Failed to fetch leaderboard data');
+      const params = new URLSearchParams();
+      params.set('sortBy', sortBy);
+      if (selectedYear) {
+        params.set('year', String(selectedYear));
+      }
+      if (selectedYear && selectedMonth) {
+        params.set('month', String(selectedMonth));
       }
 
-      const leaderboardData = await leaderboardRes.json();
-      const userRankData = await userRankRes.json();
-      const statsData = await statsRes.json();
+      const queryString = params.toString();
+
+      // Fetch one at a time to avoid rate limiting
+      const leaderboardRes = await fetch(`${apiBaseUrl}/leaderboard?${queryString}`, { headers });
+
+      // Check for coming soon / not ready state
+      if (leaderboardRes.status === 503 || leaderboardRes.status === 500) {
+        const data = await leaderboardRes.json().catch(() => ({}));
+        if (data.comingSoon) {
+          setComingSoon(true);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const leaderboardData = leaderboardRes.ok ? await leaderboardRes.json() : { entries: [] };
+
+      // Fetch user rank (may 404 if not found)
+      const userRankRes = await fetch(`${apiBaseUrl}/leaderboard/me?${queryString}`, { headers });
+      const userRankData = userRankRes.ok ? await userRankRes.json() : null;
+
+      // Fetch stats
+      const statsRes = await fetch(`${apiBaseUrl}/leaderboard/stats?${queryString}`, { headers });
+      const statsData = statsRes.ok ? await statsRes.json() : null;
 
       setEntries(leaderboardData.entries || []);
-      setCurrentUser(userRankData);
-      setStats(statsData);
+      setCurrentUser(userRankData?.success ? userRankData : null);
+      setStats(statsData?.success ? statsData : null);
       setLastUpdate(new Date());
+      setComingSoon(false);
     } catch (err) {
       console.error('Error fetching leaderboard:', err);
-      setError('Failed to load leaderboard. Please try again.');
+      // Don't show error if we have no data - show coming soon instead
+      if (entries.length === 0) {
+        setComingSoon(true);
+      } else {
+        setError('Failed to refresh leaderboard data.');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSyncStatus = async () => {
+    try {
+      const headers = {
+        'x-user-email': userEmail,
+        'Content-Type': 'application/json'
+      };
+      const response = await fetch(`${apiBaseUrl}/leaderboard/sync-status`, { headers });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!data?.success) return;
+
+      setSyncStatus({
+        lastSync: data.lastSync || null,
+        lastSyncStatus: data.lastSyncStatus || 'unknown',
+        nextSyncLocal: data.nextSyncLocal || null,
+        nextSync: data.nextSync || null,
+        recordCount: typeof data.recordCount === 'number' ? data.recordCount : 0
+      });
+    } catch {
+      setSyncStatus(null);
+    }
+  };
+
+  const formatSyncTime = (value?: string | null): string => {
+    if (!value) return 'Never';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString();
+  };
+
+  // Safe accessor for tier name with fallback
+  const getTierName = (entry: CombinedLeaderboardEntry | undefined | null): string => {
+    return entry?.bonus_tier_name || 'Rookie';
+  };
+
+  // Safe accessor for numeric values with fallback
+  const safeNum = (val: number | undefined | null): number => {
+    return typeof val === 'number' && !isNaN(val) ? val : 0;
   };
 
   const getTierColor = (tierName: string): string => {
@@ -170,14 +298,45 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     return new Intl.NumberFormat('en-US').format(num);
   };
 
+  const filterSelectStyle: React.CSSProperties = {
+    padding: '12px 16px',
+    background: '#111',
+    border: '1px solid #1a1a1a',
+    borderRadius: '8px',
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    appearance: 'none'
+  };
+
+  const periodLabel = selectedYear
+    ? (selectedMonth ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : `${selectedYear}`)
+    : null;
+
+  const signupsLabel = selectedYear ? `Signups (${periodLabel})` : 'Monthly Signups';
+  const revenueLabel = selectedYear ? `Revenue (${periodLabel})` : 'Monthly Revenue';
+  const signupsLabelShort = selectedYear
+    ? (selectedMonth ? `${monthNames[selectedMonth - 1]} Signups` : `${selectedYear} Signups`)
+    : 'Signups';
+  const revenueLabelShort = selectedYear
+    ? (selectedMonth ? `${monthNames[selectedMonth - 1]} Revenue` : `${selectedYear} Revenue`)
+    : 'Revenue';
+
   const getSortLabel = (sort: SortBy): string => {
-    const labels: Record<SortBy, string> = {
-      'monthly_signups': 'Monthly Signups',
-      'monthly_revenue': 'Monthly Revenue',
-      'yearly_revenue': 'Yearly Revenue',
-      'doors_knocked_30d': 'Doors Knocked'
-    };
-    return labels[sort];
+    switch (sort) {
+      case 'monthly_signups':
+        return signupsLabel;
+      case 'monthly_revenue':
+        return revenueLabel;
+      case 'yearly_revenue':
+        return selectedYear ? `Yearly Revenue (${selectedYear})` : 'Yearly Revenue';
+      case 'all_time_revenue':
+        return 'All-Time Revenue';
+      case 'doors_knocked_30d':
+      default:
+        return 'Doors Knocked';
+    }
   };
 
   if (loading) {
@@ -193,7 +352,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     );
   }
 
-  if (error) {
+  if (error && entries.length === 0) {
     return (
       <div className="roof-er-content-area">
         <div className="roof-er-content-scroll">
@@ -226,6 +385,42 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     );
   }
 
+  // Coming Soon state - shown when data source isn't ready
+  if (comingSoon) {
+    return (
+      <div className="roof-er-content-area">
+        <div className="roof-er-content-scroll">
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <Trophy className="w-16 h-16 mx-auto mb-4" style={{ color: '#dc2626', opacity: 0.5 }} />
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+              Leaderboard Coming Soon
+            </h2>
+            <p style={{ color: '#71717a', fontSize: '14px', maxWidth: '400px', margin: '0 auto 24px' }}>
+              We're setting up the sales leaderboard with Google Sheets integration.
+              Check back soon to see rankings, tiers, and competition stats!
+            </p>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              background: '#111',
+              border: '1px solid #1a1a1a',
+              borderRadius: '8px',
+              color: '#71717a',
+              fontSize: '13px'
+            }}>
+              <Zap className="w-4 h-4" style={{ color: '#fbbf24' }} />
+              Google Sheets sync in progress...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const showSyncStatus = isAdmin && syncStatus;
+
   return (
     <div className="roof-er-content-area" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <div className="roof-er-content-scroll" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
@@ -235,8 +430,44 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           Sales Leaderboard
         </div>
 
+        {showSyncStatus && (
+          <div style={{
+            background: '#121212',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            marginBottom: '18px',
+            border: '1px solid #2a2a2a',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '12px',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <RefreshCw className="w-4 h-4" style={{ color: '#dc2626' }} />
+              <span style={{ color: '#e5e7eb', fontSize: '14px', fontWeight: 600 }}>
+                Leaderboard Sync
+              </span>
+              <span style={{
+                fontSize: '12px',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: syncStatus?.lastSyncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                color: syncStatus?.lastSyncStatus === 'error' ? '#fca5a5' : '#6ee7b7'
+              }}>
+                {syncStatus?.lastSyncStatus || 'unknown'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#a1a1aa', fontSize: '12px' }}>
+              <div>Last: {formatSyncTime(syncStatus?.lastSync)}</div>
+              <div>Next: {syncStatus?.nextSyncLocal || formatSyncTime(syncStatus?.nextSync)}</div>
+              <div>Active reps: {syncStatus?.recordCount ?? 0}</div>
+            </div>
+          </div>
+        )}
+
         {/* User Card */}
-        {currentUser && (
+        {currentUser?.user && (
           <div style={{
             background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
             borderRadius: '12px',
@@ -249,9 +480,9 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               <div>
                 <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Your Rank</div>
                 <div style={{ fontSize: '36px', fontWeight: 700, lineHeight: 1 }}>
-                  #{currentUser.rank}
+                  #{safeNum(currentUser.rank)}
                   <span style={{ fontSize: '16px', opacity: 0.8, marginLeft: '8px' }}>
-                    of {currentUser.totalUsers}
+                    of {safeNum(currentUser.totalUsers)}
                   </span>
                 </div>
               </div>
@@ -264,12 +495,12 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                   background: 'rgba(255, 255, 255, 0.2)',
                   backdropFilter: 'blur(10px)',
                   borderRadius: '20px',
-                  border: `2px solid ${getTierColor(currentUser.user.bonus_tier_name)}`
+                  border: `2px solid ${getTierColor(getTierName(currentUser.user))}`
                 }}
               >
-                {getTierIcon(currentUser.user.bonus_tier_name)}
+                {getTierIcon(getTierName(currentUser.user))}
                 <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  {currentUser.user.bonus_tier_name}
+                  {getTierName(currentUser.user)}
                 </span>
               </div>
             </div>
@@ -278,7 +509,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
                 <span>Goal Progress</span>
-                <span>{currentUser.user.goal_progress.toFixed(0)}%</span>
+                <span>{safeNum(currentUser.user.goal_progress).toFixed(0)}%</span>
               </div>
               <div style={{
                 width: '100%',
@@ -289,7 +520,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               }}>
                 <div
                   style={{
-                    width: `${Math.min(currentUser.user.goal_progress, 100)}%`,
+                    width: `${Math.min(safeNum(currentUser.user.goal_progress), 100)}%`,
                     height: '100%',
                     background: 'white',
                     borderRadius: '4px',
@@ -302,23 +533,26 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             {/* Quick Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>Signups</div>
+                <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>{signupsLabelShort}</div>
                 <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                  {currentUser.user.monthly_signups}
+                  {safeNum(currentUser.user.monthly_signups)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>Revenue</div>
+                <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>{revenueLabelShort}</div>
                 <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                  {formatCurrency(currentUser.user.monthly_revenue)}
+                  {formatCurrency(safeNum(currentUser.user.monthly_revenue))}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>Doors</div>
                 <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                  {currentUser.user.doors_knocked_30d}
+                  {safeNum(currentUser.user.doors_knocked_30d)}
                 </div>
               </div>
+            </div>
+            <div style={{ marginTop: '12px', fontSize: '12px', opacity: 0.85 }}>
+              All-Time Revenue: {formatCurrency(safeNum(currentUser.user.all_time_revenue))}
             </div>
           </div>
         )}
@@ -349,7 +583,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
                 {formatCurrency(stats.totalRevenue)}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>Monthly Revenue</div>
+              <div style={{ fontSize: '12px', color: '#71717a' }}>{revenueLabel}</div>
             </div>
 
             <div style={{
@@ -362,7 +596,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
                 {stats.totalSignups}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>Monthly Signups</div>
+              <div style={{ fontSize: '12px', color: '#71717a' }}>{signupsLabel}</div>
             </div>
 
             <div style={{
@@ -381,7 +615,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         )}
 
         {/* Controls */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Sort Dropdown */}
           <div style={{ position: 'relative', flex: 1 }}>
             <button
@@ -421,7 +655,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                   overflow: 'hidden'
                 }}
               >
-                {(['monthly_signups', 'monthly_revenue', 'yearly_revenue', 'doors_knocked_30d'] as SortBy[]).map((sort) => (
+                {(['monthly_signups', 'monthly_revenue', 'yearly_revenue', 'all_time_revenue', 'doors_knocked_30d'] as SortBy[]).map((sort) => (
                   <button
                     key={sort}
                     onClick={() => {
@@ -456,6 +690,54 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Year Filter */}
+          <div style={{ minWidth: '160px' }}>
+            <select
+              value={selectedYear ? String(selectedYear) : ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) {
+                  setSelectedYear(null);
+                  setSelectedMonth(null);
+                } else {
+                  setSelectedYear(parseInt(value, 10));
+                }
+              }}
+              style={filterSelectStyle}
+            >
+              <option value="">Current Year</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month Filter */}
+          <div style={{ minWidth: '170px' }}>
+            <select
+              value={selectedMonth ? String(selectedMonth) : ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) {
+                  setSelectedMonth(null);
+                } else {
+                  setSelectedMonth(parseInt(value, 10));
+                }
+              }}
+              style={{
+                ...filterSelectStyle,
+                opacity: selectedYear ? 1 : 0.5,
+                cursor: selectedYear ? 'pointer' : 'not-allowed'
+              }}
+              disabled={!selectedYear}
+            >
+              <option value="">All Months</option>
+              {monthNames.map((month, index) => (
+                <option key={month} value={index + 1}>{month}</option>
+              ))}
+            </select>
           </div>
 
           {/* Refresh Button */}
@@ -565,21 +847,21 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                           alignItems: 'center',
                           gap: '6px',
                           padding: '6px 12px',
-                          background: `${getTierColor(entry.bonus_tier_name)}20`,
-                          border: `1px solid ${getTierColor(entry.bonus_tier_name)}`,
+                          background: `${getTierColor(getTierName(entry))}20`,
+                          border: `1px solid ${getTierColor(getTierName(entry))}`,
                           borderRadius: '16px',
                           flexShrink: 0
                         }}
                       >
-                        <span style={{ color: getTierColor(entry.bonus_tier_name) }}>
-                          {getTierIcon(entry.bonus_tier_name)}
+                        <span style={{ color: getTierColor(getTierName(entry)) }}>
+                          {getTierIcon(getTierName(entry))}
                         </span>
                         <span style={{
                           fontSize: '12px',
                           fontWeight: 600,
-                          color: getTierColor(entry.bonus_tier_name)
+                          color: getTierColor(getTierName(entry))
                         }}>
-                          {entry.bonus_tier_name}
+                          {getTierName(entry)}
                         </span>
                       </div>
                     </div>
@@ -594,7 +876,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                     }}>
                       <div>
                         <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
-                          Signups
+                          {signupsLabelShort}
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>
                           {entry.monthly_signups}
@@ -602,7 +884,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                       </div>
                       <div>
                         <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
-                          Revenue
+                          {revenueLabelShort}
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#10b981' }}>
                           {formatCurrency(entry.monthly_revenue)}
@@ -612,8 +894,8 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                         <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
                           Tier
                         </div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: getTierColor(entry.bonus_tier_name) }}>
-                          {entry.bonus_tier}
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: getTierColor(getTierName(entry)) }}>
+                          {safeNum(entry.bonus_tier)}
                         </div>
                       </div>
                       <div>
@@ -644,6 +926,18 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                       <div style={{ textAlign: 'right' }}>
                         {formatNumber(entry.career_points)} pts
                       </div>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginTop: '8px',
+                      fontSize: '11px',
+                      color: '#71717a'
+                    }}>
+                      <span>All-Time Revenue</span>
+                      <span style={{ color: '#10b981', fontWeight: 600 }}>
+                        {formatCurrency(entry.all_time_revenue)}
+                      </span>
                     </div>
                   </div>
                 );

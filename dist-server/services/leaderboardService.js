@@ -121,19 +121,36 @@ export function createLeaderboardService(geminiPool) {
         }
     }
     /**
-     * Map sales reps to Gemini users by email
+     * Map sales reps to Gemini users
+     * Priority: 1) Manual mappings in user_sales_rep_mapping table
+     *           2) Automatic email matching
      */
     async function getUserMappings() {
         try {
-            const result = await geminiPool.query(`SELECT
+            const mappings = new Map();
+            // First: Get manual mappings (higher priority)
+            try {
+                const manualResult = await geminiPool.query(`SELECT sales_rep_id, user_id as gemini_user_id
+           FROM user_sales_rep_mapping`);
+                for (const row of manualResult.rows) {
+                    mappings.set(String(row.sales_rep_id), row.gemini_user_id);
+                }
+            }
+            catch {
+                // Table may not exist yet, continue with email matching
+            }
+            // Second: Get email-based mappings for reps not in manual mappings
+            const emailResult = await geminiPool.query(`SELECT
           s.id as sales_rep_id,
           u.id as gemini_user_id
          FROM sales_reps s
          JOIN users u ON LOWER(u.email) = LOWER(s.email)
          WHERE s.is_active = true`);
-            const mappings = new Map();
-            for (const row of result.rows) {
-                mappings.set(String(row.sales_rep_id), row.gemini_user_id);
+            for (const row of emailResult.rows) {
+                // Only add if not already in manual mappings
+                if (!mappings.has(String(row.sales_rep_id))) {
+                    mappings.set(String(row.sales_rep_id), row.gemini_user_id);
+                }
             }
             return mappings;
         }
