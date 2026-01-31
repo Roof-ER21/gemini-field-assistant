@@ -95,13 +95,19 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     try {
       setError(null);
 
+      const headers = {
+        'x-user-email': userEmail,
+        'Content-Type': 'application/json'
+      };
+
       const [leaderboardRes, userRankRes, statsRes] = await Promise.all([
-        fetch(`/api/leaderboard?sortBy=${sortBy}`),
-        fetch(`/api/leaderboard/me?email=${encodeURIComponent(userEmail)}`),
-        fetch('/api/leaderboard/stats')
+        fetch(`/api/leaderboard?sortBy=${sortBy}`, { headers }),
+        fetch('/api/leaderboard/me', { headers }),
+        fetch('/api/leaderboard/stats', { headers })
       ]);
 
-      if (!leaderboardRes.ok || !userRankRes.ok || !statsRes.ok) {
+      // userRankRes may return 404 if user not in RoofTrack - that's OK
+      if (!leaderboardRes.ok || !statsRes.ok) {
         throw new Error('Failed to fetch leaderboard data');
       }
 
