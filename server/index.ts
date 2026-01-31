@@ -26,6 +26,7 @@ import canvassingRoutes from './routes/canvassingRoutes.js';
 import impactedAssetRoutes from './routes/impactedAssetRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
 import territoryRoutes from './routes/territoryRoutes.js';
+import { createLeaderboardRoutes } from './routes/leaderboardRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
 
 const { Pool } = pg;
@@ -5178,6 +5179,46 @@ app.post('/api/admin/run-migration-036', async (req, res) => {
   }
 });
 
+// Migration 037: Leaderboard Integration with RoofTrack
+app.post('/api/admin/run-migration-037', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔧 Running Migration 037: Leaderboard Integration...');
+    const results: string[] = [];
+
+    // Create user mapping table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rooftrack_user_mapping (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        gemini_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        rooftrack_sales_rep_id UUID,
+        rooftrack_email VARCHAR(255),
+        last_sync_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(gemini_user_id)
+      )
+    `);
+    results.push('✅ rooftrack_user_mapping table created');
+
+    // Create indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_rooftrack_mapping_email ON rooftrack_user_mapping(rooftrack_email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_rooftrack_mapping_gemini_user ON rooftrack_user_mapping(gemini_user_id)`);
+    results.push('✅ Indexes created');
+
+    console.log('✅ Migration 037 completed successfully!');
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('❌ Migration 037 failed:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // Migration 035: Canvassing Tables Fix
 app.post('/api/admin/run-migration-035', async (req, res) => {
   try {
@@ -6546,6 +6587,9 @@ app.use('/api/push', pushRoutes);
 
 // Register territory management routes
 app.use('/api/territories', territoryRoutes);
+
+// Register leaderboard routes (connects to RoofTrack database)
+app.use('/api/leaderboard', createLeaderboardRoutes(pool));
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
