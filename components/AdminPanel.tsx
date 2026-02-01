@@ -214,6 +214,10 @@ const AdminPanel: React.FC = () => {
   const [userFormData, setUserFormData] = useState({ name: '', email: '', role: 'sales_rep', state: '' });
   const [userModalLoading, setUserModalLoading] = useState(false);
 
+  // Settings tab - selected user for per-user actions
+  const [settingsSelectedUserId, setSettingsSelectedUserId] = useState<string>('');
+  const [settingsUserActionLoading, setSettingsUserActionLoading] = useState(false);
+
   const currentUser = authService.getCurrentUser();
 
   // Check if current user is admin
@@ -3035,6 +3039,277 @@ const AdminPanel: React.FC = () => {
               </div>
             ) : (
               <>
+                {/* User-Specific Settings Section */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <User style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
+                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                      User Actions
+                    </h2>
+                    <span style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                      Select a user to manage
+                    </span>
+                  </div>
+                  <div style={{ padding: '1.5rem' }}>
+                    {/* User Dropdown */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                        Select User
+                      </label>
+                      <select
+                        value={settingsSelectedUserId}
+                        onChange={(e) => setSettingsSelectedUserId(e.target.value)}
+                        style={{
+                          width: '100%',
+                          maxWidth: '400px',
+                          padding: '0.75rem 1rem',
+                          background: '#111111',
+                          border: '1px solid #262626',
+                          borderRadius: '8px',
+                          color: '#ffffff',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <option value="">-- Select a user --</option>
+                        {users.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.name} ({user.email}) - {user.role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Selected User Info & Actions */}
+                    {settingsSelectedUserId && (() => {
+                      const selectedUser = users.find(u => u.id === settingsSelectedUserId);
+                      if (!selectedUser) return null;
+                      return (
+                        <div style={{
+                          background: '#111111',
+                          borderRadius: '12px',
+                          border: '1px solid #262626',
+                          padding: '1.5rem'
+                        }}>
+                          {/* User Info Header */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                            <div style={{
+                              width: '56px',
+                              height: '56px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '1.5rem',
+                              fontWeight: '700',
+                              color: '#ffffff'
+                            }}>
+                              {selectedUser.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                                {selectedUser.name}
+                              </div>
+                              <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+                                {selectedUser.email}
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{
+                                  padding: '0.25rem 0.75rem',
+                                  borderRadius: '9999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '600',
+                                  background: selectedUser.role === 'admin' ? '#7c3aed' : selectedUser.role === 'manager' ? '#2563eb' : '#059669',
+                                  color: '#ffffff'
+                                }}>
+                                  {selectedUser.role}
+                                </span>
+                                {selectedUser.state && (
+                                  <span style={{
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    background: '#262626',
+                                    color: '#a1a1aa'
+                                  }}>
+                                    {selectedUser.state}
+                                  </span>
+                                )}
+                                <span style={{
+                                  padding: '0.25rem 0.75rem',
+                                  borderRadius: '9999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '500',
+                                  background: '#262626',
+                                  color: '#71717a'
+                                }}>
+                                  {selectedUser.total_messages} messages
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Actions */}
+                          <div style={{ borderTop: '1px solid #262626', paddingTop: '1.5rem' }}>
+                            <div style={{ color: '#a1a1aa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
+                              Quick Actions
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={async () => {
+                                  setSettingsUserActionLoading(true);
+                                  try {
+                                    const authUser = localStorage.getItem('s21_auth_user');
+                                    const userEmail = authUser ? JSON.parse(authUser).email : null;
+                                    const response = await fetch(`/api/admin/users/${selectedUser.id}/resend-verification`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', ...(userEmail ? { 'x-user-email': userEmail } : {}) }
+                                    });
+                                    if (response.ok) {
+                                      toast.success('Verification code sent', `Sent new code to ${selectedUser.email}`);
+                                    } else {
+                                      const err = await response.json();
+                                      toast.error('Failed', err.error || 'Could not send verification');
+                                    }
+                                  } catch (e) {
+                                    toast.error('Error', 'Network error');
+                                  } finally {
+                                    setSettingsUserActionLoading(false);
+                                  }
+                                }}
+                                disabled={settingsUserActionLoading}
+                                style={{
+                                  padding: '0.75rem 1.25rem',
+                                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: settingsUserActionLoading ? 'wait' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  opacity: settingsUserActionLoading ? 0.7 : 1
+                                }}
+                              >
+                                <Send style={{ width: '1rem', height: '1rem' }} />
+                                Resend Verification
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingUser(selectedUser);
+                                  setUserFormData({
+                                    name: selectedUser.name,
+                                    email: selectedUser.email,
+                                    role: selectedUser.role,
+                                    state: selectedUser.state || ''
+                                  });
+                                  setShowUserModal(true);
+                                }}
+                                style={{
+                                  padding: '0.75rem 1.25rem',
+                                  background: '#262626',
+                                  border: '1px solid #3f3f46',
+                                  borderRadius: '8px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                <Edit2 style={{ width: '1rem', height: '1rem' }} />
+                                Edit User
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(selectedUser);
+                                  setActiveTab('users');
+                                }}
+                                style={{
+                                  padding: '0.75rem 1.25rem',
+                                  background: '#262626',
+                                  border: '1px solid #3f3f46',
+                                  borderRadius: '8px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                <Eye style={{ width: '1rem', height: '1rem' }} />
+                                View Conversations
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Are you sure you want to delete ${selectedUser.name}? This cannot be undone.`)) return;
+                                  setSettingsUserActionLoading(true);
+                                  try {
+                                    const authUser = localStorage.getItem('s21_auth_user');
+                                    const userEmail = authUser ? JSON.parse(authUser).email : null;
+                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+                                      method: 'DELETE',
+                                      headers: { ...(userEmail ? { 'x-user-email': userEmail } : {}) }
+                                    });
+                                    if (response.ok) {
+                                      toast.success('User deleted', `${selectedUser.name} has been removed`);
+                                      setSettingsSelectedUserId('');
+                                      fetchUsers();
+                                    } else {
+                                      const err = await response.json();
+                                      toast.error('Failed', err.error || 'Could not delete user');
+                                    }
+                                  } catch (e) {
+                                    toast.error('Error', 'Network error');
+                                  } finally {
+                                    setSettingsUserActionLoading(false);
+                                  }
+                                }}
+                                disabled={settingsUserActionLoading}
+                                style={{
+                                  padding: '0.75rem 1.25rem',
+                                  background: 'transparent',
+                                  border: '1px solid #dc2626',
+                                  borderRadius: '8px',
+                                  color: '#dc2626',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: settingsUserActionLoading ? 'wait' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  opacity: settingsUserActionLoading ? 0.7 : 1
+                                }}
+                              >
+                                <Trash2 style={{ width: '1rem', height: '1rem' }} />
+                                Delete User
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
                 {/* Feature Toggles Section */}
                 <div style={{
                   background: '#0a0a0a',

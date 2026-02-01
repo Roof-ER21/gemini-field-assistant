@@ -229,7 +229,7 @@ const AdminBudgetTab: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data.users || data);
+        setUsers(Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : []);
       } else {
         // Mock data
         setUsers([
