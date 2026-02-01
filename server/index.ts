@@ -28,6 +28,7 @@ import pushRoutes from './routes/pushRoutes.js';
 import territoryRoutes from './routes/territoryRoutes.js';
 import { createLeaderboardRoutes } from './routes/leaderboardRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
+import { initSettingsService, getSettingsService } from './services/settingsService.js';
 
 const { Pool } = pg;
 const app = express();
@@ -93,6 +94,9 @@ pool.query('SELECT NOW()', (err, res) => {
 
 // Make pool available to routes via app.get('pool')
 app.set('pool', pool);
+
+// Initialize settings service
+initSettingsService(pool);
 
 // ============================================================================
 // MIDDLEWARE
@@ -3029,6 +3033,250 @@ app.get('/api/admin/users-basic', async (req, res) => {
 });
 
 // ==========================================================================
+// User CRUD API (Admin Only)
+// Create, update, delete, and manage users
+// ==========================================================================
+
+// Create a new user (admin only)
+app.post('/api/admin/users', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { email, name, role = 'sales_rep', state } = req.body;
+
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Email and name are required' });
+    }
+
+    if (!['sales_rep', 'manager', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be: sales_rep, manager, or admin' });
+    }
+
+    // Check if user already exists
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'User with this email already exists' });
+    }
+
+    // Generate verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create user
+    const result = await pool.query(
+      `INSERT INTO users (email, name, role, state, verification_code, verification_expires_at, is_verified)
+       VALUES (LOWER($1), $2, $3, $4, $5, $6, false)
+       RETURNING id, email, name, role, state, created_at, is_verified`,
+      [email, name, role, state || null, verificationCode, expiresAt]
+    );
+
+    // Send verification email
+    try {
+      await emailService.sendVerificationCode({
+        email: email,
+        code: verificationCode
+      });
+      console.log(`[Admin] Sent verification code to ${email}`);
+    } catch (emailError) {
+      console.error('[Admin] Failed to send verification email:', emailError);
+      // Don't fail the request, user was still created
+    }
+
+    console.log(`[Admin] ${requestingEmail} created user: ${email} (${role})`);
+    res.status(201).json({ user: result.rows[0], verificationSent: true });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update a user (admin only)
+app.put('/api/admin/users/:userId', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+    const { name, role, state, is_active } = req.body;
+
+    // Build dynamic update query
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount++}`);
+      values.push(name);
+    }
+    if (role !== undefined) {
+      if (!['sales_rep', 'manager', 'admin'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      updates.push(`role = $${paramCount++}`);
+      values.push(role);
+    }
+    if (state !== undefined) {
+      updates.push(`state = $${paramCount++}`);
+      values.push(state || null);
+    }
+    if (is_active !== undefined) {
+      updates.push(`is_active = $${paramCount++}`);
+      values.push(is_active);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(userId);
+    const result = await pool.query(
+      `UPDATE users SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramCount}
+       RETURNING id, email, name, role, state, created_at, is_verified`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`[Admin] ${requestingEmail} updated user ${userId}`);
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Delete a user (admin only)
+app.delete('/api/admin/users/:userId', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+
+    // Get user info for logging
+    const userCheck = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const userEmail = userCheck.rows[0].email;
+
+    // Prevent deleting yourself
+    if (userEmail.toLowerCase() === requestingEmail.toLowerCase()) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Delete user (cascading will handle related records)
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    console.log(`[Admin] ${requestingEmail} deleted user: ${userEmail}`);
+    res.json({ success: true, message: `User ${userEmail} deleted` });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Resend verification code (admin only)
+app.post('/api/admin/users/:userId/resend-verification', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+
+    // Get user
+    const userResult = await pool.query(
+      'SELECT id, email, name, is_verified FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    if (user.is_verified) {
+      return res.status(400).json({ error: 'User is already verified' });
+    }
+
+    // Generate new verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Update user with new code
+    await pool.query(
+      `UPDATE users SET verification_code = $1, verification_expires_at = $2 WHERE id = $3`,
+      [verificationCode, expiresAt, userId]
+    );
+
+    // Send verification email
+    await emailService.sendVerificationCode({
+      email: user.email,
+      code: verificationCode
+    });
+
+    console.log(`[Admin] ${requestingEmail} resent verification to ${user.email}`);
+    res.json({ success: true, message: `Verification code sent to ${user.email}` });
+  } catch (error) {
+    console.error('Error resending verification:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Toggle user active status (admin only)
+app.patch('/api/admin/users/:userId/status', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be a boolean' });
+    }
+
+    const result = await pool.query(
+      `UPDATE users SET is_active = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, email, name, role, state, is_active`,
+      [is_active, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`[Admin] ${requestingEmail} set user ${userId} active=${is_active}`);
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==========================================================================
 // User to Sales Rep Mapping API
 // Allows admins to manually link users to sales reps
 // ==========================================================================
@@ -3337,6 +3585,157 @@ app.patch('/api/admin/users/:userId/role', async (req, res) => {
     res.status(500).json({ error: (error as Error).message });
   }
 });
+
+// ==========================================================================
+// System Settings API (Admin Only)
+// ==========================================================================
+
+// Get all system settings
+app.get('/api/admin/settings', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const settingsService = getSettingsService();
+    if (!settingsService) {
+      return res.status(500).json({ error: 'Settings service not initialized' });
+    }
+
+    const settings = await settingsService.getAllSettings();
+    res.json({ settings });
+  } catch (error) {
+    console.error('[Admin Settings] Error fetching settings:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get settings by category
+app.get('/api/admin/settings/:category', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const settingsService = getSettingsService();
+    if (!settingsService) {
+      return res.status(500).json({ error: 'Settings service not initialized' });
+    }
+
+    const { category } = req.params;
+    const settings = await settingsService.getSettingsByCategory(category);
+    res.json({ settings });
+  } catch (error) {
+    console.error('[Admin Settings] Error fetching category settings:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update a setting
+app.put('/api/admin/settings/:key', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const settingsService = getSettingsService();
+    if (!settingsService) {
+      return res.status(500).json({ error: 'Settings service not initialized' });
+    }
+
+    const { key } = req.params;
+    const { value } = req.body;
+
+    if (value === undefined) {
+      return res.status(400).json({ error: 'Value is required' });
+    }
+
+    // Get user ID for audit trail
+    const userId = await getOrCreateUserIdByEmail(email);
+    const updated = await settingsService.updateSetting(key, value, userId);
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Setting not found' });
+    }
+
+    console.log(`[Admin Settings] ${email} updated ${key}:`, value);
+    res.json({ success: true, setting: updated });
+  } catch (error) {
+    console.error('[Admin Settings] Error updating setting:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get feature flags (public endpoint, no admin required)
+app.get('/api/settings/features', async (req, res) => {
+  try {
+    const settingsService = getSettingsService();
+    if (!settingsService) {
+      // Return default all-enabled if service unavailable
+      return res.json({
+        feature_leaderboard: true,
+        feature_territories: true,
+        feature_canvassing: true,
+        feature_impacted_assets: true,
+        feature_storm_map: true,
+        feature_agnes: true,
+        feature_live: true,
+        feature_susan_chat: true
+      });
+    }
+
+    const features = await settingsService.getFeatureFlags();
+    res.json(features);
+  } catch (error) {
+    console.error('[Settings] Error fetching features:', error);
+    // Return all enabled on error to avoid breaking the app
+    res.json({
+      feature_leaderboard: true,
+      feature_territories: true,
+      feature_canvassing: true,
+      feature_impacted_assets: true,
+      feature_storm_map: true,
+      feature_agnes: true,
+      feature_live: true,
+      feature_susan_chat: true
+    });
+  }
+});
+
+// Get setting change history (admin only)
+app.get('/api/admin/settings-history', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const settingsService = getSettingsService();
+    if (!settingsService) {
+      return res.status(500).json({ error: 'Settings service not initialized' });
+    }
+
+    const { key, limit = 50 } = req.query;
+    const history = await settingsService.getSettingHistory(
+      key as string | undefined,
+      Number(limit)
+    );
+
+    res.json({ history });
+  } catch (error) {
+    console.error('[Admin Settings] Error fetching history:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==========================================================================
 
 // Get all emails generated by the system (admin only)
 app.get('/api/admin/emails', async (req, res) => {

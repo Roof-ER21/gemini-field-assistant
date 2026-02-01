@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePage';
 import ChatPanel from './components/ChatPanel';
@@ -14,6 +14,8 @@ import LearningDashboard from './components/LearningDashboard';
 import { authService, AuthUser } from './services/authService';
 import { Settings, History, Menu, X } from 'lucide-react';
 import ErrorBoundary from './components/ErrorBoundary';
+import LazyLoadBoundary from './components/LazyLoadBoundary';
+import { SettingsProvider } from './contexts/SettingsContext';
 
 // Lazy load heavy panels for better performance
 const EmailPanel = lazy(() => import('./components/EmailPanel'));
@@ -29,27 +31,6 @@ const TerritoryHailMap = lazy(() => import('./components/TerritoryHailMap'));
 const LeaderboardPanel = lazy(() => import('./components/LeaderboardPanel'));
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard';
-
-// Loading fallback component for lazy-loaded panels
-const PanelLoader: React.FC = () => (
-  <div
-    className="flex items-center justify-center h-full"
-    style={{
-      minHeight: '400px',
-      background: 'var(--bg-primary)'
-    }}
-  >
-    <div className="flex flex-col items-center gap-3">
-      <div
-        className="animate-spin rounded-full h-12 w-12 border-b-2"
-        style={{ borderColor: 'var(--roof-red)' }}
-      ></div>
-      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Loading panel...
-      </p>
-    </div>
-  </div>
-);
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -117,7 +98,9 @@ const App: React.FC = () => {
     learning: 'Susan Learning',
     canvassing: 'Canvassing Tracker',
     impacted: 'Impacted Assets',
-    territories: 'Territory Management'
+    territories: 'Territory Management',
+    stormmap: 'Storm Map',
+    leaderboard: 'Leaderboard'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -210,47 +193,47 @@ const App: React.FC = () => {
         );
       case 'image':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Document Analysis">
             <DocumentAnalysisPanel />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'transcribe':
         return <TranscriptionPanel />;
       case 'email':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Email Generator">
             <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'maps':
         return <MapsPanel onOpenChat={() => setActivePanel('chat')} />;
       case 'live':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Live Conversation">
             <LivePanel />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'knowledge':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Knowledge Base">
             <KnowledgePanel
               selectedDocument={selectedDocument}
               onDocumentViewed={() => setSelectedDocument(null)}
               onOpenInChat={(doc) => openChatWithDoc({ name: doc.name, path: doc.path })}
             />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'admin':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Admin Panel">
             <AdminPanel />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'agnes':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Agnes Training">
             <AgnesPanel onClose={() => setActivePanel('home')} />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'documentjob':
         return (
@@ -279,33 +262,33 @@ const App: React.FC = () => {
         );
       case 'canvassing':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Canvassing">
             <CanvassingPanel />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'impacted':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Impacted Assets">
             <ImpactedAssetsPanel />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'territories':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Territory Manager">
             <TerritoryManager />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'stormmap':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Storm Map">
             <TerritoryHailMap />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       case 'leaderboard':
         return (
-          <Suspense fallback={<PanelLoader />}>
+          <LazyLoadBoundary componentName="Leaderboard">
             <LeaderboardPanel userEmail={currentUser?.email || ''} />
-          </Suspense>
+          </LazyLoadBoundary>
         );
       default:
         return <HomePage setActivePanel={setActivePanel} />;
@@ -313,6 +296,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <SettingsProvider>
     <div className="flex flex-col h-screen" style={{ background: 'var(--bg-primary)' }}>
       {/* Header */}
       <header className="roof-er-header">
@@ -461,6 +445,7 @@ const App: React.FC = () => {
         onGoUpload={() => setActivePanel('image')}
       />
     </div>
+    </SettingsProvider>
   );
 };
 

@@ -17,7 +17,21 @@ import {
   Database,
   CheckCircle,
   XCircle,
-  Loader
+  Loader,
+  Settings,
+  ToggleLeft,
+  ToggleRight,
+  Sliders,
+  Trophy,
+  MapPin,
+  Target,
+  CloudLightning,
+  Bot,
+  UserPlus,
+  Trash2,
+  Edit2,
+  Send,
+  Power
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
@@ -140,7 +154,7 @@ interface UnmappedSalesRep {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -188,6 +202,18 @@ const AdminPanel: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
 
+  // System settings state
+  const [systemSettings, setSystemSettings] = useState<Record<string, any>>({});
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState<Set<string>>(new Set());
+
+  // User management modal state
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserSummary | null>(null);
+  const [userFormData, setUserFormData] = useState({ name: '', email: '', role: 'sales_rep', state: '' });
+  const [userModalLoading, setUserModalLoading] = useState(false);
+
   const currentUser = authService.getCurrentUser();
 
   // Check if current user is admin
@@ -226,6 +252,84 @@ const AdminPanel: React.FC = () => {
     }
   }, [activeTab, isAdmin]);
 
+  // Fetch system settings when settings tab is active
+  useEffect(() => {
+    if (activeTab === 'settings' && isAdmin) {
+      fetchSystemSettings();
+    }
+  }, [activeTab, isAdmin]);
+
+  // Fetch all system settings
+  const fetchSystemSettings = async () => {
+    setSettingsLoading(true);
+    setSettingsError(null);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/settings', { headers });
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings');
+      }
+      const data = await response.json();
+      const settingsMap: Record<string, any> = {};
+      for (const setting of data.settings || []) {
+        settingsMap[setting.key] = setting;
+      }
+      setSystemSettings(settingsMap);
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+      setSettingsError((err as Error).message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Update a system setting
+  const updateSetting = async (key: string, value: any) => {
+    setSavingSettings(prev => new Set(prev).add(key));
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/settings/${key}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        },
+        body: JSON.stringify({ value })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update setting');
+      }
+
+      const data = await response.json();
+      setSystemSettings(prev => ({
+        ...prev,
+        [key]: data.setting
+      }));
+      toast.success('Setting updated');
+    } catch (err) {
+      console.error('Error updating setting:', err);
+      toast.error('Error', (err as Error).message);
+    } finally {
+      setSavingSettings(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  // Toggle a feature flag
+  const toggleFeature = async (key: string) => {
+    const currentValue = systemSettings[key]?.value?.enabled ?? true;
+    await updateSetting(key, { enabled: !currentValue });
+  };
+
   const fetchUserMappings = async () => {
     setMappingsLoading(true);
     try {
@@ -253,7 +357,7 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching user mappings:', err);
-      toast({ title: 'Error', description: 'Failed to fetch user mappings', type: 'error' });
+      toast.error('Error', 'Failed to fetch user mappings');
     } finally {
       setMappingsLoading(false);
     }
@@ -261,7 +365,7 @@ const AdminPanel: React.FC = () => {
 
   const createUserMapping = async () => {
     if (!selectedUnmappedUser || !selectedUnmappedRep) {
-      toast({ title: 'Error', description: 'Please select both a user and a sales rep', type: 'error' });
+      toast.error('Error', 'Please select both a user and a sales rep');
       return;
     }
 
@@ -283,18 +387,18 @@ const AdminPanel: React.FC = () => {
       });
 
       if (res.ok) {
-        toast({ title: 'Success', description: 'User mapping created', type: 'success' });
+        toast.success('User mapping created');
         setSelectedUnmappedUser('');
         setSelectedUnmappedRep('');
         setMappingNotes('');
         fetchUserMappings();
       } else {
         const data = await res.json();
-        toast({ title: 'Error', description: data.error || 'Failed to create mapping', type: 'error' });
+        toast.error('Error', data.error || 'Failed to create mapping');
       }
     } catch (err) {
       console.error('Error creating user mapping:', err);
-      toast({ title: 'Error', description: 'Failed to create mapping', type: 'error' });
+      toast.error('Error', 'Failed to create mapping');
     }
   };
 
@@ -311,14 +415,14 @@ const AdminPanel: React.FC = () => {
       });
 
       if (res.ok) {
-        toast({ title: 'Success', description: 'Mapping deleted', type: 'success' });
+        toast.success('Mapping deleted');
         fetchUserMappings();
       } else {
-        toast({ title: 'Error', description: 'Failed to delete mapping', type: 'error' });
+        toast.error('Error', 'Failed to delete mapping');
       }
     } catch (err) {
       console.error('Error deleting user mapping:', err);
-      toast({ title: 'Error', description: 'Failed to delete mapping', type: 'error' });
+      toast.error('Error', 'Failed to delete mapping');
     }
   };
 
@@ -345,6 +449,145 @@ const AdminPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // User CRUD operations
+  const handleCreateUser = async () => {
+    if (!userFormData.email || !userFormData.name) {
+      toast.error('Error', 'Email and name are required');
+      return;
+    }
+    setUserModalLoading(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const adminEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminEmail ? { 'x-user-email': adminEmail } : {})
+        },
+        body: JSON.stringify(userFormData)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create user');
+      }
+
+      toast.success('User created', 'Verification email sent');
+      setShowUserModal(false);
+      setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+      fetchUsers();
+    } catch (err) {
+      toast.error('Error', (err as Error).message);
+    } finally {
+      setUserModalLoading(false);
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    setUserModalLoading(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const adminEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminEmail ? { 'x-user-email': adminEmail } : {})
+        },
+        body: JSON.stringify({
+          name: userFormData.name,
+          role: userFormData.role,
+          state: userFormData.state || null
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update user');
+      }
+
+      toast.success('User updated');
+      setShowUserModal(false);
+      setEditingUser(null);
+      setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+      fetchUsers();
+    } catch (err) {
+      toast.error('Error', (err as Error).message);
+    } finally {
+      setUserModalLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: UserSummary) => {
+    if (!confirm(`Are you sure you want to delete ${user.name || user.email}? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const adminEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
+        headers: adminEmail ? { 'x-user-email': adminEmail } : {}
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      toast.success('User deleted');
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(null);
+      }
+      fetchUsers();
+    } catch (err) {
+      toast.error('Error', (err as Error).message);
+    }
+  };
+
+  const handleResendVerification = async (user: UserSummary) => {
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const adminEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/users/${user.id}/resend-verification`, {
+        method: 'POST',
+        headers: adminEmail ? { 'x-user-email': adminEmail } : {}
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend verification');
+      }
+
+      toast.success('Verification sent', data.message);
+    } catch (err) {
+      toast.error('Error', (err as Error).message);
+    }
+  };
+
+  const openCreateUserModal = () => {
+    setEditingUser(null);
+    setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+    setShowUserModal(true);
+  };
+
+  const openEditUserModal = (user: UserSummary) => {
+    setEditingUser(user);
+    setUserFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      state: user.state || ''
+    });
+    setShowUserModal(true);
   };
 
   const fetchLeaderboardSyncStatus = async () => {
@@ -1252,6 +1495,27 @@ const AdminPanel: React.FC = () => {
           <Users style={{ width: '1.125rem', height: '1.125rem' }} />
           User Mappings
         </button>
+
+        <button
+          onClick={() => setActiveTab('settings')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'settings' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Sliders style={{ width: '1.125rem', height: '1.125rem' }} />
+          Settings
+        </button>
       </div>
 
       {/* Main Container */}
@@ -1295,27 +1559,48 @@ const AdminPanel: React.FC = () => {
                 👥
               </div>
               All Users
-              <button
-                onClick={fetchUsers}
-                style={{
-                  marginLeft: 'auto',
-                  padding: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-                title="Refresh users"
-              >
-                <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
-              </button>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+                <button
+                  onClick={openCreateUserModal}
+                  style={{
+                    padding: '6px 10px',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '12px',
+                    color: '#ffffff',
+                    fontWeight: '500'
+                  }}
+                  title="Add new user"
+                >
+                  <UserPlus style={{ width: '14px', height: '14px' }} />
+                  Add
+                </button>
+                <button
+                  onClick={fetchUsers}
+                  style={{
+                    padding: '6px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                  title="Refresh users"
+                >
+                  <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
+                </button>
+              </div>
             </div>
 
             {/* Search Box */}
@@ -1612,21 +1897,80 @@ const AdminPanel: React.FC = () => {
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '13px',
-                    color: '#a1a1aa'
+                    gap: '8px'
                   }}>
-                    <span style={{
-                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                      color: '#ffffff',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 600
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      color: '#a1a1aa'
                     }}>
-                      {user.total_messages}
-                    </span>
-                    messages
+                      <span style={{
+                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                        color: '#ffffff',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}>
+                        {user.total_messages}
+                      </span>
+                      msgs
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginLeft: 'auto'
+                    }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEditUserModal(user); }}
+                        style={{
+                          padding: '4px',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          opacity: 0.6,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '0.6';
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                        title="Edit user"
+                      >
+                        <Edit2 style={{ width: '14px', height: '14px', color: '#3b82f6' }} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
+                        style={{
+                          padding: '4px',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          opacity: 0.6,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '0.6';
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                        title="Delete user"
+                      >
+                        <Trash2 style={{ width: '14px', height: '14px', color: '#ef4444' }} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2662,6 +3006,406 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Settings Tab Content */}
+        {activeTab === 'settings' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {settingsLoading ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+                <Loader className="animate-spin" style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem' }} />
+                Loading settings...
+              </div>
+            ) : settingsError ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#ef4444' }}>
+                Error: {settingsError}
+                <button
+                  onClick={fetchSystemSettings}
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.5rem 1rem',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Feature Toggles Section */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <Power style={{ width: '1.25rem', height: '1.25rem', color: '#dc2626' }} />
+                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                      Feature Toggles
+                    </h2>
+                    <span style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                      Enable/disable features app-wide
+                    </span>
+                  </div>
+                  <div style={{ padding: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                      {[
+                        { key: 'feature_leaderboard', label: 'Leaderboard', icon: Trophy, desc: 'Sales leaderboard and rankings' },
+                        { key: 'feature_territories', label: 'Territories', icon: MapPin, desc: 'Territory management and assignments' },
+                        { key: 'feature_canvassing', label: 'Canvassing', icon: Target, desc: 'Door-to-door tracking' },
+                        { key: 'feature_impacted_assets', label: 'Impacted Assets', icon: CloudLightning, desc: 'Storm damage tracking' },
+                        { key: 'feature_storm_map', label: 'Storm Map', icon: CloudLightning, desc: 'Hail storm visualization' },
+                        { key: 'feature_agnes', label: 'Agnes Training', icon: Bot, desc: 'AI roleplay training' },
+                        { key: 'feature_live', label: 'Live Conversation', icon: MessageSquare, desc: 'Real-time AI assistance' },
+                        { key: 'feature_susan_chat', label: 'Susan Chat', icon: Bot, desc: 'AI chat assistant' }
+                      ].map(({ key, label, icon: Icon, desc }) => {
+                        const enabled = systemSettings[key]?.value?.enabled ?? true;
+                        const saving = savingSettings.has(key);
+                        return (
+                          <div
+                            key={key}
+                            style={{
+                              background: '#111111',
+                              borderRadius: '8px',
+                              padding: '1rem',
+                              border: '1px solid #262626',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <Icon style={{ width: '1.25rem', height: '1.25rem', color: enabled ? '#22c55e' : '#71717a' }} />
+                              <div>
+                                <div style={{ color: '#ffffff', fontWeight: '500' }}>{label}</div>
+                                <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{desc}</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => toggleFeature(key)}
+                              disabled={saving}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: saving ? 'wait' : 'pointer',
+                                padding: '0.25rem',
+                                opacity: saving ? 0.5 : 1
+                              }}
+                            >
+                              {enabled ? (
+                                <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
+                              ) : (
+                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Leaderboard Settings Section */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#f59e0b' }} />
+                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                      Leaderboard Settings
+                    </h2>
+                  </div>
+                  <div style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'grid', gap: '1.5rem' }}>
+                      {/* Sync Controls */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#111111',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        border: '1px solid #262626'
+                      }}>
+                        <div>
+                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Automatic Sync</div>
+                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                            Sync leaderboard from Google Sheets
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <select
+                            value={systemSettings['leaderboard_sync_enabled']?.value?.interval_hours ?? 12}
+                            onChange={(e) => updateSetting('leaderboard_sync_enabled', {
+                              enabled: systemSettings['leaderboard_sync_enabled']?.value?.enabled ?? true,
+                              interval_hours: parseInt(e.target.value)
+                            })}
+                            style={{
+                              background: '#1a1a1a',
+                              color: '#ffffff',
+                              border: '1px solid #262626',
+                              borderRadius: '6px',
+                              padding: '0.5rem'
+                            }}
+                          >
+                            <option value={6}>Every 6 hours</option>
+                            <option value={12}>Every 12 hours</option>
+                            <option value={24}>Every 24 hours</option>
+                          </select>
+                          <button
+                            onClick={() => toggleFeature('leaderboard_sync_enabled')}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '0.25rem'
+                            }}
+                          >
+                            {systemSettings['leaderboard_sync_enabled']?.value?.enabled ?? true ? (
+                              <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
+                            ) : (
+                              <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Manual Sync Button */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#111111',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        border: '1px solid #262626'
+                      }}>
+                        <div>
+                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Manual Sync</div>
+                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                            {leaderboardSyncStatus?.lastSync
+                              ? `Last synced: ${new Date(leaderboardSyncStatus.lastSync).toLocaleString()}`
+                              : 'Never synced'}
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleLeaderboardSync}
+                          disabled={leaderboardSyncRunning}
+                          style={{
+                            padding: '0.75rem 1.5rem',
+                            background: leaderboardSyncRunning ? '#262626' : '#dc2626',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: leaderboardSyncRunning ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                          }}
+                        >
+                          <RefreshCw style={{
+                            width: '1rem',
+                            height: '1rem',
+                            animation: leaderboardSyncRunning ? 'spin 1s linear infinite' : 'none'
+                          }} />
+                          {leaderboardSyncRunning ? 'Syncing...' : 'Sync Now'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Susan AI Settings Section */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <Bot style={{ width: '1.25rem', height: '1.25rem', color: '#8b5cf6' }} />
+                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                      Susan AI Settings
+                    </h2>
+                  </div>
+                  <div style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {[
+                        { key: 'susan_voice_enabled', label: 'Voice Responses', desc: 'Enable text-to-speech responses' },
+                        { key: 'susan_roleplay_enabled', label: 'Roleplay Training', desc: 'Enable Agnes roleplay scenarios' },
+                        { key: 'susan_storm_lookup', label: 'Storm Data Lookup', desc: 'Enable weather and hail data queries' },
+                        { key: 'susan_performance_coaching', label: 'Performance Coaching', desc: 'Enable leaderboard-based coaching' }
+                      ].map(({ key, label, desc }) => {
+                        const enabled = systemSettings[key]?.value?.enabled ?? true;
+                        const saving = savingSettings.has(key);
+                        return (
+                          <div
+                            key={key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: '#111111',
+                              borderRadius: '8px',
+                              padding: '1rem',
+                              border: '1px solid #262626'
+                            }}
+                          >
+                            <div>
+                              <div style={{ color: '#ffffff', fontWeight: '500' }}>{label}</div>
+                              <div style={{ color: '#71717a', fontSize: '0.875rem' }}>{desc}</div>
+                            </div>
+                            <button
+                              onClick={() => toggleFeature(key)}
+                              disabled={saving}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: saving ? 'wait' : 'pointer',
+                                padding: '0.25rem',
+                                opacity: saving ? 0.5 : 1
+                              }}
+                            >
+                              {enabled ? (
+                                <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
+                              ) : (
+                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Territory & Canvassing Settings */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <MapPin style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
+                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                      Territory & Canvassing Settings
+                    </h2>
+                  </div>
+                  <div style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#111111',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        border: '1px solid #262626'
+                      }}>
+                        <div>
+                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Auto-Assign Territories</div>
+                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                            Automatically assign territories to new users
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const current = systemSettings['territory_auto_assign']?.value?.enabled ?? false;
+                            updateSetting('territory_auto_assign', { enabled: !current });
+                          }}
+                          disabled={savingSettings.has('territory_auto_assign')}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '0.25rem'
+                          }}
+                        >
+                          {systemSettings['territory_auto_assign']?.value?.enabled ? (
+                            <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
+                          ) : (
+                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                          )}
+                        </button>
+                      </div>
+
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#111111',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        border: '1px solid #262626'
+                      }}>
+                        <div>
+                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Require Location Check-in</div>
+                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                            Require GPS verification for canvassing activities
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const current = systemSettings['territory_checkin_required']?.value?.enabled ?? true;
+                            updateSetting('territory_checkin_required', {
+                              enabled: !current,
+                              radius_miles: systemSettings['territory_checkin_required']?.value?.radius_miles ?? 0.5
+                            });
+                          }}
+                          disabled={savingSettings.has('territory_checkin_required')}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '0.25rem'
+                          }}
+                        >
+                          {systemSettings['territory_checkin_required']?.value?.enabled ?? true ? (
+                            <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
+                          ) : (
+                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Global Styles */}
@@ -2696,6 +3440,242 @@ const AdminPanel: React.FC = () => {
           /* Responsive adjustments */
         }
       ` }} />
+
+      {/* User Create/Edit Modal */}
+      {showUserModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}
+        onClick={() => setShowUserModal(false)}
+        >
+          <div
+            style={{
+              background: '#0a0a0a',
+              borderRadius: '16px',
+              border: '1px solid #262626',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '480px',
+              margin: '1rem'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{
+              color: '#ffffff',
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}>
+              {editingUser ? (
+                <>
+                  <Edit2 style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
+                  Edit User
+                </>
+              ) : (
+                <>
+                  <UserPlus style={{ width: '1.25rem', height: '1.25rem', color: '#22c55e' }} />
+                  Add New User
+                </>
+              )}
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Email field - readonly when editing */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={userFormData.email}
+                  onChange={(e) => setUserFormData(prev => ({ ...prev, email: e.target.value }))}
+                  disabled={!!editingUser}
+                  placeholder="user@theroofdocs.com"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    background: editingUser ? '#1a1a1a' : '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.9375rem',
+                    opacity: editingUser ? 0.6 : 1
+                  }}
+                />
+                {editingUser && (
+                  <p style={{ color: '#71717a', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                    Email cannot be changed
+                  </p>
+                )}
+              </div>
+
+              {/* Name field */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={userFormData.name}
+                  onChange={(e) => setUserFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="John Smith"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.9375rem'
+                  }}
+                />
+              </div>
+
+              {/* Role field */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                  Role
+                </label>
+                <select
+                  value={userFormData.role}
+                  onChange={(e) => setUserFormData(prev => ({ ...prev, role: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.9375rem'
+                  }}
+                >
+                  <option value="sales_rep">Sales Rep</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* State field */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                  State (Optional)
+                </label>
+                <select
+                  value={userFormData.state}
+                  onChange={(e) => setUserFormData(prev => ({ ...prev, state: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.9375rem'
+                  }}
+                >
+                  <option value="">Select state...</option>
+                  <option value="VA">Virginia (VA)</option>
+                  <option value="MD">Maryland (MD)</option>
+                  <option value="PA">Pennsylvania (PA)</option>
+                </select>
+              </div>
+
+              {/* Resend verification button for existing users */}
+              {editingUser && (
+                <button
+                  onClick={() => handleResendVerification(editingUser)}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: 'transparent',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#a1a1aa',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.color = '#3b82f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#262626';
+                    e.currentTarget.style.color = '#a1a1aa';
+                  }}
+                >
+                  <Send style={{ width: '1rem', height: '1rem' }} />
+                  Resend Verification Email
+                </button>
+              )}
+            </div>
+
+            {/* Modal actions */}
+            <div style={{
+              display: 'flex',
+              gap: '1rem',
+              marginTop: '1.5rem',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setEditingUser(null);
+                  setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: 'transparent',
+                  border: '1px solid #262626',
+                  borderRadius: '8px',
+                  color: '#a1a1aa',
+                  fontSize: '0.9375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingUser ? handleUpdateUser : handleCreateUser}
+                disabled={userModalLoading}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: userModalLoading ? '#262626' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '0.9375rem',
+                  fontWeight: '500',
+                  cursor: userModalLoading ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                {userModalLoading && (
+                  <Loader style={{ width: '1rem', height: '1rem', animation: 'spin 1s linear infinite' }} />
+                )}
+                {editingUser ? 'Save Changes' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

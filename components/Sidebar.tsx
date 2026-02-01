@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Home,
   MessageSquare,
@@ -21,6 +21,7 @@ import {
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
+import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard';
 type QuickActionType = 'email' | 'transcribe' | 'image';
@@ -89,6 +90,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const [unreadCount, setUnreadCount] = useState(0);
+  const { features, isFeatureEnabled } = useSettings();
+
+  // Map panel IDs to feature flag keys
+  const featureFlagMap: Partial<Record<PanelType, keyof FeatureFlags>> = {
+    chat: 'feature_susan_chat',
+    leaderboard: 'feature_leaderboard',
+    territories: 'feature_territories',
+    stormmap: 'feature_storm_map',
+    canvassing: 'feature_canvassing',
+    impacted: 'feature_impacted_assets',
+    live: 'feature_live',
+    agnes: 'feature_agnes'
+  };
 
   // Fetch unread message count
   useEffect(() => {
@@ -118,7 +132,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     };
   }, []);
 
-  const navItems = [
+  // Define all nav items
+  const allNavItems = useMemo(() => [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
@@ -135,17 +150,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
     { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
-  ];
+    // Admin panel - will be filtered by isAdmin check below
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel', desc: 'System settings', icon: Shield }] : [])
+  ], [unreadCount, isAdmin]);
 
-  // Add admin item only if user is admin
-  if (isAdmin) {
-    navItems.push({
-      id: 'admin',
-      label: 'Admin Panel',
-      desc: 'User conversations',
-      icon: Shield
+  // Filter nav items based on feature flags
+  const navItems = useMemo(() => {
+    return allNavItems.filter(item => {
+      const panelId = item.id as PanelType;
+      const featureKey = featureFlagMap[panelId];
+
+      // If no feature flag is mapped, always show the item
+      if (!featureKey) return true;
+
+      // Check if the feature is enabled
+      return isFeatureEnabled(featureKey);
     });
-  }
+  }, [allNavItems, features, isFeatureEnabled]);
 
   const quickActions = [
     { id: 'email', title: 'Email', desc: 'Quick email draft', icon: Mail },
