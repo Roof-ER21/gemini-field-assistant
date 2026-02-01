@@ -6834,6 +6834,185 @@ app.post('/api/admin/run-migration-035', async (req, res) => {
   }
 });
 
+// Migration 019: Bonus Tiers Table
+app.post('/api/admin/run-migration-019', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔧 Running Migration 019: Bonus Tiers Table...');
+    const results: string[] = [];
+
+    // Create bonus_tiers table
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS bonus_tiers (
+          id SERIAL PRIMARY KEY,
+          tier_number INTEGER NOT NULL UNIQUE CHECK (tier_number >= 0 AND tier_number <= 10),
+          name VARCHAR(50) NOT NULL,
+          min_signups INTEGER NOT NULL CHECK (min_signups >= 0),
+          max_signups INTEGER NOT NULL CHECK (max_signups >= min_signups),
+          color VARCHAR(20) NOT NULL,
+          bonus_display VARCHAR(20) NOT NULL DEFAULT '',
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      results.push('✅ bonus_tiers table created');
+    } catch (e: any) {
+      if (e.message.includes('already exists')) {
+        results.push('✅ bonus_tiers table already exists');
+      } else {
+        results.push(`⚠️ bonus_tiers table: ${e.message}`);
+      }
+    }
+
+    // Create indexes
+    try {
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bonus_tiers_active ON bonus_tiers (is_active, tier_number)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bonus_tiers_signups ON bonus_tiers (min_signups, max_signups) WHERE is_active = true`);
+      results.push('✅ bonus_tiers indexes created');
+    } catch (e: any) {
+      results.push(`⚠️ indexes: ${e.message}`);
+    }
+
+    // Seed default tiers
+    try {
+      await pool.query(`
+        INSERT INTO bonus_tiers (tier_number, name, min_signups, max_signups, color, bonus_display) VALUES
+          (0, 'Rookie', 0, 5, '#71717a', ''),
+          (1, 'Bronze', 6, 10, '#cd7f32', ''),
+          (2, 'Silver', 11, 14, '#c0c0c0', ''),
+          (3, 'Gold', 15, 19, '#ffd700', '$'),
+          (4, 'Platinum', 20, 24, '#e5e4e2', '$$'),
+          (5, 'Diamond', 25, 29, '#b9f2ff', '$$$'),
+          (6, 'Elite', 30, 999, '#9333ea', '$$$$$')
+        ON CONFLICT (tier_number) DO NOTHING
+      `);
+      results.push('✅ default tiers seeded');
+    } catch (e: any) {
+      results.push(`⚠️ seed tiers: ${e.message}`);
+    }
+
+    console.log('✅ Migration 019 completed');
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('❌ Migration 019 failed:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
+// Migration 044: Contests System
+app.post('/api/admin/run-migration-044', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const isAdminUser = await isAdmin(email);
+
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔧 Running Migration 044: Contests System...');
+    const results: string[] = [];
+
+    // Create contests table
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS contests (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          contest_type VARCHAR(50) NOT NULL CHECK (contest_type IN ('company_wide', 'team_based', 'individual')),
+          metric_type VARCHAR(50) NOT NULL CHECK (metric_type IN ('signups', 'revenue', 'both')),
+          start_date DATE NOT NULL,
+          end_date DATE NOT NULL,
+          is_monthly BOOLEAN DEFAULT false,
+          prize_description TEXT,
+          rules TEXT,
+          created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      results.push('✅ contests table created');
+    } catch (e: any) {
+      if (e.message.includes('already exists')) {
+        results.push('✅ contests table already exists');
+      } else {
+        results.push(`⚠️ contests table: ${e.message}`);
+      }
+    }
+
+    // Create contest_participants table
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS contest_participants (
+          id SERIAL PRIMARY KEY,
+          contest_id INTEGER REFERENCES contests(id) ON DELETE CASCADE,
+          sales_rep_id INTEGER REFERENCES sales_reps(id) ON DELETE CASCADE,
+          team_name VARCHAR(255),
+          is_team_leader BOOLEAN DEFAULT false,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(contest_id, sales_rep_id)
+        )
+      `);
+      results.push('✅ contest_participants table created');
+    } catch (e: any) {
+      if (e.message.includes('already exists')) {
+        results.push('✅ contest_participants table already exists');
+      } else {
+        results.push(`⚠️ contest_participants table: ${e.message}`);
+      }
+    }
+
+    // Create contest_standings table
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS contest_standings (
+          id SERIAL PRIMARY KEY,
+          contest_id INTEGER REFERENCES contests(id) ON DELETE CASCADE,
+          sales_rep_id INTEGER REFERENCES sales_reps(id) ON DELETE CASCADE,
+          team_name VARCHAR(255),
+          signups_count INTEGER DEFAULT 0,
+          revenue_amount DECIMAL(15,2) DEFAULT 0,
+          rank INTEGER,
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(contest_id, sales_rep_id)
+        )
+      `);
+      results.push('✅ contest_standings table created');
+    } catch (e: any) {
+      if (e.message.includes('already exists')) {
+        results.push('✅ contest_standings table already exists');
+      } else {
+        results.push(`⚠️ contest_standings table: ${e.message}`);
+      }
+    }
+
+    // Create indexes
+    try {
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_contests_active ON contests (is_active, start_date, end_date)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_contest_participants_contest ON contest_participants (contest_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_contest_standings_contest ON contest_standings (contest_id, rank)`);
+      results.push('✅ contest indexes created');
+    } catch (e: any) {
+      results.push(`⚠️ indexes: ${e.message}`);
+    }
+
+    console.log('✅ Migration 044 completed');
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('❌ Migration 044 failed:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // 2. Get budget overview stats (admin only)
 app.get('/api/admin/budget/overview', async (req, res) => {
   try {
