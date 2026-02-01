@@ -418,16 +418,27 @@ export function createSheetsService(pool) {
             return;
         // Validate and filter rows to prevent integer overflow errors
         const validRows = rows.filter(row => {
-            const isValid = Number.isInteger(row.salesRepId) &&
-                Number.isInteger(row.year) &&
-                Number.isInteger(row.month) &&
-                row.year >= 2000 && row.year <= 2100 &&
-                row.month >= 1 && row.month <= 12;
+            // Ensure salesRepId, year, month are proper integers
+            const safeRepId = Math.floor(Number(row.salesRepId));
+            const safeYear = Math.floor(Number(row.year));
+            const safeMonth = Math.floor(Number(row.month));
+            const isValid = Number.isFinite(safeRepId) &&
+                safeRepId > 0 &&
+                safeRepId < 1000000 &&
+                Number.isFinite(safeYear) &&
+                safeYear >= 2000 &&
+                safeYear <= 2100 &&
+                Number.isFinite(safeMonth) &&
+                safeMonth >= 1 &&
+                safeMonth <= 12;
             if (!isValid) {
                 console.warn('[SHEETS] Invalid monthly metrics row skipped:', {
                     salesRepId: row.salesRepId,
+                    safeRepId,
                     year: row.year,
+                    safeYear,
                     month: row.month,
+                    safeMonth,
                     signups: row.signups
                 });
             }
@@ -438,7 +449,11 @@ export function createSheetsService(pool) {
         const values = [];
         const placeholders = validRows.map((row, index) => {
             const baseIndex = index * 6;
-            values.push(row.salesRepId, row.year, row.month, row.signups, row.estimates, row.revenue);
+            // Force integer values for salesRepId, year, month
+            const safeRepId = Math.floor(Number(row.salesRepId));
+            const safeYear = Math.floor(Number(row.year));
+            const safeMonth = Math.floor(Number(row.month));
+            values.push(safeRepId, safeYear, safeMonth, row.signups, row.estimates, row.revenue);
             return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6})`;
         });
         const query = `
@@ -451,20 +466,34 @@ export function createSheetsService(pool) {
           revenue = EXCLUDED.revenue,
           updated_at = NOW()
     `;
-        await pool.query(query, values);
+        try {
+            await pool.query(query, values);
+        }
+        catch (err) {
+            console.error('[SHEETS] upsertMonthlyMetrics FAILED. First 6 values:', values.slice(0, 18));
+            throw err;
+        }
     }
     async function upsertYearlyMetrics(rows) {
         if (rows.length === 0)
             return;
         // Validate and filter rows to prevent integer overflow errors
         const validRows = rows.filter(row => {
-            const isValid = Number.isInteger(row.salesRepId) &&
-                Number.isInteger(row.year) &&
-                row.year >= 2000 && row.year <= 2100;
+            // Ensure salesRepId and year are proper integers
+            const safeRepId = Math.floor(Number(row.salesRepId));
+            const safeYear = Math.floor(Number(row.year));
+            const isValid = Number.isFinite(safeRepId) &&
+                safeRepId > 0 &&
+                safeRepId < 1000000 &&
+                Number.isFinite(safeYear) &&
+                safeYear >= 2000 &&
+                safeYear <= 2100;
             if (!isValid) {
                 console.warn('[SHEETS] Invalid yearly metrics row skipped:', {
                     salesRepId: row.salesRepId,
+                    safeRepId,
                     year: row.year,
+                    safeYear,
                     signups: row.signups
                 });
             }
@@ -475,7 +504,10 @@ export function createSheetsService(pool) {
         const values = [];
         const placeholders = validRows.map((row, index) => {
             const baseIndex = index * 5;
-            values.push(row.salesRepId, row.year, row.signups, row.estimates, row.revenue);
+            // Force integer values for salesRepId and year
+            const safeRepId = Math.floor(Number(row.salesRepId));
+            const safeYear = Math.floor(Number(row.year));
+            values.push(safeRepId, safeYear, row.signups, row.estimates, row.revenue);
             return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5})`;
         });
         const query = `
@@ -488,7 +520,13 @@ export function createSheetsService(pool) {
           revenue = EXCLUDED.revenue,
           updated_at = NOW()
     `;
-        await pool.query(query, values);
+        try {
+            await pool.query(query, values);
+        }
+        catch (err) {
+            console.error('[SHEETS] upsertYearlyMetrics FAILED. First 3 values:', values.slice(0, 15));
+            throw err;
+        }
     }
     async function performFullSync() {
         const startedAt = new Date();
@@ -657,14 +695,18 @@ export function createSheetsService(pool) {
             const sheetEmails = new Set();
             let created = 0;
             let updated = 0;
+            console.log('[SHEETS] Step: Starting sales_reps update/insert loop for', combinedData.size, 'reps');
             for (const [nameLower, data] of combinedData.entries()) {
                 sheetNames.add(nameLower);
                 const generatedEmail = `${nameLower.replace(/\s+/g, '.')}@theroofdocs.com`;
                 sheetEmails.add(generatedEmail);
                 const existing = existingByName.get(nameLower) || existingByEmail.get(generatedEmail);
-                const monthlyGoal = Math.floor(existing?.monthly_signup_goal ?? 15);
+                // Ensure all integer values are safe
+                const rawMonthlyGoal = existing?.monthly_signup_goal;
+                const monthlyGoal = Number.isFinite(rawMonthlyGoal) && rawMonthlyGoal > 0 ? Math.floor(rawMonthlyGoal) : 15;
                 const goalProgress = monthlyGoal > 0 ? Math.min((data.monthlySignups / monthlyGoal) * 100, 999.99) : 0;
-                const bonusTier = Math.floor(calculateBonusTier(data.monthlySignups));
+                const rawBonusTier = calculateBonusTier(data.monthlySignups);
+                const bonusTier = Number.isFinite(rawBonusTier) ? Math.floor(rawBonusTier) : 0;
                 // Validate numeric values to prevent database errors
                 if (!Number.isFinite(data.monthlySignups) || !Number.isFinite(data.yearlySignups)) {
                     console.warn('[SHEETS] Invalid signups data for:', data.name);
@@ -679,6 +721,13 @@ export function createSheetsService(pool) {
                     const safeRevenue2025 = Number.isFinite(data.revenue2025) ? data.revenue2025 : 0;
                     const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
                     const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
+                    // Validate integer values for database
+                    const safeExistingId = Math.floor(Number(existing.id));
+                    const safeBonusTier = Math.max(0, Math.min(6, bonusTier));
+                    if (!Number.isFinite(safeExistingId) || safeExistingId <= 0) {
+                        console.error('[SHEETS] Invalid existing.id for rep:', data.name, 'id:', existing.id);
+                        continue;
+                    }
                     try {
                         await pool.query(`UPDATE sales_reps
              SET name = $1,
@@ -705,24 +754,34 @@ export function createSheetsService(pool) {
                             safeRevenue2026,
                             safeAllTimeRevenue,
                             goalProgress,
-                            bonusTier,
-                            existing.id
+                            safeBonusTier,
+                            safeExistingId
                         ]);
                         updated += 1;
-                        repIdByName.set(nameLower, existing.id);
+                        repIdByName.set(nameLower, safeExistingId);
                     }
                     catch (updateError) {
                         console.error('[SHEETS] UPDATE failed for rep:', data.name, 'with values:', {
                             monthlySignups: safeMonthlySignups,
                             yearlySignups: safeYearlySignups,
                             goalProgress,
-                            bonusTier,
-                            existingId: existing.id
+                            bonusTier: safeBonusTier,
+                            existingId: safeExistingId
                         });
                         throw updateError;
                     }
                 }
                 else {
+                    // Safe values for INSERT - ensure integers are proper integers
+                    const safeMonthlyGoal = Math.max(1, Math.min(100, monthlyGoal));
+                    const safeBonusTier = Math.max(0, Math.min(6, bonusTier));
+                    const safeMonthlySignups = Number.isFinite(data.monthlySignups) ? data.monthlySignups : 0;
+                    const safeYearlySignups = Number.isFinite(data.yearlySignups) ? data.yearlySignups : 0;
+                    const safeMonthlyRevenue = Number.isFinite(data.monthlyRevenue) ? data.monthlyRevenue : 0;
+                    const safeYearlyRevenue = Number.isFinite(data.yearlyRevenue) ? data.yearlyRevenue : 0;
+                    const safeRevenue2025 = Number.isFinite(data.revenue2025) ? data.revenue2025 : 0;
+                    const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
+                    const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
                     try {
                         const insertResult = await pool.query(`INSERT INTO sales_reps (
               name, email, team, title, avatar,
@@ -743,37 +802,38 @@ export function createSheetsService(pool) {
                             'Unassigned',
                             'Sales Representative',
                             null,
-                            hasEstimates ? data.monthlyRevenue : 0,
-                            data.yearlyRevenue,
-                            data.revenue2025,
-                            data.revenue2026,
-                            data.allTimeRevenue,
-                            data.monthlySignups,
-                            data.yearlySignups,
+                            hasEstimates ? safeMonthlyRevenue : 0,
+                            safeYearlyRevenue,
+                            safeRevenue2025,
+                            safeRevenue2026,
+                            safeAllTimeRevenue,
+                            safeMonthlySignups,
+                            safeYearlySignups,
                             goalProgress,
-                            monthlyGoal,
+                            safeMonthlyGoal,
                             180,
-                            bonusTier,
+                            safeBonusTier,
                             true
                         ]);
                         created += 1;
                         const newId = insertResult.rows[0]?.id;
                         if (newId) {
-                            repIdByName.set(nameLower, newId);
+                            const safeNewId = Math.floor(Number(newId));
+                            repIdByName.set(nameLower, safeNewId);
                             await pool.query(`INSERT INTO player_profiles (sales_rep_id, display_alias)
                  VALUES ($1, $2)
-                 ON CONFLICT (sales_rep_id) DO NOTHING`, [newId, data.name]);
+                 ON CONFLICT (sales_rep_id) DO NOTHING`, [safeNewId, data.name]);
                         }
                     }
                     catch (insertError) {
                         console.error('[SHEETS] INSERT failed for rep:', data.name, 'with values:', {
-                            monthlyRevenue: hasEstimates ? data.monthlyRevenue : 0,
-                            yearlyRevenue: data.yearlyRevenue,
-                            monthlySignups: data.monthlySignups,
-                            yearlySignups: data.yearlySignups,
+                            monthlyRevenue: hasEstimates ? safeMonthlyRevenue : 0,
+                            yearlyRevenue: safeYearlyRevenue,
+                            monthlySignups: safeMonthlySignups,
+                            yearlySignups: safeYearlySignups,
                             goalProgress,
-                            monthlyGoal,
-                            bonusTier
+                            monthlyGoal: safeMonthlyGoal,
+                            bonusTier: safeBonusTier
                         });
                         throw insertError;
                     }
@@ -844,6 +904,7 @@ export function createSheetsService(pool) {
             catch (metricsError) {
                 console.warn('[SHEETS] Failed to update time-series metrics:', metricsError.message);
             }
+            console.log('[SHEETS] Step: Starting deactivation loop');
             let deactivated = 0;
             for (const rep of existingRepsResult.rows) {
                 const nameLower = rep.name ? normalizeName(rep.name) : '';
@@ -852,9 +913,15 @@ export function createSheetsService(pool) {
                     continue;
                 if (emailLower && sheetEmails.has(emailLower))
                     continue;
+                // Ensure rep.id is a valid integer
+                const safeRepId = Math.floor(Number(rep.id));
+                if (!Number.isFinite(safeRepId) || safeRepId <= 0) {
+                    console.warn('[SHEETS] Invalid rep.id in deactivation:', rep.id);
+                    continue;
+                }
                 const result = await pool.query(`UPDATE sales_reps
            SET is_active = false, updated_at = NOW()
-           WHERE id = $1 AND is_active = true`, [rep.id]);
+           WHERE id = $1 AND is_active = true`, [safeRepId]);
                 if (result.rowCount > 0) {
                     deactivated += 1;
                 }
