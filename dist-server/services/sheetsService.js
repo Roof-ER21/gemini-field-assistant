@@ -759,11 +759,13 @@ export function createSheetsService(pool) {
                     const safeRevenue2025 = Number.isFinite(data.revenue2025) ? data.revenue2025 : 0;
                     const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
                     const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
-                    // Validate integer values for database
-                    const safeExistingId = Math.floor(Number(existing.id));
-                    const safeBonusTier = Math.max(0, Math.min(6, bonusTier));
-                    if (!Number.isFinite(safeExistingId) || safeExistingId <= 0) {
-                        console.error('[SHEETS] Invalid existing.id for rep:', data.name, 'id:', existing.id);
+                    // Validate integer values for database - ensure they are actual integers
+                    const rawExistingId = Number(existing.id);
+                    const safeExistingId = Number.isFinite(rawExistingId) ? Math.floor(rawExistingId) : -1;
+                    const rawBonusTierNum = Number(bonusTier);
+                    const safeBonusTier = Number.isFinite(rawBonusTierNum) ? Math.floor(Math.max(0, Math.min(6, rawBonusTierNum))) : 0;
+                    if (safeExistingId <= 0) {
+                        console.error('[SHEETS] Invalid existing.id for rep:', data.name, 'rawId:', existing.id, 'safeId:', safeExistingId);
                         continue;
                     }
                     // Log all values being inserted
