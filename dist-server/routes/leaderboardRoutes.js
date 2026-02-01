@@ -467,6 +467,38 @@ export function createLeaderboardRoutes(pool) {
             });
         }
     });
+    /**
+     * GET /api/leaderboard/bonus-tiers
+     * Get bonus tier configuration
+     */
+    router.get('/bonus-tiers', async (_req, res) => {
+        try {
+            const result = await pool.query(`SELECT
+          tier_number as "tierNumber",
+          name,
+          min_signups as "minSignups",
+          max_signups as "maxSignups",
+          color,
+          bonus_display as "bonusDisplay"
+         FROM bonus_tiers
+         WHERE is_active = true
+         ORDER BY tier_number ASC`);
+            res.json({
+                success: true,
+                count: result.rows.length,
+                tiers: result.rows
+            });
+        }
+        catch (error) {
+            console.error('❌ Bonus tiers fetch error:', error);
+            res.json({
+                success: false,
+                count: 0,
+                tiers: [],
+                error: error.message
+            });
+        }
+    });
     return router;
 }
 export default createLeaderboardRoutes;

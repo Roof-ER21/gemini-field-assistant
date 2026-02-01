@@ -3,6 +3,7 @@
  * Pulls sales leaderboard data from Google Sheets into local PostgreSQL tables.
  */
 import { google } from 'googleapis';
+import { loadTiersFromDatabase, calculateBonusTierSync } from '../utils/bonusTiers.js';
 export function createSheetsService(pool) {
     const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '1YSJD4RoqS_FLWF0LN1GRJKQhQNCdPT_aThqX6R6cZ4I';
     let sheetsClient = null;
@@ -90,22 +91,22 @@ export function createSheetsService(pool) {
             return null;
         return parseInt(match[1], 10);
     }
-    // Tier structure: 0-5 Rookie, 6-10 Bronze, 11-14 Silver, 15-19 Gold, 20-24 Platinum, 25-29 Diamond, 30+ Elite
+    // Tier calculation now uses database-driven tiers with sync fallback
     function calculateBonusTier(signups) {
-        if (signups >= 30)
-            return 6; // Elite
-        if (signups >= 25)
-            return 5; // Diamond
-        if (signups >= 20)
-            return 4; // Platinum
-        if (signups >= 15)
-            return 3; // Gold
-        if (signups >= 11)
-            return 2; // Silver
-        if (signups >= 6)
-            return 1; // Bronze
-        return 0; // Rookie
+        return calculateBonusTierSync(signups);
     }
+    // Preload tiers from database on initialization
+    async function preloadTiers() {
+        try {
+            await loadTiersFromDatabase(pool);
+            console.log('[SHEETS] Bonus tiers preloaded from database');
+        }
+        catch (error) {
+            console.warn('[SHEETS] Failed to preload tiers, will use defaults:', error);
+        }
+    }
+    // Initialize tiers asynchronously (non-blocking)
+    preloadTiers();
     function initializeAuth() {
         const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
         const privateKey = process.env.GOOGLE_PRIVATE_KEY;

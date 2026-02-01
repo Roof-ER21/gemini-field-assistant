@@ -27,7 +27,9 @@ import pushRoutes from './routes/pushRoutes.js';
 import territoryRoutes from './routes/territoryRoutes.js';
 import { createLeaderboardRoutes } from './routes/leaderboardRoutes.js';
 import { createRepGoalsRoutes } from './routes/repGoalsRoutes.js';
+import { createContestRoutes } from './routes/contestRoutes.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
+import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
 const { Pool } = pg;
 const app = express();
 const httpServer = http.createServer(app);
@@ -2796,36 +2798,10 @@ app.patch('/api/admin/users/:userId/status', async (req, res) => {
 // Default goals - used if no specific goal is set
 const DEFAULT_MONTHLY_SIGNUP_GOAL = 15;
 const DEFAULT_YEARLY_REVENUE_GOAL = 1500000; // $1.5 million
-// Bonus tier structure - based on monthly signups
-const BONUS_TIERS = [
-    { tier: 0, name: 'Rookie', minSignups: 0, maxSignups: 5, color: '#71717a', bonusDisplay: '' },
-    { tier: 1, name: 'Bronze', minSignups: 6, maxSignups: 10, color: '#cd7f32', bonusDisplay: '' },
-    { tier: 2, name: 'Silver', minSignups: 11, maxSignups: 14, color: '#c0c0c0', bonusDisplay: '' },
-    { tier: 3, name: 'Gold', minSignups: 15, maxSignups: 19, color: '#ffd700', bonusDisplay: '$' },
-    { tier: 4, name: 'Platinum', minSignups: 20, maxSignups: 24, color: '#e5e4e2', bonusDisplay: '$$' },
-    { tier: 5, name: 'Diamond', minSignups: 25, maxSignups: 29, color: '#b9f2ff', bonusDisplay: '$$$' },
-    { tier: 6, name: 'Elite', minSignups: 30, maxSignups: 999, color: '#9333ea', bonusDisplay: '$$$$$' }
-];
-function calculateBonusTier(signups) {
-    let currentTier = BONUS_TIERS[0];
-    for (const tier of BONUS_TIERS) {
-        if (signups >= tier.minSignups) {
-            currentTier = tier;
-        }
-    }
-    const nextTierIndex = currentTier.tier + 1;
-    const nextTier = nextTierIndex < BONUS_TIERS.length ? {
-        name: BONUS_TIERS[nextTierIndex].name,
-        signupsNeeded: BONUS_TIERS[nextTierIndex].minSignups - signups,
-        bonusDisplay: BONUS_TIERS[nextTierIndex].bonusDisplay
-    } : null;
-    return {
-        tier: currentTier.tier,
-        name: currentTier.name,
-        color: currentTier.color,
-        bonusDisplay: currentTier.bonusDisplay,
-        nextTier
-    };
+// Bonus tier structure - now loaded from database
+// Wrapper function for async tier calculation
+async function calculateBonusTier(signups) {
+    return calculateBonusTierAsync(signups, pool);
 }
 // Helper function to get current month's goal for a rep
 async function getCurrentMonthGoal(salesRepId) {
@@ -2850,13 +2826,150 @@ async function getCurrentMonthGoal(salesRepId) {
         monthly_signups: row.monthly_signups || 0
     };
 }
-// GET /api/admin/goals/tiers - Get bonus tier structure
+// GET /api/admin/goals/tiers - Get bonus tier structure (database-driven)
 app.get('/api/admin/goals/tiers', async (_req, res) => {
-    res.json({
-        tiers: BONUS_TIERS,
-        description: 'Bonus tiers are calculated based on monthly signups. Reps earn bonuses when they reach each tier threshold.'
-    });
+    try {
+        const tiers = await getAllTiers(pool);
+        res.json({
+            tiers: tiers.map(t => ({
+                tier: t.tier,
+                name: t.name,
+                minSignups: t.minSignups,
+                maxSignups: t.maxSignups,
+                color: t.color,
+                bonusDisplay: t.bonusDisplay
+            })),
+            description: 'Bonus tiers are calculated based on monthly signups. Reps earn bonuses when they reach each tier threshold.'
+        });
+    }
+    catch (error) {
+        console.error('[ADMIN] Error fetching tiers:', error);
+        res.status(500).json({ error: 'Failed to fetch bonus tiers' });
+    }
 });
+// PUT /api/admin/tiers - Update all bonus tiers (batch update)
+app.put('/api/admin/tiers', async (req, res) => {
+    try {
+        const requestingEmail = getRequestEmail(req);
+        const adminCheck = await isAdmin(requestingEmail);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const { tiers } = req.body;
+        if (!Array.isArray(tiers) || tiers.length === 0) {
+            return res.status(400).json({ error: 'Invalid tiers data' });
+        }
+        // Validate tier data
+        for (const tier of tiers) {
+            if (typeof tier.tier !== 'number' || tier.tier < 0 || tier.tier > 10) {
+                return res.status(400).json({ error: `Invalid tier number: ${tier.tier}` });
+            }
+            if (!tier.name || typeof tier.name !== 'string') {
+                return res.status(400).json({ error: 'Tier name is required' });
+            }
+            if (typeof tier.minSignups !== 'number' || tier.minSignups < 0) {
+                return res.status(400).json({ error: 'Invalid min signups' });
+            }
+            if (typeof tier.maxSignups !== 'number' || tier.maxSignups < tier.minSignups) {
+                return res.status(400).json({ error: 'Invalid max signups' });
+            }
+            if (!tier.color || typeof tier.color !== 'string') {
+                return res.status(400).json({ error: 'Tier color is required' });
+            }
+        }
+        // Begin transaction
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Delete all existing tiers
+            await client.query('DELETE FROM bonus_tiers');
+            // Insert new tiers
+            for (const tier of tiers) {
+                await client.query(`INSERT INTO bonus_tiers (tier_number, name, min_signups, max_signups, color, bonus_display, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true)`, [tier.tier, tier.name, tier.minSignups, tier.maxSignups, tier.color, tier.bonusDisplay || '']);
+            }
+            await client.query('COMMIT');
+            // Clear cache
+            clearTierCache();
+            // Recalculate all rep bonus tiers
+            await recalculateAllRepTiers();
+            res.json({
+                success: true,
+                message: 'Bonus tiers updated successfully',
+                tiersUpdated: tiers.length
+            });
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        }
+        finally {
+            client.release();
+        }
+    }
+    catch (error) {
+        console.error('[ADMIN] Error updating tiers:', error);
+        res.status(500).json({ error: 'Failed to update bonus tiers' });
+    }
+});
+// POST /api/admin/tiers/reset - Reset tiers to defaults
+app.post('/api/admin/tiers/reset', async (req, res) => {
+    try {
+        const requestingEmail = getRequestEmail(req);
+        const adminCheck = await isAdmin(requestingEmail);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const defaultTiers = getDefaultTiers();
+        // Begin transaction
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Delete all existing tiers
+            await client.query('DELETE FROM bonus_tiers');
+            // Insert default tiers
+            for (const tier of defaultTiers) {
+                await client.query(`INSERT INTO bonus_tiers (tier_number, name, min_signups, max_signups, color, bonus_display, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true)`, [tier.tier, tier.name, tier.minSignups, tier.maxSignups, tier.color, tier.bonusDisplay]);
+            }
+            await client.query('COMMIT');
+            // Clear cache
+            clearTierCache();
+            // Recalculate all rep bonus tiers
+            await recalculateAllRepTiers();
+            res.json({
+                success: true,
+                message: 'Bonus tiers reset to defaults',
+                tiers: defaultTiers
+            });
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        }
+        finally {
+            client.release();
+        }
+    }
+    catch (error) {
+        console.error('[ADMIN] Error resetting tiers:', error);
+        res.status(500).json({ error: 'Failed to reset bonus tiers' });
+    }
+});
+// Helper function to recalculate all rep bonus tiers after tier changes
+async function recalculateAllRepTiers() {
+    try {
+        const repsResult = await pool.query('SELECT id, monthly_signups FROM sales_reps WHERE is_active = true');
+        for (const rep of repsResult.rows) {
+            const tierNumber = await calculateBonusTierNumber(rep.monthly_signups || 0, pool);
+            await pool.query('UPDATE sales_reps SET current_bonus_tier = $1, updated_at = NOW() WHERE id = $2', [tierNumber, rep.id]);
+        }
+        console.log(`[ADMIN] Recalculated bonus tiers for ${repsResult.rows.length} reps`);
+    }
+    catch (error) {
+        console.error('[ADMIN] Error recalculating rep tiers:', error);
+    }
+}
 // GET /api/admin/goals/reps - Get list of sales reps for dropdown
 app.get('/api/admin/goals/reps', async (req, res) => {
     try {
@@ -2925,9 +3038,9 @@ app.get('/api/admin/goals/progress', async (req, res) => {
       ORDER BY progress_percentage DESC NULLS LAST, sr.name
     `, [currentMonth]);
         // Transform to camelCase format expected by frontend
-        const transformedProgress = result.rows.map(row => {
+        const transformedProgress = await Promise.all(result.rows.map(async (row) => {
             const signups = parseInt(row.current_signups) || 0;
-            const tierInfo = calculateBonusTier(signups);
+            const tierInfo = await calculateBonusTier(signups);
             return {
                 repId: row.sales_rep_id,
                 repName: row.rep_name,
@@ -2941,7 +3054,7 @@ app.get('/api/admin/goals/progress', async (req, res) => {
                 hasGoal: !!row.goal_id,
                 tier: tierInfo
             };
-        });
+        }));
         res.json({
             month: currentMonth,
             progress: transformedProgress,
@@ -3291,7 +3404,7 @@ app.get('/api/rep/goals/progress', async (req, res) => {
       WHERE monthly_signups > $1 AND is_active = true
     `, [current]);
         // Calculate tier info for this rep
-        const tierInfo = calculateBonusTier(current);
+        const tierInfo = await calculateBonusTier(current);
         res.json({
             success: true,
             rep: {
@@ -6807,6 +6920,8 @@ app.use('/api/territories', territoryRoutes);
 app.use('/api/leaderboard', createLeaderboardRoutes(pool));
 // Register rep goals routes (individual rep goal tracking)
 app.use('/api/rep', createRepGoalsRoutes(pool));
+// Register contest routes (sales competitions and leaderboards)
+app.use('/api', createContestRoutes(pool));
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
 // ============================================================================

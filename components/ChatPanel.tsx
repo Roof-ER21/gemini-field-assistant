@@ -32,6 +32,7 @@ import { emailPatternService, EmailType } from '../services/emailPatternService'
 import { hailMapsApi } from '../services/hailMapsApi';
 import { stormMemoryApi } from '../services/stormMemoryApi';
 import { buildPerformanceContext } from '../services/performanceContextService';
+import { buildGoalsContext } from '../services/goalsContextService';
 
 /**
  * Extract and compress key context from conversation history
@@ -1163,6 +1164,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
         if (performanceContext) {
           systemPrompt += performanceContext;
           console.log('[Performance] Added performance context to prompt');
+        }
+
+        // GOALS CONTEXT: Add goals and tier data if goals query detected
+        const goalsContext = await buildGoalsContext(originalQuery, currentUser?.email);
+        if (goalsContext) {
+          systemPrompt += goalsContext;
+          console.log('[Goals] Added goals context to prompt');
         }
       } catch (memoryError) {
         console.warn('[Memory] Error loading memory context:', memoryError);

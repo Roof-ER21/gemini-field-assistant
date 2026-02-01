@@ -155,7 +155,7 @@ interface UnmappedSalesRep {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -209,6 +209,19 @@ const AdminPanel: React.FC = () => {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState<Set<string>>(new Set());
 
+  // Bonus tiers state
+  const [bonusTiers, setBonusTiers] = useState<Array<{
+    tier: number;
+    name: string;
+    minSignups: number;
+    maxSignups: number;
+    color: string;
+    bonusDisplay: string;
+  }>>([]);
+  const [tiersLoading, setTiersLoading] = useState(false);
+  const [tiersError, setTiersError] = useState<string | null>(null);
+  const [savingTiers, setSavingTiers] = useState(false);
+
   // User management modal state
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserSummary | null>(null);
@@ -230,7 +243,7 @@ const AdminPanel: React.FC = () => {
   const [allGoals, setAllGoals] = useState<Array<any>>([]);
   const [goalProgress, setGoalProgress] = useState<Array<any>>([]);
   const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
-  const [bonusTiers, setBonusTiers] = useState<Array<{ percentage: number; bonus: number }>>([
+  const [bonusPercentageTiers, setBonusPercentageTiers] = useState<Array<{ percentage: number; bonus: number }>>([
     { percentage: 100, bonus: 0 },
     { percentage: 110, bonus: 500 },
     { percentage: 120, bonus: 1000 },
@@ -283,6 +296,13 @@ const AdminPanel: React.FC = () => {
     }
   }, [activeTab, isAdmin]);
 
+  // Fetch bonus tiers when tiers tab is active
+  useEffect(() => {
+    if (activeTab === 'tiers' && isAdmin) {
+      fetchBonusTiers();
+    }
+  }, [activeTab, isAdmin]);
+
   // Fetch all system settings
   const fetchSystemSettings = async () => {
     setSettingsLoading(true);
@@ -308,6 +328,103 @@ const AdminPanel: React.FC = () => {
     } finally {
       setSettingsLoading(false);
     }
+  };
+
+  // Fetch bonus tiers
+  const fetchBonusTiers = async () => {
+    setTiersLoading(true);
+    setTiersError(null);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/goals/tiers', { headers });
+      if (!response.ok) {
+        throw new Error('Failed to fetch bonus tiers');
+      }
+      const data = await response.json();
+      setBonusTiers(data.tiers || []);
+    } catch (err) {
+      console.error('Error fetching bonus tiers:', err);
+      setTiersError((err as Error).message);
+    } finally {
+      setTiersLoading(false);
+    }
+  };
+
+  // Save bonus tiers
+  const saveBonusTiers = async () => {
+    setSavingTiers(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(userEmail ? { 'x-user-email': userEmail } : {})
+      };
+
+      const response = await fetch('/api/admin/tiers', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ tiers: bonusTiers })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save bonus tiers');
+      }
+
+      toast.success('Bonus tiers updated successfully');
+      await fetchBonusTiers();
+    } catch (err) {
+      console.error('Error saving bonus tiers:', err);
+      toast.error((err as Error).message);
+    } finally {
+      setSavingTiers(false);
+    }
+  };
+
+  // Reset tiers to defaults
+  const resetTiersToDefaults = async () => {
+    if (!confirm('Are you sure you want to reset all tiers to default values? This will recalculate all sales rep bonus tiers.')) {
+      return;
+    }
+
+    setSavingTiers(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(userEmail ? { 'x-user-email': userEmail } : {})
+      };
+
+      const response = await fetch('/api/admin/tiers/reset', {
+        method: 'POST',
+        headers
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reset bonus tiers');
+      }
+
+      toast.success('Bonus tiers reset to defaults');
+      await fetchBonusTiers();
+    } catch (err) {
+      console.error('Error resetting bonus tiers:', err);
+      toast.error((err as Error).message);
+    } finally {
+      setSavingTiers(false);
+    }
+  };
+
+  // Update a tier field
+  const updateTierField = (tierNumber: number, field: string, value: any) => {
+    setBonusTiers(prev => prev.map(tier =>
+      tier.tier === tierNumber ? { ...tier, [field]: value } : tier
+    ));
   };
 
   // Update a system setting
@@ -1642,6 +1759,27 @@ const AdminPanel: React.FC = () => {
         >
           <Users style={{ width: '1.125rem', height: '1.125rem' }} />
           User Mappings
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tiers')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'tiers' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Trophy style={{ width: '1.125rem', height: '1.125rem' }} />
+          Bonus Tiers
         </button>
 
         <button
@@ -3966,6 +4104,323 @@ const AdminPanel: React.FC = () => {
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Bonus Tiers Tab Content */}
+        {activeTab === 'tiers' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
+            {/* Header */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              padding: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <Trophy style={{ width: '1.5rem', height: '1.5rem', color: '#ffd700' }} />
+                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                  Bonus Tier Configuration
+                </h2>
+              </div>
+              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
+                Configure the bonus tier structure for sales representatives. Changes will recalculate all rep tier levels.
+              </p>
+            </div>
+
+            {tiersLoading ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+                <Loader className="animate-spin" style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem' }} />
+                Loading bonus tiers...
+              </div>
+            ) : tiersError ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#ef4444' }}>
+                Error: {tiersError}
+                <button
+                  onClick={fetchBonusTiers}
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.5rem 1rem',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Tiers Table */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    padding: '1.5rem',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                      Tier Structure
+                    </h3>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button
+                        onClick={resetTiersToDefaults}
+                        disabled={savingTiers}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: '#262626',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: savingTiers ? 'not-allowed' : 'pointer',
+                          fontSize: '0.875rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          opacity: savingTiers ? 0.5 : 1
+                        }}
+                      >
+                        <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+                        Reset to Defaults
+                      </button>
+                      <button
+                        onClick={saveBonusTiers}
+                        disabled={savingTiers}
+                        style={{
+                          padding: '0.5rem 1.5rem',
+                          background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: savingTiers ? 'not-allowed' : 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          opacity: savingTiers ? 0.5 : 1
+                        }}
+                      >
+                        {savingTiers && <Loader className="animate-spin" style={{ width: '1rem', height: '1rem' }} />}
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#111111', borderBottom: '1px solid #262626' }}>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Tier</th>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Name</th>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Min Signups</th>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Max Signups</th>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Color</th>
+                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Bonus Display</th>
+                          <th style={{ padding: '1rem', textAlign: 'center', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Preview</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bonusTiers.map((tier, index) => (
+                          <tr key={tier.tier} style={{ borderBottom: '1px solid #262626' }}>
+                            <td style={{ padding: '1rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                              {tier.tier}
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <input
+                                type="text"
+                                value={tier.name}
+                                onChange={(e) => updateTierField(tier.tier, 'name', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  maxWidth: '150px',
+                                  padding: '0.5rem',
+                                  background: '#111111',
+                                  border: '1px solid #262626',
+                                  borderRadius: '6px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <input
+                                type="number"
+                                value={tier.minSignups}
+                                onChange={(e) => updateTierField(tier.tier, 'minSignups', parseInt(e.target.value) || 0)}
+                                min="0"
+                                style={{
+                                  width: '80px',
+                                  padding: '0.5rem',
+                                  background: '#111111',
+                                  border: '1px solid #262626',
+                                  borderRadius: '6px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <input
+                                type="number"
+                                value={tier.maxSignups}
+                                onChange={(e) => updateTierField(tier.tier, 'maxSignups', parseInt(e.target.value) || 0)}
+                                min={tier.minSignups}
+                                style={{
+                                  width: '80px',
+                                  padding: '0.5rem',
+                                  background: '#111111',
+                                  border: '1px solid #262626',
+                                  borderRadius: '6px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                  type="color"
+                                  value={tier.color}
+                                  onChange={(e) => updateTierField(tier.tier, 'color', e.target.value)}
+                                  style={{
+                                    width: '40px',
+                                    height: '32px',
+                                    padding: '2px',
+                                    background: '#111111',
+                                    border: '1px solid #262626',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={tier.color}
+                                  onChange={(e) => updateTierField(tier.tier, 'color', e.target.value)}
+                                  style={{
+                                    width: '90px',
+                                    padding: '0.5rem',
+                                    background: '#111111',
+                                    border: '1px solid #262626',
+                                    borderRadius: '6px',
+                                    color: '#ffffff',
+                                    fontSize: '0.75rem',
+                                    fontFamily: 'monospace'
+                                  }}
+                                />
+                              </div>
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <input
+                                type="text"
+                                value={tier.bonusDisplay}
+                                onChange={(e) => updateTierField(tier.tier, 'bonusDisplay', e.target.value)}
+                                placeholder="$ or $$"
+                                style={{
+                                  width: '80px',
+                                  padding: '0.5rem',
+                                  background: '#111111',
+                                  border: '1px solid #262626',
+                                  borderRadius: '6px',
+                                  color: '#ffffff',
+                                  fontSize: '0.875rem',
+                                  textAlign: 'center'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.5rem 1rem',
+                                background: tier.color,
+                                borderRadius: '6px',
+                                color: '#ffffff',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                              }}>
+                                {tier.name}
+                                {tier.bonusDisplay && (
+                                  <span style={{ color: '#ffd700', fontWeight: '700' }}>{tier.bonusDisplay}</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Info Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                  <div style={{
+                    background: '#0a0a0a',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    border: '1px solid #262626'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <Target style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
+                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                        How Tiers Work
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                      Tiers are automatically calculated based on monthly signups. Each rep is assigned to the highest tier they qualify for. The bonus display appears in the leaderboard.
+                    </p>
+                  </div>
+
+                  <div style={{
+                    background: '#0a0a0a',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    border: '1px solid #262626'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#ffd700' }} />
+                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                        Total Tiers
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, color: '#ffffff', fontSize: '1.75rem', fontWeight: '700' }}>
+                      {bonusTiers.length}
+                    </p>
+                    <p style={{ margin: '0.25rem 0 0', color: '#a1a1aa', fontSize: '0.8125rem' }}>
+                      Active bonus tiers
+                    </p>
+                  </div>
+
+                  <div style={{
+                    background: '#0a0a0a',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    border: '1px solid #262626'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <CloudLightning style={{ width: '1.25rem', height: '1.25rem', color: '#f59e0b' }} />
+                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                        Auto-Recalculation
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                      When you save changes, all sales rep bonus tiers will be automatically recalculated based on their current monthly signups.
+                    </p>
                   </div>
                 </div>
               </>
