@@ -2798,13 +2798,13 @@ const DEFAULT_MONTHLY_SIGNUP_GOAL = 15;
 const DEFAULT_YEARLY_REVENUE_GOAL = 1500000; // $1.5 million
 // Bonus tier structure - based on monthly signups
 const BONUS_TIERS = [
-    { tier: 0, name: 'Rookie', minSignups: 0, maxSignups: 14, color: '#71717a', bonus: 0 },
-    { tier: 1, name: 'Bronze', minSignups: 15, maxSignups: 19, color: '#cd7f32', bonus: 500 },
-    { tier: 2, name: 'Silver', minSignups: 20, maxSignups: 24, color: '#c0c0c0', bonus: 1000 },
-    { tier: 3, name: 'Gold', minSignups: 25, maxSignups: 29, color: '#ffd700', bonus: 1500 },
-    { tier: 4, name: 'Platinum', minSignups: 30, maxSignups: 34, color: '#e5e4e2', bonus: 2000 },
-    { tier: 5, name: 'Diamond', minSignups: 35, maxSignups: 39, color: '#b9f2ff', bonus: 3000 },
-    { tier: 6, name: 'Elite', minSignups: 40, maxSignups: 999, color: '#9333ea', bonus: 5000 }
+    { tier: 0, name: 'Rookie', minSignups: 0, maxSignups: 5, color: '#71717a', bonusDisplay: '' },
+    { tier: 1, name: 'Bronze', minSignups: 6, maxSignups: 10, color: '#cd7f32', bonusDisplay: '' },
+    { tier: 2, name: 'Silver', minSignups: 11, maxSignups: 14, color: '#c0c0c0', bonusDisplay: '' },
+    { tier: 3, name: 'Gold', minSignups: 15, maxSignups: 19, color: '#ffd700', bonusDisplay: '$' },
+    { tier: 4, name: 'Platinum', minSignups: 20, maxSignups: 24, color: '#e5e4e2', bonusDisplay: '$$' },
+    { tier: 5, name: 'Diamond', minSignups: 25, maxSignups: 29, color: '#b9f2ff', bonusDisplay: '$$$' },
+    { tier: 6, name: 'Elite', minSignups: 30, maxSignups: 999, color: '#9333ea', bonusDisplay: '$$$$$' }
 ];
 function calculateBonusTier(signups) {
     let currentTier = BONUS_TIERS[0];
@@ -2817,13 +2817,13 @@ function calculateBonusTier(signups) {
     const nextTier = nextTierIndex < BONUS_TIERS.length ? {
         name: BONUS_TIERS[nextTierIndex].name,
         signupsNeeded: BONUS_TIERS[nextTierIndex].minSignups - signups,
-        bonus: BONUS_TIERS[nextTierIndex].bonus
+        bonusDisplay: BONUS_TIERS[nextTierIndex].bonusDisplay
     } : null;
     return {
         tier: currentTier.tier,
         name: currentTier.name,
         color: currentTier.color,
-        bonus: currentTier.bonus,
+        bonusDisplay: currentTier.bonusDisplay,
         nextTier
     };
 }
