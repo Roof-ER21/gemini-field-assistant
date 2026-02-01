@@ -1629,38 +1629,31 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   // ============ Main Render ============
 
   return (
-    <>
-      {/* Backdrop - prevents bleed-through */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.85)',
-        zIndex: 99998,
-      }} />
-
-      {/* Main Panel */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'var(--bg-primary, #0a0a0a)',
-        zIndex: 99999,
+    <div className="roof-er-content-area" style={{
+      width: '100%',
+      maxWidth: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      background: 'var(--bg-primary, #0a0a0a)',
+    }}>
+      <div className="roof-er-content-scroll" style={{
+        width: '100%',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
         {renderHeader()}
-        {viewMode === 'list' && renderListView()}
-        {viewMode === 'kanban' && renderKanbanView()}
-        {viewMode === 'detail' && renderDetailView()}
-        {(viewMode === 'create' || viewMode === 'edit') && renderForm()}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {viewMode === 'list' && renderListView()}
+          {viewMode === 'kanban' && renderKanbanView()}
+          {viewMode === 'detail' && renderDetailView()}
+          {(viewMode === 'create' || viewMode === 'edit') && renderForm()}
+        </div>
       </div>
-    </>
+    </div>
   );
 };
 
