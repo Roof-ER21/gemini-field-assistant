@@ -2815,6 +2815,30 @@ async function syncGoalProgress(goalId) {
     WHERE rg.sales_rep_id = sr.id AND rg.id = $1
   `, [goalId]);
 }
+// GET /api/admin/goals/reps - Get list of sales reps for dropdown
+app.get('/api/admin/goals/reps', async (req, res) => {
+    try {
+        const requestingEmail = getRequestEmail(req);
+        const adminCheck = await isAdmin(requestingEmail);
+        if (!adminCheck) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const result = await pool.query(`
+      SELECT id, name, email, team
+      FROM sales_reps
+      WHERE is_active = true
+      ORDER BY name ASC
+    `);
+        res.json({
+            reps: result.rows,
+            total: result.rows.length
+        });
+    }
+    catch (error) {
+        console.error('Error fetching sales reps:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // GET /api/admin/goals - List all rep goals with optional filters
 app.get('/api/admin/goals', async (req, res) => {
     try {
@@ -2823,43 +2847,20 @@ app.get('/api/admin/goals', async (req, res) => {
         if (!adminCheck) {
             return res.status(403).json({ error: 'Admin access required' });
         }
-        const { month, year, repId, goalType } = req.query;
-        let query = `
+        const { month } = req.query;
+        const currentMonth = month || new Date().toISOString().slice(0, 7); // YYYY-MM format
+        const result = await pool.query(`
       SELECT
-        rg.*,
+        lg.*,
         sr.name as rep_name,
         sr.email as rep_email,
         sr.team as rep_team,
-        sr.monthly_signups,
-        sr.monthly_revenue
-      FROM rep_goals rg
-      JOIN sales_reps sr ON rg.sales_rep_id = sr.id
-      WHERE 1=1
-    `;
-        const params = [];
-        let paramCount = 0;
-        if (month) {
-            paramCount++;
-            query += ` AND rg.month = $${paramCount}`;
-            params.push(parseInt(month));
-        }
-        if (year) {
-            paramCount++;
-            query += ` AND rg.year = $${paramCount}`;
-            params.push(parseInt(year));
-        }
-        if (repId) {
-            paramCount++;
-            query += ` AND rg.sales_rep_id = $${paramCount}`;
-            params.push(parseInt(repId));
-        }
-        if (goalType) {
-            paramCount++;
-            query += ` AND rg.goal_type = $${paramCount}`;
-            params.push(goalType);
-        }
-        query += ` ORDER BY rg.year DESC, rg.month DESC, sr.name ASC`;
-        const result = await pool.query(query, params);
+        sr.monthly_signups
+      FROM leaderboard_goals lg
+      JOIN sales_reps sr ON lg.sales_rep_id = sr.id
+      WHERE lg.month = $1
+      ORDER BY sr.name ASC
+    `, [currentMonth]);
         res.json({
             goals: result.rows,
             total: result.rows.length
@@ -2878,58 +2879,45 @@ app.post('/api/admin/goals', async (req, res) => {
         if (!adminCheck) {
             return res.status(403).json({ error: 'Admin access required' });
         }
-        const { salesRepId, month, year, goalAmount, goalType = 'signups', notes } = req.body;
+        const { salesRepId, monthlySignupGoal, yearlyRevenueGoal } = req.body;
+        // Get current month in YYYY-MM format
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         // Validation
-        if (!salesRepId || !month || !year || !goalAmount) {
-            return res.status(400).json({
-                error: 'Missing required fields: salesRepId, month, year, goalAmount'
-            });
+        if (!salesRepId) {
+            return res.status(400).json({ error: 'Missing required field: salesRepId' });
         }
-        if (month < 1 || month > 12) {
-            return res.status(400).json({ error: 'Month must be between 1 and 12' });
+        if (!monthlySignupGoal || monthlySignupGoal <= 0) {
+            return res.status(400).json({ error: 'Monthly signup goal must be greater than 0' });
         }
-        if (year < 2024 || year > 2100) {
-            return res.status(400).json({ error: 'Invalid year' });
-        }
-        if (goalAmount <= 0) {
-            return res.status(400).json({ error: 'Goal amount must be greater than 0' });
-        }
-        if (!['signups', 'revenue'].includes(goalType)) {
-            return res.status(400).json({ error: 'Goal type must be "signups" or "revenue"' });
+        if (!yearlyRevenueGoal || yearlyRevenueGoal <= 0) {
+            return res.status(400).json({ error: 'Yearly revenue goal must be greater than 0' });
         }
         // Check if sales rep exists
         const repCheck = await pool.query('SELECT id, name FROM sales_reps WHERE id = $1', [salesRepId]);
         if (repCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Sales rep not found' });
         }
-        // Check deadline (goals must be set by 6th of month)
-        const now = new Date();
-        const isCurrentMonth = now.getFullYear() === year && (now.getMonth() + 1) === month;
-        const deadlineMet = !isCurrentMonth || now.getDate() <= 6;
-        // Insert or update goal
+        // Get user UUID for created_by
+        const userResult = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [requestingEmail]);
+        const createdByUserId = userResult.rows[0]?.id || null;
+        // Insert or update goal in leaderboard_goals table
         const result = await pool.query(`
-      INSERT INTO rep_goals (
-        sales_rep_id, month, year, goal_amount, goal_type,
-        deadline_met, notes, created_by
+      INSERT INTO leaderboard_goals (
+        sales_rep_id, monthly_signup_goal, yearly_revenue_goal, month, created_by_user_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (sales_rep_id, month, year, goal_type)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (sales_rep_id, month)
       DO UPDATE SET
-        goal_amount = EXCLUDED.goal_amount,
-        notes = EXCLUDED.notes,
+        monthly_signup_goal = EXCLUDED.monthly_signup_goal,
+        yearly_revenue_goal = EXCLUDED.yearly_revenue_goal,
         updated_at = NOW()
       RETURNING *
-    `, [salesRepId, month, year, goalAmount, goalType, deadlineMet, notes || null, requestingEmail]);
-        // Sync current progress from sales_reps table
-        await syncGoalProgress(result.rows[0].id);
-        // Fetch updated goal with progress
-        const updated = await pool.query('SELECT * FROM rep_goals WHERE id = $1', [result.rows[0].id]);
-        console.log(`[Admin] ${requestingEmail} set goal for rep ${salesRepId}: ${goalAmount} ${goalType} for ${month}/${year}`);
+    `, [salesRepId, monthlySignupGoal, yearlyRevenueGoal, month, createdByUserId]);
+        console.log(`[Admin] ${requestingEmail} set goal for rep ${salesRepId}: ${monthlySignupGoal} signups, $${yearlyRevenueGoal} revenue for ${month}`);
         res.json({
-            goal: updated.rows[0],
-            message: deadlineMet
-                ? 'Goal set successfully'
-                : 'Warning: Goal set after deadline (6th of month)'
+            goal: result.rows[0],
+            message: 'Goal saved successfully'
         });
     }
     catch (error) {
@@ -3065,10 +3053,8 @@ app.get('/api/admin/goals/progress', async (req, res) => {
         if (!adminCheck) {
             return res.status(403).json({ error: 'Admin access required' });
         }
-        const { month, year } = req.query;
         const now = new Date();
-        const targetMonth = month ? parseInt(month) : now.getMonth() + 1;
-        const targetYear = year ? parseInt(year) : now.getFullYear();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const result = await pool.query(`
       SELECT
         sr.id as sales_rep_id,
@@ -3076,32 +3062,33 @@ app.get('/api/admin/goals/progress', async (req, res) => {
         sr.email as rep_email,
         sr.team,
         sr.monthly_signups as current_signups,
-        sr.monthly_revenue as current_revenue,
-        rg.id as goal_id,
-        rg.goal_amount,
-        rg.goal_type,
-        rg.current_progress,
-        rg.progress_percentage,
-        rg.bonus_eligible,
-        rg.bonus_triggered,
-        rg.deadline_met,
+        sr.monthly_signup_goal as default_goal,
+        lg.id as goal_id,
+        lg.monthly_signup_goal,
+        lg.yearly_revenue_goal,
         CASE
-          WHEN rg.progress_percentage >= 100 THEN 'achieved'
-          WHEN rg.progress_percentage >= 75 THEN 'on_track'
-          WHEN rg.progress_percentage >= 50 THEN 'behind'
+          WHEN lg.monthly_signup_goal IS NOT NULL THEN
+            ROUND((sr.monthly_signups::numeric / lg.monthly_signup_goal::numeric) * 100, 1)
+          WHEN sr.monthly_signup_goal > 0 THEN
+            ROUND((sr.monthly_signups::numeric / sr.monthly_signup_goal::numeric) * 100, 1)
+          ELSE 0
+        END as progress_percentage,
+        CASE
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal THEN 'achieved'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal THEN 'achieved'
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.75 THEN 'on_track'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.75 THEN 'on_track'
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.5 THEN 'behind'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.5 THEN 'behind'
           ELSE 'critical'
         END as status
       FROM sales_reps sr
-      LEFT JOIN rep_goals rg ON sr.id = rg.sales_rep_id
-        AND rg.month = $1
-        AND rg.year = $2
-        AND rg.goal_type = 'signups'
+      LEFT JOIN leaderboard_goals lg ON sr.id = lg.sales_rep_id AND lg.month = $1
       WHERE sr.is_active = true
-      ORDER BY rg.progress_percentage DESC NULLS LAST, sr.name
-    `, [targetMonth, targetYear]);
+      ORDER BY progress_percentage DESC NULLS LAST, sr.name
+    `, [currentMonth]);
         res.json({
-            month: targetMonth,
-            year: targetYear,
+            month: currentMonth,
             progress: result.rows,
             total: result.rows.length,
             summary: {

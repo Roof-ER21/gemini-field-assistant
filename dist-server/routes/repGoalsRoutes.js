@@ -20,9 +20,7 @@ export function createRepGoalsRoutes(pool) {
             }
             const result = await pool.query(`SELECT
           monthly_signup_goal,
-          yearly_signup_goal,
-          monthly_revenue_goal,
-          yearly_revenue_goal
+          yearly_signup_goal
          FROM sales_reps
          WHERE LOWER(email) = LOWER($1)
          LIMIT 1`, [userEmail]);
@@ -39,11 +37,11 @@ export function createRepGoalsRoutes(pool) {
                 goals: {
                     monthly: {
                         signups: rep.monthly_signup_goal || 15,
-                        revenue: rep.monthly_revenue_goal || 0
+                        revenue: 0 // Revenue goals not yet implemented
                     },
                     yearly: {
                         signups: rep.yearly_signup_goal || 180,
-                        revenue: rep.yearly_revenue_goal || 0
+                        revenue: 0 // Revenue goals not yet implemented
                     }
                 }
             });
@@ -86,8 +84,6 @@ export function createRepGoalsRoutes(pool) {
           yearly_revenue,
           monthly_signup_goal,
           yearly_signup_goal,
-          monthly_revenue_goal,
-          yearly_revenue_goal,
           goal_progress
          FROM sales_reps
          WHERE LOWER(email) = LOWER($1)
@@ -103,8 +99,8 @@ export function createRepGoalsRoutes(pool) {
             const monthlyHistoryResult = await pool.query(`SELECT
           year,
           month,
-          total_signups,
-          total_revenue
+          signups,
+          revenue
          FROM sales_rep_monthly_metrics
          WHERE sales_rep_id = $1
          ORDER BY year DESC, month DESC
@@ -112,8 +108,9 @@ export function createRepGoalsRoutes(pool) {
             // Calculate progress percentages
             const monthlySignupsGoal = rep.monthly_signup_goal || 15;
             const yearlySignupsGoal = rep.yearly_signup_goal || 180;
-            const monthlyRevenueGoal = rep.monthly_revenue_goal || 0;
-            const yearlyRevenueGoal = rep.yearly_revenue_goal || 0;
+            // Revenue goals not yet implemented in sales_reps table
+            const monthlyRevenueGoal = 0;
+            const yearlyRevenueGoal = 0;
             const monthlySignupsProgress = monthlySignupsGoal > 0
                 ? Math.min((rep.monthly_signups / monthlySignupsGoal) * 100, 100)
                 : 0;
@@ -193,8 +190,8 @@ export function createRepGoalsRoutes(pool) {
                 history: monthlyHistoryResult.rows.map(row => ({
                     year: row.year,
                     month: row.month,
-                    signups: row.total_signups || 0,
-                    revenue: row.total_revenue || 0
+                    signups: row.signups || 0,
+                    revenue: row.revenue || 0
                 }))
             });
         }
