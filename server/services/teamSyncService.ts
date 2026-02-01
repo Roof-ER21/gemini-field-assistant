@@ -25,6 +25,13 @@ interface NeonTeam {
   is_active: boolean;
 }
 
+interface NeonTeamWithLeader {
+  id: number;
+  leader_id: number | null;
+  leader_name: string | null;
+  leader_email: string | null;
+}
+
 interface NeonTerritory {
   id: number;
   name: string;
@@ -230,7 +237,7 @@ async function syncTeamLeaders(teamMap: Map<number, number>): Promise<number> {
 
   try {
     // Get team leaders from Neon
-    const neonTeamsResult = await neonClient.query<NeonTeam>(`
+    const neonTeamsResult = await neonClient.query<NeonTeamWithLeader>(`
       SELECT t.id, t.leader_id, sr.name as leader_name, sr.email as leader_email
       FROM sales.teams t
       LEFT JOIN sales.sales_reps sr ON t.leader_id = sr.id
