@@ -43,7 +43,7 @@ interface NeonSalesRep {
   id: number;
   name: string;
   email: string | null;
-  team_id: number | null;
+  team: string | null;  // TEXT field, not FK
   territory_id: number | null;
 }
 
@@ -165,6 +165,8 @@ async function syncTerritories(): Promise<{ inserted: number; updated: number; t
 
 /**
  * Match and update sales reps with team/territory assignments
+ * Note: Neon sales_reps doesn't have team_id, only territory_id
+ * Team assignment is done by matching team leaders
  */
 async function syncSalesRepAssignments(
   teamMap: Map<number, number>,
@@ -174,13 +176,20 @@ async function syncSalesRepAssignments(
   const localClient = await localPool.connect();
 
   try {
-    // Get sales reps from Neon with their team/territory assignments
+    // Get sales reps from Neon with territory assignments
     const neonRepsResult = await neonClient.query<NeonSalesRep>(`
-      SELECT id, name, email, team_id, territory_id
+      SELECT id, name, email, team, territory_id
       FROM sales.sales_reps
       WHERE is_active = true
       ORDER BY id
     `);
+
+    // Build a map of team names to local team IDs
+    const teamNameMap = new Map<string, number>();
+    const teamsResult = await localClient.query('SELECT id, name FROM teams');
+    for (const row of teamsResult.rows) {
+      teamNameMap.set(row.name.toLowerCase(), row.id);
+    }
 
     let matched = 0;
     let updated = 0;
@@ -204,16 +213,22 @@ async function syncSalesRepAssignments(
         matched++;
         const localRepId = localRepResult.rows[0].id;
 
-        // Map Neon team_id and territory_id to local IDs
-        const localTeamId = neonRep.team_id ? teamMap.get(neonRep.team_id) || null : null;
+        // Map territory_id to local ID
         const localTerritoryId = neonRep.territory_id ? territoryMap.get(neonRep.territory_id) || null : null;
 
-        // Update sales rep with team and territory
+        // Try to match team by the TEXT team field (though it's usually "Unassigned")
+        // We'll assign teams based on leader assignments in the next step
+        let localTeamId: number | null = null;
+        if (neonRep.team && neonRep.team.toLowerCase() !== 'unassigned') {
+          localTeamId = teamNameMap.get(neonRep.team.toLowerCase()) || null;
+        }
+
+        // Update sales rep with territory (team will be assigned via leader sync)
         const updateResult = await localClient.query(`
           UPDATE sales_reps
-          SET team_id = $1, territory_id = $2, updated_at = NOW()
-          WHERE id = $3 AND (team_id IS DISTINCT FROM $1 OR territory_id IS DISTINCT FROM $2)
-        `, [localTeamId, localTerritoryId, localRepId]);
+          SET territory_id = $1, updated_at = NOW()
+          WHERE id = $2 AND territory_id IS DISTINCT FROM $1
+        `, [localTerritoryId, localRepId]);
 
         if (updateResult.rowCount && updateResult.rowCount > 0) {
           updated++;
