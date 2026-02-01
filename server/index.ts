@@ -3282,33 +3282,38 @@ app.patch('/api/admin/users/:userId/status', async (req, res) => {
 // Monthly sales goals with bonus tracking and deadline enforcement
 // ==========================================================================
 
+// Default goals - used if no specific goal is set
+const DEFAULT_MONTHLY_SIGNUP_GOAL = 15;
+const DEFAULT_YEARLY_REVENUE_GOAL = 1500000; // $1.5 million
+
 // Helper function to get current month's goal for a rep
-async function getCurrentMonthGoal(salesRepId: number, goalType: string = 'signups') {
+async function getCurrentMonthGoal(salesRepId: number) {
   const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const result = await pool.query(
-    `SELECT * FROM rep_goals
-     WHERE sales_rep_id = $1 AND month = $2 AND year = $3 AND goal_type = $4`,
-    [salesRepId, month, year, goalType]
+    `SELECT lg.*, sr.monthly_signups, sr.monthly_signup_goal as default_signup_goal
+     FROM leaderboard_goals lg
+     RIGHT JOIN sales_reps sr ON lg.sales_rep_id = sr.id AND lg.month = $2
+     WHERE sr.id = $1`,
+    [salesRepId, currentMonth]
   );
 
-  return result.rows[0] || null;
-}
+  if (result.rows.length === 0) {
+    // Return defaults if no rep found
+    return {
+      monthly_signup_goal: DEFAULT_MONTHLY_SIGNUP_GOAL,
+      yearly_revenue_goal: DEFAULT_YEARLY_REVENUE_GOAL,
+      monthly_signups: 0
+    };
+  }
 
-// Helper function to update goal progress from sales_reps table
-async function syncGoalProgress(goalId: number) {
-  await pool.query(`
-    UPDATE rep_goals rg
-    SET current_progress = CASE
-      WHEN rg.goal_type = 'signups' THEN sr.monthly_signups
-      WHEN rg.goal_type = 'revenue' THEN sr.monthly_revenue
-      ELSE 0
-    END
-    FROM sales_reps sr
-    WHERE rg.sales_rep_id = sr.id AND rg.id = $1
-  `, [goalId]);
+  const row = result.rows[0];
+  return {
+    monthly_signup_goal: row.monthly_signup_goal || row.default_signup_goal || DEFAULT_MONTHLY_SIGNUP_GOAL,
+    yearly_revenue_goal: row.yearly_revenue_goal || DEFAULT_YEARLY_REVENUE_GOAL,
+    monthly_signups: row.monthly_signups || 0
+  };
 }
 
 // GET /api/admin/goals/reps - Get list of sales reps for dropdown
@@ -3462,30 +3467,21 @@ app.get('/api/admin/goals/:repId', async (req, res) => {
       return res.status(404).json({ error: 'Sales rep not found' });
     }
 
-    // Get all goals for this rep
+    // Get all goals for this rep from leaderboard_goals
     const goalsResult = await pool.query(
-      `SELECT * FROM rep_goals
+      `SELECT * FROM leaderboard_goals
        WHERE sales_rep_id = $1
-       ORDER BY year DESC, month DESC, goal_type`,
+       ORDER BY month DESC`,
       [repId]
     );
 
-    // Get current month goal
-    const currentGoal = await getCurrentMonthGoal(parseInt(repId), 'signups');
-
-    // Get bonus history
-    const bonusHistory = await pool.query(
-      `SELECT * FROM rep_goal_bonus_history
-       WHERE sales_rep_id = $1
-       ORDER BY year DESC, month DESC`,
-      [repId]
-    );
+    // Get current month goal with defaults
+    const currentGoal = await getCurrentMonthGoal(parseInt(repId));
 
     res.json({
       rep: repResult.rows[0],
       goals: goalsResult.rows,
       currentGoal,
-      bonusHistory: bonusHistory.rows,
       total: goalsResult.rows.length
     });
   } catch (error) {
@@ -3504,52 +3500,26 @@ app.put('/api/admin/goals/:goalId', async (req, res) => {
     }
 
     const { goalId } = req.params;
-    const { goalAmount, bonusEligible, notes } = req.body;
+    const { monthlySignupGoal, yearlyRevenueGoal } = req.body;
 
     // Check if goal exists
     const goalCheck = await pool.query(
-      'SELECT * FROM rep_goals WHERE id = $1',
+      'SELECT * FROM leaderboard_goals WHERE id = $1',
       [goalId]
     );
     if (goalCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Goal not found' });
     }
 
-    // Build update query dynamically
-    const updates: string[] = [];
-    const params: any[] = [];
-    let paramCount = 0;
-
-    if (goalAmount !== undefined) {
-      paramCount++;
-      updates.push(`goal_amount = $${paramCount}`);
-      params.push(goalAmount);
-    }
-    if (bonusEligible !== undefined) {
-      paramCount++;
-      updates.push(`bonus_eligible = $${paramCount}`);
-      params.push(bonusEligible);
-    }
-    if (notes !== undefined) {
-      paramCount++;
-      updates.push(`notes = $${paramCount}`);
-      params.push(notes);
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
-    }
-
-    paramCount++;
-    const query = `
-      UPDATE rep_goals
-      SET ${updates.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramCount}
+    // Update goal
+    const result = await pool.query(`
+      UPDATE leaderboard_goals
+      SET monthly_signup_goal = COALESCE($1, monthly_signup_goal),
+          yearly_revenue_goal = COALESCE($2, yearly_revenue_goal),
+          updated_at = NOW()
+      WHERE id = $3
       RETURNING *
-    `;
-    params.push(goalId);
-
-    const result = await pool.query(query, params);
+    `, [monthlySignupGoal, yearlyRevenueGoal, goalId]);
 
     console.log(`[Admin] ${requestingEmail} updated goal ${goalId}`);
     res.json({ goal: result.rows[0] });
@@ -3572,7 +3542,7 @@ app.delete('/api/admin/goals/:goalId', async (req, res) => {
 
     // Check if goal exists
     const goalCheck = await pool.query(
-      'SELECT * FROM rep_goals WHERE id = $1',
+      'SELECT * FROM leaderboard_goals WHERE id = $1',
       [goalId]
     );
     if (goalCheck.rows.length === 0) {
@@ -3582,9 +3552,9 @@ app.delete('/api/admin/goals/:goalId', async (req, res) => {
     const goal = goalCheck.rows[0];
 
     // Delete goal
-    await pool.query('DELETE FROM rep_goals WHERE id = $1', [goalId]);
+    await pool.query('DELETE FROM leaderboard_goals WHERE id = $1', [goalId]);
 
-    console.log(`[Admin] ${requestingEmail} deleted goal ${goalId} (rep: ${goal.sales_rep_id}, ${goal.month}/${goal.year})`);
+    console.log(`[Admin] ${requestingEmail} deleted goal ${goalId} (rep: ${goal.sales_rep_id}, ${goal.month})`);
     res.json({
       success: true,
       message: 'Goal deleted successfully',
@@ -3660,6 +3630,7 @@ app.get('/api/admin/goals/progress', async (req, res) => {
 });
 
 // POST /api/admin/goals/bonus/trigger - Manually trigger bonus for a rep
+// Note: Full bonus tracking will be implemented in a future release
 app.post('/api/admin/goals/bonus/trigger', async (req, res) => {
   try {
     const requestingEmail = getRequestEmail(req);
@@ -3668,97 +3639,48 @@ app.post('/api/admin/goals/bonus/trigger', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { goalId, bonusTier, notes } = req.body;
+    const { salesRepId, month } = req.body;
 
-    if (!goalId) {
-      return res.status(400).json({ error: 'goalId is required' });
+    if (!salesRepId) {
+      return res.status(400).json({ error: 'salesRepId is required' });
     }
 
-    // Get goal details
-    const goalResult = await pool.query(
-      'SELECT * FROM rep_goals WHERE id = $1',
-      [goalId]
+    // Get rep details
+    const repResult = await pool.query(
+      'SELECT id, name, monthly_signups, monthly_signup_goal FROM sales_reps WHERE id = $1',
+      [salesRepId]
     );
-    if (goalResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Goal not found' });
+    if (repResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Sales rep not found' });
     }
 
-    const goal = goalResult.rows[0];
+    const rep = repResult.rows[0];
+    const goal = rep.monthly_signup_goal || DEFAULT_MONTHLY_SIGNUP_GOAL;
+    const progress = rep.monthly_signups || 0;
+    const percentage = goal > 0 ? Math.round((progress / goal) * 100) : 0;
 
-    // Check if goal is eligible
-    if (!goal.bonus_eligible) {
-      return res.status(400).json({ error: 'This goal is not eligible for bonus' });
-    }
-
-    if (goal.bonus_triggered) {
-      return res.status(400).json({
-        error: 'Bonus already triggered for this goal',
-        triggeredAt: goal.bonus_triggered_at
-      });
-    }
-
-    // Check if goal is achieved (>= 100%)
-    if (goal.progress_percentage < 100) {
+    // Check if goal is achieved
+    if (percentage < 100) {
       return res.status(400).json({
         error: 'Goal not yet achieved',
-        currentProgress: goal.progress_percentage
+        currentProgress: percentage,
+        required: 100
       });
     }
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
+    console.log(`[Admin] ${requestingEmail} acknowledged bonus for rep ${salesRepId} (${rep.name})`);
 
-      // Update goal as bonus triggered
-      await client.query(
-        `UPDATE rep_goals
-         SET bonus_triggered = true, bonus_triggered_at = NOW()
-         WHERE id = $1`,
-        [goalId]
-      );
-
-      // Insert into bonus history
-      await client.query(`
-        INSERT INTO rep_goal_bonus_history (
-          rep_goal_id, sales_rep_id, month, year,
-          goal_amount, final_progress, progress_percentage,
-          bonus_tier, triggered_by, notes
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      `, [
-        goalId,
-        goal.sales_rep_id,
-        goal.month,
-        goal.year,
-        goal.goal_amount,
-        goal.current_progress,
-        goal.progress_percentage,
-        bonusTier || null,
-        requestingEmail,
-        notes || null
-      ]);
-
-      await client.query('COMMIT');
-
-      console.log(`[Admin] ${requestingEmail} triggered bonus for goal ${goalId} (rep: ${goal.sales_rep_id})`);
-
-      res.json({
-        success: true,
-        message: 'Bonus triggered successfully',
-        goal: {
-          id: goalId,
-          salesRepId: goal.sales_rep_id,
-          month: goal.month,
-          year: goal.year,
-          progressPercentage: goal.progress_percentage
-        }
-      });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    res.json({
+      success: true,
+      message: 'Bonus acknowledged successfully',
+      rep: {
+        id: salesRepId,
+        name: rep.name,
+        signups: progress,
+        goal: goal,
+        percentage: percentage
+      }
+    });
   } catch (error) {
     console.error('Error triggering bonus:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -3785,21 +3707,25 @@ app.get('/api/rep/goals', async (req, res) => {
 
     const salesRepId = repResult.rows[0].id;
 
-    // Get all goals for this rep
+    // Get all goals for this rep from leaderboard_goals
     const goalsResult = await pool.query(
-      `SELECT * FROM rep_goals
+      `SELECT * FROM leaderboard_goals
        WHERE sales_rep_id = $1
-       ORDER BY year DESC, month DESC, goal_type`,
+       ORDER BY month DESC`,
       [salesRepId]
     );
 
-    // Get current month goal
-    const currentGoal = await getCurrentMonthGoal(salesRepId, 'signups');
+    // Get current month goal with defaults
+    const currentGoal = await getCurrentMonthGoal(salesRepId);
 
     res.json({
       goals: goalsResult.rows,
       currentGoal,
-      total: goalsResult.rows.length
+      total: goalsResult.rows.length,
+      defaults: {
+        monthlySignupGoal: DEFAULT_MONTHLY_SIGNUP_GOAL,
+        yearlyRevenueGoal: DEFAULT_YEARLY_REVENUE_GOAL
+      }
     });
   } catch (error) {
     console.error('Error fetching rep goals:', error);
@@ -3828,37 +3754,46 @@ app.get('/api/rep/goals/progress', async (req, res) => {
     const rep = repResult.rows[0];
     const salesRepId = rep.id;
 
-    // Get current month goal
-    const currentGoal = await getCurrentMonthGoal(salesRepId, 'signups');
+    // Get current month goal with defaults
+    const currentGoal = await getCurrentMonthGoal(salesRepId);
 
-    // Get last 12 months of goals for trend analysis
+    // Get monthly signups history for trend analysis
     const now = new Date();
     const trendResult = await pool.query(`
       SELECT
-        month,
         year,
-        goal_amount,
-        current_progress,
-        progress_percentage,
-        bonus_triggered,
-        goal_type
-      FROM rep_goals
+        month,
+        signups,
+        revenue
+      FROM sales_rep_monthly_metrics
       WHERE sales_rep_id = $1
-        AND goal_type = 'signups'
-        AND (
-          (year = $2 AND month <= $3) OR
-          (year = $2 - 1 AND month > $3)
-        )
       ORDER BY year DESC, month DESC
       LIMIT 12
-    `, [salesRepId, now.getFullYear(), now.getMonth() + 1]);
+    `, [salesRepId]);
 
-    // Calculate statistics
-    const achievedCount = trendResult.rows.filter(g => g.progress_percentage >= 100).length;
-    const bonusCount = trendResult.rows.filter(g => g.bonus_triggered).length;
-    const avgProgress = trendResult.rows.length > 0
-      ? trendResult.rows.reduce((sum, g) => sum + parseFloat(g.progress_percentage || 0), 0) / trendResult.rows.length
-      : 0;
+    // Calculate progress
+    const goal = currentGoal.monthly_signup_goal;
+    const current = parseFloat(rep.monthly_signups) || 0;
+    const progressPercentage = goal > 0 ? Math.round((current / goal) * 100) : 0;
+
+    // Days remaining in month
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysRemaining = daysInMonth - now.getDate();
+
+    // Determine status
+    const expectedProgress = ((daysInMonth - daysRemaining) / daysInMonth) * 100;
+    let status = 'behind';
+    if (progressPercentage >= 100) status = 'achieved';
+    else if (progressPercentage >= expectedProgress) status = 'on-track';
+    else if (progressPercentage >= expectedProgress - 20) status = 'behind';
+    else status = 'critical';
+
+    // Get leaderboard rank
+    const rankResult = await pool.query(`
+      SELECT COUNT(*) + 1 as rank
+      FROM sales_reps
+      WHERE monthly_signups > $1 AND is_active = true
+    `, [current]);
 
     res.json({
       rep: {
@@ -3866,17 +3801,40 @@ app.get('/api/rep/goals/progress', async (req, res) => {
         name: rep.name,
         email: rep.email,
         team: rep.team,
-        monthlySignups: rep.monthly_signups,
-        monthlyRevenue: rep.monthly_revenue
+        monthlySignups: current,
+        monthlyRevenue: rep.monthly_revenue || 0,
+        yearlySignups: rep.yearly_signups || 0,
+        yearlyRevenue: rep.yearly_revenue || 0
       },
-      currentGoal,
-      trend: trendResult.rows.reverse(), // Oldest to newest
-      statistics: {
-        totalGoals: trendResult.rows.length,
-        achieved: achievedCount,
-        bonuses: bonusCount,
-        averageProgress: Math.round(avgProgress * 100) / 100,
-        currentStreak: calculateGoalStreak(trendResult.rows)
+      goal: {
+        monthly: goal,
+        yearly: currentGoal.yearly_revenue_goal
+      },
+      progress: {
+        current: current,
+        goal: goal,
+        percentage: progressPercentage,
+        remaining: Math.max(0, goal - current),
+        status: status
+      },
+      calendar: {
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+        daysInMonth: daysInMonth,
+        daysRemaining: daysRemaining
+      },
+      leaderboard: {
+        rank: parseInt(rankResult.rows[0]?.rank) || 0
+      },
+      trend: trendResult.rows.reverse().map(row => ({
+        year: row.year,
+        month: row.month,
+        signups: parseFloat(row.signups) || 0,
+        revenue: parseFloat(row.revenue) || 0
+      })),
+      defaults: {
+        monthlySignupGoal: DEFAULT_MONTHLY_SIGNUP_GOAL,
+        yearlyRevenueGoal: DEFAULT_YEARLY_REVENUE_GOAL
       }
     });
   } catch (error) {
@@ -3884,25 +3842,6 @@ app.get('/api/rep/goals/progress', async (req, res) => {
     res.status(500).json({ error: (error as Error).message });
   }
 });
-
-// Helper function to calculate achievement streak
-function calculateGoalStreak(goals: any[]): number {
-  let streak = 0;
-  // Goals should be ordered newest to oldest
-  const sortedGoals = [...goals].sort((a, b) => {
-    if (b.year !== a.year) return b.year - a.year;
-    return b.month - a.month;
-  });
-
-  for (const goal of sortedGoals) {
-    if (parseFloat(goal.progress_percentage) >= 100) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
 
 // ==========================================================================
 // User to Sales Rep Mapping API
