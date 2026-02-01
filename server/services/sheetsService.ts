@@ -944,11 +944,15 @@ export function createSheetsService(pool: Pool) {
             safeExistingId
           ];
 
-          // Debug Basel Halim specifically
+          // Debug Basel Halim specifically - throw early to see data in error
           if (data.name.toLowerCase().includes('basel')) {
-            console.error('[SHEETS] Basel Halim UPDATE values:', JSON.stringify(updateValues));
-            console.error('[SHEETS] Basel Halim raw data:', JSON.stringify(data));
-            console.error('[SHEETS] Basel Halim existing:', JSON.stringify(existing));
+            const baselDebug = {
+              updateValues: updateValues.map((v, i) => `$${i+1}=${v}(${typeof v})`),
+              rawData: data,
+              existing: { id: existing.id, monthly_signup_goal: existing.monthly_signup_goal },
+              computed: { safeBonusTier, safeExistingId, goalProgress, bonusTier }
+            };
+            throw new Error(`BASEL_DEBUG: ${JSON.stringify(baselDebug).substring(0, 800)}`);
           }
 
           // Check for the problematic value anywhere in the array
