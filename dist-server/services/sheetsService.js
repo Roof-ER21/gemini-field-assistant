@@ -948,14 +948,20 @@ export function createSheetsService(pool) {
             };
         }
         catch (error) {
-            const errorMessage = error.message || 'Unknown sync error';
+            const err = error;
+            const errorMessage = err.message || 'Unknown sync error';
+            const errorStack = err.stack || '';
             console.error('[SHEETS] Sync failed:', errorMessage);
+            console.error('[SHEETS] Stack trace:', errorStack);
+            // Extract line number from stack for debugging
+            const stackLine = errorStack.split('\n')[1] || '';
+            const debugInfo = `${errorMessage} | Stack: ${stackLine.trim()}`;
             if (syncLogId) {
                 try {
                     await pool.query(`UPDATE sheets_sync_log
              SET error_message = $1,
                  completed_at = NOW()
-             WHERE id = $2`, [errorMessage, syncLogId]);
+             WHERE id = $2`, [debugInfo.substring(0, 500), syncLogId]);
                 }
                 catch (logError) {
                     console.warn('[SHEETS] Failed to update sync log after error:', logError.message);
