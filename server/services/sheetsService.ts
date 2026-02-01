@@ -831,7 +831,8 @@ export function createSheetsService(pool: Pool) {
           const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
           const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
 
-          await pool.query(
+          try {
+            await pool.query(
             `UPDATE sales_reps
              SET name = $1,
                  email = $2,
@@ -862,10 +863,21 @@ export function createSheetsService(pool: Pool) {
               existing.id
             ]
           );
-          updated += 1;
-          repIdByName.set(nameLower, existing.id);
+            updated += 1;
+            repIdByName.set(nameLower, existing.id);
+          } catch (updateError) {
+            console.error('[SHEETS] UPDATE failed for rep:', data.name, 'with values:', {
+              monthlySignups: safeMonthlySignups,
+              yearlySignups: safeYearlySignups,
+              goalProgress,
+              bonusTier,
+              existingId: existing.id
+            });
+            throw updateError;
+          }
         } else {
-          const insertResult = await pool.query(
+          try {
+            const insertResult = await pool.query(
             `INSERT INTO sales_reps (
               name, email, team, title, avatar,
               monthly_revenue, yearly_revenue, revenue_2025, revenue_2026,
@@ -902,15 +914,27 @@ export function createSheetsService(pool: Pool) {
           );
           created += 1;
 
-          const newId = insertResult.rows[0]?.id;
-          if (newId) {
-            repIdByName.set(nameLower, newId);
-            await pool.query(
-              `INSERT INTO player_profiles (sales_rep_id, display_alias)
-               VALUES ($1, $2)
-               ON CONFLICT (sales_rep_id) DO NOTHING`,
-              [newId, data.name]
-            );
+            const newId = insertResult.rows[0]?.id;
+            if (newId) {
+              repIdByName.set(nameLower, newId);
+              await pool.query(
+                `INSERT INTO player_profiles (sales_rep_id, display_alias)
+                 VALUES ($1, $2)
+                 ON CONFLICT (sales_rep_id) DO NOTHING`,
+                [newId, data.name]
+              );
+            }
+          } catch (insertError) {
+            console.error('[SHEETS] INSERT failed for rep:', data.name, 'with values:', {
+              monthlyRevenue: hasEstimates ? data.monthlyRevenue : 0,
+              yearlyRevenue: data.yearlyRevenue,
+              monthlySignups: data.monthlySignups,
+              yearlySignups: data.yearlySignups,
+              goalProgress,
+              monthlyGoal,
+              bonusTier
+            });
+            throw insertError;
           }
         }
       }
