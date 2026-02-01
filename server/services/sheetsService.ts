@@ -690,6 +690,31 @@ export function createSheetsService(pool: Pool) {
       const primarySignups = currentSignups.size > 0 ? currentSignups : previousSignups;
       const primaryEstimates = primaryYear === currentYear ? currentEstimates : previousEstimates;
 
+      console.log('[SHEETS] Data fetched - currentSignups:', currentSignups.size, 'previousSignups:', previousSignups.size);
+      console.log('[SHEETS] primaryYear:', primaryYear, 'primarySignups size:', primarySignups.size);
+
+      // Check all fetched data for the problematic value 246747.9
+      for (const [name, data] of currentSignups.entries()) {
+        if (data.monthlySignups === 246747.9 || data.yearlySignups === 246747.9) {
+          console.error('[SHEETS] FOUND 246747.9 in currentSignups for:', name, data);
+        }
+      }
+      for (const [name, rev] of allTimeRevenue.entries()) {
+        if (rev === 246747.9) {
+          console.error('[SHEETS] FOUND 246747.9 in allTimeRevenue for:', name);
+        }
+      }
+      for (const [name, rev] of revenue2025.entries()) {
+        if (rev === 246747.9) {
+          console.error('[SHEETS] FOUND 246747.9 in revenue2025 for:', name);
+        }
+      }
+      for (const [name, rev] of revenue2026.entries()) {
+        if (rev === 246747.9) {
+          console.error('[SHEETS] FOUND 246747.9 in revenue2026 for:', name);
+        }
+      }
+
       if (primarySignups.size === 0) {
         throw new Error('No signup data returned from Google Sheets');
       }
@@ -1163,9 +1188,9 @@ export function createSheetsService(pool: Pool) {
       console.error('[SHEETS] Sync failed:', errorMessage);
       console.error('[SHEETS] Stack trace:', errorStack);
 
-      // Extract line number from stack for debugging
-      const stackLine = errorStack.split('\n')[1] || '';
-      const debugInfo = `${errorMessage} | Stack: ${stackLine.trim()}`;
+      // Extract multiple stack lines for debugging
+      const stackLines = errorStack.split('\n').slice(1, 6).map(l => l.trim()).join(' <- ');
+      const debugInfo = `${errorMessage} | Stack: ${stackLines}`;
 
       if (syncLogId) {
         try {
@@ -1174,7 +1199,7 @@ export function createSheetsService(pool: Pool) {
              SET error_message = $1,
                  completed_at = NOW()
              WHERE id = $2`,
-            [debugInfo.substring(0, 500), syncLogId]
+            [debugInfo.substring(0, 1000), syncLogId]
           );
         } catch (logError) {
           console.warn('[SHEETS] Failed to update sync log after error:', (logError as Error).message);
