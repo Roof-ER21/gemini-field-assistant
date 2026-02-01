@@ -811,11 +811,26 @@ export function createSheetsService(pool: Pool) {
         sheetEmails.add(generatedEmail);
 
         const existing = existingByName.get(nameLower) || existingByEmail.get(generatedEmail);
-        const monthlyGoal = existing?.monthly_signup_goal ?? 15;
-        const goalProgress = monthlyGoal > 0 ? (data.monthlySignups / monthlyGoal) * 100 : 0;
-        const bonusTier = calculateBonusTier(data.monthlySignups);
+        const monthlyGoal = Math.floor(existing?.monthly_signup_goal ?? 15);
+        const goalProgress = monthlyGoal > 0 ? Math.min((data.monthlySignups / monthlyGoal) * 100, 999.99) : 0;
+        const bonusTier = Math.floor(calculateBonusTier(data.monthlySignups));
+
+        // Validate numeric values to prevent database errors
+        if (!Number.isFinite(data.monthlySignups) || !Number.isFinite(data.yearlySignups)) {
+          console.warn('[SHEETS] Invalid signups data for:', data.name);
+          continue;
+        }
 
         if (existing) {
+          // Ensure all numeric values are valid
+          const safeMonthlySignups = Number.isFinite(data.monthlySignups) ? data.monthlySignups : 0;
+          const safeYearlySignups = Number.isFinite(data.yearlySignups) ? data.yearlySignups : 0;
+          const safeMonthlyRevenue = Number.isFinite(data.monthlyRevenue) ? data.monthlyRevenue : 0;
+          const safeYearlyRevenue = Number.isFinite(data.yearlyRevenue) ? data.yearlyRevenue : 0;
+          const safeRevenue2025 = Number.isFinite(data.revenue2025) ? data.revenue2025 : 0;
+          const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
+          const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
+
           await pool.query(
             `UPDATE sales_reps
              SET name = $1,
@@ -835,13 +850,13 @@ export function createSheetsService(pool: Pool) {
             [
               data.name,
               generatedEmail,
-              data.monthlySignups,
-              data.yearlySignups,
-              hasEstimates ? data.monthlyRevenue : null,
-              data.yearlyRevenue,
-              data.revenue2025,
-              data.revenue2026,
-              data.allTimeRevenue,
+              safeMonthlySignups,
+              safeYearlySignups,
+              hasEstimates ? safeMonthlyRevenue : null,
+              safeYearlyRevenue,
+              safeRevenue2025,
+              safeRevenue2026,
+              safeAllTimeRevenue,
               goalProgress,
               bonusTier,
               existing.id
