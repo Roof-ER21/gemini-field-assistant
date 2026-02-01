@@ -16,20 +16,42 @@ import {
   MapPin,
   AlertTriangle,
   Cloud,
-  Trophy
+  Trophy,
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
+  Wrench,
+  HardHat,
+  Medal
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
 type QuickActionType = 'email' | 'transcribe' | 'image';
 
 interface SidebarProps {
   activePanel: PanelType;
   setActivePanel: (panel: PanelType) => void;
   onQuickAction?: (action: QuickActionType) => void;
+}
+
+interface NavItem {
+  id: string;
+  label: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+}
+
+interface NavCategory {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+  defaultExpanded: boolean;
 }
 
 // Custom Egyptian Pyramid S21 Icon Component
@@ -90,6 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const [unreadCount, setUnreadCount] = useState(0);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['main', 'team']));
   const { features, isFeatureEnabled } = useSettings();
 
   // Map panel IDs to feature flag keys
@@ -139,6 +162,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'learning', label: 'Learning', desc: 'Team feedback', icon: TrendingUp },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
+    { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
     { id: 'image', label: 'Upload Analysis', desc: 'Docs & photos review', icon: Image },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
@@ -168,6 +192,94 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     });
   }, [allNavItems, features, isFeatureEnabled]);
 
+  // Group nav items into categories
+  const navCategories = useMemo((): NavCategory[] => {
+    const itemsMap = new Map(navItems.map(item => [item.id, item]));
+
+    const categories: NavCategory[] = [
+      {
+        id: 'main',
+        label: 'Main',
+        icon: Sparkles,
+        defaultExpanded: true,
+        items: ['home', 'chat']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      },
+      {
+        id: 'team',
+        label: 'Team',
+        icon: Users,
+        defaultExpanded: true,
+        items: ['team', 'leaderboard', 'contests', 'learning']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      },
+      {
+        id: 'tools',
+        label: 'Tools',
+        icon: Wrench,
+        defaultExpanded: false,
+        items: ['email', 'transcribe', 'image', 'knowledge']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      },
+      {
+        id: 'field-ops',
+        label: 'Field Ops',
+        icon: HardHat,
+        defaultExpanded: false,
+        items: ['documentjob', 'territories', 'canvassing']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      },
+      {
+        id: 'storm-intel',
+        label: 'Storm Intel',
+        icon: Cloud,
+        defaultExpanded: false,
+        items: ['stormmap', 'maps', 'impacted']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      },
+      {
+        id: 'other',
+        label: 'Other',
+        icon: Radio,
+        defaultExpanded: false,
+        items: ['live', 'admin']
+          .map(id => itemsMap.get(id))
+          .filter((item): item is NavItem => !!item)
+      }
+    ];
+
+    // Filter out empty categories
+    return categories.filter(cat => cat.items.length > 0);
+  }, [navItems]);
+
+  // Auto-expand category containing active panel
+  useEffect(() => {
+    const activeCategoryId = navCategories.find(cat =>
+      cat.items.some(item => item.id === activePanel)
+    )?.id;
+
+    if (activeCategoryId && !expandedCategories.has(activeCategoryId)) {
+      setExpandedCategories(prev => new Set([...prev, activeCategoryId]));
+    }
+  }, [activePanel, navCategories]);
+
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
   const quickActions = [
     { id: 'email', title: 'Email', desc: 'Quick email draft', icon: Mail },
     { id: 'transcribe', title: 'Voice Note', desc: 'Record & transcribe', icon: Mic },
@@ -184,45 +296,91 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
       {/* Navigation Section */}
       <div className="roof-er-sidebar-section">
         <div className="roof-er-sidebar-title">Navigation</div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activePanel === item.id;
-          const badge = (item as any).badge;
+        {navCategories.map((category) => {
+          const CategoryIcon = category.icon;
+          const isExpanded = expandedCategories.has(category.id);
+          const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
 
           return (
-            <div
-              key={item.id}
-              onClick={() => setActivePanel(item.id as PanelType)}
-              className={`roof-er-nav-item ${isActive ? 'active' : ''}`}
-            >
-              <div className="roof-er-nav-item-icon" style={{ position: 'relative' }}>
-                <Icon className="w-5 h-5" />
-                {badge > 0 && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: '-4px',
-                      right: '-4px',
-                      background: 'var(--roof-red)',
-                      color: 'white',
-                      fontSize: '0.65rem',
-                      fontWeight: '700',
-                      minWidth: '16px',
-                      height: '16px',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 4px'
-                    }}
-                  >
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                )}
+            <div key={category.id} style={{ marginBottom: '0.5rem' }}>
+              {/* Category Header */}
+              <div
+                onClick={() => toggleCategory(category.id)}
+                className="roof-er-nav-category-header"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0.5rem 0.75rem',
+                  cursor: 'pointer',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  marginBottom: '0.25rem',
+                  transition: 'all 0.2s ease',
+                  userSelect: 'none'
+                }}
+              >
+                <ChevronIcon className="w-4 h-4" style={{ marginRight: '0.5rem', opacity: 0.7 }} />
+                <CategoryIcon className="w-4 h-4" style={{ marginRight: '0.5rem', opacity: 0.7 }} />
+                <span style={{ fontSize: '0.8rem', fontWeight: '600', opacity: 0.8 }}>
+                  {category.label}
+                </span>
               </div>
-              <div className="roof-er-nav-item-content">
-                <div className="roof-er-nav-item-title">{item.label}</div>
-                <div className="roof-er-nav-item-desc">{item.desc}</div>
+
+              {/* Category Items */}
+              <div
+                style={{
+                  maxHeight: isExpanded ? '1000px' : '0',
+                  overflow: 'hidden',
+                  transition: 'max-height 0.3s ease-in-out, opacity 0.2s ease',
+                  opacity: isExpanded ? 1 : 0
+                }}
+              >
+                {category.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activePanel === item.id;
+                  const badge = item.badge;
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setActivePanel(item.id as PanelType)}
+                      className={`roof-er-nav-item ${isActive ? 'active' : ''}`}
+                      style={{
+                        marginLeft: '1.5rem'
+                      }}
+                    >
+                      <div className="roof-er-nav-item-icon" style={{ position: 'relative' }}>
+                        <Icon className="w-5 h-5" />
+                        {badge !== undefined && badge > 0 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-4px',
+                              right: '-4px',
+                              background: 'var(--roof-red)',
+                              color: 'white',
+                              fontSize: '0.65rem',
+                              fontWeight: '700',
+                              minWidth: '16px',
+                              height: '16px',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 4px'
+                            }}
+                          >
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        )}
+                      </div>
+                      <div className="roof-er-nav-item-content">
+                        <div className="roof-er-nav-item-title">{item.label}</div>
+                        <div className="roof-er-nav-item-desc">{item.desc}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

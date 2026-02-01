@@ -355,6 +355,28 @@ html, body {
   color: var(--text-secondary);
 }
 
+/* Nav Category Header */
+.roof-er-nav-category-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 0.25rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.roof-er-nav-category-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.roof-er-nav-category-header:active {
+  transform: scale(0.98);
+}
+
 /* Quick Action Cards */
 .roof-er-action-card {
   background: linear-gradient(135deg, rgba(28, 28, 28, 0.68), rgba(16, 16, 16, 0.6));

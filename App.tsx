@@ -31,8 +31,9 @@ const ImpactedAssetsPanel = lazy(() => import('./components/ImpactedAssetsPanel'
 const TerritoryManager = lazy(() => import('./components/TerritoryManager'));
 const TerritoryHailMap = lazy(() => import('./components/TerritoryHailMap'));
 const LeaderboardPanel = lazy(() => import('./components/LeaderboardPanel'));
+const ContestSection = lazy(() => import('./src/components/ContestSection'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -104,7 +105,8 @@ const App: React.FC = () => {
     impacted: 'Impacted Assets',
     territories: 'Territory Management',
     stormmap: 'Storm Map',
-    leaderboard: 'Leaderboard'
+    leaderboard: 'Leaderboard',
+    contests: 'Sales Contests'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -311,6 +313,12 @@ const App: React.FC = () => {
         return (
           <LazyLoadBoundary componentName="Leaderboard">
             <LeaderboardPanel userEmail={currentUser?.email || ''} />
+          </LazyLoadBoundary>
+        );
+      case 'contests':
+        return (
+          <LazyLoadBoundary componentName="Contests">
+            <ContestSection userEmail={currentUser?.email || ''} userRole={currentUser?.role || 'user'} />
           </LazyLoadBoundary>
         );
       default:

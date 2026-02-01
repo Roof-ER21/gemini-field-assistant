@@ -217,10 +217,26 @@ export default function TerritoryHailMap() {
 
   const fetchTerritories = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/territories`);
+      // Get user email from localStorage for auth header
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      if (!userEmail) {
+        console.error('No user email found for territories fetch');
+        return;
+      }
+
+      const res = await fetch(`${getApiBaseUrl()}/territories`, {
+        headers: {
+          'x-user-email': userEmail
+        }
+      });
+
       if (res.ok) {
         const data = await res.json();
         setTerritories(data.territories || []);
+      } else {
+        console.error('Failed to fetch territories:', res.status, res.statusText);
       }
     } catch (err) {
       console.error('Failed to fetch territories:', err);
