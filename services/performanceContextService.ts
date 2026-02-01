@@ -95,7 +95,7 @@ export async function fetchPerformanceData(userEmail?: string): Promise<Performa
       return null;
     }
 
-    const response = await fetch(`${apiBaseUrl}/api/leaderboard/me`, {
+    const response = await fetch(`${apiBaseUrl}/leaderboard/me`, {
       headers: {
         'x-user-email': email,
         'Content-Type': 'application/json'
