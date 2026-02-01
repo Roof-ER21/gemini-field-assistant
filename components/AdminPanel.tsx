@@ -107,13 +107,6 @@ interface AllMessagesItem {
 
 type QuickFilter = 'today' | 'week' | 'month' | 'all';
 
-interface MigrationStatus {
-  migration005: 'not_run' | 'running' | 'success' | 'error';
-  migration006: 'not_run' | 'running' | 'success' | 'error';
-  message005: string;
-  message006: string;
-}
-
 interface LeaderboardSyncStatus {
   lastSync: string | null;
   lastSyncStatus: 'success' | 'error' | 'never' | string;
@@ -172,14 +165,6 @@ const AdminPanel: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Migration state
-  const [migrationStatus, setMigrationStatus] = useState<MigrationStatus>({
-    migration005: 'not_run',
-    migration006: 'not_run',
-    message005: '',
-    message006: ''
-  });
 
   const [leaderboardSyncStatus, setLeaderboardSyncStatus] = useState<LeaderboardSyncStatus | null>(null);
   const [leaderboardSyncRunning, setLeaderboardSyncRunning] = useState(false);
@@ -1215,76 +1200,6 @@ const AdminPanel: React.FC = () => {
     return lastActiveDate > fiveMinutesAgo;
   };
 
-  // Migration handlers
-  const handleRunMigration005 = async () => {
-    setMigrationStatus(prev => ({ ...prev, migration005: 'running', message005: 'Running migration...' }));
-
-    try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/run-migration-005', {
-        method: 'POST',
-        headers
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Migration failed');
-      }
-
-      const result = await response.json();
-      setMigrationStatus(prev => ({
-        ...prev,
-        migration005: 'success',
-        message005: result.message || 'Migration 005 completed successfully!'
-      }));
-    } catch (err) {
-      console.error('Migration 005 error:', err);
-      setMigrationStatus(prev => ({
-        ...prev,
-        migration005: 'error',
-        message005: (err as Error).message || 'Migration failed'
-      }));
-    }
-  };
-
-  const handleRunMigration006 = async () => {
-    setMigrationStatus(prev => ({ ...prev, migration006: 'running', message006: 'Running migration...' }));
-
-    try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/run-migration-006', {
-        method: 'POST',
-        headers
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Migration failed');
-      }
-
-      const result = await response.json();
-      setMigrationStatus(prev => ({
-        ...prev,
-        migration006: 'success',
-        message006: result.message || 'Migration 006 completed successfully!'
-      }));
-    } catch (err) {
-      console.error('Migration 006 error:', err);
-      setMigrationStatus(prev => ({
-        ...prev,
-        migration006: 'error',
-        message006: (err as Error).message || 'Migration failed'
-      }));
-    }
-  };
-
-
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
@@ -1359,162 +1274,6 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            {/* Migration 005 Button */}
-            <div style={{ flex: '1', minWidth: '300px' }}>
-              <button
-                onClick={handleRunMigration005}
-                disabled={migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1.25rem',
-                  background: migrationStatus.migration005 === 'success'
-                    ? '#166534'
-                    : migrationStatus.migration005 === 'error'
-                    ? '#dc2626'
-                    : migrationStatus.migration005 === 'running'
-                    ? '#262626'
-                    : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  cursor: migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'
-                    ? 'not-allowed'
-                    : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  transition: 'all 0.2s ease',
-                  opacity: migrationStatus.migration005 === 'running' || migrationStatus.migration005 === 'success'
-                    ? 0.6
-                    : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
-                    e.currentTarget.style.background = '#b91c1c';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (migrationStatus.migration005 !== 'running' && migrationStatus.migration005 !== 'success') {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
-                  }
-                }}
-              >
-                {migrationStatus.migration005 === 'running' && (
-                  <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
-                )}
-                {migrationStatus.migration005 === 'success' && (
-                  <CheckCircle style={{ width: '16px', height: '16px' }} />
-                )}
-                {migrationStatus.migration005 === 'error' && (
-                  <XCircle style={{ width: '16px', height: '16px' }} />
-                )}
-                {migrationStatus.migration005 === 'not_run' && (
-                  <Database style={{ width: '16px', height: '16px' }} />
-                )}
-                Run Migration 005 (Budget System)
-              </button>
-              {migrationStatus.message005 && (
-                <div style={{
-                  marginTop: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  background: migrationStatus.migration005 === 'success'
-                    ? 'rgba(22, 101, 52, 0.2)'
-                    : migrationStatus.migration005 === 'error'
-                    ? 'rgba(153, 27, 27, 0.2)'
-                    : 'rgba(58, 58, 58, 0.2)',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  color: migrationStatus.migration005 === 'success'
-                    ? '#86efac'
-                    : migrationStatus.migration005 === 'error'
-                    ? '#fca5a5'
-                    : '#a1a1aa'
-                }}>
-                  {migrationStatus.message005}
-                </div>
-              )}
-            </div>
-
-            {/* Migration 006 Button */}
-            <div style={{ flex: '1', minWidth: '300px' }}>
-              <button
-                onClick={handleRunMigration006}
-                disabled={migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1.25rem',
-                  background: migrationStatus.migration006 === 'success'
-                    ? '#166534'
-                    : migrationStatus.migration006 === 'error'
-                    ? '#dc2626'
-                    : migrationStatus.migration006 === 'running'
-                    ? '#262626'
-                    : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  cursor: migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'
-                    ? 'not-allowed'
-                    : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  transition: 'all 0.2s ease',
-                  opacity: migrationStatus.migration006 === 'running' || migrationStatus.migration006 === 'success'
-                    ? 0.6
-                    : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
-                    e.currentTarget.style.background = '#b91c1c';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (migrationStatus.migration006 !== 'running' && migrationStatus.migration006 !== 'success') {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
-                  }
-                }}
-              >
-                {migrationStatus.migration006 === 'running' && (
-                  <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
-                )}
-                {migrationStatus.migration006 === 'success' && (
-                  <CheckCircle style={{ width: '16px', height: '16px' }} />
-                )}
-                {migrationStatus.migration006 === 'error' && (
-                  <XCircle style={{ width: '16px', height: '16px' }} />
-                )}
-                {migrationStatus.migration006 === 'not_run' && (
-                  <Database style={{ width: '16px', height: '16px' }} />
-                )}
-                Run Migration 006 (Fix Database Errors)
-              </button>
-              {migrationStatus.message006 && (
-                <div style={{
-                  marginTop: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  background: migrationStatus.migration006 === 'success'
-                    ? 'rgba(22, 101, 52, 0.2)'
-                    : migrationStatus.migration006 === 'error'
-                    ? 'rgba(153, 27, 27, 0.2)'
-                    : 'rgba(58, 58, 58, 0.2)',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  color: migrationStatus.migration006 === 'success'
-                    ? '#86efac'
-                    : migrationStatus.migration006 === 'error'
-                    ? '#fca5a5'
-                    : '#a1a1aa'
-                }}>
-                  {migrationStatus.message006}
-                </div>
-              )}
-            </div>
-
             {/* Leaderboard Sync */}
             <div style={{ flex: '1', minWidth: '300px' }}>
               <div style={{
@@ -4219,27 +3978,43 @@ const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Mobile scroll hint */}
+                  {typeof window !== 'undefined' && window.innerWidth < 900 && (
+                    <div style={{
+                      padding: '0.75rem 1.5rem',
+                      background: '#1a1a1a',
+                      borderTop: '1px solid #262626',
+                      color: '#a1a1aa',
+                      fontSize: '0.8125rem',
+                      textAlign: 'center'
+                    }}>
+                      <span style={{ marginRight: '0.5rem' }}>👉</span>
+                      Scroll horizontally to edit all tier fields
+                      <span style={{ marginLeft: '0.5rem' }}>👈</span>
+                    </div>
+                  )}
+
                   {/* Table */}
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                       <thead>
                         <tr style={{ background: '#111111', borderBottom: '1px solid #262626' }}>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Tier</th>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Name</th>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Min Signups</th>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Max Signups</th>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Color</th>
-                          <th style={{ padding: '1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Bonus Display</th>
-                          <th style={{ padding: '1rem', textAlign: 'center', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>Preview</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Tier</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Name</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Min Signups</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Max Signups</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Color</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Bonus Display</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Preview</th>
                         </tr>
                       </thead>
                       <tbody>
                         {bonusTiers.map((tier, index) => (
                           <tr key={tier.tier} style={{ borderBottom: '1px solid #262626' }}>
-                            <td style={{ padding: '1rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                            <td style={{ padding: '0.75rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
                               {tier.tier}
                             </td>
-                            <td style={{ padding: '1rem' }}>
+                            <td style={{ padding: '0.75rem' }}>
                               <input
                                 type="text"
                                 value={tier.name}
@@ -4247,16 +4022,18 @@ const AdminPanel: React.FC = () => {
                                 style={{
                                   width: '100%',
                                   maxWidth: '150px',
+                                  minWidth: '100px',
                                   padding: '0.5rem',
                                   background: '#111111',
                                   border: '1px solid #262626',
                                   borderRadius: '6px',
                                   color: '#ffffff',
-                                  fontSize: '0.875rem'
+                                  fontSize: '0.875rem',
+                                  minHeight: '40px'
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '1rem' }}>
+                            <td style={{ padding: '0.75rem' }}>
                               <input
                                 type="number"
                                 value={tier.minSignups}
@@ -4269,11 +4046,12 @@ const AdminPanel: React.FC = () => {
                                   border: '1px solid #262626',
                                   borderRadius: '6px',
                                   color: '#ffffff',
-                                  fontSize: '0.875rem'
+                                  fontSize: '0.875rem',
+                                  minHeight: '40px'
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '1rem' }}>
+                            <td style={{ padding: '0.75rem' }}>
                               <input
                                 type="number"
                                 value={tier.maxSignups}
@@ -4286,19 +4064,20 @@ const AdminPanel: React.FC = () => {
                                   border: '1px solid #262626',
                                   borderRadius: '6px',
                                   color: '#ffffff',
-                                  fontSize: '0.875rem'
+                                  fontSize: '0.875rem',
+                                  minHeight: '40px'
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '1rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <td style={{ padding: '0.75rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <input
                                   type="color"
                                   value={tier.color}
                                   onChange={(e) => updateTierField(tier.tier, 'color', e.target.value)}
                                   style={{
-                                    width: '40px',
-                                    height: '32px',
+                                    width: '44px',
+                                    height: '44px',
                                     padding: '2px',
                                     background: '#111111',
                                     border: '1px solid #262626',
@@ -4318,12 +4097,13 @@ const AdminPanel: React.FC = () => {
                                     borderRadius: '6px',
                                     color: '#ffffff',
                                     fontSize: '0.75rem',
-                                    fontFamily: 'monospace'
+                                    fontFamily: 'monospace',
+                                    minHeight: '40px'
                                   }}
                                 />
                               </div>
                             </td>
-                            <td style={{ padding: '1rem' }}>
+                            <td style={{ padding: '0.75rem' }}>
                               <input
                                 type="text"
                                 value={tier.bonusDisplay}
@@ -4337,11 +4117,12 @@ const AdminPanel: React.FC = () => {
                                   borderRadius: '6px',
                                   color: '#ffffff',
                                   fontSize: '0.875rem',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  minHeight: '40px'
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                               <div style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -4368,7 +4149,11 @@ const AdminPanel: React.FC = () => {
                 </div>
 
                 {/* Info Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+                  gap: '1rem'
+                }}>
                   <div style={{
                     background: '#0a0a0a',
                     borderRadius: '12px',

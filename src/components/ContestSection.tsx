@@ -71,8 +71,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [salesReps, setSalesReps] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
 
   const isAdmin = userRole === 'admin' || userRole === 'manager';
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Form state for creating/editing contests
   const [formData, setFormData] = useState({
@@ -339,26 +346,48 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     return { label: 'Active', color: 'green' };
   };
 
+  const isMobile = windowWidth < 768;
+  const isPortrait = windowWidth < 480;
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-400" />
+      <div className="flex justify-between items-center" style={{
+        flexDirection: isPortrait ? 'column' : 'row',
+        alignItems: isPortrait ? 'flex-start' : 'center',
+        gap: isPortrait ? '1rem' : '0'
+      }}>
+        <div style={{ width: isPortrait ? '100%' : 'auto' }}>
+          <h2 className="text-white flex items-center gap-2" style={{
+            fontSize: isPortrait ? '1.25rem' : isMobile ? '1.5rem' : '1.875rem',
+            fontWeight: 'bold'
+          }}>
+            <Trophy className="text-yellow-400" style={{
+              width: isPortrait ? '1.25rem' : '2rem',
+              height: isPortrait ? '1.25rem' : '2rem'
+            }} />
             Sales Contests
           </h2>
-          <p className="text-gray-400 mt-1">
+          <p className="text-gray-400 mt-1" style={{
+            fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+          }}>
             {isAdmin ? 'Manage competitions and track leaderboards' : 'View active contests and your rankings'}
           </p>
         </div>
         {isAdmin && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            style={{
+              padding: isPortrait ? '0.625rem 1rem' : '0.5rem 1rem',
+              fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+              width: isPortrait ? '100%' : 'auto',
+              justifyContent: 'center',
+              minHeight: '44px'
+            }}
           >
-            <Plus className="w-5 h-5" />
-            Create Contest
+            <Plus style={{ width: '1.25rem', height: '1.25rem' }} />
+            {isPortrait ? 'Create' : 'Create Contest'}
           </button>
         )}
       </div>
@@ -400,44 +429,76 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+          gap: '1rem'
+        }}>
           {contests.map((contest) => {
             const status = getContestStatus(contest);
             return (
               <div
                 key={contest.id}
                 onClick={() => loadContestDetails(contest.id)}
-                className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 hover:bg-gray-800 cursor-pointer transition-colors"
+                className="bg-gray-800/50 rounded-xl border border-gray-700 hover:bg-gray-800 cursor-pointer transition-colors"
+                style={{
+                  padding: isPortrait ? '1rem' : '1.5rem'
+                }}
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-1">{contest.name}</h3>
+                <div className="flex justify-between items-start mb-4" style={{
+                  flexDirection: isPortrait ? 'column' : 'row',
+                  gap: isPortrait ? '0.5rem' : '0'
+                }}>
+                  <div className="flex-1" style={{ width: '100%' }}>
+                    <h3 className="font-bold text-white mb-1" style={{
+                      fontSize: isPortrait ? '1rem' : '1.25rem'
+                    }}>{contest.name}</h3>
                     {contest.description && (
-                      <p className="text-gray-400 text-sm mb-2">{contest.description}</p>
+                      <p className="text-gray-400 mb-2" style={{
+                        fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                      }}>{contest.description}</p>
                     )}
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    className={`rounded-full font-medium ${
                       status.color === 'green'
                         ? 'bg-green-500/20 text-green-400'
                         : status.color === 'blue'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-gray-500/20 text-gray-400'
                     }`}
+                    style={{
+                      padding: isPortrait ? '0.375rem 0.75rem' : '0.25rem 0.75rem',
+                      fontSize: '0.75rem',
+                      alignSelf: isPortrait ? 'flex-start' : 'center',
+                      whiteSpace: 'nowrap'
+                    }}
                   >
                     {status.label}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-300">
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isPortrait ? '1fr' : 'repeat(2, 1fr)',
+                  gap: isPortrait ? '0.75rem' : '1rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div className="flex items-center gap-2" style={{
+                    fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                  }}>
+                    <Calendar style={{ width: '1rem', height: '1rem' }} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-300" style={{
+                      fontSize: isPortrait ? '0.75rem' : '0.875rem',
+                      lineHeight: '1.2'
+                    }}>
                       {formatDate(contest.start_date)} - {formatDate(contest.end_date)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center gap-2" style={{
+                    fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                  }}>
+                    <Users style={{ width: '1rem', height: '1rem' }} className="text-gray-400 flex-shrink-0" />
                     <span className="text-gray-300">{contest.participant_count} participants</span>
                   </div>
                 </div>
@@ -488,27 +549,55 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
       {/* Contest Details Modal */}
       {selectedContest && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" style={{
+          padding: isPortrait ? '0.5rem' : '1rem'
+        }}>
+          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-h-[90vh] overflow-y-auto" style={{
+            maxWidth: isMobile ? '100%' : '56rem'
+          }}>
             {/* Header */}
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">{selectedContest.name}</h2>
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-700" style={{
+              padding: isPortrait ? '1rem' : '1.5rem'
+            }}>
+              <div className="flex justify-between items-start" style={{
+                gap: isPortrait ? '0.5rem' : '1rem'
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h2 className="font-bold text-white mb-2" style={{
+                    fontSize: isPortrait ? '1.125rem' : isMobile ? '1.5rem' : '1.875rem',
+                    wordBreak: 'break-word'
+                  }}>{selectedContest.name}</h2>
                   {selectedContest.description && (
-                    <p className="text-gray-400">{selectedContest.description}</p>
+                    <p className="text-gray-400" style={{
+                      fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                    }}>{selectedContest.description}</p>
                   )}
                 </div>
                 <button
                   onClick={() => setSelectedContest(null)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white flex-shrink-0"
+                  style={{
+                    minWidth: '44px',
+                    minHeight: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
                 >
-                  <XCircle className="w-6 h-6" />
+                  <XCircle style={{
+                    width: isPortrait ? '1.25rem' : '1.5rem',
+                    height: isPortrait ? '1.25rem' : '1.5rem'
+                  }} />
                 </button>
               </div>
 
               {/* Contest Info */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isPortrait ? '1fr 1fr' : isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                gap: isPortrait ? '0.5rem' : '1rem',
+                marginTop: '1rem'
+              }}>
                 <div className="bg-gray-800/50 rounded-lg p-3">
                   <div className="text-gray-400 text-xs mb-1">Type</div>
                   <div className="text-white font-medium">
@@ -544,34 +633,64 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
             {/* My Standing */}
             {myStanding?.standing && (
-              <div className="p-6 bg-blue-500/10 border-b border-gray-700">
-                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-blue-400" />
+              <div className="bg-blue-500/10 border-b border-gray-700" style={{
+                padding: isPortrait ? '1rem' : '1.5rem'
+              }}>
+                <h3 className="font-bold text-white mb-3 flex items-center gap-2" style={{
+                  fontSize: isPortrait ? '1rem' : '1.125rem'
+                }}>
+                  <Target style={{
+                    width: isPortrait ? '1rem' : '1.25rem',
+                    height: isPortrait ? '1rem' : '1.25rem'
+                  }} className="text-blue-400" />
                   Your Standing
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                    <div className="text-3xl font-bold text-white mb-1">
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isPortrait ? '1fr' : 'repeat(3, 1fr)',
+                  gap: isPortrait ? '0.75rem' : '1rem'
+                }}>
+                  <div className="bg-gray-800/50 rounded-lg text-center" style={{
+                    padding: isPortrait ? '0.75rem' : '1rem'
+                  }}>
+                    <div className="font-bold text-white mb-1" style={{
+                      fontSize: isPortrait ? '1.5rem' : '1.875rem'
+                    }}>
                       {getRankIcon(myStanding.standing.rank)}
                     </div>
-                    <div className="text-gray-400 text-sm">
+                    <div className="text-gray-400" style={{
+                      fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                    }}>
                       Rank {myStanding.standing.rank} of {myStanding.total_participants}
                     </div>
                   </div>
                   {selectedContest.metric_type !== 'revenue' && (
-                    <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                      <div className="text-3xl font-bold text-green-400 mb-1">
+                    <div className="bg-gray-800/50 rounded-lg text-center" style={{
+                      padding: isPortrait ? '0.75rem' : '1rem'
+                    }}>
+                      <div className="font-bold text-green-400 mb-1" style={{
+                        fontSize: isPortrait ? '1.5rem' : '1.875rem'
+                      }}>
                         {myStanding.standing.signups_count}
                       </div>
-                      <div className="text-gray-400 text-sm">Signups</div>
+                      <div className="text-gray-400" style={{
+                        fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                      }}>Signups</div>
                     </div>
                   )}
                   {selectedContest.metric_type !== 'signups' && (
-                    <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                      <div className="text-3xl font-bold text-blue-400 mb-1">
+                    <div className="bg-gray-800/50 rounded-lg text-center" style={{
+                      padding: isPortrait ? '0.75rem' : '1rem'
+                    }}>
+                      <div className="font-bold text-blue-400 mb-1" style={{
+                        fontSize: isPortrait ? '1.125rem' : '1.875rem',
+                        wordBreak: 'break-all'
+                      }}>
                         {formatCurrency(parseFloat(myStanding.standing.revenue_amount))}
                       </div>
-                      <div className="text-gray-400 text-sm">Revenue</div>
+                      <div className="text-gray-400" style={{
+                        fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                      }}>Revenue</div>
                     </div>
                   )}
                 </div>
@@ -579,51 +698,106 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             )}
 
             {/* Leaderboard */}
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-400" />
+            <div style={{
+              padding: isPortrait ? '1rem' : '1.5rem'
+            }}>
+              <h3 className="font-bold text-white mb-4 flex items-center gap-2" style={{
+                fontSize: isPortrait ? '1rem' : '1.125rem'
+              }}>
+                <TrendingUp style={{
+                  width: isPortrait ? '1rem' : '1.25rem',
+                  height: isPortrait ? '1rem' : '1.25rem'
+                }} className="text-blue-400" />
                 Leaderboard
               </h3>
 
               {standings.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No standings available yet</p>
+                <p className="text-gray-400 text-center py-8" style={{
+                  fontSize: isPortrait ? '0.875rem' : '1rem'
+                }}>No standings available yet</p>
               ) : (
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {standings.map((standing) => (
                     <div
                       key={standing.id}
-                      className={`flex items-center gap-4 p-4 rounded-lg ${
+                      className={`rounded-lg ${
                         standing.rank <= 3
                           ? 'bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/30'
                           : 'bg-gray-800/50'
                       }`}
+                      style={{
+                        padding: isPortrait ? '0.75rem' : '1rem',
+                        display: 'flex',
+                        flexDirection: isPortrait ? 'column' : 'row',
+                        alignItems: isPortrait ? 'flex-start' : 'center',
+                        gap: isPortrait ? '0.75rem' : '1rem'
+                      }}
                     >
-                      <div className="w-12 text-center">
+                      <div style={{
+                        width: isPortrait ? '100%' : '3rem',
+                        textAlign: isPortrait ? 'left' : 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: isPortrait ? '0.5rem' : '0'
+                      }}>
                         {getRankIcon(standing.rank)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-white">
-                          {standing.team_name || standing.rep_name}
-                        </div>
-                        {standing.rep_email && (
-                          <div className="text-sm text-gray-400">{standing.rep_email}</div>
+                        {isPortrait && (
+                          <div className="flex-1">
+                            <div className="font-medium text-white" style={{
+                              fontSize: '0.9375rem'
+                            }}>
+                              {standing.team_name || standing.rep_name}
+                            </div>
+                            {standing.rep_email && (
+                              <div className="text-gray-400" style={{
+                                fontSize: '0.75rem'
+                              }}>{standing.rep_email}</div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="flex gap-6 text-right">
+                      {!isPortrait && (
+                        <div className="flex-1">
+                          <div className="font-medium text-white">
+                            {standing.team_name || standing.rep_name}
+                          </div>
+                          {standing.rep_email && (
+                            <div className="text-gray-400" style={{
+                              fontSize: '0.875rem'
+                            }}>{standing.rep_email}</div>
+                          )}
+                        </div>
+                      )}
+                      <div style={{
+                        display: 'flex',
+                        gap: isPortrait ? '1rem' : '1.5rem',
+                        textAlign: isPortrait ? 'left' : 'right',
+                        width: isPortrait ? '100%' : 'auto',
+                        justifyContent: isPortrait ? 'space-around' : 'flex-end'
+                      }}>
                         {selectedContest.metric_type !== 'revenue' && (
                           <div>
-                            <div className="text-lg font-bold text-green-400">
+                            <div className="font-bold text-green-400" style={{
+                              fontSize: isPortrait ? '1.125rem' : '1.25rem'
+                            }}>
                               {standing.signups_count}
                             </div>
-                            <div className="text-xs text-gray-400">Signups</div>
+                            <div className="text-gray-400" style={{
+                              fontSize: '0.75rem'
+                            }}>Signups</div>
                           </div>
                         )}
                         {selectedContest.metric_type !== 'signups' && (
                           <div>
-                            <div className="text-lg font-bold text-blue-400">
+                            <div className="font-bold text-blue-400" style={{
+                              fontSize: isPortrait ? '0.9375rem' : '1.125rem',
+                              wordBreak: 'break-all'
+                            }}>
                               {formatCurrency(parseFloat(standing.revenue_amount.toString()))}
                             </div>
-                            <div className="text-xs text-gray-400">Revenue</div>
+                            <div className="text-gray-400" style={{
+                              fontSize: '0.75rem'
+                            }}>Revenue</div>
                           </div>
                         )}
                       </div>
@@ -638,50 +812,83 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
       {/* Create Contest Modal */}
       {showCreateModal && isAdmin && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700">
-              <h2 className="text-2xl font-bold text-white">Create New Contest</h2>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" style={{
+          padding: isPortrait ? '0.5rem' : '1rem'
+        }}>
+          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-h-[90vh] overflow-y-auto" style={{
+            maxWidth: isMobile ? '100%' : '42rem'
+          }}>
+            <div className="border-b border-gray-700" style={{
+              padding: isPortrait ? '1rem' : '1.5rem'
+            }}>
+              <h2 className="font-bold text-white" style={{
+                fontSize: isPortrait ? '1.25rem' : '1.5rem'
+              }}>Create New Contest</h2>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div style={{
+              padding: isPortrait ? '1rem' : '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Contest Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    minHeight: '44px'
+                  }}
                   placeholder="January Sales Blitz"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Description
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  rows={3}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  rows={isPortrait ? 2 : 3}
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem'
+                  }}
                   placeholder="Compete for the highest signups this month!"
                 />
               </div>
 
               {/* Contest Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Contest Type *
                 </label>
                 <select
                   value={formData.contest_type}
                   onChange={(e) => setFormData({ ...formData, contest_type: e.target.value as any })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    minHeight: '44px'
+                  }}
                 >
                   <option value="company_wide">Company-Wide</option>
                   <option value="team_based">Team-Based</option>
@@ -691,13 +898,20 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
               {/* Metric Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Metric *
                 </label>
                 <select
                   value={formData.metric_type}
                   onChange={(e) => setFormData({ ...formData, metric_type: e.target.value as any })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    minHeight: '44px'
+                  }}
                 >
                   <option value="signups">Signups Only</option>
                   <option value="revenue">Revenue Only</option>
@@ -706,27 +920,45 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isPortrait ? '1fr' : 'repeat(2, 1fr)',
+                gap: '1rem'
+              }}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block font-medium text-gray-300 mb-2" style={{
+                    fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                  }}>
                     Start Date *
                   </label>
                   <input
                     type="date"
                     value={formData.start_date}
                     onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    style={{
+                      padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                      fontSize: isPortrait ? '1rem' : '0.9375rem',
+                      minHeight: '44px'
+                    }}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block font-medium text-gray-300 mb-2" style={{
+                    fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                  }}>
                     End Date *
                   </label>
                   <input
                     type="date"
                     value={formData.end_date}
                     onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    style={{
+                      padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                      fontSize: isPortrait ? '1rem' : '0.9375rem',
+                      minHeight: '44px'
+                    }}
                   />
                 </div>
               </div>
@@ -744,47 +976,76 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
               {/* Prize */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Prize Description
                 </label>
                 <input
                   type="text"
                   value={formData.prize_description}
                   onChange={(e) => setFormData({ ...formData, prize_description: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    minHeight: '44px'
+                  }}
                   placeholder="$1,000 bonus + trophy"
                 />
               </div>
 
               {/* Rules */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block font-medium text-gray-300 mb-2" style={{
+                  fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                }}>
                   Rules
                 </label>
                 <textarea
                   value={formData.rules}
                   onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  rows={3}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  rows={isPortrait ? 2 : 3}
+                  style={{
+                    padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem'
+                  }}
                   placeholder="Contest rules and guidelines..."
                 />
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-700 flex justify-end gap-3">
+            <div className="border-t border-gray-700 flex gap-3" style={{
+              padding: isPortrait ? '1rem' : '1.5rem',
+              flexDirection: isPortrait ? 'column-reverse' : 'row',
+              justifyContent: 'flex-end'
+            }}>
               <button
                 onClick={() => {
                   setShowCreateModal(false);
                   resetForm();
                 }}
-                className="px-4 py-2 text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white"
+                style={{
+                  padding: isPortrait ? '0.75rem 1rem' : '0.5rem 1rem',
+                  fontSize: isPortrait ? '1rem' : '0.875rem',
+                  minHeight: '44px',
+                  borderRadius: '0.5rem',
+                  border: isPortrait ? '1px solid #374151' : 'none'
+                }}
               >
                 Cancel
               </button>
               <button
                 onClick={createContest}
                 disabled={!formData.name || !formData.start_date || !formData.end_date}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  padding: isPortrait ? '0.75rem 1rem' : '0.5rem 1rem',
+                  fontSize: isPortrait ? '1rem' : '0.875rem',
+                  minHeight: '44px'
+                }}
               >
                 Create Contest
               </button>

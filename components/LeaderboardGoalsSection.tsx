@@ -52,11 +52,21 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
   fetchGoalProgress
 }) => {
   const [showTierLegend, setShowTierLegend] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isPortrait, setIsPortrait] = useState(window.innerWidth < 480);
 
   React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsPortrait(window.innerWidth < 480);
+    };
+
+    window.addEventListener('resize', handleResize);
     fetchSalesReps();
     fetchAllGoals();
     fetchGoalProgress();
+
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Calculate deadline warning
@@ -156,11 +166,18 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
           </button>
 
           {showTierLegend && (
-            <div style={{ padding: '0 1.5rem 1.5rem', borderTop: '1px solid #262626' }}>
+            <div style={{
+              padding: isPortrait ? '0 1rem 1rem' : '0 1.5rem 1.5rem',
+              borderTop: '1px solid #262626'
+            }}>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                gap: '0.75rem',
+                gridTemplateColumns: isPortrait
+                  ? 'repeat(2, 1fr)'
+                  : isMobile
+                    ? 'repeat(3, 1fr)'
+                    : 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: isPortrait ? '0.5rem' : '0.75rem',
                 marginTop: '1rem'
               }}>
                 {BONUS_TIERS.map((tier) => (
@@ -169,7 +186,7 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                     style={{
                       background: '#0a0a0a',
                       borderRadius: '8px',
-                      padding: '0.75rem',
+                      padding: isPortrait ? '0.5rem' : '0.75rem',
                       border: `2px solid ${tier.color}`,
                       textAlign: 'center'
                     }}
@@ -179,25 +196,41 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                       color: tier.tier >= 4 ? '#000000' : '#ffffff',
                       padding: '0.25rem 0.5rem',
                       borderRadius: '4px',
-                      fontSize: '0.75rem',
+                      fontSize: isPortrait ? '0.625rem' : '0.75rem',
                       fontWeight: '700',
                       marginBottom: '0.5rem',
                       textTransform: 'uppercase'
                     }}>
                       {tier.name}
                     </div>
-                    <div style={{ color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
-                      {tier.minSignups}{tier.maxSignups < 999 ? `-${tier.maxSignups}` : '+'} signups
+                    <div style={{
+                      color: '#ffffff',
+                      fontSize: isPortrait ? '0.75rem' : '0.875rem',
+                      fontWeight: '600',
+                      lineHeight: '1.2'
+                    }}>
+                      {tier.minSignups}{tier.maxSignups < 999 ? `-${tier.maxSignups}` : '+'} {isPortrait ? '' : 'signups'}
                     </div>
                     {tier.bonusDisplay && (
-                      <div style={{ color: '#10b981', fontSize: '1rem', marginTop: '0.25rem', fontWeight: '700' }}>
+                      <div style={{
+                        color: '#10b981',
+                        fontSize: isPortrait ? '0.875rem' : '1rem',
+                        marginTop: '0.25rem',
+                        fontWeight: '700'
+                      }}>
                         {tier.bonusDisplay}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-              <div style={{ color: '#71717a', fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
+              <div style={{
+                color: '#71717a',
+                fontSize: isPortrait ? '0.6875rem' : '0.75rem',
+                marginTop: '1rem',
+                textAlign: 'center',
+                lineHeight: '1.4'
+              }}>
                 Bonuses start at Gold tier (15+ signups). Data syncs from Google Sheets at 8 AM and 8 PM.
               </div>
             </div>
@@ -227,10 +260,19 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
             {editingGoalId ? 'Edit Goal' : 'Set New Goal'}
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isPortrait ? '1fr' : isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '1rem'
+          }}>
             {/* Rep Selection */}
-            <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+            <div style={{ gridColumn: isPortrait ? '1' : 'auto' }}>
+              <label style={{
+                display: 'block',
+                color: '#a1a1aa',
+                fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                marginBottom: '0.5rem'
+              }}>
                 Sales Rep
               </label>
               <select
@@ -239,12 +281,13 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                 disabled={goalsLoading}
                 style={{
                   width: '100%',
-                  padding: '0.75rem 1rem',
+                  padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
                   background: '#1a1a1a',
                   border: '1px solid #262626',
                   borderRadius: '8px',
                   color: '#ffffff',
-                  fontSize: '0.9375rem'
+                  fontSize: isPortrait ? '1rem' : '0.9375rem',
+                  minHeight: '44px'
                 }}
               >
                 <option value="">-- Select Rep --</option>
@@ -258,7 +301,12 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
 
             {/* Monthly Signup Goal */}
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{
+                display: 'block',
+                color: '#a1a1aa',
+                fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                marginBottom: '0.5rem'
+              }}>
                 Monthly Signup Goal
               </label>
               <input
@@ -270,19 +318,25 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                 min="0"
                 style={{
                   width: '100%',
-                  padding: '0.75rem 1rem',
+                  padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
                   background: '#1a1a1a',
                   border: '1px solid #262626',
                   borderRadius: '8px',
                   color: '#ffffff',
-                  fontSize: '0.9375rem'
+                  fontSize: isPortrait ? '1rem' : '0.9375rem',
+                  minHeight: '44px'
                 }}
               />
             </div>
 
             {/* Yearly Revenue Goal */}
-            <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+            <div style={{ gridColumn: isPortrait && isMobile ? '1' : 'auto' }}>
+              <label style={{
+                display: 'block',
+                color: '#a1a1aa',
+                fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                marginBottom: '0.5rem'
+              }}>
                 Yearly Revenue Goal
               </label>
               <div style={{ position: 'relative' }}>
@@ -293,7 +347,8 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                   transform: 'translateY(-50%)',
                   width: '1rem',
                   height: '1rem',
-                  color: '#71717a'
+                  color: '#71717a',
+                  pointerEvents: 'none'
                 }} />
                 <input
                   type="number"
@@ -305,12 +360,13 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                   step="1000"
                   style={{
                     width: '100%',
-                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    padding: isPortrait ? '0.875rem 1rem 0.875rem 2.5rem' : '0.75rem 1rem 0.75rem 2.5rem',
                     background: '#1a1a1a',
                     border: '1px solid #262626',
                     borderRadius: '8px',
                     color: '#ffffff',
-                    fontSize: '0.9375rem'
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    minHeight: '44px'
                   }}
                 />
               </div>
@@ -402,28 +458,148 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
             </button>
           </div>
 
-          {/* Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#0a0a0a' }}>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Rep Name
-                  </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Monthly Goal
-                  </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Yearly Goal
-                  </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Status
-                  </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+          {/* Table - Mobile Card View */}
+          {isMobile ? (
+            <div style={{ padding: '1rem' }}>
+              {allGoals.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#71717a' }}>
+                  No goals set for this month. Set goals above.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {allGoals.map((goal: any) => {
+                    const progress = goalProgress.find((p: any) => p.repId === goal.repId);
+                    const isGoalSet = !!goal.monthlySignupGoal;
+                    const isPastDeadline = isAfterDeadline && !isGoalSet;
+
+                    return (
+                      <div
+                        key={goal.id}
+                        style={{
+                          background: '#0a0a0a',
+                          border: '1px solid #262626',
+                          borderRadius: '8px',
+                          padding: '1rem'
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          marginBottom: '0.75rem'
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: '#ffffff', fontWeight: '600', fontSize: '0.9375rem', marginBottom: '0.25rem' }}>
+                              {goal.repName || 'Unknown'}
+                            </div>
+                            <span style={{
+                              padding: '0.25rem 0.75rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              background: isPastDeadline ? '#7c2d12' : isGoalSet ? '#064e3b' : '#713f12',
+                              color: isPastDeadline ? '#fb923c' : isGoalSet ? '#34d399' : '#fbbf24'
+                            }}>
+                              {isPastDeadline ? 'Deadline Passed' : isGoalSet ? 'Goal Set' : 'Not Set'}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '0.75rem',
+                          marginBottom: '0.75rem'
+                        }}>
+                          <div>
+                            <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                              Monthly Goal
+                            </div>
+                            <div style={{ color: '#ffffff', fontSize: '0.9375rem', fontWeight: '600' }}>
+                              {goal.monthlySignupGoal || '-'}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                              Yearly Goal
+                            </div>
+                            <div style={{ color: '#ffffff', fontSize: '0.9375rem', fontWeight: '600' }}>
+                              ${(goal.yearlyRevenueGoal || 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => {
+                              setEditingGoalId(goal.id);
+                              setSelectedRepForGoal(goal.repId.toString());
+                              setMonthlySignupGoal(goal.monthlySignupGoal?.toString() || '');
+                              setYearlyRevenueGoal(goal.yearlyRevenueGoal?.toString() || '');
+                            }}
+                            style={{
+                              padding: '0.625rem',
+                              background: 'transparent',
+                              border: '1px solid #262626',
+                              borderRadius: '6px',
+                              color: '#3b82f6',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              minWidth: '44px',
+                              minHeight: '44px',
+                              justifyContent: 'center'
+                            }}
+                            title="Edit goal"
+                          >
+                            <Edit2 style={{ width: '1rem', height: '1rem' }} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGoal(goal.id)}
+                            style={{
+                              padding: '0.625rem',
+                              background: 'transparent',
+                              border: '1px solid #7c2d12',
+                              borderRadius: '6px',
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              minWidth: '44px',
+                              minHeight: '44px',
+                              justifyContent: 'center'
+                            }}
+                            title="Delete goal"
+                          >
+                            <Trash2 style={{ width: '1rem', height: '1rem' }} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ background: '#0a0a0a' }}>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Rep Name
+                    </th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Monthly Goal
+                    </th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Yearly Goal
+                    </th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Status
+                    </th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
               <tbody>
                 {allGoals.length === 0 ? (
                   <tr>
@@ -508,6 +684,7 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
               </tbody>
             </table>
           </div>
+          )}
         </div>
 
         {/* Goal Progress Summary */}
@@ -520,7 +697,7 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
           }}>
             <h3 style={{
               color: '#ffffff',
-              fontSize: '1rem',
+              fontSize: isPortrait ? '0.9375rem' : '1rem',
               fontWeight: '600',
               marginBottom: '1rem',
               display: 'flex',
@@ -530,7 +707,15 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
               <Calendar style={{ width: '1rem', height: '1rem', color: '#8b5cf6' }} />
               Progress Summary
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isPortrait
+                ? '1fr'
+                : isMobile
+                  ? 'repeat(2, 1fr)'
+                  : 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: isPortrait ? '0.75rem' : '1rem'
+            }}>
               {goalProgress.map((progress: any) => {
                 const percentage = progress.goal ? (progress.actual / progress.goal * 100).toFixed(1) : 0;
                 const isOnTrack = Number(percentage) >= 80;
