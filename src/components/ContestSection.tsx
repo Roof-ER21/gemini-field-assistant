@@ -309,13 +309,26 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
-        return <Crown className="w-6 h-6 text-yellow-400" />;
+        return <Crown className="w-6 h-6" style={{ color: '#FFD700' }} />;
       case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
+        return <Medal className="w-6 h-6" style={{ color: '#C0C0C0' }} />;
       case 3:
-        return <Medal className="w-6 h-6 text-amber-600" />;
+        return <Medal className="w-6 h-6" style={{ color: '#CD7F32' }} />;
       default:
         return <span className="text-gray-400">#{rank}</span>;
+    }
+  };
+
+  const getContestTypeDescription = (type: string) => {
+    switch (type) {
+      case 'company_wide':
+        return 'All sales reps compete individually, everyone ranked together';
+      case 'team_based':
+        return 'Teams compete against each other, combined team scores';
+      case 'individual':
+        return 'Specific selected individuals compete (not everyone)';
+      default:
+        return '';
     }
   };
 
@@ -362,12 +375,32 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   }, [selectedContest, showCreateModal]);
 
   return (
-    <div style={{
-      padding: isPortrait ? '1rem' : isMobile ? '1.5rem' : '2rem',
-      height: '100%',
-      overflowY: 'auto',
-      background: 'var(--bg-primary, #1a1a1a)'
-    }}>
+    <>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+
+        @keyframes shimmer {
+          0% {
+            background-position: -1000px 0;
+          }
+          100% {
+            background-position: 1000px 0;
+          }
+        }
+      `}</style>
+      <div style={{
+        padding: isPortrait ? '1rem' : isMobile ? '1.5rem' : '2rem',
+        height: '100%',
+        overflowY: 'auto',
+        background: 'var(--bg-primary, #1a1a1a)'
+      }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
       <div className="flex justify-between items-center" style={{
@@ -378,11 +411,17 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
         <div style={{ width: isPortrait ? '100%' : 'auto' }}>
           <h2 className="text-white flex items-center gap-2" style={{
             fontSize: isPortrait ? '1.25rem' : isMobile ? '1.5rem' : '1.875rem',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
           }}>
-            <Trophy className="text-yellow-400" style={{
+            <Trophy style={{
               width: isPortrait ? '1.25rem' : '2rem',
-              height: isPortrait ? '1.25rem' : '2rem'
+              height: isPortrait ? '1.25rem' : '2rem',
+              color: '#FFD700',
+              filter: 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.5))'
             }} />
             Sales Contests
           </h2>
@@ -395,13 +434,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
         {isAdmin && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 text-white rounded-lg transition-all"
             style={{
               padding: isPortrait ? '0.625rem 1rem' : '0.5rem 1rem',
               fontSize: isPortrait ? '0.8125rem' : '0.875rem',
               width: isPortrait ? '100%' : 'auto',
               justifyContent: 'center',
-              minHeight: '44px'
+              minHeight: '44px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
             }}
           >
             <Plus style={{ width: '1.25rem', height: '1.25rem' }} />
@@ -471,9 +512,14 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
               <div
                 key={contest.id}
                 onClick={() => loadContestDetails(contest.id)}
-                className="bg-gray-800/50 rounded-xl border border-gray-700 hover:bg-gray-800 cursor-pointer transition-colors"
+                className="bg-gray-800/50 rounded-xl border cursor-pointer transition-all"
                 style={{
-                  padding: isPortrait ? '1rem' : '1.5rem'
+                  padding: isPortrait ? '1rem' : '1.5rem',
+                  borderColor: status.color === 'green' ? 'rgba(16, 185, 129, 0.5)' : 'rgba(107, 114, 128, 0.5)',
+                  boxShadow: status.color === 'green' ? '0 0 20px rgba(16, 185, 129, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.3)',
+                  background: status.color === 'green'
+                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%)'
+                    : 'rgba(31, 41, 55, 0.5)'
                 }}
               >
                 <div className="flex justify-between items-start mb-4" style={{
@@ -491,18 +537,19 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     )}
                   </div>
                   <span
-                    className={`rounded-full font-medium ${
-                      status.color === 'green'
-                        ? 'bg-green-500/20 text-green-400'
-                        : status.color === 'blue'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}
+                    className="rounded-full font-medium"
                     style={{
                       padding: isPortrait ? '0.375rem 0.75rem' : '0.25rem 0.75rem',
                       fontSize: '0.75rem',
                       alignSelf: isPortrait ? 'flex-start' : 'center',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      background: status.color === 'green'
+                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : status.color === 'blue'
+                        ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                        : 'rgba(107, 114, 128, 0.3)',
+                      color: 'white',
+                      animation: status.color === 'green' ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
                     }}
                   >
                     {status.label}
@@ -623,27 +670,33 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             right: 0,
             bottom: 0,
             zIndex: 9999,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backgroundColor: '#111827',
             padding: isPortrait ? '0.5rem' : '1rem',
             overflowY: 'auto'
           }}
           onClick={() => setSelectedContest(null)}
         >
           <div
-            className="bg-gray-900 rounded-xl border border-gray-700 w-full"
+            className="rounded-xl w-full"
             style={{
               maxWidth: isMobile ? '100%' : '56rem',
               maxHeight: '90vh',
               overflowY: 'auto',
               margin: 'auto',
-              position: 'relative'
+              position: 'relative',
+              background: '#1f2937',
+              border: '2px solid',
+              borderImage: 'linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #10b981 100%) 1',
+              boxShadow: '0 0 40px rgba(255, 215, 0, 0.2)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-700" style={{
+            <div className="sticky top-0 border-b" style={{
               padding: isPortrait ? '1rem' : '1.5rem',
-              zIndex: 10
+              zIndex: 10,
+              background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%)',
+              borderBottom: '1px solid rgba(255, 215, 0, 0.3)'
             }}>
               <div className="flex justify-between items-start" style={{
                 gap: isPortrait ? '0.5rem' : '1rem'
@@ -688,51 +741,81 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 gap: isPortrait ? '0.5rem' : '1rem',
                 marginTop: '1rem'
               }}>
-                <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="rounded-lg p-3" style={{
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)'
+                }}>
                   <div className="text-gray-400 text-xs mb-1">Type</div>
-                  <div className="text-white font-medium">
+                  <div className="text-white font-medium" style={{ fontSize: '0.875rem' }}>
                     {selectedContest.contest_type.replace('_', ' ')}
                   </div>
+                  <div className="text-gray-500" style={{ fontSize: '0.625rem', marginTop: '0.25rem' }}>
+                    {getContestTypeDescription(selectedContest.contest_type)}
+                  </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="rounded-lg p-3" style={{
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)'
+                }}>
                   <div className="text-gray-400 text-xs mb-1">Metric</div>
                   <div className="text-white font-medium">
                     {selectedContest.metric_type === 'both' ? 'Signups + Revenue' : selectedContest.metric_type}
                   </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="rounded-lg p-3" style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)'
+                }}>
                   <div className="text-gray-400 text-xs mb-1">Start</div>
                   <div className="text-white font-medium">{formatDate(selectedContest.start_date)}</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="rounded-lg p-3" style={{
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}>
                   <div className="text-gray-400 text-xs mb-1">End</div>
                   <div className="text-white font-medium">{formatDate(selectedContest.end_date)}</div>
                 </div>
               </div>
 
               {selectedContest.prize_description && (
-                <div className="mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-yellow-400 font-medium mb-2">
-                    <Award className="w-5 h-5" />
+                <div className="mt-4 rounded-lg p-4" style={{
+                  background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 165, 0, 0.15) 100%)',
+                  border: '2px solid #FFD700',
+                  boxShadow: '0 0 20px rgba(255, 215, 0, 0.3)'
+                }}>
+                  <div className="flex items-center gap-2 font-medium mb-2" style={{
+                    color: '#FFD700',
+                    textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
+                  }}>
+                    <Award className="w-5 h-5" style={{ filter: 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.5))' }} />
                     Prize
                   </div>
-                  <p className="text-gray-300">{selectedContest.prize_description}</p>
+                  <p className="text-white font-medium">{selectedContest.prize_description}</p>
                 </div>
               )}
             </div>
 
             {/* My Standing */}
             {myStanding?.standing && (
-              <div className="bg-blue-500/10 border-b border-gray-700" style={{
-                padding: isPortrait ? '1rem' : '1.5rem'
+              <div className="border-b" style={{
+                padding: isPortrait ? '1rem' : '1.5rem',
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)',
+                borderBottom: '1px solid rgba(59, 130, 246, 0.3)',
+                boxShadow: 'inset 0 0 30px rgba(59, 130, 246, 0.1)'
               }}>
-                <h3 className="font-bold text-white mb-3 flex items-center gap-2" style={{
-                  fontSize: isPortrait ? '1rem' : '1.125rem'
+                <h3 className="font-bold mb-3 flex items-center gap-2" style={{
+                  fontSize: isPortrait ? '1rem' : '1.125rem',
+                  background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
                 }}>
                   <Target style={{
                     width: isPortrait ? '1rem' : '1.25rem',
-                    height: isPortrait ? '1rem' : '1.25rem'
-                  }} className="text-blue-400" />
+                    height: isPortrait ? '1rem' : '1.25rem',
+                    color: '#60a5fa'
+                  }} />
                   Your Standing
                 </h3>
                 <div style={{
@@ -740,10 +823,19 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   gridTemplateColumns: isPortrait ? '1fr' : 'repeat(3, 1fr)',
                   gap: isPortrait ? '0.75rem' : '1rem'
                 }}>
-                  <div className="bg-gray-800/50 rounded-lg text-center" style={{
-                    padding: isPortrait ? '0.75rem' : '1rem'
+                  <div className="rounded-lg text-center" style={{
+                    padding: isPortrait ? '0.75rem' : '1rem',
+                    background: myStanding.standing.rank <= 3
+                      ? 'linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 165, 0, 0.15) 100%)'
+                      : 'rgba(31, 41, 55, 0.5)',
+                    border: myStanding.standing.rank <= 3
+                      ? '2px solid #FFD700'
+                      : '1px solid rgba(75, 85, 99, 0.5)',
+                    boxShadow: myStanding.standing.rank <= 3
+                      ? '0 0 20px rgba(255, 215, 0, 0.3)'
+                      : 'none'
                   }}>
-                    <div className="font-bold text-white mb-1" style={{
+                    <div className="font-bold mb-1" style={{
                       fontSize: isPortrait ? '1.5rem' : '1.875rem'
                     }}>
                       {getRankIcon(myStanding.standing.rank)}
@@ -755,11 +847,14 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     </div>
                   </div>
                   {selectedContest.metric_type !== 'revenue' && (
-                    <div className="bg-gray-800/50 rounded-lg text-center" style={{
-                      padding: isPortrait ? '0.75rem' : '1rem'
+                    <div className="rounded-lg text-center" style={{
+                      padding: isPortrait ? '0.75rem' : '1rem',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.5)'
                     }}>
-                      <div className="font-bold text-green-400 mb-1" style={{
-                        fontSize: isPortrait ? '1.5rem' : '1.875rem'
+                      <div className="font-bold mb-1" style={{
+                        fontSize: isPortrait ? '1.5rem' : '1.875rem',
+                        color: '#10b981'
                       }}>
                         {myStanding.standing.signups_count}
                       </div>
@@ -769,12 +864,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     </div>
                   )}
                   {selectedContest.metric_type !== 'signups' && (
-                    <div className="bg-gray-800/50 rounded-lg text-center" style={{
-                      padding: isPortrait ? '0.75rem' : '1rem'
+                    <div className="rounded-lg text-center" style={{
+                      padding: isPortrait ? '0.75rem' : '1rem',
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%)',
+                      border: '1px solid rgba(59, 130, 246, 0.5)'
                     }}>
-                      <div className="font-bold text-blue-400 mb-1" style={{
+                      <div className="font-bold mb-1" style={{
                         fontSize: isPortrait ? '1.125rem' : '1.875rem',
-                        wordBreak: 'break-all'
+                        wordBreak: 'break-all',
+                        color: '#3b82f6'
                       }}>
                         {formatCurrency(parseFloat(myStanding.standing.revenue_amount))}
                       </div>
@@ -807,20 +905,47 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 }}>No standings available yet</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {standings.map((standing) => (
+                  {standings.map((standing) => {
+                    const getPodiumStyle = (rank: number) => {
+                      switch (rank) {
+                        case 1:
+                          return {
+                            background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 165, 0, 0.1) 100%)',
+                            border: '2px solid #FFD700',
+                            boxShadow: '0 0 20px rgba(255, 215, 0, 0.4)',
+                            transform: 'scale(1.02)'
+                          };
+                        case 2:
+                          return {
+                            background: 'linear-gradient(135deg, rgba(192, 192, 192, 0.2) 0%, rgba(169, 169, 169, 0.1) 100%)',
+                            border: '2px solid #C0C0C0',
+                            boxShadow: '0 0 15px rgba(192, 192, 192, 0.3)'
+                          };
+                        case 3:
+                          return {
+                            background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.2) 0%, rgba(184, 115, 51, 0.1) 100%)',
+                            border: '2px solid #CD7F32',
+                            boxShadow: '0 0 15px rgba(205, 127, 50, 0.3)'
+                          };
+                        default:
+                          return {
+                            background: 'rgba(31, 41, 55, 0.5)',
+                            border: '1px solid rgba(75, 85, 99, 0.5)'
+                          };
+                      }
+                    };
+
+                    return (
                     <div
                       key={standing.id}
-                      className={`rounded-lg ${
-                        standing.rank <= 3
-                          ? 'bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/30'
-                          : 'bg-gray-800/50'
-                      }`}
+                      className="rounded-lg transition-all"
                       style={{
                         padding: isPortrait ? '0.75rem' : '1rem',
                         display: 'flex',
                         flexDirection: isPortrait ? 'column' : 'row',
                         alignItems: isPortrait ? 'flex-start' : 'center',
-                        gap: isPortrait ? '0.75rem' : '1rem'
+                        gap: isPortrait ? '0.75rem' : '1rem',
+                        ...getPodiumStyle(standing.rank)
                       }}
                     >
                       <div style={{
@@ -867,8 +992,10 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                       }}>
                         {selectedContest.metric_type !== 'revenue' && (
                           <div>
-                            <div className="font-bold text-green-400" style={{
-                              fontSize: isPortrait ? '1.125rem' : '1.25rem'
+                            <div className="font-bold" style={{
+                              fontSize: isPortrait ? '1.125rem' : '1.25rem',
+                              color: '#10b981',
+                              textShadow: standing.rank <= 3 ? '0 0 8px rgba(16, 185, 129, 0.5)' : 'none'
                             }}>
                               {standing.signups_count}
                             </div>
@@ -879,9 +1006,11 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                         )}
                         {selectedContest.metric_type !== 'signups' && (
                           <div>
-                            <div className="font-bold text-blue-400" style={{
+                            <div className="font-bold" style={{
                               fontSize: isPortrait ? '0.9375rem' : '1.125rem',
-                              wordBreak: 'break-all'
+                              wordBreak: 'break-all',
+                              color: '#3b82f6',
+                              textShadow: standing.rank <= 3 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
                             }}>
                               {formatCurrency(parseFloat(standing.revenue_amount.toString()))}
                             </div>
@@ -892,7 +1021,8 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                         )}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -911,7 +1041,7 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             right: 0,
             bottom: 0,
             zIndex: 9999,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backgroundColor: '#111827',
             padding: isPortrait ? '0.5rem' : '1rem',
             overflowY: 'auto'
           }}
@@ -921,23 +1051,28 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
           }}
         >
           <div
-            className="bg-gray-900 rounded-xl border border-gray-700 w-full"
+            className="rounded-xl w-full"
             style={{
               maxWidth: isMobile ? '100%' : '42rem',
               maxHeight: '90vh',
               overflowY: 'auto',
               margin: 'auto',
-              position: 'relative'
+              position: 'relative',
+              background: '#1f2937',
+              border: '2px solid',
+              borderImage: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%) 1'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="border-b border-gray-700 sticky top-0 bg-gray-900" style={{
+            <div className="border-b sticky top-0" style={{
               padding: isPortrait ? '1rem' : '1.5rem',
               zIndex: 10,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              gap: '1rem'
+              gap: '1rem',
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
+              borderBottom: '1px solid rgba(16, 185, 129, 0.3)'
             }}>
               <h2 className="font-bold text-white" style={{
                 fontSize: isPortrait ? '1.25rem' : '1.5rem'
@@ -984,12 +1119,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                     fontSize: isPortrait ? '1rem' : '0.9375rem',
-                    minHeight: '44px'
+                    minHeight: '44px',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   placeholder="January Sales Blitz"
                 />
               </div>
@@ -1004,12 +1143,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   rows={isPortrait ? 2 : 3}
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
-                    fontSize: isPortrait ? '1rem' : '0.9375rem'
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   placeholder="Compete for the highest signups this month!"
                 />
               </div>
@@ -1024,17 +1167,24 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 <select
                   value={formData.contest_type}
                   onChange={(e) => setFormData({ ...formData, contest_type: e.target.value as any })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                     fontSize: isPortrait ? '1rem' : '0.9375rem',
-                    minHeight: '44px'
+                    minHeight: '44px',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                 >
-                  <option value="company_wide">Company-Wide</option>
-                  <option value="team_based">Team-Based</option>
-                  <option value="individual">Individual</option>
+                  <option value="company_wide" style={{ background: '#374151' }}>Company-Wide (All reps compete individually)</option>
+                  <option value="team_based" style={{ background: '#374151' }}>Team-Based (Teams compete, combined scores)</option>
+                  <option value="individual" style={{ background: '#374151' }}>Individual (Selected people only)</option>
                 </select>
+                <p className="text-gray-400 mt-1" style={{ fontSize: '0.75rem' }}>
+                  {getContestTypeDescription(formData.contest_type)}
+                </p>
               </div>
 
               {/* Metric Type */}
@@ -1047,16 +1197,20 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 <select
                   value={formData.metric_type}
                   onChange={(e) => setFormData({ ...formData, metric_type: e.target.value as any })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                     fontSize: isPortrait ? '1rem' : '0.9375rem',
-                    minHeight: '44px'
+                    minHeight: '44px',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                 >
-                  <option value="signups">Signups Only</option>
-                  <option value="revenue">Revenue Only</option>
-                  <option value="both">Both (Signups + Revenue)</option>
+                  <option value="signups" style={{ background: '#374151' }}>Signups Only</option>
+                  <option value="revenue" style={{ background: '#374151' }}>Revenue Only</option>
+                  <option value="both" style={{ background: '#374151' }}>Both (Signups + Revenue)</option>
                 </select>
               </div>
 
@@ -1076,12 +1230,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     type="date"
                     value={formData.start_date}
                     onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    className="w-full rounded-lg text-white transition-all"
                     style={{
                       padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                       fontSize: isPortrait ? '1rem' : '0.9375rem',
-                      minHeight: '44px'
+                      minHeight: '44px',
+                      background: '#374151',
+                      border: '1px solid rgba(75, 85, 99, 0.5)'
                     }}
+                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                    onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   />
                 </div>
                 <div>
@@ -1094,12 +1252,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     type="date"
                     value={formData.end_date}
                     onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    className="w-full rounded-lg text-white transition-all"
                     style={{
                       padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                       fontSize: isPortrait ? '1rem' : '0.9375rem',
-                      minHeight: '44px'
+                      minHeight: '44px',
+                      background: '#374151',
+                      border: '1px solid rgba(75, 85, 99, 0.5)'
                     }}
+                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                    onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   />
                 </div>
               </div>
@@ -1126,12 +1288,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   type="text"
                   value={formData.prize_description}
                   onChange={(e) => setFormData({ ...formData, prize_description: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
                     fontSize: isPortrait ? '1rem' : '0.9375rem',
-                    minHeight: '44px'
+                    minHeight: '44px',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#FFD700'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   placeholder="$1,000 bonus + trophy"
                 />
               </div>
@@ -1146,12 +1312,16 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 <textarea
                   value={formData.rules}
                   onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="w-full rounded-lg text-white transition-all"
                   rows={isPortrait ? 2 : 3}
                   style={{
                     padding: isPortrait ? '0.875rem 1rem' : '0.5rem 1rem',
-                    fontSize: isPortrait ? '1rem' : '0.9375rem'
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    background: '#374151',
+                    border: '1px solid rgba(75, 85, 99, 0.5)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(75, 85, 99, 0.5)'}
                   placeholder="Contest rules and guidelines..."
                 />
               </div>
@@ -1181,11 +1351,17 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
               <button
                 onClick={createContest}
                 disabled={!formData.name || !formData.start_date || !formData.end_date}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 style={{
                   padding: isPortrait ? '0.75rem 1rem' : '0.5rem 1rem',
                   fontSize: isPortrait ? '1rem' : '0.875rem',
-                  minHeight: '44px'
+                  minHeight: '44px',
+                  background: formData.name && formData.start_date && formData.end_date
+                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    : 'rgba(107, 114, 128, 0.5)',
+                  boxShadow: formData.name && formData.start_date && formData.end_date
+                    ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                    : 'none'
                 }}
               >
                 Create Contest
@@ -1196,5 +1372,6 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
       )}
       </div>
     </div>
+    </>
   );
 }

@@ -30,7 +30,7 @@ import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
 type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
-type QuickActionType = 'email' | 'transcribe' | 'image';
+type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
   activePanel: PanelType;
@@ -282,8 +282,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
 
   const quickActions = [
     { id: 'email', title: 'Email', desc: 'Quick email draft', icon: Mail },
-    { id: 'transcribe', title: 'Voice Note', desc: 'Record & transcribe', icon: Mic },
-    { id: 'image', title: 'Upload', desc: 'Quick file upload', icon: Upload }
+    { id: 'stormmap', title: 'Storm Map', desc: 'Hail history', icon: Cloud },
+    { id: 'leaderboard', title: 'Leaderboard', desc: 'Sales rankings', icon: Trophy }
   ];
 
   return (
@@ -396,7 +396,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
             <div
               key={action.id}
               onClick={() => {
-                if (onQuickAction) {
+                if (action.id === 'email' && onQuickAction) {
                   onQuickAction(action.id as QuickActionType);
                 } else {
                   setActivePanel(action.id as PanelType);
