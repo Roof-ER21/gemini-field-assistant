@@ -110,7 +110,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [comingSoon, setComingSoon] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('monthly_signups');
+  const [sortBy, setSortBy] = useState<SortBy>('all_time_revenue');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -123,7 +123,11 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const currentYear = new Date().getFullYear();
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // 1-indexed
+  const currentDay = currentDate.getDate();
+  const isEarlyMonth = currentDay <= 5; // First 5 days of month
   const yearOptions = Array.from(new Set([currentYear, currentYear - 1])).sort((a, b) => b - a);
   const monthNames = [
     'January',
@@ -872,6 +876,25 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         <div style={{ fontSize: '12px', color: '#71717a', marginBottom: '16px', textAlign: 'right' }}>
           Last updated: {lastUpdate.toLocaleTimeString()}
         </div>
+
+        {/* Early Month Notice */}
+        {isEarlyMonth && !selectedYear && (
+          <div style={{
+            background: 'rgba(234, 179, 8, 0.1)',
+            border: '1px solid rgba(234, 179, 8, 0.3)',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: '16px' }}>📊</span>
+            <span style={{ color: '#eab308', fontSize: '13px' }}>
+              It's early in the month — current period data may be limited. Use the year/month filters to view historical performance.
+            </span>
+          </div>
+        )}
 
         {/* Leaderboard Table */}
         <div style={{ marginBottom: '20px' }}>
