@@ -701,6 +701,13 @@ export function createSheetsService(pool) {
                 const generatedEmail = `${nameLower.replace(/\s+/g, '.')}@theroofdocs.com`;
                 sheetEmails.add(generatedEmail);
                 const existing = existingByName.get(nameLower) || existingByEmail.get(generatedEmail);
+                // Debug check for the problematic value
+                const suspiciousValue = 246747.9;
+                if (data.monthlySignups === suspiciousValue || data.yearlySignups === suspiciousValue ||
+                    data.monthlyRevenue === suspiciousValue || data.yearlyRevenue === suspiciousValue ||
+                    data.allTimeRevenue === suspiciousValue) {
+                    console.warn('[SHEETS] FOUND 246747.9 in data for:', data.name, JSON.stringify(data));
+                }
                 // Ensure all integer values are safe
                 const rawMonthlyGoal = existing?.monthly_signup_goal;
                 const monthlyGoal = Number.isFinite(rawMonthlyGoal) && rawMonthlyGoal > 0 ? Math.floor(rawMonthlyGoal) : 15;
@@ -728,6 +735,28 @@ export function createSheetsService(pool) {
                         console.error('[SHEETS] Invalid existing.id for rep:', data.name, 'id:', existing.id);
                         continue;
                     }
+                    // Log all values being inserted to INTEGER columns
+                    const updateValues = [
+                        data.name,
+                        generatedEmail,
+                        safeMonthlySignups,
+                        safeYearlySignups,
+                        hasEstimates ? safeMonthlyRevenue : null,
+                        safeYearlyRevenue,
+                        safeRevenue2025,
+                        safeRevenue2026,
+                        safeAllTimeRevenue,
+                        goalProgress,
+                        safeBonusTier,
+                        safeExistingId
+                    ];
+                    // Check for the problematic value anywhere in the array
+                    for (let i = 0; i < updateValues.length; i++) {
+                        const val = updateValues[i];
+                        if (val === 246747.9 || val === '246747.9' || String(val) === '246747.9') {
+                            console.error('[SHEETS] FOUND 246747.9 at position', i + 1, 'for rep:', data.name);
+                        }
+                    }
                     try {
                         await pool.query(`UPDATE sales_reps
              SET name = $1,
@@ -743,31 +772,12 @@ export function createSheetsService(pool) {
                  current_bonus_tier = $11,
                  is_active = true,
                  updated_at = NOW()
-             WHERE id = $12`, [
-                            data.name,
-                            generatedEmail,
-                            safeMonthlySignups,
-                            safeYearlySignups,
-                            hasEstimates ? safeMonthlyRevenue : null,
-                            safeYearlyRevenue,
-                            safeRevenue2025,
-                            safeRevenue2026,
-                            safeAllTimeRevenue,
-                            goalProgress,
-                            safeBonusTier,
-                            safeExistingId
-                        ]);
+             WHERE id = $12`, updateValues);
                         updated += 1;
                         repIdByName.set(nameLower, safeExistingId);
                     }
                     catch (updateError) {
-                        console.error('[SHEETS] UPDATE failed for rep:', data.name, 'with values:', {
-                            monthlySignups: safeMonthlySignups,
-                            yearlySignups: safeYearlySignups,
-                            goalProgress,
-                            bonusTier: safeBonusTier,
-                            existingId: safeExistingId
-                        });
+                        console.error('[SHEETS] UPDATE failed for rep:', data.name, 'values:', JSON.stringify(updateValues));
                         throw updateError;
                     }
                 }
@@ -782,6 +792,32 @@ export function createSheetsService(pool) {
                     const safeRevenue2025 = Number.isFinite(data.revenue2025) ? data.revenue2025 : 0;
                     const safeRevenue2026 = Number.isFinite(data.revenue2026) ? data.revenue2026 : 0;
                     const safeAllTimeRevenue = Number.isFinite(data.allTimeRevenue) ? data.allTimeRevenue : 0;
+                    const insertValues = [
+                        data.name,
+                        generatedEmail,
+                        'Unassigned',
+                        'Sales Representative',
+                        null,
+                        hasEstimates ? safeMonthlyRevenue : 0,
+                        safeYearlyRevenue,
+                        safeRevenue2025,
+                        safeRevenue2026,
+                        safeAllTimeRevenue,
+                        safeMonthlySignups,
+                        safeYearlySignups,
+                        goalProgress,
+                        safeMonthlyGoal,
+                        180,
+                        safeBonusTier,
+                        true
+                    ];
+                    // Check for the problematic value anywhere in the array
+                    for (let i = 0; i < insertValues.length; i++) {
+                        const val = insertValues[i];
+                        if (val === 246747.9 || val === '246747.9' || String(val) === '246747.9') {
+                            console.error('[SHEETS] FOUND 246747.9 at INSERT position', i + 1, 'for rep:', data.name);
+                        }
+                    }
                     try {
                         const insertResult = await pool.query(`INSERT INTO sales_reps (
               name, email, team, title, avatar,
@@ -796,25 +832,7 @@ export function createSheetsService(pool) {
               $13, $14, $15,
               $16, $17
             )
-            RETURNING id`, [
-                            data.name,
-                            generatedEmail,
-                            'Unassigned',
-                            'Sales Representative',
-                            null,
-                            hasEstimates ? safeMonthlyRevenue : 0,
-                            safeYearlyRevenue,
-                            safeRevenue2025,
-                            safeRevenue2026,
-                            safeAllTimeRevenue,
-                            safeMonthlySignups,
-                            safeYearlySignups,
-                            goalProgress,
-                            safeMonthlyGoal,
-                            180,
-                            safeBonusTier,
-                            true
-                        ]);
+            RETURNING id`, insertValues);
                         created += 1;
                         const newId = insertResult.rows[0]?.id;
                         if (newId) {
@@ -826,15 +844,7 @@ export function createSheetsService(pool) {
                         }
                     }
                     catch (insertError) {
-                        console.error('[SHEETS] INSERT failed for rep:', data.name, 'with values:', {
-                            monthlyRevenue: hasEstimates ? safeMonthlyRevenue : 0,
-                            yearlyRevenue: safeYearlyRevenue,
-                            monthlySignups: safeMonthlySignups,
-                            yearlySignups: safeYearlySignups,
-                            goalProgress,
-                            monthlyGoal: safeMonthlyGoal,
-                            bonusTier: safeBonusTier
-                        });
+                        console.error('[SHEETS] INSERT failed for rep:', data.name, 'values:', JSON.stringify(insertValues));
                         throw insertError;
                     }
                 }
