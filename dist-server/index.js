@@ -142,14 +142,22 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiting - General API protection
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    max: 500, // Limit each IP to 500 requests per windowMs (increased from 100)
     message: 'Too many requests from this IP, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
+        const path = req.path || '';
+        // Skip rate limiting for high-frequency read endpoints
+        if (path === '/health' || path === '/api/health')
+            return true;
+        if (path.startsWith('/leaderboard') || path.startsWith('/api/leaderboard'))
+            return true;
+        if (path === '/users/me' || path === '/api/users/me')
+            return true;
+        // Original skips for GET requests
         if (req.method !== 'GET')
             return false;
-        const path = req.path || '';
         return (path === '/chat/learning' ||
             path === '/learning/global' ||
             path.startsWith('/chat/feedback/followups'));
