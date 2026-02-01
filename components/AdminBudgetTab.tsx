@@ -618,10 +618,10 @@ const AdminBudgetTab: React.FC = () => {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Company Budget</div>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7', marginBottom: '8px' }}>
-            ${overview?.companySpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${(overview?.companySpend ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: '13px', color: '#71717a', marginBottom: '12px' }}>
-            of ${overview?.companyBudget.toLocaleString()}
+            of ${(overview?.companyBudget ?? 0).toLocaleString()}
           </div>
           <div style={{
             width: '100%',
@@ -644,7 +644,7 @@ const AdminBudgetTab: React.FC = () => {
             marginTop: '8px',
             textAlign: 'right'
           }}>
-            {overview?.companyPercentUsed.toFixed(1)}% used
+            {(overview?.companyPercentUsed ?? 0).toFixed(1)}% used
           </div>
         </div>
 
@@ -669,7 +669,7 @@ const AdminBudgetTab: React.FC = () => {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Total Spend This Month</div>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
-            ${overview?.totalSpendThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${(overview?.totalSpendThisMonth ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
 
@@ -694,7 +694,7 @@ const AdminBudgetTab: React.FC = () => {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Avg Cost per Call</div>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
-            ${overview?.avgCostPerCall.toFixed(3)}
+            ${(overview?.avgCostPerCall ?? 0).toFixed(3)}
           </div>
         </div>
 
@@ -719,7 +719,7 @@ const AdminBudgetTab: React.FC = () => {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Total API Calls</div>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
-            {overview?.totalApiCalls.toLocaleString()}
+            {(overview?.totalApiCalls ?? 0).toLocaleString()}
           </div>
         </div>
 
@@ -787,7 +787,7 @@ const AdminBudgetTab: React.FC = () => {
             {overview?.mostExpensiveProvider}
           </div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: '#991b1b' }}>
-            ${overview?.mostExpensiveProviderCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${(overview?.mostExpensiveProviderCost ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>
@@ -1458,7 +1458,7 @@ const AdminBudgetTab: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              setNewCompanyBudget(overview?.companyBudget.toString() || '');
+              setNewCompanyBudget((overview?.companyBudget ?? 0).toString() || '');
               setShowBudgetModal(true);
             }}
             style={{
@@ -1491,7 +1491,7 @@ const AdminBudgetTab: React.FC = () => {
           <div>
             <div style={{ fontSize: '14px', color: '#a1a1aa', marginBottom: '8px' }}>Current Budget</div>
             <div style={{ fontSize: '36px', fontWeight: 700, color: '#e4e4e7' }}>
-              ${overview?.companyBudget.toLocaleString()}
+              ${(overview?.companyBudget ?? 0).toLocaleString()}
             </div>
           </div>
           <div style={{ flex: 1 }}>
@@ -1512,8 +1512,8 @@ const AdminBudgetTab: React.FC = () => {
               }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#a1a1aa' }}>
-              <span>${overview?.companySpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent</span>
-              <span>{overview?.companyPercentUsed.toFixed(1)}% used</span>
+              <span>${(overview?.companySpend ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent</span>
+              <span>{(overview?.companyPercentUsed ?? 0).toFixed(1)}% used</span>
             </div>
           </div>
         </div>
