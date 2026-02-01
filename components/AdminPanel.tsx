@@ -792,7 +792,7 @@ const AdminPanel: React.FC = () => {
     if (!selectedConversation || !messages.length) return;
 
     const conversationText = messages
-      .map(msg => `[${new Date(msg.created_at).toLocaleString()}] ${msg.sender.toUpperCase()}: ${msg.content}`)
+      .map(msg => `[${msg.created_at ? new Date(msg.created_at).toLocaleString() : 'Unknown'}] ${msg.sender?.toUpperCase() || 'UNKNOWN'}: ${msg.content || ''}`)
       .join('\n\n');
 
     const blob = new Blob([conversationText], { type: 'text/plain' });
@@ -2448,7 +2448,7 @@ const AdminPanel: React.FC = () => {
                                     gap: '4px'
                                   }}>
                                     <Clock style={{ width: '12px', height: '12px' }} />
-                                    {new Date(msg.created_at).toLocaleString()}
+                                    {msg.created_at ? new Date(msg.created_at).toLocaleString() : 'Unknown'}
                                   </div>
                                 </div>
                               ))

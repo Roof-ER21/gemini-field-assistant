@@ -615,7 +615,7 @@ const AdminAnalyticsTab: React.FC = () => {
         user.uploads,
         user.susan,
         user.kbViews,
-        new Date(user.lastActive).toLocaleString(),
+        user.lastActive ? new Date(user.lastActive).toLocaleString() : 'N/A',
       ]
     );
 
@@ -1525,7 +1525,7 @@ const AdminAnalyticsTab: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{chat.userEmail}</span>
                         <span style={{ fontSize: '12px', color: '#71717a' }}>
-                          {new Date(chat.timestamp).toLocaleString()}
+                          {chat.timestamp ? new Date(chat.timestamp).toLocaleString() : 'Unknown'}
                         </span>
                       </div>
                       <div
