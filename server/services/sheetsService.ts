@@ -142,14 +142,15 @@ export function createSheetsService(pool: Pool) {
     return parseInt(match[1], 10);
   }
 
+  // Tier structure: 0-5 Rookie, 6-10 Bronze, 11-14 Silver, 15-19 Gold, 20-24 Platinum, 25-29 Diamond, 30+ Elite
   function calculateBonusTier(signups: number): number {
-    if (signups >= 40) return 6;
-    if (signups >= 35) return 5;
-    if (signups >= 30) return 4;
-    if (signups >= 25) return 3;
-    if (signups >= 20) return 2;
-    if (signups >= 15) return 1;
-    return 0;
+    if (signups >= 30) return 6;  // Elite
+    if (signups >= 25) return 5;  // Diamond
+    if (signups >= 20) return 4;  // Platinum
+    if (signups >= 15) return 3;  // Gold
+    if (signups >= 11) return 2;  // Silver
+    if (signups >= 6) return 1;   // Bronze
+    return 0;                      // Rookie
   }
 
   function initializeAuth(): void {

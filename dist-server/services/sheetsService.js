@@ -90,20 +90,21 @@ export function createSheetsService(pool) {
             return null;
         return parseInt(match[1], 10);
     }
+    // Tier structure: 0-5 Rookie, 6-10 Bronze, 11-14 Silver, 15-19 Gold, 20-24 Platinum, 25-29 Diamond, 30+ Elite
     function calculateBonusTier(signups) {
-        if (signups >= 40)
-            return 6;
-        if (signups >= 35)
-            return 5;
         if (signups >= 30)
-            return 4;
+            return 6; // Elite
         if (signups >= 25)
-            return 3;
+            return 5; // Diamond
         if (signups >= 20)
-            return 2;
+            return 4; // Platinum
         if (signups >= 15)
-            return 1;
-        return 0;
+            return 3; // Gold
+        if (signups >= 11)
+            return 2; // Silver
+        if (signups >= 6)
+            return 1; // Bronze
+        return 0; // Rookie
     }
     function initializeAuth() {
         const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
