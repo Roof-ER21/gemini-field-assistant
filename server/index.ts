@@ -7909,6 +7909,36 @@ async function processFeedbackFollowups(): Promise<void> {
   }
 }
 
+// Auto-run migrations on server startup
+async function runStartupMigrations() {
+  try {
+    // Create leaderboard_goals table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leaderboard_goals (
+        id SERIAL PRIMARY KEY,
+        sales_rep_id INTEGER NOT NULL,
+        monthly_signup_goal INTEGER NOT NULL CHECK (monthly_signup_goal > 0),
+        yearly_revenue_goal DECIMAL(12, 2) NOT NULL CHECK (yearly_revenue_goal > 0),
+        month VARCHAR(7) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        CONSTRAINT unique_rep_month UNIQUE(sales_rep_id, month)
+      );
+      CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_month ON leaderboard_goals(month);
+      CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_rep ON leaderboard_goals(sales_rep_id);
+    `);
+    console.log('✅ Startup migrations completed');
+  } catch (error: any) {
+    // Ignore "already exists" errors
+    if (!error.message?.includes('already exists')) {
+      console.error('⚠️  Migration warning:', error.message);
+    }
+  }
+}
+
+// Run migrations then start server
+runStartupMigrations().then(() => {
 httpServer.listen(PORT, HOST, () => {
   console.log(`🚀 API Server running on ${HOST}:${PORT}`);
   console.log(`🌐 NODE_ENV=${process.env.NODE_ENV || 'unknown'} PORT=${process.env.PORT || 'unset'}`);
@@ -7935,6 +7965,7 @@ httpServer.listen(PORT, HOST, () => {
   // Process feedback follow-up reminders hourly
   processFeedbackFollowups();
   setInterval(processFeedbackFollowups, 60 * 60 * 1000);
+});
 });
 
 export default app;
