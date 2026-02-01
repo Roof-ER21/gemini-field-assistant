@@ -578,7 +578,8 @@ export function createSheetsService(pool: Pool) {
       await pool.query(query, values);
     } catch (err) {
       console.error('[SHEETS] upsertMonthlyMetrics FAILED. First 6 values:', values.slice(0, 18));
-      throw err;
+      const origError = err as Error;
+      throw new Error(`upsertMonthlyMetrics: ${origError.message}`);
     }
   }
 
@@ -643,7 +644,8 @@ export function createSheetsService(pool: Pool) {
       await pool.query(query, values);
     } catch (err) {
       console.error('[SHEETS] upsertYearlyMetrics FAILED. First 3 values:', values.slice(0, 15));
-      throw err;
+      const origError = err as Error;
+      throw new Error(`upsertYearlyMetrics: ${origError.message}`);
     }
   }
 
@@ -965,7 +967,8 @@ export function createSheetsService(pool: Pool) {
             repIdByName.set(nameLower, safeExistingId);
           } catch (updateError) {
             console.error('[SHEETS] UPDATE failed for rep:', data.name, 'values:', JSON.stringify(updateValues));
-            throw updateError;
+            const origError = updateError as Error;
+            throw new Error(`UPDATE sales_reps for ${data.name}: ${origError.message}`);
           }
         } else {
           // Safe values for INSERT - ensure integers are proper integers
@@ -1040,7 +1043,8 @@ export function createSheetsService(pool: Pool) {
             }
           } catch (insertError) {
             console.error('[SHEETS] INSERT failed for rep:', data.name, 'values:', JSON.stringify(insertValues));
-            throw insertError;
+            const origError = insertError as Error;
+            throw new Error(`INSERT sales_reps for ${data.name}: ${origError.message}`);
           }
         }
       }

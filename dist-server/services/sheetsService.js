@@ -471,7 +471,8 @@ export function createSheetsService(pool) {
         }
         catch (err) {
             console.error('[SHEETS] upsertMonthlyMetrics FAILED. First 6 values:', values.slice(0, 18));
-            throw err;
+            const origError = err;
+            throw new Error(`upsertMonthlyMetrics: ${origError.message}`);
         }
     }
     async function upsertYearlyMetrics(rows) {
@@ -525,7 +526,8 @@ export function createSheetsService(pool) {
         }
         catch (err) {
             console.error('[SHEETS] upsertYearlyMetrics FAILED. First 3 values:', values.slice(0, 15));
-            throw err;
+            const origError = err;
+            throw new Error(`upsertYearlyMetrics: ${origError.message}`);
         }
     }
     async function performFullSync() {
@@ -801,7 +803,8 @@ export function createSheetsService(pool) {
                     }
                     catch (updateError) {
                         console.error('[SHEETS] UPDATE failed for rep:', data.name, 'values:', JSON.stringify(updateValues));
-                        throw updateError;
+                        const origError = updateError;
+                        throw new Error(`UPDATE sales_reps for ${data.name}: ${origError.message}`);
                     }
                 }
                 else {
@@ -868,7 +871,8 @@ export function createSheetsService(pool) {
                     }
                     catch (insertError) {
                         console.error('[SHEETS] INSERT failed for rep:', data.name, 'values:', JSON.stringify(insertValues));
-                        throw insertError;
+                        const origError = insertError;
+                        throw new Error(`INSERT sales_reps for ${data.name}: ${origError.message}`);
                     }
                 }
             }
