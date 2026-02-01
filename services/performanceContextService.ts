@@ -77,6 +77,33 @@ function detectMetricFocus(query: string): 'signups' | 'revenue' | 'both' {
   return 'both';
 }
 
+// Detect if user is asking about a specific time period
+function detectTimePeriod(query: string): { year?: number; month?: number; label: string } {
+  const q = query.toLowerCase();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  // "last month" detection
+  if (q.includes('last month') || q.includes('previous month')) {
+    let lastMonth = currentMonth - 1;
+    let lastYear = currentYear;
+    if (lastMonth === 0) {
+      lastMonth = 12;
+      lastYear = currentYear - 1;
+    }
+    return { year: lastYear, month: lastMonth, label: 'LAST MONTH' };
+  }
+
+  // "this month" or current month
+  if (q.includes('this month') || q.includes('current month')) {
+    return { year: currentYear, month: currentMonth, label: 'THIS MONTH' };
+  }
+
+  // Default - current period
+  return { label: 'THIS MONTH' };
+}
+
 // Keywords that indicate a performance-related query
 const PERFORMANCE_KEYWORDS = [
   // Direct rank questions
@@ -132,11 +159,20 @@ export function isComparativeQuery(query: string): boolean {
 /**
  * Fetch full leaderboard (top performers)
  */
-export async function fetchLeaderboardData(sortBy: string = 'all_time_revenue', limit: number = 15): Promise<LeaderboardData | null> {
+export async function fetchLeaderboardData(
+  sortBy: string = 'all_time_revenue',
+  limit: number = 15,
+  year?: number,
+  month?: number
+): Promise<LeaderboardData | null> {
   try {
     const apiBaseUrl = getApiBaseUrl();
 
-    const response = await fetch(`${apiBaseUrl}/leaderboard?sortBy=${sortBy}&limit=${limit}`, {
+    let url = `${apiBaseUrl}/leaderboard?sortBy=${sortBy}&limit=${limit}`;
+    if (year) url += `&year=${year}`;
+    if (month) url += `&month=${month}`;
+
+    const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json'
       }
@@ -277,6 +313,7 @@ export async function buildPerformanceContext(query: string, userEmail?: string)
   // Check if this is a comparative query (asking about other reps)
   const needsFullLeaderboard = isComparativeQuery(query);
   const metricFocus = detectMetricFocus(query);
+  const timePeriod = detectTimePeriod(query);
 
   // Fetch user's own data
   const data = await fetchPerformanceData(userEmail);
@@ -284,29 +321,67 @@ export async function buildPerformanceContext(query: string, userEmail?: string)
   // Always fetch comprehensive leaderboard data for comparative queries
   let signupsLeaderboard: LeaderboardData | null = null;
   let revenueLeaderboard: LeaderboardData | null = null;
+  let lastMonthSignups: LeaderboardData | null = null;
 
   if (needsFullLeaderboard) {
     console.log('[PerformanceContext] Comparative query - fetching comprehensive leaderboards...');
+    console.log('[PerformanceContext] Time period:', timePeriod);
 
-    // Fetch both leaderboards in parallel for complete knowledge
-    const [signups, revenue] = await Promise.all([
-      fetchLeaderboardData('monthly_signups', 15),
-      fetchLeaderboardData('all_time_revenue', 15)
-    ]);
+    // Fetch leaderboards based on time period
+    if (timePeriod.year && timePeriod.month) {
+      // Fetch for specific time period (e.g., last month)
+      const [signups, revenue] = await Promise.all([
+        fetchLeaderboardData('monthly_signups', 15, timePeriod.year, timePeriod.month),
+        fetchLeaderboardData('all_time_revenue', 15)
+      ]);
+      signupsLeaderboard = signups;
+      revenueLeaderboard = revenue;
+    } else {
+      // Fetch current month + last month for comprehensive data
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      let lastMonth = currentMonth - 1;
+      let lastYear = currentYear;
+      if (lastMonth === 0) {
+        lastMonth = 12;
+        lastYear = currentYear - 1;
+      }
 
-    signupsLeaderboard = signups;
-    revenueLeaderboard = revenue;
+      const [currentSignups, lastSignups, revenue] = await Promise.all([
+        fetchLeaderboardData('monthly_signups', 15),
+        fetchLeaderboardData('monthly_signups', 15, lastYear, lastMonth),
+        fetchLeaderboardData('all_time_revenue', 15)
+      ]);
+
+      signupsLeaderboard = currentSignups;
+      lastMonthSignups = lastSignups;
+      revenueLeaderboard = revenue;
+    }
   }
 
   // Build comprehensive leaderboard context
   let leaderboardBlock = '';
 
-  // Add signups leaderboard
-  if (signupsLeaderboard && signupsLeaderboard.entries.length > 0) {
-    const top10Signups = signupsLeaderboard.entries.slice(0, 10);
+  // Add last month's signups data (most useful for "who did best last month" questions)
+  if (lastMonthSignups && lastMonthSignups.entries.length > 0) {
+    const top10LastMonth = lastMonthSignups.entries.slice(0, 10);
+    const monthName = new Date(0, (new Date().getMonth() === 0 ? 12 : new Date().getMonth()) - 1).toLocaleString('default', { month: 'long' });
     leaderboardBlock += `
 
-[TOP 10 BY MONTHLY SIGNUPS - THIS MONTH]
+[TOP 10 BY SIGNUPS - LAST MONTH (${monthName.toUpperCase()})]
+${top10LastMonth.map((e, i) =>
+  `${i + 1}. ${e.name} - ${e.monthlySignups} signups | $${e.monthlyRevenue.toLocaleString()} revenue | ${e.bonusTier}`
+).join('\n')}
+`;
+  }
+
+  // Add current month signups leaderboard
+  if (signupsLeaderboard && signupsLeaderboard.entries.length > 0) {
+    const top10Signups = signupsLeaderboard.entries.slice(0, 10);
+    const periodLabel = timePeriod.year && timePeriod.month ? timePeriod.label : 'THIS MONTH (FEB)';
+    leaderboardBlock += `
+[TOP 10 BY MONTHLY SIGNUPS - ${periodLabel}]
 ${top10Signups.map((e, i) =>
   `${i + 1}. ${e.name} - ${e.monthlySignups} signups | $${e.monthlyRevenue.toLocaleString()} revenue | ${e.bonusTier}`
 ).join('\n')}
@@ -395,8 +470,10 @@ GUIDANCE: Let them know their performance data isn't available, suggest checking
   // Get #1 from leaderboard data (signups or revenue)
   const topSignupsPerformer = signupsLeaderboard?.entries[0];
   const topRevenuePerformer = revenueLeaderboard?.entries[0];
+  const topLastMonthPerformer = lastMonthSignups?.entries[0];
   const topPerformerName = topRevenuePerformer?.name || topSignupsPerformer?.name || nearbyCompetitors.find(c => c.rank === 1)?.name || 'Check Leaderboard tab';
   const topSignupsName = topSignupsPerformer?.name || 'Check Leaderboard tab';
+  const topLastMonthName = topLastMonthPerformer ? `${topLastMonthPerformer.name} (${topLastMonthPerformer.monthlySignups} signups)` : 'Check Leaderboard tab';
 
   // Build the context block
   return `
@@ -418,8 +495,9 @@ COACHING GUIDANCE:
 - If they ask about rank: Explain #${user.rank} of ${user.totalUsers} means ${percentile} of the team.
 - If they ask about improving: ${competitorBlock ? 'Reference the gap to the next rank.' : 'Focus on consistent daily activity.'}
 - If they ask who's #1 or best in REVENUE: Use the [TOP 10 BY ALL-TIME REVENUE] data above. #1 is ${topPerformerName}.
-- If they ask who's #1 or best in SIGNUPS: Use the [TOP 10 BY MONTHLY SIGNUPS] data above. #1 in signups is ${topSignupsName}.
-- If they ask "who did the best this month" or "last month" for signups: USE THE SIGNUPS LEADERBOARD DATA ABOVE. Give the actual name and numbers.
+- If they ask who's #1 or best in SIGNUPS this month: Use the [TOP 10 BY MONTHLY SIGNUPS] data above. #1 in signups is ${topSignupsName}.
+- If they ask "who did the best LAST MONTH" for signups: USE THE [TOP 10 BY SIGNUPS - LAST MONTH] DATA. #1 last month was ${topLastMonthName}.
+- IMPORTANT: "Last month" = January. "This month" = February. Use the correct data set!
 - Always be encouraging but realistic with the numbers.
 - Connect performance to daily activities (doors knocked, appointments set).
 - IMPORTANT: When you have leaderboard data, use it! Don't say you don't have data if the lists above are populated.
