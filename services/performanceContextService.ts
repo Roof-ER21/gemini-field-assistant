@@ -40,6 +40,32 @@ export interface PerformanceData {
   nearbyCompetitors: NearbyCompetitor[];
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  monthlySignups: number;
+  monthlyRevenue: number;
+  yearlyRevenue: number;
+  allTimeRevenue: number;
+  bonusTier: string;
+  teamName: string | null;
+}
+
+export interface LeaderboardData {
+  entries: LeaderboardEntry[];
+  totalReps: number;
+}
+
+// Keywords that indicate wanting to know about OTHER reps / full leaderboard
+const COMPARATIVE_KEYWORDS = [
+  'who', "who's", 'whos', 'whose',
+  'best', 'top', '#1', 'number 1', 'number one', 'first place',
+  'most signups', 'most revenue', 'most sales',
+  'leader', 'leading', 'winning',
+  'everyone', 'all reps', 'whole team', 'entire team',
+  'last month', 'this month', 'best performer'
+];
+
 // Keywords that indicate a performance-related query
 const PERFORMANCE_KEYWORDS = [
   // Direct rank questions
@@ -80,6 +106,59 @@ export function isPerformanceQuery(query: string): boolean {
   return PERFORMANCE_KEYWORDS.some(keyword =>
     normalizedQuery.includes(keyword)
   );
+}
+
+/**
+ * Detect if a query is asking about other reps / full leaderboard
+ */
+export function isComparativeQuery(query: string): boolean {
+  const normalizedQuery = query.toLowerCase();
+  return COMPARATIVE_KEYWORDS.some(keyword =>
+    normalizedQuery.includes(keyword)
+  );
+}
+
+/**
+ * Fetch full leaderboard (top performers)
+ */
+export async function fetchLeaderboardData(sortBy: string = 'all_time_revenue', limit: number = 15): Promise<LeaderboardData | null> {
+  try {
+    const apiBaseUrl = getApiBaseUrl();
+
+    const response = await fetch(`${apiBaseUrl}/leaderboard?sortBy=${sortBy}&limit=${limit}`, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('[PerformanceContext] Failed to fetch leaderboard:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.entries) {
+      return null;
+    }
+
+    return {
+      entries: data.entries.map((e: any, idx: number) => ({
+        rank: e.rank || idx + 1,
+        name: e.name,
+        monthlySignups: Number(e.monthly_signups) || 0,
+        monthlyRevenue: Number(e.monthly_revenue) || 0,
+        yearlyRevenue: Number(e.yearly_revenue) || 0,
+        allTimeRevenue: Number(e.all_time_revenue) || 0,
+        bonusTier: e.bonus_tier_name || 'Rookie',
+        teamName: e.team_name || null
+      })),
+      totalReps: data.count || data.entries.length
+    };
+  } catch (error) {
+    console.error('[PerformanceContext] Error fetching leaderboard:', error);
+    return null;
+  }
 }
 
 /**
@@ -183,9 +262,46 @@ export async function buildPerformanceContext(query: string, userEmail?: string)
   }
 
   console.log('[PerformanceContext] Performance query detected, fetching data...');
+
+  // Check if this is a comparative query (asking about other reps)
+  const needsFullLeaderboard = isComparativeQuery(query);
+
+  // Fetch user's own data
   const data = await fetchPerformanceData(userEmail);
 
+  // Fetch full leaderboard if asking about others
+  let leaderboardData: LeaderboardData | null = null;
+  if (needsFullLeaderboard) {
+    console.log('[PerformanceContext] Comparative query - fetching full leaderboard...');
+    leaderboardData = await fetchLeaderboardData('all_time_revenue', 15);
+  }
+
+  // Build leaderboard context if we have it
+  let leaderboardBlock = '';
+  if (leaderboardData && leaderboardData.entries.length > 0) {
+    const top10 = leaderboardData.entries.slice(0, 10);
+    leaderboardBlock = `
+
+[FULL LEADERBOARD - TOP 10 BY ALL-TIME REVENUE]
+${top10.map((e, i) =>
+  `${i + 1}. ${e.name} - $${e.allTimeRevenue.toLocaleString()} all-time | ${e.monthlySignups} signups this month | ${e.bonusTier}${e.teamName ? ` | ${e.teamName}` : ''}`
+).join('\n')}
+
+Total Active Reps: ${leaderboardData.totalReps}
+`;
+  }
+
   if (!data || !data.user) {
+    // Even without user data, we can still provide leaderboard info
+    if (leaderboardBlock) {
+      return `
+
+[PERFORMANCE DATA - USER NOT SYNCED]
+This user is not yet in the leaderboard system.
+${leaderboardBlock}
+GUIDANCE: You have the full leaderboard data above to answer questions about top performers, #1, who did best, etc. If they ask about their own rank, explain they're not yet synced with the sales tracking system.
+`;
+    }
     return `
 
 [PERFORMANCE DATA - UNAVAILABLE]
@@ -241,6 +357,10 @@ GUIDANCE: Let them know their performance data isn't available, suggest checking
 - Appointments Set: ${user.appointmentsSet30d}`;
   }
 
+  // Get #1 from leaderboard data or nearby competitors
+  const topPerformer = leaderboardData?.entries[0] || nearbyCompetitors.find(c => c.rank === 1);
+  const topPerformerName = topPerformer ? topPerformer.name : 'Check Leaderboard tab';
+
   // Build the context block
   return `
 
@@ -255,12 +375,13 @@ ${tierInfo}
 Player Level: ${user.playerLevel}
 Goal Progress: ${user.goalProgress.toFixed(0)}%
 Current Streak: ${user.currentStreak} day${user.currentStreak !== 1 ? 's' : ''}${teamBlock}${competitorBlock}${activityBlock}
-
+${leaderboardBlock}
 COACHING GUIDANCE:
 - If they ask "how am I doing?": Give honest assessment based on rank/metrics. Celebrate being in ${percentile}. ${user.rank <= 10 ? 'They are a top performer!' : user.rank <= 20 ? 'Solid performance, encourage pushing for top 10.' : 'Room for growth - focus on daily consistency.'}
 - If they ask about rank: Explain #${user.rank} of ${user.totalUsers} means ${percentile} of the team.
 - If they ask about improving: ${competitorBlock ? 'Reference the gap to the next rank.' : 'Focus on consistent daily activity.'}
-- If they ask who's #1: ${nearbyCompetitors.find(c => c.rank === 1) ? `#1 is ${nearbyCompetitors.find(c => c.rank === 1)?.name}` : 'Suggest checking the Leaderboard tab for full rankings.'}
+- If they ask who's #1 or best performer: #1 is ${topPerformerName}. Use the leaderboard data above if available.
+- If they ask "who did the best" for signups/revenue: Reference the leaderboard data above.
 - Always be encouraging but realistic with the numbers.
 - Connect performance to daily activities (doors knocked, appointments set).
 `;
@@ -268,6 +389,8 @@ COACHING GUIDANCE:
 
 export default {
   isPerformanceQuery,
+  isComparativeQuery,
   fetchPerformanceData,
+  fetchLeaderboardData,
   buildPerformanceContext
 };
