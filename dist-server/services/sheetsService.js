@@ -783,7 +783,7 @@ export function createSheetsService(pool) {
                         safeBonusTier,
                         safeExistingId
                     ];
-                    // Debug Basel Halim specifically - throw early to see data in error
+                    // Debug Basel Halim specifically
                     if (data.name.toLowerCase().includes('basel')) {
                         const baselDebug = {
                             updateValues: updateValues.map((v, i) => `$${i + 1}=${v}(${typeof v})`),
@@ -791,7 +791,7 @@ export function createSheetsService(pool) {
                             existing: { id: existing.id, monthly_signup_goal: existing.monthly_signup_goal },
                             computed: { safeBonusTier, safeExistingId, goalProgress, bonusTier }
                         };
-                        throw new Error(`BASEL_DEBUG: ${JSON.stringify(baselDebug).substring(0, 800)}`);
+                        console.log('[SHEETS] BASEL_DEBUG:', JSON.stringify(baselDebug));
                     }
                     // Check for the problematic value anywhere in the array
                     for (let i = 0; i < updateValues.length; i++) {
