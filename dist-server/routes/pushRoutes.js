@@ -132,6 +132,8 @@ router.get('/preferences', async (req, res) => {
                     impactAlertsEnabled: true,
                     teamMentionAlerts: true,
                     teamMessageAlerts: true,
+                    checkinAlertsEnabled: true,
+                    checkinProximityMiles: null,
                     quietHoursEnabled: false,
                     quietHoursStart: '22:00',
                     quietHoursEnd: '07:00',
@@ -148,6 +150,8 @@ router.get('/preferences', async (req, res) => {
                 impactAlertsEnabled: prefs.impact_alerts_enabled,
                 teamMentionAlerts: prefs.team_mention_alerts,
                 teamMessageAlerts: prefs.team_message_alerts,
+                checkinAlertsEnabled: prefs.checkin_alerts_enabled !== false,
+                checkinProximityMiles: prefs.checkin_proximity_miles,
                 quietHoursEnabled: prefs.quiet_hours_enabled,
                 quietHoursStart: prefs.quiet_hours_start,
                 quietHoursEnd: prefs.quiet_hours_end,
@@ -171,6 +175,8 @@ router.get('/preferences', async (req, res) => {
  *   impactAlertsEnabled?: boolean;
  *   teamMentionAlerts?: boolean;
  *   teamMessageAlerts?: boolean;
+ *   checkinAlertsEnabled?: boolean;
+ *   checkinProximityMiles?: number | null;
  *   quietHoursEnabled?: boolean;
  *   quietHoursStart?: string;
  *   quietHoursEnd?: string;
@@ -188,7 +194,7 @@ router.put('/preferences', async (req, res) => {
         if (!userId) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const { allNotificationsEnabled, stormAlertsEnabled, impactAlertsEnabled, teamMentionAlerts, teamMessageAlerts, quietHoursEnabled, quietHoursStart, quietHoursEnd, timezone } = req.body;
+        const { allNotificationsEnabled, stormAlertsEnabled, impactAlertsEnabled, teamMentionAlerts, teamMessageAlerts, checkinAlertsEnabled, checkinProximityMiles, quietHoursEnabled, quietHoursStart, quietHoursEnd, timezone } = req.body;
         // Build dynamic update query
         const updateFields = [];
         const values = [];
@@ -199,6 +205,8 @@ router.put('/preferences', async (req, res) => {
             impactAlertsEnabled: 'impact_alerts_enabled',
             teamMentionAlerts: 'team_mention_alerts',
             teamMessageAlerts: 'team_message_alerts',
+            checkinAlertsEnabled: 'checkin_alerts_enabled',
+            checkinProximityMiles: 'checkin_proximity_miles',
             quietHoursEnabled: 'quiet_hours_enabled',
             quietHoursStart: 'quiet_hours_start',
             quietHoursEnd: 'quiet_hours_end',

@@ -274,6 +274,10 @@ export class PushNotificationService {
                     if (!prefs.team_message_alerts)
                         return false;
                     break;
+                case 'checkin_alert':
+                    if (prefs.checkin_alerts_enabled === false)
+                        return false;
+                    break;
             }
             // Check quiet hours
             if (prefs.quiet_hours_enabled && prefs.quiet_hours_start && prefs.quiet_hours_end) {
