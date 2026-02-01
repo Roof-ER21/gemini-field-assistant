@@ -385,9 +385,25 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const signupsLabelShort = selectedYear
     ? (selectedMonth ? `${monthNames[selectedMonth - 1]} Signups` : `${selectedYear} Signups`)
     : 'Signups';
-  const revenueLabelShort = selectedYear
+  const revenueLabelShort = sortBy === 'all_time_revenue'
+    ? 'All-Time Rev'
+    : sortBy === 'yearly_revenue'
+    ? 'Yearly Rev'
+    : selectedYear
     ? (selectedMonth ? `${monthNames[selectedMonth - 1]} Revenue` : `${selectedYear} Revenue`)
     : 'Revenue';
+
+  // Get the appropriate revenue value based on sort selection
+  const getDisplayRevenue = (entry: { monthly_revenue: number; yearly_revenue: number; all_time_revenue: number }): number => {
+    switch (sortBy) {
+      case 'all_time_revenue':
+        return entry.all_time_revenue;
+      case 'yearly_revenue':
+        return entry.yearly_revenue;
+      default:
+        return entry.monthly_revenue;
+    }
+  };
 
   const getSortLabel = (sort: SortBy): string => {
     switch (sort) {
@@ -607,7 +623,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               <div>
                 <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>{revenueLabelShort}</div>
                 <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                  {formatCurrency(safeNum(currentUser.user.monthly_revenue))}
+                  {formatCurrency(safeNum(getDisplayRevenue(currentUser.user)))}
                 </div>
               </div>
               <div>
@@ -1044,7 +1060,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                           {revenueLabelShort}
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#10b981' }}>
-                          {formatCurrency(entry.monthly_revenue)}
+                          {formatCurrency(getDisplayRevenue(entry))}
                         </div>
                       </div>
                       <div>
