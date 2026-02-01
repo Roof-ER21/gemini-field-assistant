@@ -121,7 +121,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "https://*.tile.openstreetmap.org"],
       connectSrc: [
         "'self'",
         "wss:",
@@ -133,7 +133,8 @@ app.use(helmet({
         "https://fonts.gstatic.com",
         "https://nominatim.openstreetmap.org",
         "https://api.interactivehailmaps.com",
-        "https://maps.interactivehailmaps.com"
+        "https://maps.interactivehailmaps.com",
+        "https://*.tile.openstreetmap.org"
       ],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],

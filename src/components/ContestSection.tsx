@@ -349,6 +349,18 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const isMobile = windowWidth < 768;
   const isPortrait = windowWidth < 480;
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (selectedContest || showCreateModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedContest, showCreateModal]);
+
   return (
     <div style={{
       padding: isPortrait ? '1rem' : isMobile ? '1.5rem' : '2rem',
@@ -602,15 +614,36 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
       {/* Contest Details Modal */}
       {selectedContest && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" style={{
-          padding: isPortrait ? '0.5rem' : '1rem'
-        }}>
-          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-h-[90vh] overflow-y-auto" style={{
-            maxWidth: isMobile ? '100%' : '56rem'
-          }}>
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            padding: isPortrait ? '0.5rem' : '1rem',
+            overflowY: 'auto'
+          }}
+          onClick={() => setSelectedContest(null)}
+        >
+          <div
+            className="bg-gray-900 rounded-xl border border-gray-700 w-full"
+            style={{
+              maxWidth: isMobile ? '100%' : '56rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              margin: 'auto',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="sticky top-0 bg-gray-900 border-b border-gray-700" style={{
-              padding: isPortrait ? '1rem' : '1.5rem'
+              padding: isPortrait ? '1rem' : '1.5rem',
+              zIndex: 10
             }}>
               <div className="flex justify-between items-start" style={{
                 gap: isPortrait ? '0.5rem' : '1rem'
@@ -628,18 +661,22 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 </div>
                 <button
                   onClick={() => setSelectedContest(null)}
-                  className="text-gray-400 hover:text-white flex-shrink-0"
+                  className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
                   style={{
                     minWidth: '44px',
                     minHeight: '44px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer'
                   }}
                 >
                   <XCircle style={{
-                    width: isPortrait ? '1.25rem' : '1.5rem',
-                    height: isPortrait ? '1.25rem' : '1.5rem'
+                    width: isPortrait ? '1.5rem' : '1.75rem',
+                    height: isPortrait ? '1.5rem' : '1.75rem'
                   }} />
                 </button>
               </div>
@@ -865,18 +902,69 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
       {/* Create Contest Modal */}
       {showCreateModal && isAdmin && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" style={{
-          padding: isPortrait ? '0.5rem' : '1rem'
-        }}>
-          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-h-[90vh] overflow-y-auto" style={{
-            maxWidth: isMobile ? '100%' : '42rem'
-          }}>
-            <div className="border-b border-gray-700" style={{
-              padding: isPortrait ? '1rem' : '1.5rem'
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            padding: isPortrait ? '0.5rem' : '1rem',
+            overflowY: 'auto'
+          }}
+          onClick={() => {
+            setShowCreateModal(false);
+            resetForm();
+          }}
+        >
+          <div
+            className="bg-gray-900 rounded-xl border border-gray-700 w-full"
+            style={{
+              maxWidth: isMobile ? '100%' : '42rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              margin: 'auto',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-gray-700 sticky top-0 bg-gray-900" style={{
+              padding: isPortrait ? '1rem' : '1.5rem',
+              zIndex: 10,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '1rem'
             }}>
               <h2 className="font-bold text-white" style={{
                 fontSize: isPortrait ? '1.25rem' : '1.5rem'
               }}>Create New Contest</h2>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
+                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                style={{
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  cursor: 'pointer'
+                }}
+              >
+                <XCircle style={{
+                  width: isPortrait ? '1.5rem' : '1.75rem',
+                  height: isPortrait ? '1.5rem' : '1.75rem'
+                }} />
+              </button>
             </div>
 
             <div style={{

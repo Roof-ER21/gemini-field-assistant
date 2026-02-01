@@ -613,7 +613,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             </div>
 
             {/* Quick Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 100px), 1fr))', gap: '12px' }}>
               <div>
                 <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '2px' }}>{signupsLabelShort}</div>
                 <div style={{ fontSize: '20px', fontWeight: 700 }}>
@@ -641,7 +641,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
         {/* Quick Stats Grid */}
         {stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px', marginBottom: '20px' }}>
             <div style={{
               background: '#111',
               border: '1px solid #1a1a1a',
@@ -697,9 +697,9 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         )}
 
         {/* Controls */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%', overflowX: 'hidden' }}>
           {/* Sort Dropdown */}
-          <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 'min(100%, 200px)' }}>
             <button
               onClick={() => setShowSortDropdown(!showSortDropdown)}
               style={{
@@ -775,7 +775,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           </div>
 
           {/* Year Filter */}
-          <div style={{ minWidth: '160px' }}>
+          <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
             <select
               value={selectedYear ? String(selectedYear) : ''}
               onChange={(e) => {
@@ -797,7 +797,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           </div>
 
           {/* Month Filter */}
-          <div style={{ minWidth: '170px' }}>
+          <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
             <select
               value={selectedMonth ? String(selectedMonth) : ''}
               onChange={(e) => {
@@ -824,7 +824,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
           {/* Team Filter */}
           {teams.length > 0 && (
-            <div style={{ minWidth: '150px' }}>
+            <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
               <select
                 value={selectedTeamId ? String(selectedTeamId) : ''}
                 onChange={(e) => {
@@ -845,7 +845,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
           {/* Territory Filter */}
           {territories.length > 0 && (
-            <div style={{ minWidth: '150px' }}>
+            <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
               <select
                 value={selectedTerritoryId ? String(selectedTerritoryId) : ''}
                 onChange={(e) => {
@@ -869,7 +869,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             onClick={fetchLeaderboardData}
             disabled={isRefreshing}
             style={{
-              padding: '12px 16px',
+              padding: '12px',
               background: '#111',
               border: '1px solid #1a1a1a',
               borderRadius: '8px',
@@ -881,7 +881,9 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               alignItems: 'center',
               gap: '8px',
               opacity: isRefreshing ? 0.7 : 1,
-              transition: 'opacity 0.2s'
+              transition: 'opacity 0.2s',
+              minHeight: '44px',
+              flexShrink: 0
             }}
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -1042,7 +1044,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                     {/* Stats Grid */}
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 80px), 1fr))',
                       gap: '12px',
                       paddingTop: '12px',
                       borderTop: '1px solid #1a1a1a'
@@ -1084,7 +1086,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                     {/* Additional Stats Row */}
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 80px), 1fr))',
                       gap: '12px',
                       paddingTop: '8px',
                       fontSize: '11px',

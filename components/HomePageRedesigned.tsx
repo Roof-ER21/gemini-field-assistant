@@ -441,7 +441,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         </p>
       </div>
 
-      <div style={{ padding: '1.5rem' }}>
+      <div style={{ padding: '1rem', maxWidth: '100%', boxSizing: 'border-box' }}>
         {/* Goal Progress Section */}
         <section style={{ marginBottom: '2rem' }}>
           <h2 style={{
@@ -459,7 +459,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
             gap: '1.5rem'
           }}>
             {/* Monthly Signup Goal Card */}
@@ -742,7 +742,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
             gap: '1rem'
           }}>
             <div style={{
@@ -851,7 +851,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
             gap: '1rem'
           }}>
             {quickActions.map((action) => {

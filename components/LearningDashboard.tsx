@@ -214,7 +214,7 @@ const LearningDashboard: React.FC = () => {
 
   return (
     <div className="roof-er-content-area">
-      <div className="roof-er-content-scroll" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+      <div className="roof-er-content-scroll" style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
             <h1 className="roof-er-page-title" style={{ marginBottom: '0.35rem' }}>Susan Learning Dashboard</h1>
@@ -264,7 +264,7 @@ const LearningDashboard: React.FC = () => {
 
         {summary && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
                   <TrendingUp className="w-4 h-4" style={{ color: '#22c55e' }} />
@@ -283,7 +283,7 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Weekly Insight</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
@@ -304,7 +304,7 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Top “Working” Tags</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
@@ -354,7 +354,7 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Working Tag Clusters</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -386,7 +386,7 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Recent Wins</div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
@@ -416,7 +416,7 @@ const LearningDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
               <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Your Memory</div>
                 {memoryLoading && (

@@ -86,6 +86,12 @@ function MapController({ selectedTerritory, searchLocation }: MapControllerProps
 
   useEffect(() => {
     if (searchLocation) {
+      // Validate search location coordinates
+      if (!searchLocation.lat || !searchLocation.lng ||
+          isNaN(searchLocation.lat) || isNaN(searchLocation.lng)) {
+        console.warn('Invalid search location coordinates:', searchLocation);
+        return;
+      }
       // Auto-zoom to search location
       map.flyTo(
         [searchLocation.lat, searchLocation.lng],
@@ -93,6 +99,14 @@ function MapController({ selectedTerritory, searchLocation }: MapControllerProps
         { duration: 1.5, easeLinearity: 0.25 }
       );
     } else if (selectedTerritory) {
+      // Validate territory bounds
+      if (!selectedTerritory.south_lat || !selectedTerritory.north_lat ||
+          !selectedTerritory.west_lng || !selectedTerritory.east_lng ||
+          isNaN(selectedTerritory.south_lat) || isNaN(selectedTerritory.north_lat) ||
+          isNaN(selectedTerritory.west_lng) || isNaN(selectedTerritory.east_lng)) {
+        console.warn('Invalid territory bounds:', selectedTerritory);
+        return;
+      }
       const bounds = new LatLngBounds(
         [selectedTerritory.south_lat, selectedTerritory.west_lng],
         [selectedTerritory.north_lat, selectedTerritory.east_lng]
@@ -145,6 +159,12 @@ const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; typ
   events.forEach(item => {
     const lat = item.event.latitude;
     const lng = item.event.longitude;
+
+    // Validate coordinates before grouping
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      console.warn('Skipping event with invalid coordinates:', item.event.id);
+      return;
+    }
 
     let found = groups.find(g =>
       Math.abs(g.lat - lat) < 0.05 && Math.abs(g.lng - lng) < 0.05
@@ -607,6 +627,11 @@ export default function TerritoryHailMap() {
     const eventsByDate = new Map<string, (HailEvent | NOAAEvent)[]>();
 
     ihmEvents.forEach(event => {
+      // Validate event coordinates before adding
+      if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
+        console.warn('Skipping IHM event with invalid coordinates in storm path:', event.id);
+        return;
+      }
       const dateKey = event.date.split('T')[0];
       if (!eventsByDate.has(dateKey)) {
         eventsByDate.set(dateKey, []);
@@ -615,6 +640,11 @@ export default function TerritoryHailMap() {
     });
 
     noaaEvs.forEach(event => {
+      // Validate event coordinates before adding
+      if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
+        console.warn('Skipping NOAA event with invalid coordinates in storm path:', event.id);
+        return;
+      }
       const dateKey = event.date.split('T')[0];
       if (!eventsByDate.has(dateKey)) {
         eventsByDate.set(dateKey, []);
@@ -627,9 +657,18 @@ export default function TerritoryHailMap() {
     let pathId = 0;
 
     eventsByDate.forEach((events, dateKey) => {
+      // Skip if no valid events for this date
+      if (events.length === 0) return;
+
       // Calculate center point (average of all events on this date)
       const centerLat = events.reduce((sum, e) => sum + e.latitude, 0) / events.length;
       const centerLng = events.reduce((sum, e) => sum + e.longitude, 0) / events.length;
+
+      // Validate calculated center
+      if (!centerLat || !centerLng || isNaN(centerLat) || isNaN(centerLng)) {
+        console.warn('Skipping storm path with invalid center:', dateKey);
+        return;
+      }
 
       // Determine severity (highest severity among events)
       let maxSeverity: 'severe' | 'moderate' | 'minor' = 'minor';
@@ -2015,97 +2054,128 @@ export default function TerritoryHailMap() {
           })}
 
           {/* Territory Rectangles */}
-          {territories.map(t => (
-            <Rectangle
-              key={t.id}
-              bounds={[
-                [t.south_lat, t.west_lng],
-                [t.north_lat, t.east_lng]
-              ]}
-              pathOptions={{
-                color: t.color,
-                weight: selectedTerritory?.id === t.id ? 3 : 2,
-                fillOpacity: selectedTerritory?.id === t.id ? 0.2 : 0.1,
-                dashArray: selectedTerritory?.id === t.id ? undefined : '5, 5'
-              }}
-              eventHandlers={{
-                click: () => handleTerritoryClick(t)
-              }}
-            >
-              <Popup>
-                <div style={{ minWidth: '150px' }}>
-                  <strong style={{ fontSize: '14px' }}>{t.name}</strong>
-                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#666' }}>
-                    {t.description}
-                  </p>
-                  <button
-                    onClick={() => handleTerritoryClick(t)}
-                    style={{
-                      marginTop: '8px',
-                      padding: '6px 12px',
-                      background: t.color,
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      width: '100%'
-                    }}
-                  >
-                    View Storm History
-                  </button>
-                </div>
-              </Popup>
-            </Rectangle>
-          ))}
+          {territories
+            .filter(t => {
+              // Filter out territories with invalid coordinates
+              if (!t.south_lat || !t.north_lat || !t.west_lng || !t.east_lng) {
+                console.warn('Territory missing coordinates:', t.name, t.id);
+                return false;
+              }
+              if (isNaN(t.south_lat) || isNaN(t.north_lat) || isNaN(t.west_lng) || isNaN(t.east_lng)) {
+                console.warn('Territory has invalid coordinates:', t.name, t.id);
+                return false;
+              }
+              return true;
+            })
+            .map(t => (
+              <Rectangle
+                key={t.id}
+                bounds={[
+                  [t.south_lat, t.west_lng],
+                  [t.north_lat, t.east_lng]
+                ]}
+                pathOptions={{
+                  color: t.color,
+                  weight: selectedTerritory?.id === t.id ? 3 : 2,
+                  fillOpacity: selectedTerritory?.id === t.id ? 0.2 : 0.1,
+                  dashArray: selectedTerritory?.id === t.id ? undefined : '5, 5'
+                }}
+                eventHandlers={{
+                  click: () => handleTerritoryClick(t)
+                }}
+              >
+                <Popup>
+                  <div style={{ minWidth: '150px' }}>
+                    <strong style={{ fontSize: '14px' }}>{t.name}</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#666' }}>
+                      {t.description}
+                    </p>
+                    <button
+                      onClick={() => handleTerritoryClick(t)}
+                      style={{
+                        marginTop: '8px',
+                        padding: '6px 12px',
+                        background: t.color,
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      View Storm History
+                    </button>
+                  </div>
+                </Popup>
+              </Rectangle>
+            ))}
 
           {/* Individual IHM Event Markers */}
-          {hailEvents.map((event, idx) => {
-            const eventId = `ihm-${event.id || idx}`;
-            const isSelected = selectedEventId === eventId;
-            const severityColor = getSeverityColorFromSize(event.hailSize);
+          {hailEvents
+            .filter(event => {
+              // Filter out events with invalid coordinates
+              if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
+                console.warn('IHM event has invalid coordinates:', event.id);
+                return false;
+              }
+              return true;
+            })
+            .map((event, idx) => {
+              const eventId = `ihm-${event.id || idx}`;
+              const isSelected = selectedEventId === eventId;
+              const severityColor = getSeverityColorFromSize(event.hailSize);
 
-            return (
-              <CircleMarker
-                key={eventId}
-                center={[event.latitude, event.longitude]}
-                radius={isSelected ? 8 : 6}
-                pathOptions={{
-                  color: 'white',
-                  fillColor: severityColor,
-                  fillOpacity: 1,
-                  weight: isSelected ? 3 : 2
-                }}
-                eventHandlers={{
-                  click: () => handleEventCardClick(event, event.latitude, event.longitude)
-                }}
-              />
-            );
-          })}
+              return (
+                <CircleMarker
+                  key={eventId}
+                  center={[event.latitude, event.longitude]}
+                  radius={isSelected ? 8 : 6}
+                  pathOptions={{
+                    color: 'white',
+                    fillColor: severityColor,
+                    fillOpacity: 1,
+                    weight: isSelected ? 3 : 2
+                  }}
+                  eventHandlers={{
+                    click: () => handleEventCardClick(event, event.latitude, event.longitude)
+                  }}
+                />
+              );
+            })}
 
           {/* Individual NOAA Event Markers */}
-          {noaaEvents.map((event, idx) => {
-            const eventId = `noaa-${event.id || idx}`;
-            const isSelected = selectedEventId === eventId;
-            const severityColor = getSeverityColorFromSize(event.magnitude);
+          {noaaEvents
+            .filter(event => {
+              // Filter out events with invalid coordinates
+              if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
+                console.warn('NOAA event has invalid coordinates:', event.id);
+                return false;
+              }
+              return true;
+            })
+            .map((event, idx) => {
+              const eventId = `noaa-${event.id || idx}`;
+              const isSelected = selectedEventId === eventId;
+              const severityColor = getSeverityColorFromSize(event.magnitude);
 
-            return (
-              <CircleMarker
-                key={eventId}
-                center={[event.latitude, event.longitude]}
-                radius={isSelected ? 8 : 6}
-                pathOptions={{
-                  color: 'white',
-                  fillColor: severityColor,
-                  fillOpacity: 1,
-                  weight: isSelected ? 3 : 2
-                }}
-                eventHandlers={{
-                  click: () => handleEventCardClick(event, event.latitude, event.longitude)
-                }}
-              />
-            );
-          })}
+              return (
+                <CircleMarker
+                  key={eventId}
+                  center={[event.latitude, event.longitude]}
+                  radius={isSelected ? 8 : 6}
+                  pathOptions={{
+                    color: 'white',
+                    fillColor: severityColor,
+                    fillOpacity: 1,
+                    weight: isSelected ? 3 : 2
+                  }}
+                  eventHandlers={{
+                    click: () => handleEventCardClick(event, event.latitude, event.longitude)
+                  }}
+                />
+              );
+            })}
 
           {/* Search Area Highlight - Draw circle around search location */}
           {currentSearch && currentSearch.latitude && currentSearch.longitude && currentSearch.radius && (

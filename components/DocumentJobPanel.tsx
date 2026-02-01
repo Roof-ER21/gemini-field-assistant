@@ -561,7 +561,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   const renderStatsBar = () => (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
       gap: '1rem',
       padding: '1rem 1.5rem',
       background: 'rgba(220, 38, 38, 0.05)',
@@ -938,7 +938,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           {/* AI Integration Actions - Prominent */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
             gap: '0.75rem',
           }}>
             <button
@@ -1198,7 +1198,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               <User style={{ width: '1.25rem', height: '1.25rem' }} /> Customer Information
             </h3>
             <FormInputField label="Customer Name" value={editingJob.customer?.name} onChange={(v) => updateJobField('customer.name', v)} placeholder="John Smith" required />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
               <FormInputField label="Phone" value={editingJob.customer?.phone} onChange={(v) => updateJobField('customer.phone', v)} type="tel" placeholder="(555) 123-4567" />
               <FormInputField label="Email" value={editingJob.customer?.email} onChange={(v) => updateJobField('customer.email', v)} type="email" placeholder="john@email.com" />
             </div>
@@ -1226,7 +1226,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               <Home style={{ width: '1.25rem', height: '1.25rem' }} /> Property Details
             </h3>
             <FormInputField label="Street Address" value={editingJob.property?.address} onChange={(v) => updateJobField('property.address', v)} placeholder="123 Main Street" required />
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: '1rem' }}>
               <FormInputField label="City" value={editingJob.property?.city} onChange={(v) => updateJobField('property.city', v)} placeholder="Richmond" required />
               <FormSelectField
                 label="State"
@@ -1253,7 +1253,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#71717a', fontSize: '1rem' }}>
               <Briefcase style={{ width: '1.25rem', height: '1.25rem' }} /> Job Details
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
               <FormSelectField
                 label="Status"
                 value={editingJob.status}
@@ -1304,11 +1304,11 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               onChange={(v) => updateJobField('insurance.company', v)}
               options={INSURANCE_COMPANIES.map(c => ({ value: c, label: c }))}
             />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
               <FormInputField label="Claim Number" value={editingJob.insurance?.claimNumber} onChange={(v) => updateJobField('insurance.claimNumber', v)} placeholder="CLM-12345" />
               <FormInputField label="Adjuster Name" value={editingJob.insurance?.adjusterName} onChange={(v) => updateJobField('insurance.adjusterName', v)} placeholder="Jane Doe" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
               <FormInputField label="Adjuster Phone" value={editingJob.insurance?.adjusterPhone} onChange={(v) => updateJobField('insurance.adjusterPhone', v)} type="tel" />
               <FormInputField label="Deductible" value={editingJob.insurance?.deductible} onChange={(v) => updateJobField('insurance.deductible', v)} type="number" placeholder="1000" />
             </div>
@@ -1373,7 +1373,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             </div>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
               gap: '0.75rem',
             }}>
               <button
@@ -1540,7 +1540,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 <div
                   key={stage.id}
                   style={{
-                    width: '280px',
+                    width: 'min(280px, calc(100vw - 3rem))',
                     flexShrink: 0,
                     display: 'flex',
                     flexDirection: 'column',

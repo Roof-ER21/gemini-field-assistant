@@ -1,0 +1,296 @@
+/**
+ * Mobile Responsiveness Enhancements
+ * Applied globally across all panel components
+ */
+
+/* Base mobile styles for all panels */
+@media (max-width: 768px) {
+  /* Prevent horizontal scroll */
+  body, #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Touch-friendly button sizes */
+  button, a, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Responsive padding */
+  .roof-er-content-scroll {
+    padding: 1rem !important;
+  }
+
+  .roof-er-page-title {
+    font-size: 1.25rem !important;
+  }
+
+  /* Forms responsive */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Grid layouts should stack on mobile */
+  [style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Flex layouts should wrap */
+  [style*="display: flex"] {
+    flex-wrap: wrap !important;
+  }
+}
+
+/* Portrait phone (< 480px) */
+@media (max-width: 480px) {
+  /* Reduce padding further */
+  .roof-er-content-scroll {
+    padding: 0.75rem !important;
+  }
+
+  /* Stack filter buttons */
+  .roof-er-input-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  /* Full-width dropdowns */
+  .roof-er-dropdown {
+    width: 100% !important;
+  }
+
+  /* Reduce font sizes */
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  h3 {
+    font-size: 1.125rem !important;
+  }
+
+  /* Modal/Dialog full width */
+  .modal-content,
+  .dialog-content {
+    width: calc(100vw - 2rem) !important;
+    max-width: none !important;
+    margin: 1rem !important;
+  }
+
+  /* Tables should scroll horizontally */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Cards should be full width */
+  .card,
+  [class*="card"] {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
+
+/* HomePageRedesigned mobile specific */
+@media (max-width: 768px) {
+  /* Circular progress should scale down */
+  .circular-progress {
+    transform: scale(0.8);
+  }
+
+  /* Quick actions grid */
+  #quick-actions-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* LeaderboardPanel mobile specific */
+@media (max-width: 768px) {
+  /* User rank card should be more compact */
+  .user-rank-card {
+    padding: 1rem !important;
+  }
+
+  /* Stats should stack 2x2 */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Leaderboard entries more compact */
+  .leaderboard-entry {
+    padding: 0.75rem !important;
+  }
+
+  /* Filters should stack */
+  .leaderboard-filters {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .leaderboard-filters > * {
+    width: 100% !important;
+  }
+}
+
+/* DocumentJobPanel mobile specific */
+@media (max-width: 768px) {
+  /* Kanban columns should be slightly narrower */
+  .kanban-column {
+    width: min(260px, calc(100vw - 2rem)) !important;
+  }
+
+  /* Job form sections */
+  .job-form-section {
+    padding: 1rem !important;
+  }
+
+  /* AI action buttons */
+  .ai-action-buttons {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* MessagingPanel mobile specific */
+@media (max-width: 768px) {
+  /* Conversation view should be full screen */
+  .conversation-view {
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
+  /* Message input area */
+  .message-input-container {
+    padding: 0.75rem !important;
+  }
+}
+
+/* ChatPanel mobile specific */
+@media (max-width: 768px) {
+  /* Chat messages */
+  .chat-message {
+    max-width: 100% !important;
+    padding: 0.75rem !important;
+  }
+
+  /* Input area */
+  .chat-input-area {
+    padding: 0.75rem !important;
+  }
+
+  /* File attachments */
+  .file-attachment {
+    width: 100% !important;
+  }
+
+  /* State selector */
+  .state-selector {
+    width: 100% !important;
+  }
+}
+
+/* LearningDashboard mobile specific */
+@media (max-width: 768px) {
+  /* Window selectors */
+  .window-selector {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Learning cards */
+  .learning-card {
+    padding: 0.75rem !important;
+  }
+
+  /* Feedback tags */
+  .feedback-tags {
+    justify-content: flex-start !important;
+  }
+
+  /* Memory items */
+  .memory-item {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Utility classes for mobile */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  .mobile-center {
+    text-align: center !important;
+  }
+
+  .mobile-padding-sm {
+    padding: 0.5rem !important;
+  }
+
+  .mobile-padding-md {
+    padding: 1rem !important;
+  }
+
+  .mobile-gap-sm {
+    gap: 0.5rem !important;
+  }
+}
+
+/* Prevent text size adjustments */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Smooth scrolling on mobile */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Accessibility - larger tap targets on mobile */
+@media (max-width: 768px) and (pointer: coarse) {
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"],
+  .clickable {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px;
+  }
+}
