@@ -3342,6 +3342,129 @@ app.get('/api/admin/goals/reps', async (req, res) => {
   }
 });
 
+// GET /api/admin/goals/progress - Get goal progress for all reps (leaderboard)
+// IMPORTANT: Must come BEFORE /api/admin/goals/:repId to avoid route matching collision
+app.get('/api/admin/goals/progress', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const result = await pool.query(`
+      SELECT
+        sr.id as sales_rep_id,
+        sr.name as rep_name,
+        sr.email as rep_email,
+        sr.team,
+        sr.monthly_signups as current_signups,
+        sr.monthly_signup_goal as default_goal,
+        lg.id as goal_id,
+        lg.monthly_signup_goal,
+        lg.yearly_revenue_goal,
+        CASE
+          WHEN lg.monthly_signup_goal IS NOT NULL THEN
+            ROUND((sr.monthly_signups::numeric / lg.monthly_signup_goal::numeric) * 100, 1)
+          WHEN sr.monthly_signup_goal > 0 THEN
+            ROUND((sr.monthly_signups::numeric / sr.monthly_signup_goal::numeric) * 100, 1)
+          ELSE 0
+        END as progress_percentage,
+        CASE
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal THEN 'achieved'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal THEN 'achieved'
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.75 THEN 'on_track'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.75 THEN 'on_track'
+          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.5 THEN 'behind'
+          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.5 THEN 'behind'
+          ELSE 'critical'
+        END as status
+      FROM sales_reps sr
+      LEFT JOIN leaderboard_goals lg ON sr.id = lg.sales_rep_id AND lg.month = $1
+      WHERE sr.is_active = true
+      ORDER BY progress_percentage DESC NULLS LAST, sr.name
+    `, [currentMonth]);
+
+    res.json({
+      month: currentMonth,
+      progress: result.rows,
+      total: result.rows.length,
+      summary: {
+        achieved: result.rows.filter(r => r.status === 'achieved').length,
+        onTrack: result.rows.filter(r => r.status === 'on_track').length,
+        behind: result.rows.filter(r => r.status === 'behind').length,
+        critical: result.rows.filter(r => r.status === 'critical').length,
+        noGoal: result.rows.filter(r => !r.goal_id).length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching goal progress:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/admin/goals/bonus/trigger - Manually trigger bonus for a rep
+// IMPORTANT: Must come BEFORE /api/admin/goals/:repId to avoid route matching collision
+// Note: Full bonus tracking will be implemented in a future release
+app.post('/api/admin/goals/bonus/trigger', async (req, res) => {
+  try {
+    const requestingEmail = getRequestEmail(req);
+    const adminCheck = await isAdmin(requestingEmail);
+    if (!adminCheck) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { salesRepId, month } = req.body;
+
+    if (!salesRepId) {
+      return res.status(400).json({ error: 'salesRepId is required' });
+    }
+
+    // Get rep details
+    const repResult = await pool.query(
+      'SELECT id, name, monthly_signups, monthly_signup_goal FROM sales_reps WHERE id = $1',
+      [salesRepId]
+    );
+    if (repResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Sales rep not found' });
+    }
+
+    const rep = repResult.rows[0];
+    const goal = rep.monthly_signup_goal || DEFAULT_MONTHLY_SIGNUP_GOAL;
+    const progress = rep.monthly_signups || 0;
+    const percentage = goal > 0 ? Math.round((progress / goal) * 100) : 0;
+
+    // Check if goal is achieved
+    if (percentage < 100) {
+      return res.status(400).json({
+        error: 'Goal not yet achieved',
+        currentProgress: percentage,
+        required: 100
+      });
+    }
+
+    console.log(`[Admin] ${requestingEmail} acknowledged bonus for rep ${salesRepId} (${rep.name})`);
+
+    res.json({
+      success: true,
+      message: 'Bonus acknowledged successfully',
+      rep: {
+        id: salesRepId,
+        name: rep.name,
+        signups: progress,
+        goal: goal,
+        percentage: percentage
+      }
+    });
+  } catch (error) {
+    console.error('Error triggering bonus:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // GET /api/admin/goals - List all rep goals with optional filters
 app.get('/api/admin/goals', async (req, res) => {
   try {
@@ -3448,6 +3571,7 @@ app.post('/api/admin/goals', async (req, res) => {
 });
 
 // GET /api/admin/goals/:repId - Get specific rep's goals and progress
+// IMPORTANT: Must come AFTER specific routes like /progress and /bonus/trigger
 app.get('/api/admin/goals/:repId', async (req, res) => {
   try {
     const requestingEmail = getRequestEmail(req);
@@ -3562,127 +3686,6 @@ app.delete('/api/admin/goals/:goalId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting goal:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// GET /api/admin/goals/progress - Get goal progress for all reps (leaderboard)
-app.get('/api/admin/goals/progress', async (req, res) => {
-  try {
-    const requestingEmail = getRequestEmail(req);
-    const adminCheck = await isAdmin(requestingEmail);
-    if (!adminCheck) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-    const result = await pool.query(`
-      SELECT
-        sr.id as sales_rep_id,
-        sr.name as rep_name,
-        sr.email as rep_email,
-        sr.team,
-        sr.monthly_signups as current_signups,
-        sr.monthly_signup_goal as default_goal,
-        lg.id as goal_id,
-        lg.monthly_signup_goal,
-        lg.yearly_revenue_goal,
-        CASE
-          WHEN lg.monthly_signup_goal IS NOT NULL THEN
-            ROUND((sr.monthly_signups::numeric / lg.monthly_signup_goal::numeric) * 100, 1)
-          WHEN sr.monthly_signup_goal > 0 THEN
-            ROUND((sr.monthly_signups::numeric / sr.monthly_signup_goal::numeric) * 100, 1)
-          ELSE 0
-        END as progress_percentage,
-        CASE
-          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal THEN 'achieved'
-          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal THEN 'achieved'
-          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.75 THEN 'on_track'
-          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.75 THEN 'on_track'
-          WHEN lg.monthly_signup_goal IS NOT NULL AND sr.monthly_signups >= lg.monthly_signup_goal * 0.5 THEN 'behind'
-          WHEN sr.monthly_signup_goal > 0 AND sr.monthly_signups >= sr.monthly_signup_goal * 0.5 THEN 'behind'
-          ELSE 'critical'
-        END as status
-      FROM sales_reps sr
-      LEFT JOIN leaderboard_goals lg ON sr.id = lg.sales_rep_id AND lg.month = $1
-      WHERE sr.is_active = true
-      ORDER BY progress_percentage DESC NULLS LAST, sr.name
-    `, [currentMonth]);
-
-    res.json({
-      month: currentMonth,
-      progress: result.rows,
-      total: result.rows.length,
-      summary: {
-        achieved: result.rows.filter(r => r.status === 'achieved').length,
-        onTrack: result.rows.filter(r => r.status === 'on_track').length,
-        behind: result.rows.filter(r => r.status === 'behind').length,
-        critical: result.rows.filter(r => r.status === 'critical').length,
-        noGoal: result.rows.filter(r => !r.goal_id).length
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching goal progress:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// POST /api/admin/goals/bonus/trigger - Manually trigger bonus for a rep
-// Note: Full bonus tracking will be implemented in a future release
-app.post('/api/admin/goals/bonus/trigger', async (req, res) => {
-  try {
-    const requestingEmail = getRequestEmail(req);
-    const adminCheck = await isAdmin(requestingEmail);
-    if (!adminCheck) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const { salesRepId, month } = req.body;
-
-    if (!salesRepId) {
-      return res.status(400).json({ error: 'salesRepId is required' });
-    }
-
-    // Get rep details
-    const repResult = await pool.query(
-      'SELECT id, name, monthly_signups, monthly_signup_goal FROM sales_reps WHERE id = $1',
-      [salesRepId]
-    );
-    if (repResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Sales rep not found' });
-    }
-
-    const rep = repResult.rows[0];
-    const goal = rep.monthly_signup_goal || DEFAULT_MONTHLY_SIGNUP_GOAL;
-    const progress = rep.monthly_signups || 0;
-    const percentage = goal > 0 ? Math.round((progress / goal) * 100) : 0;
-
-    // Check if goal is achieved
-    if (percentage < 100) {
-      return res.status(400).json({
-        error: 'Goal not yet achieved',
-        currentProgress: percentage,
-        required: 100
-      });
-    }
-
-    console.log(`[Admin] ${requestingEmail} acknowledged bonus for rep ${salesRepId} (${rep.name})`);
-
-    res.json({
-      success: true,
-      message: 'Bonus acknowledged successfully',
-      rep: {
-        id: salesRepId,
-        name: rep.name,
-        signups: progress,
-        goal: goal,
-        percentage: percentage
-      }
-    });
-  } catch (error) {
-    console.error('Error triggering bonus:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
