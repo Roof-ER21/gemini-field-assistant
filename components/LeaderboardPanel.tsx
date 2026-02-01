@@ -35,6 +35,11 @@ interface CombinedLeaderboardEntry {
   name: string;
   email: string;
   team: string | null;
+  team_id: number | null;
+  team_name: string | null;
+  territory_id: number | null;
+  territory_name: string | null;
+  is_team_leader: boolean;
   // RoofTrack data
   monthly_revenue: number;
   yearly_revenue: number;
@@ -51,6 +56,19 @@ interface CombinedLeaderboardEntry {
   doors_knocked_30d: number;
   leads_generated_30d: number;
   appointments_set_30d: number;
+}
+
+interface Team {
+  id: number;
+  name: string;
+  leader_name: string | null;
+  member_count: number;
+}
+
+interface Territory {
+  id: number;
+  name: string;
+  rep_count: number;
 }
 
 interface UserRankInfo {
@@ -99,6 +117,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState<number | null>(null);
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from(new Set([currentYear, currentYear - 1])).sort((a, b) => b - a);
@@ -126,7 +148,38 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [sortBy, userEmail, selectedYear, selectedMonth]);
+  }, [sortBy, userEmail, selectedYear, selectedMonth, selectedTeamId, selectedTerritoryId]);
+
+  // Fetch teams and territories on mount
+  useEffect(() => {
+    const fetchTeamsAndTerritories = async () => {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        const [teamsRes, territoriesRes] = await Promise.all([
+          fetch(`${apiBaseUrl}/leaderboard/teams`, { headers }),
+          fetch(`${apiBaseUrl}/leaderboard/territories`, { headers })
+        ]);
+
+        if (teamsRes.ok) {
+          const teamsData = await teamsRes.json();
+          if (teamsData.success && teamsData.teams) {
+            setTeams(teamsData.teams);
+          }
+        }
+
+        if (territoriesRes.ok) {
+          const territoriesData = await territoriesRes.json();
+          if (territoriesData.success && territoriesData.territories) {
+            setTerritories(territoriesData.territories);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching teams/territories:', err);
+      }
+    };
+
+    fetchTeamsAndTerritories();
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const loadRole = async () => {
@@ -170,6 +223,12 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
       }
       if (selectedYear && selectedMonth) {
         params.set('month', String(selectedMonth));
+      }
+      if (selectedTeamId) {
+        params.set('teamId', String(selectedTeamId));
+      }
+      if (selectedTerritoryId) {
+        params.set('territoryId', String(selectedTerritoryId));
       }
 
       const queryString = params.toString();
@@ -740,6 +799,48 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             </select>
           </div>
 
+          {/* Team Filter */}
+          {teams.length > 0 && (
+            <div style={{ minWidth: '150px' }}>
+              <select
+                value={selectedTeamId ? String(selectedTeamId) : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedTeamId(value ? parseInt(value, 10) : null);
+                }}
+                style={filterSelectStyle}
+              >
+                <option value="">All Teams</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name} ({team.member_count})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Territory Filter */}
+          {territories.length > 0 && (
+            <div style={{ minWidth: '150px' }}>
+              <select
+                value={selectedTerritoryId ? String(selectedTerritoryId) : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedTerritoryId(value ? parseInt(value, 10) : null);
+                }}
+                style={filterSelectStyle}
+              >
+                <option value="">All Territories</option>
+                {territories.map((terr) => (
+                  <option key={terr.id} value={terr.id}>
+                    {terr.name} ({terr.rep_count})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Refresh Button */}
           <button
             onClick={fetchLeaderboardData}
@@ -818,11 +919,26 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
                       {/* Name & Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '4px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                           {entry.name}
+                          {entry.is_team_leader && (
+                            <span style={{
+                              padding: '2px 8px',
+                              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: '#000',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Crown className="w-3 h-3" />
+                              LEAD
+                            </span>
+                          )}
                           {isCurrentUser && (
                             <span style={{
-                              marginLeft: '8px',
                               padding: '2px 8px',
                               background: '#dc2626',
                               borderRadius: '4px',
@@ -833,11 +949,23 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                             </span>
                           )}
                         </div>
-                        {entry.team && (
-                          <div style={{ fontSize: '12px', color: '#71717a' }}>
-                            {entry.team}
-                          </div>
-                        )}
+                        <div style={{ fontSize: '12px', color: '#71717a', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {entry.team_name && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Users className="w-3 h-3" />
+                              {entry.team_name}
+                            </span>
+                          )}
+                          {entry.territory_name && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Target className="w-3 h-3" />
+                              {entry.territory_name}
+                            </span>
+                          )}
+                          {!entry.team_name && !entry.territory_name && entry.team && (
+                            <span>{entry.team}</span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Tier Badge */}
