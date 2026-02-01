@@ -395,19 +395,44 @@ export function createLeaderboardService(geminiPool: Pool) {
     }
 
     entries.sort((a, b) => {
+      let comparison = 0;
+
+      // Primary sort by requested field
       switch (sortBy) {
         case 'monthly_revenue':
-          return b.monthly_revenue - a.monthly_revenue;
+          comparison = b.monthly_revenue - a.monthly_revenue;
+          break;
         case 'yearly_revenue':
-          return b.yearly_revenue - a.yearly_revenue;
+          comparison = b.yearly_revenue - a.yearly_revenue;
+          break;
         case 'all_time_revenue':
-          return b.all_time_revenue - a.all_time_revenue;
+          comparison = b.all_time_revenue - a.all_time_revenue;
+          break;
         case 'doors_knocked':
-          return b.doors_knocked_30d - a.doors_knocked_30d;
+          comparison = b.doors_knocked_30d - a.doors_knocked_30d;
+          break;
         case 'monthly_signups':
         default:
-          return b.monthly_signups - a.monthly_signups;
+          comparison = b.monthly_signups - a.monthly_signups;
+          break;
       }
+
+      // Tiebreaker 1: all_time_revenue (career performance)
+      if (comparison === 0) {
+        comparison = b.all_time_revenue - a.all_time_revenue;
+      }
+
+      // Tiebreaker 2: yearly_revenue
+      if (comparison === 0) {
+        comparison = b.yearly_revenue - a.yearly_revenue;
+      }
+
+      // Tiebreaker 3: alphabetical by name for consistency
+      if (comparison === 0) {
+        comparison = a.name.localeCompare(b.name);
+      }
+
+      return comparison;
     });
 
     return entries.slice(0, limit).map((entry, index) => ({
