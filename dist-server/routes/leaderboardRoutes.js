@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { createLeaderboardService } from '../services/leaderboardService.js';
 import { createSheetsService } from '../services/sheetsService.js';
+import { syncTeamsFromNeon, getTeams, getTerritories, getTeamMembers } from '../services/teamSyncService.js';
 const CRON_TIMEZONE = 'America/New_York';
 function getTimezoneOffsetMinutes(date, timeZone) {
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -88,6 +89,7 @@ export function createLeaderboardRoutes(pool) {
     /**
      * GET /api/leaderboard
      * Get combined leaderboard with sales + Gemini data
+     * Query params: sortBy, limit, year, month, teamId, territoryId
      */
     router.get('/', async (req, res) => {
         try {
@@ -95,14 +97,28 @@ export function createLeaderboardRoutes(pool) {
             const limit = parseInt(req.query.limit) || 50;
             const yearParam = req.query.year;
             const monthParam = req.query.month;
+            const teamIdParam = req.query.teamId;
+            const territoryIdParam = req.query.territoryId;
             const parsedYear = yearParam ? parseInt(yearParam, 10) : undefined;
             const parsedMonth = monthParam ? parseInt(monthParam, 10) : undefined;
             const year = parsedYear && parsedYear > 2000 ? parsedYear : undefined;
             const month = year && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : undefined;
+            const teamId = teamIdParam ? parseInt(teamIdParam, 10) : undefined;
+            const territoryId = territoryIdParam ? parseInt(territoryIdParam, 10) : undefined;
             const normalizedSort = sortBy === 'doors_knocked_30d' ? 'doors_knocked' : sortBy;
             const validSortFields = ['monthly_revenue', 'yearly_revenue', 'monthly_signups', 'doors_knocked', 'all_time_revenue'];
             const sortField = validSortFields.includes(normalizedSort) ? normalizedSort : 'monthly_signups';
-            const leaderboard = await leaderboardService.getCombinedLeaderboard(sortField, Math.min(limit, 100), year ? { year, month } : undefined);
+            const filters = {};
+            if (year) {
+                filters.year = year;
+                if (month)
+                    filters.month = month;
+            }
+            if (teamId && !isNaN(teamId))
+                filters.teamId = teamId;
+            if (territoryId && !isNaN(territoryId))
+                filters.territoryId = territoryId;
+            const leaderboard = await leaderboardService.getCombinedLeaderboard(sortField, Math.min(limit, 100), Object.keys(filters).length > 0 ? filters : undefined);
             if (leaderboard.length === 0) {
                 return res.json({
                     success: true,
@@ -111,6 +127,8 @@ export function createLeaderboardRoutes(pool) {
                     sortBy: sortField,
                     year: year || null,
                     month: month || null,
+                    teamId: teamId || null,
+                    territoryId: territoryId || null,
                     entries: [],
                     message: 'Leaderboard data coming soon - Google Sheets sync in progress'
                 });
@@ -121,6 +139,8 @@ export function createLeaderboardRoutes(pool) {
                 sortBy: sortField,
                 year: year || null,
                 month: month || null,
+                teamId: teamId || null,
+                territoryId: territoryId || null,
                 entries: leaderboard
             });
         }
@@ -305,6 +325,112 @@ export function createLeaderboardRoutes(pool) {
                 error: error.message,
                 nextSync: null,
                 recordCount: 0
+            });
+        }
+    });
+    /**
+     * GET /api/leaderboard/teams
+     * Get all teams with their leaders
+     */
+    router.get('/teams', async (_req, res) => {
+        try {
+            const teams = await getTeams();
+            res.json({
+                success: true,
+                count: teams.length,
+                teams
+            });
+        }
+        catch (error) {
+            console.error('❌ Teams fetch error:', error);
+            res.json({
+                success: false,
+                count: 0,
+                teams: [],
+                error: error.message
+            });
+        }
+    });
+    /**
+     * GET /api/leaderboard/territories
+     * Get all territories
+     */
+    router.get('/territories', async (_req, res) => {
+        try {
+            const territories = await getTerritories();
+            res.json({
+                success: true,
+                count: territories.length,
+                territories
+            });
+        }
+        catch (error) {
+            console.error('❌ Territories fetch error:', error);
+            res.json({
+                success: false,
+                count: 0,
+                territories: [],
+                error: error.message
+            });
+        }
+    });
+    /**
+     * GET /api/leaderboard/teams/:id/members
+     * Get members of a specific team
+     */
+    router.get('/teams/:id/members', async (req, res) => {
+        try {
+            const teamId = parseInt(req.params.id, 10);
+            if (isNaN(teamId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid team ID'
+                });
+            }
+            const members = await getTeamMembers(teamId);
+            res.json({
+                success: true,
+                teamId,
+                count: members.length,
+                members
+            });
+        }
+        catch (error) {
+            console.error('❌ Team members fetch error:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    });
+    /**
+     * POST /api/leaderboard/sync-teams
+     * Sync teams and territories from Neon database (admin only)
+     */
+    router.post('/sync-teams', async (req, res) => {
+        try {
+            const userEmail = req.headers['x-user-email'];
+            if (!userEmail || !(await isAdminUser(userEmail))) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Admin access required'
+                });
+            }
+            const result = await syncTeamsFromNeon();
+            res.json({
+                success: result.success,
+                message: result.success ? 'Team sync completed' : 'Team sync failed',
+                teams: result.teamsSync,
+                territories: result.territoriesSync,
+                salesReps: result.repsSync,
+                errors: result.errors
+            });
+        }
+        catch (error) {
+            console.error('❌ Team sync error:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message
             });
         }
     });

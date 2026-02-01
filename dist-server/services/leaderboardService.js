@@ -72,21 +72,38 @@ export function createLeaderboardService(geminiPool) {
         return LEADERBOARD_READY;
     }
     /**
-     * Get all sales reps from database
+     * Get all sales reps from database with team/territory info
      */
-    async function getSalesReps() {
+    async function getSalesReps(filters) {
         if (!isReady()) {
             return [];
         }
         try {
-            const result = await geminiPool.query(`SELECT
-          id, name, email, team,
-          monthly_revenue, yearly_revenue, all_time_revenue,
-          monthly_signups, yearly_signups,
-          goal_progress, current_bonus_tier, is_active
-         FROM sales_reps
-         WHERE is_active = true
-         ORDER BY monthly_signups DESC, monthly_revenue DESC`);
+            let query = `
+        SELECT
+          s.id, s.name, s.email, s.team,
+          s.team_id, t.name as team_name,
+          s.territory_id, tt.name as territory_name,
+          CASE WHEN t.leader_id = s.id THEN true ELSE false END as is_team_leader,
+          s.monthly_revenue, s.yearly_revenue, s.all_time_revenue,
+          s.monthly_signups, s.yearly_signups,
+          s.goal_progress, s.current_bonus_tier, s.is_active
+        FROM sales_reps s
+        LEFT JOIN teams t ON s.team_id = t.id
+        LEFT JOIN team_territories tt ON s.territory_id = tt.id
+        WHERE s.is_active = true
+      `;
+            const params = [];
+            if (filters?.teamId) {
+                params.push(filters.teamId);
+                query += ` AND s.team_id = $${params.length}`;
+            }
+            if (filters?.territoryId) {
+                params.push(filters.territoryId);
+                query += ` AND s.territory_id = $${params.length}`;
+            }
+            query += ' ORDER BY s.monthly_signups DESC, s.monthly_revenue DESC';
+            const result = await geminiPool.query(query, params);
             return result.rows;
         }
         catch (error) {
@@ -189,7 +206,7 @@ export function createLeaderboardService(geminiPool) {
         const filterYear = filters?.year;
         const filterMonth = filters?.month;
         const [salesReps, playerProfiles, userMappings] = await Promise.all([
-            getSalesReps(),
+            getSalesReps({ teamId: filters?.teamId, territoryId: filters?.territoryId }),
             getPlayerProfiles(),
             getUserMappings()
         ]);
@@ -232,6 +249,11 @@ export function createLeaderboardService(geminiPool) {
                 name: rep.name,
                 email: rep.email || '',
                 team: rep.team,
+                team_id: rep.team_id || null,
+                team_name: rep.team_name || null,
+                territory_id: rep.territory_id || null,
+                territory_name: rep.territory_name || null,
+                is_team_leader: rep.is_team_leader || false,
                 monthly_revenue: monthlyRevenue,
                 yearly_revenue: yearlyRevenue,
                 all_time_revenue: toNumber(rep.all_time_revenue),
