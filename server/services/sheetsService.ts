@@ -653,8 +653,10 @@ export function createSheetsService(pool: Pool) {
   async function performFullSync(): Promise<SyncResult> {
     const startedAt = new Date();
     let syncLogId: number | null = null;
+    let currentStep = 'init';
 
     try {
+      currentStep = 'insert_sync_log';
       try {
         const logResult = await pool.query(
           `INSERT INTO sheets_sync_log (sync_type, started_at)
@@ -667,6 +669,7 @@ export function createSheetsService(pool: Pool) {
         console.warn('[SHEETS] Unable to record sync start:', (logError as Error).message);
       }
 
+      currentStep = 'fetch_data';
       const currentYear = new Date().getFullYear();
       const previousYear = currentYear - 1;
 
@@ -721,6 +724,7 @@ export function createSheetsService(pool: Pool) {
         throw new Error('No signup data returned from Google Sheets');
       }
 
+      currentStep = 'build_maps';
       const signupsByYear = new Map<number, Map<string, SignupData>>([
         [currentYear, currentSignups],
         [previousYear, previousSignups]
@@ -845,6 +849,7 @@ export function createSheetsService(pool: Pool) {
         }
       }
 
+      currentStep = 'select_existing_reps';
       const existingRepsResult = await pool.query(
         `SELECT id, name, email, monthly_signup_goal
          FROM sales_reps`
@@ -871,6 +876,7 @@ export function createSheetsService(pool: Pool) {
       let created = 0;
       let updated = 0;
 
+      currentStep = 'update_sales_reps';
       console.log('[SHEETS] Step: Starting sales_reps update/insert loop for', combinedData.size, 'reps');
       for (const [nameLower, data] of combinedData.entries()) {
         sheetNames.add(nameLower);
@@ -1049,6 +1055,7 @@ export function createSheetsService(pool: Pool) {
         }
       }
 
+      currentStep = 'metrics_sync';
       try {
         const yearsToSync = new Set<number>();
         for (const [year, map] of signupsByYear.entries()) {
@@ -1133,6 +1140,7 @@ export function createSheetsService(pool: Pool) {
         console.warn('[SHEETS] Failed to update time-series metrics:', (metricsError as Error).message);
       }
 
+      currentStep = 'deactivation_loop';
       console.log('[SHEETS] Step: Starting deactivation loop');
       let deactivated = 0;
       for (const rep of existingRepsResult.rows) {
@@ -1189,12 +1197,11 @@ export function createSheetsService(pool: Pool) {
       const err = error as Error;
       const errorMessage = err.message || 'Unknown sync error';
       const errorStack = err.stack || '';
-      console.error('[SHEETS] Sync failed:', errorMessage);
+      console.error('[SHEETS] Sync failed at step:', currentStep, '-', errorMessage);
       console.error('[SHEETS] Stack trace:', errorStack);
 
-      // Extract multiple stack lines for debugging
-      const stackLines = errorStack.split('\n').slice(1, 6).map(l => l.trim()).join(' <- ');
-      const debugInfo = `${errorMessage} | Stack: ${stackLines}`;
+      // Include step info in error for debugging
+      const debugInfo = `Step: ${currentStep} | ${errorMessage}`;
 
       if (syncLogId) {
         try {
