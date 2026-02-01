@@ -3388,16 +3388,30 @@ app.get('/api/admin/goals/progress', async (req, res) => {
       ORDER BY progress_percentage DESC NULLS LAST, sr.name
     `, [currentMonth]);
 
+    // Transform to camelCase format expected by frontend
+    const transformedProgress = result.rows.map(row => ({
+      repId: row.sales_rep_id,
+      repName: row.rep_name,
+      repEmail: row.rep_email,
+      team: row.team,
+      actual: parseInt(row.current_signups) || 0,
+      goal: parseInt(row.monthly_signup_goal) || parseInt(row.default_goal) || DEFAULT_MONTHLY_SIGNUP_GOAL,
+      yearlyRevenueGoal: parseFloat(row.yearly_revenue_goal) || DEFAULT_YEARLY_REVENUE_GOAL,
+      progressPercentage: parseFloat(row.progress_percentage) || 0,
+      status: row.status,
+      hasGoal: !!row.goal_id
+    }));
+
     res.json({
       month: currentMonth,
-      progress: result.rows,
-      total: result.rows.length,
+      progress: transformedProgress,
+      total: transformedProgress.length,
       summary: {
-        achieved: result.rows.filter(r => r.status === 'achieved').length,
-        onTrack: result.rows.filter(r => r.status === 'on_track').length,
-        behind: result.rows.filter(r => r.status === 'behind').length,
-        critical: result.rows.filter(r => r.status === 'critical').length,
-        noGoal: result.rows.filter(r => !r.goal_id).length
+        achieved: transformedProgress.filter(r => r.status === 'achieved').length,
+        onTrack: transformedProgress.filter(r => r.status === 'on_track').length,
+        behind: transformedProgress.filter(r => r.status === 'behind').length,
+        critical: transformedProgress.filter(r => r.status === 'critical').length,
+        noGoal: transformedProgress.filter(r => !r.hasGoal).length
       }
     });
   } catch (error) {
@@ -3490,9 +3504,23 @@ app.get('/api/admin/goals', async (req, res) => {
       ORDER BY sr.name ASC
     `, [currentMonth]);
 
+    // Transform to camelCase format expected by frontend
+    const transformedGoals = result.rows.map(row => ({
+      id: row.id,
+      repId: row.sales_rep_id,
+      repName: row.rep_name,
+      repEmail: row.rep_email,
+      repTeam: row.rep_team,
+      monthlySignupGoal: parseInt(row.monthly_signup_goal) || null,
+      yearlyRevenueGoal: parseFloat(row.yearly_revenue_goal) || 0,
+      currentSignups: parseInt(row.monthly_signups) || 0,
+      month: row.month,
+      createdAt: row.created_at
+    }));
+
     res.json({
-      goals: result.rows,
-      total: result.rows.length
+      goals: transformedGoals,
+      total: transformedGoals.length
     });
   } catch (error) {
     console.error('Error fetching goals:', error);
@@ -3749,6 +3777,7 @@ app.get('/api/rep/goals/progress', async (req, res) => {
 
     if (repResult.rows.length === 0) {
       return res.status(404).json({
+        success: false,
         error: 'Sales rep profile not found',
         message: 'Your email is not linked to a sales rep account. Please contact an administrator.'
       });
@@ -3799,6 +3828,7 @@ app.get('/api/rep/goals/progress', async (req, res) => {
     `, [current]);
 
     res.json({
+      success: true,
       rep: {
         id: rep.id,
         name: rep.name,
@@ -3814,22 +3844,50 @@ app.get('/api/rep/goals/progress', async (req, res) => {
         yearly: currentGoal.yearly_revenue_goal
       },
       progress: {
-        current: current,
-        goal: goal,
-        percentage: progressPercentage,
-        remaining: Math.max(0, goal - current),
-        status: status
+        monthly: {
+          signups: {
+            current: current,
+            goal: goal,
+            percentage: progressPercentage,
+            remaining: Math.max(0, goal - current),
+            status: status === 'achieved' ? 'completed' : status === 'on-track' ? 'on-track' : 'behind'
+          },
+          revenue: {
+            current: rep.monthly_revenue || 0,
+            goal: 0,
+            percentage: 0,
+            remaining: 0
+          }
+        },
+        yearly: {
+          signups: {
+            current: rep.yearly_signups || 0,
+            goal: Math.round(goal * 12),
+            percentage: goal > 0 ? Math.round(((rep.yearly_signups || 0) / (goal * 12)) * 100) : 0,
+            remaining: Math.max(0, (goal * 12) - (rep.yearly_signups || 0)),
+            monthlyAverageNeeded: Math.ceil(((goal * 12) - (rep.yearly_signups || 0)) / Math.max(1, 12 - now.getMonth()))
+          },
+          revenue: {
+            current: rep.yearly_revenue || 0,
+            goal: currentGoal.yearly_revenue_goal,
+            percentage: currentGoal.yearly_revenue_goal > 0 ? Math.round(((rep.yearly_revenue || 0) / currentGoal.yearly_revenue_goal) * 100) : 0,
+            remaining: Math.max(0, currentGoal.yearly_revenue_goal - (rep.yearly_revenue || 0)),
+            monthlyAverageNeeded: Math.ceil((currentGoal.yearly_revenue_goal - (rep.yearly_revenue || 0)) / Math.max(1, 12 - now.getMonth()))
+          }
+        },
+        calendar: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          daysInMonth: daysInMonth,
+          currentDay: now.getDate(),
+          daysRemaining: daysRemaining
+        },
+        leaderboard: {
+          rank: parseInt(rankResult.rows[0]?.rank) || 0,
+          percentile: 0
+        }
       },
-      calendar: {
-        month: now.getMonth() + 1,
-        year: now.getFullYear(),
-        daysInMonth: daysInMonth,
-        daysRemaining: daysRemaining
-      },
-      leaderboard: {
-        rank: parseInt(rankResult.rows[0]?.rank) || 0
-      },
-      trend: trendResult.rows.reverse().map(row => ({
+      history: trendResult.rows.reverse().map(row => ({
         year: row.year,
         month: row.month,
         signups: parseFloat(row.signups) || 0,
@@ -3842,7 +3900,7 @@ app.get('/api/rep/goals/progress', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching rep progress:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
