@@ -23,6 +23,7 @@ import jobRoutes from './routes/jobRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
 import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
 import canvassingRoutes from './routes/canvassingRoutes.js';
+import checkinRoutes from './routes/checkinRoutes.js';
 import impactedAssetRoutes from './routes/impactedAssetRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
 import territoryRoutes from './routes/territoryRoutes.js';
@@ -8177,6 +8178,9 @@ app.use('/api/storm-memory', stormMemoryRoutes);
 
 // Register canvassing routes
 app.use('/api/canvassing', canvassingRoutes);
+
+// Register check-in routes
+app.use('/api/checkin', checkinRoutes);
 
 // Register impacted assets routes (support legacy + new paths)
 app.use('/api/assets', impactedAssetRoutes);

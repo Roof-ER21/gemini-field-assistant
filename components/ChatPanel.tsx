@@ -33,6 +33,9 @@ import { hailMapsApi } from '../services/hailMapsApi';
 import { stormMemoryApi } from '../services/stormMemoryApi';
 import { buildPerformanceContext } from '../services/performanceContextService';
 import { buildGoalsContext } from '../services/goalsContextService';
+import { buildContestContext } from '../services/contestContextService';
+import { buildCheckinContext } from '../services/checkinContextService';
+import { buildTerritoryContext } from '../services/territoryContextService';
 
 /**
  * Extract and compress key context from conversation history
@@ -1171,6 +1174,27 @@ Generate ONLY the email body text, no subject line or metadata.`;
         if (goalsContext) {
           systemPrompt += goalsContext;
           console.log('[Goals] Added goals context to prompt');
+        }
+
+        // CONTEST CONTEXT: Add contest standings if contest query detected
+        const contestContext = await buildContestContext(originalQuery, currentUser?.email);
+        if (contestContext) {
+          systemPrompt += contestContext;
+          console.log('[Contest] Added contest context to prompt');
+        }
+
+        // CHECKIN CONTEXT: Add field activity if checkin query detected
+        const checkinContext = await buildCheckinContext(originalQuery, currentUser?.email);
+        if (checkinContext) {
+          systemPrompt += checkinContext;
+          console.log('[Checkin] Added field activity context to prompt');
+        }
+
+        // TERRITORY CONTEXT: Add territory coverage if territory query detected
+        const territoryContext = await buildTerritoryContext(originalQuery, currentUser?.email);
+        if (territoryContext) {
+          systemPrompt += territoryContext;
+          console.log('[Territory] Added territory context to prompt');
         }
       } catch (memoryError) {
         console.warn('[Memory] Error loading memory context:', memoryError);

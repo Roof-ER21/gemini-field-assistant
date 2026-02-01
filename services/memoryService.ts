@@ -1204,6 +1204,53 @@ class MemoryService {
       insurerInsights: {},
     };
   }
+
+  // ============================================================================
+  // NICKNAME/PREFERRED NAME
+  // ============================================================================
+
+  /**
+   * Get user's preferred nickname
+   * Returns the nickname Susan should use to address the user
+   */
+  async getUserNickname(): Promise<string | null> {
+    const email = this.getAuthEmail();
+    if (!email) return null;
+
+    const memories = this.useLocalStorage
+      ? this.getMemoriesFromLocalStorage(email)
+      : await this.getAllUserMemories(100);
+
+    const nicknameMemory = memories.find(
+      m => m.category === 'preferred_name' && m.key === 'nickname'
+    );
+
+    return nicknameMemory ? nicknameMemory.value : null;
+  }
+
+  /**
+   * Set user's preferred nickname
+   * Susan will use this name to address the user in conversations
+   */
+  async setUserNickname(nickname: string): Promise<void> {
+    const email = this.getAuthEmail();
+    if (!email) {
+      console.warn('[MemoryService] No authenticated user, skipping nickname save');
+      return;
+    }
+
+    const memory: ExtractedMemory = {
+      memory_type: 'preference',
+      category: 'preferred_name',
+      key: 'nickname',
+      value: nickname,
+      confidence: 1.0, // User explicitly set this
+      source_type: 'explicit',
+    };
+
+    await this.saveMemories([memory]);
+    console.log(`[MemoryService] Saved user nickname: ${nickname}`);
+  }
 }
 
 // Export singleton instance

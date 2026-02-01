@@ -9,9 +9,11 @@ import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
 import QuickActionModal from './components/QuickActionModal';
 import AIDisclosureModal, { hasAIConsent } from './components/AIDisclosureModal';
+import WelcomeModal from './components/WelcomeModal';
 import MessagingPanel from './components/MessagingPanel';
 import LearningDashboard from './components/LearningDashboard';
 import { authService, AuthUser } from './services/authService';
+import memoryService from './services/memoryService';
 import { Settings, History, Menu, X } from 'lucide-react';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
@@ -45,6 +47,8 @@ const App: React.FC = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showAIDisclosure, setShowAIDisclosure] = useState(false);
   const [aiConsented, setAIConsented] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -133,7 +137,7 @@ const App: React.FC = () => {
     } catch {}
   }, [activePanel]);
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = async () => {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
@@ -144,6 +148,25 @@ const App: React.FC = () => {
       setAIConsented(consent);
       if (!consent) {
         setShowAIDisclosure(true);
+      }
+
+      // Check if this is first login and show welcome modal
+      // Use session storage to prevent showing multiple times per session
+      const hasShownWelcomeThisSession = sessionStorage.getItem('welcome_shown');
+
+      if (!hasShownWelcomeThisSession) {
+        try {
+          const nickname = await memoryService.getUserNickname();
+          const firstLogin = !nickname; // If no nickname, it's first login
+
+          setIsFirstLogin(firstLogin);
+          setShowWelcome(true);
+
+          // Mark as shown in session storage
+          sessionStorage.setItem('welcome_shown', 'true');
+        } catch (error) {
+          console.error('Error checking nickname:', error);
+        }
       }
     }
   };
@@ -377,6 +400,14 @@ const App: React.FC = () => {
         <AIDisclosureModal
           onAccept={handleAIConsentAccept}
           onDecline={handleAIConsentDecline}
+        />
+      )}
+
+      {/* Welcome Modal */}
+      {showWelcome && (
+        <WelcomeModal
+          isFirstLogin={isFirstLogin}
+          onComplete={() => setShowWelcome(false)}
         />
       )}
 

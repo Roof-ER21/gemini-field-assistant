@@ -14,11 +14,13 @@ import {
   X,
   ChevronRight,
   Bell,
-  Home
+  Home,
+  Activity
 } from 'lucide-react';
 import { messagingService, TeamMember, Conversation } from '../services/messagingService';
 import { authService } from '../services/authService';
 import RoofFeed from './RoofFeed';
+import CheckInSection from './CheckInSection';
 import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface TeamPanelProps {
@@ -31,7 +33,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof'>('messages');
+  const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof' | 'checkin'>('messages');
   const [totalUnread, setTotalUnread] = useState(0);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -325,11 +327,12 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
+              minHeight: '44px'
             }}
           >
             <MessageSquare style={{ width: '16px', height: '16px' }} />
-            Messages
+            <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Messages</span>
             {totalUnread > 0 && activeTab !== 'messages' && (
               <span
                 style={{
@@ -358,11 +361,34 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
+              minHeight: '44px'
             }}
           >
             <Users style={{ width: '16px', height: '16px' }} />
-            Team ({onlineCount})
+            <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Team ({onlineCount})</span>
+            <span style={{ display: window.innerWidth <= 768 ? 'inline' : 'none' }}>({onlineCount})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('checkin')}
+            style={{
+              flex: 1,
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'checkin' ? 'var(--roof-red)' : 'var(--bg-secondary)',
+              color: activeTab === 'checkin' ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              minHeight: '44px'
+            }}
+          >
+            <Activity style={{ width: '16px', height: '16px' }} />
+            <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Check-In</span>
           </button>
           <button
             onClick={() => setActiveTab('roof')}
@@ -378,17 +404,18 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
+              minHeight: '44px'
             }}
           >
             <Home style={{ width: '16px', height: '16px' }} />
-            Roof
+            <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Roof</span>
           </button>
         </div>
       </div>
 
-      {/* Search - hidden for roof tab */}
-      {activeTab !== 'roof' && (
+      {/* Search - hidden for roof and checkin tabs */}
+      {activeTab !== 'roof' && activeTab !== 'checkin' && (
         <div style={{ padding: '0.75rem 1rem' }}>
           <div
             style={{
@@ -456,9 +483,11 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: activeTab === 'roof' ? 0 : '0 0.5rem 1rem' }}>
+      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: (activeTab === 'roof' || activeTab === 'checkin') ? 0 : '0 0.5rem 1rem' }}>
         {activeTab === 'roof' ? (
           <RoofFeed />
+        ) : activeTab === 'checkin' ? (
+          <CheckInSection />
         ) : loading ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             Loading...
