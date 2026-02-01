@@ -1,5 +1,16 @@
-import React from 'react';
-import { Target, Calendar, DollarSign, Award, AlertCircle, CheckCircle, Edit2, Trash2, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, Calendar, DollarSign, Award, AlertCircle, CheckCircle, Edit2, Trash2, Download, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+
+// Bonus tier structure - matches server-side calculation
+const BONUS_TIERS = [
+  { tier: 0, name: 'Rookie', minSignups: 0, maxSignups: 14, color: '#71717a', bonus: 0 },
+  { tier: 1, name: 'Bronze', minSignups: 15, maxSignups: 19, color: '#cd7f32', bonus: 500 },
+  { tier: 2, name: 'Silver', minSignups: 20, maxSignups: 24, color: '#c0c0c0', bonus: 1000 },
+  { tier: 3, name: 'Gold', minSignups: 25, maxSignups: 29, color: '#ffd700', bonus: 1500 },
+  { tier: 4, name: 'Platinum', minSignups: 30, maxSignups: 34, color: '#e5e4e2', bonus: 2000 },
+  { tier: 5, name: 'Diamond', minSignups: 35, maxSignups: 39, color: '#b9f2ff', bonus: 3000 },
+  { tier: 6, name: 'Elite', minSignups: 40, maxSignups: 999, color: '#9333ea', bonus: 5000 }
+];
 
 interface LeaderboardGoalsSectionProps {
   salesReps: Array<{ id: number; name: string; email: string }>;
@@ -40,6 +51,8 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
   fetchAllGoals,
   fetchGoalProgress
 }) => {
+  const [showTierLegend, setShowTierLegend] = useState(false);
+
   React.useEffect(() => {
     fetchSalesReps();
     fetchAllGoals();
@@ -105,6 +118,89 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
             </div>
           </div>
         )}
+
+        {/* Bonus Tier Structure - Collapsible */}
+        <div style={{
+          background: '#111111',
+          borderRadius: '12px',
+          border: '1px solid #262626',
+          marginBottom: '1.5rem',
+          overflow: 'hidden'
+        }}>
+          <button
+            onClick={() => setShowTierLegend(!showTierLegend)}
+            style={{
+              width: '100%',
+              padding: '1rem 1.5rem',
+              background: 'transparent',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              color: '#ffffff'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Trophy style={{ width: '1rem', height: '1rem', color: '#ffd700' }} />
+              <span style={{ fontWeight: '600' }}>Bonus Tier Structure</span>
+              <span style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                (Based on monthly signups)
+              </span>
+            </div>
+            {showTierLegend ? (
+              <ChevronUp style={{ width: '1rem', height: '1rem', color: '#71717a' }} />
+            ) : (
+              <ChevronDown style={{ width: '1rem', height: '1rem', color: '#71717a' }} />
+            )}
+          </button>
+
+          {showTierLegend && (
+            <div style={{ padding: '0 1.5rem 1.5rem', borderTop: '1px solid #262626' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: '0.75rem',
+                marginTop: '1rem'
+              }}>
+                {BONUS_TIERS.map((tier) => (
+                  <div
+                    key={tier.tier}
+                    style={{
+                      background: '#0a0a0a',
+                      borderRadius: '8px',
+                      padding: '0.75rem',
+                      border: `2px solid ${tier.color}`,
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{
+                      background: tier.color,
+                      color: tier.tier >= 4 ? '#000000' : '#ffffff',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      marginBottom: '0.5rem',
+                      textTransform: 'uppercase'
+                    }}>
+                      {tier.name}
+                    </div>
+                    <div style={{ color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                      {tier.minSignups}{tier.maxSignups < 999 ? `-${tier.maxSignups}` : '+'} signups
+                    </div>
+                    <div style={{ color: '#10b981', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                      ${tier.bonus.toLocaleString()} bonus
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ color: '#71717a', fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
+                Tier bonuses are calculated at the end of each month based on total signups. Data syncs from Google Sheets at 8 AM and 8 PM.
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Goal Setting Interface */}
         <div
@@ -485,10 +581,33 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
                     <div style={{
                       color: isOnTrack ? '#34d399' : '#fb923c',
                       fontSize: '0.875rem',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      marginBottom: '0.5rem'
                     }}>
                       {percentage}%
                     </div>
+                    {/* Tier Badge */}
+                    {progress.tier && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+                        <span style={{
+                          padding: '0.125rem 0.5rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.625rem',
+                          fontWeight: '700',
+                          background: progress.tier.color,
+                          color: progress.tier.tier >= 4 ? '#000000' : '#ffffff',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {progress.tier.name}
+                        </span>
+                        {progress.tier.nextTier && (
+                          <span style={{ color: '#71717a', fontSize: '0.625rem' }}>
+                            +{progress.tier.nextTier.signupsNeeded} → {progress.tier.nextTier.name}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

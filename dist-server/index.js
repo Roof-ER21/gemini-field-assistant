@@ -2796,6 +2796,37 @@ app.patch('/api/admin/users/:userId/status', async (req, res) => {
 // Default goals - used if no specific goal is set
 const DEFAULT_MONTHLY_SIGNUP_GOAL = 15;
 const DEFAULT_YEARLY_REVENUE_GOAL = 1500000; // $1.5 million
+// Bonus tier structure - based on monthly signups
+const BONUS_TIERS = [
+    { tier: 0, name: 'Rookie', minSignups: 0, maxSignups: 14, color: '#71717a', bonus: 0 },
+    { tier: 1, name: 'Bronze', minSignups: 15, maxSignups: 19, color: '#cd7f32', bonus: 500 },
+    { tier: 2, name: 'Silver', minSignups: 20, maxSignups: 24, color: '#c0c0c0', bonus: 1000 },
+    { tier: 3, name: 'Gold', minSignups: 25, maxSignups: 29, color: '#ffd700', bonus: 1500 },
+    { tier: 4, name: 'Platinum', minSignups: 30, maxSignups: 34, color: '#e5e4e2', bonus: 2000 },
+    { tier: 5, name: 'Diamond', minSignups: 35, maxSignups: 39, color: '#b9f2ff', bonus: 3000 },
+    { tier: 6, name: 'Elite', minSignups: 40, maxSignups: 999, color: '#9333ea', bonus: 5000 }
+];
+function calculateBonusTier(signups) {
+    let currentTier = BONUS_TIERS[0];
+    for (const tier of BONUS_TIERS) {
+        if (signups >= tier.minSignups) {
+            currentTier = tier;
+        }
+    }
+    const nextTierIndex = currentTier.tier + 1;
+    const nextTier = nextTierIndex < BONUS_TIERS.length ? {
+        name: BONUS_TIERS[nextTierIndex].name,
+        signupsNeeded: BONUS_TIERS[nextTierIndex].minSignups - signups,
+        bonus: BONUS_TIERS[nextTierIndex].bonus
+    } : null;
+    return {
+        tier: currentTier.tier,
+        name: currentTier.name,
+        color: currentTier.color,
+        bonus: currentTier.bonus,
+        nextTier
+    };
+}
 // Helper function to get current month's goal for a rep
 async function getCurrentMonthGoal(salesRepId) {
     const now = new Date();
@@ -2819,6 +2850,13 @@ async function getCurrentMonthGoal(salesRepId) {
         monthly_signups: row.monthly_signups || 0
     };
 }
+// GET /api/admin/goals/tiers - Get bonus tier structure
+app.get('/api/admin/goals/tiers', async (_req, res) => {
+    res.json({
+        tiers: BONUS_TIERS,
+        description: 'Bonus tiers are calculated based on monthly signups. Reps earn bonuses when they reach each tier threshold.'
+    });
+});
 // GET /api/admin/goals/reps - Get list of sales reps for dropdown
 app.get('/api/admin/goals/reps', async (req, res) => {
     try {
@@ -2887,18 +2925,23 @@ app.get('/api/admin/goals/progress', async (req, res) => {
       ORDER BY progress_percentage DESC NULLS LAST, sr.name
     `, [currentMonth]);
         // Transform to camelCase format expected by frontend
-        const transformedProgress = result.rows.map(row => ({
-            repId: row.sales_rep_id,
-            repName: row.rep_name,
-            repEmail: row.rep_email,
-            team: row.team,
-            actual: parseInt(row.current_signups) || 0,
-            goal: parseInt(row.monthly_signup_goal) || parseInt(row.default_goal) || DEFAULT_MONTHLY_SIGNUP_GOAL,
-            yearlyRevenueGoal: parseFloat(row.yearly_revenue_goal) || DEFAULT_YEARLY_REVENUE_GOAL,
-            progressPercentage: parseFloat(row.progress_percentage) || 0,
-            status: row.status,
-            hasGoal: !!row.goal_id
-        }));
+        const transformedProgress = result.rows.map(row => {
+            const signups = parseInt(row.current_signups) || 0;
+            const tierInfo = calculateBonusTier(signups);
+            return {
+                repId: row.sales_rep_id,
+                repName: row.rep_name,
+                repEmail: row.rep_email,
+                team: row.team,
+                actual: signups,
+                goal: parseInt(row.monthly_signup_goal) || parseInt(row.default_goal) || DEFAULT_MONTHLY_SIGNUP_GOAL,
+                yearlyRevenueGoal: parseFloat(row.yearly_revenue_goal) || DEFAULT_YEARLY_REVENUE_GOAL,
+                progressPercentage: parseFloat(row.progress_percentage) || 0,
+                status: row.status,
+                hasGoal: !!row.goal_id,
+                tier: tierInfo
+            };
+        });
         res.json({
             month: currentMonth,
             progress: transformedProgress,
@@ -3247,6 +3290,8 @@ app.get('/api/rep/goals/progress', async (req, res) => {
       FROM sales_reps
       WHERE monthly_signups > $1 AND is_active = true
     `, [current]);
+        // Calculate tier info for this rep
+        const tierInfo = calculateBonusTier(current);
         res.json({
             success: true,
             rep: {
@@ -3263,6 +3308,8 @@ app.get('/api/rep/goals/progress', async (req, res) => {
                 monthly: goal,
                 yearly: currentGoal.yearly_revenue_goal
             },
+            tier: tierInfo,
+            tiers: BONUS_TIERS,
             progress: {
                 monthly: {
                     signups: {
