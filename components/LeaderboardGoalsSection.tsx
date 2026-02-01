@@ -107,13 +107,15 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
         )}
 
         {/* Goal Setting Interface */}
-        <div style={{
-          background: '#111111',
-          borderRadius: '12px',
-          border: '1px solid #262626',
-          padding: '1.5rem',
-          marginBottom: '1.5rem'
-        }}>
+        <div
+          data-goal-form
+          style={{
+            background: '#111111',
+            borderRadius: '12px',
+            border: '1px solid #262626',
+            padding: '1.5rem',
+            marginBottom: '1.5rem'
+          }}>
           <h3 style={{
             color: '#ffffff',
             fontSize: '1rem',
@@ -434,19 +436,48 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
               {goalProgress.map((progress: any) => {
                 const percentage = progress.goal ? (progress.actual / progress.goal * 100).toFixed(1) : 0;
                 const isOnTrack = Number(percentage) >= 80;
+                const isSelected = selectedRepForGoal === progress.repId?.toString();
 
                 return (
                   <div
                     key={progress.repId}
+                    onClick={() => {
+                      // Populate the form with this rep's data for quick editing
+                      setSelectedRepForGoal(progress.repId?.toString() || '');
+                      setMonthlySignupGoal(progress.goal?.toString() || '15');
+                      setYearlyRevenueGoal(progress.yearlyRevenueGoal?.toString() || '1500000');
+                      setEditingGoalId(null); // Create new or update existing
+                      // Scroll to top of section for editing
+                      document.querySelector('[data-goal-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
                     style={{
-                      background: '#0a0a0a',
+                      background: isSelected ? '#1a1a1a' : '#0a0a0a',
                       borderRadius: '8px',
                       padding: '1rem',
-                      border: `1px solid ${isOnTrack ? '#065f46' : '#7c2d12'}`
+                      border: `2px solid ${isSelected ? '#3b82f6' : isOnTrack ? '#065f46' : '#7c2d12'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      transform: isSelected ? 'scale(1.02)' : 'scale(1)'
                     }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = '#111111';
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = '#0a0a0a';
+                        e.currentTarget.style.borderColor = isOnTrack ? '#065f46' : '#7c2d12';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }
+                    }}
+                    title={`Click to edit ${progress.repName}'s goals`}
                   >
-                    <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                      {progress.repName}
+                    <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{progress.repName}</span>
+                      {isSelected && <span style={{ color: '#3b82f6', fontSize: '0.625rem' }}>EDITING</span>}
                     </div>
                     <div style={{ color: '#ffffff', fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.25rem' }}>
                       {progress.actual} / {progress.goal}
