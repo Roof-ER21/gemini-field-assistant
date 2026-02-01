@@ -783,15 +783,10 @@ export function createSheetsService(pool) {
                         safeBonusTier,
                         safeExistingId
                     ];
-                    // Debug Basel Halim specifically
+                    // TEMPORARY: Skip Basel Halim to test if sync works for others
                     if (data.name.toLowerCase().includes('basel')) {
-                        const baselDebug = {
-                            updateValues: updateValues.map((v, i) => `$${i + 1}=${v}(${typeof v})`),
-                            rawData: data,
-                            existing: { id: existing.id, monthly_signup_goal: existing.monthly_signup_goal },
-                            computed: { safeBonusTier, safeExistingId, goalProgress, bonusTier }
-                        };
-                        console.log('[SHEETS] BASEL_DEBUG:', JSON.stringify(baselDebug));
+                        console.log('[SHEETS] Skipping Basel Halim for testing');
+                        continue;
                     }
                     // Check for the problematic value anywhere in the array
                     for (let i = 0; i < updateValues.length; i++) {
