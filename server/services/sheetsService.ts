@@ -926,7 +926,7 @@ export function createSheetsService(pool: Pool) {
             continue;
           }
 
-          // Log all values being inserted to INTEGER columns
+          // Log all values being inserted
           const updateValues = [
             data.name,
             generatedEmail,
@@ -942,11 +942,26 @@ export function createSheetsService(pool: Pool) {
             safeExistingId
           ];
 
+          // Debug Basel Halim specifically
+          if (data.name.toLowerCase().includes('basel')) {
+            console.error('[SHEETS] Basel Halim UPDATE values:', JSON.stringify(updateValues));
+            console.error('[SHEETS] Basel Halim raw data:', JSON.stringify(data));
+            console.error('[SHEETS] Basel Halim existing:', JSON.stringify(existing));
+          }
+
           // Check for the problematic value anywhere in the array
           for (let i = 0; i < updateValues.length; i++) {
             const val = updateValues[i];
-            if (val === 246747.9 || val === '246747.9' || String(val) === '246747.9') {
-              console.error('[SHEETS] FOUND 246747.9 at position', i + 1, 'for rep:', data.name);
+            const valStr = String(val);
+            // Check for any value containing 246747
+            if (valStr.includes('246747')) {
+              console.error('[SHEETS] FOUND suspicious value at position', i + 1, ':', val, 'type:', typeof val, 'for rep:', data.name);
+            }
+            // For positions 11 and 12 (INTEGER columns), verify they are safe
+            if (i === 10 || i === 11) {
+              if (typeof val !== 'number' || !Number.isInteger(val)) {
+                console.error('[SHEETS] Non-integer at INTEGER position', i + 1, ':', val, 'type:', typeof val, 'for rep:', data.name);
+              }
             }
           }
 
