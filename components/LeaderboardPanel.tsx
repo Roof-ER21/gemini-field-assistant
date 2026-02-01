@@ -121,6 +121,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from(new Set([currentYear, currentYear - 1])).sort((a, b) => b - a);
@@ -209,6 +210,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
   const fetchLeaderboardData = async () => {
     try {
+      setIsRefreshing(true);
       setError(null);
 
       const headers = {
@@ -271,6 +273,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
       }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -844,6 +847,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           {/* Refresh Button */}
           <button
             onClick={fetchLeaderboardData}
+            disabled={isRefreshing}
             style={{
               padding: '12px 16px',
               background: '#111',
@@ -852,13 +856,15 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               color: '#fff',
               fontSize: '14px',
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              opacity: isRefreshing ? 0.7 : 1,
+              transition: 'opacity 0.2s'
             }}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
 

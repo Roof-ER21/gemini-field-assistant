@@ -447,7 +447,7 @@ export function createLeaderboardService(geminiPool: Pool) {
   async function getUserLeaderboardPosition(
     email: string,
     sortBy: SortBy = 'monthly_signups',
-    filters?: { year?: number; month?: number }
+    filters?: { year?: number; month?: number; teamId?: number; territoryId?: number }
   ): Promise<{
     user: CombinedLeaderboardEntry | null;
     rank: number;
@@ -478,7 +478,7 @@ export function createLeaderboardService(geminiPool: Pool) {
   /**
    * Get overall leaderboard statistics
    */
-  async function getLeaderboardStats(filters?: { year?: number; month?: number }): Promise<{
+  async function getLeaderboardStats(filters?: { year?: number; month?: number; teamId?: number; territoryId?: number }): Promise<{
     totalReps: number;
     totalRevenue: number;
     totalSignups: number;
@@ -490,9 +490,26 @@ export function createLeaderboardService(geminiPool: Pool) {
     try {
       const filterYear = filters?.year;
       const filterMonth = filters?.month;
+      const filterTeamId = filters?.teamId;
+      const filterTerritoryId = filters?.territoryId;
+
+      const buildWhereClause = (params: any[]): string => {
+        const conditions = ['s.is_active = true'];
+        if (filterTeamId) {
+          params.push(filterTeamId);
+          conditions.push(`s.team_id = $${params.length}`);
+        }
+        if (filterTerritoryId) {
+          params.push(filterTerritoryId);
+          conditions.push(`s.territory_id = $${params.length}`);
+        }
+        return conditions.join(' AND ');
+      };
 
       let result;
       if (filterYear && filterMonth) {
+        const params = [filterYear, filterMonth];
+        const whereClause = buildWhereClause(params);
         result = await geminiPool.query(
           `SELECT
             COUNT(s.id) as total_reps,
@@ -505,10 +522,12 @@ export function createLeaderboardService(geminiPool: Pool) {
              ON m.sales_rep_id = s.id
             AND m.year = $1
             AND m.month = $2
-           WHERE s.is_active = true`,
-          [filterYear, filterMonth]
+           WHERE ${whereClause}`,
+          params
         );
       } else if (filterYear) {
+        const params = [filterYear];
+        const whereClause = buildWhereClause(params);
         result = await geminiPool.query(
           `SELECT
             COUNT(s.id) as total_reps,
@@ -520,10 +539,12 @@ export function createLeaderboardService(geminiPool: Pool) {
            LEFT JOIN sales_rep_yearly_metrics y
              ON y.sales_rep_id = s.id
             AND y.year = $1
-           WHERE s.is_active = true`,
-          [filterYear]
+           WHERE ${whereClause}`,
+          params
         );
       } else {
+        const params: any[] = [];
+        const whereClause = buildWhereClause(params);
         result = await geminiPool.query(
           `SELECT
             COUNT(*) as total_reps,
@@ -531,8 +552,9 @@ export function createLeaderboardService(geminiPool: Pool) {
             COALESCE(SUM(monthly_signups), 0) as total_signups,
             COALESCE(AVG(monthly_revenue::numeric), 0) as avg_revenue,
             COALESCE(AVG(monthly_signups), 0) as avg_signups
-           FROM sales_reps
-           WHERE is_active = true`
+           FROM sales_reps s
+           WHERE ${whereClause}`,
+          params
         );
       }
 
@@ -540,6 +562,8 @@ export function createLeaderboardService(geminiPool: Pool) {
 
       let topResult;
       if (filterYear && filterMonth) {
+        const params = [filterYear, filterMonth];
+        const whereClause = buildWhereClause(params);
         topResult = await geminiPool.query(
           `SELECT s.name, COALESCE(m.signups, 0) as monthly_signups
            FROM sales_reps s
@@ -547,30 +571,35 @@ export function createLeaderboardService(geminiPool: Pool) {
              ON m.sales_rep_id = s.id
             AND m.year = $1
             AND m.month = $2
-           WHERE s.is_active = true
+           WHERE ${whereClause}
            ORDER BY COALESCE(m.signups, 0) DESC
            LIMIT 1`,
-          [filterYear, filterMonth]
+          params
         );
       } else if (filterYear) {
+        const params = [filterYear];
+        const whereClause = buildWhereClause(params);
         topResult = await geminiPool.query(
           `SELECT s.name, COALESCE(y.signups, 0) as monthly_signups
            FROM sales_reps s
            LEFT JOIN sales_rep_yearly_metrics y
              ON y.sales_rep_id = s.id
             AND y.year = $1
-           WHERE s.is_active = true
+           WHERE ${whereClause}
            ORDER BY COALESCE(y.signups, 0) DESC
            LIMIT 1`,
-          [filterYear]
+          params
         );
       } else {
+        const params: any[] = [];
+        const whereClause = buildWhereClause(params);
         topResult = await geminiPool.query(
-          `SELECT name, monthly_signups
-           FROM sales_reps
-           WHERE is_active = true
-           ORDER BY monthly_signups DESC
-           LIMIT 1`
+          `SELECT s.name, s.monthly_signups
+           FROM sales_reps s
+           WHERE ${whereClause}
+           ORDER BY s.monthly_signups DESC
+           LIMIT 1`,
+          params
         );
       }
 
@@ -578,12 +607,15 @@ export function createLeaderboardService(geminiPool: Pool) {
         ? { name: topResult.rows[0].name, signups: toNumber(topResult.rows[0].monthly_signups) }
         : null;
 
+      const tierParams: any[] = [];
+      const tierWhereClause = buildWhereClause(tierParams);
       const tierResult = await geminiPool.query(
         `SELECT current_bonus_tier, COUNT(*) as count
-         FROM sales_reps
-         WHERE is_active = true
+         FROM sales_reps s
+         WHERE ${tierWhereClause}
          GROUP BY current_bonus_tier
-         ORDER BY current_bonus_tier`
+         ORDER BY current_bonus_tier`,
+        tierParams
       );
 
       const tierDistribution: Record<string, number> = {};
