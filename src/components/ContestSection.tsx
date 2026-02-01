@@ -15,7 +15,10 @@ import {
   Crown,
   Target,
   CheckCircle,
-  XCircle
+  XCircle,
+  Share2,
+  Copy,
+  MessageSquare
 } from 'lucide-react';
 
 interface Contest {
@@ -72,6 +75,8 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const [salesReps, setSalesReps] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareMessage, setShareMessage] = useState('');
 
   const isAdmin = userRole === 'admin' || userRole === 'manager';
 
@@ -94,6 +99,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     rules: '',
     participants: [] as any[]
   });
+
+  // Team/Participant selection state
+  const [contestTeams, setContestTeams] = useState<{
+    name: string;
+    members: number[]; // sales_rep_ids
+    leaderId?: number;
+  }[]>([]);
+
+  const [selectedParticipants, setSelectedParticipants] = useState<number[]>([]);
 
   useEffect(() => {
     loadContests();
@@ -191,13 +205,22 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
   const createContest = async () => {
     try {
+      // Prepare payload with teams/participants based on contest type
+      const payload: any = { ...formData };
+
+      if (formData.contest_type === 'team_based') {
+        payload.contest_teams = contestTeams;
+      } else if (formData.contest_type === 'individual') {
+        payload.selected_participants = selectedParticipants;
+      }
+
       const response = await fetch('/api/admin/contests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-email': userEmail
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -304,6 +327,8 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
       rules: '',
       participants: []
     });
+    setContestTeams([]);
+    setSelectedParticipants([]);
   };
 
   const getRankIcon = (rank: number) => {
@@ -357,6 +382,93 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     if (now < start) return { label: 'Upcoming', color: 'blue' };
     if (now > end) return { label: 'Ended', color: 'gray' };
     return { label: 'Active', color: 'green' };
+  };
+
+  const generateShareMessage = () => {
+    if (!selectedContest) return '';
+
+    const status = getContestStatus(selectedContest);
+    const topStandings = standings.slice(0, 10);
+
+    let message = `🏆 CONTEST UPDATE: ${selectedContest.name}\n\n`;
+
+    if (topStandings.length > 0) {
+      message += '📊 Current Standings:\n';
+      topStandings.forEach((standing, index) => {
+        const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+        const name = standing.team_name || standing.rep_name;
+
+        let stats = '';
+        if (selectedContest.metric_type === 'signups') {
+          stats = `${standing.signups_count} signups`;
+        } else if (selectedContest.metric_type === 'revenue') {
+          stats = `${formatCurrency(parseFloat(standing.revenue_amount.toString()))} revenue`;
+        } else {
+          stats = `${standing.signups_count} signups, ${formatCurrency(parseFloat(standing.revenue_amount.toString()))} revenue`;
+        }
+
+        message += `${emoji} ${name} - ${stats}\n`;
+      });
+      message += '\n';
+    }
+
+    if (status.label === 'Ended') {
+      message += `⏰ Contest Ended: ${formatDate(selectedContest.end_date)}\n`;
+    } else {
+      message += `⏰ Ends: ${formatDate(selectedContest.end_date)}\n`;
+    }
+
+    if (selectedContest.prize_description) {
+      message += `🎁 Prize: ${selectedContest.prize_description}\n`;
+    }
+
+    message += '\nKeep pushing! 💪';
+
+    return message;
+  };
+
+  const handleShare = () => {
+    const message = generateShareMessage();
+    setShareMessage(message);
+    setShowShareModal(true);
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(shareMessage);
+      alert('Contest standings copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      alert('Failed to copy to clipboard');
+    }
+  };
+
+  const postToTeamChat = async () => {
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': userEmail
+        },
+        body: JSON.stringify({
+          message: shareMessage,
+          type: 'broadcast'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('Contest standings posted to team chat!');
+        setShowShareModal(false);
+      } else {
+        alert(`Error: ${data.error || 'Failed to post message'}`);
+      }
+    } catch (error) {
+      console.error('Error posting to team chat:', error);
+      alert('Failed to post to team chat');
+    }
   };
 
   const isMobile = windowWidth < 768;
@@ -702,36 +814,81 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 gap: isPortrait ? '0.5rem' : '1rem'
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h2 className="font-bold text-white mb-2" style={{
+                  <h2 className="font-bold mb-2" style={{
                     fontSize: isPortrait ? '1.125rem' : isMobile ? '1.5rem' : '1.875rem',
-                    wordBreak: 'break-word'
+                    fontWeight: '700',
+                    wordBreak: 'break-word',
+                    color: '#FFFFFF',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.5)'
                   }}>{selectedContest.name}</h2>
                   {selectedContest.description && (
-                    <p className="text-gray-400" style={{
-                      fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                    <p style={{
+                      fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                      fontWeight: '500',
+                      color: '#E5E7EB'
                     }}>{selectedContest.description}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => setSelectedContest(null)}
-                  className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
-                  style={{
-                    minWidth: '44px',
-                    minHeight: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <XCircle style={{
-                    width: isPortrait ? '1.5rem' : '1.75rem',
-                    height: isPortrait ? '1.5rem' : '1.75rem'
-                  }} />
-                </button>
+                <div style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  flexShrink: 0
+                }}>
+                  {isAdmin && (
+                    <button
+                      onClick={handleShare}
+                      className="hover:opacity-80 transition-all"
+                      style={{
+                        minWidth: '44px',
+                        minHeight: '44px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        padding: isPortrait ? '0 0.75rem' : '0 1rem',
+                        borderRadius: '0.5rem',
+                        background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                        border: '2px solid #FFD700',
+                        boxShadow: '0 0 15px rgba(255, 215, 0, 0.4)',
+                        cursor: 'pointer'
+                      }}
+                      title="Share to The Roof"
+                    >
+                      <Share2 style={{
+                        width: isPortrait ? '1.25rem' : '1.5rem',
+                        height: isPortrait ? '1.25rem' : '1.5rem',
+                        color: '#1f2937'
+                      }} />
+                      {!isPortrait && (
+                        <span style={{
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          color: '#1f2937'
+                        }}>Share</span>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedContest(null)}
+                    className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                    style={{
+                      minWidth: '44px',
+                      minHeight: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <XCircle style={{
+                      width: isPortrait ? '1.5rem' : '1.75rem',
+                      height: isPortrait ? '1.5rem' : '1.75rem'
+                    }} />
+                  </button>
+                </div>
               </div>
 
               {/* Contest Info */}
@@ -745,11 +902,11 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
                   border: '1px solid rgba(139, 92, 246, 0.3)'
                 }}>
-                  <div className="text-gray-400 text-xs mb-1">Type</div>
-                  <div className="text-white font-medium" style={{ fontSize: '0.875rem' }}>
+                  <div style={{ fontSize: '0.75rem', marginBottom: '0.25rem', color: '#D1D5DB', fontWeight: '500' }}>Type</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#FFFFFF', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                     {selectedContest.contest_type.replace('_', ' ')}
                   </div>
-                  <div className="text-gray-500" style={{ fontSize: '0.625rem', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.625rem', marginTop: '0.25rem', color: '#9CA3AF', fontWeight: '500' }}>
                     {getContestTypeDescription(selectedContest.contest_type)}
                   </div>
                 </div>
@@ -757,8 +914,8 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
                   border: '1px solid rgba(59, 130, 246, 0.3)'
                 }}>
-                  <div className="text-gray-400 text-xs mb-1">Metric</div>
-                  <div className="text-white font-medium">
+                  <div style={{ fontSize: '0.75rem', marginBottom: '0.25rem', color: '#D1D5DB', fontWeight: '500' }}>Metric</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#FFFFFF', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                     {selectedContest.metric_type === 'both' ? 'Signups + Revenue' : selectedContest.metric_type}
                   </div>
                 </div>
@@ -766,15 +923,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)',
                   border: '1px solid rgba(16, 185, 129, 0.3)'
                 }}>
-                  <div className="text-gray-400 text-xs mb-1">Start</div>
-                  <div className="text-white font-medium">{formatDate(selectedContest.start_date)}</div>
+                  <div style={{ fontSize: '0.75rem', marginBottom: '0.25rem', color: '#D1D5DB', fontWeight: '500' }}>Start</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#FFFFFF', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{formatDate(selectedContest.start_date)}</div>
                 </div>
                 <div className="rounded-lg p-3" style={{
                   background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
                   border: '1px solid rgba(239, 68, 68, 0.3)'
                 }}>
-                  <div className="text-gray-400 text-xs mb-1">End</div>
-                  <div className="text-white font-medium">{formatDate(selectedContest.end_date)}</div>
+                  <div style={{ fontSize: '0.75rem', marginBottom: '0.25rem', color: '#D1D5DB', fontWeight: '500' }}>End</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#FFFFFF', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{formatDate(selectedContest.end_date)}</div>
                 </div>
               </div>
 
@@ -784,14 +941,15 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   border: '2px solid #FFD700',
                   boxShadow: '0 0 20px rgba(255, 215, 0, 0.3)'
                 }}>
-                  <div className="flex items-center gap-2 font-medium mb-2" style={{
+                  <div className="flex items-center gap-2 mb-2" style={{
                     color: '#FFD700',
+                    fontWeight: '700',
                     textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
                   }}>
                     <Award className="w-5 h-5" style={{ filter: 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.5))' }} />
                     Prize
                   </div>
-                  <p className="text-white font-medium">{selectedContest.prize_description}</p>
+                  <p style={{ color: '#FFFFFF', fontWeight: '600', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{selectedContest.prize_description}</p>
                 </div>
               )}
             </div>
@@ -804,12 +962,11 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 borderBottom: '1px solid rgba(59, 130, 246, 0.3)',
                 boxShadow: 'inset 0 0 30px rgba(59, 130, 246, 0.1)'
               }}>
-                <h3 className="font-bold mb-3 flex items-center gap-2" style={{
+                <h3 className="mb-3 flex items-center gap-2" style={{
                   fontSize: isPortrait ? '1rem' : '1.125rem',
-                  background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                  textShadow: '0 1px 3px rgba(0,0,0,0.5)'
                 }}>
                   <Target style={{
                     width: isPortrait ? '1rem' : '1.25rem',
@@ -840,8 +997,10 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                     }}>
                       {getRankIcon(myStanding.standing.rank)}
                     </div>
-                    <div className="text-gray-400" style={{
-                      fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                    <div style={{
+                      fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                      color: '#D1D5DB',
+                      fontWeight: '600'
                     }}>
                       Rank {myStanding.standing.rank} of {myStanding.total_participants}
                     </div>
@@ -852,14 +1011,18 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                       background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%)',
                       border: '1px solid rgba(16, 185, 129, 0.5)'
                     }}>
-                      <div className="font-bold mb-1" style={{
+                      <div className="mb-1" style={{
                         fontSize: isPortrait ? '1.5rem' : '1.875rem',
-                        color: '#10b981'
+                        fontWeight: '700',
+                        color: '#10b981',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.5)'
                       }}>
                         {myStanding.standing.signups_count}
                       </div>
-                      <div className="text-gray-400" style={{
-                        fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                      <div style={{
+                        fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                        color: '#D1D5DB',
+                        fontWeight: '600'
                       }}>Signups</div>
                     </div>
                   )}
@@ -869,15 +1032,19 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                       background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%)',
                       border: '1px solid rgba(59, 130, 246, 0.5)'
                     }}>
-                      <div className="font-bold mb-1" style={{
+                      <div className="mb-1" style={{
                         fontSize: isPortrait ? '1.125rem' : '1.875rem',
+                        fontWeight: '700',
                         wordBreak: 'break-all',
-                        color: '#3b82f6'
+                        color: '#3b82f6',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.5)'
                       }}>
                         {formatCurrency(parseFloat(myStanding.standing.revenue_amount))}
                       </div>
-                      <div className="text-gray-400" style={{
-                        fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                      <div style={{
+                        fontSize: isPortrait ? '0.8125rem' : '0.875rem',
+                        color: '#D1D5DB',
+                        fontWeight: '600'
                       }}>Revenue</div>
                     </div>
                   )}
@@ -889,13 +1056,17 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             <div style={{
               padding: isPortrait ? '1rem' : '1.5rem'
             }}>
-              <h3 className="font-bold text-white mb-4 flex items-center gap-2" style={{
-                fontSize: isPortrait ? '1rem' : '1.125rem'
+              <h3 className="mb-4 flex items-center gap-2" style={{
+                fontSize: isPortrait ? '1rem' : '1.125rem',
+                fontWeight: '700',
+                color: '#FFFFFF',
+                textShadow: '0 1px 3px rgba(0,0,0,0.5)'
               }}>
                 <TrendingUp style={{
                   width: isPortrait ? '1rem' : '1.25rem',
-                  height: isPortrait ? '1rem' : '1.25rem'
-                }} className="text-blue-400" />
+                  height: isPortrait ? '1rem' : '1.25rem',
+                  color: '#60a5fa'
+                }} />
                 Leaderboard
               </h3>
 
@@ -958,14 +1129,19 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                         {getRankIcon(standing.rank)}
                         {isPortrait && (
                           <div className="flex-1">
-                            <div className="font-medium text-white" style={{
-                              fontSize: '0.9375rem'
+                            <div style={{
+                              fontSize: '0.9375rem',
+                              fontWeight: '700',
+                              color: '#FFFFFF',
+                              textShadow: '0 1px 2px rgba(0,0,0,0.5)'
                             }}>
                               {standing.team_name || standing.rep_name}
                             </div>
                             {standing.rep_email && (
-                              <div className="text-gray-400" style={{
-                                fontSize: '0.75rem'
+                              <div style={{
+                                fontSize: '0.75rem',
+                                color: '#D1D5DB',
+                                fontWeight: '500'
                               }}>{standing.rep_email}</div>
                             )}
                           </div>
@@ -973,12 +1149,18 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                       </div>
                       {!isPortrait && (
                         <div className="flex-1">
-                          <div className="font-medium text-white">
+                          <div style={{
+                            fontWeight: '700',
+                            color: '#FFFFFF',
+                            textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+                          }}>
                             {standing.team_name || standing.rep_name}
                           </div>
                           {standing.rep_email && (
-                            <div className="text-gray-400" style={{
-                              fontSize: '0.875rem'
+                            <div style={{
+                              fontSize: '0.875rem',
+                              color: '#D1D5DB',
+                              fontWeight: '500'
                             }}>{standing.rep_email}</div>
                           )}
                         </div>
@@ -1325,6 +1507,220 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                   placeholder="Contest rules and guidelines..."
                 />
               </div>
+
+              {/* Team-Based Contest Teams */}
+              {formData.contest_type === 'team_based' && (
+                <div style={{
+                  padding: '1rem',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: '0.5rem'
+                }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block font-medium text-blue-300" style={{
+                      fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                    }}>
+                      Contest Teams
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setContestTeams([...contestTeams, { name: '', members: [] }])}
+                      className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                      style={{
+                        padding: '0.375rem 0.75rem',
+                        fontSize: '0.75rem',
+                        background: 'rgba(59, 130, 246, 0.2)',
+                        borderRadius: '0.375rem',
+                        border: '1px solid rgba(59, 130, 246, 0.4)'
+                      }}
+                    >
+                      <Plus style={{ width: '0.875rem', height: '0.875rem' }} />
+                      Add Team
+                    </button>
+                  </div>
+
+                  {contestTeams.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4" style={{ fontSize: '0.8125rem' }}>
+                      No teams added yet. Click "Add Team" to create contest teams.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {contestTeams.map((team, teamIndex) => (
+                        <div key={teamIndex} style={{
+                          padding: '0.75rem',
+                          background: '#374151',
+                          borderRadius: '0.5rem',
+                          border: '1px solid rgba(75, 85, 99, 0.5)'
+                        }}>
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <input
+                              type="text"
+                              placeholder="Team Name"
+                              value={team.name}
+                              onChange={(e) => {
+                                const updated = [...contestTeams];
+                                updated[teamIndex].name = e.target.value;
+                                setContestTeams(updated);
+                              }}
+                              className="flex-1 rounded text-white"
+                              style={{
+                                padding: '0.5rem 0.75rem',
+                                fontSize: '0.875rem',
+                                background: '#1f2937',
+                                border: '1px solid rgba(75, 85, 99, 0.5)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = contestTeams.filter((_, i) => i !== teamIndex);
+                                setContestTeams(updated);
+                              }}
+                              className="text-red-400 hover:text-red-300"
+                              style={{
+                                padding: '0.5rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                borderRadius: '0.375rem',
+                                border: '1px solid rgba(239, 68, 68, 0.3)'
+                              }}
+                            >
+                              <XCircle style={{ width: '1rem', height: '1rem' }} />
+                            </button>
+                          </div>
+
+                          <div className="mb-2">
+                            <label className="text-xs text-gray-400 mb-1 block">Team Members</label>
+                            <div style={{
+                              maxHeight: '150px',
+                              overflowY: 'auto',
+                              background: '#1f2937',
+                              border: '1px solid rgba(75, 85, 99, 0.5)',
+                              borderRadius: '0.375rem',
+                              padding: '0.5rem'
+                            }}>
+                              {salesReps.map((rep) => (
+                                <label key={rep.id} className="flex items-center gap-2 py-1 text-gray-300 hover:text-white cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={team.members.includes(rep.id)}
+                                    onChange={(e) => {
+                                      const updated = [...contestTeams];
+                                      if (e.target.checked) {
+                                        updated[teamIndex].members = [...updated[teamIndex].members, rep.id];
+                                      } else {
+                                        updated[teamIndex].members = updated[teamIndex].members.filter(id => id !== rep.id);
+                                        if (updated[teamIndex].leaderId === rep.id) {
+                                          updated[teamIndex].leaderId = undefined;
+                                        }
+                                      }
+                                      setContestTeams(updated);
+                                    }}
+                                    style={{
+                                      width: '1rem',
+                                      height: '1rem',
+                                      accentColor: '#3b82f6'
+                                    }}
+                                  />
+                                  <span style={{ fontSize: '0.8125rem' }}>{rep.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          {team.members.length > 0 && (
+                            <div>
+                              <label className="text-xs text-gray-400 mb-1 block">Team Leader (Optional)</label>
+                              <select
+                                value={team.leaderId || ''}
+                                onChange={(e) => {
+                                  const updated = [...contestTeams];
+                                  updated[teamIndex].leaderId = e.target.value ? parseInt(e.target.value) : undefined;
+                                  setContestTeams(updated);
+                                }}
+                                className="w-full rounded text-white"
+                                style={{
+                                  padding: '0.5rem 0.75rem',
+                                  fontSize: '0.8125rem',
+                                  background: '#1f2937',
+                                  border: '1px solid rgba(75, 85, 99, 0.5)'
+                                }}
+                              >
+                                <option value="">No leader</option>
+                                {team.members.map(memberId => {
+                                  const rep = salesReps.find(r => r.id === memberId);
+                                  return rep ? <option key={rep.id} value={rep.id}>{rep.name}</option> : null;
+                                })}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Individual Contest Participants */}
+              {formData.contest_type === 'individual' && (
+                <div style={{
+                  padding: '1rem',
+                  background: 'rgba(139, 92, 246, 0.1)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: '0.5rem'
+                }}>
+                  <label className="block font-medium text-purple-300 mb-3" style={{
+                    fontSize: isPortrait ? '0.8125rem' : '0.875rem'
+                  }}>
+                    Select Participants
+                  </label>
+
+                  {salesReps.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4" style={{ fontSize: '0.8125rem' }}>
+                      No sales reps available
+                    </p>
+                  ) : (
+                    <div style={{
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      background: '#374151',
+                      border: '1px solid rgba(75, 85, 99, 0.5)',
+                      borderRadius: '0.375rem',
+                      padding: '0.5rem'
+                    }}>
+                      {salesReps.map((rep) => (
+                        <label key={rep.id} className="flex items-center gap-2 py-1.5 text-gray-300 hover:text-white cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedParticipants.includes(rep.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedParticipants([...selectedParticipants, rep.id]);
+                              } else {
+                                setSelectedParticipants(selectedParticipants.filter(id => id !== rep.id));
+                              }
+                            }}
+                            style={{
+                              width: '1rem',
+                              height: '1rem',
+                              accentColor: '#8b5cf6'
+                            }}
+                          />
+                          <span style={{ fontSize: '0.875rem' }}>{rep.name}</span>
+                          {rep.email && (
+                            <span className="text-gray-500" style={{ fontSize: '0.75rem' }}>({rep.email})</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedParticipants.length > 0 && (
+                    <div className="mt-2 text-blue-400" style={{ fontSize: '0.75rem' }}>
+                      {selectedParticipants.length} participant{selectedParticipants.length !== 1 ? 's' : ''} selected
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="border-t border-gray-700 flex gap-3" style={{
