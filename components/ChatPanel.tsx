@@ -31,6 +31,7 @@ import { jobContextService } from '../services/jobContextService';
 import { emailPatternService, EmailType } from '../services/emailPatternService';
 import { hailMapsApi } from '../services/hailMapsApi';
 import { stormMemoryApi } from '../services/stormMemoryApi';
+import { buildPerformanceContext } from '../services/performanceContextService';
 
 /**
  * Extract and compress key context from conversation history
@@ -1155,6 +1156,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
             systemPrompt += emailInsights;
             console.log('[Memory] Added email pattern insights to prompt');
           }
+        }
+
+        // PERFORMANCE CONTEXT: Add leaderboard data if performance query detected
+        const performanceContext = await buildPerformanceContext(originalQuery, currentUser?.email);
+        if (performanceContext) {
+          systemPrompt += performanceContext;
+          console.log('[Performance] Added performance context to prompt');
         }
       } catch (memoryError) {
         console.warn('[Memory] Error loading memory context:', memoryError);
