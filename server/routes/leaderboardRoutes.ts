@@ -271,6 +271,7 @@ export function createLeaderboardRoutes(pool: Pool) {
    */
   router.get('/stats', async (_req: Request, res: Response) => {
     try {
+      const sortBy = (_req.query.sortBy as string) || 'monthly_signups';
       const yearParam = _req.query.year as string | undefined;
       const monthParam = _req.query.month as string | undefined;
       const teamIdParam = _req.query.teamId as string | undefined;
@@ -284,6 +285,10 @@ export function createLeaderboardRoutes(pool: Pool) {
       const teamId = teamIdParam ? parseInt(teamIdParam, 10) : undefined;
       const territoryId = territoryIdParam ? parseInt(territoryIdParam, 10) : undefined;
 
+      const normalizedSort = sortBy === 'doors_knocked_30d' ? 'doors_knocked' : sortBy;
+      const validSortFields = ['monthly_revenue', 'yearly_revenue', 'monthly_signups', 'doors_knocked', 'all_time_revenue'];
+      const sortField = validSortFields.includes(normalizedSort) ? normalizedSort : 'monthly_signups';
+
       const filters: { year?: number; month?: number; teamId?: number; territoryId?: number } = {};
       if (year) {
         filters.year = year;
@@ -292,12 +297,16 @@ export function createLeaderboardRoutes(pool: Pool) {
       if (teamId && !isNaN(teamId)) filters.teamId = teamId;
       if (territoryId && !isNaN(territoryId)) filters.territoryId = territoryId;
 
-      const stats = await leaderboardService.getLeaderboardStats(Object.keys(filters).length > 0 ? filters : undefined);
+      const stats = await leaderboardService.getLeaderboardStats(
+        Object.keys(filters).length > 0 ? filters : undefined,
+        sortField as any
+      );
 
       res.json({
         success: true,
         year: year || null,
         month: month || null,
+        sortBy: sortField,
         ...stats
       });
     } catch (error) {

@@ -478,13 +478,16 @@ export function createLeaderboardService(geminiPool: Pool) {
   /**
    * Get overall leaderboard statistics
    */
-  async function getLeaderboardStats(filters?: { year?: number; month?: number; teamId?: number; territoryId?: number }): Promise<{
+  async function getLeaderboardStats(
+    filters?: { year?: number; month?: number; teamId?: number; territoryId?: number },
+    sortBy: SortBy = 'monthly_signups'
+  ): Promise<{
     totalReps: number;
     totalRevenue: number;
     totalSignups: number;
     avgMonthlyRevenue: number;
     avgMonthlySignups: number;
-    topPerformer: { name: string; signups: number } | null;
+    topPerformer: CombinedLeaderboardEntry | null;
     tierDistribution: Record<string, number>;
   }> {
     try {
@@ -560,52 +563,9 @@ export function createLeaderboardService(geminiPool: Pool) {
 
       const stats = result.rows[0];
 
-      let topResult;
-      if (filterYear && filterMonth) {
-        const params = [filterYear, filterMonth];
-        const whereClause = buildWhereClause(params);
-        topResult = await geminiPool.query(
-          `SELECT s.name, COALESCE(m.signups, 0) as monthly_signups
-           FROM sales_reps s
-           LEFT JOIN sales_rep_monthly_metrics m
-             ON m.sales_rep_id = s.id
-            AND m.year = $1
-            AND m.month = $2
-           WHERE ${whereClause}
-           ORDER BY COALESCE(m.signups, 0) DESC
-           LIMIT 1`,
-          params
-        );
-      } else if (filterYear) {
-        const params = [filterYear];
-        const whereClause = buildWhereClause(params);
-        topResult = await geminiPool.query(
-          `SELECT s.name, COALESCE(y.signups, 0) as monthly_signups
-           FROM sales_reps s
-           LEFT JOIN sales_rep_yearly_metrics y
-             ON y.sales_rep_id = s.id
-            AND y.year = $1
-           WHERE ${whereClause}
-           ORDER BY COALESCE(y.signups, 0) DESC
-           LIMIT 1`,
-          params
-        );
-      } else {
-        const params: any[] = [];
-        const whereClause = buildWhereClause(params);
-        topResult = await geminiPool.query(
-          `SELECT s.name, s.monthly_signups
-           FROM sales_reps s
-           WHERE ${whereClause}
-           ORDER BY s.monthly_signups DESC
-           LIMIT 1`,
-          params
-        );
-      }
-
-      const topPerformer = topResult.rows[0]
-        ? { name: topResult.rows[0].name, signups: toNumber(topResult.rows[0].monthly_signups) }
-        : null;
+      // Get top performer based on the current sort criteria
+      const leaderboard = await getCombinedLeaderboard(sortBy, 1, filters);
+      const topPerformer = leaderboard.length > 0 ? leaderboard[0] : null;
 
       const tierParams: any[] = [];
       const tierWhereClause = buildWhereClause(tierParams);
