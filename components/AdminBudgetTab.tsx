@@ -186,7 +186,8 @@ const AdminBudgetTab: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setAlerts(data);
+        // Ensure we always set an array
+        setAlerts(Array.isArray(data) ? data : []);
       } else {
         // Mock data
         setAlerts([
@@ -218,6 +219,8 @@ const AdminBudgetTab: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching alerts:', err);
+      // Set empty array on error
+      setAlerts([]);
     }
   };
 
@@ -267,6 +270,8 @@ const AdminBudgetTab: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching users:', err);
+      // Set empty array on error
+      setUsers([]);
     }
   };
 
@@ -278,7 +283,9 @@ const AdminBudgetTab: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUsageLog(data.logs || data);
+        // Ensure we always set an array
+        const logs = data.logs || data;
+        setUsageLog(Array.isArray(logs) ? logs : []);
       } else {
         // Mock data
         const mockLogs: ApiUsageLog[] = [];
@@ -305,6 +312,8 @@ const AdminBudgetTab: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching usage log:', err);
+      // Set empty array on error
+      setUsageLog([]);
     }
   };
 
@@ -320,12 +329,12 @@ const AdminBudgetTab: React.FC = () => {
       });
 
       if (response.ok) {
-        setAlerts(alerts.map(alert =>
+        setAlerts((Array.isArray(alerts) ? alerts : []).map(alert =>
           alert.id === alertId ? { ...alert, acknowledged: true } : alert
         ));
       } else {
         // Optimistic update for mock
-        setAlerts(alerts.map(alert =>
+        setAlerts((Array.isArray(alerts) ? alerts : []).map(alert =>
           alert.id === alertId ? { ...alert, acknowledged: true } : alert
         ));
       }
@@ -362,7 +371,7 @@ const AdminBudgetTab: React.FC = () => {
       });
 
       if (response.ok) {
-        setUsers(users.map(user => {
+        setUsers((Array.isArray(users) ? users : []).map(user => {
           if (user.userId === userId) {
             const percentUsed = (user.currentSpend / newBudget) * 100;
             return {
@@ -378,7 +387,7 @@ const AdminBudgetTab: React.FC = () => {
         setEditBudgetValue('');
       } else {
         // Optimistic update for mock
-        setUsers(users.map(user => {
+        setUsers((Array.isArray(users) ? users : []).map(user => {
           if (user.userId === userId) {
             const percentUsed = (user.currentSpend / newBudget) * 100;
             return {
@@ -444,7 +453,8 @@ const AdminBudgetTab: React.FC = () => {
 
   const exportUsageLog = () => {
     const headers = ['Timestamp', 'User Email', 'User Name', 'Provider', 'Service Type', 'Tokens', 'Cost', 'Feature', 'Status'];
-    const rows = filteredUsageLogs.map(log => [
+    const safeFilteredLogs = Array.isArray(filteredUsageLogs) ? filteredUsageLogs : [];
+    const rows = safeFilteredLogs.map(log => [
       new Date(log.timestamp).toLocaleString(),
       log.userEmail,
       log.userName,
@@ -476,13 +486,13 @@ const AdminBudgetTab: React.FC = () => {
   // FILTERING & PAGINATION
   // ============================================================================
 
-  const filteredAlerts = alerts.filter(alert => {
+  const filteredAlerts = (Array.isArray(alerts) ? alerts : []).filter(alert => {
     if (alertFilter === 'acknowledged' && !alert.acknowledged) return false;
     if (alertFilter === 'unacknowledged' && alert.acknowledged) return false;
     return true;
   });
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
     if (userSearchQuery && !user.email.toLowerCase().includes(userSearchQuery.toLowerCase()) &&
         !user.name.toLowerCase().includes(userSearchQuery.toLowerCase())) {
       return false;
@@ -490,7 +500,7 @@ const AdminBudgetTab: React.FC = () => {
     return true;
   });
 
-  const filteredUsageLogs = usageLog.filter(log => {
+  const filteredUsageLogs = (Array.isArray(usageLog) ? usageLog : []).filter(log => {
     if (logUserFilter && log.userId !== logUserFilter) return false;
     if (logProviderFilter && log.provider !== logProviderFilter) return false;
     if (logDateFrom && new Date(log.timestamp) < new Date(logDateFrom)) return false;
@@ -1264,7 +1274,7 @@ const AdminBudgetTab: React.FC = () => {
             }}
           >
             <option value="">All Users</option>
-            {users.map(user => (
+            {(Array.isArray(users) ? users : []).map(user => (
               <option key={user.userId} value={user.userId}>{user.email}</option>
             ))}
           </select>

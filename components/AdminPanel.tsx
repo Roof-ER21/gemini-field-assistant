@@ -213,6 +213,8 @@ const AdminPanel: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserSummary | null>(null);
   const [userFormData, setUserFormData] = useState({ name: '', email: '', role: 'sales_rep', state: '' });
   const [userModalLoading, setUserModalLoading] = useState(false);
+  const [showConversationsModal, setShowConversationsModal] = useState(false);
+  const [conversationsModalUser, setConversationsModalUser] = useState<UserSummary | null>(null);
 
   // Settings tab - selected user for per-user actions
   const [settingsSelectedUserId, setSettingsSelectedUserId] = useState<string>('');
@@ -1525,152 +1527,169 @@ const AdminPanel: React.FC = () => {
       {/* Main Container */}
       <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
         {activeTab === 'users' && (
-        <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
-        {/* Sidebar - Users List */}
-        <div style={{
-          width: '320px',
-          background: '#0a0a0a',
-          borderRadius: '12px',
-          border: '1px solid #262626',
-          display: 'flex',
-          flexDirection: 'column',
-          flexShrink: 0
-        }}>
-          {/* Sidebar Header */}
-          <div style={{
-            padding: '25px',
-            borderBottom: '1px solid #1a1a1a'
-          }}>
+          <div>
+            {/* Header and Filter Bar */}
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '20px',
-              fontWeight: 700,
-              marginBottom: '20px',
-              color: '#ffffff'
+              marginBottom: '2rem',
+              background: '#0a0a0a',
+              border: '1px solid #262626',
+              borderRadius: '12px',
+              padding: '1.5rem'
             }}>
+              {/* Title Row */}
               <div style={{
-                width: '32px',
-                height: '32px',
-                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px'
+                justifyContent: 'space-between',
+                marginBottom: '1.5rem'
               }}>
-                👥
-              </div>
-              All Users
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
-                <button
-                  onClick={openCreateUserModal}
-                  style={{
-                    padding: '6px 10px',
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  fontSize: '24px',
+                  fontWeight: 700,
+                  color: '#ffffff'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
                     background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    borderRadius: '6px',
+                    borderRadius: '10px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '12px',
-                    color: '#ffffff',
-                    fontWeight: '500'
-                  }}
-                  title="Add new user"
-                >
-                  <UserPlus style={{ width: '14px', height: '14px' }} />
-                  Add
-                </button>
-                <button
-                  onClick={fetchUsers}
-                  style={{
-                    padding: '6px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    borderRadius: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                  title="Refresh users"
-                >
-                  <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
-                </button>
+                    justifyContent: 'center',
+                    fontSize: '20px'
+                  }}>
+                    👥
+                  </div>
+                  All Users
+                  <span style={{ fontSize: '16px', color: '#a1a1aa', fontWeight: 400, marginLeft: '8px' }}>
+                    {filteredUsers.length} of {users.length}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={openCreateUserModal}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      color: '#ffffff',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <UserPlus style={{ width: '16px', height: '16px' }} />
+                    Add User
+                  </button>
+                  <button
+                    onClick={fetchUsers}
+                    style={{
+                      padding: '10px',
+                      background: 'rgba(220, 38, 38, 0.1)',
+                      border: '1px solid #dc2626',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
+                    }}
+                    title="Refresh users"
+                  >
+                    <RefreshCw style={{ width: '18px', height: '18px', color: '#dc2626' }} />
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Search Box */}
-            <div style={{ position: 'relative', marginBottom: '15px' }}>
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 40px 12px 16px',
-                  background: '#171717',
-                  border: '1px solid #262626',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  transition: 'all 0.3s ease',
-                  outline: 'none'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#dc2626';
-                  e.currentTarget.style.background = '#1a1a1a';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#262626';
-                  e.currentTarget.style.background = '#171717';
-                }}
-              />
-              <span style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                opacity: 0.5
+              {/* Filters Row */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto auto auto',
+                gap: '12px',
+                alignItems: 'center'
               }}>
-                🔍
-              </span>
-            </div>
+                {/* Search */}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 40px 12px 16px',
+                      background: '#171717',
+                      border: '1px solid #262626',
+                      borderRadius: '10px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      transition: 'all 0.3s ease',
+                      outline: 'none'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#dc2626';
+                      e.currentTarget.style.background = '#1a1a1a';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#262626';
+                      e.currentTarget.style.background = '#171717';
+                    }}
+                  />
+                  <Search style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '18px',
+                    height: '18px',
+                    color: '#a1a1aa'
+                  }} />
+                </div>
 
-            {/* Filter Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {/* Role Filter */}
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: '#171717',
-                  border: '1px solid #262626',
-                  borderRadius: '8px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  outline: 'none'
-                }}
-              >
-                <option value="">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="sales_repMD">Sales Rep MD</option>
-                <option value="manager">Manager</option>
-              </select>
+                {/* Role Filter */}
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  style={{
+                    padding: '12px 16px',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    minWidth: '150px'
+                  }}
+                >
+                  <option value="">All Roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="sales_repMD">Sales Rep MD</option>
+                  <option value="manager">Manager</option>
+                </select>
 
-              {/* Date Filters */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {/* Date From */}
                 <input
                   type="date"
                   value={dateFrom}
@@ -1679,15 +1698,18 @@ const AdminPanel: React.FC = () => {
                     setQuickFilter('all');
                   }}
                   style={{
-                    padding: '10px',
+                    padding: '12px 16px',
                     background: '#171717',
                     border: '1px solid #262626',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     color: '#ffffff',
-                    fontSize: '12px',
-                    outline: 'none'
+                    fontSize: '14px',
+                    outline: 'none',
+                    minWidth: '150px'
                   }}
                 />
+
+                {/* Date To */}
                 <input
                   type="date"
                   value={dateTo}
@@ -1696,33 +1718,35 @@ const AdminPanel: React.FC = () => {
                     setQuickFilter('all');
                   }}
                   style={{
-                    padding: '10px',
+                    padding: '12px 16px',
                     background: '#171717',
                     border: '1px solid #262626',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     color: '#ffffff',
-                    fontSize: '12px',
-                    outline: 'none'
+                    fontSize: '14px',
+                    outline: 'none',
+                    minWidth: '150px'
                   }}
                 />
               </div>
 
               {/* Quick Filters */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 {(['today', 'week', 'month', 'all'] as QuickFilter[]).map((filter) => (
                   <button
                     key={filter}
                     onClick={() => handleQuickFilter(filter)}
                     style={{
-                      padding: '6px 12px',
+                      padding: '8px 16px',
                       background: quickFilter === filter ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
                       border: `1px solid ${quickFilter === filter ? '#dc2626' : '#262626'}`,
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       color: quickFilter === filter ? '#ffffff' : '#a1a1aa',
-                      fontSize: '12px',
+                      fontSize: '14px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
-                      outline: 'none'
+                      outline: 'none',
+                      fontWeight: 500
                     }}
                     onMouseEnter={(e) => {
                       if (quickFilter !== filter) {
@@ -1741,609 +1765,717 @@ const AdminPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Users Count */}
+            {/* Users Grid */}
             <div style={{
-              fontSize: '12px',
-              color: '#a1a1aa',
-              marginTop: '15px',
-              paddingTop: '15px',
-              borderTop: '1px solid #1a1a1a'
-            }}>
-              {filteredUsers.length} of {users.length} users
-            </div>
-          </div>
-
-          {/* Users List */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '20px'
-          }} className="custom-scrollbar">
-            {loading && !users.length && (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <div style={{
-                  display: 'inline-block',
-                  width: '40px',
-                  height: '40px',
-                  border: '4px solid #262626',
-                  borderTop: '4px solid #dc2626',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-                <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
-                  Loading users...
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div style={{
-                background: '#0a0a0a',
-                border: '1px solid #dc2626',
-                borderRadius: '10px',
-                padding: '16px',
-                marginBottom: '12px'
-              }}>
-                <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '8px' }}>Error</div>
-                <div style={{ color: '#a1a1aa', fontSize: '14px' }}>{error}</div>
-              </div>
-            )}
-
-            {filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                onClick={() => handleUserSelect(user)}
-                style={{
-                  background: selectedUser?.id === user.id ? '#171717' : '#0a0a0a',
-                  border: '1px solid #262626',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  marginBottom: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  position: 'relative',
-                  boxShadow: selectedUser?.id === user.id ? '-4px 0 0 #dc2626' : 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedUser?.id !== user.id) {
-                    e.currentTarget.style.background = '#171717';
-                    e.currentTarget.style.borderColor = '#dc2626';
-                    e.currentTarget.style.transform = 'translateX(4px)';
-                    e.currentTarget.style.boxShadow = '-4px 0 0 #dc2626';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedUser?.id !== user.id) {
-                    e.currentTarget.style.background = '#0a0a0a';
-                    e.currentTarget.style.borderColor = '#262626';
-                    e.currentTarget.style.transform = 'translateX(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }
-                }}
-              >
-                {/* User Card Header */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  marginBottom: '10px'
-                }}>
-                  <div style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '18px',
-                    fontWeight: 600,
-                    flexShrink: 0,
-                    position: 'relative',
-                    color: '#ffffff'
-                  }}>
-                    {getInitials(user.name)}
-                    {/* Status Indicator */}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '2px',
-                      right: '2px',
-                      width: '12px',
-                      height: '12px',
-                      background: isUserOnline(user.last_active) ? '#10b981' : '#52525b',
-                      border: '2px solid #0a0a0a',
-                      borderRadius: '50%'
-                    }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: 600,
-                      fontSize: '15px',
-                      marginBottom: '2px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      color: '#ffffff'
-                    }}>
-                      {user.name}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#a1a1aa',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}>
-                      {user.email}
-                    </div>
-                  </div>
-                </div>
-
-                {/* User Card Footer */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '4px 10px',
-                    background: user.role === 'admin' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : user.role.includes('sales') ? '#dc2626' : '#262626',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: user.role === 'admin' || user.role.includes('sales') ? '#ffffff' : '#d4d4d8'
-                  }}>
-                    {user.role}
-                  </span>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '13px',
-                      color: '#a1a1aa'
-                    }}>
-                      <span style={{
-                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                        color: '#ffffff',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '12px',
-                        fontWeight: 600
-                      }}>
-                        {user.total_messages}
-                      </span>
-                      msgs
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      marginLeft: 'auto'
-                    }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openEditUserModal(user); }}
-                        style={{
-                          padding: '4px',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          opacity: 0.6,
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '1';
-                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '0.6';
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                        title="Edit user"
-                      >
-                        <Edit2 style={{ width: '14px', height: '14px', color: '#3b82f6' }} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
-                        style={{
-                          padding: '4px',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          opacity: 0.6,
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '1';
-                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '0.6';
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                        title="Delete user"
-                      >
-                        <Trash2 style={{ width: '14px', height: '14px', color: '#ef4444' }} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {!loading && filteredUsers.length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px 20px',
-                color: '#a1a1aa'
-              }}>
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  background: '#171717',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 20px',
-                  fontSize: '36px'
-                }}>
-                  👥
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>
-                  No users found
-                </div>
-                <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
-                  Try adjusting your filters
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Conversations Panel - Shows when user is selected */}
-        {selectedUser && (
-          <div style={{
-            flex: 1,
-            background: '#0a0a0a',
-            borderRadius: '12px',
-            border: '1px solid #262626',
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: '350px',
-            maxWidth: '450px'
-          }}>
-            {/* Header */}
-            <div style={{
-              padding: '25px',
-              borderBottom: '1px solid #1a1a1a'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                fontSize: '18px',
-                fontWeight: 600,
-                color: '#ffffff',
-                marginBottom: '10px'
-              }}>
-                <MessageSquare style={{ width: '20px', height: '20px', color: '#dc2626' }} />
-                Conversations
-              </div>
-              <div style={{
-                fontSize: '14px',
-                color: '#a1a1aa'
-              }}>
-                {selectedUser.name}
-              </div>
-            </div>
-
-            {/* Conversations List */}
-            <div style={{
-              flex: 1,
+              height: 'calc(100vh - 380px)',
               overflowY: 'auto',
-              padding: '20px'
+              paddingRight: '4px'
             }} className="custom-scrollbar">
-              {loading && conversations.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center' }}>
+              {loading && !users.length ? (
+                <div style={{ padding: '80px', textAlign: 'center' }}>
                   <div style={{
                     display: 'inline-block',
-                    width: '40px',
-                    height: '40px',
-                    border: '4px solid #3a3a3a',
-                    borderTop: '4px solid #991b1b',
+                    width: '50px',
+                    height: '50px',
+                    border: '4px solid #262626',
+                    borderTop: '4px solid #dc2626',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite'
                   }} />
-                  <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
-                    Loading conversations...
+                  <p style={{ color: '#a1a1aa', marginTop: '20px', fontSize: '16px' }}>
+                    Loading users...
                   </p>
                 </div>
-              ) : conversations.length === 0 ? (
+              ) : error ? (
+                <div style={{
+                  background: '#0a0a0a',
+                  border: '1px solid #dc2626',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  maxWidth: '600px',
+                  margin: '0 auto'
+                }}>
+                  <div style={{ color: '#dc2626', fontWeight: 600, fontSize: '18px', marginBottom: '12px' }}>Error</div>
+                  <div style={{ color: '#a1a1aa', fontSize: '14px' }}>{error}</div>
+                </div>
+              ) : filteredUsers.length === 0 ? (
                 <div style={{
                   textAlign: 'center',
-                  padding: '60px 20px',
-                  color: '#71717a'
+                  padding: '80px 20px',
+                  color: '#a1a1aa'
                 }}>
                   <div style={{
-                    width: '80px',
-                    height: '80px',
-                    background: '#262626',
+                    width: '120px',
+                    height: '120px',
+                    background: '#171717',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    margin: '0 auto 20px',
-                    fontSize: '36px'
+                    margin: '0 auto 24px',
+                    fontSize: '60px'
                   }}>
-                    💬
+                    👥
                   </div>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
-                    No conversations
+                  <div style={{ fontSize: '22px', fontWeight: 600, color: '#ffffff', marginBottom: '12px' }}>
+                    No users found
                   </div>
-                  <div style={{ fontSize: '14px', color: '#71717a' }}>
-                    This user has no chat history
+                  <div style={{ fontSize: '16px', color: '#a1a1aa' }}>
+                    Try adjusting your filters or search query
                   </div>
                 </div>
               ) : (
-                conversations.map((conv) => (
-                  <div
-                    key={conv.session_id}
-                    onClick={() => handleConversationSelect(conv)}
-                    style={{
-                      background: selectedConversation?.session_id === conv.session_id ? '#171717' : '#0a0a0a',
-                      border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#dc2626' : '#262626'}`,
-                      borderRadius: '12px',
-                      padding: '16px',
-                      marginBottom: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedConversation?.session_id !== conv.session_id) {
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '20px'
+                }}>
+                  {filteredUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      style={{
+                        background: '#111111',
+                        border: '1px solid #262626',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        transition: 'all 0.3s ease',
+                        cursor: 'default',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
                         e.currentTarget.style.background = '#171717';
                         e.currentTarget.style.borderColor = '#dc2626';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedConversation?.session_id !== conv.session_id) {
-                        e.currentTarget.style.background = '#0a0a0a';
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(220, 38, 38, 0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#111111';
                         e.currentTarget.style.borderColor = '#262626';
-                      }
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '10px'
-                    }}>
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      {/* Avatar and Status */}
                       <div style={{
-                        display: 'inline-flex',
+                        display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 10px',
-                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        color: '#ffffff'
+                        marginBottom: '20px'
                       }}>
-                        <MessageSquare style={{ width: '14px', height: '14px' }} />
-                        {conv.message_count}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#71717a'
-                      }}>
-                        {new Date(conv.last_message_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#a1a1aa',
-                      lineHeight: '1.5',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {conv.preview || 'No preview available'}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Messages Panel - Shows when conversation is selected */}
-        {selectedUser && selectedConversation && (
-          <div style={{
-            flex: 1,
-            background: '#0a0a0a',
-            borderRadius: '12px',
-            border: '1px solid #262626',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            {/* Header */}
-            <div style={{
-              padding: '25px',
-              borderBottom: '1px solid #1a1a1a',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  color: '#ffffff',
-                  marginBottom: '8px'
-                }}>
-                  <MessageSquare style={{ width: '20px', height: '20px', color: '#dc2626' }} />
-                  Messages
-                </div>
-                <div style={{ fontSize: '13px', color: '#a1a1aa' }}>
-                  {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
-                </div>
-              </div>
-              <button
-                onClick={exportConversation}
-                style={{
-                  padding: '10px 16px',
-                  background: 'rgba(220, 38, 38, 0.2)',
-                  border: '1px solid #dc2626',
-                  borderRadius: '8px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
-                }}
-              >
-                <Download style={{ width: '16px', height: '16px' }} />
-                Export
-              </button>
-            </div>
-
-            {/* Messages List */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '20px'
-            }} className="custom-scrollbar">
-              {loading && messages.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center' }}>
-                  <div style={{
-                    display: 'inline-block',
-                    width: '40px',
-                    height: '40px',
-                    border: '4px solid #3a3a3a',
-                    borderTop: '4px solid #991b1b',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  <p style={{ color: '#71717a', marginTop: '16px', fontSize: '14px' }}>
-                    Loading messages...
-                  </p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '60px 20px',
-                  color: '#71717a'
-                }}>
-                  <div style={{
-                    width: '80px',
-                    height: '80px',
-                    background: '#262626',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 20px',
-                    fontSize: '36px'
-                  }}>
-                    📭
-                  </div>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#e4e4e7', marginBottom: '8px' }}>
-                    No messages
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#71717a' }}>
-                    No messages in this conversation
-                  </div>
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    style={{
-                      marginBottom: '24px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start'
-                    }}
-                  >
-                    <div style={{
-                      maxWidth: '75%',
-                      background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
-                      padding: '14px 18px',
-                      borderRadius: '12px',
-                      position: 'relative'
-                    }}>
-                      <div style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        marginBottom: '8px',
-                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.8)' : '#a1a1aa',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                      }}>
-                        {msg.sender === 'user' ? selectedUser.name : 'S21 AI'}
-                      </div>
-                      <div style={{
-                        fontSize: '15px',
-                        lineHeight: '1.6',
-                        color: msg.sender === 'user' ? '#ffffff' : '#d4d4d8',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word'
-                      }}>
-                        {msg.content}
-                      </div>
-                      {msg.provider && (
                         <div style={{
-                          marginTop: '10px',
-                          fontSize: '11px',
-                          color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#a1a1aa',
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px'
+                          justifyContent: 'center',
+                          fontSize: '32px',
+                          fontWeight: 700,
+                          position: 'relative',
+                          color: '#ffffff',
+                          marginBottom: '12px'
                         }}>
-                          <span>Provider: {msg.provider}</span>
+                          {getInitials(user.name)}
+                          {/* Status Indicator */}
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '4px',
+                            right: '4px',
+                            width: '18px',
+                            height: '18px',
+                            background: isUserOnline(user.last_active) ? '#10b981' : '#52525b',
+                            border: '3px solid #111111',
+                            borderRadius: '50%'
+                          }} />
+                        </div>
+                        <div style={{
+                          fontSize: '18px',
+                          fontWeight: 600,
+                          color: '#ffffff',
+                          marginBottom: '4px',
+                          textAlign: 'center'
+                        }}>
+                          {user.name}
+                        </div>
+                        <div style={{
+                          fontSize: '14px',
+                          color: '#a1a1aa',
+                          marginBottom: '12px',
+                          textAlign: 'center',
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {user.email}
+                        </div>
+                      </div>
+
+                      {/* Badges */}
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        marginBottom: '16px',
+                        flexWrap: 'wrap',
+                        justifyContent: 'center'
+                      }}>
+                        <span style={{
+                          padding: '6px 12px',
+                          background: user.role === 'admin' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : user.role.includes('sales') ? '#dc2626' : '#262626',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          color: user.role === 'admin' || user.role.includes('sales') ? '#ffffff' : '#d4d4d8'
+                        }}>
+                          {user.role}
+                        </span>
+                        {user.state && (
+                          <span style={{
+                            padding: '6px 12px',
+                            background: '#262626',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#d4d4d8'
+                          }}>
+                            {user.state}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Stats */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '12px',
+                        marginBottom: '20px',
+                        padding: '16px',
+                        background: '#0a0a0a',
+                        borderRadius: '12px',
+                        border: '1px solid #1a1a1a'
+                      }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            marginBottom: '4px'
+                          }}>
+                            {user.total_messages}
+                          </div>
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#a1a1aa',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>
+                            Messages
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: isUserOnline(user.last_active) ? '#10b981' : '#a1a1aa',
+                            marginBottom: '4px'
+                          }}>
+                            {isUserOnline(user.last_active) ? 'ONLINE' : 'OFFLINE'}
+                          </div>
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#71717a'
+                          }}>
+                            {new Date(user.last_active).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: '8px'
+                      }}>
+                        <button
+                          onClick={() => {
+                            setConversationsModalUser(user);
+                            setShowConversationsModal(true);
+                            handleUserSelect(user);
+                          }}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(220, 38, 38, 0.1)',
+                            border: '1px solid #dc2626',
+                            borderRadius: '8px',
+                            color: '#dc2626',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#dc2626';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
+                            e.currentTarget.style.color = '#dc2626';
+                          }}
+                          title="View conversations"
+                        >
+                          <MessageSquare style={{ width: '14px', height: '14px' }} />
+                          Chats
+                        </button>
+                        <button
+                          onClick={() => openEditUserModal(user)}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid #3b82f6',
+                            borderRadius: '8px',
+                            color: '#3b82f6',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#3b82f6';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                            e.currentTarget.style.color = '#3b82f6';
+                          }}
+                          title="Edit user"
+                        >
+                          <Edit2 style={{ width: '14px', height: '14px' }} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid #ef4444',
+                            borderRadius: '8px',
+                            color: '#ef4444',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#ef4444';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                            e.currentTarget.style.color = '#ef4444';
+                          }}
+                          title="Delete user"
+                        >
+                          <Trash2 style={{ width: '14px', height: '14px' }} />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Conversations Modal */}
+            {showConversationsModal && conversationsModalUser && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.8)',
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000,
+                padding: '20px'
+              }}
+              onClick={() => {
+                setShowConversationsModal(false);
+                setConversationsModalUser(null);
+                setSelectedUser(null);
+                setSelectedConversation(null);
+              }}>
+                <div
+                  style={{
+                    background: '#0a0a0a',
+                    borderRadius: '16px',
+                    border: '1px solid #262626',
+                    maxWidth: '1200px',
+                    width: '100%',
+                    maxHeight: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div style={{
+                    padding: '24px',
+                    borderBottom: '1px solid #262626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        color: '#ffffff',
+                        marginBottom: '4px'
+                      }}>
+                        {conversationsModalUser.name}'s Conversations
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                        {conversationsModalUser.email}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowConversationsModal(false);
+                        setConversationsModalUser(null);
+                        setSelectedUser(null);
+                        setSelectedConversation(null);
+                      }}
+                      style={{
+                        padding: '8px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        color: '#a1a1aa',
+                        fontSize: '24px',
+                        lineHeight: 1,
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                        e.currentTarget.style.color = '#dc2626';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#a1a1aa';
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Conversations List */}
+                    <div style={{
+                      width: '350px',
+                      borderRight: '1px solid #262626',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      background: '#111111'
+                    }}>
+                      <div style={{
+                        padding: '20px',
+                        borderBottom: '1px solid #262626'
+                      }}>
+                        <div style={{
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          color: '#ffffff'
+                        }}>
+                          Chat Sessions
+                        </div>
+                      </div>
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '16px'
+                      }} className="custom-scrollbar">
+                        {loading && conversations.length === 0 ? (
+                          <div style={{ padding: '40px', textAlign: 'center' }}>
+                            <div style={{
+                              display: 'inline-block',
+                              width: '40px',
+                              height: '40px',
+                              border: '4px solid #262626',
+                              borderTop: '4px solid #dc2626',
+                              borderRadius: '50%',
+                              animation: 'spin 1s linear infinite'
+                            }} />
+                            <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
+                              Loading...
+                            </p>
+                          </div>
+                        ) : conversations.length === 0 ? (
+                          <div style={{
+                            textAlign: 'center',
+                            padding: '40px 20px',
+                            color: '#71717a'
+                          }}>
+                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
+                            <div style={{ fontSize: '14px' }}>No conversations yet</div>
+                          </div>
+                        ) : (
+                          conversations.map((conv) => (
+                            <div
+                              key={conv.session_id}
+                              onClick={() => handleConversationSelect(conv)}
+                              style={{
+                                background: selectedConversation?.session_id === conv.session_id ? '#171717' : '#0a0a0a',
+                                border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#dc2626' : '#262626'}`,
+                                borderRadius: '12px',
+                                padding: '16px',
+                                marginBottom: '12px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (selectedConversation?.session_id !== conv.session_id) {
+                                  e.currentTarget.style.background = '#171717';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedConversation?.session_id !== conv.session_id) {
+                                  e.currentTarget.style.background = '#0a0a0a';
+                                }
+                              }}
+                            >
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: '8px'
+                              }}>
+                                <div style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '4px 10px',
+                                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  color: '#ffffff'
+                                }}>
+                                  {conv.message_count} msgs
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#71717a' }}>
+                                  {new Date(conv.last_message_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <div style={{
+                                fontSize: '13px',
+                                color: '#a1a1aa',
+                                lineHeight: '1.4',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}>
+                                {conv.preview || 'No preview available'}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Messages Panel */}
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      background: '#0a0a0a'
+                    }}>
+                      {selectedConversation ? (
+                        <>
+                          <div style={{
+                            padding: '20px',
+                            borderBottom: '1px solid #262626',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                          }}>
+                            <div>
+                              <div style={{
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                color: '#ffffff',
+                                marginBottom: '4px'
+                              }}>
+                                Conversation Messages
+                              </div>
+                              <div style={{ fontSize: '13px', color: '#a1a1aa' }}>
+                                {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <button
+                              onClick={exportConversation}
+                              style={{
+                                padding: '10px 16px',
+                                background: 'rgba(220, 38, 38, 0.2)',
+                                border: '1px solid #dc2626',
+                                borderRadius: '8px',
+                                color: '#ffffff',
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
+                              }}
+                            >
+                              <Download style={{ width: '16px', height: '16px' }} />
+                              Export
+                            </button>
+                          </div>
+                          <div style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '20px'
+                          }} className="custom-scrollbar">
+                            {loading && messages.length === 0 ? (
+                              <div style={{ padding: '40px', textAlign: 'center' }}>
+                                <div style={{
+                                  display: 'inline-block',
+                                  width: '40px',
+                                  height: '40px',
+                                  border: '4px solid #262626',
+                                  borderTop: '4px solid #dc2626',
+                                  borderRadius: '50%',
+                                  animation: 'spin 1s linear infinite'
+                                }} />
+                                <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
+                                  Loading messages...
+                                </p>
+                              </div>
+                            ) : messages.length === 0 ? (
+                              <div style={{
+                                textAlign: 'center',
+                                padding: '60px 20px',
+                                color: '#71717a'
+                              }}>
+                                <div style={{ fontSize: '64px', marginBottom: '16px' }}>📭</div>
+                                <div style={{ fontSize: '16px' }}>No messages in this conversation</div>
+                              </div>
+                            ) : (
+                              messages.map((msg) => (
+                                <div
+                                  key={msg.id}
+                                  style={{
+                                    marginBottom: '20px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start'
+                                  }}
+                                >
+                                  <div style={{
+                                    maxWidth: '70%',
+                                    background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
+                                    padding: '14px 18px',
+                                    borderRadius: '12px'
+                                  }}>
+                                    <div style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      marginBottom: '8px',
+                                      color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.8)' : '#a1a1aa',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.5px'
+                                    }}>
+                                      {msg.sender === 'user' ? conversationsModalUser.name : 'S21 AI'}
+                                    </div>
+                                    <div style={{
+                                      fontSize: '15px',
+                                      lineHeight: '1.6',
+                                      color: msg.sender === 'user' ? '#ffffff' : '#d4d4d8',
+                                      whiteSpace: 'pre-wrap',
+                                      wordBreak: 'break-word'
+                                    }}>
+                                      {msg.content}
+                                    </div>
+                                    {msg.provider && (
+                                      <div style={{
+                                        marginTop: '8px',
+                                        fontSize: '11px',
+                                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#a1a1aa'
+                                      }}>
+                                        Provider: {msg.provider}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: '#71717a',
+                                    marginTop: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    <Clock style={{ width: '12px', height: '12px' }} />
+                                    {new Date(msg.created_at).toLocaleString()}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#71717a',
+                          fontSize: '16px'
+                        }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '64px', marginBottom: '16px' }}>💬</div>
+                            <div>Select a conversation to view messages</div>
+                          </div>
                         </div>
                       )}
                     </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#a1a1aa',
-                      marginTop: '6px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <Clock style={{ width: '12px', height: '12px' }} />
-                      {new Date(msg.created_at).toLocaleString()}
-                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        </div>
         )}
 
         {/* EMAILS TAB - Full Page View */}

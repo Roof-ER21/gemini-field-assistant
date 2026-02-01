@@ -183,6 +183,10 @@ const transformKnowledgeBase = (data: any): KnowledgeBaseStats => {
 // ============================================================================
 
 const AdminAnalyticsTab: React.FC = () => {
+  // Sub-section navigation state
+  type SubSection = 'overview' | 'leaderboard' | 'canvassing' | 'knowledge-base' | 'ai-monitoring';
+  const [activeSubSection, setActiveSubSection] = useState<SubSection>('overview');
+
   // State
   const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
   const [userActivity, setUserActivity] = useState<UserActivity[]>([]);
@@ -777,630 +781,829 @@ const AdminAnalyticsTab: React.FC = () => {
         padding: '0',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         color: '#e4e4e7',
+        maxHeight: 'calc(100vh - 200px)',
+        overflowY: 'auto',
       }}
     >
-      {/* Section 1: Time Range Filter Bar */}
+      {/* Sub-Section Navigation */}
       <div
         style={{
           background: 'rgba(255, 255, 255, 0.05)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          padding: '16px 24px',
+          padding: '8px',
           marginBottom: '24px',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          gap: '8px',
+          flexWrap: 'wrap',
         }}
+        role="tablist"
+        aria-label="Analytics sections"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Calendar style={{ width: '20px', height: '20px', color: '#ef4444' }} aria-hidden="true" />
-          <span style={{ fontSize: '14px', fontWeight: 600 }}>Time Range:</span>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="Filter by time range">
-          {(['today', 'week', 'month', 'all'] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              aria-pressed={timeRange === range}
-              aria-label={`Filter by ${range === 'week' ? 'this week' : range === 'month' ? 'this month' : range === 'all' ? 'all time' : 'today'}`}
-              style={{
-                padding: '8px 16px',
-                background: timeRange === range ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
-                border: `1px solid ${timeRange === range ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
-                borderRadius: '8px',
-                color: timeRange === range ? 'white' : '#a1a1aa',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                textTransform: 'capitalize',
-              }}
-              onMouseEnter={(e) => {
-                if (timeRange !== range) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (timeRange !== range) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                }
-              }}
-            >
-              {range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : range === 'all' ? 'All Time' : 'Today'}
-            </button>
-          ))}
-        </div>
+        {([
+          { key: 'overview', label: 'Overview', icon: <BarChart3 size={16} /> },
+          { key: 'leaderboard', label: 'Leaderboard', icon: <TrendingUp size={16} /> },
+          { key: 'canvassing', label: 'Canvassing', icon: <Users size={16} /> },
+          { key: 'knowledge-base', label: 'Knowledge Base', icon: <BookOpen size={16} /> },
+          { key: 'ai-monitoring', label: 'AI Monitoring', icon: <AlertTriangle size={16} /> },
+        ] as Array<{ key: SubSection; label: string; icon: React.ReactNode }>).map((section) => (
+          <button
+            key={section.key}
+            role="tab"
+            aria-selected={activeSubSection === section.key}
+            aria-controls={`${section.key}-panel`}
+            onClick={() => setActiveSubSection(section.key)}
+            style={{
+              flex: '1 1 auto',
+              minWidth: '140px',
+              padding: '12px 16px',
+              background: activeSubSection === section.key ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${activeSubSection === section.key ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+              borderRadius: '8px',
+              color: activeSubSection === section.key ? 'white' : '#a1a1aa',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+            onMouseEnter={(e) => {
+              if (activeSubSection !== section.key) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeSubSection !== section.key) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+              }
+            }}
+          >
+            {section.icon}
+            {section.label}
+          </button>
+        ))}
       </div>
 
-      {/* Section 2: Overview Stats Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '20px',
-          marginBottom: '24px',
-        }}
-      >
-        {error.overview ? (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <ErrorDisplay message={error.overview} onRetry={fetchOverviewStats} />
-          </div>
-        ) : loading.overview ? (
-          <>
-            <LoadingSkeleton />
-            <LoadingSkeleton />
-            <LoadingSkeleton />
-            <LoadingSkeleton />
-          </>
-        ) : overviewStats ? (
-          <>
-            <StatCard icon={<Users size={24} />} value={overviewStats.totalUsers} label="Total Users" />
-            <StatCard icon={<TrendingUp size={24} />} value={overviewStats.activeUsers7d} label="Active Users (7d)" />
-            <StatCard icon={<MessageSquare size={24} />} value={overviewStats.totalMessages} label="Total Messages" />
-            <StatCard icon={<BarChart3 size={24} />} value={overviewStats.totalConversations} label="Conversations" />
-            <StatCard icon={<Mail size={24} />} value={overviewStats.emailsGenerated} label="Emails Generated" />
-            <StatCard icon={<Mic size={24} />} value={overviewStats.transcriptions} label="Transcriptions" />
-            <StatCard icon={<Upload size={24} />} value={overviewStats.documentsUploaded} label="Documents Uploaded" />
-            <StatCard icon={<BookOpen size={24} />} value={overviewStats.susanSessions} label="Susan Sessions" />
-          </>
-        ) : null}
-      </div>
-
-      {/* Section 3: Feature Usage Chart */}
-      <div
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '24px',
-        }}
-      >
-        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
-          Feature Usage Over Time
-        </h2>
-        {error.featureUsage ? (
-          <ErrorDisplay message={error.featureUsage} onRetry={fetchFeatureUsage} />
-        ) : loading.featureUsage ? (
-          <LoadingSkeleton />
-        ) : featureUsage.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            color: '#71717a',
-            background: 'rgba(255, 255, 255, 0.02)',
-            borderRadius: '8px',
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
-            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No feature usage data available</div>
-            <div style={{ fontSize: '14px' }}>Data will appear here once users start using features</div>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={featureUsage}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-              <XAxis dataKey="date" stroke="#a1a1aa" style={{ fontSize: '12px' }} />
-              <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
-              <Tooltip
-                contentStyle={{
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '8px',
-                  color: '#e4e4e7',
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="chat" stroke="#ef4444" strokeWidth={2} />
-              <Line type="monotone" dataKey="email" stroke="#059669" strokeWidth={2} />
-              <Line type="monotone" dataKey="upload" stroke="#10b981" strokeWidth={2} />
-              <Line type="monotone" dataKey="transcribe" stroke="#f59e0b" strokeWidth={2} />
-              <Line type="monotone" dataKey="susan" stroke="#8b5cf6" strokeWidth={2} />
-              <Line type="monotone" dataKey="knowledgeBase" stroke="#ec4899" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Section 4: User Activity Chart - Bug Fix #5: Shows TOP 10, not first 10 */}
-      <div
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '24px',
-        }}
-      >
-        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
-          Top 10 Active Users
-        </h2>
-        {error.userActivity ? (
-          <ErrorDisplay message={error.userActivity} onRetry={fetchUserActivity} />
-        ) : loading.userActivity ? (
-          <LoadingSkeleton />
-        ) : topUsers.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            color: '#71717a',
-            background: 'rgba(255, 255, 255, 0.02)',
-            borderRadius: '8px',
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
-            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No user activity data available</div>
-            <div style={{ fontSize: '14px' }}>Data will appear here once users start chatting</div>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topUsers}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-              <XAxis
-                dataKey="email"
-                stroke="#a1a1aa"
-                style={{ fontSize: '12px' }}
-                tickFormatter={(value) => value.split('@')[0].substring(0, 10)}
-              />
-              <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
-              <Tooltip
-                contentStyle={{
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '8px',
-                  color: '#e4e4e7',
-                }}
-              />
-              <Bar dataKey="chats" fill="#ef4444" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Section 5: Knowledge Base Analytics */}
-      {error.knowledgeBase ? (
-        <div style={{ marginBottom: '24px' }}>
-          <ErrorDisplay message={error.knowledgeBase} onRetry={fetchKnowledgeBase} />
-        </div>
-      ) : loading.knowledgeBase ? (
-        <div style={{ marginBottom: '24px' }}>
-          <LoadingSkeleton />
-        </div>
-      ) : knowledgeBase && (
+      {/* Time Range Filter Bar - Show on relevant sections */}
+      {(activeSubSection === 'overview' || activeSubSection === 'leaderboard') && (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '20px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '16px 24px',
             marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
           }}
         >
-          {/* Most Viewed */}
-          <div
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
-              padding: '20px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <Eye size={18} style={{ color: '#ef4444' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Viewed</h3>
-            </div>
-            {knowledgeBase.mostViewed.map((doc, idx) => (
-              <div
-                key={idx}
-                style={{
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  borderRadius: '8px',
-                  marginBottom: '8px',
-                }}
-              >
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
-                  {doc.name}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
-                  <span>{doc.category}</span>
-                  <span>{doc.views} views</span>
-                </div>
-              </div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Calendar style={{ width: '20px', height: '20px', color: '#ef4444' }} aria-hidden="true" />
+            <span style={{ fontSize: '14px', fontWeight: 600 }}>Time Range:</span>
           </div>
-
-          {/* Most Favorited */}
-          <div
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
-              padding: '20px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <Star size={18} style={{ color: '#ef4444' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Favorited</h3>
-            </div>
-            {knowledgeBase.mostFavorited.map((doc, idx) => (
-              <div
-                key={idx}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Filter by time range">
+            {(['today', 'week', 'month', 'all'] as TimeRange[]).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                aria-pressed={timeRange === range}
+                aria-label={`Filter by ${range === 'week' ? 'this week' : range === 'month' ? 'this month' : range === 'all' ? 'all time' : 'today'}`}
                 style={{
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  padding: '8px 16px',
+                  background: timeRange === range ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${timeRange === range ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
                   borderRadius: '8px',
-                  marginBottom: '8px',
+                  color: timeRange === range ? 'white' : '#a1a1aa',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  textTransform: 'capitalize',
+                }}
+                onMouseEnter={(e) => {
+                  if (timeRange !== range) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (timeRange !== range) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  }
                 }}
               >
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
-                  {doc.name}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
-                  <span>{doc.category}</span>
-                  <span>{doc.favorites} favorites</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Top Categories */}
-          <div
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
-              padding: '20px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <BookOpen size={18} style={{ color: '#ef4444' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Top Categories</h3>
-            </div>
-            {knowledgeBase.topCategories.map((cat, idx) => (
-              <div
-                key={idx}
-                style={{
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  borderRadius: '8px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{cat.category}</span>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    color: '#ef4444',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {cat.count}
-                </span>
-              </div>
+                {range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : range === 'all' ? 'All Time' : 'Today'}
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Section 6: Concerning Chats Monitor */}
-      <div
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '24px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>Concerning Chats Monitor</h2>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="Filter concerning chats by severity">
-            {(['critical', 'warning', 'info', 'all'] as SeverityFilter[]).map((severity) => (
-              <button
-                key={severity}
-                onClick={() => setSeverityFilter(severity)}
-                aria-pressed={severityFilter === severity}
-                aria-label={`Filter by ${severity} severity`}
-                style={{
-                  padding: '6px 12px',
-                  background: severityFilter === severity ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${severityFilter === severity ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
-                  borderRadius: '6px',
-                  color: severityFilter === severity ? 'white' : '#a1a1aa',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
-                }}
-              >
-                {severity}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {error.concerningChats ? (
-          <ErrorDisplay message={error.concerningChats} onRetry={fetchConcerningChats} />
-        ) : loading.concerningChats ? (
-          <LoadingSkeleton />
-        ) : filteredConcerningChats.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No Concerning Chats</div>
-            <div style={{ fontSize: '14px' }}>All conversations are within normal parameters</div>
-          </div>
-        ) : (
-          filteredConcerningChats.map((chat) => (
-            <div
-              key={chat.id}
-              style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '12px',
-                cursor: 'pointer',
-              }}
-              onClick={() => setExpandedChat(expandedChat === chat.id ? null : chat.id)}
-            >
-              <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
-                <div style={{ fontSize: '20px' }}>
-                  {chat.severity === 'critical' ? '🔴' : chat.severity === 'warning' ? '🟡' : '🔵'}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{chat.userEmail}</span>
-                    <span style={{ fontSize: '12px', color: '#71717a' }}>
-                      {new Date(chat.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 8px',
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      color: '#ef4444',
-                      fontWeight: 600,
-                      marginBottom: '8px',
-                    }}
-                  >
-                    {chat.concernType}
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#a1a1aa', lineHeight: 1.6 }}>{chat.content}</div>
-                  {expandedChat === chat.id && (
-                    <div
-                      style={{
-                        marginTop: '12px',
-                        padding: '12px',
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        color: '#e4e4e7',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {chat.fullContext}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  {expandedChat === chat.id ? (
-                    <ChevronUp size={18} style={{ color: '#a1a1aa' }} />
-                  ) : (
-                    <ChevronDown size={18} style={{ color: '#a1a1aa' }} />
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Section 7: Per-User Detailed Table */}
-      <div
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '24px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>User Activity Breakdown</h2>
-          <button
-            onClick={exportToCSV}
-            aria-label="Export analytics data to CSV"
+      {/* OVERVIEW SECTION */}
+      {activeSubSection === 'overview' && (
+        <div id="overview-panel" role="tabpanel" aria-labelledby="overview-tab">
+          {/* Overview Stats Grid */}
+          <div
             style={{
-              padding: '10px 16px',
-              background: '#ef4444',
-              border: 'none',
-              borderRadius: '8px',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#dc2626';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#ef4444';
-              e.currentTarget.style.transform = 'translateY(0)';
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '20px',
+              marginBottom: '24px',
             }}
           >
-            <Download size={16} aria-hidden="true" />
-            Export CSV
-          </button>
-        </div>
+            {error.overview ? (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <ErrorDisplay message={error.overview} onRetry={fetchOverviewStats} />
+              </div>
+            ) : loading.overview ? (
+              <>
+                <LoadingSkeleton />
+                <LoadingSkeleton />
+                <LoadingSkeleton />
+                <LoadingSkeleton />
+              </>
+            ) : overviewStats ? (
+              <>
+                <StatCard icon={<Users size={24} />} value={overviewStats.totalUsers} label="Total Users" />
+                <StatCard icon={<TrendingUp size={24} />} value={overviewStats.activeUsers7d} label="Active Users (7d)" />
+                <StatCard icon={<MessageSquare size={24} />} value={overviewStats.totalMessages} label="Total Messages" />
+                <StatCard icon={<BarChart3 size={24} />} value={overviewStats.totalConversations} label="Conversations" />
+                <StatCard icon={<Mail size={24} />} value={overviewStats.emailsGenerated} label="Emails Generated" />
+                <StatCard icon={<Mic size={24} />} value={overviewStats.transcriptions} label="Transcriptions" />
+                <StatCard icon={<Upload size={24} />} value={overviewStats.documentsUploaded} label="Documents Uploaded" />
+                <StatCard icon={<BookOpen size={24} />} value={overviewStats.susanSessions} label="Susan Sessions" />
+              </>
+            ) : null}
+          </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                {[
-                  { key: 'email', label: 'Email' },
-                  { key: 'role', label: 'Role' },
-                  { key: 'state', label: 'State' },
-                  { key: 'chats', label: 'Chats' },
-                  { key: 'emails', label: 'Emails' },
-                  { key: 'transcriptions', label: 'Transcriptions' },
-                  { key: 'uploads', label: 'Uploads' },
-                  { key: 'susan', label: 'Susan' },
-                  { key: 'kbViews', label: 'KB Views' },
-                  { key: 'lastActive', label: 'Last Active' },
-                ].map((col) => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key as keyof UserActivity)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleSort(col.key as keyof UserActivity);
-                      }
+          {/* Feature Usage Chart */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '24px',
+            }}
+          >
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+              Feature Usage Over Time
+            </h2>
+            {error.featureUsage ? (
+              <ErrorDisplay message={error.featureUsage} onRetry={fetchFeatureUsage} />
+            ) : loading.featureUsage ? (
+              <LoadingSkeleton />
+            ) : featureUsage.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                color: '#71717a',
+                background: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No feature usage data available</div>
+                <div style={{ fontSize: '14px' }}>Data will appear here once users start using features</div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={featureUsage}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                  <XAxis dataKey="date" stroke="#a1a1aa" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1a1a1a',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#e4e4e7',
                     }}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Sort by ${col.label}`}
-                    aria-sort={sortColumn === col.key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: '#a1a1aa',
-                      cursor: 'pointer',
-                      userSelect: 'none',
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="chat" stroke="#ef4444" strokeWidth={2} />
+                  <Line type="monotone" dataKey="email" stroke="#059669" strokeWidth={2} />
+                  <Line type="monotone" dataKey="upload" stroke="#10b981" strokeWidth={2} />
+                  <Line type="monotone" dataKey="transcribe" stroke="#f59e0b" strokeWidth={2} />
+                  <Line type="monotone" dataKey="susan" stroke="#8b5cf6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="knowledgeBase" stroke="#ec4899" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LEADERBOARD SECTION */}
+      {activeSubSection === 'leaderboard' && (
+        <div id="leaderboard-panel" role="tabpanel" aria-labelledby="leaderboard-tab">
+          {/* Top 10 Active Users Chart */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '24px',
+            }}
+          >
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+              Top 10 Active Users
+            </h2>
+            {error.userActivity ? (
+              <ErrorDisplay message={error.userActivity} onRetry={fetchUserActivity} />
+            ) : loading.userActivity ? (
+              <LoadingSkeleton />
+            ) : topUsers.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                color: '#71717a',
+                background: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No user activity data available</div>
+                <div style={{ fontSize: '14px' }}>Data will appear here once users start chatting</div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topUsers}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                  <XAxis
+                    dataKey="email"
+                    stroke="#a1a1aa"
+                    style={{ fontSize: '12px' }}
+                    tickFormatter={(value) => value.split('@')[0].substring(0, 10)}
+                  />
+                  <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1a1a1a',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#e4e4e7',
                     }}
-                  >
-                    {col.label}
-                    {sortColumn === col.key && (
-                      <span style={{ marginLeft: '4px' }} aria-hidden="true">
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedUsers.map((user, idx) => (
-                <tr
-                  key={idx}
-                  style={{
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                    transition: 'background 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.email}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>
-                    <span
+                  />
+                  <Bar dataKey="chats" fill="#ef4444" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* User Activity Breakdown Table */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '24px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>User Activity Breakdown</h2>
+              <button
+                onClick={exportToCSV}
+                aria-label="Export analytics data to CSV"
+                style={{
+                  padding: '10px 16px',
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#dc2626';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#ef4444';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <Download size={16} aria-hidden="true" />
+                Export CSV
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    {[
+                      { key: 'email', label: 'Email' },
+                      { key: 'role', label: 'Role' },
+                      { key: 'state', label: 'State' },
+                      { key: 'chats', label: 'Chats' },
+                      { key: 'emails', label: 'Emails' },
+                      { key: 'transcriptions', label: 'Transcriptions' },
+                      { key: 'uploads', label: 'Uploads' },
+                      { key: 'susan', label: 'Susan' },
+                      { key: 'kbViews', label: 'KB Views' },
+                      { key: 'lastActive', label: 'Last Active' },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        onClick={() => handleSort(col.key as keyof UserActivity)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSort(col.key as keyof UserActivity);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Sort by ${col.label}`}
+                        aria-sort={sortColumn === col.key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                        style={{
+                          padding: '12px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#a1a1aa',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {col.label}
+                        {sortColumn === col.key && (
+                          <span style={{ marginLeft: '4px' }} aria-hidden="true">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedUsers.map((user, idx) => (
+                    <tr
+                      key={idx}
                       style={{
-                        padding: '4px 8px',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 600,
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                        transition: 'background 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      {user.role}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.state || '-'}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.chats}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.emails}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.transcriptions}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.uploads}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.susan}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.kbViews}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#a1a1aa' }}>
-                    {new Date(user.lastActive).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.email}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>
+                        <span
+                          style={{
+                            padding: '4px 8px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.state || '-'}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.chats}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.emails}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.transcriptions}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.uploads}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.susan}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.kbViews}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: '#a1a1aa' }}>
+                        {new Date(user.lastActive).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              style={{
-                padding: '8px 12px',
-                background: currentPage === 1 ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '6px',
-                color: currentPage === 1 ? '#71717a' : '#e4e4e7',
-                fontSize: '14px',
-                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Previous
-            </button>
-            <span style={{ fontSize: '14px', color: '#a1a1aa' }}>
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              style={{
-                padding: '8px 12px',
-                background: currentPage === totalPages ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '6px',
-                color: currentPage === totalPages ? '#71717a' : '#e4e4e7',
-                fontSize: '14px',
-                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Next
-            </button>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: '8px 12px',
+                    background: currentPage === 1 ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: currentPage === 1 ? '#71717a' : '#e4e4e7',
+                    fontSize: '14px',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '8px 12px',
+                    background: currentPage === totalPages ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: currentPage === totalPages ? '#71717a' : '#e4e4e7',
+                    fontSize: '14px',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* CANVASSING SECTION */}
+      {activeSubSection === 'canvassing' && (
+        <div id="canvassing-panel" role="tabpanel" aria-labelledby="canvassing-tab">
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '60px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '64px', marginBottom: '24px' }}>🚪</div>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#e4e4e7', marginBottom: '12px' }}>
+              Canvassing Analytics Coming Soon
+            </h2>
+            <p style={{ fontSize: '16px', color: '#a1a1aa', lineHeight: 1.6, maxWidth: '600px', margin: '0 auto' }}>
+              This section will track door-to-door metrics including:
+            </p>
+            <div style={{
+              marginTop: '24px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '16px',
+              maxWidth: '800px',
+              margin: '24px auto 0',
+            }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '16px',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📍</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Doors Knocked</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '16px',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Conversations</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '16px',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📈</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Conversion Rate</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '16px',
+                borderRadius: '8px',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Leads Generated</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KNOWLEDGE BASE SECTION */}
+      {activeSubSection === 'knowledge-base' && (
+        <div id="knowledge-base-panel" role="tabpanel" aria-labelledby="knowledge-base-tab">
+          {error.knowledgeBase ? (
+            <ErrorDisplay message={error.knowledgeBase} onRetry={fetchKnowledgeBase} />
+          ) : loading.knowledgeBase ? (
+            <LoadingSkeleton />
+          ) : knowledgeBase && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              {/* Most Viewed */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <Eye size={18} style={{ color: '#ef4444' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Viewed Documents</h3>
+                </div>
+                {knowledgeBase.mostViewed.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄</div>
+                    <div style={{ fontSize: '14px' }}>No document views yet</div>
+                  </div>
+                ) : (
+                  knowledgeBase.mostViewed.map((doc, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '8px',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
+                        {doc.name}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
+                        <span>{doc.category}</span>
+                        <span>{doc.views} views</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Most Favorited */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <Star size={18} style={{ color: '#ef4444' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Favorited</h3>
+                </div>
+                {knowledgeBase.mostFavorited.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>⭐</div>
+                    <div style={{ fontSize: '14px' }}>No favorites yet</div>
+                  </div>
+                ) : (
+                  knowledgeBase.mostFavorited.map((doc, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '8px',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
+                        {doc.name}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
+                        <span>{doc.category}</span>
+                        <span>{doc.favorites} favorites</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Top Categories */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <BookOpen size={18} style={{ color: '#ef4444' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Top Categories</h3>
+                </div>
+                {knowledgeBase.topCategories.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>📚</div>
+                    <div style={{ fontSize: '14px' }}>No categories yet</div>
+                  </div>
+                ) : (
+                  knowledgeBase.topCategories.map((cat, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '8px',
+                        marginBottom: '8px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{cat.category}</span>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: '#ef4444',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cat.count}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI MONITORING SECTION */}
+      {activeSubSection === 'ai-monitoring' && (
+        <div id="ai-monitoring-panel" role="tabpanel" aria-labelledby="ai-monitoring-tab">
+          {/* Concerning Chats Monitor */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '24px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={20} style={{ color: '#ef4444' }} />
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>Concerning Chats Monitor</h2>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Filter concerning chats by severity">
+                {(['critical', 'warning', 'info', 'all'] as SeverityFilter[]).map((severity) => (
+                  <button
+                    key={severity}
+                    onClick={() => setSeverityFilter(severity)}
+                    aria-pressed={severityFilter === severity}
+                    aria-label={`Filter by ${severity} severity`}
+                    style={{
+                      padding: '6px 12px',
+                      background: severityFilter === severity ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
+                      border: `1px solid ${severityFilter === severity ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+                      borderRadius: '6px',
+                      color: severityFilter === severity ? 'white' : '#a1a1aa',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {severity}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error.concerningChats ? (
+              <ErrorDisplay message={error.concerningChats} onRetry={fetchConcerningChats} />
+            ) : loading.concerningChats ? (
+              <LoadingSkeleton />
+            ) : filteredConcerningChats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No Concerning Chats</div>
+                <div style={{ fontSize: '14px' }}>All conversations are within normal parameters</div>
+              </div>
+            ) : (
+              filteredConcerningChats.map((chat) => (
+                <div
+                  key={chat.id}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '12px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setExpandedChat(expandedChat === chat.id ? null : chat.id)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
+                    <div style={{ fontSize: '20px' }}>
+                      {chat.severity === 'critical' ? '🔴' : chat.severity === 'warning' ? '🟡' : '🔵'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{chat.userEmail}</span>
+                        <span style={{ fontSize: '12px', color: '#71717a' }}>
+                          {new Date(chat.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#ef4444',
+                          fontWeight: 600,
+                          marginBottom: '8px',
+                        }}
+                      >
+                        {chat.concernType}
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#a1a1aa', lineHeight: 1.6 }}>{chat.content}</div>
+                      {expandedChat === chat.id && (
+                        <div
+                          style={{
+                            marginTop: '12px',
+                            padding: '12px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            color: '#e4e4e7',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {chat.fullContext}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      {expandedChat === chat.id ? (
+                        <ChevronUp size={18} style={{ color: '#a1a1aa' }} />
+                      ) : (
+                        <ChevronDown size={18} style={{ color: '#a1a1aa' }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* AI Usage Stats Placeholder */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '24px',
+            }}
+          >
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+              AI Usage & API Costs
+            </h2>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#71717a',
+                background: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '8px',
+              }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>AI Cost Tracking Coming Soon</div>
+              <div style={{ fontSize: '14px' }}>
+                Track API costs per user, conversation length, and model usage patterns
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Global Styles */}
       <style dangerouslySetInnerHTML={{
