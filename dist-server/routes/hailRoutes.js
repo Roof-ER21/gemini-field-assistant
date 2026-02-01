@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { hailMapsService } from '../services/hailMapsService.js';
+import { noaaStormService } from '../services/noaaStormService.js';
 const router = Router();
 /**
  * Multi-provider geocoding - Census Bureau + Nominatim fallback
@@ -48,9 +49,14 @@ const geocodeForHailSearch = async (params) => {
 };
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
+    const ihmConfigured = hailMapsService.isConfigured();
     res.json({
-        configured: hailMapsService.isConfigured(),
-        provider: 'Interactive Hail Maps'
+        ihmConfigured,
+        noaaAvailable: true,
+        message: ihmConfigured
+            ? 'IHM and NOAA data available'
+            : 'NOAA data available (IHM not configured)',
+        provider: ihmConfigured ? 'Interactive Hail Maps + NOAA' : 'NOAA Storm Events Database'
     });
 });
 // POST /api/hail/monitor
@@ -74,31 +80,116 @@ router.post('/monitor', async (req, res) => {
 // GET /api/hail/search?address=...&months=24 OR lat/lng
 router.get('/search', async (req, res) => {
     try {
-        if (!hailMapsService.isConfigured()) {
-            return res.status(503).json({ error: 'Hail maps service not configured' });
-        }
-        const { address, lat, lng, months = '24', radius = '0', marker_id, street, city, state, zip } = req.query;
+        const { address, lat, lng, months = '24', radius = '50', marker_id, street, city, state, zip } = req.query;
         const monthsNum = parseInt(months, 10);
         const radiusNum = parseFloat(radius);
+        const yearsNum = Math.ceil(monthsNum / 12);
+        const ihmConfigured = hailMapsService.isConfigured();
+        let ihmData = null;
+        let noaaData = [];
+        const dataSources = [];
+        // Extract coordinates from request
+        let searchLat = lat ? parseFloat(lat) : null;
+        let searchLng = lng ? parseFloat(lng) : null;
+        // Handle marker_id (IHM only)
         if (marker_id) {
+            if (!ihmConfigured) {
+                return res.status(503).json({ error: 'Marker ID search requires IHM configuration' });
+            }
             const data = await hailMapsService.searchByMarkerId(marker_id, monthsNum);
-            return res.json(data);
+            return res.json({ ...data, dataSource: ['IHM'] });
         }
+        // Handle address-based search
         if (street || city || state || zip) {
             if (!street || !city || !state || !zip) {
                 return res.status(400).json({ error: 'street, city, state, and zip are required' });
             }
-            const data = await hailMapsService.searchByAddress({
-                street: String(street),
-                city: String(city),
-                state: String(state),
-                zip: String(zip)
-            }, monthsNum);
-            return res.json(data);
+            // Try IHM if configured
+            if (ihmConfigured) {
+                try {
+                    ihmData = await hailMapsService.searchByAddress({
+                        street: String(street),
+                        city: String(city),
+                        state: String(state),
+                        zip: String(zip)
+                    }, monthsNum);
+                    dataSources.push('IHM');
+                    // Extract coordinates from IHM response
+                    if (ihmData?.searchArea?.center) {
+                        searchLat = ihmData.searchArea.center.lat;
+                        searchLng = ihmData.searchArea.center.lng;
+                    }
+                }
+                catch (error) {
+                    console.error('IHM search error:', error);
+                }
+            }
+            // If we don't have coordinates yet, geocode
+            if (!searchLat || !searchLng) {
+                const geocodeResult = await geocodeForHailSearch({
+                    address: String(street),
+                    city: String(city),
+                    state: String(state),
+                    zip: String(zip)
+                });
+                if (geocodeResult) {
+                    searchLat = geocodeResult.lat;
+                    searchLng = geocodeResult.lng;
+                }
+            }
+            // Always fetch NOAA data if we have coordinates
+            if (searchLat && searchLng) {
+                try {
+                    noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
+                    dataSources.push('NOAA');
+                }
+                catch (error) {
+                    console.error('NOAA search error:', error);
+                }
+            }
+            return res.json({
+                events: ihmData?.events || [],
+                noaaEvents: noaaData,
+                searchArea: ihmData?.searchArea || {
+                    center: { lat: searchLat, lng: searchLng },
+                    radiusMiles: radiusNum
+                },
+                dataSource: dataSources,
+                message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+            });
         }
+        // Handle coordinate-based search
         if (lat && lng) {
-            const data = await hailMapsService.searchByCoordinates(parseFloat(lat), parseFloat(lng), monthsNum, radiusNum);
-            return res.json(data);
+            searchLat = parseFloat(lat);
+            searchLng = parseFloat(lng);
+            // Try IHM if configured
+            if (ihmConfigured) {
+                try {
+                    ihmData = await hailMapsService.searchByCoordinates(searchLat, searchLng, monthsNum, radiusNum);
+                    dataSources.push('IHM');
+                }
+                catch (error) {
+                    console.error('IHM search error:', error);
+                }
+            }
+            // Always fetch NOAA data
+            try {
+                noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
+                dataSources.push('NOAA');
+            }
+            catch (error) {
+                console.error('NOAA search error:', error);
+            }
+            return res.json({
+                events: ihmData?.events || [],
+                noaaEvents: noaaData,
+                searchArea: ihmData?.searchArea || {
+                    center: { lat: searchLat, lng: searchLng },
+                    radiusMiles: radiusNum
+                },
+                dataSource: dataSources,
+                message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+            });
         }
         if (address) {
             return res.status(400).json({ error: 'Use street, city, state, and zip for address search' });
@@ -113,9 +204,6 @@ router.get('/search', async (req, res) => {
 // POST /api/hail/search-advanced - Advanced search with multiple criteria
 router.post('/search-advanced', async (req, res) => {
     try {
-        if (!hailMapsService.isConfigured()) {
-            return res.status(503).json({ error: 'Hail maps service not configured' });
-        }
         const { address, city, state, zip, latitude, longitude, startDate, endDate, minHailSize, radius = 50 } = req.body;
         let lat = latitude;
         let lng = longitude;
@@ -126,35 +214,82 @@ router.post('/search-advanced', async (req, res) => {
             const end = new Date(endDate);
             months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
         }
+        const years = Math.ceil(months / 12);
+        const ihmConfigured = hailMapsService.isConfigured();
+        let ihmData = null;
+        let noaaData = [];
+        const dataSources = [];
         // If we have city, state, and zip - use address search
         if (city && state && zip) {
-            const data = await hailMapsService.searchByAddress({
-                street: address || '',
-                city,
-                state,
-                zip
-            }, months);
+            // Try IHM if configured
+            if (ihmConfigured) {
+                try {
+                    ihmData = await hailMapsService.searchByAddress({
+                        street: address || '',
+                        city,
+                        state,
+                        zip
+                    }, months);
+                    dataSources.push('IHM');
+                    // Extract coordinates from IHM response
+                    if (ihmData?.searchArea?.center) {
+                        lat = ihmData.searchArea.center.lat;
+                        lng = ihmData.searchArea.center.lng;
+                    }
+                }
+                catch (error) {
+                    console.error('IHM search error:', error);
+                }
+            }
+            // If we don't have coordinates yet, geocode
+            if (!lat || !lng) {
+                const geocodeResult = await geocodeForHailSearch({ address, city, state, zip });
+                if (geocodeResult) {
+                    lat = geocodeResult.lat;
+                    lng = geocodeResult.lng;
+                }
+            }
+            // Fetch NOAA data if we have coordinates
+            if (lat && lng) {
+                try {
+                    noaaData = await noaaStormService.getStormEvents(lat, lng, parseFloat(radius), years);
+                    dataSources.push('NOAA');
+                }
+                catch (error) {
+                    console.error('NOAA search error:', error);
+                }
+            }
             // Filter by hail size if specified
-            let filteredEvents = data.events || [];
+            let filteredIhmEvents = ihmData?.events || [];
             if (minHailSize) {
-                filteredEvents = filteredEvents.filter((event) => event.hailSize && event.hailSize >= minHailSize);
+                filteredIhmEvents = filteredIhmEvents.filter((event) => event.hailSize && event.hailSize >= minHailSize);
+            }
+            let filteredNoaaEvents = noaaData;
+            if (minHailSize) {
+                filteredNoaaEvents = noaaData.filter((event) => event.magnitude && event.magnitude >= minHailSize);
             }
             return res.json({
-                ...data,
-                events: filteredEvents,
-                resultsCount: filteredEvents.length,
+                events: filteredIhmEvents,
+                noaaEvents: filteredNoaaEvents,
+                resultsCount: filteredIhmEvents.length + filteredNoaaEvents.length,
+                searchArea: ihmData?.searchArea || {
+                    center: { lat, lng },
+                    radiusMiles: parseFloat(radius)
+                },
                 searchCriteria: {
                     address,
                     city,
                     state,
                     zip,
-                    latitude: data.searchArea.center.lat,
-                    longitude: data.searchArea.center.lng,
+                    latitude: lat,
+                    longitude: lng,
                     startDate,
                     endDate,
                     minHailSize,
                     radius
-                }
+                },
+                dataSource: dataSources,
+                message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
             });
         }
         // If we have address/city/state but no zip, geocode first
@@ -170,15 +305,41 @@ router.post('/search-advanced', async (req, res) => {
         }
         // Search by coordinates
         if (lat && lng) {
-            const data = await hailMapsService.searchByCoordinates(parseFloat(lat), parseFloat(lng), months, parseFloat(radius));
-            let filteredEvents = data.events || [];
+            // Try IHM if configured
+            if (ihmConfigured) {
+                try {
+                    ihmData = await hailMapsService.searchByCoordinates(parseFloat(lat), parseFloat(lng), months, parseFloat(radius));
+                    dataSources.push('IHM');
+                }
+                catch (error) {
+                    console.error('IHM search error:', error);
+                }
+            }
+            // Always fetch NOAA data
+            try {
+                noaaData = await noaaStormService.getStormEvents(parseFloat(lat), parseFloat(lng), parseFloat(radius), years);
+                dataSources.push('NOAA');
+            }
+            catch (error) {
+                console.error('NOAA search error:', error);
+            }
+            // Filter by hail size if specified
+            let filteredIhmEvents = ihmData?.events || [];
             if (minHailSize) {
-                filteredEvents = filteredEvents.filter((event) => event.hailSize && event.hailSize >= minHailSize);
+                filteredIhmEvents = filteredIhmEvents.filter((event) => event.hailSize && event.hailSize >= minHailSize);
+            }
+            let filteredNoaaEvents = noaaData;
+            if (minHailSize) {
+                filteredNoaaEvents = noaaData.filter((event) => event.magnitude && event.magnitude >= minHailSize);
             }
             return res.json({
-                ...data,
-                events: filteredEvents,
-                resultsCount: filteredEvents.length,
+                events: filteredIhmEvents,
+                noaaEvents: filteredNoaaEvents,
+                resultsCount: filteredIhmEvents.length + filteredNoaaEvents.length,
+                searchArea: ihmData?.searchArea || {
+                    center: { lat: parseFloat(lat), lng: parseFloat(lng) },
+                    radiusMiles: parseFloat(radius)
+                },
                 searchCriteria: {
                     address,
                     city,
@@ -190,7 +351,9 @@ router.post('/search-advanced', async (req, res) => {
                     endDate,
                     minHailSize,
                     radius
-                }
+                },
+                dataSource: dataSources,
+                message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
             });
         }
         return res.status(400).json({ error: 'Provide city and state (optionally address), ZIP code, or coordinates' });

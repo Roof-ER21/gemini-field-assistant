@@ -2140,7 +2140,37 @@ export default function TerritoryHailMap() {
                   eventHandlers={{
                     click: () => handleEventCardClick(event, event.latitude, event.longitude)
                   }}
-                />
+                >
+                  <Popup>
+                    <div style={{ minWidth: '180px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: severityColor }} />
+                        <strong style={{ fontSize: '14px' }}>Hail Event</strong>
+                      </div>
+                      <p style={{ margin: '4px 0', fontSize: '13px', fontWeight: 600 }}>
+                        📅 {formatDateLong(event.date)}
+                      </p>
+                      <p style={{ margin: '4px 0', fontSize: '13px' }}>
+                        🧊 Hail Size: <strong>{event.hailSize ? `${event.hailSize}"` : 'Unknown'}</strong>
+                      </p>
+                      <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
+                        Source: Interactive Hail Maps
+                      </p>
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        background: event.severity === 'severe' ? '#fef2f2' : event.severity === 'moderate' ? '#fff7ed' : '#fefce8',
+                        color: event.severity === 'severe' ? '#991b1b' : event.severity === 'moderate' ? '#c2410c' : '#a16207',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase'
+                      }}>
+                        {event.severity} Impact
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
               );
             })}
 
@@ -2173,7 +2203,34 @@ export default function TerritoryHailMap() {
                   eventHandlers={{
                     click: () => handleEventCardClick(event, event.latitude, event.longitude)
                   }}
-                />
+                >
+                  <Popup>
+                    <div style={{ minWidth: '180px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: severityColor }} />
+                        <strong style={{ fontSize: '14px' }}>
+                          {event.eventType === 'hail' ? '🧊 Hail' : event.eventType === 'wind' ? '💨 Wind' : '🌪️ Tornado'}
+                        </strong>
+                      </div>
+                      <p style={{ margin: '4px 0', fontSize: '13px', fontWeight: 600 }}>
+                        📅 {formatDateLong(event.date)}
+                      </p>
+                      {event.magnitude && (
+                        <p style={{ margin: '4px 0', fontSize: '13px' }}>
+                          📏 Size: <strong>{event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}</strong>
+                        </p>
+                      )}
+                      {event.location && (
+                        <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
+                          📍 {event.location}
+                        </p>
+                      )}
+                      <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
+                        Source: NOAA Certified ✓
+                      </p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
               );
             })}
 
