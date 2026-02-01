@@ -48,7 +48,7 @@ export class CheckinService {
         leads_generated = $5,
         appointments_set = $6,
         notes = CASE
-          WHEN $7 IS NOT NULL THEN COALESCE(notes || ' | ', '') || $7
+          WHEN $7::text IS NOT NULL THEN COALESCE(notes || ' | ', '') || $7::text
           ELSE notes
         END
       WHERE id = $8
