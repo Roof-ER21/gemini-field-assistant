@@ -562,27 +562,6 @@ export function createSheetsService(pool) {
             const primaryEstimates = primaryYear === currentYear ? currentEstimates : previousEstimates;
             console.log('[SHEETS] Data fetched - currentSignups:', currentSignups.size, 'previousSignups:', previousSignups.size);
             console.log('[SHEETS] primaryYear:', primaryYear, 'primarySignups size:', primarySignups.size);
-            // Check all fetched data for the problematic value 246747.9
-            for (const [name, data] of currentSignups.entries()) {
-                if (data.monthlySignups === 246747.9 || data.yearlySignups === 246747.9) {
-                    console.error('[SHEETS] FOUND 246747.9 in currentSignups for:', name, data);
-                }
-            }
-            for (const [name, rev] of allTimeRevenue.entries()) {
-                if (rev === 246747.9) {
-                    console.error('[SHEETS] FOUND 246747.9 in allTimeRevenue for:', name);
-                }
-            }
-            for (const [name, rev] of revenue2025.entries()) {
-                if (rev === 246747.9) {
-                    console.error('[SHEETS] FOUND 246747.9 in revenue2025 for:', name);
-                }
-            }
-            for (const [name, rev] of revenue2026.entries()) {
-                if (rev === 246747.9) {
-                    console.error('[SHEETS] FOUND 246747.9 in revenue2026 for:', name);
-                }
-            }
             if (primarySignups.size === 0) {
                 throw new Error('No signup data returned from Google Sheets');
             }
@@ -732,13 +711,6 @@ export function createSheetsService(pool) {
                 const generatedEmail = `${nameLower.replace(/\s+/g, '.')}@theroofdocs.com`;
                 sheetEmails.add(generatedEmail);
                 const existing = existingByName.get(nameLower) || existingByEmail.get(generatedEmail);
-                // Debug check for the problematic value
-                const suspiciousValue = 246747.9;
-                if (data.monthlySignups === suspiciousValue || data.yearlySignups === suspiciousValue ||
-                    data.monthlyRevenue === suspiciousValue || data.yearlyRevenue === suspiciousValue ||
-                    data.allTimeRevenue === suspiciousValue) {
-                    console.warn('[SHEETS] FOUND 246747.9 in data for:', data.name, JSON.stringify(data));
-                }
                 // Ensure all integer values are safe
                 const rawMonthlyGoal = existing?.monthly_signup_goal;
                 const monthlyGoal = Number.isFinite(rawMonthlyGoal) && rawMonthlyGoal > 0 ? Math.floor(rawMonthlyGoal) : 15;
@@ -783,42 +755,22 @@ export function createSheetsService(pool) {
                         safeBonusTier,
                         safeExistingId
                     ];
-                    // TEMPORARY: Skip Basel Halim to test if sync works for others
-                    if (data.name.toLowerCase().includes('basel')) {
-                        console.log('[SHEETS] Skipping Basel Halim for testing');
-                        continue;
-                    }
-                    // Check for the problematic value anywhere in the array
-                    for (let i = 0; i < updateValues.length; i++) {
-                        const val = updateValues[i];
-                        const valStr = String(val);
-                        // Check for any value containing 246747
-                        if (valStr.includes('246747')) {
-                            console.error('[SHEETS] FOUND suspicious value at position', i + 1, ':', val, 'type:', typeof val, 'for rep:', data.name);
-                        }
-                        // For positions 11 and 12 (INTEGER columns), verify they are safe
-                        if (i === 10 || i === 11) {
-                            if (typeof val !== 'number' || !Number.isInteger(val)) {
-                                console.error('[SHEETS] Non-integer at INTEGER position', i + 1, ':', val, 'type:', typeof val, 'for rep:', data.name);
-                            }
-                        }
-                    }
                     try {
                         await pool.query(`UPDATE sales_reps
              SET name = $1,
                  email = $2,
-                 monthly_signups = $3,
-                 yearly_signups = $4,
-                 monthly_revenue = COALESCE($5, monthly_revenue),
-                 yearly_revenue = $6,
-                 revenue_2025 = $7,
-                 revenue_2026 = $8,
-                 all_time_revenue = CASE WHEN $9 > 0 THEN $9 ELSE all_time_revenue END,
-                 goal_progress = $10,
-                 current_bonus_tier = $11,
+                 monthly_signups = $3::numeric,
+                 yearly_signups = $4::numeric,
+                 monthly_revenue = COALESCE($5::numeric, monthly_revenue),
+                 yearly_revenue = $6::numeric,
+                 revenue_2025 = $7::numeric,
+                 revenue_2026 = $8::numeric,
+                 all_time_revenue = CASE WHEN $9::numeric > 0 THEN $9::numeric ELSE all_time_revenue END,
+                 goal_progress = $10::numeric,
+                 current_bonus_tier = $11::integer,
                  is_active = true,
                  updated_at = NOW()
-             WHERE id = $12`, updateValues);
+             WHERE id = $12::integer`, updateValues);
                         updated += 1;
                         repIdByName.set(nameLower, safeExistingId);
                     }
@@ -858,13 +810,6 @@ export function createSheetsService(pool) {
                         safeBonusTier,
                         true
                     ];
-                    // Check for the problematic value anywhere in the array
-                    for (let i = 0; i < insertValues.length; i++) {
-                        const val = insertValues[i];
-                        if (val === 246747.9 || val === '246747.9' || String(val) === '246747.9') {
-                            console.error('[SHEETS] FOUND 246747.9 at INSERT position', i + 1, 'for rep:', data.name);
-                        }
-                    }
                     try {
                         const insertResult = await pool.query(`INSERT INTO sales_reps (
               name, email, team, title, avatar,
@@ -874,10 +819,10 @@ export function createSheetsService(pool) {
               current_bonus_tier, is_active
             ) VALUES (
               $1, $2, $3, $4, $5,
-              $6, $7, $8, $9,
-              $10, $11, $12,
-              $13, $14, $15,
-              $16, $17
+              $6::numeric, $7::numeric, $8::numeric, $9::numeric,
+              $10::numeric, $11::numeric, $12::numeric,
+              $13::numeric, $14::integer, $15::integer,
+              $16::integer, $17
             )
             RETURNING id`, insertValues);
                         created += 1;
