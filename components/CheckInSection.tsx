@@ -21,6 +21,7 @@ import {
 import { authService } from '../services/authService';
 import { getApiBaseUrl } from '../services/config';
 import CheckInMap from './CheckInMap';
+import { messagingService } from '../services/messagingService';
 
 interface CheckIn {
   id: string;
@@ -104,8 +105,64 @@ const CheckInSection: React.FC = () => {
     fetchCheckIns();
     // Refresh every 30 seconds
     const interval = setInterval(fetchCheckIns, 30000);
-    return () => clearInterval(interval);
-  }, [fetchCheckIns]);
+
+    // Listen for WebSocket broadcast events
+    const unsubscribe = messagingService.onBroadcastEvent((event) => {
+      if (event.type === 'checkin_start') {
+        // Add new check-in to the list
+        const newCheckIn: CheckIn = {
+          id: event.data.id,
+          user_id: event.data.userId,
+          user_name: event.data.userName,
+          user_email: event.data.userEmail,
+          checkin_time: event.data.checkInTime,
+          checkout_time: event.data.checkOutTime || null,
+          location_lat: event.data.checkInLat || null,
+          location_lng: event.data.checkInLng || null,
+          location_name: null,
+          notes: event.data.notes || null,
+          doors_knocked: event.data.doorsKnocked || null,
+          contacts_made: event.data.contactsMade || null,
+          leads_generated: event.data.leadsGenerated || null,
+          appointments_set: event.data.appointmentsSet || null
+        };
+
+        setActiveCheckIns(prev => {
+          // Check if already exists (avoid duplicates)
+          if (prev.some(c => c.id === newCheckIn.id)) {
+            return prev;
+          }
+          return [newCheckIn, ...prev];
+        });
+
+        // If it's current user's check-in, update myCheckIn
+        if (currentUser && event.data.userId === currentUser.id) {
+          setMyCheckIn(newCheckIn);
+          setNotes(event.data.notes || '');
+        }
+      } else if (event.type === 'checkin_end') {
+        // Remove check-in from the list
+        setActiveCheckIns(prev => prev.filter(c => c.id !== event.data.id));
+
+        // If it's current user's check-in, clear myCheckIn
+        if (currentUser && event.data.userId === currentUser.id) {
+          setMyCheckIn(null);
+          setNotes('');
+          setStats({
+            doors_knocked: '0',
+            contacts_made: '0',
+            leads_generated: '0',
+            appointments_set: '0'
+          });
+        }
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [fetchCheckIns, currentUser]);
 
   // Update duration display
   useEffect(() => {

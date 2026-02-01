@@ -6,6 +6,8 @@
  */
 
 import { Pool } from 'pg';
+import { getPresenceService } from './presenceService.js';
+import { createCheckinNotificationService } from './checkinNotificationService.js';
 
 export interface CheckinSession {
   id: string;
@@ -63,7 +65,54 @@ export class CheckinService {
       [userId, lat, lng, note || null]
     );
 
-    return this.rowToSession(result.rows[0]);
+    const session = this.rowToSession(result.rows[0]);
+
+    // Get user details for broadcast and notifications
+    try {
+      const userResult = await this.pool.query(
+        'SELECT name, email FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length > 0) {
+        const { name, email } = userResult.rows[0];
+
+        // Broadcast check-in event to all connected clients
+        const presence = getPresenceService();
+        if (presence) {
+          presence.broadcastToAll({
+            type: 'checkin_start',
+            data: {
+              ...session,
+              userName: name,
+              userEmail: email
+            }
+          });
+        }
+
+        // Send push notifications to team members
+        // Only send if we have valid location data
+        if (session.checkInLat && session.checkInLng) {
+          const notificationService = createCheckinNotificationService(this.pool);
+          notificationService.notifyTeamOfCheckin({
+            checkinId: session.id,
+            userId: session.userId,
+            userName: name,
+            checkInLat: session.checkInLat,
+            checkInLng: session.checkInLng,
+            note: note
+          }).catch(error => {
+            console.error('[CheckinService] Error sending check-in notifications:', error);
+            // Don't throw - the check-in was successful even if notifications failed
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[CheckinService] Error broadcasting check-in start:', error);
+      // Don't throw - the check-in was successful even if broadcast failed
+    }
+
+    return session;
   }
 
   /**
@@ -120,7 +169,23 @@ export class CheckinService {
       ]
     );
 
-    return this.rowToSession(result.rows[0]);
+    const updatedSession = this.rowToSession(result.rows[0]);
+
+    // Broadcast check-out event to all connected clients
+    try {
+      const presence = getPresenceService();
+      if (presence) {
+        presence.broadcastToAll({
+          type: 'checkin_end',
+          data: updatedSession
+        });
+      }
+    } catch (error) {
+      console.error('[CheckinService] Error broadcasting check-out:', error);
+      // Don't throw - the check-out was successful even if broadcast failed
+    }
+
+    return updatedSession;
   }
 
   /**

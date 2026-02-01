@@ -435,6 +435,11 @@ export class PresenceService {
   getIO(): Server {
     return this.io;
   }
+
+  // Broadcast an event to all connected clients
+  broadcastToAll(event: { type: string; data: any }) {
+    this.io.emit('broadcast:event', event);
+  }
 }
 
 // Singleton instance

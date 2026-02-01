@@ -36,19 +36,24 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onRefresh,
   onNotificationClick
 }) => {
-  // Always use fixed positioning to prevent overflow issues
-  // The panel appears from the sidebar which is narrow, so we need
-  // to position it from the left edge of the viewport
+  // Detect mobile viewport for responsive positioning
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 480);
 
   useEffect(() => {
-    const handleResize = () => setViewportWidth(window.innerWidth);
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setViewportWidth(width);
+      setIsMobile(width < 480);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Calculate panel width based on viewport
-  const panelWidth = Math.min(360, viewportWidth - 16); // 8px margin on each side
+  // On mobile: use full width minus safe margins (16px total)
+  // On desktop: max 360px
+  const panelWidth = isMobile ? Math.min(360, viewportWidth - 16) : 360;
   // Format time ago
   const formatTimeAgo = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -85,10 +90,12 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     <div
       style={{
         position: 'fixed',
-        top: '60px',
-        left: '8px',
-        width: `${panelWidth}px`,
-        maxHeight: 'calc(100vh - 80px)',
+        top: isMobile ? '60px' : '60px',
+        left: isMobile ? '8px' : '8px',
+        right: isMobile ? '8px' : 'auto',
+        width: isMobile ? 'auto' : `${panelWidth}px`,
+        maxWidth: isMobile ? 'calc(100vw - 16px)' : '360px',
+        maxHeight: 'calc(100vh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
         background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         borderRadius: '12px',
@@ -96,7 +103,8 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxSizing: 'border-box'
       }}
     >
       {/* Header */}

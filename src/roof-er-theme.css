@@ -31,6 +31,7 @@
   --border-subtle: #2a2a2a;
   --border-default: #3a3a3a;
   --border-strong: #4a4a4a;
+  --border-color: #3a3a3a; /* Alias for border-default */
 
   /* Status Colors */
   --success: #4ade80;
@@ -96,6 +97,10 @@ html, body {
   overflow-x: hidden;
   max-width: 100%;
   width: 100%;
+  /* Ensure consistent safe area handling */
+  padding-top: env(safe-area-inset-top, 0px);
+  /* Prevent horizontal overflow */
+  position: relative;
 }
 
 #root {
@@ -104,6 +109,7 @@ html, body {
   overflow-x: hidden;
   min-height: 100vh;
   background: transparent;
+  box-sizing: border-box;
 }
 
 /* Header Styles */
@@ -113,6 +119,8 @@ html, body {
   border-bottom: 2px solid var(--roof-red);
   padding: 12px 20px;
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: calc(20px + env(safe-area-inset-left, 0px));
+  padding-right: calc(20px + env(safe-area-inset-right, 0px));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -521,6 +529,8 @@ html, body {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(20px + env(safe-area-inset-left, 0px));
+  padding-right: calc(20px + env(safe-area-inset-right, 0px));
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px) saturate(120%);
 }
@@ -1335,6 +1345,79 @@ html, body {
   /* Show floating quick action button on mobile */
   .roof-er-floating-quick-action {
     display: block;
+  }
+
+  /* Ensure all buttons meet minimum touch target size (44x44px) */
+  button,
+  .roof-er-action-btn,
+  [role="button"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Action buttons with text should have appropriate padding */
+  button:not([class*="icon-only"]),
+  .roof-er-action-btn:not([class*="icon-only"]) {
+    padding: 10px 14px;
+  }
+
+  /* Icon-only buttons remain square */
+  button[aria-label]:not(:has(span)),
+  .roof-er-action-btn[aria-label]:not(:has(span)) {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+  }
+
+  /* Ensure header action buttons are touch-friendly */
+  .roof-er-header-actions button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Mobile input actions */
+  .roof-er-input-actions button {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  /* Ensure proper padding for mobile header with safe areas */
+  .roof-er-header {
+    padding: 10px 16px;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  }
+
+  /* Chat input with safe area */
+  .roof-er-input-area {
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Mobile-specific: Prevent horizontal overflow */
+@media (max-width: 768px) {
+  /* Prevent any element from causing horizontal scroll */
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Override any 100vw declarations */
+  [style*="100vw"] {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Ensure containers don't overflow */
+  .roof-er-content-area,
+  .roof-er-message-container,
+  .roof-er-input-wrapper,
+  .roof-er-quick-commands {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
 

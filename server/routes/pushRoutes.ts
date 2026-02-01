@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { createPushNotificationService } from '../services/pushNotificationService.js';
+import { createCheckinNotificationService } from '../services/checkinNotificationService.js';
 
 const router = Router();
 
@@ -173,6 +174,8 @@ router.get('/preferences', async (req: Request, res: Response) => {
           impactAlertsEnabled: true,
           teamMentionAlerts: true,
           teamMessageAlerts: true,
+          checkinAlertsEnabled: true,
+          checkinProximityMiles: null,
           quietHoursEnabled: false,
           quietHoursStart: '22:00',
           quietHoursEnd: '07:00',
@@ -191,6 +194,8 @@ router.get('/preferences', async (req: Request, res: Response) => {
         impactAlertsEnabled: prefs.impact_alerts_enabled,
         teamMentionAlerts: prefs.team_mention_alerts,
         teamMessageAlerts: prefs.team_message_alerts,
+        checkinAlertsEnabled: prefs.checkin_alerts_enabled !== false,
+        checkinProximityMiles: prefs.checkin_proximity_miles,
         quietHoursEnabled: prefs.quiet_hours_enabled,
         quietHoursStart: prefs.quiet_hours_start,
         quietHoursEnd: prefs.quiet_hours_end,
@@ -214,6 +219,8 @@ router.get('/preferences', async (req: Request, res: Response) => {
  *   impactAlertsEnabled?: boolean;
  *   teamMentionAlerts?: boolean;
  *   teamMessageAlerts?: boolean;
+ *   checkinAlertsEnabled?: boolean;
+ *   checkinProximityMiles?: number | null;
  *   quietHoursEnabled?: boolean;
  *   quietHoursStart?: string;
  *   quietHoursEnd?: string;
@@ -240,6 +247,8 @@ router.put('/preferences', async (req: Request, res: Response) => {
       impactAlertsEnabled,
       teamMentionAlerts,
       teamMessageAlerts,
+      checkinAlertsEnabled,
+      checkinProximityMiles,
       quietHoursEnabled,
       quietHoursStart,
       quietHoursEnd,
@@ -257,6 +266,8 @@ router.put('/preferences', async (req: Request, res: Response) => {
       impactAlertsEnabled: 'impact_alerts_enabled',
       teamMentionAlerts: 'team_mention_alerts',
       teamMessageAlerts: 'team_message_alerts',
+      checkinAlertsEnabled: 'checkin_alerts_enabled',
+      checkinProximityMiles: 'checkin_proximity_miles',
       quietHoursEnabled: 'quiet_hours_enabled',
       quietHoursStart: 'quiet_hours_start',
       quietHoursEnd: 'quiet_hours_end',

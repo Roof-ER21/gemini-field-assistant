@@ -144,6 +144,7 @@ type ReadReceiptCallback = (data: { conversationId: string; userId: string; mess
 type PinCallback = (data: { conversationId: string; messageId: string }) => void;
 type PollVoteCallback = (data: { conversationId: string; messageId: string; votes: Message['poll_votes'] }) => void;
 type EventRsvpCallback = (data: { conversationId: string; messageId: string; rsvps: Message['event_rsvps'] }) => void;
+type BroadcastEventCallback = (event: { type: string; data: any }) => void;
 
 class MessagingService {
   private socket: Socket | null = null;
@@ -161,6 +162,7 @@ class MessagingService {
   private pinListeners: Set<PinCallback> = new Set();
   private pollVoteListeners: Set<PollVoteCallback> = new Set();
   private eventRsvpListeners: Set<EventRsvpCallback> = new Set();
+  private broadcastEventListeners: Set<BroadcastEventCallback> = new Set();
 
   // Heartbeat
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -264,6 +266,11 @@ class MessagingService {
     // Notification events
     this.socket.on('notification:new', (notification: Notification) => {
       this.notificationListeners.forEach(listener => listener(notification));
+    });
+
+    // Broadcast events (for check-ins, announcements, etc.)
+    this.socket.on('broadcast:event', (event: { type: string; data: any }) => {
+      this.broadcastEventListeners.forEach(listener => listener(event));
     });
   }
 
@@ -380,6 +387,11 @@ class MessagingService {
   onEventRsvpUpdate(callback: EventRsvpCallback): () => void {
     this.eventRsvpListeners.add(callback);
     return () => this.eventRsvpListeners.delete(callback);
+  }
+
+  onBroadcastEvent(callback: BroadcastEventCallback): () => void {
+    this.broadcastEventListeners.add(callback);
+    return () => this.broadcastEventListeners.delete(callback);
   }
 
   // ============================================================================
