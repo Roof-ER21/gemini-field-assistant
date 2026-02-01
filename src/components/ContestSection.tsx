@@ -350,7 +350,13 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const isPortrait = windowWidth < 480;
 
   return (
-    <div className="space-y-6">
+    <div style={{
+      padding: isPortrait ? '1rem' : isMobile ? '1.5rem' : '2rem',
+      height: '100%',
+      overflowY: 'auto',
+      background: 'var(--bg-primary, #1a1a1a)'
+    }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
       <div className="flex justify-between items-center" style={{
         flexDirection: isPortrait ? 'column' : 'row',
@@ -393,16 +399,29 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
       </div>
 
       {/* View Tabs */}
-      <div className="flex gap-2 border-b border-gray-700">
+      <div style={{
+        display: 'flex',
+        gap: '0.5rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        paddingBottom: '0.5rem',
+        flexWrap: 'wrap'
+      }}>
         {['active', 'past', 'all'].map((tab) => (
           <button
             key={tab}
             onClick={() => setView(tab as any)}
-            className={`px-4 py-2 font-medium transition-colors ${
-              view === tab
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-gray-400 hover:text-gray-300'
-            }`}
+            style={{
+              padding: isPortrait ? '0.625rem 1rem' : '0.5rem 1rem',
+              fontSize: isPortrait ? '0.875rem' : '0.875rem',
+              fontWeight: 500,
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: view === tab ? 'var(--roof-red, #dc2626)' : 'rgba(255, 255, 255, 0.05)',
+              color: view === tab ? 'white' : 'rgba(255, 255, 255, 0.7)',
+              minHeight: '44px'
+            }}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)} Contests
           </button>
@@ -518,15 +537,35 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 </div>
 
                 {isAdmin && (
-                  <div className="flex gap-2 mt-4 pt-4 border-t border-gray-700">
+                  <div style={{
+                    display: 'flex',
+                    gap: '0.5rem',
+                    marginTop: '1rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                  }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteContest(contest.id);
                       }}
-                      className="flex items-center gap-1 px-3 py-1 text-red-400 hover:text-red-300 text-sm"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.5rem 0.75rem',
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        borderRadius: '0.375rem',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#f87171',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        minHeight: '36px'
+                      }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 style={{ width: '1rem', height: '1rem' }} />
                       Delete
                     </button>
                     <button
@@ -534,9 +573,23 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                         e.stopPropagation();
                         refreshStandings(contest.id);
                       }}
-                      className="flex items-center gap-1 px-3 py-1 text-blue-400 hover:text-blue-300 text-sm"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.5rem 0.75rem',
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        borderRadius: '0.375rem',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        color: '#60a5fa',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        minHeight: '36px'
+                      }}
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw style={{ width: '1rem', height: '1rem' }} />
                       Refresh
                     </button>
                   </div>
@@ -1053,6 +1106,7 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

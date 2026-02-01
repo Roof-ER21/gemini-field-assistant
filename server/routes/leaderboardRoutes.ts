@@ -478,6 +478,39 @@ export function createLeaderboardRoutes(pool: Pool) {
   });
 
   /**
+   * GET /api/leaderboard/sales-reps
+   * Get all active sales reps
+   */
+  router.get('/sales-reps', async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          sr.id,
+          sr.name,
+          sr.email,
+          sr.team_id,
+          t.name as team_name
+        FROM sales_reps sr
+        LEFT JOIN teams t ON sr.team_id = t.id
+        WHERE sr.is_active = true
+        ORDER BY sr.name ASC
+      `);
+
+      res.json({
+        success: true,
+        count: result.rows.length,
+        reps: result.rows
+      });
+    } catch (error) {
+      console.error('❌ Sales reps fetch error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  /**
    * GET /api/leaderboard/teams/:id/members
    * Get members of a specific team
    */
