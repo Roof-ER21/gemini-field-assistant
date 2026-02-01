@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy } from 'react';
 import Sidebar from './components/Sidebar';
-import HomePage from './components/HomePage';
+import HomePage from './components/HomePageRedesigned';
 import ChatPanel from './components/ChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
 import MapsPanel from './components/MapsPanel';
@@ -181,7 +181,7 @@ const App: React.FC = () => {
   const renderPanel = () => {
     switch (activePanel) {
       case 'home':
-        return <HomePage setActivePanel={setActivePanel} />;
+        return <HomePage setActivePanel={setActivePanel} userEmail={currentUser?.email} />;
       case 'chat':
         return (
           <ChatPanel
@@ -291,7 +291,7 @@ const App: React.FC = () => {
           </LazyLoadBoundary>
         );
       default:
-        return <HomePage setActivePanel={setActivePanel} />;
+        return <HomePage setActivePanel={setActivePanel} userEmail={currentUser?.email} />;
     }
   };
 

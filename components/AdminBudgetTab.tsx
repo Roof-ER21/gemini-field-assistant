@@ -587,6 +587,7 @@ const AdminBudgetTab: React.FC = () => {
     <div style={{
       background: 'transparent',
       padding: '0',
+      paddingBottom: '40px',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       color: '#e4e4e7'
     }}>

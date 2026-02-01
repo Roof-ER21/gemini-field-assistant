@@ -37,6 +37,7 @@ import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
+import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import { useToast } from './Toast';
 
 interface UserSummary {
@@ -219,6 +220,23 @@ const AdminPanel: React.FC = () => {
   // Settings tab - selected user for per-user actions
   const [settingsSelectedUserId, setSettingsSelectedUserId] = useState<string>('');
   const [settingsUserActionLoading, setSettingsUserActionLoading] = useState(false);
+
+  // Leaderboard Goals state
+  const [salesReps, setSalesReps] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [selectedRepForGoal, setSelectedRepForGoal] = useState<string>('');
+  const [monthlySignupGoal, setMonthlySignupGoal] = useState<string>('');
+  const [yearlyRevenueGoal, setYearlyRevenueGoal] = useState<string>('');
+  const [goalsLoading, setGoalsLoading] = useState(false);
+  const [allGoals, setAllGoals] = useState<Array<any>>([]);
+  const [goalProgress, setGoalProgress] = useState<Array<any>>([]);
+  const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
+  const [bonusTiers, setBonusTiers] = useState<Array<{ percentage: number; bonus: number }>>([
+    { percentage: 100, bonus: 0 },
+    { percentage: 110, bonus: 500 },
+    { percentage: 120, bonus: 1000 },
+    { percentage: 130, bonus: 1500 }
+  ]);
+  const [showGoalHistory, setShowGoalHistory] = useState(false);
 
   const currentUser = authService.getCurrentUser();
 
@@ -651,6 +669,130 @@ const AdminPanel: React.FC = () => {
       toast?.error?.(message);
     } finally {
       setLeaderboardSyncRunning(false);
+    }
+  };
+
+  // Fetch sales reps for goal setting
+  const fetchSalesReps = async () => {
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/goals/reps', { headers });
+      if (!response.ok) throw new Error('Failed to fetch sales reps');
+      const data = await response.json();
+      setSalesReps(data.reps || []);
+    } catch (err) {
+      console.error('Error fetching sales reps:', err);
+      toast.error('Error', 'Failed to fetch sales reps');
+    }
+  };
+
+  // Fetch all goals
+  const fetchAllGoals = async () => {
+    setGoalsLoading(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/goals', { headers });
+      if (!response.ok) throw new Error('Failed to fetch goals');
+      const data = await response.json();
+      setAllGoals(data.goals || []);
+    } catch (err) {
+      console.error('Error fetching goals:', err);
+      toast.error('Error', 'Failed to fetch goals');
+    } finally {
+      setGoalsLoading(false);
+    }
+  };
+
+  // Fetch goal progress
+  const fetchGoalProgress = async () => {
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+      const headers = userEmail ? { 'x-user-email': userEmail } : {};
+
+      const response = await fetch('/api/admin/goals/progress', { headers });
+      if (!response.ok) throw new Error('Failed to fetch goal progress');
+      const data = await response.json();
+      setGoalProgress(data.progress || []);
+    } catch (err) {
+      console.error('Error fetching goal progress:', err);
+    }
+  };
+
+  // Create or update goal
+  const handleSaveGoal = async () => {
+    if (!selectedRepForGoal || !monthlySignupGoal || !yearlyRevenueGoal) {
+      toast.error('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setGoalsLoading(true);
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const method = editingGoalId ? 'PUT' : 'POST';
+      const url = editingGoalId
+        ? `/api/admin/goals/${editingGoalId}`
+        : '/api/admin/goals';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userEmail ? { 'x-user-email': userEmail } : {})
+        },
+        body: JSON.stringify({
+          salesRepId: parseInt(selectedRepForGoal),
+          monthlySignupGoal: parseInt(monthlySignupGoal),
+          yearlyRevenueGoal: parseFloat(yearlyRevenueGoal)
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save goal');
+
+      toast.success('Goal saved successfully');
+      setSelectedRepForGoal('');
+      setMonthlySignupGoal('');
+      setYearlyRevenueGoal('');
+      setEditingGoalId(null);
+      fetchAllGoals();
+      fetchGoalProgress();
+    } catch (err) {
+      console.error('Error saving goal:', err);
+      toast.error('Error', 'Failed to save goal');
+    } finally {
+      setGoalsLoading(false);
+    }
+  };
+
+  // Delete goal
+  const handleDeleteGoal = async (goalId: number) => {
+    if (!confirm('Are you sure you want to delete this goal?')) return;
+
+    try {
+      const authUser = localStorage.getItem('s21_auth_user');
+      const userEmail = authUser ? JSON.parse(authUser).email : null;
+
+      const response = await fetch(`/api/admin/goals/${goalId}`, {
+        method: 'DELETE',
+        headers: userEmail ? { 'x-user-email': userEmail } : {}
+      });
+
+      if (!response.ok) throw new Error('Failed to delete goal');
+
+      toast.success('Goal deleted');
+      fetchAllGoals();
+      fetchGoalProgress();
+    } catch (err) {
+      console.error('Error deleting goal:', err);
+      toast.error('Error', 'Failed to delete goal');
     }
   };
 
@@ -1527,7 +1669,7 @@ const AdminPanel: React.FC = () => {
       {/* Main Container */}
       <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
         {activeTab === 'users' && (
-          <div>
+          <div style={{ paddingBottom: '40px' }}>
             {/* Header and Filter Bar */}
             <div style={{
               marginBottom: '2rem',
@@ -1767,10 +1909,8 @@ const AdminPanel: React.FC = () => {
 
             {/* Users Grid */}
             <div style={{
-              height: 'calc(100vh - 380px)',
-              overflowY: 'auto',
               paddingRight: '4px'
-            }} className="custom-scrollbar">
+            }}>
               {loading && !users.length ? (
                 <div style={{ padding: '80px', textAlign: 'center' }}>
                   <div style={{
@@ -2481,10 +2621,9 @@ const AdminPanel: React.FC = () => {
         {/* EMAILS TAB - Full Page View */}
         {activeTab === 'emails' && (
           <div style={{
-            flex: 1,
             padding: '2rem',
-            overflowY: 'auto'
-          }} className="custom-scrollbar">
+            paddingBottom: '40px'
+          }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'white' }}>
               Email Generation Log
             </h2>
@@ -2681,10 +2820,9 @@ const AdminPanel: React.FC = () => {
         {/* MESSAGES TAB - Full Page View */}
         {activeTab === 'messages' && (
           <div style={{
-            flex: 1,
             padding: '2rem',
-            overflowY: 'auto'
-          }} className="custom-scrollbar">
+            paddingBottom: '40px'
+          }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'white' }}>
               All Messages
             </h2>
@@ -2911,7 +3049,7 @@ const AdminPanel: React.FC = () => {
         )}
 
         {activeTab === 'mappings' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '40px' }}>
             {/* Header */}
             <div style={{
               background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
@@ -3145,7 +3283,7 @@ const AdminPanel: React.FC = () => {
 
         {/* Settings Tab Content */}
         {activeTab === 'settings' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
             {settingsLoading ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
                 <Loader className="animate-spin" style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem' }} />
@@ -3640,6 +3778,27 @@ const AdminPanel: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Leaderboard Goals Management Section */}
+                <LeaderboardGoalsSection
+                  salesReps={salesReps}
+                  selectedRepForGoal={selectedRepForGoal}
+                  setSelectedRepForGoal={setSelectedRepForGoal}
+                  monthlySignupGoal={monthlySignupGoal}
+                  setMonthlySignupGoal={setMonthlySignupGoal}
+                  yearlyRevenueGoal={yearlyRevenueGoal}
+                  setYearlyRevenueGoal={setYearlyRevenueGoal}
+                  goalsLoading={goalsLoading}
+                  allGoals={allGoals}
+                  goalProgress={goalProgress}
+                  editingGoalId={editingGoalId}
+                  setEditingGoalId={setEditingGoalId}
+                  handleSaveGoal={handleSaveGoal}
+                  handleDeleteGoal={handleDeleteGoal}
+                  fetchSalesReps={fetchSalesReps}
+                  fetchAllGoals={fetchAllGoals}
+                  fetchGoalProgress={fetchGoalProgress}
+                />
 
                 {/* Susan AI Settings Section */}
                 <div style={{

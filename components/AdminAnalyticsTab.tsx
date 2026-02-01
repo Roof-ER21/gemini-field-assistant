@@ -781,8 +781,7 @@ const AdminAnalyticsTab: React.FC = () => {
         padding: '0',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         color: '#e4e4e7',
-        maxHeight: 'calc(100vh - 200px)',
-        overflowY: 'auto',
+        paddingBottom: '40px',
       }}
     >
       {/* Sub-Section Navigation */}
