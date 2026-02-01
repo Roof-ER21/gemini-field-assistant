@@ -519,8 +519,28 @@ export function createSheetsService(pool: Pool) {
   }>): Promise<void> {
     if (rows.length === 0) return;
 
+    // Validate and filter rows to prevent integer overflow errors
+    const validRows = rows.filter(row => {
+      const isValid = Number.isInteger(row.salesRepId) &&
+                      Number.isInteger(row.year) &&
+                      Number.isInteger(row.month) &&
+                      row.year >= 2000 && row.year <= 2100 &&
+                      row.month >= 1 && row.month <= 12;
+      if (!isValid) {
+        console.warn('[SHEETS] Invalid monthly metrics row skipped:', {
+          salesRepId: row.salesRepId,
+          year: row.year,
+          month: row.month,
+          signups: row.signups
+        });
+      }
+      return isValid;
+    });
+
+    if (validRows.length === 0) return;
+
     const values: Array<string | number> = [];
-    const placeholders = rows.map((row, index) => {
+    const placeholders = validRows.map((row, index) => {
       const baseIndex = index * 6;
       values.push(row.salesRepId, row.year, row.month, row.signups, row.estimates, row.revenue);
       return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6})`;
@@ -549,8 +569,25 @@ export function createSheetsService(pool: Pool) {
   }>): Promise<void> {
     if (rows.length === 0) return;
 
+    // Validate and filter rows to prevent integer overflow errors
+    const validRows = rows.filter(row => {
+      const isValid = Number.isInteger(row.salesRepId) &&
+                      Number.isInteger(row.year) &&
+                      row.year >= 2000 && row.year <= 2100;
+      if (!isValid) {
+        console.warn('[SHEETS] Invalid yearly metrics row skipped:', {
+          salesRepId: row.salesRepId,
+          year: row.year,
+          signups: row.signups
+        });
+      }
+      return isValid;
+    });
+
+    if (validRows.length === 0) return;
+
     const values: Array<string | number> = [];
-    const placeholders = rows.map((row, index) => {
+    const placeholders = validRows.map((row, index) => {
       const baseIndex = index * 5;
       values.push(row.salesRepId, row.year, row.signups, row.estimates, row.revenue);
       return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5})`;
