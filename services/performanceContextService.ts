@@ -66,6 +66,17 @@ const COMPARATIVE_KEYWORDS = [
   'last month', 'this month', 'best performer'
 ];
 
+// Detect which metric the user is asking about
+function detectMetricFocus(query: string): 'signups' | 'revenue' | 'both' {
+  const q = query.toLowerCase();
+  const asksSignups = q.includes('signup') || q.includes('sign up') || q.includes('sign-up');
+  const asksRevenue = q.includes('revenue') || q.includes('sales') || q.includes('money') || q.includes('dollars');
+
+  if (asksSignups && !asksRevenue) return 'signups';
+  if (asksRevenue && !asksSignups) return 'revenue';
+  return 'both';
+}
+
 // Keywords that indicate a performance-related query
 const PERFORMANCE_KEYWORDS = [
   // Direct rank questions
@@ -265,29 +276,53 @@ export async function buildPerformanceContext(query: string, userEmail?: string)
 
   // Check if this is a comparative query (asking about other reps)
   const needsFullLeaderboard = isComparativeQuery(query);
+  const metricFocus = detectMetricFocus(query);
 
   // Fetch user's own data
   const data = await fetchPerformanceData(userEmail);
 
-  // Fetch full leaderboard if asking about others
-  let leaderboardData: LeaderboardData | null = null;
+  // Always fetch comprehensive leaderboard data for comparative queries
+  let signupsLeaderboard: LeaderboardData | null = null;
+  let revenueLeaderboard: LeaderboardData | null = null;
+
   if (needsFullLeaderboard) {
-    console.log('[PerformanceContext] Comparative query - fetching full leaderboard...');
-    leaderboardData = await fetchLeaderboardData('all_time_revenue', 15);
+    console.log('[PerformanceContext] Comparative query - fetching comprehensive leaderboards...');
+
+    // Fetch both leaderboards in parallel for complete knowledge
+    const [signups, revenue] = await Promise.all([
+      fetchLeaderboardData('monthly_signups', 15),
+      fetchLeaderboardData('all_time_revenue', 15)
+    ]);
+
+    signupsLeaderboard = signups;
+    revenueLeaderboard = revenue;
   }
 
-  // Build leaderboard context if we have it
+  // Build comprehensive leaderboard context
   let leaderboardBlock = '';
-  if (leaderboardData && leaderboardData.entries.length > 0) {
-    const top10 = leaderboardData.entries.slice(0, 10);
-    leaderboardBlock = `
 
-[FULL LEADERBOARD - TOP 10 BY ALL-TIME REVENUE]
-${top10.map((e, i) =>
-  `${i + 1}. ${e.name} - $${e.allTimeRevenue.toLocaleString()} all-time | ${e.monthlySignups} signups this month | ${e.bonusTier}${e.teamName ? ` | ${e.teamName}` : ''}`
+  // Add signups leaderboard
+  if (signupsLeaderboard && signupsLeaderboard.entries.length > 0) {
+    const top10Signups = signupsLeaderboard.entries.slice(0, 10);
+    leaderboardBlock += `
+
+[TOP 10 BY MONTHLY SIGNUPS - THIS MONTH]
+${top10Signups.map((e, i) =>
+  `${i + 1}. ${e.name} - ${e.monthlySignups} signups | $${e.monthlyRevenue.toLocaleString()} revenue | ${e.bonusTier}`
+).join('\n')}
+`;
+  }
+
+  // Add revenue leaderboard
+  if (revenueLeaderboard && revenueLeaderboard.entries.length > 0) {
+    const top10Revenue = revenueLeaderboard.entries.slice(0, 10);
+    leaderboardBlock += `
+[TOP 10 BY ALL-TIME REVENUE]
+${top10Revenue.map((e, i) =>
+  `${i + 1}. ${e.name} - $${e.allTimeRevenue.toLocaleString()} all-time | $${e.yearlyRevenue.toLocaleString()} this year | ${e.bonusTier}`
 ).join('\n')}
 
-Total Active Reps: ${leaderboardData.totalReps}
+Total Active Reps: ${revenueLeaderboard.totalReps}
 `;
   }
 
@@ -357,9 +392,11 @@ GUIDANCE: Let them know their performance data isn't available, suggest checking
 - Appointments Set: ${user.appointmentsSet30d}`;
   }
 
-  // Get #1 from leaderboard data or nearby competitors
-  const topPerformer = leaderboardData?.entries[0] || nearbyCompetitors.find(c => c.rank === 1);
-  const topPerformerName = topPerformer ? topPerformer.name : 'Check Leaderboard tab';
+  // Get #1 from leaderboard data (signups or revenue)
+  const topSignupsPerformer = signupsLeaderboard?.entries[0];
+  const topRevenuePerformer = revenueLeaderboard?.entries[0];
+  const topPerformerName = topRevenuePerformer?.name || topSignupsPerformer?.name || nearbyCompetitors.find(c => c.rank === 1)?.name || 'Check Leaderboard tab';
+  const topSignupsName = topSignupsPerformer?.name || 'Check Leaderboard tab';
 
   // Build the context block
   return `
@@ -380,10 +417,12 @@ COACHING GUIDANCE:
 - If they ask "how am I doing?": Give honest assessment based on rank/metrics. Celebrate being in ${percentile}. ${user.rank <= 10 ? 'They are a top performer!' : user.rank <= 20 ? 'Solid performance, encourage pushing for top 10.' : 'Room for growth - focus on daily consistency.'}
 - If they ask about rank: Explain #${user.rank} of ${user.totalUsers} means ${percentile} of the team.
 - If they ask about improving: ${competitorBlock ? 'Reference the gap to the next rank.' : 'Focus on consistent daily activity.'}
-- If they ask who's #1 or best performer: #1 is ${topPerformerName}. Use the leaderboard data above if available.
-- If they ask "who did the best" for signups/revenue: Reference the leaderboard data above.
+- If they ask who's #1 or best in REVENUE: Use the [TOP 10 BY ALL-TIME REVENUE] data above. #1 is ${topPerformerName}.
+- If they ask who's #1 or best in SIGNUPS: Use the [TOP 10 BY MONTHLY SIGNUPS] data above. #1 in signups is ${topSignupsName}.
+- If they ask "who did the best this month" or "last month" for signups: USE THE SIGNUPS LEADERBOARD DATA ABOVE. Give the actual name and numbers.
 - Always be encouraging but realistic with the numbers.
 - Connect performance to daily activities (doors knocked, appointments set).
+- IMPORTANT: When you have leaderboard data, use it! Don't say you don't have data if the lists above are populated.
 `;
 }
 
