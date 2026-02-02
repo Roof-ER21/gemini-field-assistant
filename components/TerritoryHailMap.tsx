@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon, Circle } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -10,12 +10,12 @@ interface Territory {
   name: string;
   description: string;
   color: string;
-  north_lat: number;
-  south_lat: number;
-  east_lng: number;
-  west_lng: number;
-  center_lat: number;
-  center_lng: number;
+  northLat: number;
+  southLat: number;
+  eastLng: number;
+  westLng: number;
+  centerLat: number;
+  centerLng: number;
 }
 
 interface HailEvent {
@@ -100,16 +100,16 @@ function MapController({ selectedTerritory, searchLocation }: MapControllerProps
       );
     } else if (selectedTerritory) {
       // Validate territory bounds
-      if (!selectedTerritory.south_lat || !selectedTerritory.north_lat ||
-          !selectedTerritory.west_lng || !selectedTerritory.east_lng ||
-          isNaN(selectedTerritory.south_lat) || isNaN(selectedTerritory.north_lat) ||
-          isNaN(selectedTerritory.west_lng) || isNaN(selectedTerritory.east_lng)) {
+      if (!selectedTerritory.southLat || !selectedTerritory.northLat ||
+          !selectedTerritory.westLng || !selectedTerritory.eastLng ||
+          isNaN(selectedTerritory.southLat) || isNaN(selectedTerritory.northLat) ||
+          isNaN(selectedTerritory.westLng) || isNaN(selectedTerritory.eastLng)) {
         console.warn('Invalid territory bounds:', selectedTerritory);
         return;
       }
       const bounds = new LatLngBounds(
-        [selectedTerritory.south_lat, selectedTerritory.west_lng],
-        [selectedTerritory.north_lat, selectedTerritory.east_lng]
+        [selectedTerritory.southLat, selectedTerritory.westLng],
+        [selectedTerritory.northLat, selectedTerritory.eastLng]
       );
       map.fitBounds(bounds, { padding: [20, 20] });
     }
@@ -229,6 +229,24 @@ export default function TerritoryHailMap() {
   const [stormPaths, setStormPaths] = useState<StormPath[]>([]);
   const [hoveredStorm, setHoveredStorm] = useState<StormPath | null>(null);
 
+  // Filter state
+  const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind' | 'tornado'>('all');
+
+  // Filtered events based on event type filter
+  const filteredHailEvents = useMemo(() => {
+    if (eventTypeFilter === 'all' || eventTypeFilter === 'hail') {
+      return hailEvents;
+    }
+    return [];
+  }, [hailEvents, eventTypeFilter]);
+
+  const filteredNoaaEvents = useMemo(() => {
+    if (eventTypeFilter === 'all') {
+      return noaaEvents;
+    }
+    return noaaEvents.filter(e => e.eventType === eventTypeFilter);
+  }, [noaaEvents, eventTypeFilter]);
+
   // Fetch territories and saved reports on mount
   useEffect(() => {
     fetchTerritories();
@@ -268,7 +286,7 @@ export default function TerritoryHailMap() {
     setError(null);
     try {
       const res = await fetch(
-        `${getApiBaseUrl()}/hail/search?lat=${territory.center_lat}&lng=${territory.center_lng}&months=${months}&radius=50`
+        `${getApiBaseUrl()}/hail/search?lat=${territory.centerLat}&lng=${territory.centerLng}&months=${months}&radius=50`
       );
       if (res.ok) {
         const data = await res.json();
@@ -501,12 +519,23 @@ export default function TerritoryHailMap() {
 
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   const formatDateLong = (dateStr: string): string => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   const toggleCheck = (eventId: string) => {
@@ -530,8 +559,8 @@ export default function TerritoryHailMap() {
   // Combine and sort events based on active tab
   const getSortedEvents = (): Array<{ type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }> => {
     const combined = [
-      ...hailEvents.map(e => ({ type: 'ihm' as const, event: e })),
-      ...noaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
+      ...filteredHailEvents.map(e => ({ type: 'ihm' as const, event: e })),
+      ...filteredNoaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
     ];
 
     if (activeTab === 'recent') {
@@ -790,8 +819,35 @@ export default function TerritoryHailMap() {
           ))}
         </div>
 
+        {/* Event Type Filter */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: 'auto' }}>
+          {(['all', 'hail', 'wind', 'tornado'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setEventTypeFilter(type)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                background: eventTypeFilter === type ? 'var(--roof-red)' : 'var(--bg-elevated)',
+                color: eventTypeFilter === type ? 'white' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              {type === 'wind' && <Wind className="w-3 h-3" />}
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+
         {/* Month Filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => setSearchCollapsed(!searchCollapsed)}
             title={searchCollapsed ? "Expand search" : "Collapse search"}
@@ -1568,7 +1624,7 @@ export default function TerritoryHailMap() {
         )}
 
         {/* Hail Dates Panel - RIGHT SIDE */}
-        {showHailDates && (hailEvents.length > 0 || noaaEvents.length > 0) && (
+        {showHailDates && (filteredHailEvents.length > 0 || filteredNoaaEvents.length > 0) && (
           <div style={{
             position: 'absolute',
             top: '16px',
@@ -1644,7 +1700,7 @@ export default function TerritoryHailMap() {
             {/* Events List */}
             <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
               {/* IHM Events */}
-              {hailEvents.length > 0 && (
+              {filteredHailEvents.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{
                     fontSize: '11px',
@@ -1654,20 +1710,29 @@ export default function TerritoryHailMap() {
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px'
                   }}>
-                    IHM Hail Events ({hailEvents.length})
+                    IHM Hail Events ({filteredHailEvents.length})
                   </div>
-                  {hailEvents
+                  {filteredHailEvents
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((event, idx) => (
+                    .map((event, idx) => {
+                      const eventId = `ihm-${event.id}`;
+                      const isSelected = selectedEventId === eventId;
+                      return (
                       <div
                         key={`ihm-${event.id || idx}`}
+                        onClick={() => {
+                          setSelectedEventId(eventId);
+                          setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
+                        }}
                         style={{
                           padding: '12px',
                           margin: '4px 0',
-                          background: 'var(--bg-primary)',
+                          background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
                           borderRadius: '8px',
-                          border: `1px solid ${getSeverityColor(event.severity)}20`,
-                          borderLeft: `4px solid ${getSeverityColor(event.severity)}`
+                          border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getSeverityColor(event.severity)}20`,
+                          borderLeft: `4px solid ${getSeverityColor(event.severity)}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
                         }}
                       >
                         <div style={{
@@ -1700,12 +1765,12 @@ export default function TerritoryHailMap() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                 </div>
               )}
 
               {/* NOAA Events */}
-              {noaaEvents.length > 0 && (
+              {filteredNoaaEvents.length > 0 && (
                 <div>
                   <div style={{
                     fontSize: '11px',
@@ -1715,20 +1780,29 @@ export default function TerritoryHailMap() {
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px'
                   }}>
-                    NOAA Events ({noaaEvents.length})
+                    NOAA Events ({filteredNoaaEvents.length})
                   </div>
-                  {noaaEvents
+                  {filteredNoaaEvents
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((event, idx) => (
+                    .map((event, idx) => {
+                      const eventId = `noaa-${event.id}`;
+                      const isSelected = selectedEventId === eventId;
+                      return (
                       <div
                         key={`noaa-${event.id || idx}`}
+                        onClick={() => {
+                          setSelectedEventId(eventId);
+                          setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
+                        }}
                         style={{
                           padding: '12px',
                           margin: '4px 0',
-                          background: 'var(--bg-primary)',
+                          background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
                           borderRadius: '8px',
-                          border: `1px solid ${getEventTypeColor(event.eventType)}20`,
-                          borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`
+                          border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getEventTypeColor(event.eventType)}20`,
+                          borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
                         }}
                       >
                         <div style={{
@@ -1771,18 +1845,18 @@ export default function TerritoryHailMap() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                 </div>
               )}
 
-              {hailEvents.length === 0 && noaaEvents.length === 0 && (
+              {filteredHailEvents.length === 0 && filteredNoaaEvents.length === 0 && (
                 <div style={{
                   padding: '32px 16px',
                   textAlign: 'center',
                   color: 'var(--text-secondary)',
                   fontSize: '13px'
                 }}>
-                  No hail events found in this area
+                  No events match the current filter
                 </div>
               )}
             </div>
@@ -1962,10 +2036,10 @@ export default function TerritoryHailMap() {
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 
-          {/* Storm Path Polygons - Grouped Events with Hover Popups */}
+          {/* Storm Path Polygons - Grouped Events with Hover Popups - ONLY for selected/checked events */}
           {groupEventsByLocation([
-            ...hailEvents.map(e => ({ type: 'ihm' as const, event: e })),
-            ...noaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
+            ...filteredHailEvents.filter(e => checkedEvents.has(`ihm-${e.id}`) || selectedEventId === `ihm-${e.id}`).map(e => ({ type: 'ihm' as const, event: e })),
+            ...filteredNoaaEvents.filter(e => checkedEvents.has(`noaa-${e.id}`) || selectedEventId === `noaa-${e.id}`).map(e => ({ type: 'noaa' as const, event: e }))
           ]).map((group, groupIdx) => {
             // Get max severity for the group
             const maxSize = Math.max(...group.events.map(item => {
@@ -2057,11 +2131,11 @@ export default function TerritoryHailMap() {
           {territories
             .filter(t => {
               // Filter out territories with invalid coordinates
-              if (!t.south_lat || !t.north_lat || !t.west_lng || !t.east_lng) {
+              if (!t.southLat || !t.northLat || !t.westLng || !t.eastLng) {
                 console.warn('Territory missing coordinates:', t.name, t.id);
                 return false;
               }
-              if (isNaN(t.south_lat) || isNaN(t.north_lat) || isNaN(t.west_lng) || isNaN(t.east_lng)) {
+              if (isNaN(t.southLat) || isNaN(t.northLat) || isNaN(t.westLng) || isNaN(t.eastLng)) {
                 console.warn('Territory has invalid coordinates:', t.name, t.id);
                 return false;
               }
@@ -2071,8 +2145,8 @@ export default function TerritoryHailMap() {
               <Rectangle
                 key={t.id}
                 bounds={[
-                  [t.south_lat, t.west_lng],
-                  [t.north_lat, t.east_lng]
+                  [t.southLat, t.westLng],
+                  [t.northLat, t.eastLng]
                 ]}
                 pathOptions={{
                   color: t.color,
@@ -2112,7 +2186,7 @@ export default function TerritoryHailMap() {
             ))}
 
           {/* Individual IHM Event Markers */}
-          {hailEvents
+          {filteredHailEvents
             .filter(event => {
               // Filter out events with invalid coordinates
               if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
@@ -2175,7 +2249,7 @@ export default function TerritoryHailMap() {
             })}
 
           {/* Individual NOAA Event Markers */}
-          {noaaEvents
+          {filteredNoaaEvents
             .filter(event => {
               // Filter out events with invalid coordinates
               if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
@@ -2316,7 +2390,7 @@ export default function TerritoryHailMap() {
         {selectedTerritory && (
           <div style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }}>
             <MapPin className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
-            {hailEvents.length} IHM events, {noaaEvents.length} NOAA events
+            {filteredHailEvents.length} IHM events, {filteredNoaaEvents.length} NOAA events
           </div>
         )}
       </div>
