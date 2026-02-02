@@ -1960,7 +1960,9 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
 
       {/* Keyboard Shortcuts Panel */}
       {showKeyboardHints && (
-        <div className="absolute top-20 sm:top-24 right-2 sm:right-4 md:right-8 bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-xl p-4 sm:p-6 shadow-2xl z-50 max-w-[calc(100vw-1rem)] sm:max-w-xs md:max-w-sm">
+        <div
+          className="absolute top-20 sm:top-24 right-2 sm:right-4 md:right-8 backdrop-blur-xl border border-neutral-800 rounded-xl p-4 sm:p-6 shadow-2xl z-50 max-w-[calc(100vw-1rem)] sm:max-w-xs md:max-w-sm"
+          style={{ backgroundColor: 'rgba(23, 23, 23, 0.98)' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-bold tracking-wider text-sm flex items-center space-x-2">
               <Keyboard className="w-4 h-4 text-blue-400" />
@@ -2023,7 +2025,8 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
       {/* End Session Confirmation Modal */}
       {showEndSessionModal && (
         <div
-          className="fixed inset-0 bg-black backdrop-blur-sm z-[65] flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 backdrop-blur-sm z-[65] flex items-center justify-center p-4 sm:p-8"
+          style={{ backgroundColor: '#000000', top: 0, left: 0, right: 0, bottom: 0, position: 'fixed' }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="end-session-title"
@@ -2141,7 +2144,8 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
       {/* Post-Session Success Modal */}
       {showSuccessModal && (
         <div
-          className="fixed inset-0 bg-black backdrop-blur-sm z-[70] flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 backdrop-blur-sm z-[70] flex items-center justify-center p-4 sm:p-8"
+          style={{ backgroundColor: '#000000', top: 0, left: 0, right: 0, bottom: 0, position: 'fixed' }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="success-title"
@@ -2227,7 +2231,9 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
 
       {/* Score Loading Modal - Shows while accumulating score response */}
       {showScoreLoadingModal && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-[55] flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ backgroundColor: '#000000', top: 0, left: 0, right: 0, bottom: 0, position: 'fixed' }}>
           <div className="bg-neutral-900 rounded-2xl border-2 border-yellow-500/50 p-8 max-w-md w-full text-center">
             {/* Animated Agnes Icon */}
             <div className="relative w-16 h-16 mx-auto mb-4">
