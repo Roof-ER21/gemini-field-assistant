@@ -761,7 +761,8 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
             }
           },
           config: {
-            responseModalities: [Modality.AUDIO, Modality.TEXT],
+            // Native audio models only support AUDIO modality (TEXT causes disconnect)
+            responseModalities: [Modality.AUDIO],
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
               languageCode: 'en-US'
