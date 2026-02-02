@@ -61,7 +61,7 @@ const AgnesLearningPanel: React.FC = () => {
 
   if (activeConfig) {
     return (
-      <div className="flex-1 min-h-0">
+      <div className="roof-er-content-area">
         <AgnesAuthProvider>
           <PitchTrainer
             config={activeConfig}
@@ -73,119 +73,181 @@ const AgnesLearningPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-red-500" />
-            Agnes Learning
-          </h1>
-          <p className="text-neutral-400 mt-1">
-            Feedback roleplay and just-listen training with Agnes 21.
-          </p>
+    <div className="roof-er-content-area">
+      <div className="roof-er-content-scroll" style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+          <div>
+            <div className="roof-er-page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+              <Sparkles className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+              Agnes Learning
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+              Feedback roleplay and just-listen training with Agnes 21.
+            </div>
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0.9rem', borderRadius: '999px', background: 'rgba(196,30,58,0.15)', border: '1px solid rgba(196,30,58,0.4)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 600 }}>
+            Mic + camera required for live coaching
+          </div>
         </div>
-        <div className="text-xs text-neutral-500 bg-black/40 border border-neutral-800 px-3 py-2 rounded-full">
-          Mic + camera required for live coaching
-        </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        <div className="space-y-6">
-          <div className="bg-black/50 border border-neutral-800 rounded-2xl p-5">
-            <h2 className="text-sm font-semibold text-neutral-200 mb-4 uppercase tracking-wider">Mode</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {modeOptions.map((option) => {
-                const Icon = option.icon;
-                const isSelected = mode === option.value;
-                return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)', marginBottom: '0.9rem' }}>
+                Mode
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                {modeOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = mode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setMode(option.value)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '0.9rem',
+                        borderRadius: '14px',
+                        border: isSelected ? '1px solid rgba(196,30,58,0.6)' : '1px solid var(--border-subtle)',
+                        background: isSelected ? 'rgba(196,30,58,0.12)' : 'rgba(10,10,10,0.55)',
+                        color: 'var(--text-primary)',
+                        boxShadow: isSelected ? 'var(--shadow-red)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <Icon className="w-4 h-4" style={{ color: isSelected ? 'var(--roof-red)' : 'var(--text-tertiary)' }} />
+                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{option.label}</span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{option.description}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)', marginBottom: '0.9rem' }}>
+                Difficulty
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                {difficultyOptions.map(option => (
                   <button
                     key={option.value}
-                    onClick={() => setMode(option.value)}
-                    className={`text-left p-4 rounded-xl border transition-all ${
-                      isSelected
-                        ? 'border-red-500/60 bg-red-500/10 text-white'
-                        : 'border-neutral-800 bg-neutral-900/40 text-neutral-300 hover:border-neutral-600'
-                    }`}
+                    onClick={() => setDifficulty(option.value)}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '999px',
+                      border: difficulty === option.value ? '1px solid rgba(250,204,21,0.7)' : '1px solid var(--border-subtle)',
+                      background: difficulty === option.value ? 'rgba(250,204,21,0.16)' : 'rgba(10,10,10,0.5)',
+                      color: difficulty === option.value ? '#fde68a' : 'var(--text-tertiary)',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer'
+                    }}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon className={`w-4 h-4 ${isSelected ? 'text-red-400' : 'text-neutral-500'}`} />
-                      <span className="text-sm font-semibold">{option.label}</span>
-                    </div>
-                    <p className="text-xs text-neutral-400">{option.description}</p>
+                    {option.label}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="bg-black/50 border border-neutral-800 rounded-2xl p-5">
-            <h2 className="text-sm font-semibold text-neutral-200 mb-4 uppercase tracking-wider">Difficulty</h2>
-            <div className="flex flex-wrap gap-2">
-              {difficultyOptions.map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => setDifficulty(option.value)}
-                  className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider border transition-all ${
-                    difficulty === option.value
-                      ? 'border-yellow-500/60 text-yellow-400 bg-yellow-500/10'
-                      : 'border-neutral-800 text-neutral-400 bg-neutral-900/40 hover:border-neutral-600'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+          <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)' }}>
+                Script
+              </div>
+              <button
+                onClick={() => setUseCustomScript(prev => !prev)}
+                style={{
+                  borderRadius: '999px',
+                  padding: '0.4rem 0.85rem',
+                  border: useCustomScript ? '1px solid rgba(196,30,58,0.6)' : '1px solid var(--border-subtle)',
+                  background: useCustomScript ? 'rgba(196,30,58,0.18)' : 'rgba(10,10,10,0.5)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer'
+                }}
+              >
+                {useCustomScript ? 'Custom Script: On' : 'Use Custom Script'}
+              </button>
             </div>
-          </div>
-        </div>
 
-        <div className="bg-black/50 border border-neutral-800 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h2 className="text-sm font-semibold text-neutral-200 uppercase tracking-wider">Script</h2>
-            <label className="flex items-center gap-2 text-xs text-neutral-400">
-              <input
-                type="checkbox"
-                checked={useCustomScript}
-                onChange={(e) => setUseCustomScript(e.target.checked)}
-              />
-              Use custom script
-            </label>
-          </div>
+            {!useCustomScript && (
+              <select
+                value={scriptId}
+                onChange={(e) => setScriptId(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(10,10,10,0.6)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '10px',
+                  padding: '0.6rem 0.75rem',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {scripts.map(script => (
+                  <option key={script.id} value={script.id}>
+                    {script.title}
+                  </option>
+                ))}
+              </select>
+            )}
 
-          {!useCustomScript && (
-            <select
-              value={scriptId}
-              onChange={(e) => setScriptId(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200"
+            <textarea
+              value={scriptContent}
+              onChange={(e) => setCustomScript(e.target.value)}
+              readOnly={!useCustomScript}
+              placeholder="Paste your script here..."
+              style={{
+                width: '100%',
+                minHeight: '280px',
+                background: 'rgba(6,6,6,0.6)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '12px',
+                padding: '0.9rem',
+                color: 'var(--text-primary)',
+                fontSize: '0.78rem',
+                lineHeight: 1.6,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+              }}
+            />
+
+            {error && (
+              <div style={{ color: 'var(--error)', fontSize: '0.8rem' }}>{error}</div>
+            )}
+
+            <button
+              onClick={handleStart}
+              className="roof-er-header-btn"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6rem',
+                padding: '0.85rem 1rem',
+                borderRadius: '12px',
+                border: '1px solid rgba(196,30,58,0.7)',
+                background: 'linear-gradient(135deg, rgba(196,30,58,0.9), rgba(138,21,40,0.9))',
+                boxShadow: 'var(--shadow-red-lg)',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase'
+              }}
             >
-              {scripts.map(script => (
-                <option key={script.id} value={script.id}>
-                  {script.title}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <textarea
-            className="w-full min-h-[280px] bg-neutral-900/70 border border-neutral-800 rounded-xl p-4 text-xs text-neutral-200 font-mono leading-relaxed"
-            value={scriptContent}
-            onChange={(e) => setCustomScript(e.target.value)}
-            readOnly={!useCustomScript}
-            placeholder="Paste your script here..."
-          />
-
-          {error && (
-            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={handleStart}
-            className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
-          >
-            <Play className="w-4 h-4" />
-            Start Session
-          </button>
+              <Play className="w-4 h-4" />
+              Start Session
+            </button>
+          </div>
         </div>
       </div>
     </div>
