@@ -2023,7 +2023,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
       {/* End Session Confirmation Modal */}
       {showEndSessionModal && (
         <div
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 bg-black backdrop-blur-sm z-[65] flex items-center justify-center p-4 sm:p-8"
           role="dialog"
           aria-modal="true"
           aria-labelledby="end-session-title"
@@ -2141,7 +2141,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
       {/* Post-Session Success Modal */}
       {showSuccessModal && (
         <div
-          className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 bg-black backdrop-blur-sm z-[70] flex items-center justify-center p-4 sm:p-8"
           role="dialog"
           aria-modal="true"
           aria-labelledby="success-title"
@@ -2227,7 +2227,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
 
       {/* Score Loading Modal - Shows while accumulating score response */}
       {showScoreLoadingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black backdrop-blur-sm">
           <div className="bg-neutral-900 rounded-2xl border-2 border-yellow-500/50 p-8 max-w-md w-full text-center">
             {/* Animated Agnes Icon */}
             <div className="relative w-16 h-16 mx-auto mb-4">
