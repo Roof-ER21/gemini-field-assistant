@@ -160,10 +160,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
   // Define all nav items
   const allNavItems = useMemo(() => [
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
-    { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
+    { id: 'chat', label: 'Susan 21', desc: 'AI conversation', icon: S21Icon },
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'learning', label: 'Susan 21 Learning', desc: 'Team feedback', icon: TrendingUp },
-    { id: 'agnes-learning', label: 'Agnes 21 Learning', desc: 'Roleplay + feedback', icon: Bot },
+    { id: 'agnes-learning', label: 'Agnes 21', desc: 'Roleplay training', icon: Bot },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
@@ -205,7 +205,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Main',
         icon: Sparkles,
         defaultExpanded: true,
-        items: ['home', 'chat']
+        items: ['home', 'chat', 'agnes-learning']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
@@ -214,7 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Team',
         icon: Users,
         defaultExpanded: true,
-        items: ['team', 'learning', 'agnes-learning', 'leaderboard', 'contests']
+        items: ['team', 'learning', 'leaderboard', 'contests']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
