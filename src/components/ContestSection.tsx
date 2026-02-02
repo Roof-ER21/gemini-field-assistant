@@ -75,7 +75,6 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const [salesReps, setSalesReps] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [shareMessage, setShareMessage] = useState('');
 
   const isAdmin = userRole === 'admin' || userRole === 'manager';
@@ -427,10 +426,30 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     return message;
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const message = generateShareMessage();
+    if (!message) return;
     setShareMessage(message);
-    setShowShareModal(true);
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: selectedContest?.name || 'Contest Update',
+          text: message
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn('Share cancelled or failed, falling back to clipboard.', error);
+    }
+
+    try {
+      await navigator.clipboard.writeText(message);
+      alert('Contest standings copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      alert('Failed to share contest standings');
+    }
   };
 
   const copyToClipboard = async () => {
@@ -461,7 +480,7 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
 
       if (data.success) {
         alert('Contest standings posted to team chat!');
-        setShowShareModal(false);
+        setShareMessage('');
       } else {
         alert(`Error: ${data.error || 'Failed to post message'}`);
       }

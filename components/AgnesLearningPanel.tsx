@@ -18,6 +18,30 @@ const AgnesLearningPanel: React.FC = () => {
 
   const selectedScript = useMemo(() => getScriptById(scriptId), [scriptId]);
   const scriptContent = useCustomScript ? customScript : (selectedScript?.content || '');
+  const groupedScripts = useMemo(() => {
+    const groups: Record<string, PhoneScript[]> = {};
+    const labelFor = (category: PhoneScript['category']) => {
+      if (category === 'door-to-door' || category === 'authorization') return 'Door-to-Door';
+      if (category === 'estimate') return 'Estimate Calls';
+      if (category === 'pushback' || category === 'objection') return 'Insurance Pushback';
+      return 'Other';
+    };
+    scripts.forEach(script => {
+      const label = labelFor(script.category);
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(script);
+    });
+    return groups;
+  }, [scripts]);
+
+  const handleScriptChange = (value: string) => {
+    if (value === '__custom__') {
+      setUseCustomScript(true);
+      return;
+    }
+    setUseCustomScript(false);
+    setScriptId(value);
+  };
 
   const trackOptions = [
     {
@@ -283,27 +307,3 @@ const AgnesLearningPanel: React.FC = () => {
 };
 
 export default AgnesLearningPanel;
-  const groupedScripts = useMemo(() => {
-    const groups: Record<string, PhoneScript[]> = {};
-    const labelFor = (category: PhoneScript['category']) => {
-      if (category === 'door-to-door' || category === 'authorization') return 'Door-to-Door';
-      if (category === 'estimate') return 'Estimate Calls';
-      if (category === 'pushback' || category === 'objection') return 'Insurance Pushback';
-      return 'Other';
-    };
-    scripts.forEach(script => {
-      const label = labelFor(script.category);
-      if (!groups[label]) groups[label] = [];
-      groups[label].push(script);
-    });
-    return groups;
-  }, [scripts]);
-
-  const handleScriptChange = (value: string) => {
-    if (value === '__custom__') {
-      setUseCustomScript(true);
-      return;
-    }
-    setUseCustomScript(false);
-    setScriptId(value);
-  };
