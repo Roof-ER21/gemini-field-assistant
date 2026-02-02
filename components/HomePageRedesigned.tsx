@@ -16,11 +16,12 @@ import {
   BarChart3,
   ArrowUp,
   ArrowDown,
-  Minus
+  Minus,
+  Sparkles
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'documentjob';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
 
 interface HomePageRedesignedProps {
   setActivePanel: (panel: PanelType) => void;
@@ -122,6 +123,13 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   }, [userEmail]);
 
   const quickActions = [
+    {
+      id: 'agnes-learning',
+      title: 'Agnes Learning',
+      description: 'Roleplay + feedback training',
+      icon: Sparkles,
+      gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)'
+    },
     {
       id: 'chat',
       title: 'Start Chat',

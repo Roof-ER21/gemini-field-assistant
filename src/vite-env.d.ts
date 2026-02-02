@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_TOGETHER_API_KEY: string;
   readonly VITE_HF_API_KEY: string;
   readonly VITE_API_URL: string;
+  readonly VITE_TTS_API_URL?: string;
 }
 
 interface ImportMeta {

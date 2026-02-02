@@ -16,7 +16,7 @@ import {
   Briefcase
 } from 'lucide-react';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'documentjob';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
 
 interface HomePageProps {
   setActivePanel: (panel: PanelType) => void;

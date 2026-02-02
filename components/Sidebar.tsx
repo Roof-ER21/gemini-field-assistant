@@ -22,14 +22,15 @@ import {
   Sparkles,
   Wrench,
   HardHat,
-  Medal
+  Medal,
+  Bot
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -124,7 +125,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     canvassing: 'feature_canvassing',
     impacted: 'feature_impacted_assets',
     live: 'feature_live',
-    agnes: 'feature_agnes'
+    agnes: 'feature_agnes',
+    'agnes-learning': 'feature_agnes'
   };
 
   // Fetch unread message count
@@ -161,6 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'learning', label: 'Learning', desc: 'Team feedback', icon: TrendingUp },
+    { id: 'agnes-learning', label: 'Agnes Learning', desc: 'Roleplay + feedback', icon: Bot },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
@@ -211,7 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Team',
         icon: Users,
         defaultExpanded: true,
-        items: ['team', 'leaderboard', 'contests', 'learning']
+        items: ['team', 'learning', 'agnes-learning', 'leaderboard', 'contests']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
