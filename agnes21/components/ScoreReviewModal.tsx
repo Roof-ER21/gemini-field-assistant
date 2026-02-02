@@ -250,15 +250,20 @@ const ScoreReviewModal: React.FC<ScoreReviewModalProps> = ({
         </div>
 
         {/* Action Button - Session Complete */}
-        <div className="p-6 border-t border-neutral-800 bg-neutral-900/50">
+        <div className="p-6 border-t border-neutral-800" style={{ backgroundColor: 'rgba(23, 23, 23, 0.5)' }}>
           <button
             onClick={handleClose}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 rounded-xl text-white font-semibold transition-all shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/40"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all"
+            style={{
+              background: 'linear-gradient(to right, #ca8a04, #eab308)',
+              color: '#ffffff',
+              boxShadow: '0 10px 15px -3px rgba(234, 179, 8, 0.2)'
+            }}
           >
             <Trophy className="w-5 h-5" />
             Session Complete
           </button>
-          <p className="text-center text-neutral-500 text-sm mt-3">
+          <p className="text-center text-sm mt-3" style={{ color: '#737373' }}>
             Your score has been saved. Great training session!
           </p>
         </div>

@@ -650,7 +650,7 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
                   // Check if we have a complete score
                   // Must have: score pattern, sufficient length, AND completion indicators
                   const hasScore = scorePatterns.some(p => p.test(accumulated));
-                  const hasEnoughContent = accumulated.length > 600;
+                  const hasEnoughContent = accumulated.length > 800; // Increased for thorough feedback
 
                   // Look for completion phrases that indicate the feedback is done
                   const completionPhrases = [
@@ -664,15 +664,19 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
                     /final\s*(?:score|evaluation|feedback)/i,
                     /session\s*(?:complete|over|ended)/i,
                     /until\s*next\s*time/i,
-                    /best\s*of\s*luck/i
+                    /best\s*of\s*luck/i,
+                    /see\s*you\s*(next|soon)/i,
+                    /you('ve|'re|\s+have|\s+are)\s+(doing|making|getting)/i,
+                    /overall.*score/i
                   ];
                   const hasCompletionPhrase = completionPhrases.some(p => p.test(accumulated));
 
-                  // Complete when: has score AND (has enough content OR has completion phrase)
+                  // Complete when: has score AND (has enough content OR has completion phrase with good length)
+                  // Increased thresholds to ensure complete feedback before showing modal
                   const isComplete = hasScore && (
                     hasEnoughContent ||
-                    (accumulated.length > 400 && hasCompletionPhrase) ||
-                    (isTurnComplete && accumulated.length > 120)
+                    (accumulated.length > 500 && hasCompletionPhrase) ||
+                    (isTurnComplete && accumulated.length > 400) // Increased from 120 to prevent premature completion
                   );
 
                   if (isComplete) {
@@ -2074,11 +2078,12 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               <button
                 onClick={handleEndWithScore}
                 disabled={isRequestingScore}
-                className={`w-full px-4 py-3 rounded-lg transition-colors font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 ${
-                  isRequestingScore
-                    ? 'bg-yellow-600/50 text-yellow-200 cursor-wait'
-                    : 'bg-yellow-600 hover:bg-yellow-500 text-white focus:ring-yellow-500'
-                }`}
+                className="w-full px-4 py-3 rounded-lg transition-colors font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 focus:ring-yellow-500"
+                style={{
+                  backgroundColor: isRequestingScore ? 'rgba(202, 138, 4, 0.5)' : '#ca8a04',
+                  color: isRequestingScore ? '#fef08a' : '#ffffff',
+                  cursor: isRequestingScore ? 'wait' : 'pointer'
+                }}
                 aria-label="Get final score from Agnes then end session"
                 autoFocus
               >
@@ -2091,14 +2096,24 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowEndSessionModal(false)}
-                  className="flex-1 px-4 py-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+                  className="flex-1 px-4 py-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+                  style={{
+                    backgroundColor: '#262626',
+                    color: '#ffffff',
+                    border: '1px solid #404040'
+                  }}
                   aria-label="Cancel and return to training session"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmEndSession}
-                  className="flex-1 px-4 py-3 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+                  className="flex-1 px-4 py-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+                  style={{
+                    backgroundColor: '#404040',
+                    color: '#ffffff',
+                    border: '1px solid #525252'
+                  }}
                   aria-label="End session without scoring"
                 >
                   End Without Scoring
@@ -2109,7 +2124,10 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
             {/* Optional: Discard Button */}
             <button
               onClick={discardSession}
-              className="w-full text-xs text-neutral-500 hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-neutral-900 rounded"
+              className="w-full text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-neutral-900 rounded"
+              style={{ color: '#737373' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#737373')}
               aria-label="Discard session without saving"
             >
               Discard session without saving
