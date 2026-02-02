@@ -231,21 +231,25 @@ export default function TerritoryHailMap() {
 
   // Filter state
   const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind' | 'tornado'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ihm' | 'noaa'>('all');
 
-  // Filtered events based on event type filter
+  // Filtered events based on event type and source filters
   const filteredHailEvents = useMemo(() => {
+    // IHM events are always hail type
+    if (sourceFilter === 'noaa') return [];
     if (eventTypeFilter === 'all' || eventTypeFilter === 'hail') {
       return hailEvents;
     }
     return [];
-  }, [hailEvents, eventTypeFilter]);
+  }, [hailEvents, eventTypeFilter, sourceFilter]);
 
   const filteredNoaaEvents = useMemo(() => {
+    if (sourceFilter === 'ihm') return [];
     if (eventTypeFilter === 'all') {
       return noaaEvents;
     }
     return noaaEvents.filter(e => e.eventType === eventTypeFilter);
-  }, [noaaEvents, eventTypeFilter]);
+  }, [noaaEvents, eventTypeFilter, sourceFilter]);
 
   // Fetch territories and saved reports on mount
   useEffect(() => {
@@ -819,20 +823,43 @@ export default function TerritoryHailMap() {
           ))}
         </div>
 
+        {/* Source Filter (IHM vs NOAA) */}
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: 'auto' }}>
+          {(['all', 'ihm', 'noaa'] as const).map(source => (
+            <button
+              key={source}
+              onClick={() => setSourceFilter(source)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                background: sourceFilter === source ? 'var(--roof-orange)' : 'var(--bg-elevated)',
+                color: sourceFilter === source ? 'white' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: '600',
+                transition: 'all 0.2s'
+              }}
+            >
+              {source === 'all' ? 'All Sources' : source.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
         {/* Event Type Filter */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           {(['all', 'hail', 'wind', 'tornado'] as const).map(type => (
             <button
               key={type}
               onClick={() => setEventTypeFilter(type)}
               style={{
-                padding: '6px 12px',
+                padding: '6px 10px',
                 borderRadius: '6px',
                 border: 'none',
                 background: eventTypeFilter === type ? 'var(--roof-red)' : 'var(--bg-elevated)',
                 color: eventTypeFilter === type ? 'white' : 'var(--text-primary)',
                 cursor: 'pointer',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: '600',
                 transition: 'all 0.2s',
                 display: 'flex',
