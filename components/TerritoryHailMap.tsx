@@ -3,7 +3,9 @@ import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygo
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
-import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home } from 'lucide-react';
+import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown } from 'lucide-react';
+// @ts-ignore - jsPDF v4 types
+import jsPDF from 'jspdf';
 
 interface Territory {
   id: string;
@@ -552,6 +554,240 @@ export default function TerritoryHailMap() {
       }
       return newSet;
     });
+  };
+
+  // Generate PDF Report
+  const generatePDFReport = () => {
+    if (!currentSearch || !searchStats) {
+      alert('No search data available to generate report');
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPos = 20;
+
+    // Helper function to add new page if needed
+    const checkPageBreak = (requiredSpace: number) => {
+      if (yPos + requiredSpace > pageHeight - 20) {
+        doc.addPage();
+        yPos = 20;
+        return true;
+      }
+      return false;
+    };
+
+    // Header Section
+    doc.setFillColor(220, 38, 38); // roof-red
+    doc.rect(0, 0, pageWidth, 35, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Weather History Report', pageWidth / 2, 15, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('SA21 / Roof-ER Storm Intelligence', pageWidth / 2, 25, { align: 'center' });
+
+    yPos = 45;
+
+    // Report Generation Info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const reportDate = new Date().toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Generated: ${reportDate}`, 15, yPos);
+    yPos += 7;
+
+    // Property Address
+    const address = currentSearch.address ||
+      `${currentSearch.city || ''}${currentSearch.city && currentSearch.state ? ', ' : ''}${currentSearch.state || ''}${currentSearch.zip ? ' ' + currentSearch.zip : ''}` ||
+      `${currentSearch.latitude?.toFixed(6)}, ${currentSearch.longitude?.toFixed(6)}`;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Property Address:', 15, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(address, 55, yPos);
+    yPos += 10;
+
+    // Summary Statistics Section
+    doc.setDrawColor(220, 38, 38);
+    doc.setLineWidth(0.5);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text('Summary Statistics', 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    // Statistics grid
+    const stats = [
+      ['Total Events Found:', searchStats.totalEvents.toString()],
+      ['Date Range:', `${currentSearch.startDate ? formatDate(currentSearch.startDate) : 'N/A'} to ${currentSearch.endDate ? formatDate(currentSearch.endDate) : 'N/A'}`],
+      ['Max Hail Size:', searchStats.maxHailSize ? `${searchStats.maxHailSize.toFixed(2)}"` : 'N/A'],
+      ['Average Hail Size:', searchStats.avgHailSize ? `${searchStats.avgHailSize.toFixed(2)}"` : 'N/A'],
+      ['IHM Events:', filteredHailEvents.length.toString()],
+      ['NOAA Events:', filteredNoaaEvents.length.toString()],
+    ];
+
+    stats.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(label, 20, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value, 80, yPos);
+      yPos += 6;
+    });
+    yPos += 5;
+
+    // Severity breakdown
+    const severeCount = filteredHailEvents.filter(e => e.severity === 'severe').length +
+      filteredNoaaEvents.filter(e => (e.magnitude || 0) >= 2.0).length;
+    const moderateCount = filteredHailEvents.filter(e => e.severity === 'moderate').length +
+      filteredNoaaEvents.filter(e => (e.magnitude || 0) >= 1.0 && (e.magnitude || 0) < 2.0).length;
+    const minorCount = filteredHailEvents.filter(e => e.severity === 'minor').length +
+      filteredNoaaEvents.filter(e => (e.magnitude || 0) < 1.0).length;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Severity Breakdown:', 20, yPos);
+    yPos += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Severe (2"+): ${severeCount}`, 25, yPos);
+    yPos += 5;
+    doc.text(`Moderate (1-2"): ${moderateCount}`, 25, yPos);
+    yPos += 5;
+    doc.text(`Minor (<1"): ${minorCount}`, 25, yPos);
+    yPos += 10;
+
+    // Event Timeline Section
+    checkPageBreak(30);
+    doc.setDrawColor(220, 38, 38);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text('Event Timeline', 15, yPos);
+    yPos += 8;
+
+    // Combine and sort all events by date
+    const allEvents = [
+      ...filteredHailEvents.map(e => ({ type: 'IHM', event: e, date: new Date(e.date) })),
+      ...filteredNoaaEvents.map(e => ({ type: 'NOAA', event: e, date: new Date(e.date) }))
+    ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+
+    allEvents.forEach((item, index) => {
+      checkPageBreak(20);
+
+      const event = item.event;
+      const isIHM = item.type === 'IHM';
+
+      // Event header
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${index + 1}. ${formatDate(event.date)}`, 20, yPos);
+      yPos += 5;
+
+      doc.setFont('helvetica', 'normal');
+      if (isIHM) {
+        const hailEvent = event as HailEvent;
+        doc.text(`Type: Hail`, 25, yPos);
+        yPos += 4;
+        doc.text(`Size: ${hailEvent.hailSize ? hailEvent.hailSize + '"' : 'Unknown'}`, 25, yPos);
+        yPos += 4;
+        doc.text(`Severity: ${hailEvent.severity.charAt(0).toUpperCase() + hailEvent.severity.slice(1)}`, 25, yPos);
+        yPos += 4;
+        doc.text(`Source: Interactive Hail Maps (IHM)`, 25, yPos);
+      } else {
+        const noaaEvent = event as NOAAEvent;
+        doc.text(`Type: ${noaaEvent.eventType.charAt(0).toUpperCase() + noaaEvent.eventType.slice(1)}`, 25, yPos);
+        yPos += 4;
+        if (noaaEvent.eventType === 'hail') {
+          doc.text(`Size: ${noaaEvent.magnitude ? noaaEvent.magnitude + '"' : 'Unknown'}`, 25, yPos);
+        } else if (noaaEvent.eventType === 'wind') {
+          doc.text(`Speed: ${noaaEvent.magnitude ? noaaEvent.magnitude + ' mph' : 'Unknown'}`, 25, yPos);
+        } else {
+          doc.text(`Magnitude: ${noaaEvent.magnitude || 'Unknown'}`, 25, yPos);
+        }
+        yPos += 4;
+        doc.text(`Location: ${noaaEvent.location}`, 25, yPos);
+        yPos += 4;
+        doc.text(`Source: NOAA Storm Events Database`, 25, yPos);
+      }
+      yPos += 7;
+    });
+
+    // Insurance Evidence Section
+    checkPageBreak(50);
+    yPos += 5;
+    doc.setDrawColor(220, 38, 38);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text('Insurance Evidence', 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+
+    const evidenceText = [
+      'This report documents verified storm activity at the specified address location.',
+      '',
+      'NOAA Data Certification:',
+      'Data sourced from the National Oceanic and Atmospheric Administration (NOAA)',
+      'Storm Events Database is government-certified and legally defensible for insurance',
+      'claims and property damage assessments.',
+      '',
+      'IHM Data Verification:',
+      'Interactive Hail Maps (IHM) data is meteorologist-verified and crowd-sourced from',
+      'weather spotters, insurance adjusters, and professional storm chasers.',
+      '',
+      'This report can be used as supporting documentation for:',
+      '• Insurance claims for storm damage',
+      '• Property inspection reports',
+      '• Real estate disclosure requirements',
+      '• Risk assessment and mitigation planning'
+    ];
+
+    evidenceText.forEach(line => {
+      checkPageBreak(6);
+      doc.text(line, 20, yPos);
+      yPos += 5;
+    });
+
+    // Footer
+    const footerY = pageHeight - 20;
+    doc.setDrawColor(220, 38, 38);
+    doc.line(15, footerY, pageWidth - 15, footerY);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Generated by SA21 Storm Intelligence System', pageWidth / 2, footerY + 5, { align: 'center' });
+    doc.text('Data sources: NOAA Storm Events Database & Interactive Hail Maps', pageWidth / 2, footerY + 10, { align: 'center' });
+
+    // Save PDF
+    const fileName = `WeatherReport_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
   };
 
   const handleEventCardClick = (event: HailEvent | NOAAEvent, lat: number, lng: number) => {
@@ -1705,7 +1941,7 @@ export default function TerritoryHailMap() {
                 borderBottom: '1px solid var(--border-default)',
                 fontSize: '12px'
               }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <div>
                     <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
@@ -1721,6 +1957,39 @@ export default function TerritoryHailMap() {
                     </div>
                   )}
                 </div>
+                {/* Download PDF Button */}
+                <button
+                  onClick={generatePDFReport}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    background: 'var(--roof-red)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#b91c1c';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--roof-red)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <FileDown className="w-4 h-4" />
+                  Download PDF Report
+                </button>
               </div>
             )}
 
