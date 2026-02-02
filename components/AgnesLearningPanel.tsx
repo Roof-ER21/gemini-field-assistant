@@ -6,12 +6,48 @@ import { getScriptsByDivision, getScriptById, PhoneScript } from '../agnes21/uti
 import { AgnesAuthProvider, useAuth } from '../agnes21/contexts/AuthContext';
 import { getSessions, getSessionStats, SessionData } from '../agnes21/utils/sessionStorage';
 
+// Interface for admin-created scripts
+interface AdminScript {
+  id: string;
+  name: string;
+  category: 'door-knock' | 'objection' | 'closing' | 'adjuster' | 'custom';
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const AgnesLearningContent: React.FC = () => {
   const { user } = useAuth();
-  const scripts = useMemo(() => getScriptsByDivision('insurance'), []);
+  const builtInScripts = useMemo(() => getScriptsByDivision('insurance'), []);
+
+  // Load admin-created scripts from localStorage
+  const adminScripts = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('agnes_admin_scripts');
+      if (stored) {
+        const parsed: AdminScript[] = JSON.parse(stored);
+        // Convert admin scripts to PhoneScript format
+        return parsed.map(s => ({
+          id: `admin_${s.id}`,
+          title: s.name,
+          category: s.category as PhoneScript['category'],
+          division: 'insurance' as const,
+          content: s.content,
+          isAdmin: true // Flag to identify admin scripts
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to load admin scripts:', e);
+    }
+    return [];
+  }, []);
+
+  // Combine built-in and admin scripts
+  const scripts = useMemo(() => [...builtInScripts, ...adminScripts], [builtInScripts, adminScripts]);
+
   const [activeTrack, setActiveTrack] = useState<'roleplay' | 'feedback' | 'listen'>('roleplay');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>(DifficultyLevel.ROOKIE);
-  const [scriptId, setScriptId] = useState<string>(scripts[0]?.id || '');
+  const [scriptId, setScriptId] = useState<string>(builtInScripts[0]?.id || '');
   const [useCustomScript, setUseCustomScript] = useState(false);
   const [customScript, setCustomScript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,18 +56,28 @@ const AgnesLearningContent: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<SessionData | null>(null);
   const missingClientKey = !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_GOOGLE_AI_API_KEY;
 
-  const selectedScript = useMemo(() => getScriptById(scriptId), [scriptId]);
+  // Find script by ID - check both built-in and admin scripts
+  const selectedScript = useMemo(() => {
+    // First try built-in scripts
+    const builtIn = getScriptById(scriptId);
+    if (builtIn) return builtIn;
+    // Then check admin scripts
+    return adminScripts.find(s => s.id === scriptId) || null;
+  }, [scriptId, adminScripts]);
+
   const scriptContent = useCustomScript ? customScript : (selectedScript?.content || '');
   const groupedScripts = useMemo(() => {
-    const groups: Record<string, PhoneScript[]> = {};
-    const labelFor = (category: PhoneScript['category']) => {
-      if (category === 'door-to-door' || category === 'authorization') return 'Door-to-Door';
-      if (category === 'estimate') return 'Estimate Calls';
-      if (category === 'pushback' || category === 'objection') return 'Insurance Pushback';
+    const groups: Record<string, (PhoneScript & { isAdmin?: boolean })[]> = {};
+    const labelFor = (script: PhoneScript & { isAdmin?: boolean }) => {
+      // Admin scripts get their own category
+      if (script.isAdmin) return '⭐ Admin Scripts';
+      if (script.category === 'door-to-door' || script.category === 'authorization') return 'Door-to-Door';
+      if (script.category === 'estimate') return 'Estimate Calls';
+      if (script.category === 'pushback' || script.category === 'objection') return 'Insurance Pushback';
       return 'Other';
     };
     scripts.forEach(script => {
-      const label = labelFor(script.category);
+      const label = labelFor(script);
       if (!groups[label]) groups[label] = [];
       groups[label].push(script);
     });
