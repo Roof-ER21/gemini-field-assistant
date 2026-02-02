@@ -696,8 +696,20 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           </div>
         )}
 
-        {/* Controls */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%', overflowX: 'hidden' }}>
+        {/* Filters & Sort Controls */}
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: '20px',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          maxWidth: '100%',
+          overflowX: 'hidden',
+          padding: '12px',
+          background: '#0a0a0a',
+          borderRadius: '12px',
+          border: '1px solid #1a1a1a'
+        }}>
           {/* Sort Dropdown */}
           <div style={{ position: 'relative', flex: 1, minWidth: 'min(100%, 200px)' }}>
             <button
