@@ -224,6 +224,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
       const params = new URLSearchParams();
       params.set('sortBy', sortBy);
+      params.set('limit', '200'); // Show all reps, not just 50
       if (selectedYear) {
         params.set('year', String(selectedYear));
       }
@@ -886,24 +887,24 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             onClick={fetchLeaderboardData}
             disabled={isRefreshing}
             style={{
-              padding: '12px',
+              width: '44px',
+              height: '44px',
+              padding: '10px',
               background: '#111',
-              border: '1px solid #1a1a1a',
+              border: '1px solid #333',
               borderRadius: '8px',
               color: '#fff',
-              fontSize: '14px',
-              fontWeight: 600,
               cursor: isRefreshing ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              justifyContent: 'center',
               opacity: isRefreshing ? 0.7 : 1,
               transition: 'opacity 0.2s',
-              minHeight: '44px',
-              flexShrink: 0
+              justifySelf: 'start'
             }}
+            title="Refresh leaderboard"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} style={{ color: '#ffffff' }} />
           </button>
         </div>
 
