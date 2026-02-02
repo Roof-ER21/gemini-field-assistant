@@ -57,7 +57,7 @@ class GeminiEnglishTTS {
       console.log('🔌 Connecting to Gemini Live for English TTS...');
 
       const sessionPromise = this.aiClient.live.connect({
-        model: 'gemini-2.0-flash-live-001',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             console.log('✅ Gemini TTS session opened');
@@ -443,7 +443,7 @@ Speak naturally with warm, professional intonation appropriate for ${langName}.`
       console.log(`🔌 Connecting Gemini TTS for ${langCode} (${geminiLangCode}, voice: ${voiceName})...`);
 
       const session = await this.aiClient.live.connect({
-        model: 'gemini-2.0-flash-live-001',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             console.log(`✅ Gemini TTS session opened for ${langCode}`);
@@ -1134,7 +1134,7 @@ export const speakWithDemoVoice = async (
 
     // Create fresh session with specified voice
     const session = await demoAiClient.live.connect({
-      model: 'gemini-2.0-flash-live-001',
+      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
       callbacks: {
         onopen: () => {
           console.log(`✅ Demo voice session opened (${voice}) [${sessionId.slice(-6)}]`);
