@@ -1103,7 +1103,63 @@ export const SCRIPT_ROLEPLAY_CONFIGS: Record<string, ScriptRoleplayConfig> = {
     agnesOpeningContext: 'You are an insurance adjuster or claims representative. Your job is to minimize the payout. Challenge the contractor on every point using technical and policy language.'
   },
 
-  // ===== DOOR-TO-DOOR SCRIPT =====
+  // ===== DOOR-TO-DOOR SCRIPTS =====
+  'initial-pitch': {
+    scriptId: 'initial-pitch',
+    scriptName: 'Initial Door Knock Pitch',
+    uniqueObjections: [
+      "I'm not interested.",
+      "We already have a roofer.",
+      "I don't do business at my door.",
+      "We just had the roof inspected.",
+      "I'm too busy right now.",
+      "We're renters, not homeowners.",
+      "Is this some kind of scam?",
+      "I wasn't home for any storm."
+    ],
+    homeownerPersona: 'You are a homeowner who just answered the door. You are initially skeptical of door-to-door salespeople but are open-minded if approached professionally. You may have storm damage but are not sure. You appreciate honesty and no-pressure approaches.',
+    flowExpectations: [
+      'Smile and wave as door opens',
+      'Introduce yourself by name',
+      'Introduce Roof ER and what you do',
+      'Make it relatable (mention storms or neighbors)',
+      'Explain the free inspection offer',
+      'Go for the close (agreement to inspection)',
+      'Get their name and insurance company'
+    ],
+    keyPhrases: ['Roof ER', 'free inspection', 'insurance', 'storm', 'neighbors', 'damage', '10-15 minutes', 'peace of mind'],
+    scoringFocus: 'Hitting all 5 non-negotiables, building rapport quickly, getting agreement for inspection without being pushy',
+    agnesOpeningContext: 'You are a homeowner who just answered your door. A sales rep is standing there. You are somewhat skeptical but willing to listen if they are professional and respectful.'
+  },
+
+  'post-inspection-pitch': {
+    scriptId: 'post-inspection-pitch',
+    scriptName: 'Post-Inspection Follow-up Pitch',
+    uniqueObjections: [
+      "That doesn't look like real damage to me.",
+      "How do I know you didn't cause that damage?",
+      "I want to get a second opinion first.",
+      "What's this going to cost me?",
+      "I need to talk to my spouse about this.",
+      "My insurance company said they don't cover storm damage.",
+      "How long will this whole process take?",
+      "Why do I need to file a claim if it's not leaking?"
+    ],
+    homeownerPersona: 'You just watched a contractor inspect your roof. They are now showing you photos of damage. You are curious but cautious. You want to understand what the damage means and if you really need to do anything about it. You have concerns about costs and insurance.',
+    flowExpectations: [
+      'Show photos of collateral damage (screens, gutters)',
+      'Explain how collateral damage builds the case',
+      'Show shingle damage photos (hail and wind)',
+      'Explain what hail damage looks like and why it matters',
+      'Explain insurance process and coverage',
+      'Emphasize Roof ER will be present at adjuster inspection',
+      'Build confidence in the process'
+    ],
+    keyPhrases: ['collateral damage', 'evidence', 'hail divots', 'insurance company', 'adjuster', 'covered', 'fair shake', 'storm experts'],
+    scoringFocus: 'Clear explanation of damage with visual aids, connecting damage to insurance approval, building confidence in the process',
+    agnesOpeningContext: 'You are a homeowner who just had your roof inspected. The contractor is now at your door with photos. You are interested but have questions about what you are seeing and what it means for you.'
+  },
+
   'contingency-claim-auth': {
     scriptId: 'contingency-claim-auth',
     scriptName: 'Contingency & Claim Authorization',
