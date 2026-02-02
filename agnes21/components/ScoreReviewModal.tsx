@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Trophy, VolumeX, Volume2 } from 'lucide-react';
 import { agnesVoiceSpeak, agnesVoiceStop } from '../utils/geminiTTS';
+import '../agnes.css';
 
 interface ScoreReviewModalProps {
   show: boolean;

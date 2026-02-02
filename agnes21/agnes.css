@@ -1,0 +1,922 @@
+/* Agnes21 Component Styles */
+/* This file provides all utility styles needed for Agnes modals and UI */
+/* Replaces Tailwind utilities that aren't compiling in v4 */
+
+/* === RESET & BASE === */
+* {
+  box-sizing: border-box;
+}
+
+/* === LAYOUT UTILITIES === */
+.fixed {
+  position: fixed;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.relative {
+  position: relative;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.gap-1 {
+  gap: 0.25rem;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-3 {
+  gap: 0.75rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.gap-6 {
+  gap: 1.5rem;
+}
+
+/* === SPACING UTILITIES === */
+.p-3 {
+  padding: 0.75rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.p-6 {
+  padding: 1.5rem;
+}
+
+.p-8 {
+  padding: 2rem;
+}
+
+.px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.px-6 {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.m-0 {
+  margin: 0;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.mb-1 {
+  margin-bottom: 0.25rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+/* === Z-INDEX === */
+.z-40 {
+  z-index: 40;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+.z-55 {
+  z-index: 55;
+}
+
+.z-60 {
+  z-index: 60;
+}
+
+.z-65 {
+  z-index: 65;
+}
+
+.z-70 {
+  z-index: 70;
+}
+
+/* === SIZING === */
+.w-full {
+  width: 100%;
+}
+
+.max-w-md {
+  max-width: 28rem;
+}
+
+.max-w-lg {
+  max-width: 32rem;
+}
+
+.max-w-2xl {
+  max-width: 42rem;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* === BORDERS === */
+.rounded {
+  border-radius: 0.25rem;
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.rounded-xl {
+  border-radius: 0.75rem;
+}
+
+.border {
+  border-width: 1px;
+}
+
+.border-2 {
+  border-width: 2px;
+}
+
+.border-neutral-800 {
+  border-color: rgb(38, 38, 38);
+}
+
+.border-neutral-700 {
+  border-color: rgb(64, 64, 64);
+}
+
+.border-green-500 {
+  border-color: rgb(34, 197, 94);
+}
+
+.border-yellow-500 {
+  border-color: rgb(234, 179, 8);
+}
+
+/* === BACKGROUNDS === */
+.bg-black {
+  background-color: rgb(0, 0, 0);
+}
+
+.bg-neutral-900 {
+  background-color: rgb(23, 23, 23);
+}
+
+.bg-neutral-800 {
+  background-color: rgb(38, 38, 38);
+}
+
+.bg-neutral-700 {
+  background-color: rgb(64, 64, 64);
+}
+
+.bg-blue-600 {
+  background-color: rgb(37, 99, 235);
+}
+
+.bg-green-600 {
+  background-color: rgb(22, 163, 74);
+}
+
+.bg-red-600 {
+  background-color: rgb(220, 38, 38);
+}
+
+.bg-yellow-500 {
+  background-color: rgb(234, 179, 8);
+}
+
+.bg-purple-600 {
+  background-color: rgb(147, 51, 234);
+}
+
+.bg-opacity-50 {
+  --tw-bg-opacity: 0.5;
+}
+
+.bg-opacity-75 {
+  --tw-bg-opacity: 0.75;
+}
+
+/* Backdrop blur effect */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+}
+
+/* === TEXT COLORS === */
+.text-white {
+  color: rgb(255, 255, 255);
+}
+
+.text-neutral-100 {
+  color: rgb(245, 245, 245);
+}
+
+.text-neutral-300 {
+  color: rgb(212, 212, 212);
+}
+
+.text-neutral-400 {
+  color: rgb(163, 163, 163);
+}
+
+.text-neutral-500 {
+  color: rgb(115, 115, 115);
+}
+
+.text-green-400 {
+  color: rgb(74, 222, 128);
+}
+
+.text-green-500 {
+  color: rgb(34, 197, 94);
+}
+
+.text-yellow-400 {
+  color: rgb(250, 204, 21);
+}
+
+.text-yellow-500 {
+  color: rgb(234, 179, 8);
+}
+
+.text-red-400 {
+  color: rgb(248, 113, 113);
+}
+
+.text-blue-400 {
+  color: rgb(96, 165, 250);
+}
+
+/* === TYPOGRAPHY === */
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.text-4xl {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.leading-relaxed {
+  line-height: 1.625;
+}
+
+/* === SHADOWS === */
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* === OPACITY === */
+.opacity-0 {
+  opacity: 0;
+}
+
+.opacity-100 {
+  opacity: 1;
+}
+
+/* === CURSOR === */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.cursor-not-allowed {
+  cursor: not-allowed;
+}
+
+/* === TRANSITIONS === */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.duration-200 {
+  transition-duration: 200ms;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+/* === OVERFLOW === */
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+/* === DISPLAY === */
+.hidden {
+  display: none;
+}
+
+.block {
+  display: block;
+}
+
+/* === POINTER EVENTS === */
+.pointer-events-none {
+  pointer-events: none;
+}
+
+/* ============================================ */
+/* === AGNES COMPONENT CLASSES === */
+/* ============================================ */
+
+/* === MODAL BACKDROP === */
+.agnes-modal-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === MODAL CONTAINERS === */
+.agnes-modal-container {
+  background-color: rgb(23, 23, 23);
+  border-radius: 0.75rem;
+  border: 1px solid rgb(64, 64, 64);
+  padding: 2rem;
+  max-width: 32rem;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  position: relative;
+  margin: 1rem;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agnes-modal-container-sm {
+  max-width: 28rem;
+}
+
+.agnes-modal-container-lg {
+  max-width: 42rem;
+}
+
+.agnes-modal-container-scrollable {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* === SCORE MODAL SPECIFIC === */
+.agnes-score-modal {
+  background-color: rgb(23, 23, 23);
+  border-radius: 0.75rem;
+  border: 1px solid rgb(64, 64, 64);
+  padding: 2rem;
+  max-width: 32rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* === LEVEL UP MODAL SPECIFIC === */
+.agnes-levelup-modal {
+  background-color: rgb(23, 23, 23);
+  border-radius: 0.75rem;
+  border: 2px solid rgb(34, 197, 94);
+  padding: 2rem;
+  max-width: 28rem;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  text-align: center;
+}
+
+/* === BUTTONS === */
+.agnes-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: none;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.agnes-btn-primary {
+  background-color: rgb(37, 99, 235);
+  color: rgb(255, 255, 255);
+}
+
+.agnes-btn-primary:hover {
+  background-color: rgb(29, 78, 216);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-primary:active {
+  transform: translateY(0);
+}
+
+.agnes-btn-success {
+  background-color: rgb(22, 163, 74);
+  color: rgb(255, 255, 255);
+}
+
+.agnes-btn-success:hover {
+  background-color: rgb(21, 128, 61);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-danger {
+  background-color: rgb(220, 38, 38);
+  color: rgb(255, 255, 255);
+}
+
+.agnes-btn-danger:hover {
+  background-color: rgb(185, 28, 28);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-secondary {
+  background-color: rgb(64, 64, 64);
+  color: rgb(255, 255, 255);
+}
+
+.agnes-btn-secondary:hover {
+  background-color: rgb(82, 82, 82);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-yellow {
+  background-color: rgb(234, 179, 8);
+  color: rgb(23, 23, 23);
+}
+
+.agnes-btn-yellow:hover {
+  background-color: rgb(202, 138, 4);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-purple {
+  background-color: rgb(147, 51, 234);
+  color: rgb(255, 255, 255);
+}
+
+.agnes-btn-purple:hover {
+  background-color: rgb(126, 34, 206);
+  transform: translateY(-1px);
+}
+
+.agnes-btn-disabled {
+  background-color: rgb(64, 64, 64);
+  color: rgb(163, 163, 163);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.agnes-btn-disabled:hover {
+  transform: none;
+  background-color: rgb(64, 64, 64);
+}
+
+/* === BUTTON SIZES === */
+.agnes-btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.agnes-btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+/* === CLOSE BUTTON === */
+.agnes-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: rgb(163, 163, 163);
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.5rem;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agnes-close-btn:hover {
+  color: rgb(255, 255, 255);
+}
+
+/* === STAT BOXES === */
+.agnes-stat-box {
+  background-color: rgb(38, 38, 38);
+  border: 1px solid rgb(64, 64, 64);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.agnes-stat-box-success {
+  border-color: rgb(34, 197, 94);
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+.agnes-stat-box-warning {
+  border-color: rgb(234, 179, 8);
+  background-color: rgba(234, 179, 8, 0.1);
+}
+
+.agnes-stat-box-danger {
+  border-color: rgb(220, 38, 38);
+  background-color: rgba(220, 38, 38, 0.1);
+}
+
+/* === PROGRESS BARS === */
+.agnes-progress-container {
+  background-color: rgb(38, 38, 38);
+  border-radius: 9999px;
+  height: 0.5rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.agnes-progress-bar {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agnes-progress-bar-success {
+  background-color: rgb(34, 197, 94);
+}
+
+.agnes-progress-bar-warning {
+  background-color: rgb(234, 179, 8);
+}
+
+.agnes-progress-bar-danger {
+  background-color: rgb(220, 38, 38);
+}
+
+.agnes-progress-bar-blue {
+  background-color: rgb(37, 99, 235);
+}
+
+/* === BADGES === */
+.agnes-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.agnes-badge-success {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: rgb(74, 222, 128);
+}
+
+.agnes-badge-warning {
+  background-color: rgba(234, 179, 8, 0.2);
+  color: rgb(250, 204, 21);
+}
+
+.agnes-badge-danger {
+  background-color: rgba(220, 38, 38, 0.2);
+  color: rgb(248, 113, 113);
+}
+
+.agnes-badge-info {
+  background-color: rgba(37, 99, 235, 0.2);
+  color: rgb(96, 165, 250);
+}
+
+/* === HEADERS === */
+.agnes-modal-header {
+  margin-bottom: 1.5rem;
+}
+
+.agnes-modal-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: rgb(255, 255, 255);
+  margin: 0;
+  line-height: 2.25rem;
+}
+
+.agnes-modal-subtitle {
+  font-size: 1rem;
+  color: rgb(163, 163, 163);
+  margin-top: 0.5rem;
+  line-height: 1.5rem;
+}
+
+/* === DIVIDERS === */
+.agnes-divider {
+  border: none;
+  border-top: 1px solid rgb(64, 64, 64);
+  margin: 1.5rem 0;
+}
+
+/* === CARDS === */
+.agnes-card {
+  background-color: rgb(38, 38, 38);
+  border: 1px solid rgb(64, 64, 64);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.agnes-card-highlight {
+  border-color: rgb(37, 99, 235);
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+/* === LISTS === */
+.agnes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.agnes-list-item {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgb(64, 64, 64);
+}
+
+.agnes-list-item:last-child {
+  border-bottom: none;
+}
+
+/* === SCORE DISPLAY === */
+.agnes-score-display {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.agnes-score-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: rgb(255, 255, 255);
+  line-height: 1;
+}
+
+.agnes-score-label {
+  font-size: 1rem;
+  color: rgb(163, 163, 163);
+  margin-top: 0.5rem;
+}
+
+/* === ACHIEVEMENT DISPLAY === */
+.agnes-achievement {
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
+  border: 2px solid rgb(34, 197, 94);
+  border-radius: 0.75rem;
+  margin: 1rem 0;
+}
+
+.agnes-achievement-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.agnes-achievement-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgb(74, 222, 128);
+  margin: 0.5rem 0;
+}
+
+.agnes-achievement-description {
+  font-size: 1rem;
+  color: rgb(212, 212, 212);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 640px) {
+  .agnes-modal-container {
+    padding: 1.5rem;
+    margin: 0.5rem;
+  }
+
+  .agnes-modal-title {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .agnes-score-value {
+    font-size: 2.25rem;
+  }
+
+  .agnes-btn {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* === ANIMATIONS === */
+@keyframes agnes-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes agnes-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes agnes-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.agnes-animate-fade-in {
+  animation: agnes-fade-in 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agnes-animate-slide-up {
+  animation: agnes-slide-up 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agnes-animate-scale-in {
+  animation: agnes-scale-in 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === UTILITY HELPERS === */
+.agnes-text-gradient {
+  background: linear-gradient(135deg, rgb(74, 222, 128) 0%, rgb(37, 99, 235) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.agnes-shadow-glow {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+}
+
+.agnes-shadow-glow-blue {
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+}
+
+.agnes-shadow-glow-yellow {
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.3);
+}

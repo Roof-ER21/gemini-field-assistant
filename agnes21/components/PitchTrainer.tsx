@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import '../agnes.css'; // Agnes-specific styles for modals and UI
 import { createPcmBlob, decodeAudioData, base64ToUint8Array, blobToBase64 } from '../utils/audioUtils';
 import { buildSystemInstruction } from '../utils/improvedPrompts';
 import Waveform from './Waveform';
@@ -1064,37 +1065,13 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
   };
 
   // NEW: Handle end session with auto-score option
-  const handleEndWithScore = async () => {
-    setShowScoreModal(false);
-    setIsRequestingScore(true);
-    isRequestingScoreRef.current = true;
-
-    try {
-      if (sessionPromiseRef.current) {
-        const session = await sessionPromiseRef.current;
-
-        // Request final score before ending
-        session.sendClientContent({
-          turns: [{
-            role: 'user',
-            parts: [{ text: 'The session is ending. Please provide your final AGNES SCORE out of 100 and a summary of my performance.' }]
-          }],
-          turnComplete: true
-        });
-
-        // Wait for response before ending
-        await new Promise(resolve => setTimeout(resolve, 8000));
-      }
-    } catch (error) {
-      console.error('Error getting final score:', error);
-    }
-
-    // Clear the score request flag
-    isRequestingScoreRef.current = false;
-    setIsRequestingScore(false);
-
-    // Now end the session
-    confirmEndSession();
+  // This now properly delegates to handleScoreMe which manages the full scoring flow
+  const handleEndWithScore = () => {
+    setShowEndSessionModal(false);
+    // Use the proper scoring flow - handleScoreMe triggers the score request,
+    // shows the loading modal, accumulates the response, then shows ScoreReviewModal.
+    // When user closes ScoreReviewModal, handleScoreReviewClose calls confirmEndSession.
+    handleScoreMe();
   };
 
   // NEW: Handle end without score

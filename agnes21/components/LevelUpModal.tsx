@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Trophy, Star, Sparkles, Zap } from 'lucide-react';
 import { getUserProgress } from '../utils/gamification';
+import '../agnes.css';
 
 interface LevelUpModalProps {
   show: boolean;
