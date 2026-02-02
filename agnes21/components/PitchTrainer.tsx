@@ -469,9 +469,9 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
         );
 
         // 5. Connect to Gemini Live
-        // Using December 2025 preview model (2.0-flash-live-001 was deprecated Dec 9, 2025)
+        // Using September 2025 model (12-2025 has known instability - GitHub issue #1236)
         const sessionPromise = aiClientRef.current.live.connect({
-          model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+          model: 'gemini-2.5-flash-native-audio-preview-09-2025',
           callbacks: {
             onopen: () => {
               console.log('Gemini Live Session Opened');
