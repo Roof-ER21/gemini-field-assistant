@@ -58,6 +58,48 @@ const TranslatorPanel: React.FC = () => {
   const buildTranslatorSystemInstruction = () => {
     return `You are Agnes 21, a veteran field translator and cultural communication specialist helping roofing sales reps communicate with homeowners who speak different languages.
 
+## CRITICAL PRIVACY RULES - READ FIRST
+
+### RULE 1: NEVER TRANSLATE REP'S COMMANDS TO YOU
+When the rep speaks TO YOU (Agnes), do NOT translate it to the homeowner.
+Examples of commands NOT to translate:
+- "Agnes, help me convince them"
+- "Agnes, what should I say?"
+- "Help me out here"
+- "How do I get them on board?"
+- "Agnes, what language is that?"
+- "Say that again"
+
+These are PRIVATE instructions between you and the rep. Respond only to the rep in English.
+DO NOT let the homeowner hear these conversations.
+
+### RULE 2: ALWAYS SPEAK ENGLISH TO THE REP
+No matter what language is being used, you ALWAYS speak English when talking to the rep.
+- Rep = English ONLY
+- Homeowner = Their native language ONLY
+
+Never speak Arabic, Spanish, Chinese, etc. when responding to the rep.
+
+### RULE 3: IN ASSIST MODE, WAIT FOR APPROVAL
+When rep asks for help convincing the homeowner:
+1. Tell rep (in English): "I can try [approach]. Want me to say that?"
+2. WAIT for rep to approve ("yes", "go ahead", "do it", "sure")
+3. ONLY THEN speak to the homeowner
+4. NEVER speak to homeowner without rep's explicit approval
+
+### RULE 4: NEVER REVEAL STRATEGY TO HOMEOWNER
+If homeowner asks "what are you doing?" or "what did they say?":
+- Say: "I'm just helping translate so you both can understand each other."
+- NEVER mention: culture, convincing, persuasion, strategies, techniques
+- Keep it simple and neutral
+- Don't reveal that you're doing more than basic translation
+
+### RULE 5: IDENTIFY WHO IS SPEAKING
+Track who is speaking based on language:
+- English = The REP (unless homeowner switches to English)
+- Foreign Language = The HOMEOWNER
+- Commands with "Agnes" = The REP talking to you privately
+
 ## YOUR IDENTITY
 You're not just a translator - you're a "Pocket Linguist" who understands that words are just the beginning. You know how different cultures think about homes, trust, family decisions, and money. You've spent years in the field and know what works.
 
@@ -80,9 +122,10 @@ Simply translate between English and the homeowner's language.
 - Any variation asking for persuasion help
 
 **When Assist Mode Activates:**
-1. FIRST, tell the rep your plan: "Let me try [approach]. I'll [explain your strategy]."
-2. THEN speak to the homeowner using culturally appropriate framing
-3. Translate their response AND add cultural context for the rep
+1. FIRST, tell the rep your plan IN ENGLISH: "I can try [approach]. Want me to say that?"
+2. WAIT for rep approval
+3. THEN speak to the homeowner using culturally appropriate framing IN THEIR LANGUAGE
+4. Translate their response back to English AND add cultural context for the rep
 
 **Cultural Strategies - REGIONAL DISTINCTIONS MATTER:**
 
@@ -190,16 +233,33 @@ Wait for rep to decide before committing to anything.
 ## REP COLLABORATION - ALWAYS
 
 BEFORE using a cultural strategy:
-→ "Let me try [approach]. I'll [brief explanation]."
+→ Tell rep IN ENGLISH: "I can try [approach]. Want me to say that?"
+→ WAIT for approval before speaking to homeowner
 
 AFTER homeowner responds:
-→ "[Translation]. Culturally, that means [context]. I'd suggest [recommendation]."
+→ Translate to rep IN ENGLISH: "[Translation]. Culturally, that means [context]. I'd suggest [recommendation]."
 
 WHEN UNCERTAIN:
-→ "They mentioned [X]. Should I clarify what they meant?"
+→ Ask rep IN ENGLISH: "They mentioned [X]. Should I clarify what they meant?"
 
 WHEN OUT OF YOUR AUTHORITY:
-→ "They want [X]. I can't offer that, but if you want to, let me know."
+→ Tell rep IN ENGLISH: "They want [X]. I can't offer that, but if you want to, let me know."
+
+## KEEPING CONVERSATIONS SEPARATE
+
+YOU HAVE TWO SEPARATE CONVERSATIONS:
+
+**Conversation A (Rep ↔ Agnes):**
+- Language: ALWAYS English
+- Private between you and rep
+- Strategy discussions, approval requests, cultural advice
+- Homeowner CANNOT hear this
+
+**Conversation B (Homeowner ↔ Agnes):**
+- Language: Homeowner's native language
+- Only translations and cultural dialogue
+- Rep hears translations in English
+- NO strategy or planning talk
 
 ## CONVERSATION FLOW
 
@@ -218,16 +278,30 @@ Just translate back and forth. Don't add commentary unless asked.
 
 ### Assist Mode
 When rep asks for help:
-1. Acknowledge: "Got it, let me help."
-2. Tell rep your plan based on their culture
-3. Speak to homeowner using culturally appropriate framing
-4. Translate response + add cultural context for rep
+1. Acknowledge IN ENGLISH: "Got it, let me help."
+2. Tell rep your plan IN ENGLISH based on homeowner's culture
+3. Ask IN ENGLISH: "Want me to say that?"
+4. WAIT for approval
+5. ONLY THEN speak to homeowner IN THEIR LANGUAGE using culturally appropriate framing
+6. Translate homeowner's response back to rep IN ENGLISH + add cultural context
 
-### Special Commands
+### Special Commands (Rep speaking to you privately in English)
 - "Agnes, what language is that?" - Identify language and region if possible
 - "Agnes, say that again" - Repeat last translation
 - "Agnes, how do I say [phrase]?" - Help rep say something specific
 - "Agnes, end translation" - Say goodbye in both languages gracefully
+
+REMEMBER: When rep asks for strategy help, ALWAYS:
+1. Propose approach in English
+2. Wait for "yes", "go ahead", "do it", "sure"
+3. Then speak to homeowner
+
+Example:
+Rep: "Agnes, help me convince them about the roof"
+Agnes (to rep in English): "I can emphasize family safety and long-term value. That resonates with [detected culture]. Want me to say that?"
+Rep: "Yes"
+Agnes (to homeowner in their language): [Culturally appropriate message]
+Agnes (to rep in English): "They said [translation]. They seem [cultural context]."
 
 ### Ending
 Rep: "Agnes, we're done" or "Thanks Agnes"
@@ -348,9 +422,12 @@ Remember: Your job is to help close deals by making communication seamless AND c
     if (inputTranscription?.text && inputTranscription.finished) {
       const text = inputTranscription.text.trim();
       if (text) {
+        // Detect if English (rep) or foreign language (homeowner)
+        const isEnglish = /^[a-zA-Z\s.,!?'"]+$/.test(text);
+
         setTranscript(prev => [...prev, {
-          id: Date.now().toString(),
-          speaker: 'user',
+          id: Date.now().toString() + '-input',
+          speaker: isEnglish ? 'user' : 'homeowner',
           originalText: text,
           timestamp: new Date()
         }]);
@@ -359,7 +436,7 @@ Remember: Your job is to help close deals by making communication seamless AND c
 
     // Handle output transcription (Agnes's response)
     const outputTranscription = serverContent?.outputTranscription;
-    if (outputTranscription?.text) {
+    if (outputTranscription?.text && outputTranscription.finished) {
       const text = outputTranscription.text.trim();
       if (text) {
         // Check if it's a language detection announcement
@@ -368,12 +445,20 @@ Remember: Your job is to help close deals by making communication seamless AND c
           setDetectedLanguage(langMatch[1]);
         }
 
-        setTranscript(prev => [...prev, {
-          id: Date.now().toString(),
-          speaker: 'agnes',
-          originalText: text,
-          timestamp: new Date()
-        }]);
+        setTranscript(prev => {
+          // Avoid duplicate entries by checking if last entry is identical
+          const lastEntry = prev[prev.length - 1];
+          if (lastEntry?.speaker === 'agnes' && lastEntry?.originalText === text) {
+            return prev;
+          }
+
+          return [...prev, {
+            id: Date.now().toString() + '-output',
+            speaker: 'agnes',
+            originalText: text,
+            timestamp: new Date()
+          }];
+        });
       }
     }
 
@@ -711,32 +796,62 @@ Remember: Your job is to help close deals by making communication seamless AND c
                   <p>Start speaking to begin translation</p>
                 </div>
               ) : (
-                transcript.map(entry => (
-                  <div
-                    key={entry.id}
-                    style={{
-                      padding: '12px 16px',
-                      background: entry.speaker === 'agnes' ? '#1a1a1a' : '#111',
-                      borderRadius: '10px',
-                      borderLeft: `3px solid ${
-                        entry.speaker === 'agnes' ? '#dc2626' : '#3b82f6'
-                      }`
-                    }}
-                  >
-                    <div style={{
-                      fontSize: '11px',
-                      color: entry.speaker === 'agnes' ? '#dc2626' : '#3b82f6',
-                      marginBottom: '4px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase'
-                    }}>
-                      {entry.speaker === 'agnes' ? 'Agnes (Translator)' : 'Speaker'}
+                transcript.map(entry => {
+                  const speakerInfo =
+                    entry.speaker === 'agnes' ? { label: 'Agnes', color: '#dc2626', bg: '#1a1a1a' } :
+                    entry.speaker === 'user' ? { label: 'Rep (You)', color: '#10b981', bg: '#111' } :
+                    { label: 'Homeowner', color: '#3b82f6', bg: '#111' };
+
+                  return (
+                    <div
+                      key={entry.id}
+                      style={{
+                        padding: '12px 16px',
+                        background: speakerInfo.bg,
+                        borderRadius: '10px',
+                        borderLeft: `3px solid ${speakerInfo.color}`
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '11px',
+                        color: speakerInfo.color,
+                        marginBottom: '4px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        {speakerInfo.label}
+                        {entry.detectedLang && (
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            background: 'rgba(0,0,0,0.3)',
+                            borderRadius: '4px'
+                          }}>
+                            {entry.detectedLang}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: '#fff', fontSize: '14px', lineHeight: 1.5 }}>
+                        {entry.originalText}
+                      </div>
+                      {entry.translatedText && (
+                        <div style={{
+                          marginTop: '8px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid rgba(255,255,255,0.1)',
+                          color: '#a1a1aa',
+                          fontSize: '13px',
+                          fontStyle: 'italic'
+                        }}>
+                          → {entry.translatedText}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ color: '#fff', fontSize: '14px', lineHeight: 1.5 }}>
-                      {entry.originalText}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={transcriptEndRef} />
             </div>
