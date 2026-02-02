@@ -461,6 +461,17 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
 
         // 4. Build improved system instruction with division-awareness and per-script behavior
         const userDivision = (config.division as 'insurance' | 'retail') || (user?.division as 'insurance' | 'retail') || 'insurance';
+
+        // DEBUG: Log script values to trace the bug
+        console.log('=== AGNES SCRIPT DEBUG (PitchTrainer) ===');
+        console.log('config.script length:', config.script?.length || 0);
+        console.log('config.scriptId:', config.scriptId);
+        console.log('config.script preview:', config.script?.substring(0, 100));
+        console.log('config.mode:', config.mode);
+        console.log('config.difficulty:', config.difficulty);
+        console.log('userDivision:', userDivision);
+        console.log('==========================================');
+
         const systemInstruction = buildSystemInstruction(
           config.mode,
           config.difficulty,

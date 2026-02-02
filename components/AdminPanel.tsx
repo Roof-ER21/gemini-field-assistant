@@ -147,6 +147,18 @@ interface UnmappedSalesRep {
   is_active: boolean;
 }
 
+// Agnes Script Management interfaces
+type AgnesScriptCategory = 'door-knock' | 'objection' | 'closing' | 'adjuster' | 'custom';
+
+interface AgnesScript {
+  id: string;
+  name: string;
+  category: AgnesScriptCategory;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const AdminPanel: React.FC = () => {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes'>('users');
@@ -192,6 +204,17 @@ const AdminPanel: React.FC = () => {
   // Agnes 21 training sessions state
   const [agnesSessions, setAgnesSessions] = useState<SessionData[]>([]);
   const [agnesStats, setAgnesStats] = useState<any>(null);
+  const [agnesSubTab, setAgnesSubTab] = useState<'sessions' | 'analytics' | 'scripts'>('sessions');
+
+  // Agnes script management state
+  const [agnesScripts, setAgnesScripts] = useState<AgnesScript[]>([]);
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [editingScript, setEditingScript] = useState<AgnesScript | null>(null);
+  const [scriptForm, setScriptForm] = useState({
+    name: '',
+    category: 'door-knock' as AgnesScriptCategory,
+    content: ''
+  });
 
   // System settings state
   const [systemSettings, setSystemSettings] = useState<Record<string, any>>({});
@@ -297,6 +320,7 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'agnes' && isAdmin) {
       loadAgnesSessions();
+      loadAgnesScripts();
     }
   }, [activeTab, isAdmin]);
 
@@ -310,6 +334,84 @@ const AdminPanel: React.FC = () => {
     } catch (error) {
       console.error('Failed to load Agnes sessions:', error);
     }
+  };
+
+  // Load Agnes scripts from localStorage
+  const loadAgnesScripts = () => {
+    try {
+      const stored = localStorage.getItem('agnes_admin_scripts');
+      if (stored) {
+        const scripts = JSON.parse(stored);
+        setAgnesScripts(scripts);
+      }
+    } catch (error) {
+      console.error('Failed to load Agnes scripts:', error);
+    }
+  };
+
+  // Save Agnes scripts to localStorage
+  const saveAgnesScripts = (scripts: AgnesScript[]) => {
+    try {
+      localStorage.setItem('agnes_admin_scripts', JSON.stringify(scripts));
+      setAgnesScripts(scripts);
+    } catch (error) {
+      console.error('Failed to save Agnes scripts:', error);
+    }
+  };
+
+  // Add or update a script
+  const saveScript = () => {
+    if (!scriptForm.name.trim() || !scriptForm.content.trim()) {
+      toast.showToast('Please fill in all required fields', 'error');
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (editingScript) {
+      // Update existing script
+      const updatedScripts = agnesScripts.map(script =>
+        script.id === editingScript.id
+          ? { ...script, ...scriptForm, updatedAt: now }
+          : script
+      );
+      saveAgnesScripts(updatedScripts);
+      toast.showToast('Script updated successfully', 'success');
+    } else {
+      // Add new script
+      const newScript: AgnesScript = {
+        id: `script_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        ...scriptForm,
+        createdAt: now,
+        updatedAt: now
+      };
+      saveAgnesScripts([...agnesScripts, newScript]);
+      toast.showToast('Script created successfully', 'success');
+    }
+
+    setShowScriptModal(false);
+    setEditingScript(null);
+    setScriptForm({ name: '', category: 'door-knock', content: '' });
+  };
+
+  // Delete a script
+  const deleteScript = (scriptId: string) => {
+    if (!confirm('Are you sure you want to delete this script?')) return;
+
+    const updatedScripts = agnesScripts.filter(script => script.id !== scriptId);
+    saveAgnesScripts(updatedScripts);
+    toast.showToast('Script deleted successfully', 'success');
+  };
+
+  // Edit a script
+  const editScript = (script: AgnesScript) => {
+    setEditingScript(script);
+    setScriptForm({
+      name: script.name,
+      category: script.category,
+      content: script.content
+    });
+    setShowScriptModal(true);
   };
 
   // Fetch all system settings
@@ -4261,7 +4363,7 @@ const AdminPanel: React.FC = () => {
         {/* Agnes 21 Training Sessions Tab */}
         {activeTab === 'agnes' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
-            {/* Header with Stats */}
+            {/* Header */}
             <div style={{
               background: '#0a0a0a',
               borderRadius: '12px',
@@ -4271,106 +4373,75 @@ const AdminPanel: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                 <Bot style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
                 <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
-                  Agnes 21 Learning Sessions
+                  Agnes 21 Training Management
                 </h2>
               </div>
-              <p style={{ margin: '0 0 1.5rem 0', color: '#a1a1aa', fontSize: '0.875rem' }}>
-                View all roleplay training sessions from Agnes 21 Learning mode.
+              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
+                Manage training sessions, analytics, and custom scripts.
               </p>
-
-              {/* Stats Summary */}
-              {agnesStats && (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: '1rem',
-                  marginTop: '1rem'
-                }}>
-                  <div style={{
-                    background: '#171717',
-                    border: '1px solid #262626',
-                    borderRadius: '8px',
-                    padding: '1rem'
-                  }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
-                      Total Sessions
-                    </div>
-                    <div style={{ fontSize: '1.5rem', color: '#ffffff', fontWeight: '600' }}>
-                      {agnesStats.totalSessions}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    background: '#171717',
-                    border: '1px solid #262626',
-                    borderRadius: '8px',
-                    padding: '1rem'
-                  }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
-                      Average Score
-                    </div>
-                    <div style={{ fontSize: '1.5rem', color: '#4ade80', fontWeight: '600' }}>
-                      {agnesStats.averageScore}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    background: '#171717',
-                    border: '1px solid #262626',
-                    borderRadius: '8px',
-                    padding: '1rem'
-                  }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
-                      Best Score
-                    </div>
-                    <div style={{ fontSize: '1.5rem', color: '#fbbf24', fontWeight: '600' }}>
-                      {agnesStats.bestScore}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Sessions by Difficulty */}
-            {agnesStats && (
-              <div style={{
-                background: '#0a0a0a',
-                borderRadius: '12px',
-                border: '1px solid #262626',
-                padding: '1.5rem'
-              }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
-                  Sessions by Difficulty
-                </h3>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                  gap: '0.75rem'
-                }}>
-                  {Object.entries(agnesStats.sessionsPerDifficulty || {}).map(([difficulty, count]) => (
-                    <div
-                      key={difficulty}
-                      style={{
-                        background: '#171717',
-                        border: '1px solid #262626',
-                        borderRadius: '6px',
-                        padding: '0.75rem',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
-                        {difficulty}
-                      </div>
-                      <div style={{ fontSize: '1.25rem', color: '#ffffff', fontWeight: '600' }}>
-                        {count as number}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Sub-tab Navigation */}
+            <div style={{
+              display: 'flex',
+              gap: '0.5rem',
+              borderBottom: '1px solid #262626',
+              paddingBottom: '0.5rem'
+            }}>
+              <button
+                onClick={() => setAgnesSubTab('sessions')}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: agnesSubTab === 'sessions' ? '#dc2626' : 'transparent',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Sessions
+              </button>
+              <button
+                onClick={() => setAgnesSubTab('analytics')}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: agnesSubTab === 'analytics' ? '#dc2626' : 'transparent',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Analytics
+              </button>
+              <button
+                onClick={() => setAgnesSubTab('scripts')}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: agnesSubTab === 'scripts' ? '#dc2626' : 'transparent',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Script Management
+              </button>
+            </div>
 
-            {/* Sessions List */}
+            {/* Sessions Tab */}
+            {agnesSubTab === 'sessions' && (
+              <>
+                {/* Sessions List */}
             <div style={{
               background: '#0a0a0a',
               borderRadius: '12px',
@@ -4494,6 +4565,372 @@ const AdminPanel: React.FC = () => {
                 </div>
               )}
             </div>
+              </>
+            )}
+
+            {/* Analytics Tab */}
+            {agnesSubTab === 'analytics' && agnesStats && (
+              <>
+                {/* Stats Summary */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    background: '#0a0a0a',
+                    border: '1px solid #262626',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                      Total Sessions
+                    </div>
+                    <div style={{ fontSize: '2rem', color: '#ffffff', fontWeight: '600' }}>
+                      {agnesStats.totalSessions}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#0a0a0a',
+                    border: '1px solid #262626',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                      Average Score
+                    </div>
+                    <div style={{ fontSize: '2rem', color: '#4ade80', fontWeight: '600' }}>
+                      {agnesStats.averageScore}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#0a0a0a',
+                    border: '1px solid #262626',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                      Best Score
+                    </div>
+                    <div style={{ fontSize: '2rem', color: '#fbbf24', fontWeight: '600' }}>
+                      {agnesStats.bestScore}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#0a0a0a',
+                    border: '1px solid #262626',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                      Completion Rate
+                    </div>
+                    <div style={{ fontSize: '2rem', color: '#60a5fa', fontWeight: '600' }}>
+                      {agnesSessions.filter(s => s.finalScore !== undefined).length > 0
+                        ? Math.round((agnesSessions.filter(s => s.finalScore !== undefined).length / agnesSessions.length) * 100)
+                        : 0}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sessions by Difficulty */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  padding: '1.5rem'
+                }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                    Sessions by Difficulty Level
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '1rem'
+                  }}>
+                    {Object.entries(agnesStats.sessionsPerDifficulty || {}).map(([difficulty, count]) => {
+                      const avgScore = agnesSessions
+                        .filter(s => s.difficulty === difficulty && s.finalScore !== undefined)
+                        .reduce((sum, s, _, arr) => sum + (s.finalScore || 0) / arr.length, 0);
+
+                      return (
+                        <div
+                          key={difficulty}
+                          style={{
+                            background: '#171717',
+                            border: '1px solid #262626',
+                            borderRadius: '8px',
+                            padding: '1rem'
+                          }}
+                        >
+                          <div style={{ fontSize: '0.875rem', color: '#ffffff', fontWeight: '500', marginBottom: '0.5rem' }}>
+                            {difficulty}
+                          </div>
+                          <div style={{ fontSize: '1.5rem', color: '#ffffff', fontWeight: '600', marginBottom: '0.25rem' }}>
+                            {count as number}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                            Avg: {Math.round(avgScore) || 0}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Sessions Over Time (Last 7 Days) */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  padding: '1.5rem'
+                }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                    Sessions Per Day (Last 7 Days)
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {(() => {
+                      const last7Days = Array.from({ length: 7 }, (_, i) => {
+                        const date = new Date();
+                        date.setDate(date.getDate() - (6 - i));
+                        return date.toISOString().split('T')[0];
+                      });
+
+                      return last7Days.map(dateStr => {
+                        const count = agnesSessions.filter(s =>
+                          new Date(s.timestamp).toISOString().split('T')[0] === dateStr
+                        ).length;
+                        const maxCount = Math.max(...last7Days.map(d =>
+                          agnesSessions.filter(s => new Date(s.timestamp).toISOString().split('T')[0] === d).length
+                        ), 1);
+
+                        return (
+                          <div key={dateStr} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '100px', fontSize: '0.875rem', color: '#a1a1aa' }}>
+                              {new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </div>
+                            <div style={{ flex: 1, background: '#171717', borderRadius: '4px', height: '24px', overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${(count / maxCount) * 100}%`,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #dc2626, #b91c1c)',
+                                transition: 'width 0.3s'
+                              }} />
+                            </div>
+                            <div style={{ width: '40px', textAlign: 'right', fontSize: '0.875rem', color: '#ffffff', fontWeight: '500' }}>
+                              {count}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* Top Performers (by script if available) */}
+                <div style={{
+                  background: '#0a0a0a',
+                  borderRadius: '12px',
+                  border: '1px solid #262626',
+                  padding: '1.5rem'
+                }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                    Most Used Scripts
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {(() => {
+                      const scriptCounts = agnesSessions
+                        .filter(s => s.scriptName)
+                        .reduce((acc, s) => {
+                          const name = s.scriptName || 'Unknown';
+                          acc[name] = (acc[name] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>);
+
+                      const sortedScripts = Object.entries(scriptCounts)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5);
+
+                      return sortedScripts.length > 0 ? sortedScripts.map(([name, count]) => (
+                        <div
+                          key={name}
+                          style={{
+                            background: '#171717',
+                            border: '1px solid #262626',
+                            borderRadius: '8px',
+                            padding: '1rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ fontSize: '0.875rem', color: '#ffffff' }}>{name}</div>
+                          <div style={{ fontSize: '1.25rem', color: '#dc2626', fontWeight: '600' }}>{count}</div>
+                        </div>
+                      )) : (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#a1a1aa' }}>
+                          No script data available
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Script Management Tab */}
+            {agnesSubTab === 'scripts' && (
+              <>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem'
+                }}>
+                  <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                    Custom Training Scripts ({agnesScripts.length})
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setEditingScript(null);
+                      setScriptForm({ name: '', category: 'door-knock', content: '' });
+                      setShowScriptModal(true);
+                    }}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <UserPlus style={{ width: '1rem', height: '1rem' }} />
+                    Add Script
+                  </button>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  {agnesScripts.length === 0 ? (
+                    <div style={{
+                      gridColumn: '1 / -1',
+                      textAlign: 'center',
+                      padding: '3rem',
+                      background: '#0a0a0a',
+                      border: '1px solid #262626',
+                      borderRadius: '12px',
+                      color: '#a1a1aa'
+                    }}>
+                      No custom scripts yet. Click "Add Script" to create one.
+                    </div>
+                  ) : (
+                    agnesScripts.map(script => (
+                      <div
+                        key={script.id}
+                        style={{
+                          background: '#0a0a0a',
+                          border: '1px solid #262626',
+                          borderRadius: '12px',
+                          padding: '1.5rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                            <h4 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                              {script.name}
+                            </h4>
+                            <span style={{
+                              padding: '4px 8px',
+                              background: '#171717',
+                              border: '1px solid #262626',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              color: '#a1a1aa',
+                              textTransform: 'capitalize'
+                            }}>
+                              {script.category.replace('-', ' ')}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontSize: '0.875rem',
+                            color: '#a1a1aa',
+                            marginTop: '0.75rem',
+                            maxHeight: '100px',
+                            overflow: 'auto',
+                            lineHeight: '1.5'
+                          }}>
+                            {script.content.substring(0, 200)}{script.content.length > 200 ? '...' : ''}
+                          </div>
+                        </div>
+
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingTop: '1rem',
+                          borderTop: '1px solid #262626'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                            Updated {new Date(script.updatedAt).toLocaleDateString()}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => editScript(script)}
+                              style={{
+                                padding: '0.5rem',
+                                background: '#171717',
+                                border: '1px solid #262626',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                color: '#ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Edit script"
+                            >
+                              <Edit2 style={{ width: '1rem', height: '1rem' }} />
+                            </button>
+                            <button
+                              onClick={() => deleteScript(script.id)}
+                              style={{
+                                padding: '0.5rem',
+                                background: '#171717',
+                                border: '1px solid #dc2626',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                color: '#dc2626',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Delete script"
+                            >
+                              <Trash2 style={{ width: '1rem', height: '1rem' }} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -4530,6 +4967,165 @@ const AdminPanel: React.FC = () => {
           /* Responsive adjustments */
         }
       ` }} />
+
+      {/* Script Create/Edit Modal */}
+      {showScriptModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowScriptModal(false)}
+        >
+          <div
+            style={{
+              background: '#0a0a0a',
+              borderRadius: '16px',
+              border: '1px solid #262626',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              margin: '1rem'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                {editingScript ? 'Edit Script' : 'Create New Script'}
+              </h3>
+              <button
+                onClick={() => setShowScriptModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#a1a1aa',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <XCircle style={{ width: '1.5rem', height: '1.5rem' }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                  Script Name *
+                </label>
+                <input
+                  type="text"
+                  value={scriptForm.name}
+                  onChange={(e) => setScriptForm({ ...scriptForm, name: e.target.value })}
+                  placeholder="e.g., Basic Door Knock Introduction"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                  Category *
+                </label>
+                <select
+                  value={scriptForm.category}
+                  onChange={(e) => setScriptForm({ ...scriptForm, category: e.target.value as AgnesScriptCategory })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option value="door-knock">Door Knock</option>
+                  <option value="objection">Objection Handling</option>
+                  <option value="closing">Closing</option>
+                  <option value="adjuster">Adjuster Meeting</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                  Script Content *
+                </label>
+                <textarea
+                  value={scriptForm.content}
+                  onChange={(e) => setScriptForm({ ...scriptForm, content: e.target.value })}
+                  placeholder="Enter the script content here..."
+                  rows={10}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.875rem',
+                    fontFamily: 'monospace',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  onClick={() => setShowScriptModal(false)}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveScript}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {editingScript ? 'Update Script' : 'Create Script'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Create/Edit Modal */}
       {showUserModal && (
