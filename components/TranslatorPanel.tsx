@@ -4,6 +4,7 @@ import { Mic, MicOff, X, Globe, Volume2, VolumeX, Phone, PhoneOff, Languages, Me
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../agnes21/types';
 import AgnesAvatar from '../agnes21/components/AgnesAvatar';
 import Waveform from '../agnes21/components/Waveform';
+import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../agnes21/utils/audioUtils';
 import { env } from '../src/config/env';
 
 // Agnes Translator States
@@ -45,7 +46,10 @@ const TranslatorPanel: React.FC = () => {
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextStartTimeRef = useRef<number>(0);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioInputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const sessionActiveRef = useRef(false);
+  const isConnectedRef = useRef(false);
+  const isMutedRef = useRef(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   const aiSpeaking = activeAudioCount > 0;
@@ -145,6 +149,7 @@ Remember: You're here to help close deals by breaking down language barriers. Be
           onopen: () => {
             console.log('Translator session opened');
             setIsConnected(true);
+            isConnectedRef.current = true;
             setState('listening');
             startAudioInput();
           },
@@ -233,31 +238,36 @@ Remember: You're here to help close deals by breaking down language barriers. Be
       }
     }
 
-    // Handle audio output
-    const parts = serverContent?.modelTurn?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData?.mimeType?.startsWith('audio/') && part.inlineData.data) {
-        if (isSpeakerOn) {
-          await playAudioChunk(part.inlineData.data);
-        }
-      }
+    // Handle audio output - matches PitchTrainer pattern
+    const audioPart = serverContent?.modelTurn?.parts?.find((part: any) => part?.inlineData?.data);
+    const base64Audio = audioPart?.inlineData?.data;
+    if (base64Audio && sessionActiveRef.current && isSpeakerOn) {
+      await playAudioChunk(base64Audio);
     }
   };
 
-  // Play audio from Gemini
+  // Play audio from Gemini - matches PitchTrainer pattern
   const playAudioChunk = async (base64Audio: string) => {
-    if (!outputAudioContextRef.current || !analyserRef.current) return;
+    if (!sessionActiveRef.current || !outputAudioContextRef.current) return;
+
+    const ctx = outputAudioContextRef.current;
+    if (ctx.state === 'closed') return;
 
     try {
-      const audioData = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
-      const audioBuffer = await outputAudioContextRef.current.decodeAudioData(audioData.buffer.slice(0));
+      const audioBuffer = await decodeAudioData(base64ToUint8Array(base64Audio), ctx);
 
-      const source = outputAudioContextRef.current.createBufferSource();
+      const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(analyserRef.current);
-      analyserRef.current.connect(outputAudioContextRef.current.destination);
 
-      const currentTime = outputAudioContextRef.current.currentTime;
+      // Connect to analyser for visualization
+      if (analyserRef.current) {
+        source.connect(analyserRef.current);
+        analyserRef.current.connect(ctx.destination);
+      } else {
+        source.connect(ctx.destination);
+      }
+
+      const currentTime = ctx.currentTime;
       const startTime = Math.max(currentTime, nextStartTimeRef.current);
       nextStartTimeRef.current = startTime + audioBuffer.duration;
 
@@ -269,7 +279,7 @@ Remember: You're here to help close deals by breaking down language barriers. Be
         audioSourcesRef.current.delete(source);
         setActiveAudioCount(prev => {
           const newCount = prev - 1;
-          if (newCount === 0) {
+          if (newCount === 0 && sessionActiveRef.current) {
             setState('listening');
           }
           return newCount;
@@ -282,11 +292,12 @@ Remember: You're here to help close deals by breaking down language barriers. Be
     }
   };
 
-  // Start audio input
+  // Start audio input - matches PitchTrainer pattern
   const startAudioInput = () => {
-    if (!streamRef.current || !inputAudioContextRef.current || !sessionRef.current) return;
+    if (!streamRef.current || !inputAudioContextRef.current) return;
 
     const source = inputAudioContextRef.current.createMediaStreamSource(streamRef.current);
+    audioInputSourceRef.current = source;
 
     if (micAnalyserRef.current) {
       source.connect(micAnalyserRef.current);
@@ -296,18 +307,14 @@ Remember: You're here to help close deals by breaking down language barriers. Be
     processorRef.current = processor;
 
     processor.onaudioprocess = (e) => {
-      if (!sessionRef.current || isMuted) return;
+      if (isMutedRef.current || !sessionRef.current || !isConnectedRef.current) return;
 
       const inputData = e.inputBuffer.getChannelData(0);
-      const pcm16 = new Int16Array(inputData.length);
-      for (let i = 0; i < inputData.length; i++) {
-        pcm16[i] = Math.max(-32768, Math.min(32767, Math.floor(inputData[i] * 32768)));
-      }
+      const pcmBlob = createPcmBlob(inputData);
 
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
-      sessionRef.current.sendRealtimeInput({
-        audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-      });
+      if (sessionRef.current) {
+        sessionRef.current.sendRealtimeInput({ media: pcmBlob });
+      }
     };
 
     source.connect(processor);
@@ -317,6 +324,7 @@ Remember: You're here to help close deals by breaking down language barriers. Be
   // End session
   const endSession = useCallback(() => {
     sessionActiveRef.current = false;
+    isConnectedRef.current = false;
     cleanup();
     setState('idle');
     setIsConnected(false);
@@ -326,9 +334,19 @@ Remember: You're here to help close deals by breaking down language barriers. Be
 
   // Cleanup resources
   const cleanup = () => {
+    // Stop audio sources
+    audioSourcesRef.current.forEach(source => {
+      try { source.stop(); } catch (e) { /* ignore */ }
+    });
+    audioSourcesRef.current.clear();
+
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
+    }
+    if (audioInputSourceRef.current) {
+      audioInputSourceRef.current.disconnect();
+      audioInputSourceRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -338,15 +356,15 @@ Remember: You're here to help close deals by breaking down language barriers. Be
       try { sessionRef.current.close(); } catch (e) { /* ignore */ }
       sessionRef.current = null;
     }
-    if (inputAudioContextRef.current) {
-      inputAudioContextRef.current.close();
+    if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
+      inputAudioContextRef.current.close().catch(() => {});
       inputAudioContextRef.current = null;
     }
-    if (outputAudioContextRef.current) {
-      outputAudioContextRef.current.close();
+    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
+      outputAudioContextRef.current.close().catch(() => {});
       outputAudioContextRef.current = null;
     }
-    audioSourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
   };
 
   // Cleanup on unmount
@@ -626,7 +644,11 @@ Remember: You're here to help close deals by breaking down language barriers. Be
               marginTop: '24px'
             }}>
               <button
-                onClick={() => setIsMuted(!isMuted)}
+                onClick={() => {
+                  const newMuted = !isMuted;
+                  setIsMuted(newMuted);
+                  isMutedRef.current = newMuted;
+                }}
                 style={{
                   width: '50px',
                   height: '50px',
