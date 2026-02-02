@@ -705,20 +705,17 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
         {/* Filters & Sort Controls */}
         <div style={{
-          display: 'flex',
-          gap: '8px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: '12px',
           marginBottom: '20px',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          maxWidth: '100%',
-          overflowX: 'hidden',
-          padding: '12px',
+          padding: '16px',
           background: '#0a0a0a',
           borderRadius: '12px',
           border: '1px solid #1a1a1a'
         }}>
           {/* Sort Dropdown */}
-          <div style={{ position: 'relative', flex: 1, minWidth: 'min(100%, 200px)' }}>
+          <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowSortDropdown(!showSortDropdown)}
               style={{
@@ -795,7 +792,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           </div>
 
           {/* Year Filter */}
-          <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
+          <div>
             <select
               value={selectedYear ? String(selectedYear) : ''}
               onChange={(e) => {
@@ -817,7 +814,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           </div>
 
           {/* Month Filter */}
-          <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
+          <div>
             <select
               value={selectedMonth ? String(selectedMonth) : ''}
               onChange={(e) => {
@@ -844,7 +841,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
           {/* Team Filter */}
           {teams.length > 0 && (
-            <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
+            <div>
               <select
                 value={selectedTeamId ? String(selectedTeamId) : ''}
                 onChange={(e) => {
@@ -865,7 +862,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
           {/* Territory Filter */}
           {territories.length > 0 && (
-            <div style={{ minWidth: 'min(100%, 140px)', flex: 1 }}>
+            <div>
               <select
                 value={selectedTerritoryId ? String(selectedTerritoryId) : ''}
                 onChange={(e) => {
