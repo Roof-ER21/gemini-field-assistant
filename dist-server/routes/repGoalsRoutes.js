@@ -135,12 +135,16 @@ export function createRepGoalsRoutes(pool) {
                 return 'behind';
             };
             const monthlyStatus = getStatus(monthlySignupsProgress, daysRemaining, daysInMonth);
-            // Get leaderboard rank
-            const rankResult = await pool.query(`SELECT COUNT(*) + 1 as rank
-         FROM sales_reps
-         WHERE monthly_signups > $1
-         AND is_active = true`, [rep.monthly_signups]);
-            const rank = rankResult.rows[0]?.rank || 0;
+            // Get leaderboard rank using ROW_NUMBER for consistency with leaderboard
+            const rankResult = await pool.query(`WITH ranked AS (
+           SELECT id, ROW_NUMBER() OVER (ORDER BY monthly_signups DESC, name ASC) as rank
+           FROM sales_reps
+           WHERE is_active = true
+         )
+         SELECT rank FROM ranked WHERE id = $1`, [rep.id]);
+            const totalActiveResult = await pool.query(`SELECT COUNT(*) as total FROM sales_reps WHERE is_active = true`);
+            const rank = parseInt(rankResult.rows[0]?.rank) || 0;
+            const totalActive = parseInt(totalActiveResult.rows[0]?.total) || 1;
             res.json({
                 success: true,
                 progress: {
@@ -184,7 +188,8 @@ export function createRepGoalsRoutes(pool) {
                     },
                     leaderboard: {
                         rank,
-                        percentile: rank > 0 ? Math.round((1 - rank / 100) * 100) : 0
+                        totalActive,
+                        percentile: rank > 0 && totalActive > 0 ? Math.round((1 - rank / totalActive) * 100) : 0
                     }
                 },
                 history: monthlyHistoryResult.rows.map(row => ({
