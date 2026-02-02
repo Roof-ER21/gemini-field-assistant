@@ -217,7 +217,7 @@ const LearningDashboard: React.FC = () => {
       <div className="roof-er-content-scroll" style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
-            <h1 className="roof-er-page-title" style={{ marginBottom: '0.35rem' }}>Susan Learning Dashboard</h1>
+            <h1 className="roof-er-page-title" style={{ marginBottom: '0.35rem' }}>Susan 21 Learning Dashboard</h1>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               What the team says is working — and what needs improvement.
             </div>

@@ -1788,7 +1788,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                  Susan Learning
+                  Susan 21 Learning
                 </div>
                 <button
                   onClick={() => setShowLearningPanel(prev => !prev)}

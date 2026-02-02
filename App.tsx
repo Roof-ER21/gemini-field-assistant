@@ -102,7 +102,7 @@ const App: React.FC = () => {
     agnes: 'Agnes - Objection Handler',
     'agnes-learning': 'Agnes 21 Learning',
     documentjob: 'Document Job',
-    learning: 'Susan Learning',
+    learning: 'Susan 21 Learning',
     canvassing: 'Canvassing Tracker',
     impacted: 'Impacted Assets',
     territories: 'Territory Management',
