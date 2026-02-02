@@ -163,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'chat', label: 'Chat', desc: 'AI conversation', icon: S21Icon },
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'learning', label: 'Learning', desc: 'Team feedback', icon: TrendingUp },
-    { id: 'agnes-learning', label: 'Agnes Learning', desc: 'Roleplay + feedback', icon: Bot },
+    { id: 'agnes-learning', label: 'Agnes 21 Learning', desc: 'Roleplay + feedback', icon: Bot },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },

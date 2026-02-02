@@ -114,7 +114,7 @@ const AgnesLearningPanel: React.FC = () => {
           <div>
             <div className="roof-er-page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
               <Sparkles className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-              Agnes Learning
+              Agnes 21 Learning
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               Feedback roleplay and just-listen training with Agnes 21.

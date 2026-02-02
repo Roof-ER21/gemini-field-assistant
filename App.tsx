@@ -100,7 +100,7 @@ const App: React.FC = () => {
     live: 'Live Conversation',
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
-    'agnes-learning': 'Agnes Learning',
+    'agnes-learning': 'Agnes 21 Learning',
     documentjob: 'Document Job',
     learning: 'Susan Learning',
     canvassing: 'Canvassing Tracker',

@@ -125,7 +125,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   const quickActions = [
     {
       id: 'agnes-learning',
-      title: 'Agnes Learning',
+      title: 'Agnes 21 Learning',
       description: 'Roleplay + feedback training',
       icon: Sparkles,
       gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)'
