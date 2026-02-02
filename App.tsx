@@ -26,6 +26,7 @@ const DocumentAnalysisPanel = lazy(() => import('./components/DocumentAnalysisPa
 const KnowledgePanel = lazy(() => import('./components/KnowledgePanel'));
 const AgnesPanel = lazy(() => import('./components/AgnesPanel'));
 const AgnesLearningPanel = lazy(() => import('./components/AgnesLearningPanel'));
+const TranslatorPanel = lazy(() => import('./components/TranslatorPanel'));
 const LivePanel = lazy(() => import('./components/LivePanel'));
 const CanvassingPanel = lazy(() => import('./components/CanvassingPanel'));
 const ImpactedAssetsPanel = lazy(() => import('./components/ImpactedAssetsPanel'));
@@ -34,7 +35,7 @@ const TerritoryHailMap = lazy(() => import('./components/TerritoryHailMap'));
 const LeaderboardPanel = lazy(() => import('./components/LeaderboardPanel'));
 const ContestSection = lazy(() => import('./src/components/ContestSection'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -101,6 +102,7 @@ const App: React.FC = () => {
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
     'agnes-learning': 'Agnes 21 Learning',
+    translator: 'Agnes Translator',
     documentjob: 'Document Job',
     learning: 'Susan 21 Learning',
     canvassing: 'Canvassing Tracker',
@@ -266,6 +268,12 @@ const App: React.FC = () => {
         return (
           <LazyLoadBoundary componentName="Agnes Learning">
             <AgnesLearningPanel />
+          </LazyLoadBoundary>
+        );
+      case 'translator':
+        return (
+          <LazyLoadBoundary componentName="Translator">
+            <TranslatorPanel />
           </LazyLoadBoundary>
         );
       case 'documentjob':

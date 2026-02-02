@@ -23,14 +23,15 @@ import {
   Wrench,
   HardHat,
   Medal,
-  Bot
+  Bot,
+  Globe
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -164,6 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
     { id: 'learning', label: 'Susan 21 Learning', desc: 'Team feedback', icon: TrendingUp },
     { id: 'agnes-learning', label: 'Agnes 21', desc: 'Roleplay training', icon: Bot },
+    { id: 'translator', label: 'Translator', desc: 'Live field translation', icon: Globe },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
@@ -205,7 +207,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Main',
         icon: Sparkles,
         defaultExpanded: true,
-        items: ['home', 'chat', 'agnes-learning']
+        items: ['home', 'chat', 'agnes-learning', 'translator']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
