@@ -1080,27 +1080,28 @@ export const SCRIPT_ROLEPLAY_CONFIGS: Record<string, ScriptRoleplayConfig> = {
     scriptId: 'insurance-pushback',
     scriptName: 'Insurance Pushback & Arguments (Q1-Q100)',
     uniqueObjections: [
-      "We don't see enough damage to warrant replacement.",
-      "The hail damage is just cosmetic.",
-      "Your shingles can be patched, we don't need to replace.",
-      "We don't see storm-related damage.",
-      "The roof is still functional.",
-      "This looks like wear and tear, not storm damage.",
-      "We can only approve repairs, not replacement."
+      "My insurance company already said they won't cover it.",
+      "The adjuster told me it's just cosmetic damage.",
+      "I don't want to file a claim and raise my rates.",
+      "My neighbor tried this and got denied.",
+      "I've heard insurance companies are cracking down on roof claims.",
+      "The adjuster said my shingles can be repaired, not replaced.",
+      "I don't want to deal with the insurance hassle.",
+      "What if they say it's wear and tear?"
     ],
-    homeownerPersona: 'You are an INSURANCE COMPANY REPRESENTATIVE (adjuster or claims handler). You are trained to minimize payouts. You will use technical language and policy terms to deny or reduce the claim. Be professional but firm in your denials.',
+    homeownerPersona: 'You are a HOMEOWNER who has heard negative things about insurance roof claims. Maybe your adjuster already visited and gave you bad news, or your neighbor warned you. You are SKEPTICAL that the contractor can help and worried about your rates going up or getting denied.',
     flowExpectations: [
-      'Professional, calm demeanor',
-      'Reference specific documentation (photo report, iTel)',
-      'Cite industry standards (GAF guidelines)',
-      'Counter technical objections with technical responses',
-      'Request supervisory review when appropriate',
-      'Document everything in email format',
-      'Never get defensive or emotional'
+      'Acknowledge homeowner frustration with insurance',
+      'Explain the difference between cosmetic and functional damage',
+      'Reference photo documentation and iTel reports',
+      'Explain reinspection and appeal process',
+      'Address rate increase concerns (claims don\'t always raise rates)',
+      'Build confidence that Roof ER fights for homeowners',
+      'Explain what happens if claim is denied (no cost to homeowner)'
     ],
-    keyPhrases: ['photo report', 'functional damage', 'GAF standards', 'iTel report', 'discontinued shingles', 'irreparable', 'pre-loss condition'],
-    scoringFocus: 'Technical knowledge, professional demeanor, ability to counter objections with documented evidence',
-    agnesOpeningContext: 'You are an insurance adjuster or claims representative. Your job is to minimize the payout. Challenge the contractor on every point using technical and policy language.'
+    keyPhrases: ['photo report', 'functional damage', 'iTel report', 'reinspection', 'appeal', 'fight for you', 'no cost if denied', 'discontinue'],
+    scoringFocus: 'Empathy for homeowner frustration, ability to counter insurance objections, building confidence in the process',
+    agnesOpeningContext: 'You are a homeowner who is skeptical about insurance claims. Maybe you already got denied or heard bad things. You need the contractor to explain how they can help you fight back.'
   },
 
   // ===== DOOR-TO-DOOR SCRIPTS =====

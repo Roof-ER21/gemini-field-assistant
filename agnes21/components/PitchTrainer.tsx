@@ -518,6 +518,14 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
                 const normalizedInput = inputTranscription.text.trim();
                 if (normalizedInput && normalizedInput !== lastInputTranscriptRef.current) {
                   lastInputTranscriptRef.current = normalizedInput;
+
+                  // Add user input to transcript
+                  setTranscript(prev => [...prev, {
+                    role: 'user',
+                    text: normalizedInput,
+                    timestamp: new Date()
+                  }]);
+
                   const scoreCommandRegex = /\b(agnes\s+)?score\s+me\b|\bgive\s+me\s+my\s+score\b|\bscore\s+my\s+session\b/i;
                   const now = Date.now();
                   if (

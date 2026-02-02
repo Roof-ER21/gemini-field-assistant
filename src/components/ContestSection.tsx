@@ -76,6 +76,7 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
   const [teams, setTeams] = useState<any[]>([]);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [shareMessage, setShareMessage] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const isAdmin = userRole === 'admin' || userRole === 'manager';
 
@@ -430,26 +431,7 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     const message = generateShareMessage();
     if (!message) return;
     setShareMessage(message);
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: selectedContest?.name || 'Contest Update',
-          text: message
-        });
-        return;
-      }
-    } catch (error) {
-      console.warn('Share cancelled or failed, falling back to clipboard.', error);
-    }
-
-    try {
-      await navigator.clipboard.writeText(message);
-      alert('Contest standings copied to clipboard!');
-    } catch (error) {
-      console.error('Failed to copy:', error);
-      alert('Failed to share contest standings');
-    }
+    setShowShareModal(true);
   };
 
   const copyToClipboard = async () => {
@@ -462,31 +444,46 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     }
   };
 
-  const postToTeamChat = async () => {
+  const postToTheRoof = async () => {
     try {
-      const response = await fetch('/api/messages', {
+      const response = await fetch('/api/roof/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-email': userEmail
         },
         body: JSON.stringify({
-          message: shareMessage,
-          type: 'broadcast'
+          content: shareMessage,
+          post_type: 'announcement'
         })
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        alert('Contest standings posted to team chat!');
+      if (data.success || data.post) {
+        alert('Contest standings posted to The Roof!');
         setShareMessage('');
+        setShowShareModal(false);
       } else {
         alert(`Error: ${data.error || 'Failed to post message'}`);
       }
     } catch (error) {
-      console.error('Error posting to team chat:', error);
-      alert('Failed to post to team chat');
+      console.error('Error posting to The Roof:', error);
+      alert('Failed to post to The Roof');
+    }
+  };
+
+  const handleNativeShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: selectedContest?.name || 'Contest Update',
+          text: shareMessage
+        });
+        setShowShareModal(false);
+      }
+    } catch (error) {
+      console.warn('Share cancelled or failed:', error);
     }
   };
 
@@ -1780,6 +1777,166 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
                 }}
               >
                 Create Contest
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            padding: isPortrait ? '1rem' : '1.5rem'
+          }}
+          onClick={() => setShowShareModal(false)}
+        >
+          <div
+            className="rounded-xl w-full"
+            style={{
+              maxWidth: isMobile ? '100%' : '32rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              margin: 'auto',
+              position: 'relative',
+              background: '#1f2937',
+              border: '2px solid #FFD700',
+              boxShadow: '0 0 40px rgba(255, 215, 0, 0.3)',
+              padding: isPortrait ? '1.25rem' : '1.5rem'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: 0,
+              marginBottom: '1rem',
+              fontSize: isPortrait ? '1.125rem' : '1.25rem',
+              fontWeight: '700',
+              color: '#FFFFFF',
+              textAlign: 'center'
+            }}>
+              Share Contest Update
+            </h3>
+
+            {/* Preview */}
+            <div style={{
+              background: 'rgba(31, 41, 55, 0.8)',
+              border: '1px solid rgba(75, 85, 99, 0.5)',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              maxHeight: '200px',
+              overflowY: 'auto',
+              fontSize: '0.875rem',
+              color: '#E5E7EB',
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'monospace'
+            }}>
+              {shareMessage}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{
+              display: 'grid',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={postToTheRoof}
+                style={{
+                  width: '100%',
+                  padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
+                  fontSize: isPortrait ? '1rem' : '0.9375rem',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <MessageSquare style={{ width: '1.125rem', height: '1.125rem' }} />
+                Post to The Roof
+              </button>
+
+              {navigator.share && (
+                <button
+                  onClick={handleNativeShare}
+                  style={{
+                    width: '100%',
+                    padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
+                    fontSize: isPortrait ? '1rem' : '0.9375rem',
+                    fontWeight: '600',
+                    borderRadius: '0.5rem',
+                    border: '1px solid rgba(59, 130, 246, 0.5)',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    color: '#60a5fa',
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  <Share2 style={{ width: '1.125rem', height: '1.125rem' }} />
+                  Share Externally
+                </button>
+              )}
+
+              <button
+                onClick={copyToClipboard}
+                style={{
+                  width: '100%',
+                  padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
+                  fontSize: isPortrait ? '1rem' : '0.9375rem',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(107, 114, 128, 0.5)',
+                  background: 'rgba(107, 114, 128, 0.1)',
+                  color: '#9CA3AF',
+                  cursor: 'pointer',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <Copy style={{ width: '1.125rem', height: '1.125rem' }} />
+                Copy to Clipboard
+              </button>
+
+              <button
+                onClick={() => setShowShareModal(false)}
+                style={{
+                  width: '100%',
+                  padding: isPortrait ? '0.875rem 1rem' : '0.75rem 1rem',
+                  fontSize: isPortrait ? '1rem' : '0.9375rem',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(75, 85, 99, 0.5)',
+                  background: 'transparent',
+                  color: '#9CA3AF',
+                  cursor: 'pointer',
+                  minHeight: '44px'
+                }}
+              >
+                Cancel
               </button>
             </div>
           </div>

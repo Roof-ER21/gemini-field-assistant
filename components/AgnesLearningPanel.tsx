@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Headphones, Play, Sparkles, Users, History, ChevronDown, ChevronUp, Calendar, Clock, Award, Target } from 'lucide-react';
+import { Headphones, Play, Sparkles, Users, History, ChevronDown, ChevronUp, Calendar, Clock, Award, Target, Share2 } from 'lucide-react';
 import PitchTrainer from '../agnes21/components/PitchTrainer';
 import { PitchMode, DifficultyLevel, SessionConfig } from '../agnes21/types';
 import { getScriptsByDivision, getScriptById, PhoneScript } from '../agnes21/utils/phoneScripts';
 import { AgnesAuthProvider, useAuth } from '../agnes21/contexts/AuthContext';
 import { getSessions, getSessionStats, SessionData } from '../agnes21/utils/sessionStorage';
+import { roofService } from '../services/roofService';
 
 // Interface for admin-created scripts
 interface AdminScript {
@@ -54,6 +55,8 @@ const AgnesLearningContent: React.FC = () => {
   const [activeConfig, setActiveConfig] = useState<SessionConfig | null>(null);
   const [showMySessionsModal, setShowMySessionsModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionData | null>(null);
+  const [sharingSessionId, setSharingSessionId] = useState<string | null>(null);
+  const [shareSuccess, setShareSuccess] = useState<string | null>(null);
   const missingClientKey = !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_GOOGLE_AI_API_KEY;
 
   // Find script by ID - check both built-in and admin scripts
@@ -192,6 +195,52 @@ const AgnesLearningContent: React.FC = () => {
       case PitchMode.COACH: return 'Feedback';
       case PitchMode.JUST_LISTEN: return 'Just Listen';
       default: return 'Unknown';
+    }
+  };
+
+  const handleShareToTeam = async (session: SessionData) => {
+    if (!user) return;
+
+    setSharingSessionId(session.sessionId);
+    setShareSuccess(null);
+
+    try {
+      // Create summary from transcript
+      const transcriptSummary = session.transcript && session.transcript.length > 0
+        ? session.transcript
+            .slice(-3) // Last 3 messages
+            .map(msg => `${msg.role === 'agnes' ? 'Agnes' : 'You'}: ${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}`)
+            .join('\n')
+        : 'No transcript available';
+
+      // Create post content
+      const postContent = `📊 Agnes Training Session Complete!
+
+**Score:** ${session.finalScore || 'N/A'}/100
+**Mode:** ${getModeLabel(session.mode)}
+**Difficulty:** ${session.difficulty}
+**Duration:** ${formatDuration(session.duration)}
+**Date:** ${formatDate(new Date(session.timestamp))}
+
+**Key Highlights:**
+${transcriptSummary}
+
+Keep grinding! 🔥`;
+
+      // Post to The Roof feed
+      const post = await roofService.createPost(postContent, 'text');
+
+      if (post) {
+        setShareSuccess(session.sessionId);
+        setTimeout(() => setShareSuccess(null), 3000);
+      } else {
+        throw new Error('Failed to create post');
+      }
+    } catch (error) {
+      console.error('Error sharing session to team:', error);
+      alert('Failed to share session to team. Please try again.');
+    } finally {
+      setSharingSessionId(null);
     }
   };
 
@@ -631,8 +680,45 @@ const AgnesLearningContent: React.FC = () => {
                                 border: '1px solid var(--border-subtle)'
                               }}
                             >
-                              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)', marginBottom: '0.75rem' }}>
-                                Session Transcript
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)' }}>
+                                  Session Transcript
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareToTeam(session);
+                                  }}
+                                  disabled={sharingSessionId === session.sessionId}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0.4rem 0.75rem',
+                                    borderRadius: '999px',
+                                    background: shareSuccess === session.sessionId
+                                      ? 'rgba(16,185,129,0.15)'
+                                      : 'rgba(59,130,246,0.15)',
+                                    border: shareSuccess === session.sessionId
+                                      ? '1px solid rgba(16,185,129,0.4)'
+                                      : '1px solid rgba(59,130,246,0.4)',
+                                    color: shareSuccess === session.sessionId
+                                      ? '#10b981'
+                                      : '#60a5fa',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    cursor: sharingSessionId === session.sessionId ? 'not-allowed' : 'pointer',
+                                    opacity: sharingSessionId === session.sessionId ? 0.6 : 1,
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                  {sharingSessionId === session.sessionId
+                                    ? 'Sharing...'
+                                    : shareSuccess === session.sessionId
+                                    ? 'Shared!'
+                                    : 'Share to Team'}
+                                </button>
                               </div>
                               {session.transcript && session.transcript.length > 0 ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
