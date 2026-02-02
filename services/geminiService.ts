@@ -124,7 +124,7 @@ export function connectTranscriptionStream(callbacks: {
 }): Promise<Session> {
   const client = ensureGemini();
   return client.live.connect({
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     callbacks,
     config: {
       inputAudioTranscription: {},
@@ -141,7 +141,7 @@ export function connectLiveConversation(callbacks: {
 }): Promise<Session> {
   const client = ensureGemini();
   return client.live.connect({
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     callbacks,
     config: {
       responseModalities: [Modality.AUDIO],

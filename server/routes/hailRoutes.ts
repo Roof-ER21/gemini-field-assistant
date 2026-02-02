@@ -59,12 +59,23 @@ const geocodeForHailSearch = async (params: { address?: string; city?: string; s
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
   const ihmConfigured = hailMapsService.isConfigured();
+  const hasIhmKey = !!process.env.IHM_API_KEY;
+  const hasIhmSecret = !!process.env.IHM_API_SECRET;
+
+  console.log(`[Hail Status] IHM_API_KEY present: ${hasIhmKey}, IHM_API_SECRET present: ${hasIhmSecret}`);
+
   res.json({
     ihmConfigured,
     noaaAvailable: true,
+    debug: {
+      hasIhmKey,
+      hasIhmSecret,
+      ihmKeyLength: process.env.IHM_API_KEY?.length || 0,
+      ihmSecretLength: process.env.IHM_API_SECRET?.length || 0
+    },
     message: ihmConfigured
       ? 'IHM and NOAA data available'
-      : 'NOAA data available (IHM not configured)',
+      : `NOAA data available (IHM: key=${hasIhmKey}, secret=${hasIhmSecret})`,
     provider: ihmConfigured ? 'Interactive Hail Maps + NOAA' : 'NOAA Storm Events Database'
   });
 });

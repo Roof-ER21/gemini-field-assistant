@@ -1,0 +1,298 @@
+================================================================================
+iOS SAFE AREA IMPLEMENTATION - VISUAL GUIDE
+================================================================================
+
+IPHONE WITH NOTCH (e.g., iPhone 15 Pro)
+================================================================================
+
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃                                               ┃  ← Top Safe Area
+  ┃        ╔═══════════╗                          ┃    (Dynamic Island/Notch)
+  ┃        ║  CAMERA  ║   Status Bar              ┃    env(safe-area-inset-top)
+  ┃        ╚═══════════╝                          ┃    ~47px on iPhone 15 Pro
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [☰]  🏠 ROOFER S21       Home      [👤] [⚙] ┃  ← Header with safe padding
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃    padding-top: calc(12px + env(...))
+  ┃                                               ┃
+  ┃                                               ┃
+  ┃            CONTENT AREA                       ┃  ← Main scrollable content
+  ┃                                               ┃    No safe area needed
+  ┃                                               ┃    (freely scrolls)
+  ┃                                               ┃
+  ┃                                               ┃
+  ┃                                               ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [📎] Type a message...         [📷] [▶️]    ┃  ← Input area with safe padding
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃    padding-bottom: calc(16px + env(...))
+  ┃                                               ┃  ← Bottom Safe Area
+  ┃               Home Indicator                  ┃    env(safe-area-inset-bottom)
+  ┃               ━━━━━━━━━━━                     ┃    ~34px on iPhone 15 Pro
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+                    [+ Quick Actions]  ← Floating button
+                                         bottom: calc(24px + env(...))
+                                         right: calc(24px + env(...))
+
+
+================================================================================
+IPHONE WITH HOME BUTTON (e.g., iPhone SE 3rd gen)
+================================================================================
+
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃   🔋 📶                              3:45 PM  ┃  ← Status bar (no notch)
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃    env(safe-area-inset-top) = 20px
+  ┃  [☰]  🏠 ROOFER S21       Home      [👤] [⚙] ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃                                               ┃
+  ┃            CONTENT AREA                       ┃
+  ┃                                               ┃
+  ┃                                               ┃
+  ┃                                               ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [📎] Type a message...         [📷] [▶️]    ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃               ( Home Button )                 ┃  ← No bottom safe area needed
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛    env(safe-area-inset-bottom) = 0px
+
+
+================================================================================
+IPAD (Portrait and Landscape)
+================================================================================
+
+PORTRAIT:
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃   🔋 📶                                         3:45 PM       ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [☰]  🏠 ROOFER S21                Home      [👤] [⚙] [📜]  ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃                                                               ┃
+  ┃                     CONTENT AREA                              ┃
+  ┃                    (More screen space)                        ┃
+  ┃                                                               ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [📎] Type a message...                     [📷] [▶️]        ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+LANDSCAPE:
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃   🔋 📶                                                                   3:45 PM   ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃ [☰] 🏠 ROOFER S21                              Home               [👤] [⚙] [📜]   ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃                                                                                     ┃
+  ┃                            CONTENT AREA (Wide layout)                              ┃
+  ┃                                                                                     ┃
+  ┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+  ┃  [📎] Type a message...                                           [📷] [▶️]        ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+
+================================================================================
+SAFE AREA INSET VALUES BY DEVICE
+================================================================================
+
+Device                  | Top    | Bottom | Left | Right | Notes
+------------------------|--------|--------|------|-------|---------------------
+iPhone 15 Pro          | 59px   | 34px   | 0px  | 0px   | Dynamic Island
+iPhone 15              | 47px   | 34px   | 0px  | 0px   | Standard notch
+iPhone 14 Pro          | 59px   | 34px   | 0px  | 0px   | Dynamic Island
+iPhone SE (3rd gen)    | 20px   | 0px    | 0px  | 0px   | Home button
+iPhone 13 Pro          | 47px   | 34px   | 0px  | 0px   | Standard notch
+iPad Pro 12.9"         | 24px   | 20px   | 0px  | 0px   | Varies by model
+iPad Air               | 20px   | 0px    | 0px  | 0px   | No notch
+
+Landscape orientation may swap left/right values with top/bottom on some devices.
+
+
+================================================================================
+CSS IMPLEMENTATION DETAILS
+================================================================================
+
+1. HEADER (Top Safe Area)
+   ────────────────────────
+   .roof-er-header {
+     padding-top: calc(12px + env(safe-area-inset-top, 0px));
+     padding-left: calc(20px + env(safe-area-inset-left, 0px));
+     padding-right: calc(20px + env(safe-area-inset-right, 0px));
+   }
+
+   Effect:
+   - iPhone 15 Pro: 12px + 59px = 71px top padding
+   - iPhone SE: 12px + 20px = 32px top padding
+   - Desktop: 12px + 0px = 12px (fallback)
+
+2. INPUT AREA (Bottom Safe Area)
+   ────────────────────────────────
+   .roof-er-input-area {
+     padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+     padding-left: calc(16px + env(safe-area-inset-left, 0px));
+     padding-right: calc(16px + env(safe-area-inset-right, 0px));
+   }
+
+   Effect:
+   - iPhone 15 Pro: 20px + 34px = 54px bottom padding
+   - iPhone SE: 20px + 0px = 20px bottom padding
+   - Prevents keyboard from hiding input
+
+3. FLOATING ACTION BUTTON (Bottom-Right Corner)
+   ──────────────────────────────────────────────
+   .roof-er-floating-quick-action {
+     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+     right: calc(24px + env(safe-area-inset-right, 0px));
+   }
+
+   Effect:
+   - iPhone 15 Pro: Bottom 58px, Right 24px
+   - iPhone SE: Bottom 24px, Right 24px
+   - Always above home indicator
+
+
+================================================================================
+TOUCH TARGET SIZING
+================================================================================
+
+                        Minimum Size (Apple Guidelines)
+                        ┌────────────┐
+                        │            │
+                        │   44x44pt  │  ← Minimum for all tappable elements
+                        │            │
+                        └────────────┘
+
+Our Implementation:
+  ┌────────────────────────────────────────────────────────────┐
+  │ Element Type                 │ Min Width │ Min Height      │
+  ├──────────────────────────────┼───────────┼─────────────────┤
+  │ All buttons                  │   44px    │    44px         │
+  │ Header action buttons        │   44px    │    44px         │
+  │ Mobile menu button           │   44px    │    44px         │
+  │ Input action buttons         │   48px    │    48px         │
+  │ Send button                  │  100px    │    50px         │
+  │ Quick command buttons        │   auto    │    44px         │
+  │ Navigation items             │   auto    │    48px         │
+  │ State selector buttons       │   48px    │    48px         │
+  └──────────────────────────────┴───────────┴─────────────────┘
+
+Visual Example:
+  Regular Button:        Send Button:           Icon Button:
+  ┌──────────────┐      ┌──────────────────┐    ┌──────┐
+  │              │      │                  │    │      │
+  │   Click Me   │ 44px │   Send Message   │ 50px│  📷  │ 44px
+  │              │      │                  │    │      │
+  └──────────────┘      └──────────────────┘    └──────┘
+       44px                   100px                44px
+
+
+================================================================================
+HORIZONTAL OVERFLOW PREVENTION
+================================================================================
+
+Problem: Using 100vw can cause horizontal scroll
+  ┌─────────────────────────────────────┐
+  │  ┌─────────────────────────────────┤│  ← Content extends beyond viewport
+  │  │     Content (100vw width)       ││     causing horizontal scroll
+  │  └─────────────────────────────────┤│
+  └─────────────────────────────────────┘
+      ↑                                 ↑
+   Viewport                         Scrollbar
+                                    (takes space)
+
+Solution: Use 100% instead
+  ┌─────────────────────────────────────┐
+  │  ┌──────────────────────────────────┐│
+  │  │     Content (100% width)         ││  ← Content fits perfectly
+  │  └──────────────────────────────────┘│
+  └─────────────────────────────────────┘
+
+Our CSS:
+  * {
+    max-width: 100%;        /* Override any 100vw */
+    box-sizing: border-box; /* Include padding in width */
+  }
+
+  html, body, #root {
+    overflow-x: hidden;     /* Prevent horizontal scroll */
+  }
+
+
+================================================================================
+TESTING SCENARIOS
+================================================================================
+
+1. NOTCH INTERFERENCE TEST
+   ─────────────────────────
+   ✓ Header content starts below notch
+   ✓ Logo is fully visible
+   ✓ Status icons don't overlap notch
+   ✓ All header buttons are tappable
+
+2. HOME INDICATOR TEST
+   ──────────────────────
+   ✓ Input field visible above home indicator
+   ✓ Send button tappable (not obscured)
+   ✓ Floating action button above indicator
+   ✓ Bottom sheet modals respect indicator
+
+3. KEYBOARD TEST
+   ───────────────
+   ✓ Input field scrolls into view
+   ✓ Send button remains visible
+   ✓ No content hidden behind keyboard
+   ✓ Safe area still respected with keyboard
+
+4. ORIENTATION TEST
+   ──────────────────
+   ✓ Portrait: All content visible
+   ✓ Landscape: Header adjusts properly
+   ✓ Landscape: Input area accessible
+   ✓ Safe areas update on rotation
+
+5. TOUCH TARGET TEST
+   ────────────────────
+   ✓ All buttons easy to tap
+   ✓ No accidental taps on adjacent buttons
+   ✓ Icon-only buttons are large enough
+   ✓ Text buttons have adequate padding
+
+
+================================================================================
+BEFORE vs AFTER
+================================================================================
+
+BEFORE (Issues):
+  ❌ Content hidden behind notch
+  ❌ Input obscured by home indicator
+  ❌ Horizontal scroll on mobile
+  ❌ Buttons too small to tap accurately
+  ❌ Inconsistent safe area handling
+
+AFTER (Fixed):
+  ✅ All content respects safe areas
+  ✅ No horizontal overflow
+  ✅ All touch targets ≥ 44x44px
+  ✅ Works on all iOS devices
+  ✅ App Store compliant
+
+
+================================================================================
+REFERENCE
+================================================================================
+
+Apple Documentation:
+  - Safe Area Layout Guide
+    https://developer.apple.com/documentation/uikit/uiview/2891102-safearealayoutguide
+
+  - Human Interface Guidelines - Layout
+    https://developer.apple.com/design/human-interface-guidelines/layout
+
+  - Supporting Safe Areas
+    https://webkit.org/blog/7929/designing-websites-for-iphone-x/
+
+CSS Standards:
+  - CSS Environment Variables (env)
+    https://drafts.csswg.org/css-env-1/
+
+  - viewport-fit descriptor
+    https://www.w3.org/TR/css-round-display-1/#viewport-fit-descriptor
+
+
+================================================================================

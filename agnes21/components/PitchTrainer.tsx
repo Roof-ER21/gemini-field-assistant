@@ -470,7 +470,7 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
 
         // 5. Connect to Gemini Live
         const sessionPromise = aiClientRef.current.live.connect({
-          model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+          model: 'gemini-2.5-flash-native-audio-preview-12-2025',
           callbacks: {
             onopen: () => {
               console.log('Gemini Live Session Opened');

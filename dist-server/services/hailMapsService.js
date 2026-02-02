@@ -8,8 +8,15 @@ class HailMapsService {
         this.apiKey = process.env.IHM_API_KEY || '';
         this.apiSecret = process.env.IHM_API_SECRET || '';
         this.baseUrl = process.env.IHM_BASE_URL || 'https://maps.interactivehailmaps.com';
+        // Debug logging
+        console.log(`[HailMaps] IHM_API_KEY set: ${!!this.apiKey} (length: ${this.apiKey.length})`);
+        console.log(`[HailMaps] IHM_API_SECRET set: ${!!this.apiSecret} (length: ${this.apiSecret.length})`);
+        console.log(`[HailMaps] IHM_BASE_URL: ${this.baseUrl}`);
         if (!this.apiKey || !this.apiSecret) {
             console.warn('⚠️ IHM_API_KEY or IHM_API_SECRET not configured');
+        }
+        else {
+            console.log('✅ IHM credentials configured');
         }
     }
     isConfigured() {
@@ -21,19 +28,30 @@ class HailMapsService {
     }
     async request(path, init) {
         const url = `${this.baseUrl}${path}`;
-        const res = await fetch(url, {
-            ...init,
-            headers: {
-                Authorization: this.buildAuthHeader(),
-                Accept: 'application/json',
-                ...(init?.headers || {})
+        console.log(`[HailMaps] Requesting: ${init?.method || 'GET'} ${url}`);
+        try {
+            const res = await fetch(url, {
+                ...init,
+                headers: {
+                    Authorization: this.buildAuthHeader(),
+                    Accept: 'application/json',
+                    ...(init?.headers || {})
+                }
+            });
+            console.log(`[HailMaps] Response status: ${res.status}`);
+            if (!res.ok) {
+                const body = await res.text();
+                console.error(`[HailMaps] API error: ${res.status} - ${body || res.statusText}`);
+                throw new Error(`IHM API error ${res.status}: ${body || res.statusText}`);
             }
-        });
-        if (!res.ok) {
-            const body = await res.text();
-            throw new Error(`IHM API error ${res.status}: ${body || res.statusText}`);
+            const data = await res.json();
+            console.log(`[HailMaps] Response received successfully`);
+            return data;
         }
-        return res.json();
+        catch (error) {
+            console.error(`[HailMaps] Request failed:`, error);
+            throw error;
+        }
     }
     normalizeEvents(payload, defaultCoords) {
         // IHM returns ImpactDates array
