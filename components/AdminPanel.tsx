@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getSessions, getSessionStats, type SessionData } from '../agnes21/utils/sessionStorage';
 import {
   Users,
   MessageSquare,
@@ -148,7 +149,7 @@ interface UnmappedSalesRep {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -187,6 +188,10 @@ const AdminPanel: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+
+  // Agnes 21 training sessions state
+  const [agnesSessions, setAgnesSessions] = useState<SessionData[]>([]);
+  const [agnesStats, setAgnesStats] = useState<any>(null);
 
   // System settings state
   const [systemSettings, setSystemSettings] = useState<Record<string, any>>({});
@@ -287,6 +292,25 @@ const AdminPanel: React.FC = () => {
       fetchBonusTiers();
     }
   }, [activeTab, isAdmin]);
+
+  // Load Agnes 21 training sessions when agnes tab is active
+  useEffect(() => {
+    if (activeTab === 'agnes' && isAdmin) {
+      loadAgnesSessions();
+    }
+  }, [activeTab, isAdmin]);
+
+  // Load Agnes sessions from localStorage
+  const loadAgnesSessions = () => {
+    try {
+      const sessions = getSessions();
+      const stats = getSessionStats();
+      setAgnesSessions(sessions);
+      setAgnesStats(stats);
+    } catch (error) {
+      console.error('Failed to load Agnes sessions:', error);
+    }
+  };
 
   // Fetch all system settings
   const fetchSystemSettings = async () => {
@@ -1560,6 +1584,27 @@ const AdminPanel: React.FC = () => {
         >
           <Sliders style={{ width: '1.125rem', height: '1.125rem' }} />
           Settings
+        </button>
+
+        <button
+          onClick={() => setActiveTab('agnes')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'agnes' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Bot style={{ width: '1.125rem', height: '1.125rem' }} />
+          Agnes Training
         </button>
       </div>
 
@@ -4210,6 +4255,245 @@ const AdminPanel: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Agnes 21 Training Sessions Tab */}
+        {activeTab === 'agnes' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
+            {/* Header with Stats */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              padding: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                <Bot style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
+                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                  Agnes 21 Learning Sessions
+                </h2>
+              </div>
+              <p style={{ margin: '0 0 1.5rem 0', color: '#a1a1aa', fontSize: '0.875rem' }}>
+                View all roleplay training sessions from Agnes 21 Learning mode.
+              </p>
+
+              {/* Stats Summary */}
+              {agnesStats && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  marginTop: '1rem'
+                }}>
+                  <div style={{
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    padding: '1rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                      Total Sessions
+                    </div>
+                    <div style={{ fontSize: '1.5rem', color: '#ffffff', fontWeight: '600' }}>
+                      {agnesStats.totalSessions}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    padding: '1rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                      Average Score
+                    </div>
+                    <div style={{ fontSize: '1.5rem', color: '#4ade80', fontWeight: '600' }}>
+                      {agnesStats.averageScore}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#171717',
+                    border: '1px solid #262626',
+                    borderRadius: '8px',
+                    padding: '1rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                      Best Score
+                    </div>
+                    <div style={{ fontSize: '1.5rem', color: '#fbbf24', fontWeight: '600' }}>
+                      {agnesStats.bestScore}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sessions by Difficulty */}
+            {agnesStats && (
+              <div style={{
+                background: '#0a0a0a',
+                borderRadius: '12px',
+                border: '1px solid #262626',
+                padding: '1.5rem'
+              }}>
+                <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  Sessions by Difficulty
+                </h3>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: '0.75rem'
+                }}>
+                  {Object.entries(agnesStats.sessionsPerDifficulty || {}).map(([difficulty, count]) => (
+                    <div
+                      key={difficulty}
+                      style={{
+                        background: '#171717',
+                        border: '1px solid #262626',
+                        borderRadius: '6px',
+                        padding: '0.75rem',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                        {difficulty}
+                      </div>
+                      <div style={{ fontSize: '1.25rem', color: '#ffffff', fontWeight: '600' }}>
+                        {count as number}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sessions List */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: '1.5rem',
+                borderBottom: '1px solid #262626'
+              }}>
+                <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  Recent Sessions ({agnesSessions.length})
+                </h3>
+              </div>
+
+              {agnesSessions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+                  No training sessions found. Complete a session in Agnes 21 Learning to see data here.
+                </div>
+              ) : (
+                <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                  {agnesSessions.slice().reverse().map((session, index) => (
+                    <div
+                      key={session.sessionId}
+                      style={{
+                        padding: '1.5rem',
+                        borderBottom: index < agnesSessions.length - 1 ? '1px solid #262626' : 'none',
+                        background: index % 2 === 0 ? '#0a0a0a' : '#171717'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <span style={{ color: '#ffffff', fontWeight: '500' }}>
+                              {session.mode === 'ROLEPLAY' ? 'Roleplay' : 'Coach'} Mode
+                            </span>
+                            <span style={{
+                              padding: '2px 8px',
+                              background: session.difficulty === 'BEGINNER' ? '#166534' :
+                                         session.difficulty === 'ROOKIE' ? '#1e40af' :
+                                         session.difficulty === 'PRO' ? '#7c2d12' :
+                                         session.difficulty === 'ELITE' ? '#581c87' : '#7f1d1d',
+                              color: '#ffffff',
+                              fontSize: '0.75rem',
+                              borderRadius: '4px',
+                              fontWeight: '500'
+                            }}>
+                              {session.difficulty}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                            {new Date(session.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right' }}>
+                          {session.finalScore !== undefined && (
+                            <div style={{
+                              fontSize: '1.5rem',
+                              fontWeight: '600',
+                              color: session.finalScore >= 90 ? '#4ade80' :
+                                     session.finalScore >= 70 ? '#fbbf24' : '#ef4444'
+                            }}>
+                              {session.finalScore}
+                            </div>
+                          )}
+                          {session.duration && (
+                            <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                              {Math.floor(session.duration / 60)}m {session.duration % 60}s
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Script Info */}
+                      {session.scriptName && (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.75rem',
+                          background: '#0a0a0a',
+                          border: '1px solid #262626',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          color: '#e0e0e0'
+                        }}>
+                          <span style={{ color: '#a1a1aa' }}>Script:</span> {session.scriptName}
+                          {session.isMiniModule && (
+                            <span style={{
+                              marginLeft: '0.5rem',
+                              padding: '2px 6px',
+                              background: '#dc2626',
+                              color: '#ffffff',
+                              fontSize: '0.7rem',
+                              borderRadius: '4px'
+                            }}>
+                              Mini Module
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* XP Earned */}
+                      {session.xpEarned && (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#fbbf24' }}>
+                          +{session.xpEarned} XP earned
+                        </div>
+                      )}
+
+                      {/* Transcript Preview */}
+                      {session.transcript && session.transcript.length > 0 && (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          fontSize: '0.75rem',
+                          color: '#a1a1aa'
+                        }}>
+                          {session.transcript.length} message{session.transcript.length !== 1 ? 's' : ''} exchanged
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

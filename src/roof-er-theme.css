@@ -448,7 +448,6 @@ html, body {
   box-sizing: border-box;
   position: relative;
   z-index: 1;
-  height: 100%;
 }
 
 /* Chat-specific: content at bottom - ONLY for chat messages container */

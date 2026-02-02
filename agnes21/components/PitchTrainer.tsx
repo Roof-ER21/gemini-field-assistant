@@ -647,10 +647,34 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
                   scoreAccumulatorRef.current += detectionDelta;
                   const accumulated = scoreAccumulatorRef.current;
 
+                  // CRITICAL: Filter out AI reasoning/thinking text that appears before actual feedback
+                  const reasoningPatterns = [
+                    /I am preparing/i,
+                    /almost ready to be delivered/i,
+                    /I'm currently/i,
+                    /I am also/i,
+                    /following the specified format/i,
+                    /I'm assessing/i,
+                    /I'm calculating/i,
+                    /I will now/i,
+                    /I'm ready to/i,
+                    /let me provide/i,
+                    /I'll provide/i,
+                    /preparing to list/i,
+                    /I'm about to/i,
+                    /getting ready to/i
+                  ];
+                  const containsReasoning = reasoningPatterns.some(p => p.test(accumulated));
+
+                  // Debug: Log if reasoning detected to help troubleshoot
+                  if (containsReasoning && accumulated.length > 100) {
+                    console.log('⏸️ Reasoning text detected, waiting for actual feedback delivery...');
+                  }
+
                   // Check if we have a complete score
                   // Must have: score pattern, sufficient length, AND completion indicators
                   const hasScore = scorePatterns.some(p => p.test(accumulated));
-                  const hasEnoughContent = accumulated.length > 800; // Increased for thorough feedback
+                  const hasEnoughContent = accumulated.length > 1000; // Increased to ensure full feedback, not just reasoning
 
                   // Look for completion phrases that indicate the feedback is done
                   const completionPhrases = [
@@ -671,15 +695,37 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
                   ];
                   const hasCompletionPhrase = completionPhrases.some(p => p.test(accumulated));
 
-                  // Complete when: has score AND (has enough content OR has completion phrase with good length)
-                  // Increased thresholds to ensure complete feedback before showing modal
-                  const isComplete = hasScore && (
-                    hasEnoughContent ||
-                    (accumulated.length > 500 && hasCompletionPhrase) ||
-                    (isTurnComplete && accumulated.length > 400) // Increased from 120 to prevent premature completion
+                  // Check for actual feedback structure (not just reasoning)
+                  // Must contain AGNES SCORE + actual feedback sections (strengths, areas, etc.)
+                  const hasAgnesScoreLabel = /AGNES\s*SCORE:?\s*\d+/i.test(accumulated);
+                  const hasFeedbackSections = (
+                    accumulated.toLowerCase().includes('strength') ||
+                    accumulated.toLowerCase().includes('area') ||
+                    accumulated.toLowerCase().includes('improvement') ||
+                    accumulated.toLowerCase().includes('positive') ||
+                    accumulated.toLowerCase().includes('highlight')
+                  );
+
+                  // STRICT completion requirements to avoid cutting off mid-delivery:
+                  // 1. Must have AGNES SCORE label (not just generic "score: X")
+                  // 2. Must have actual feedback content (strengths/areas/etc)
+                  // 3. Must NOT contain reasoning phrases only
+                  // 4. Must have completion phrase AFTER the score
+                  // 5. Must meet minimum content length OR have turn completion with good length
+                  const isComplete = hasAgnesScoreLabel && hasFeedbackSections && !containsReasoning && (
+                    (hasEnoughContent && hasCompletionPhrase) ||
+                    (isTurnComplete && accumulated.length > 800 && hasCompletionPhrase)
                   );
 
                   if (isComplete) {
+                    console.log('✅ Complete score feedback detected:', {
+                      hasAgnesScoreLabel,
+                      hasFeedbackSections,
+                      hasCompletionPhrase,
+                      contentLength: accumulated.length,
+                      reasoningDetected: containsReasoning
+                    });
+
                     // Hide loading modal
                     setShowScoreLoadingModal(false);
 
