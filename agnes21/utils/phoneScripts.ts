@@ -15,6 +15,79 @@ export interface PhoneScript {
 
 export const PHONE_SCRIPTS: PhoneScript[] = [
   {
+    id: 'initial-pitch',
+    title: 'Initial Pitch',
+    category: 'door-to-door',
+    division: 'insurance',
+    description: 'Primary door-to-door pitch covering the 5 non‑negotiables',
+    content: `Initial Pitch
+
+5 Non-negotiables with every pitch
+• Who you are
+• Who we are and what we do (Roof ER)
+• Make it relatable
+• What you’re there to do (an inspection)
+• Go for the close (them agreeing to the inspection)
+
+Knock on door/ring doorbell 
+As they are opening the door, smile and wave. 
+• "Hi, how are you? My Name is ________ with Roof- ER we’re a local roofing company that specializes in helping homeowners get their roof and/or siding replaced, paid for by their insurance!"
+
+• Generic
+• "We’ve had a lot of storms here in Northern Virginia/Maryland over the past few months that have done a lot of damage! 
+• "We’re working with a lot of your neighbors in the area. We’ve been able to help them get fully approved through their insurance company to have their roof (and/or siding) replaced."
+• OR
+• Specific
+• "Were you home for the storm we had in ___. Wait for answer
+• If yes "It was pretty crazy right?! Wait for answer 
+• If no: "Oh no worries at all, we get that all the time.
+• If yes move on to next line
+• "We’re working with a lot of your neighbors in the area. We’ve been able to help them get fully approved through their insurance company to have their roof (and/or siding) replaced."
+
+• "While I’m here, in the neighborhood, I am conducting a completely free inspection to see if you have similar, qualifiable damage. If you do, I’ll take a bunch of photos and walk you through the rest of the process. If you don’t, I wouldn’t want to waste your time, I wouldn’t want to waste mine! I will at least leave giving you peace of mind that you’re in good shape."
+• Once they agree to let you do the inspection:, "Alright! It will take me about 10 - 15 minutes. I’m gonna take a look around the perimeter of your home, then grab the ladder, and take a look at your roof.
+• Go in for a handshake. What was your name again? [Their name] great to meet you, again I am (your name). Oh and by the way do you know who your insurance company is"? Wait for their answer, "Great! We work with those guys all the time."
+• "I will give you a knock when I finish up and show you what I’ve found."`
+  },
+  {
+    id: 'post-inspection-pitch',
+    title: 'Post-Inspection Pitch',
+    category: 'door-to-door',
+    division: 'insurance',
+    description: 'Follow-up pitch after completing the roof inspection',
+    content: `Post-Inspection Pitch
+
+• Knock on the door 
+
+• "Hey _______, so I have a bunch of photos to show you. First I walked around the INTEGRITY
+
+• Start showing the pictures of damage to screens, gutters, downspouts, and soft metals
+
+• "While this damage functionally isn’t a big deal, it really helps build a story. Think of us like lawyers and this collateral damage is the evidence that builds the case which helps us get the roof and/or siding approved."
+• QUALITY
+
+• "Here are the photos of the damage to your shingles. Anything I have circled means its hail damage (IF there were any wind damaged shingles or missing shingles say:) and anything I have slashed means its wind damage. 
+
+• Remain on a photo of hail damage as you explain the following
+
+• "This is exactly what we look for when we're looking for hail damage. If you notice, the divot is circular in nature. Even if this damage doesn’t look like a big deal, what happens over time, these hail divots fill with water, freeze…., when water freezes it expands and breaks apart the shingle which will eventually lead to leaks. That is why your insurance company is responsible and your policy covers this type of damage." 
+
+• Start slowly swiping through all the pictures of hail. 
+SIMPLICITY
+• "As you can see there is quite a bit of damage. 
+
+• Start slowly swiping through all the pictures of hail. 
+
+• If there was wind damage or missing shingles, say the following:
+• "Now here are the wind damaged shingles. You have both shingles that are creased from the wind lifting them up and shingles that have completely been blown off."
+
+• Show the pictures of wind damaged and/or missing shingles (if applicable)
+
+• "This is very similar to damage to ________ home and/or the rest of the approvals we’ve gotten in the area". 
+
+• "With that being said, insurance companies are always looking for ways to mitigate their losses. It’s unfortunate but that’s how they make money. The most important part of this process is that when your insurance company comes out to run their inspection, we are here as storm experts to make sure you as a homeowner get a fair shake. If they are missing anything we make sure they see all the damage that I just showed you."`
+  },
+  {
     id: 'full-approval-estimate',
     title: 'Full Approval Estimate Phone Call',
     category: 'estimate',

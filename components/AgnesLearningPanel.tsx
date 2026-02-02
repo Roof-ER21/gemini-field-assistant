@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Headphones, Play, Sparkles, Users } from 'lucide-react';
 import PitchTrainer from '../agnes21/components/PitchTrainer';
 import { PitchMode, DifficultyLevel, SessionConfig } from '../agnes21/types';
-import { getScriptsByDivision, getScriptById } from '../agnes21/utils/phoneScripts';
+import { getScriptsByDivision, getScriptById, PhoneScript } from '../agnes21/utils/phoneScripts';
 import { AgnesAuthProvider } from '../agnes21/contexts/AuthContext';
 
 const AgnesLearningPanel: React.FC = () => {
@@ -14,6 +14,7 @@ const AgnesLearningPanel: React.FC = () => {
   const [customScript, setCustomScript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [activeConfig, setActiveConfig] = useState<SessionConfig | null>(null);
+  const missingClientKey = !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_GOOGLE_AI_API_KEY;
 
   const selectedScript = useMemo(() => getScriptById(scriptId), [scriptId]);
   const scriptContent = useCustomScript ? customScript : (selectedScript?.content || '');
@@ -99,6 +100,12 @@ const AgnesLearningPanel: React.FC = () => {
             Mic + camera required for live coaching
           </div>
         </div>
+
+        {missingClientKey && (
+          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+            Missing client Gemini key. Add `VITE_GEMINI_API_KEY` (or `VITE_GOOGLE_AI_API_KEY`) in Railway, then redeploy.
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -193,7 +200,7 @@ const AgnesLearningPanel: React.FC = () => {
             {!useCustomScript && (
               <select
                 value={scriptId}
-                onChange={(e) => setScriptId(e.target.value)}
+                onChange={(e) => handleScriptChange(e.target.value)}
                 style={{
                   width: '100%',
                   background: 'rgba(10,10,10,0.6)',
@@ -204,11 +211,18 @@ const AgnesLearningPanel: React.FC = () => {
                   fontSize: '0.9rem'
                 }}
               >
-                {scripts.map(script => (
-                  <option key={script.id} value={script.id}>
-                    {script.title}
-                  </option>
+                {Object.entries(groupedScripts).map(([label, entries]) => (
+                  <optgroup key={label} label={label}>
+                    {entries.map(script => (
+                      <option key={script.id} value={script.id}>
+                        {script.title}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
+                <optgroup label="Custom">
+                  <option value="__custom__">Custom Script</option>
+                </optgroup>
               </select>
             )}
 
@@ -269,3 +283,27 @@ const AgnesLearningPanel: React.FC = () => {
 };
 
 export default AgnesLearningPanel;
+  const groupedScripts = useMemo(() => {
+    const groups: Record<string, PhoneScript[]> = {};
+    const labelFor = (category: PhoneScript['category']) => {
+      if (category === 'door-to-door' || category === 'authorization') return 'Door-to-Door';
+      if (category === 'estimate') return 'Estimate Calls';
+      if (category === 'pushback' || category === 'objection') return 'Insurance Pushback';
+      return 'Other';
+    };
+    scripts.forEach(script => {
+      const label = labelFor(script.category);
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(script);
+    });
+    return groups;
+  }, [scripts]);
+
+  const handleScriptChange = (value: string) => {
+    if (value === '__custom__') {
+      setUseCustomScript(true);
+      return;
+    }
+    setUseCustomScript(false);
+    setScriptId(value);
+  };

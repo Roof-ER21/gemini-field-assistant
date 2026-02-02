@@ -29,7 +29,7 @@ class GeminiEnglishTTS {
     if (this.isInitialized) return true;
 
     try {
-      const apiKey = env.GEMINI_API_KEY;
+      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
       if (!apiKey) {
         console.warn('Gemini API key not found');
         return false;
@@ -373,7 +373,7 @@ class GeminiMultiLanguageTTS {
     if (this.isInitialized) return true;
 
     try {
-      const apiKey = env.GEMINI_API_KEY;
+      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
       if (!apiKey) {
         console.warn('Gemini API key not found');
         return false;
@@ -1108,7 +1108,7 @@ export const speakWithDemoVoice = async (
 
     // Initialize client if needed
     if (!demoAiClient) {
-      const apiKey = env.GEMINI_API_KEY;
+      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
       if (!apiKey) {
         console.warn('Gemini API key not found for demo voice');
         onError?.('API key not found');

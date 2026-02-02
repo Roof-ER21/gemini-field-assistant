@@ -410,9 +410,9 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
         setIsConnected(false);
 
         // 1. Setup Client
-        const apiKey = env.GEMINI_API_KEY;
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
         if (!apiKey) {
-          throw new Error('Gemini API key not configured. Set GOOGLE_AI_API_KEY (or GEMINI_API_KEY) in Railway.');
+          throw new Error('Gemini API key not configured. Set VITE_GEMINI_API_KEY (or VITE_GOOGLE_AI_API_KEY) in Railway.');
         }
         aiClientRef.current = new GoogleGenAI({ apiKey });
         
