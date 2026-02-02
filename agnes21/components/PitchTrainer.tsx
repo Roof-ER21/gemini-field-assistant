@@ -1581,23 +1581,23 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
   };
 
   return (
-    <div className="relative h-screen w-full bg-black flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-3 sm:p-4 md:p-6 z-10 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent">
-        <div className="flex items-center space-x-3">
-           <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-red-600 animate-pulse' : 'bg-neutral-600'}`}></div>
-           <span className="font-mono font-bold text-white tracking-widest text-lg">AGNES 21 <span className="text-red-600">//</span> LIVE</span>
-           {isRecording && (
-             <div className="flex items-center space-x-2 px-3 py-1 bg-red-600/20 border border-red-600/50 rounded-full animate-pulse">
-               <Circle className="w-3 h-3 text-red-500 fill-red-500" />
-               <span className="text-xs font-mono font-bold text-red-500 uppercase tracking-wider">REC</span>
-             </div>
-           )}
-        </div>
-        
-        <div className="flex items-center space-x-4">
-           {/* Mode Badge */}
-           <div className="hidden md:flex items-center space-x-2 px-3 py-1 rounded bg-neutral-900/80 border border-neutral-800 backdrop-blur">
+    <div className="roof-er-content-area">
+      <div className="agnes-live-shell">
+        {/* Header */}
+        <div className="agnes-live-header">
+          <div className="flex items-center space-x-3">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-red-600 animate-pulse' : 'bg-neutral-600'}`}></div>
+            <span className="font-mono font-bold text-white tracking-widest text-lg">AGNES 21 <span className="text-red-600">//</span> LIVE</span>
+            {isRecording && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-red-600/20 border border-red-600/50 rounded-full animate-pulse">
+                <Circle className="w-3 h-3 text-red-500 fill-red-500" />
+                <span className="text-xs font-mono font-bold text-red-500 uppercase tracking-wider">REC</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-2 px-3 py-1 rounded bg-neutral-900/80 border border-neutral-800 backdrop-blur">
               {config.mode === PitchMode.COACH && <Mic className="w-4 h-4 text-blue-500" />}
               {config.mode === PitchMode.ROLEPLAY && <Users className="w-4 h-4 text-purple-500" />}
               {config.mode === PitchMode.JUST_LISTEN && <Headphones className="w-4 h-4 text-cyan-400" />}
@@ -1607,10 +1607,9 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               }`}>
                 {config.mode === PitchMode.JUST_LISTEN ? 'JUST LISTEN' : config.mode}
               </span>
-           </div>
+            </div>
 
-           {/* Gamification Badge */}
-           <div className="hidden md:flex items-center space-x-2 px-3 py-1 rounded bg-neutral-900/80 border border-neutral-800 backdrop-blur">
+            <div className="hidden md:flex items-center space-x-2 px-3 py-1 rounded bg-neutral-900/80 border border-neutral-800 backdrop-blur">
               {config.difficulty === DifficultyLevel.BEGINNER && <Sparkles className="w-4 h-4 text-cyan-500" />}
               {config.difficulty === DifficultyLevel.ROOKIE && <Shield className="w-4 h-4 text-green-500" />}
               {config.difficulty === DifficultyLevel.PRO && <Zap className="w-4 h-4 text-yellow-500" />}
@@ -1619,223 +1618,218 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               <span className={`font-mono text-xs font-bold ${getDifficultyColor()}`}>
                 LVL: {config.difficulty}
               </span>
-           </div>
-
-           {/* Streak Counter */}
-           <div className="hidden md:block">
-             <StreakCounter key={streakKey} showCalendar={true} />
-           </div>
-
-           {/* XP Bar */}
-           <div className="hidden md:block">
-             <XPBar userId={user?.id} compact={true} />
-           </div>
-
-           {/* Sound Toggle */}
-           <button
-             onClick={() => {
-               const newState = toggleSounds();
-               setSoundsOn(newState);
-             }}
-             className="p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full bg-neutral-900/50 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 transition-all duration-300 flex items-center justify-center"
-             title={soundsOn ? 'Mute celebration sounds' : 'Enable celebration sounds'}
-             aria-label={soundsOn ? 'Mute celebration sounds' : 'Enable celebration sounds'}
-           >
-             {soundsOn ? (
-               <Volume2 className="w-5 h-5 text-yellow-500" />
-             ) : (
-               <VolumeX className="w-5 h-5 text-neutral-500" />
-             )}
-           </button>
-
-           {/* Custom Voice Toggle (Chatterbox TTS) - Always visible with status */}
-           <button
-             onClick={() => {
-               if (ttsAvailable) {
-                 setUseCustomVoice(!useCustomVoice);
-               }
-             }}
-             className={`p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full transition-all duration-300 relative flex items-center justify-center ${
-               ttsAvailable === null
-                 ? 'bg-neutral-900/50 border border-neutral-800 text-neutral-600 cursor-wait'
-                 : !ttsAvailable
-                 ? 'bg-neutral-900/50 border border-neutral-800 text-neutral-600 cursor-not-allowed opacity-50'
-                 : useCustomVoice
-                 ? 'bg-purple-600/30 border border-purple-500 text-purple-400 hover:bg-purple-600/50'
-                 : 'bg-neutral-900/50 border border-neutral-800 text-neutral-500 hover:bg-neutral-800 hover:border-neutral-700 hover:text-white'
-             }`}
-             title={
-               ttsAvailable === null
-                 ? 'Checking custom voice availability...'
-                 : !ttsAvailable
-                 ? 'Custom voice unavailable (TTS backend not running)'
-                 : useCustomVoice
-                 ? 'Using Reeses Piecies custom voice (click for standard Gemini voice)'
-                 : 'Switch to Reeses Piecies custom voice'
-             }
-             aria-label={
-               ttsAvailable === null
-                 ? 'Checking custom voice availability'
-                 : !ttsAvailable
-                 ? 'Custom voice unavailable - TTS backend not running'
-                 : useCustomVoice
-                 ? 'Switch to standard Gemini voice'
-                 : 'Switch to Reeses Piecies custom voice'
-             }
-             disabled={!ttsAvailable}
-           >
-             <Wand2 className="w-5 h-5" />
-             {ttsAvailable === false && (
-               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-black"></div>
-             )}
-             {useCustomVoice && ttsAvailable && (
-               <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border border-black animate-pulse"></div>
-             )}
-           </button>
-
-           <button
-             onClick={handleEndSession}
-             className="group flex items-center space-x-2 px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500 hover:border-red-400 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-black"
-             aria-label={`End training session${isRecording ? ' and save recording' : ''}. Press Enter or click to confirm.`}
-           >
-             {isRecording && (
-               <Circle className="w-3 h-3 text-red-500 fill-red-500 animate-pulse group-hover:animate-none group-hover:text-white group-hover:fill-white" />
-             )}
-             <span className="text-sm font-mono font-bold text-red-500 group-hover:text-white uppercase tracking-wider">
-               End Session
-             </span>
-             <X className="w-4 h-4 text-red-500 group-hover:text-white" />
-           </button>
-
-           {/* Keyboard Hints Toggle */}
-           <button
-             onClick={() => setShowKeyboardHints(!showKeyboardHints)}
-             className="p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full bg-neutral-900/50 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white transition-all duration-300 flex items-center justify-center"
-             title="Show keyboard shortcuts (or press ?)"
-           >
-             <Keyboard className="w-5 h-5" />
-           </button>
-        </div>
-      </div>
-
-      {/* Main Visual Area */}
-      <div className="flex-1 flex flex-col items-center justify-center relative p-6">
-         
-         {/* Visualizers Container */}
-         <div className="w-full max-w-5xl grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center justify-items-center mb-6 sm:mb-10">
-             
-             {/* LEFT: USER */}
-             <div className="flex flex-col items-center space-y-6">
-                {/* Video Preview Frame */}
-                <div className="relative w-full max-w-md aspect-video bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 shadow-[0_0_40px_rgba(255,255,255,0.05)] group">
-                    <video 
-                    ref={videoRef} 
-                    muted 
-                    playsInline 
-                    className={`w-full h-full object-cover transform scale-x-[-1] transition-opacity duration-500 ${!isVideoEnabled ? 'opacity-0' : 'opacity-100'}`} 
-                    />
-                    {!isVideoEnabled && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 space-y-2">
-                        <VideoOff className="w-12 h-12" />
-                        <span className="text-xs tracking-widest uppercase">Camera Off</span>
-                    </div>
-                    )}
-                    <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md rounded text-xs font-medium text-white/80 border border-white/10 flex items-center space-x-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                    <span>YOUR FEED</span>
-                    </div>
-                    <canvas ref={canvasRef} className="hidden" />
-                </div>
-                <Waveform isActive={isSpeaking} color="bg-white" label="YOUR VOICE" />
-             </div>
-
-             {/* RIGHT: AGNES 21 AVATAR */}
-             <div className="flex flex-col items-center justify-center space-y-6">
-                 <AgnesAvatar
-                   isActive={aiSpeaking}
-                   isListening={!aiSpeaking && isConnected}
-                   analyser={analyserRef.current}
-                 />
-
-                 {/* Agnes State Indicator */}
-                 <AgnesStateIndicator state={agnesState} />
-             </div>
-         </div>
-
-         {/* Mic Level Meter - Positioned between user video and controls */}
-         <div className="absolute bottom-24 sm:bottom-32 left-2 sm:left-4 md:left-8 w-full max-w-[280px] sm:max-w-xs z-20">
-           <MicLevelMeter analyser={micAnalyserRef.current} isActive={!isMuted && isConnected} />
-         </div>
-         
-         {/* Transcript Overlay (LEFT) */}
-         <div className={`absolute bottom-20 sm:bottom-24 left-2 sm:left-4 md:left-8 w-full max-w-[calc(100vw-1rem)] sm:max-w-xs md:max-w-md transition-all duration-500 ease-in-out ${isTranscriptExpanded ? 'h-[65vh] opacity-100' : 'h-14 opacity-90'} bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-t-2xl overflow-hidden flex flex-col shadow-2xl z-30`}>
-            <button
-              onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
-              className="w-full p-4 flex items-center justify-between text-neutral-400 hover:text-white border-b border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800 transition-colors"
-            >
-               <div className="flex items-center space-x-2">
-                 <MessageSquare className="w-4 h-4 text-blue-500" />
-                 <span className="text-xs font-bold tracking-widest uppercase">Transcript</span>
-                 {transcript.length > 0 && (
-                   <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">{transcript.length}</span>
-                 )}
-               </div>
-               {isTranscriptExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-            </button>
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-hide">
-               {transcript.length === 0 ? (
-                 <div className="text-neutral-500 italic text-sm text-center mt-4">
-                   Conversation will appear here...
-                 </div>
-               ) : (
-                 transcript.map((msg, idx) => (
-                   <div key={idx} className={`p-3 rounded-lg ${msg.role === 'agnes' ? 'bg-red-900/20 border border-red-800/30' : 'bg-neutral-800/50 border border-neutral-700'}`}>
-                     <div className="flex items-center justify-between mb-1">
-                       <span className={`text-xs font-bold tracking-wider ${msg.role === 'agnes' ? 'text-red-400' : 'text-white'}`}>
-                         {msg.role === 'agnes' ? 'AGNES 21' : 'YOU'}
-                       </span>
-                       <span className="text-xs text-neutral-500">
-                         {msg.timestamp.toLocaleTimeString()}
-                       </span>
-                     </div>
-                     <div className="text-sm text-neutral-300 whitespace-pre-wrap">
-                       {msg.text}
-                     </div>
-                     {msg.score !== undefined && (
-                       <div className={`mt-2 px-2 py-1 rounded text-xs font-bold inline-block ${
-                         msg.score >= 80 ? 'bg-green-500/20 text-green-400' :
-                         msg.score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
-                         'bg-red-500/20 text-red-400'
-                       }`}>
-                         SCORE: {msg.score}/100
-                       </div>
-                     )}
-                   </div>
-                 ))
-               )}
             </div>
-         </div>
 
-         {/* Script Overlay (RIGHT) */}
-         <div className={`absolute bottom-20 sm:bottom-24 right-2 sm:right-4 md:right-8 w-full max-w-[calc(100vw-1rem)] sm:max-w-xs md:max-w-md transition-all duration-500 ease-in-out ${isScriptExpanded ? 'h-[65vh] opacity-100' : 'h-14 opacity-90'} bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-t-2xl overflow-hidden flex flex-col shadow-2xl z-30`}>
+            <div className="hidden md:block">
+              <StreakCounter key={streakKey} showCalendar={true} />
+            </div>
+
+            <div className="hidden md:block">
+              <XPBar userId={user?.id} compact={true} />
+            </div>
+
+            <button
+              onClick={() => {
+                const newState = toggleSounds();
+                setSoundsOn(newState);
+              }}
+              className="p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full bg-neutral-900/50 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 transition-all duration-300 flex items-center justify-center"
+              title={soundsOn ? 'Mute celebration sounds' : 'Enable celebration sounds'}
+              aria-label={soundsOn ? 'Mute celebration sounds' : 'Enable celebration sounds'}
+            >
+              {soundsOn ? (
+                <Volume2 className="w-5 h-5 text-yellow-500" />
+              ) : (
+                <VolumeX className="w-5 h-5 text-neutral-500" />
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                if (ttsAvailable) {
+                  setUseCustomVoice(!useCustomVoice);
+                }
+              }}
+              className={`p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full transition-all duration-300 relative flex items-center justify-center ${
+                ttsAvailable === null
+                  ? 'bg-neutral-900/50 border border-neutral-800 text-neutral-600 cursor-wait'
+                  : !ttsAvailable
+                  ? 'bg-neutral-900/50 border border-neutral-800 text-neutral-600 cursor-not-allowed opacity-50'
+                  : useCustomVoice
+                  ? 'bg-purple-600/30 border border-purple-500 text-purple-400 hover:bg-purple-600/50'
+                  : 'bg-neutral-900/50 border border-neutral-800 text-neutral-500 hover:bg-neutral-800 hover:border-neutral-700 hover:text-white'
+              }`}
+              title={
+                ttsAvailable === null
+                  ? 'Checking custom voice availability...'
+                  : !ttsAvailable
+                  ? 'Custom voice unavailable (TTS backend not running)'
+                  : useCustomVoice
+                  ? 'Using Reeses Piecies custom voice (click for standard Gemini voice)'
+                  : 'Switch to Reeses Piecies custom voice'
+              }
+              aria-label={
+                ttsAvailable === null
+                  ? 'Checking custom voice availability'
+                  : !ttsAvailable
+                  ? 'Custom voice unavailable - TTS backend not running'
+                  : useCustomVoice
+                  ? 'Switch to standard Gemini voice'
+                  : 'Switch to Reeses Piecies custom voice'
+              }
+              disabled={!ttsAvailable}
+            >
+              <Wand2 className="w-5 h-5" />
+              {ttsAvailable === false && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-black"></div>
+              )}
+              {useCustomVoice && ttsAvailable && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border border-black animate-pulse"></div>
+              )}
+            </button>
+
+            <button
+              onClick={handleEndSession}
+              className="group flex items-center space-x-2 px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500 hover:border-red-400 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-black"
+              aria-label={`End training session${isRecording ? ' and save recording' : ''}. Press Enter or click to confirm.`}
+            >
+              {isRecording && (
+                <Circle className="w-3 h-3 text-red-500 fill-red-500 animate-pulse group-hover:animate-none group-hover:text-white group-hover:fill-white" />
+              )}
+              <span className="text-sm font-mono font-bold text-red-500 group-hover:text-white uppercase tracking-wider">
+                End Session
+              </span>
+              <X className="w-4 h-4 text-red-500 group-hover:text-white" />
+            </button>
+
+            <button
+              onClick={() => setShowKeyboardHints(!showKeyboardHints)}
+              className="p-2.5 sm:p-2 min-w-[44px] min-h-[44px] rounded-full bg-neutral-900/50 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white transition-all duration-300 flex items-center justify-center"
+              title="Show keyboard shortcuts (or press ?)"
+            >
+              <Keyboard className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Grid */}
+        <div className="agnes-live-grid">
+          {/* Script Panel */}
+          <div className="agnes-panel">
             <button
               onClick={() => setIsScriptExpanded(!isScriptExpanded)}
-              className="w-full p-4 flex items-center justify-between text-neutral-400 hover:text-white border-b border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800 transition-colors"
+              className="agnes-panel-header"
             >
-               <div className="flex items-center space-x-2">
-                 <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                 <span className="text-xs font-bold tracking-widest uppercase">Script Assist</span>
-               </div>
-               {isScriptExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              <div className="flex items-center space-x-2">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                <span className="text-xs font-bold tracking-widest uppercase">Script Assist</span>
+              </div>
+              {isScriptExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
-            <div className="flex-1 p-6 overflow-y-auto text-neutral-300 leading-relaxed whitespace-pre-wrap font-sans text-base scrollbar-hide selection:bg-red-900/50 selection:text-white">
-               {config.script || <span className="text-neutral-500 italic">No script selected for this session.</span>}
-            </div>
-         </div>
-      </div>
+            {isScriptExpanded && (
+              <div className="agnes-panel-body agnes-script-body">
+                {config.script || <span className="text-neutral-500 italic">No script selected for this session.</span>}
+              </div>
+            )}
+          </div>
 
-      {/* Bottom Controls */}
-      <div className="h-20 sm:h-24 bg-black border-t border-neutral-900 flex items-center justify-center space-x-3 sm:space-x-6 z-20 pb-safe">
+          {/* Center Stage */}
+          <div className="agnes-live-center">
+            <div className="agnes-live-center-grid">
+              <div className="flex flex-col items-center space-y-6">
+                <div className="agnes-video-frame">
+                  <video
+                    ref={videoRef}
+                    muted
+                    playsInline
+                    className={`w-full h-full object-cover transform scale-x-[-1] transition-opacity duration-500 ${!isVideoEnabled ? 'opacity-0' : 'opacity-100'}`}
+                  />
+                  {!isVideoEnabled && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 space-y-2">
+                      <VideoOff className="w-12 h-12" />
+                      <span className="text-xs tracking-widest uppercase">Camera Off</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md rounded text-xs font-medium text-white/80 border border-white/10 flex items-center space-x-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                    <span>YOUR FEED</span>
+                  </div>
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <Waveform isActive={isSpeaking} color="bg-white" label="YOUR VOICE" />
+              </div>
+
+              <div className="flex flex-col items-center justify-center space-y-6">
+                <AgnesAvatar
+                  isActive={aiSpeaking}
+                  isListening={!aiSpeaking && isConnected}
+                  analyser={analyserRef.current}
+                />
+                <AgnesStateIndicator state={agnesState} />
+              </div>
+            </div>
+
+            <div className="agnes-live-meter">
+              <MicLevelMeter analyser={micAnalyserRef.current} isActive={!isMuted && isConnected} />
+            </div>
+          </div>
+
+          {/* Transcript Panel */}
+          <div className="agnes-panel">
+            <button
+              onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+              className="agnes-panel-header"
+            >
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-bold tracking-widest uppercase">Transcript</span>
+                {transcript.length > 0 && (
+                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">{transcript.length}</span>
+                )}
+              </div>
+              {isTranscriptExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
+            {isTranscriptExpanded && (
+              <div className="agnes-panel-body">
+                {transcript.length === 0 ? (
+                  <div className="text-neutral-500 italic text-sm text-center mt-4">
+                    Conversation will appear here...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {transcript.map((msg, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg ${msg.role === 'agnes' ? 'bg-red-900/20 border border-red-800/30' : 'bg-neutral-800/50 border border-neutral-700'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-bold tracking-wider ${msg.role === 'agnes' ? 'text-red-400' : 'text-white'}`}>
+                            {msg.role === 'agnes' ? 'AGNES 21' : 'YOU'}
+                          </span>
+                          <span className="text-xs text-neutral-500">
+                            {msg.timestamp.toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <div className="text-sm text-neutral-300 whitespace-pre-wrap">
+                          {msg.text}
+                        </div>
+                        {msg.score !== undefined && (
+                          <div className={`mt-2 px-2 py-1 rounded text-xs font-bold inline-block ${
+                            msg.score >= 80 ? 'bg-green-500/20 text-green-400' :
+                            msg.score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-red-500/20 text-red-400'
+                          }`}>
+                            SCORE: {msg.score}/100
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Controls */}
+        <div className="agnes-live-controls">
           {/* Voice Mode Toggle */}
           <div className="flex items-center bg-neutral-900/80 rounded-lg p-1 border border-neutral-700">
             <button
@@ -1932,8 +1926,9 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
                {currentScore !== null && `Agnes scored your performance: ${currentScore} out of 100`}
              </div>
           </div>
+        </div>
       </div>
-      
+
       {error && (
         <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-6 py-3 rounded-lg shadow-xl font-medium border border-red-500 flex items-center space-x-2 animate-bounce z-50">
           <X className="w-5 h-5" />

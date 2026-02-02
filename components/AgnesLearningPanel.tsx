@@ -7,7 +7,7 @@ import { AgnesAuthProvider } from '../agnes21/contexts/AuthContext';
 
 const AgnesLearningPanel: React.FC = () => {
   const scripts = useMemo(() => getScriptsByDivision('insurance'), []);
-  const [mode, setMode] = useState<PitchMode>(PitchMode.ROLEPLAY);
+  const [activeTrack, setActiveTrack] = useState<'roleplay' | 'feedback' | 'listen'>('roleplay');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>(DifficultyLevel.ROOKIE);
   const [scriptId, setScriptId] = useState<string>(scripts[0]?.id || '');
   const [useCustomScript, setUseCustomScript] = useState(false);
@@ -18,20 +18,30 @@ const AgnesLearningPanel: React.FC = () => {
   const selectedScript = useMemo(() => getScriptById(scriptId), [scriptId]);
   const scriptContent = useCustomScript ? customScript : (selectedScript?.content || '');
 
-  const modeOptions = [
+  const trackOptions = [
     {
-      value: PitchMode.ROLEPLAY,
-      label: 'Feedback Roleplay',
-      description: 'Agnes plays the homeowner and scores you at the end.',
+      key: 'roleplay' as const,
+      mode: PitchMode.ROLEPLAY,
+      label: 'Roleplay (Live Homeowner)',
+      description: 'Real homeowner simulation with objections and live reactions.',
       icon: Users
     },
     {
-      value: PitchMode.JUST_LISTEN,
-      label: 'Just Listen',
-      description: 'Friendly homeowner, no pushback, still scores you.',
+      key: 'feedback' as const,
+      mode: PitchMode.COACH,
+      label: 'Feedback (Coach Mode)',
+      description: 'Agnes coaches you, pauses, and corrects mid‑pitch.',
+      icon: Sparkles
+    },
+    {
+      key: 'listen' as const,
+      mode: PitchMode.JUST_LISTEN,
+      label: 'Just Listen (Agreeable)',
+      description: 'Friendly homeowner, no pushback, scores you at the end.',
       icon: Headphones
     }
   ];
+  const activeTrackConfig = trackOptions.find(track => track.key === activeTrack) ?? trackOptions[0];
 
   const difficultyOptions: { value: DifficultyLevel; label: string }[] = [
     { value: DifficultyLevel.BEGINNER, label: 'Beginner' },
@@ -48,7 +58,7 @@ const AgnesLearningPanel: React.FC = () => {
     }
 
     const config: SessionConfig = {
-      mode,
+      mode: activeTrackConfig.mode,
       difficulty,
       script: scriptContent,
       scriptId: useCustomScript ? undefined : selectedScript?.id,
@@ -94,16 +104,16 @@ const AgnesLearningPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-tertiary)', marginBottom: '0.9rem' }}>
-                Mode
+                Training Tracks
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-                {modeOptions.map((option) => {
+                {trackOptions.map((option) => {
                   const Icon = option.icon;
-                  const isSelected = mode === option.value;
+                  const isSelected = activeTrack === option.key;
                   return (
                     <button
-                      key={option.value}
-                      onClick={() => setMode(option.value)}
+                      key={option.key}
+                      onClick={() => setActiveTrack(option.key)}
                       style={{
                         textAlign: 'left',
                         padding: '0.9rem',
@@ -201,6 +211,10 @@ const AgnesLearningPanel: React.FC = () => {
                 ))}
               </select>
             )}
+
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+              Loaded {scripts.length} insurance scripts from Agnes 21.
+            </div>
 
             <textarea
               value={scriptContent}
