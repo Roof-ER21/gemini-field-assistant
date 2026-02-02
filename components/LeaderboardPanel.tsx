@@ -365,15 +365,22 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   };
 
   const filterSelectStyle: React.CSSProperties = {
+    width: '100%',
     padding: '12px 16px',
     background: '#111',
-    border: '1px solid #1a1a1a',
+    border: '1px solid #333',
     borderRadius: '8px',
-    color: '#fff',
+    color: '#ffffff',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
-    appearance: 'none'
+    WebkitAppearance: 'none',
+    MozAppearance: 'none',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 12px center',
+    paddingRight: '36px'
   };
 
   const periodLabel = selectedYear
@@ -718,20 +725,21 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                 width: '100%',
                 padding: '12px 16px',
                 background: '#111',
-                border: '1px solid #1a1a1a',
+                border: '1px solid #333',
                 borderRadius: '8px',
-                color: '#fff',
+                color: '#ffffff',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '8px'
+                gap: '8px',
+                textAlign: 'left'
               }}
             >
-              <span>Sort: {getSortLabel(sortBy)}</span>
-              <ChevronDown className="w-4 h-4" />
+              <span style={{ color: '#ffffff' }}>Sort: {getSortLabel(sortBy)}</span>
+              <ChevronDown className="w-4 h-4" style={{ color: '#ffffff' }} />
             </button>
 
             {showSortDropdown && (
