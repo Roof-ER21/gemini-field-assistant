@@ -450,9 +450,16 @@ html, body {
   z-index: 1;
 }
 
-/* Chat-specific: content at bottom - ONLY for chat messages container */
+/* Chat-specific: content at bottom - use flex-grow spacer instead of justify-content */
 .roof-er-content-scroll.chat-scroll {
-  justify-content: flex-end;
+  /* Don't use justify-content: flex-end - it breaks scrolling */
+  justify-content: flex-start;
+}
+
+/* Spacer to push chat messages to bottom when content is small */
+.chat-scroll-spacer {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .roof-er-content-scroll * {

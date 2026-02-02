@@ -1775,6 +1775,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
           </div>
         ) : (
           <div className="roof-er-message-container">
+            {/* Spacer to push messages to bottom when content is small */}
+            <div className="chat-scroll-spacer" />
+
             {/* Susan Learning Panel */}
             <div
               style={{
