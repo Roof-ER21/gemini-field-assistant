@@ -2582,8 +2582,8 @@ app.post('/api/auth/direct-login', async (req, res) => {
       // New user - create account
       const newUserId = uuidv4();
       const result = await pool.query(
-        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
-         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
+        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
+         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW())
          RETURNING id, name, email, role`,
         [newUserId, normalizedEmail, name.trim()]
       );
@@ -2685,8 +2685,8 @@ app.post('/api/auth/verify-code', async (req, res) => {
       // New user - create account (signup flow)
       const newUserId = uuidv4();
       const result = await pool.query(
-        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
-         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
+        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
+         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW())
          RETURNING id, name, email, role`,
         [newUserId, normalizedEmail, signupName]
       );
