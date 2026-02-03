@@ -12,6 +12,7 @@
  */
 
 import { Pool } from 'pg';
+import { twilioService } from './twilioService.js';
 
 export interface CustomerProperty {
   id: string;
@@ -308,6 +309,7 @@ export class ImpactedAssetService {
 
   /**
    * Create impact alerts for affected properties
+   * Also sends SMS notifications if user has SMS enabled and phone number
    */
   async createImpactAlerts(params: {
     stormLatitude: number;
@@ -358,10 +360,89 @@ export class ImpactedAssetService {
         ]
       );
 
-      alerts.push(this.rowToAlert(alertResult.rows[0]));
+      const alert = this.rowToAlert(alertResult.rows[0]);
+      alerts.push(alert);
+
+      // Send SMS notification if enabled
+      await this.sendSMSNotification(alert.id, property.userId, property.propertyId, {
+        propertyAddress: property.address,
+        eventType: params.eventType,
+        hailSize: params.hailSize,
+        windSpeed: params.windSpeed,
+        stormDate: params.stormDate
+      });
     }
 
     return alerts;
+  }
+
+  /**
+   * Send SMS notification for impact alert
+   * Checks if user has SMS enabled and phone number configured
+   */
+  private async sendSMSNotification(
+    alertId: string,
+    userId: string,
+    propertyId: string,
+    details: {
+      propertyAddress: string;
+      eventType: string;
+      hailSize?: number;
+      windSpeed?: number;
+      stormDate: string;
+    }
+  ): Promise<void> {
+    try {
+      // Check if user has SMS enabled and has a phone number
+      const userResult = await this.pool.query(
+        `SELECT phone_number, sms_alerts_enabled
+         FROM users
+         WHERE id = $1`,
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        return; // User not found
+      }
+
+      const user = userResult.rows[0];
+      if (!user.sms_alerts_enabled || !user.phone_number) {
+        console.log(`[SMS] User ${userId} does not have SMS enabled or no phone number`);
+        return; // SMS not enabled or no phone number
+      }
+
+      // Send SMS via Twilio
+      const result = await twilioService.sendStormAlert({
+        phoneNumber: user.phone_number,
+        propertyAddress: details.propertyAddress,
+        propertyId,
+        eventType: details.eventType,
+        hailSize: details.hailSize,
+        windSpeed: details.windSpeed,
+        date: details.stormDate,
+        userId,
+        impactAlertId: alertId
+      });
+
+      // Update impact alert with SMS status
+      if (result.success) {
+        await this.pool.query(
+          `UPDATE impact_alerts
+           SET sms_sent = TRUE,
+               sms_sent_at = NOW(),
+               sms_message_sid = $1,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [result.messageSid, alertId]
+        );
+        console.log(`[SMS] Alert sent successfully for impact alert ${alertId}`);
+      } else {
+        console.error(`[SMS] Failed to send alert for impact alert ${alertId}:`, result.error);
+      }
+    } catch (error) {
+      console.error('[SMS] Error sending notification:', error);
+      // Don't throw - SMS is optional, don't fail alert creation
+    }
   }
 
   // ============================================================================

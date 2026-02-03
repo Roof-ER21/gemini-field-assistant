@@ -4,6 +4,7 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
+import { hailtraceImportService } from '../services/hailtraceImportService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -702,6 +703,139 @@ router.post('/generate-report', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ PDF report generation error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/import-hailtrace - Manual HailTrace import trigger
+router.post('/import-hailtrace', async (req: Request, res: Response) => {
+  try {
+    const { filepath } = req.body;
+
+    if (!filepath) {
+      return res.status(400).json({ error: 'filepath is required' });
+    }
+
+    console.log(`[HailTrace API] Manual import requested for: ${filepath}`);
+
+    const result = await hailtraceImportService.importFromFile(filepath);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Import completed successfully',
+        ...result
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Import completed with errors',
+        ...result
+      });
+    }
+  } catch (error) {
+    console.error('❌ HailTrace import error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/hailtrace-status - HailTrace integration status
+router.get('/hailtrace-status', async (_req: Request, res: Response) => {
+  try {
+    const status = await hailtraceImportService.getStatus();
+
+    res.json({
+      success: true,
+      ...status,
+      message: status.watching
+        ? `Watching for files (${status.pendingFiles.length} pending)`
+        : 'File watching is stopped'
+    });
+  } catch (error) {
+    console.error('❌ HailTrace status error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/hailtrace-watch - Start/stop HailTrace file watching
+router.post('/hailtrace-watch', async (req: Request, res: Response) => {
+  try {
+    const { action, intervalMs } = req.body;
+
+    if (action === 'start') {
+      hailtraceImportService.startWatching(intervalMs || 60000);
+      res.json({
+        success: true,
+        message: 'HailTrace file watching started',
+        intervalMs: intervalMs || 60000
+      });
+    } else if (action === 'stop') {
+      hailtraceImportService.stopWatching();
+      res.json({
+        success: true,
+        message: 'HailTrace file watching stopped'
+      });
+    } else {
+      res.status(400).json({ error: 'action must be "start" or "stop"' });
+    }
+  } catch (error) {
+    console.error('❌ HailTrace watch control error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/hailtrace-scan - Manually trigger directory scan
+router.post('/hailtrace-scan', async (_req: Request, res: Response) => {
+  try {
+    console.log('[HailTrace API] Manual scan triggered');
+
+    const result = await hailtraceImportService.manualScan();
+
+    res.json({
+      success: true,
+      message: 'Manual scan completed',
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ HailTrace scan error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/hailtrace-events - Get HailTrace events
+router.get('/hailtrace-events', async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, minHailSize, limit } = req.query;
+
+    const events = await hailtraceImportService.getEvents({
+      startDate: startDate as string,
+      endDate: endDate as string,
+      minHailSize: minHailSize ? parseFloat(minHailSize as string) : undefined,
+      limit: limit ? parseInt(limit as string, 10) : 100
+    });
+
+    res.json({
+      success: true,
+      events,
+      count: events.length
+    });
+  } catch (error) {
+    console.error('❌ HailTrace events fetch error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/hailtrace-stats - Get import statistics
+router.get('/hailtrace-stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = await hailtraceImportService.getImportStats();
+
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('❌ HailTrace stats error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

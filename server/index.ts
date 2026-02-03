@@ -29,10 +29,12 @@ import checkinRoutes from './routes/checkinRoutes.js';
 import impactedAssetRoutes from './routes/impactedAssetRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
 import territoryRoutes from './routes/territoryRoutes.js';
+import alertRoutes from './routes/alertRoutes.js';
 import { createLeaderboardRoutes } from './routes/leaderboardRoutes.js';
 import { createRepGoalsRoutes } from './routes/repGoalsRoutes.js';
 import { createContestRoutes } from './routes/contestRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
+import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import {
   loadTiersFromDatabase,
@@ -111,6 +113,13 @@ app.set('pool', pool);
 
 // Initialize settings service
 initSettingsService(pool);
+
+// Initialize Twilio service with pool for rate limiting and logging
+twilioService.setPool(pool);
+
+// Initialize HailTrace import service
+hailtraceImportService.initialize(pool);
+console.log('✅ HailTrace import service initialized');
 
 // ============================================================================
 // MIDDLEWARE
@@ -8447,6 +8456,9 @@ app.use('/api/push', pushRoutes);
 
 // Register territory management routes
 app.use('/api/territories', territoryRoutes);
+
+// Register SMS alert routes (Twilio storm notifications)
+app.use('/api/alerts', alertRoutes);
 
 // Register leaderboard routes (connects to RoofTrack database)
 app.use('/api/leaderboard', createLeaderboardRoutes(pool));

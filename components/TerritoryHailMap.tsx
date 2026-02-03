@@ -63,6 +63,7 @@ interface HotZone {
   recommendation: string;
   events: Array<HailEvent | NOAAEvent>;
   radius: number;
+  score?: number;
 }
 
 interface SearchCriteria {
@@ -90,6 +91,14 @@ interface SavedReport {
   avg_hail_size: number | null;
   created_at: string;
   last_accessed_at: string;
+}
+
+interface DamageScore {
+  score: number;
+  riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
+  factors: any;
+  summary: string;
+  color: string;
 }
 
 // Component to handle map bounds changes
@@ -166,11 +175,11 @@ const getSeverityColorFromSize = (size: number | null): string => {
 };
 
 // Group events by location (within ~0.05 degrees for hover popup)
-const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' }>) => {
+const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' | 'hailtrace' }>) => {
   const groups: Array<{
     lat: number;
     lng: number;
-    events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' }>;
+    events: Array<{ event: HailEvent | NOAAEvent; type: 'ihm' | 'noaa' | 'hailtrace' }>;
   }> = [];
 
   events.forEach(item => {
@@ -225,13 +234,8 @@ export default function TerritoryHailMap() {
   } | null>(null);
 
   // Damage Score
-  const [damageScore, setDamageScore] = useState<{
-    score: number;
-    riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
-    factors: any;
-    summary: string;
-    color: string;
-  } | null>(null);
+  const [damageScore, setDamageScore] = useState<DamageScore | null>(null);
+  const [loadingDamageScore, setLoadingDamageScore] = useState(false);
 
   // Map auto-navigation state
   const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
@@ -274,6 +278,10 @@ export default function TerritoryHailMap() {
     companyName: 'SA21 Storm Intelligence System'
   });
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfReportFilter, setPdfReportFilter] = useState<'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only'>('all');
+
+  // Last updated timestamp
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Filtered events based on event type and source filters
   const filteredHailEvents = useMemo(() => {
@@ -292,6 +300,38 @@ export default function TerritoryHailMap() {
     }
     return noaaEvents.filter(e => e.eventType === eventTypeFilter);
   }, [noaaEvents, eventTypeFilter, sourceFilter]);
+
+  // Get filtered events for PDF based on report filter
+  const getFilteredEventsForPdf = () => {
+    let pdfHailEvents = filteredHailEvents;
+    let pdfNoaaEvents = filteredNoaaEvents;
+
+    switch (pdfReportFilter) {
+      case 'hail-only':
+        pdfNoaaEvents = filteredNoaaEvents.filter(e => e.eventType === 'hail');
+        break;
+      case 'hail-wind':
+        pdfNoaaEvents = filteredNoaaEvents.filter(e => e.eventType === 'hail' || e.eventType === 'wind');
+        break;
+      case 'ihm-only':
+        pdfNoaaEvents = [];
+        break;
+      case 'noaa-only':
+        pdfHailEvents = [];
+        break;
+      case 'all':
+      default:
+        // No filtering
+        break;
+    }
+
+    return { pdfHailEvents, pdfNoaaEvents };
+  };
+
+  // Check if events contain HailTrace data
+  const hasHailTraceData = useMemo(() => {
+    return hailEvents.some(e => e.source && e.source.toLowerCase().includes('hailtrace'));
+  }, [hailEvents]);
 
   // Fetch territories and saved reports on mount
   useEffect(() => {
@@ -338,6 +378,7 @@ export default function TerritoryHailMap() {
         const data = await res.json();
         setHailEvents(data.events || []);
         setNoaaEvents(data.noaaEvents || []);
+        setLastUpdated(new Date());
       } else {
         setError('Failed to load hail data');
       }
@@ -353,6 +394,7 @@ export default function TerritoryHailMap() {
     setSelectedTerritory(territory);
     setCurrentSearch(null);
     setSearchStats(null);
+    setDamageScore(null);
     setSearchLocation(null);
     setShowHailDates(false);
     fetchHailData(territory);
@@ -387,14 +429,42 @@ export default function TerritoryHailMap() {
     }
   };
 
+  // Fetch hot zones for a search location
+  const fetchHotZonesForLocation = async (lat: number, lng: number, radius: number = 50) => {
+    setLoadingHotZones(true);
+    try {
+      const res = await fetch(
+        `${getApiBaseUrl()}/hail/hot-zones?lat=${lat}&lng=${lng}&radius=${radius}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setHotZones(data.hotZones || []);
+        console.log(`🔥 Loaded ${data.hotZones?.length || 0} hot zones for location`);
+      } else {
+        console.error('Failed to load hot zones:', res.status);
+        setHotZones([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch hot zones:', err);
+      setHotZones([]);
+    } finally {
+      setLoadingHotZones(false);
+    }
+  };
+
   // Toggle hot zones display
   const toggleHotZones = () => {
     const newState = !showHotZones;
     setShowHotZones(newState);
 
-    if (newState && selectedTerritory) {
-      fetchHotZones(selectedTerritory);
-    } else if (!newState) {
+    if (newState) {
+      if (currentSearch?.latitude && currentSearch?.longitude) {
+        fetchHotZonesForLocation(currentSearch.latitude, currentSearch.longitude, currentSearch.radius || 50);
+      } else if (selectedTerritory) {
+        fetchHotZones(selectedTerritory);
+      }
+    } else {
       setHotZones([]);
     }
   };
@@ -415,11 +485,41 @@ export default function TerritoryHailMap() {
     }
   };
 
+  // Calculate damage score
+  const fetchDamageScore = async (lat: number, lng: number, address: string, events: HailEvent[], noaaEvs: NOAAEvent[]) => {
+    setLoadingDamageScore(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/hail/damage-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat,
+          lng,
+          address,
+          events,
+          noaaEvents: noaaEvs
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDamageScore(data);
+      } else {
+        console.error('Failed to calculate damage score:', res.status);
+      }
+    } catch (err) {
+      console.error('Failed to calculate damage score:', err);
+    } finally {
+      setLoadingDamageScore(false);
+    }
+  };
+
   // Handle advanced search
   const handleAdvancedSearch = async () => {
     setLoading(true);
     setError(null);
     setSelectedTerritory(null);
+    setDamageScore(null);
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/hail/search-advanced`, {
@@ -433,6 +533,7 @@ export default function TerritoryHailMap() {
         setHailEvents(data.events || []);
         setNoaaEvents(data.noaaEvents || []);
         setCurrentSearch(data.searchCriteria);
+        setLastUpdated(new Date());
 
         // Calculate stats
         const allHailSizes = data.events
@@ -448,25 +549,17 @@ export default function TerritoryHailMap() {
         });
 
         // Calculate damage score
-        try {
-          const scoreRes = await fetch(`${getApiBaseUrl()}/hail/damage-score`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              lat: data.searchCriteria.latitude,
-              lng: data.searchCriteria.longitude,
-              address: data.searchCriteria.address || `${data.searchCriteria.city}, ${data.searchCriteria.state}`,
-              events: data.events || [],
-              noaaEvents: data.noaaEvents || []
-            })
-          });
+        if (data.searchCriteria?.latitude && data.searchCriteria?.longitude) {
+          const address = data.searchCriteria.address ||
+            `${data.searchCriteria.city || ''}${data.searchCriteria.city && data.searchCriteria.state ? ', ' : ''}${data.searchCriteria.state || ''}`;
 
-          if (scoreRes.ok) {
-            const scoreData = await scoreRes.json();
-            setDamageScore(scoreData);
-          }
-        } catch (err) {
-          console.error('Failed to calculate damage score:', err);
+          await fetchDamageScore(
+            data.searchCriteria.latitude,
+            data.searchCriteria.longitude,
+            address,
+            data.events || [],
+            data.noaaEvents || []
+          );
         }
 
         // Auto-zoom to search location
@@ -478,6 +571,15 @@ export default function TerritoryHailMap() {
           });
           // Show hail dates panel after successful search
           setShowHailDates(true);
+
+          // Fetch hot zones if enabled
+          if (showHotZones) {
+            fetchHotZonesForLocation(
+              data.searchCriteria.latitude,
+              data.searchCriteria.longitude,
+              data.searchCriteria.radius || 50
+            );
+          }
         }
       } else {
         setError('Failed to search hail data');
@@ -548,6 +650,7 @@ export default function TerritoryHailMap() {
     setLoading(true);
     setError(null);
     setSelectedTerritory(null);
+    setDamageScore(null);
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/hail/search-advanced`, {
@@ -560,12 +663,27 @@ export default function TerritoryHailMap() {
         const data = await res.json();
         setHailEvents(data.events || []);
         setNoaaEvents(data.noaaEvents || []);
+        setLastUpdated(new Date());
 
         setSearchStats({
           totalEvents: report.results_count,
           maxHailSize: report.max_hail_size,
           avgHailSize: report.avg_hail_size
         });
+
+        // Calculate damage score
+        if (report.search_criteria?.latitude && report.search_criteria?.longitude) {
+          const address = report.search_criteria.address ||
+            `${report.search_criteria.city || ''}${report.search_criteria.city && report.search_criteria.state ? ', ' : ''}${report.search_criteria.state || ''}`;
+
+          await fetchDamageScore(
+            report.search_criteria.latitude,
+            report.search_criteria.longitude,
+            address,
+            data.events || [],
+            data.noaaEvents || []
+          );
+        }
 
         // Auto-zoom to search location for loaded report
         if (report.search_criteria?.latitude && report.search_criteria?.longitude) {
@@ -647,6 +765,17 @@ export default function TerritoryHailMap() {
     });
   };
 
+  const formatTimestamp = (date: Date): string => {
+    return date.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const toggleCheck = (eventId: string) => {
     setCheckedEvents(prev => {
       const newSet = new Set(prev);
@@ -667,9 +796,11 @@ export default function TerritoryHailMap() {
     }
 
     setGeneratingPdf(true);
-    setShowPdfOptions(false);
 
     try {
+      // Get filtered events based on report filter
+      const { pdfHailEvents, pdfNoaaEvents } = getFilteredEventsForPdf();
+
       // Build address string
       const address = currentSearch.address ||
         `${currentSearch.city || ''}${currentSearch.city && currentSearch.state ? ', ' : ''}${currentSearch.state || ''}${currentSearch.zip ? ' ' + currentSearch.zip : ''}` ||
@@ -680,15 +811,15 @@ export default function TerritoryHailMap() {
         lat: currentSearch.latitude,
         lng: currentSearch.longitude,
         radius: currentSearch.radius || 50,
-        events: filteredHailEvents,
-        noaaEvents: filteredNoaaEvents,
+        events: pdfHailEvents,
+        noaaEvents: pdfNoaaEvents,
         damageScore: damageScore || undefined,
         searchCriteria: currentSearch,
         searchStats,
+        filter: pdfReportFilter,
         ...pdfOptions
       });
 
-      // Success notification could be added here
       console.log('✅ PDF Report generated successfully');
     } catch (error) {
       console.error('❌ Failed to generate PDF:', error);
@@ -698,277 +829,24 @@ export default function TerritoryHailMap() {
     }
   };
 
-  // Quick generate PDF without options (legacy function)
-  const generatePDFReport = () => {
-    if (!currentSearch || !searchStats) {
-      alert('No search data available to generate report');
-      return;
-    }
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPos = 20;
-
-    // Helper function to add new page if needed
-    const checkPageBreak = (requiredSpace: number) => {
-      if (yPos + requiredSpace > pageHeight - 20) {
-        doc.addPage();
-        yPos = 20;
-        return true;
-      }
-      return false;
-    };
-
-    // Header Section
-    doc.setFillColor(220, 38, 38); // roof-red
-    doc.rect(0, 0, pageWidth, 35, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Weather History Report', pageWidth / 2, 15, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text('SA21 / Roof-ER Storm Intelligence', pageWidth / 2, 25, { align: 'center' });
-
-    yPos = 45;
-
-    // Report Generation Info
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const reportDate = new Date().toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    doc.text(`Generated: ${reportDate}`, 15, yPos);
-    yPos += 7;
-
-    // Property Address
-    const address = currentSearch.address ||
-      `${currentSearch.city || ''}${currentSearch.city && currentSearch.state ? ', ' : ''}${currentSearch.state || ''}${currentSearch.zip ? ' ' + currentSearch.zip : ''}` ||
-      `${currentSearch.latitude?.toFixed(6)}, ${currentSearch.longitude?.toFixed(6)}`;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Property Address:', 15, yPos);
-    doc.setFont('helvetica', 'normal');
-    doc.text(address, 55, yPos);
-    yPos += 10;
-
-    // Summary Statistics Section
-    doc.setDrawColor(220, 38, 38);
-    doc.setLineWidth(0.5);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 8;
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38);
-    doc.text('Summary Statistics', 15, yPos);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-
-    // Damage Score Section (if available)
-    if (damageScore) {
-      doc.setFillColor(220, 38, 38);
-      doc.roundedRect(15, yPos, pageWidth - 30, 25, 3, 3, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('DAMAGE RISK SCORE', pageWidth / 2, yPos + 7, { align: 'center' });
-
-      doc.setFontSize(20);
-      doc.text(`${damageScore.score} / 100`, pageWidth / 2, yPos + 15, { align: 'center' });
-
-      doc.setFontSize(10);
-      doc.text(`${damageScore.riskLevel.toUpperCase()} RISK`, pageWidth / 2, yPos + 21, { align: 'center' });
-
-      yPos += 30;
-
-      // Damage Score Summary
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      const summaryLines = doc.splitTextToSize(damageScore.summary, pageWidth - 40);
-      doc.text(summaryLines, 20, yPos);
-      yPos += summaryLines.length * 5 + 8;
-    }
-
-    // Statistics grid
-    const stats = [
-      ['Total Events Found:', searchStats.totalEvents.toString()],
-      ['Date Range:', `${currentSearch.startDate ? formatDate(currentSearch.startDate) : 'N/A'} to ${currentSearch.endDate ? formatDate(currentSearch.endDate) : 'N/A'}`],
-      ['Max Hail Size:', searchStats.maxHailSize ? `${searchStats.maxHailSize.toFixed(2)}"` : 'N/A'],
-      ['Average Hail Size:', searchStats.avgHailSize ? `${searchStats.avgHailSize.toFixed(2)}"` : 'N/A'],
-      ['IHM Events:', filteredHailEvents.length.toString()],
-      ['NOAA Events:', filteredNoaaEvents.length.toString()],
-    ];
-
-    stats.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, 20, yPos);
-      doc.setFont('helvetica', 'normal');
-      doc.text(value, 80, yPos);
-      yPos += 6;
-    });
-    yPos += 5;
-
-    // Severity breakdown
-    const severeCount = filteredHailEvents.filter(e => e.severity === 'severe').length +
-      filteredNoaaEvents.filter(e => (e.magnitude || 0) >= 2.0).length;
-    const moderateCount = filteredHailEvents.filter(e => e.severity === 'moderate').length +
-      filteredNoaaEvents.filter(e => (e.magnitude || 0) >= 1.0 && (e.magnitude || 0) < 2.0).length;
-    const minorCount = filteredHailEvents.filter(e => e.severity === 'minor').length +
-      filteredNoaaEvents.filter(e => (e.magnitude || 0) < 1.0).length;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Severity Breakdown:', 20, yPos);
-    yPos += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Severe (2"+): ${severeCount}`, 25, yPos);
-    yPos += 5;
-    doc.text(`Moderate (1-2"): ${moderateCount}`, 25, yPos);
-    yPos += 5;
-    doc.text(`Minor (<1"): ${minorCount}`, 25, yPos);
-    yPos += 10;
-
-    // Event Timeline Section
-    checkPageBreak(30);
-    doc.setDrawColor(220, 38, 38);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 8;
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38);
-    doc.text('Event Timeline', 15, yPos);
-    yPos += 8;
-
-    // Combine and sort all events by date
-    const allEvents = [
-      ...filteredHailEvents.map(e => ({ type: 'IHM', event: e, date: new Date(e.date) })),
-      ...filteredNoaaEvents.map(e => ({ type: 'NOAA', event: e, date: new Date(e.date) }))
-    ].sort((a, b) => b.date.getTime() - a.date.getTime());
-
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-
-    allEvents.forEach((item, index) => {
-      checkPageBreak(20);
-
-      const event = item.event;
-      const isIHM = item.type === 'IHM';
-
-      // Event header
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${index + 1}. ${formatDate(event.date)}`, 20, yPos);
-      yPos += 5;
-
-      doc.setFont('helvetica', 'normal');
-      if (isIHM) {
-        const hailEvent = event as HailEvent;
-        doc.text(`Type: Hail`, 25, yPos);
-        yPos += 4;
-        doc.text(`Size: ${hailEvent.hailSize ? hailEvent.hailSize + '"' : 'Unknown'}`, 25, yPos);
-        yPos += 4;
-        doc.text(`Severity: ${hailEvent.severity.charAt(0).toUpperCase() + hailEvent.severity.slice(1)}`, 25, yPos);
-        yPos += 4;
-        doc.text(`Source: Interactive Hail Maps (IHM)`, 25, yPos);
-      } else {
-        const noaaEvent = event as NOAAEvent;
-        doc.text(`Type: ${noaaEvent.eventType.charAt(0).toUpperCase() + noaaEvent.eventType.slice(1)}`, 25, yPos);
-        yPos += 4;
-        if (noaaEvent.eventType === 'hail') {
-          doc.text(`Size: ${noaaEvent.magnitude ? noaaEvent.magnitude + '"' : 'Unknown'}`, 25, yPos);
-        } else if (noaaEvent.eventType === 'wind') {
-          doc.text(`Speed: ${noaaEvent.magnitude ? noaaEvent.magnitude + ' mph' : 'Unknown'}`, 25, yPos);
-        } else {
-          doc.text(`Magnitude: ${noaaEvent.magnitude || 'Unknown'}`, 25, yPos);
-        }
-        yPos += 4;
-        doc.text(`Location: ${noaaEvent.location}`, 25, yPos);
-        yPos += 4;
-        doc.text(`Source: NOAA Storm Events Database`, 25, yPos);
-      }
-      yPos += 7;
-    });
-
-    // Insurance Evidence Section
-    checkPageBreak(50);
-    yPos += 5;
-    doc.setDrawColor(220, 38, 38);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 8;
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38);
-    doc.text('Insurance Evidence', 15, yPos);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-
-    const evidenceText = [
-      'This report documents verified storm activity at the specified address location.',
-      '',
-      'NOAA Data Certification:',
-      'Data sourced from the National Oceanic and Atmospheric Administration (NOAA)',
-      'Storm Events Database is government-certified and legally defensible for insurance',
-      'claims and property damage assessments.',
-      '',
-      'IHM Data Verification:',
-      'Interactive Hail Maps (IHM) data is meteorologist-verified and crowd-sourced from',
-      'weather spotters, insurance adjusters, and professional storm chasers.',
-      '',
-      'This report can be used as supporting documentation for:',
-      '• Insurance claims for storm damage',
-      '• Property inspection reports',
-      '• Real estate disclosure requirements',
-      '• Risk assessment and mitigation planning'
-    ];
-
-    evidenceText.forEach(line => {
-      checkPageBreak(6);
-      doc.text(line, 20, yPos);
-      yPos += 5;
-    });
-
-    // Footer
-    const footerY = pageHeight - 20;
-    doc.setDrawColor(220, 38, 38);
-    doc.line(15, footerY, pageWidth - 15, footerY);
-
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.setFont('helvetica', 'italic');
-    doc.text('Generated by SA21 Storm Intelligence System', pageWidth / 2, footerY + 5, { align: 'center' });
-    doc.text('Data sources: NOAA Storm Events Database & Interactive Hail Maps', pageWidth / 2, footerY + 10, { align: 'center' });
-
-    // Save PDF
-    const fileName = `WeatherReport_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
-  };
-
   const handleEventCardClick = (event: HailEvent | NOAAEvent, lat: number, lng: number) => {
     const eventId = 'eventType' in event ? `noaa-${event.id}` : `ihm-${event.id}`;
     setSelectedEventId(eventId);
     setSearchLocation({ lat, lng, zoom: 12 });
   };
 
+  // Get event source type (ihm, noaa, or hailtrace)
+  const getEventSourceType = (event: HailEvent): 'ihm' | 'hailtrace' => {
+    if (event.source && event.source.toLowerCase().includes('hailtrace')) {
+      return 'hailtrace';
+    }
+    return 'ihm';
+  };
+
   // Combine and sort events based on active tab
-  const getSortedEvents = (): Array<{ type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }> => {
+  const getSortedEvents = (): Array<{ type: 'ihm' | 'noaa' | 'hailtrace'; event: HailEvent | NOAAEvent }> => {
     const combined = [
-      ...filteredHailEvents.map(e => ({ type: 'ihm' as const, event: e })),
+      ...filteredHailEvents.map(e => ({ type: getEventSourceType(e) as 'ihm' | 'hailtrace', event: e })),
       ...filteredNoaaEvents.map(e => ({ type: 'noaa' as const, event: e }))
     ];
 
@@ -977,8 +855,8 @@ export default function TerritoryHailMap() {
     } else if (activeTab === 'impact') {
       // Sort by hail size (impact severity)
       return combined.sort((a, b) => {
-        const getSeverityScore = (item: { type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }) => {
-          if (item.type === 'ihm') {
+        const getSeverityScore = (item: { type: 'ihm' | 'noaa' | 'hailtrace'; event: HailEvent | NOAAEvent }) => {
+          if (item.type === 'ihm' || item.type === 'hailtrace') {
             const hailEvent = item.event as HailEvent;
             return hailEvent.hailSize || 0;
           } else {
@@ -992,15 +870,15 @@ export default function TerritoryHailMap() {
       // saved - only checked events, sorted by date
       return combined
         .filter(item => {
-          const id = item.type === 'ihm' ? `ihm-${item.event.id}` : `noaa-${item.event.id}`;
+          const id = item.type === 'noaa' ? `noaa-${item.event.id}` : `ihm-${item.event.id}`;
           return checkedEvents.has(id);
         })
         .sort((a, b) => new Date(b.event.date).getTime() - new Date(a.event.date).getTime());
     }
   };
 
-  const getSeverityLevel = (event: HailEvent | NOAAEvent, type: 'ihm' | 'noaa'): 'severe' | 'moderate' | 'minor' => {
-    if (type === 'ihm') {
+  const getSeverityLevel = (event: HailEvent | NOAAEvent, type: 'ihm' | 'noaa' | 'hailtrace'): 'severe' | 'moderate' | 'minor' => {
+    if (type === 'ihm' || type === 'hailtrace') {
       return (event as HailEvent).severity;
     } else {
       const magnitude = (event as NOAAEvent).magnitude || 0;
@@ -1171,6 +1049,16 @@ export default function TerritoryHailMap() {
     );
   };
 
+  // Get marker color based on source type
+  const getMarkerColorBySource = (sourceType: 'ihm' | 'noaa' | 'hailtrace'): string => {
+    switch (sourceType) {
+      case 'hailtrace': return '#10b981'; // green for HailTrace
+      case 'ihm': return '#3b82f6'; // blue for IHM
+      case 'noaa': return '#8b5cf6'; // purple for NOAA
+      default: return '#6b7280';
+    }
+  };
+
   // Default center: Mid-Atlantic region
   const defaultCenter: [number, number] = [39.5, -77.5];
   const defaultZoom = 6;
@@ -1192,6 +1080,22 @@ export default function TerritoryHailMap() {
               </p>
             </div>
           </div>
+          {/* HailTrace Data Badge */}
+          {hasHailTraceData && (
+            <div style={{
+              padding: '6px 12px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              color: 'white',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+            }}>
+              HailTrace Data Available
+            </div>
+          )}
         </div>
       </div>
 
@@ -1297,54 +1201,49 @@ export default function TerritoryHailMap() {
           >
             <Filter className="w-4 h-4" style={{ color: searchCollapsed ? 'var(--text-secondary)' : 'white' }} />
             <span style={{ fontSize: '12px', color: searchCollapsed ? 'var(--text-secondary)' : 'white' }}>
-              {searchCollapsed ? 'Search' : 'Hide'}
+              Search
             </span>
           </button>
+
           <select
             value={months}
-            onChange={(e) => {
-              setMonths(Number(e.target.value));
-              if (selectedTerritory) {
-                fetchHailData(selectedTerritory);
-              }
-            }}
+            onChange={(e) => setMonths(Number(e.target.value))}
             style={{
-              padding: '6px 12px',
-              borderRadius: '8px',
+              padding: '6px 10px',
+              borderRadius: '6px',
               border: '1px solid var(--border-default)',
-              background: 'var(--bg-primary)',
+              background: 'var(--bg-elevated)',
               color: 'var(--text-primary)',
-              fontSize: '13px'
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
             }}
           >
-            <option value={6}>Last 6 months</option>
-            <option value={12}>Last 12 months</option>
-            <option value={24}>Last 24 months</option>
-            <option value={36}>Last 36 months</option>
+            <option value={6}>6 months</option>
+            <option value={12}>12 months</option>
+            <option value={24}>24 months</option>
+            <option value={36}>36 months</option>
           </select>
 
           {/* Hot Zones Toggle */}
           <button
             onClick={toggleHotZones}
-            disabled={!selectedTerritory}
+            disabled={loadingHotZones}
             title="Show best canvassing areas based on storm activity"
             style={{
               background: showHotZones ? 'var(--roof-orange)' : 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
               borderRadius: '6px',
               padding: '6px 12px',
-              cursor: selectedTerritory ? 'pointer' : 'not-allowed',
+              cursor: loadingHotZones ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               transition: 'all 0.2s',
-              opacity: selectedTerritory ? 1 : 0.5
+              opacity: loadingHotZones ? 0.6 : 1
             }}
           >
-            <span style={{
-              fontSize: '16px',
-              lineHeight: 1
-            }}>🔥</span>
+            <span style={{ fontSize: '16px' }}>🔥</span>
             <span style={{
               fontSize: '12px',
               fontWeight: 600,
@@ -1358,922 +1257,234 @@ export default function TerritoryHailMap() {
                 background: 'rgba(255,255,255,0.2)',
                 padding: '2px 6px',
                 borderRadius: '10px',
-                color: 'white',
                 fontWeight: 700
               }}>
                 {hotZones.length}
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setSearchPanelOpen(!searchPanelOpen)}
+            style={{
+              background: 'var(--roof-red)',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 600,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Search className="w-4 h-4" />
+            Advanced Search
+          </button>
         </div>
       </div>
 
-      {/* Main Content Area - Sidebar + Map */}
-      <div style={{ flex: 1, position: 'relative', display: 'flex', height: 'calc(100vh - 280px)' }}>
-        {/* LEFT SIDEBAR - Always visible */}
+      {/* Search Panel Expanded */}
+      {!searchCollapsed && (
         <div style={{
-          width: '320px',
-          background: 'var(--bg-elevated)',
-          borderRight: '1px solid var(--border-default)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          flexShrink: 0
+          padding: '16px 20px',
+          background: 'var(--bg-primary)',
+          borderBottom: '1px solid var(--border-default)'
         }}>
-            {/* Collapsible Search Panel */}
-            <div style={{
-              borderBottom: '1px solid var(--border-default)',
-              background: 'var(--bg-primary)'
-            }}>
-              <button
-                onClick={() => setSearchCollapsed(!searchCollapsed)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                Address
+              </label>
+              <input
+                type="text"
+                placeholder="123 Main St"
+                value={searchCriteria.address || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, address: e.target.value })}
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Search className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Search Address or ZIP</span>
-                </div>
-                <ChevronDown
-                  className="w-4 h-4"
-                  style={{
-                    transform: searchCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s'
-                  }}
-                />
-              </button>
-
-              {!searchCollapsed && (
-                <div style={{ padding: '0 16px 16px' }}>
-                  {/* Quick Search Inputs */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder="Address or ZIP"
-                      value={searchCriteria.address || searchCriteria.zip || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (/^\d+$/.test(value)) {
-                          setSearchCriteria({ ...searchCriteria, zip: value, address: undefined });
-                        } else {
-                          setSearchCriteria({ ...searchCriteria, address: value, zip: undefined });
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-default)',
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px'
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder="City"
-                      value={searchCriteria.city || ''}
-                      onChange={(e) => setSearchCriteria({ ...searchCriteria, city: e.target.value })}
-                      style={{
-                        padding: '8px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-default)',
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px'
-                      }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="State"
-                      value={searchCriteria.state || ''}
-                      onChange={(e) => setSearchCriteria({ ...searchCriteria, state: e.target.value })}
-                      style={{
-                        padding: '8px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-default)',
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px'
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={handleAdvancedSearch}
-                    disabled={loading || (
-                      !searchCriteria.latitude &&
-                      !searchCriteria.city &&
-                      !searchCriteria.address &&
-                      !searchCriteria.zip
-                    )}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: 'var(--roof-red)',
-                      color: 'white',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading || (
-                        !searchCriteria.latitude &&
-                        !searchCriteria.city &&
-                        !searchCriteria.address &&
-                        !searchCriteria.zip
-                      ) ? 0.6 : 1
-                    }}
-                  >
-                    {loading ? 'Searching...' : 'Search'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Tabs */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid var(--border-default)',
-              background: 'var(--bg-primary)'
-            }}>
-              {(['recent', 'impact', 'saved', 'hotzones'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    background: activeTab === tab ? 'var(--bg-elevated)' : 'transparent',
-                    border: 'none',
-                    borderBottom: activeTab === tab ? '2px solid var(--roof-red)' : '2px solid transparent',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: activeTab === tab ? 700 : 600,
-                    color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  {tab === 'hotzones' && <span>🔥</span>}
-                  {tab === 'hotzones' ? 'Hot Zones' : tab}
-                </button>
-              ))}
-            </div>
-
-            {/* Event Count Header */}
-            <div style={{
-              padding: '4px 8px 8px',
-              background: 'var(--bg-primary)',
-              borderBottom: '1px solid var(--border-default)'
-            }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                {activeTab === 'hotzones' ? `Hot Zones (${hotZones.length})` : `Events (${getSortedEvents().length})`}
-              </div>
-            </div>
-
-            {/* Hot Zones List or Event Cards List */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
-              {activeTab === 'hotzones' ? (
-                // Hot Zones List
-                hotZones.length === 0 ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px 20px',
-                    color: 'var(--text-secondary)'
-                  }}>
-                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔥</div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
-                      {showHotZones ? 'No hot zones found' : 'Enable Hot Zones'}
-                    </div>
-                    <div style={{ fontSize: '12px' }}>
-                      {showHotZones
-                        ? 'Try selecting a different territory'
-                        : 'Click the Hot Zones button above to identify best canvassing areas'
-                      }
-                    </div>
-                  </div>
-                ) : (
-                  hotZones.map((zone, idx) => {
-                    let intensityColor: string;
-                    let intensityLabel: string;
-
-                    if (zone.intensity >= 80) {
-                      intensityColor = '#ef4444';
-                      intensityLabel = 'High Priority';
-                    } else if (zone.intensity >= 60) {
-                      intensityColor = '#f97316';
-                      intensityLabel = 'Strong';
-                    } else {
-                      intensityColor = '#eab308';
-                      intensityLabel = 'Moderate';
-                    }
-
-                    return (
-                      <div
-                        key={zone.id}
-                        onClick={() => {
-                          setSearchLocation({
-                            lat: zone.centerLat,
-                            lng: zone.centerLng,
-                            zoom: 14
-                          });
-                        }}
-                        style={{
-                          padding: '16px',
-                          marginBottom: '12px',
-                          background: 'var(--bg-elevated)',
-                          borderRadius: '12px',
-                          border: '1px solid var(--border-default)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          borderLeft: `4px solid ${intensityColor}`
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      >
-                        {/* Rank and Intensity */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: '12px'
-                        }}>
-                          <div style={{
-                            fontSize: '24px',
-                            fontWeight: 700,
-                            color: 'var(--text-secondary)'
-                          }}>
-                            #{idx + 1}
-                          </div>
-                          <div style={{
-                            background: intensityColor,
-                            color: 'white',
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: 700
-                          }}>
-                            {zone.intensity}% • {intensityLabel}
-                          </div>
-                        </div>
-
-                        {/* Stats Grid */}
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: '8px',
-                          marginBottom: '12px'
-                        }}>
-                          <div style={{
-                            background: 'var(--bg-primary)',
-                            padding: '8px',
-                            borderRadius: '6px'
-                          }}>
-                            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                              Events
-                            </div>
-                            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {zone.eventCount}
-                            </div>
-                          </div>
-                          <div style={{
-                            background: 'var(--bg-primary)',
-                            padding: '8px',
-                            borderRadius: '6px'
-                          }}>
-                            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                              Max Hail
-                            </div>
-                            <div style={{ fontSize: '16px', fontWeight: 700, color: intensityColor }}>
-                              {zone.maxHailSize ? `${zone.maxHailSize}"` : 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Last Event Date */}
-                        <div style={{
-                          fontSize: '11px',
-                          color: 'var(--text-secondary)',
-                          marginBottom: '8px'
-                        }}>
-                          Last event: <strong>{formatDate(zone.lastEventDate)}</strong>
-                        </div>
-
-                        {/* Recommendation */}
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#333',
-                          padding: '8px',
-                          background: zone.intensity >= 80 ? '#fee2e2' : zone.intensity >= 60 ? '#fed7aa' : '#fef3c7',
-                          borderRadius: '6px',
-                          lineHeight: '1.4'
-                        }}>
-                          {zone.recommendation}
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              ) : (
-                // Event Cards List
-                getSortedEvents().map((item, idx) => {
-                const isIHM = item.type === 'ihm';
-                const event = item.event;
-                const eventId = isIHM ? `ihm-${event.id}` : `noaa-${event.id}`;
-                const isChecked = checkedEvents.has(eventId);
-                const isSelected = selectedEventId === eventId;
-
-                const hailSize = isIHM
-                  ? (event as HailEvent).hailSize
-                  : (event as NOAAEvent).magnitude;
-
-                const starCount = getStarCount(hailSize);
-                const severityColor = getSeverityColorFromSize(hailSize);
-                const windSpeed = !isIHM && (event as NOAAEvent).eventType === 'wind'
-                  ? (event as NOAAEvent).magnitude
-                  : null;
-
-                return (
-                  <div
-                    key={`${eventId}-${idx}`}
-                    onClick={() => handleEventCardClick(event, event.latitude, event.longitude)}
-                    style={{
-                      padding: '12px',
-                      marginBottom: '8px',
-                      background: isSelected ? 'var(--bg-primary)' : 'var(--bg-elevated)',
-                      borderRadius: '8px',
-                      border: isSelected ? `2px solid var(--roof-red)` : '1px solid var(--border-default)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
-                    }}
-                  >
-                    {/* Checkbox + Date */}
-                    <div style={{ display: 'flex', alignItems: 'start', gap: '8px', marginBottom: '8px' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          toggleCheck(eventId);
-                        }}
-                        style={{
-                          marginTop: '2px',
-                          width: '16px',
-                          height: '16px',
-                          cursor: 'pointer'
-                        }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: 'var(--text-primary)',
-                          marginBottom: '4px'
-                        }}>
-                          {formatDateLong(event.date)}
-                        </div>
-                        {/* Star Rating */}
-                        {renderStars(starCount)}
-                      </div>
-                    </div>
-
-                    {/* Hail Size + Wind Speed with Icons */}
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
-                      {hailSize && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px',
-                          color: 'var(--text-secondary)'
-                        }}>
-                          <span>🌨</span>
-                          <strong style={{ color: severityColor, fontSize: '14px' }}>
-                            {hailSize}"
-                          </strong>
-                        </div>
-                      )}
-                      {windSpeed && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px',
-                          color: 'var(--text-secondary)'
-                        }}>
-                          <Wind className="w-3 h-3" />
-                          <strong style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
-                            {windSpeed} MPH
-                          </strong>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Houses Impacted (placeholder - generates random estimate) */}
-                    {hailSize && hailSize >= 1.0 && (
-                      <div style={{
-                        fontSize: '11px',
-                        color: 'var(--text-secondary)',
-                        marginTop: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <Home className="w-3 h-3" />
-                        <span>Est. {Math.floor(Math.random() * 50000 + 10000).toLocaleString()} homes impacted</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-              )}
-
-              {/* No events message for non-hotzones tabs */}
-              {activeTab !== 'hotzones' && getSortedEvents().length === 0 && (
-                <div style={{
-                  padding: '32px 16px',
-                  textAlign: 'center',
-                  color: 'var(--text-secondary)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
                   fontSize: '13px'
-                }}>
-                  {activeTab === 'saved' ? 'No saved events yet' : 'No events found'}
-                </div>
-              )}
+                }}
+              />
             </div>
-          </div>
 
-        {/* Old Search Panel - Hidden */}
-        {false && searchPanelOpen && (
-          <div style={{
-            width: '320px',
-            background: 'var(--bg-elevated)',
-            borderRight: '1px solid var(--border-default)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'auto'
-          }}>
-            {/* Search Form */}
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border-default)' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
-                Search Criteria
-              </h3>
-
-              {/* Address Search */}
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Address
-                </label>
-                <input
-                  type="text"
-                  placeholder="Street address"
-                  value={searchCriteria.address || ''}
-                  onChange={(e) => setSearchCriteria({ ...searchCriteria, address: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                    City
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="City"
-                    value={searchCriteria.city || ''}
-                    onChange={(e) => setSearchCriteria({ ...searchCriteria, city: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                    State
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="MD"
-                    value={searchCriteria.state || ''}
-                    onChange={(e) => setSearchCriteria({ ...searchCriteria, state: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  ZIP Code
-                </label>
-                <input
-                  type="text"
-                  placeholder="21201"
-                  value={searchCriteria.zip || ''}
-                  onChange={(e) => setSearchCriteria({ ...searchCriteria, zip: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px'
-                  }}
-                />
-              </div>
-
-              {/* Date Range */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={searchCriteria.startDate || ''}
-                    onChange={(e) => setSearchCriteria({ ...searchCriteria, startDate: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={searchCriteria.endDate || ''}
-                    onChange={(e) => setSearchCriteria({ ...searchCriteria, endDate: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Min Hail Size */}
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Min Hail Size (inches)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="1.0"
-                  value={searchCriteria.minHailSize || ''}
-                  onChange={(e) => setSearchCriteria({ ...searchCriteria, minHailSize: parseFloat(e.target.value) || undefined })}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px'
-                  }}
-                />
-              </div>
-
-              {/* Radius */}
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Radius (miles)
-                </label>
-                <input
-                  type="number"
-                  placeholder="50"
-                  value={searchCriteria.radius || 50}
-                  onChange={(e) => setSearchCriteria({ ...searchCriteria, radius: parseInt(e.target.value) || 50 })}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px'
-                  }}
-                />
-              </div>
-
-              {/* Search Button */}
-              <button
-                onClick={handleAdvancedSearch}
-                disabled={loading || (!searchCriteria.city && !searchCriteria.latitude)}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                City
+              </label>
+              <input
+                type="text"
+                placeholder="Baltimore"
+                value={searchCriteria.city || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, city: e.target.value })}
                 style={{
                   width: '100%',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: 'var(--roof-red)',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
                 }}
-              >
-                <Search className="w-4 h-4" />
-                {loading ? 'Searching...' : 'Search'}
-              </button>
-
-              {/* Save Report Button */}
-              {currentSearch && (
-                <button
-                  onClick={() => setShowSaveDialog(true)}
-                  style={{
-                    width: '100%',
-                    marginTop: '8px',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <Save className="w-4 h-4" />
-                  Save Report
-                </button>
-              )}
+              />
             </div>
 
-            {/* Saved Reports List */}
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border-default)' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
-                  Saved Reports ({savedReports.length})
-                </h3>
-              </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                State
+              </label>
+              <input
+                type="text"
+                placeholder="MD"
+                value={searchCriteria.state || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, state: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
 
-              {savedReports.map((report) => (
-                <div
-                  key={report.id}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--border-default)',
-                    cursor: 'pointer',
-                    background: selectedReport?.id === report.id ? 'var(--bg-primary)' : 'transparent',
-                    transition: 'background 0.2s'
-                  }}
-                  onClick={() => handleLoadReport(report)}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                        {report.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        {report.results_count} events
-                        {report.max_hail_size && ` • Max: ${report.max_hail_size}"`}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        {new Date(report.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteReport(report.id);
-                      }}
-                      style={{
-                        padding: '4px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-secondary)'
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                ZIP Code
+              </label>
+              <input
+                type="text"
+                placeholder="21201"
+                value={searchCriteria.zip || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, zip: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
 
-              {savedReports.length === 0 && (
-                <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                  No saved reports yet
-                </div>
-              )}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                Radius (miles)
+              </label>
+              <input
+                type="number"
+                placeholder="50"
+                value={searchCriteria.radius || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, radius: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                Min Hail Size (inches)
+              </label>
+              <input
+                type="number"
+                step="0.25"
+                placeholder="1.0"
+                value={searchCriteria.minHailSize || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, minHailSize: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
             </div>
           </div>
-        )}
 
-        {/* Map Container */}
-        <div style={{ flex: 1, position: 'relative' }}>
-        {/* Storm Hover Popup */}
-        {hoveredStorm && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1001,
-            background: 'var(--bg-elevated)',
-            padding: '12px 16px',
-            borderRadius: '10px',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-            border: `2px solid ${getSeverityColor(hoveredStorm.severity)}`,
-            minWidth: '280px',
-            maxWidth: '400px',
-            pointerEvents: 'none'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '10px'
-            }}>
-              <Cloud className="w-5 h-5" style={{ color: getSeverityColor(hoveredStorm.severity) }} />
-              <span style={{
-                fontSize: '14px',
-                fontWeight: 700,
-                color: 'var(--text-primary)'
-              }}>
-                Storm Path - {formatDate(hoveredStorm.date)}
-              </span>
-            </div>
-
-            <div style={{
-              padding: '6px 10px',
-              borderRadius: '5px',
-              background: `${getSeverityColor(hoveredStorm.severity)}20`,
-              marginBottom: '10px',
-              display: 'inline-block'
-            }}>
-              <span style={{
-                color: getSeverityColor(hoveredStorm.severity),
-                fontWeight: 700,
-                fontSize: '12px',
-                textTransform: 'uppercase'
-              }}>
-                {hoveredStorm.severity}
-              </span>
-            </div>
-
-            <div style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Events ({hoveredStorm.events.length}):
-            </div>
-
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              maxHeight: '200px',
-              overflowY: 'auto'
-            }}>
-              {hoveredStorm.events.map((event, idx) => {
-                const isIHM = 'severity' in event;
-                const hailSize = isIHM
-                  ? (event as HailEvent).hailSize
-                  : (event as NOAAEvent).magnitude;
-
-                return (
-                  <div
-                    key={`hover-event-${idx}`}
-                    style={{
-                      padding: '8px 10px',
-                      background: 'var(--bg-primary)',
-                      borderRadius: '6px',
-                      borderLeft: `3px solid ${isIHM ? getSeverityColor((event as HailEvent).severity) : getEventTypeColor((event as NOAAEvent).eventType)}`
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '11px'
-                    }}>
-                      <span style={{
-                        fontWeight: 600,
-                        color: 'var(--text-primary)'
-                      }}>
-                        {formatDate(event.date)}
-                      </span>
-                      <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'center',
-                        fontSize: '11px',
-                        color: 'var(--text-secondary)'
-                      }}>
-                        {hailSize && <span style={{ fontWeight: 600 }}>🌨 {hailSize}"</span>}
-                        <span style={{
-                          fontSize: '9px',
-                          textTransform: 'uppercase',
-                          fontWeight: 700
-                        }}>
-                          {isIHM ? 'IHM' : (event as NOAAEvent).eventType}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setSearchCollapsed(true)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAdvancedSearch}
+              disabled={loading}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'var(--roof-red)',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {loading ? 'Searching...' : 'Search'}
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Hail Dates Panel - RIGHT SIDE */}
-        {showHailDates && (filteredHailEvents.length > 0 || filteredNoaaEvents.length > 0) && (
+      {/* Main Content Area */}
+      <div style={{ position: 'relative', height: 'calc(100vh - 200px)' }}>
+        {/* Left Sidebar - Events List */}
+        {showHailDates && (
           <div style={{
             position: 'absolute',
-            top: '16px',
-            right: '16px',
-            bottom: '16px',
-            zIndex: 1000,
-            background: 'var(--bg-elevated)',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-            border: '1px solid var(--border-default)',
+            left: 0,
+            top: 0,
+            bottom: 0,
             width: '320px',
+            background: 'var(--bg-primary)',
+            borderRight: '1px solid var(--border-default)',
+            zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
-            maxHeight: 'calc(100% - 32px)'
+            overflow: 'hidden'
           }}>
-            {/* Header */}
+            {/* Sidebar Header */}
             <div style={{
-              padding: '16px',
+              padding: '12px 16px',
+              background: 'var(--bg-elevated)',
               borderBottom: '1px solid var(--border-default)',
               display: 'flex',
               alignItems: 'center',
@@ -2281,9 +1492,9 @@ export default function TerritoryHailMap() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-                <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                  Hail Event Dates
-                </h3>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Storm Events
+                </span>
               </div>
               <button
                 onClick={() => setShowHailDates(false)}
@@ -2292,16 +1503,17 @@ export default function TerritoryHailMap() {
                   border: 'none',
                   cursor: 'pointer',
                   padding: '4px',
+                  borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
-                  color: 'var(--text-secondary)'
+                  justifyContent: 'center'
                 }}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Stats Summary */}
+            {/* Stats Summary with Damage Score */}
             {searchStats && (
               <div style={{
                 padding: '12px 16px',
@@ -2309,7 +1521,7 @@ export default function TerritoryHailMap() {
                 borderBottom: '1px solid var(--border-default)',
                 fontSize: '12px'
               }}>
-                {/* Damage Score Display - Prominent */}
+                {/* Damage Score Display */}
                 {damageScore && (
                   <div style={{
                     marginBottom: '16px',
@@ -2363,6 +1575,21 @@ export default function TerritoryHailMap() {
                   </div>
                 )}
 
+                {loadingDamageScore && (
+                  <div style={{
+                    marginBottom: '16px',
+                    padding: '16px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '12px',
+                    textAlign: 'center'
+                  }}>
+                    <RefreshCw className="w-6 h-6 animate-spin" style={{ color: 'var(--roof-red)', margin: '0 auto 8px' }} />
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      Calculating damage score...
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <div>
                     <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
@@ -2379,6 +1606,57 @@ export default function TerritoryHailMap() {
                     </div>
                   )}
                 </div>
+
+                {/* Last Updated Timestamp */}
+                {lastUpdated && (
+                  <div style={{
+                    fontSize: '10px',
+                    color: 'var(--text-secondary)',
+                    marginTop: '8px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid var(--border-default)',
+                    fontStyle: 'italic'
+                  }}>
+                    Last updated: {formatTimestamp(lastUpdated)}
+                  </div>
+                )}
+
+                {/* PDF Report Filter Dropdown */}
+                <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                  <label style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    display: 'block',
+                    marginBottom: '4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Report Filter
+                  </label>
+                  <select
+                    value={pdfReportFilter}
+                    onChange={(e) => setPdfReportFilter(e.target.value as any)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-default)',
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text-primary)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="all">All Events</option>
+                    <option value="hail-only">Hail Only</option>
+                    <option value="hail-wind">Hail + Wind</option>
+                    <option value="ihm-only">IHM Only</option>
+                    <option value="noaa-only">NOAA Only</option>
+                  </select>
+                </div>
+
                 {/* Download PDF Buttons */}
                 <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                   <button
@@ -2416,8 +1694,8 @@ export default function TerritoryHailMap() {
                       }
                     }}
                   >
-                    <FileDown className="w-4 h-4" />
-                    {generatingPdf ? 'Generating...' : 'Download PDF'}
+                    {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                    {generatingPdf ? 'Generating...' : 'Download Report'}
                   </button>
                   <button
                     onClick={() => setShowPdfOptions(true)}
@@ -2477,6 +1755,9 @@ export default function TerritoryHailMap() {
                     .map((event, idx) => {
                       const eventId = `ihm-${event.id}`;
                       const isSelected = selectedEventId === eventId;
+                      const sourceType = getEventSourceType(event);
+                      const isHailTrace = sourceType === 'hailtrace';
+
                       return (
                       <div
                         key={`ihm-${event.id || idx}`}
@@ -2490,11 +1771,29 @@ export default function TerritoryHailMap() {
                           background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
                           borderRadius: '8px',
                           border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getSeverityColor(event.severity)}20`,
-                          borderLeft: `4px solid ${getSeverityColor(event.severity)}`,
+                          borderLeft: `4px solid ${isHailTrace ? '#10b981' : getSeverityColor(event.severity)}`,
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          position: 'relative'
                         }}
                       >
+                        {isHailTrace && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            padding: '2px 6px',
+                            background: '#10b981',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '9px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>
+                            HailTrace
+                          </div>
+                        )}
                         <div style={{
                           fontSize: '14px',
                           fontWeight: 700,
@@ -2504,7 +1803,7 @@ export default function TerritoryHailMap() {
                           alignItems: 'center',
                           gap: '6px'
                         }}>
-                          <Calendar className="w-4 h-4" style={{ color: getSeverityColor(event.severity) }} />
+                          <Calendar className="w-4 h-4" style={{ color: isHailTrace ? '#10b981' : getSeverityColor(event.severity) }} />
                           {formatDate(event.date)}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
@@ -2623,45 +1922,8 @@ export default function TerritoryHailMap() {
           </div>
         )}
 
-        {/* Search Stats Panel */}
-        {searchStats && currentSearch && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: searchPanelOpen ? '336px' : '16px',
-            zIndex: 1000,
-            background: 'var(--bg-elevated)',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-            minWidth: '280px',
-            border: '1px solid var(--border-default)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <BarChart3 className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Search Results
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-              <div>Total Events: <strong style={{ color: 'var(--text-primary)' }}>{searchStats.totalEvents}</strong></div>
-              {searchStats.maxHailSize && (
-                <div>Max Hail Size: <strong style={{ color: 'var(--text-primary)' }}>{searchStats.maxHailSize.toFixed(2)}"</strong></div>
-              )}
-              {searchStats.avgHailSize && (
-                <div>Avg Hail Size: <strong style={{ color: 'var(--text-primary)' }}>{searchStats.avgHailSize.toFixed(2)}"</strong></div>
-              )}
-              {currentSearch.city && (
-                <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border-default)' }}>
-                  {currentSearch.city}, {currentSearch.state} {currentSearch.zip}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Save Report Dialog */}
-        {showSaveDialog && (
+        {/* PDF Options Modal */}
+        {showPdfOptions && (
           <div style={{
             position: 'absolute',
             top: 0,
@@ -2678,26 +1940,109 @@ export default function TerritoryHailMap() {
               background: 'var(--bg-elevated)',
               padding: '24px',
               borderRadius: '12px',
-              maxWidth: '400px',
+              maxWidth: '500px',
               width: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto',
               boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
             }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>
-                Save Search Report
+                PDF Report Options
               </h3>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={pdfOptions.includeRepInfo}
+                    onChange={(e) => setPdfOptions({ ...pdfOptions, includeRepInfo: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Include Representative Information
+                  </span>
+                </label>
+              </div>
+
+              {pdfOptions.includeRepInfo && (
+                <div style={{ marginLeft: '24px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Representative Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="John Doe"
+                      value={pdfOptions.repName}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repName: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="(555) 123-4567"
+                      value={pdfOptions.repPhone}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repPhone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="john@example.com"
+                      value={pdfOptions.repEmail}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repEmail: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Report Name
+                  Company Name
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Baltimore Storm Events 2024"
-                  value={reportName}
-                  onChange={(e) => setReportName(e.target.value)}
-                  autoFocus
+                  placeholder="SA21 Storm Intelligence System"
+                  value={pdfOptions.companyName}
+                  onChange={(e) => setPdfOptions({ ...pdfOptions, companyName: e.target.value })}
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '8px 12px',
                     borderRadius: '6px',
                     border: '1px solid var(--border-default)',
                     background: 'var(--bg-primary)',
@@ -2706,17 +2051,15 @@ export default function TerritoryHailMap() {
                   }}
                 />
               </div>
+
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button
-                  onClick={() => {
-                    setShowSaveDialog(false);
-                    setReportName('');
-                  }}
+                  onClick={() => setShowPdfOptions(false)}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '6px',
                     border: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
+                    background: 'var(--bg-elevated)',
                     color: 'var(--text-primary)',
                     fontSize: '13px',
                     fontWeight: 600,
@@ -2726,7 +2069,10 @@ export default function TerritoryHailMap() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveReport}
+                  onClick={() => {
+                    setShowPdfOptions(false);
+                    handleGeneratePDF();
+                  }}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '6px',
@@ -2735,52 +2081,17 @@ export default function TerritoryHailMap() {
                     color: 'white',
                     fontSize: '13px',
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                 >
-                  Save
+                  <FileDown className="w-4 h-4" />
+                  Generate PDF
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {loading && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 1000,
-            background: 'var(--bg-elevated)',
-            padding: '16px 24px',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-          }}>
-            <RefreshCw className="w-5 h-5 animate-spin" style={{ color: 'var(--roof-red)' }} />
-            <span style={{ color: 'var(--text-primary)' }}>Loading storm data...</span>
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
-            background: '#7f1d1d',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <AlertTriangle className="w-4 h-4" style={{ color: '#fca5a5' }} />
-            <span style={{ color: '#fca5a5', fontSize: '13px' }}>{error}</span>
           </div>
         )}
 
@@ -2790,176 +2101,90 @@ export default function TerritoryHailMap() {
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 
-          {/* Storm Path Polygons - Grouped Events with Hover Popups - ONLY for selected/checked events */}
-          {groupEventsByLocation([
-            ...filteredHailEvents.filter(e => checkedEvents.has(`ihm-${e.id}`) || selectedEventId === `ihm-${e.id}`).map(e => ({ type: 'ihm' as const, event: e })),
-            ...filteredNoaaEvents.filter(e => checkedEvents.has(`noaa-${e.id}`) || selectedEventId === `noaa-${e.id}`).map(e => ({ type: 'noaa' as const, event: e }))
-          ]).map((group, groupIdx) => {
-            // Get max severity for the group
-            const maxSize = Math.max(...group.events.map(item => {
-              if (item.type === 'ihm') {
-                return (item.event as HailEvent).hailSize || 0;
-              } else {
-                return (item.event as NOAAEvent).magnitude || 0;
-              }
-            }));
-
-            const polygonColor = getSeverityColorFromSize(maxSize);
-            const radiusInMeters = 1200 + maxSize * 600;
-
-            return (
-              <Circle
-                key={`group-${groupIdx}`}
-                center={[group.lat, group.lng]}
-                radius={radiusInMeters}
-                pathOptions={{
-                  color: polygonColor,
-                  fillColor: polygonColor,
-                  fillOpacity: 0.25,
-                  weight: 2,
-                  opacity: 0.6
-                }}
-              >
-                <Popup>
-                  <div style={{ minWidth: '220px', maxHeight: '400px', overflow: 'auto' }}>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      marginBottom: '12px',
-                      color: '#333',
-                      borderBottom: '2px solid #eee',
-                      paddingBottom: '8px'
-                    }}>
-                      {group.events.length} Event{group.events.length > 1 ? 's' : ''} at this Location
-                    </div>
-                    {group.events
-                      .sort((a, b) => new Date(b.event.date).getTime() - new Date(a.event.date).getTime())
-                      .map((item, idx) => {
-                        const isIHM = item.type === 'ihm';
-                        const event = item.event;
-                        const hailSize = isIHM
-                          ? (event as HailEvent).hailSize
-                          : (event as NOAAEvent).magnitude;
-                        const color = getSeverityColorFromSize(hailSize);
-
-                        return (
-                          <div
-                            key={idx}
-                            style={{
-                              padding: '8px',
-                              marginBottom: '8px',
-                              background: '#f9fafb',
-                              borderRadius: '6px',
-                              borderLeft: `4px solid ${color}`
-                            }}
-                          >
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
-                              {formatDate(event.date)}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>
-                              {hailSize && (
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>Hail Size:</span>
-                                  <strong style={{ color }}>{hailSize}"</strong>
-                                </div>
-                              )}
-                              {!isIHM && (event as NOAAEvent).eventType !== 'hail' && (
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>Type:</span>
-                                  <strong style={{ textTransform: 'capitalize' }}>
-                                    {(event as NOAAEvent).eventType}
-                                  </strong>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </Popup>
-              </Circle>
-            );
-          })}
-
           {/* Territory Rectangles */}
-          {territories
-            .filter(t => {
-              // Filter out territories with invalid coordinates
-              if (!t.southLat || !t.northLat || !t.westLng || !t.eastLng) {
-                console.warn('Territory missing coordinates:', t.name, t.id);
-                return false;
-              }
-              if (isNaN(t.southLat) || isNaN(t.northLat) || isNaN(t.westLng) || isNaN(t.eastLng)) {
-                console.warn('Territory has invalid coordinates:', t.name, t.id);
-                return false;
-              }
-              return true;
-            })
-            .map(t => (
-              <Rectangle
-                key={t.id}
-                bounds={[
-                  [t.southLat, t.westLng],
-                  [t.northLat, t.eastLng]
-                ]}
-                pathOptions={{
-                  color: t.color,
-                  weight: selectedTerritory?.id === t.id ? 3 : 2,
-                  fillOpacity: selectedTerritory?.id === t.id ? 0.2 : 0.1,
-                  dashArray: selectedTerritory?.id === t.id ? undefined : '5, 5'
-                }}
-                eventHandlers={{
-                  click: () => handleTerritoryClick(t)
-                }}
-              >
-                <Popup>
-                  <div style={{ minWidth: '150px' }}>
-                    <strong style={{ fontSize: '14px' }}>{t.name}</strong>
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#666' }}>
-                      {t.description}
-                    </p>
-                    <button
-                      onClick={() => handleTerritoryClick(t)}
-                      style={{
-                        marginTop: '8px',
-                        padding: '6px 12px',
-                        background: t.color,
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        width: '100%'
-                      }}
-                    >
-                      View Storm History
-                    </button>
+          {territories.map(t => (
+            <Rectangle
+              key={t.id}
+              bounds={[
+                [t.southLat, t.westLng],
+                [t.northLat, t.eastLng]
+              ]}
+              pathOptions={{
+                color: t.color,
+                weight: selectedTerritory?.id === t.id ? 3 : 2,
+                fillOpacity: selectedTerritory?.id === t.id ? 0.1 : 0.05
+              }}
+            >
+              <Popup>
+                <div style={{ padding: '8px' }}>
+                  <strong style={{ color: t.color }}>{t.name}</strong>
+                  <div style={{ fontSize: '12px', marginTop: '4px' }}>{t.description}</div>
+                </div>
+              </Popup>
+            </Rectangle>
+          ))}
+
+          {/* Storm Path Polygons */}
+          {stormPaths.map(path => (
+            <Polygon
+              key={path.id}
+              positions={path.path}
+              pathOptions={{
+                color: path.color,
+                fillColor: path.color,
+                fillOpacity: hoveredStorm?.id === path.id ? 0.5 : 0.2,
+                weight: 2,
+                opacity: 0.8
+              }}
+              eventHandlers={{
+                mouseover: () => setHoveredStorm(path),
+                mouseout: () => setHoveredStorm(null)
+              }}
+            >
+              <Popup>
+                <div style={{ padding: '8px', minWidth: '200px' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '14px' }}>
+                    Storm Path - {formatDate(path.date)}
                   </div>
-                </Popup>
-              </Rectangle>
-            ))}
+                  <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                    <strong>Severity:</strong> <span style={{ color: getSeverityColor(path.severity), textTransform: 'capitalize' }}>{path.severity}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', marginBottom: '8px' }}>
+                    <strong>Events in path:</strong> {path.events.length}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    Click events in the sidebar to view details
+                  </div>
+                </div>
+              </Popup>
+            </Polygon>
+          ))}
 
           {/* Hot Zones - Best Canvassing Areas */}
           {showHotZones && hotZones.map((zone) => {
-            // Determine color based on intensity
+            // Determine color based on intensity/score
             let fillColor: string;
-            let fillOpacity: number;
+            let strokeColor: string;
+            const score = zone.score || zone.intensity;
 
-            if (zone.intensity >= 80) {
-              fillColor = 'rgba(244, 67, 54, 0.7)'; // High intensity - red
-              fillOpacity = 0.7;
-            } else if (zone.intensity >= 60) {
-              fillColor = 'rgba(255, 152, 0, 0.5)'; // Medium intensity - orange
-              fillOpacity = 0.5;
+            if (score >= 80) {
+              fillColor = 'rgba(220, 38, 38, 0.3)'; // red
+              strokeColor = '#dc2626';
+            } else if (score >= 60) {
+              fillColor = 'rgba(249, 115, 22, 0.3)'; // orange
+              strokeColor = '#f97316';
+            } else if (score >= 40) {
+              fillColor = 'rgba(234, 179, 8, 0.3)'; // yellow
+              strokeColor = '#eab308';
             } else {
-              fillColor = 'rgba(255, 193, 7, 0.3)'; // Low intensity - yellow
-              fillOpacity = 0.3;
+              fillColor = 'rgba(34, 197, 94, 0.3)'; // green
+              strokeColor = '#22c55e';
             }
 
             return (
@@ -2968,70 +2193,66 @@ export default function TerritoryHailMap() {
                 center={[zone.centerLat, zone.centerLng]}
                 radius={zone.radius * 1609.34} // Convert miles to meters
                 pathOptions={{
-                  color: fillColor,
-                  fillColor: fillColor,
-                  fillOpacity: fillOpacity,
+                  fillColor,
+                  color: strokeColor,
                   weight: 2,
-                  opacity: 0.8
+                  opacity: 0.8,
+                  fillOpacity: 0.3
                 }}
               >
                 <Popup>
-                  <div style={{ minWidth: '250px', padding: '8px' }}>
+                  <div style={{ padding: '12px', minWidth: '250px' }}>
                     <div style={{
-                      fontSize: '16px',
-                      fontWeight: 700,
-                      marginBottom: '12px',
-                      color: '#333',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px'
+                      gap: '8px',
+                      marginBottom: '12px',
+                      fontSize: '16px',
+                      fontWeight: 700
                     }}>
                       <span style={{ fontSize: '20px' }}>🔥</span>
                       Hot Zone
                       <span style={{
                         fontSize: '12px',
-                        background: fillColor,
+                        padding: '4px 8px',
+                        background: strokeColor,
                         color: 'white',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontWeight: 600
+                        borderRadius: '12px',
+                        fontWeight: 700
                       }}>
-                        {zone.intensity}%
+                        Score: {score}
                       </span>
                     </div>
 
-                    <div style={{
-                      background: '#f9fafb',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      marginBottom: '12px'
-                    }}>
-                      <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
-                        <strong style={{ color: '#333' }}>{zone.eventCount}</strong> storm events
+                    <div style={{ fontSize: '12px', marginBottom: '12px' }}>
+                      <div style={{ marginBottom: '6px' }}>
+                        <strong>Events:</strong> {zone.eventCount}
                       </div>
                       {zone.maxHailSize && (
-                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
-                          Max hail: <strong style={{ color: '#ef4444' }}>{zone.maxHailSize}"</strong>
+                        <div style={{ marginBottom: '6px' }}>
+                          <strong>Max Hail:</strong> {zone.maxHailSize}"
                         </div>
                       )}
                       {zone.avgHailSize && (
-                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
-                          Avg hail: <strong style={{ color: '#f97316' }}>{zone.avgHailSize.toFixed(2)}"</strong>
+                        <div style={{ marginBottom: '6px' }}>
+                          <strong>Avg Hail:</strong> {zone.avgHailSize.toFixed(2)}"
                         </div>
                       )}
-                      <div style={{ fontSize: '13px', color: '#666' }}>
-                        Last event: <strong style={{ color: '#333' }}>{formatDate(zone.lastEventDate)}</strong>
+                      <div style={{ marginBottom: '6px' }}>
+                        <strong>Last Event:</strong> {formatDate(zone.lastEventDate)}
                       </div>
                     </div>
 
                     <div style={{
-                      fontSize: '13px',
-                      color: '#333',
                       padding: '10px',
-                      background: zone.intensity >= 80 ? '#fee2e2' : zone.intensity >= 60 ? '#fed7aa' : '#fef3c7',
+                      background: 'rgba(220, 38, 38, 0.1)',
                       borderRadius: '6px',
-                      borderLeft: `4px solid ${fillColor}`
+                      fontSize: '11px',
+                      lineHeight: '1.5',
+                      color: '#dc2626',
+                      fontWeight: 600
                     }}>
+                      <strong>Recommendation:</strong><br />
                       {zone.recommendation}
                     </div>
                   </div>
@@ -3040,533 +2261,109 @@ export default function TerritoryHailMap() {
             );
           })}
 
-          {/* Individual IHM Event Markers */}
-          {filteredHailEvents
-            .filter(event => {
-              // Filter out events with invalid coordinates
-              if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
-                console.warn('IHM event has invalid coordinates:', event.id);
-                return false;
-              }
-              return true;
-            })
-            .map((event, idx) => {
-              const eventId = `ihm-${event.id || idx}`;
-              const isSelected = selectedEventId === eventId;
-              const severityColor = getSeverityColorFromSize(event.hailSize);
+          {/* Event Markers with source-specific colors */}
+          {groupEventsByLocation([
+            ...filteredHailEvents.map(e => ({ event: e, type: getEventSourceType(e) as 'ihm' | 'hailtrace' })),
+            ...filteredNoaaEvents.map(e => ({ event: e, type: 'noaa' as const }))
+          ]).map((group, idx) => {
+            // Use the first event for color determination
+            const firstItem = group.events[0];
+            const markerColor = getMarkerColorBySource(firstItem.type);
 
-              return (
-                <CircleMarker
-                  key={eventId}
-                  center={[event.latitude, event.longitude]}
-                  radius={isSelected ? 8 : 6}
-                  pathOptions={{
-                    color: 'white',
-                    fillColor: severityColor,
-                    fillOpacity: 1,
-                    weight: isSelected ? 3 : 2
-                  }}
-                  eventHandlers={{
-                    click: () => handleEventCardClick(event, event.latitude, event.longitude)
-                  }}
-                >
-                  <Popup>
-                    <div style={{ minWidth: '180px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: severityColor }} />
-                        <strong style={{ fontSize: '14px' }}>Hail Event</strong>
-                      </div>
-                      <p style={{ margin: '4px 0', fontSize: '13px', fontWeight: 600 }}>
-                        📅 {formatDateLong(event.date)}
-                      </p>
-                      <p style={{ margin: '4px 0', fontSize: '13px' }}>
-                        🧊 Hail Size: <strong>{event.hailSize ? `${event.hailSize}"` : 'Unknown'}</strong>
-                      </p>
-                      <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
-                        Source: Interactive Hail Maps
-                      </p>
-                      <div style={{
-                        marginTop: '8px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        background: event.severity === 'severe' ? '#fef2f2' : event.severity === 'moderate' ? '#fff7ed' : '#fefce8',
-                        color: event.severity === 'severe' ? '#991b1b' : event.severity === 'moderate' ? '#c2410c' : '#a16207',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase'
-                      }}>
-                        {event.severity} Impact
-                      </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            })}
-
-          {/* Individual NOAA Event Markers */}
-          {filteredNoaaEvents
-            .filter(event => {
-              // Filter out events with invalid coordinates
-              if (!event.latitude || !event.longitude || isNaN(event.latitude) || isNaN(event.longitude)) {
-                console.warn('NOAA event has invalid coordinates:', event.id);
-                return false;
-              }
-              return true;
-            })
-            .map((event, idx) => {
-              const eventId = `noaa-${event.id || idx}`;
-              const isSelected = selectedEventId === eventId;
-              const severityColor = getSeverityColorFromSize(event.magnitude);
-
-              return (
-                <CircleMarker
-                  key={eventId}
-                  center={[event.latitude, event.longitude]}
-                  radius={isSelected ? 8 : 6}
-                  pathOptions={{
-                    color: 'white',
-                    fillColor: severityColor,
-                    fillOpacity: 1,
-                    weight: isSelected ? 3 : 2
-                  }}
-                  eventHandlers={{
-                    click: () => handleEventCardClick(event, event.latitude, event.longitude)
-                  }}
-                >
-                  <Popup>
-                    <div style={{ minWidth: '180px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: severityColor }} />
-                        <strong style={{ fontSize: '14px' }}>
-                          {event.eventType === 'hail' ? '🧊 Hail' : event.eventType === 'wind' ? '💨 Wind' : '🌪️ Tornado'}
-                        </strong>
-                      </div>
-                      <p style={{ margin: '4px 0', fontSize: '13px', fontWeight: 600 }}>
-                        📅 {formatDateLong(event.date)}
-                      </p>
-                      {event.magnitude && (
-                        <p style={{ margin: '4px 0', fontSize: '13px' }}>
-                          📏 Size: <strong>{event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}</strong>
-                        </p>
-                      )}
-                      {event.location && (
-                        <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
-                          📍 {event.location}
-                        </p>
-                      )}
-                      <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
-                        Source: NOAA Certified ✓
-                      </p>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            })}
-
-          {/* Search Area Highlight - Draw circle around search location */}
-          {currentSearch && currentSearch.latitude && currentSearch.longitude && currentSearch.radius && (
-            <>
-              {/* Center marker */}
+            return (
               <CircleMarker
-                center={[currentSearch.latitude, currentSearch.longitude]}
-                radius={10}
+                key={`marker-${idx}`}
+                center={[group.lat, group.lng]}
+                radius={8}
                 pathOptions={{
-                  color: '#3b82f6',
-                  fillColor: '#3b82f6',
-                  fillOpacity: 0.8,
-                  weight: 3
+                  fillColor: markerColor,
+                  color: '#fff',
+                  weight: 2,
+                  opacity: 1,
+                  fillOpacity: 0.8
                 }}
               >
                 <Popup>
-                  <div style={{ minWidth: '160px' }}>
-                    <strong>Search Center</strong>
-                    <p style={{ margin: '4px 0', fontSize: '12px' }}>
-                      Radius: {currentSearch.radius} miles
-                    </p>
-                    {currentSearch.city && (
-                      <p style={{ margin: '4px 0', fontSize: '12px' }}>
-                        {currentSearch.city}, {currentSearch.state}
-                      </p>
+                  <div style={{ padding: '8px', maxWidth: '300px' }}>
+                    {group.events.length === 1 ? (
+                      // Single event
+                      <div>
+                        {firstItem.type === 'noaa' ? (
+                          <>
+                            <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
+                              {formatDate(firstItem.event.date)}
+                            </div>
+                            <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                              <div><strong>Type:</strong> {(firstItem.event as NOAAEvent).eventType}</div>
+                              {(firstItem.event as NOAAEvent).magnitude && (
+                                <div><strong>Magnitude:</strong> {(firstItem.event as NOAAEvent).magnitude}</div>
+                              )}
+                              <div><strong>Location:</strong> {(firstItem.event as NOAAEvent).location}</div>
+                              <div style={{ marginTop: '4px', fontSize: '11px', color: '#8b5cf6' }}>Source: NOAA</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
+                              {formatDate(firstItem.event.date)}
+                            </div>
+                            <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                              <div><strong>Hail Size:</strong> {(firstItem.event as HailEvent).hailSize}"</div>
+                              <div><strong>Severity:</strong> {(firstItem.event as HailEvent).severity}</div>
+                              <div style={{ marginTop: '4px', fontSize: '11px', color: firstItem.type === 'hailtrace' ? '#10b981' : '#3b82f6' }}>
+                                Source: {firstItem.type === 'hailtrace' ? 'HailTrace' : 'IHM'}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      // Multiple events at same location
+                      <div>
+                        <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '14px' }}>
+                          {group.events.length} Events at this location
+                        </div>
+                        <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                          {group.events.map((item, i) => (
+                            <div key={i} style={{
+                              marginBottom: '8px',
+                              paddingBottom: '8px',
+                              borderBottom: i < group.events.length - 1 ? '1px solid #e5e7eb' : 'none'
+                            }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                {formatDate(item.event.date)}
+                              </div>
+                              <div style={{ fontSize: '11px', lineHeight: '1.5' }}>
+                                {item.type === 'noaa' ? (
+                                  <>
+                                    <div>Type: {(item.event as NOAAEvent).eventType}</div>
+                                    {(item.event as NOAAEvent).magnitude && (
+                                      <div>Magnitude: {(item.event as NOAAEvent).magnitude}</div>
+                                    )}
+                                    <div style={{ fontSize: '10px', color: '#8b5cf6' }}>NOAA</div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div>Hail: {(item.event as HailEvent).hailSize}"</div>
+                                    <div>Severity: {(item.event as HailEvent).severity}</div>
+                                    <div style={{ fontSize: '10px', color: item.type === 'hailtrace' ? '#10b981' : '#3b82f6' }}>
+                                      {item.type === 'hailtrace' ? 'HailTrace' : 'IHM'}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </Popup>
               </CircleMarker>
-              {/* Radius circle - convert miles to meters */}
-              <Circle
-                center={[currentSearch.latitude, currentSearch.longitude]}
-                radius={currentSearch.radius * 1609.34}
-                pathOptions={{
-                  color: '#3b82f6',
-                  fillColor: '#3b82f6',
-                  fillOpacity: 0.05,
-                  weight: 2,
-                  dashArray: '10, 5'
-                }}
-              />
-            </>
-          )}
+            );
+          })}
         </MapContainer>
       </div>
-      </div>
-
-      {/* Legend */}
-      <div style={{
-        padding: '12px 20px',
-        background: 'var(--bg-elevated)',
-        borderTop: '1px solid var(--border-default)',
-        display: 'flex',
-        gap: '20px',
-        flexWrap: 'wrap',
-        fontSize: '12px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Severity:</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></span>
-            Severe (2"+)
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f97316' }}></span>
-            Significant (1.5-2")
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#eab308' }}></span>
-            Moderate (1-1.5")
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22c55e' }}></span>
-            Minor (0.75-1")
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6' }}></span>
-            Light (&lt;0.75")
-          </span>
-        </div>
-        {selectedTerritory && (
-          <div style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }}>
-            <MapPin className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
-            {filteredHailEvents.length} IHM events, {filteredNoaaEvents.length} NOAA events
-          </div>
-        )}
-      </div>
-
-      {/* PDF Options Modal */}
-      {showPdfOptions && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-          padding: '20px'
-        }} onClick={() => setShowPdfOptions(false)}>
-          <div style={{
-            background: 'var(--bg-primary)',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '500px',
-            width: '100%',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-            border: '1px solid var(--border-default)'
-          }} onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '20px',
-              paddingBottom: '16px',
-              borderBottom: '1px solid var(--border-default)'
-            }}>
-              <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                  PDF Report Options
-                </h2>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                  Customize your storm report
-                </p>
-              </div>
-              <button
-                onClick={() => setShowPdfOptions(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-tertiary)';
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'none';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Include Rep Info Toggle */}
-              <div>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={pdfOptions.includeRepInfo}
-                    onChange={(e) => setPdfOptions({ ...pdfOptions, includeRepInfo: e.target.checked })}
-                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                  />
-                  Include Contact Information
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0', paddingLeft: '24px' }}>
-                  Add your contact details to the report
-                </p>
-              </div>
-
-              {/* Rep Info Fields (shown when toggle is on) */}
-              {pdfOptions.includeRepInfo && (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                  padding: '16px',
-                  background: 'var(--bg-elevated)',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-default)'
-                }}>
-                  {/* Rep Name */}
-                  <div>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      marginBottom: '6px'
-                    }}>
-                      <User className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                      Your Name
-                    </label>
-                    <input
-                      type="text"
-                      value={pdfOptions.repName}
-                      onChange={(e) => setPdfOptions({ ...pdfOptions, repName: e.target.value })}
-                      placeholder="John Smith"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid var(--border-default)',
-                        borderRadius: '6px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px',
-                        outline: 'none',
-                        transition: 'border 0.2s'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
-                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                    />
-                  </div>
-
-                  {/* Rep Phone */}
-                  <div>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      marginBottom: '6px'
-                    }}>
-                      <Phone className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={pdfOptions.repPhone}
-                      onChange={(e) => setPdfOptions({ ...pdfOptions, repPhone: e.target.value })}
-                      placeholder="(555) 123-4567"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid var(--border-default)',
-                        borderRadius: '6px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px',
-                        outline: 'none',
-                        transition: 'border 0.2s'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
-                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                    />
-                  </div>
-
-                  {/* Rep Email */}
-                  <div>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      marginBottom: '6px'
-                    }}>
-                      <Mail className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={pdfOptions.repEmail}
-                      onChange={(e) => setPdfOptions({ ...pdfOptions, repEmail: e.target.value })}
-                      placeholder="john@example.com"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid var(--border-default)',
-                        borderRadius: '6px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px',
-                        outline: 'none',
-                        transition: 'border 0.2s'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
-                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Company Name */}
-              <div>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  marginBottom: '6px'
-                }}>
-                  <Building2 className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  value={pdfOptions.companyName}
-                  onChange={(e) => setPdfOptions({ ...pdfOptions, companyName: e.target.value })}
-                  placeholder="SA21 Storm Intelligence System"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px',
-                    outline: 'none',
-                    transition: 'border 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
-                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              marginTop: '24px',
-              paddingTop: '16px',
-              borderTop: '1px solid var(--border-default)'
-            }}>
-              <button
-                onClick={() => setShowPdfOptions(false)}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-tertiary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-elevated)';
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGeneratePDF}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  background: 'var(--roof-red)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#b91c1c';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--roof-red)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <FileDown className="w-4 h-4" />
-                Generate Report
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
     </div>
   );

@@ -376,7 +376,12 @@ export class PDFReportService {
 
   private formatEventRow(event: { date: string; type: string; size: number | null; severity: string; source: string; distance?: number }): string[] {
     const date = new Date(event.date);
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const dateStr = date.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
 
     // Format size based on event type
     let sizeStr = '-';

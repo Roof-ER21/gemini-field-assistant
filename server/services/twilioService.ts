@@ -2,6 +2,8 @@
  * Twilio Service
  *
  * Handles SMS notifications for impacted assets and other alerts.
+ * All timestamps use Eastern timezone.
+ * Includes rate limiting: max 1 SMS per phone number per hour for same property.
  *
  * Environment Variables Required:
  * - TWILIO_ACCOUNT_SID: Your Twilio Account SID
@@ -10,6 +12,7 @@
  */
 
 import twilio from 'twilio';
+import { Pool } from 'pg';
 
 export interface SMSParams {
   to: string;
@@ -22,7 +25,19 @@ export interface StormAlertParams {
   eventType: string;
   hailSize?: number;
   windSpeed?: number;
-  date: string;
+  date?: string;
+  propertyId?: string;
+}
+
+export interface StormAlert {
+  userId: string;
+  phoneNumber: string;
+  propertyAddress: string;
+  propertyId?: string;
+  eventType: string;
+  hailSize?: number;
+  windSpeed?: number;
+  impactAlertId?: string;
 }
 
 export interface SMSResponse {
@@ -31,12 +46,37 @@ export interface SMSResponse {
   error?: string;
 }
 
+export interface BatchResult {
+  total: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  results: Array<{
+    phoneNumber: string;
+    propertyAddress: string;
+    success: boolean;
+    messageSid?: string;
+    error?: string;
+  }>;
+}
+
 export class TwilioService {
   private client: twilio.Twilio | null = null;
   private fromNumber: string | null = null;
+  private pool: Pool | null = null;
 
-  constructor() {
+  constructor(pool?: Pool) {
+    if (pool) {
+      this.pool = pool;
+    }
     this.initialize();
+  }
+
+  /**
+   * Set database pool for rate limiting and logging
+   */
+  setPool(pool: Pool): void {
+    this.pool = pool;
   }
 
   /**
@@ -70,7 +110,7 @@ export class TwilioService {
   /**
    * Send a basic SMS message
    */
-  async sendSMS(to: string, message: string): Promise<SMSResponse> {
+  async sendSMS(to: string, message: string, userId?: string, impactAlertId?: string): Promise<SMSResponse> {
     if (!this.isConfigured()) {
       console.error('[Twilio] Cannot send SMS - service not configured');
       return {
@@ -97,12 +137,23 @@ export class TwilioService {
 
       console.log(`[Twilio] SMS sent successfully to ${cleanPhone} - SID: ${result.sid}`);
 
+      // Log to database if pool is available
+      if (this.pool && userId) {
+        await this.logSMSNotification(userId, cleanPhone, message, result.sid, impactAlertId);
+      }
+
       return {
         success: true,
         messageSid: result.sid
       };
     } catch (error: any) {
       console.error('[Twilio] Failed to send SMS:', error);
+
+      // Log failure to database if pool is available
+      if (this.pool && userId) {
+        await this.logSMSNotification(userId, cleanPhone, message, null, impactAlertId, error.message);
+      }
+
       return {
         success: false,
         error: error.message || 'Failed to send SMS'
@@ -111,11 +162,24 @@ export class TwilioService {
   }
 
   /**
-   * Send a storm alert SMS
+   * Send a storm alert SMS with rate limiting
+   * Max 1 SMS per phone number per hour for same property
    */
-  async sendStormAlert(params: StormAlertParams): Promise<SMSResponse> {
+  async sendStormAlert(params: StormAlertParams & { userId?: string; impactAlertId?: string }): Promise<SMSResponse> {
+    // Check rate limit if pool is available and propertyId is provided
+    if (this.pool && params.propertyId && params.phoneNumber) {
+      const isRateLimited = await this.checkRateLimit(params.phoneNumber, params.propertyId);
+      if (isRateLimited) {
+        console.log(`[Twilio] Rate limited: ${params.phoneNumber} for property ${params.propertyId}`);
+        return {
+          success: false,
+          error: 'Rate limit: Already sent SMS for this property in the last hour'
+        };
+      }
+    }
+
     const message = this.formatStormAlertMessage(params);
-    return this.sendSMS(params.phoneNumber, message);
+    return this.sendSMS(params.phoneNumber, message, params.userId, params.impactAlertId);
   }
 
   /**
@@ -127,23 +191,77 @@ export class TwilioService {
   }
 
   /**
-   * Format storm alert message for SMS
+   * Send batch storm alerts to multiple users
+   * Respects rate limiting and processes alerts in sequence
    */
-  private formatStormAlertMessage(params: StormAlertParams): string {
-    let message = `🏠 Storm Alert - ${params.propertyAddress}\n`;
+  async sendBatchAlerts(alerts: StormAlert[]): Promise<BatchResult> {
+    const result: BatchResult = {
+      total: alerts.length,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      results: []
+    };
 
-    // Add event type and details
-    if (params.eventType === 'hail' && params.hailSize) {
-      message += `${params.hailSize}" hail detected on ${params.date}\n`;
-    } else if (params.eventType === 'wind' && params.windSpeed) {
-      message += `${params.windSpeed} mph winds detected on ${params.date}\n`;
-    } else if (params.eventType === 'tornado') {
-      message += `Tornado activity detected on ${params.date}\n`;
-    } else {
-      message += `${params.eventType} event detected on ${params.date}\n`;
+    for (const alert of alerts) {
+      const response = await this.sendStormAlert({
+        phoneNumber: alert.phoneNumber,
+        propertyAddress: alert.propertyAddress,
+        propertyId: alert.propertyId,
+        eventType: alert.eventType,
+        hailSize: alert.hailSize,
+        windSpeed: alert.windSpeed,
+        userId: alert.userId,
+        impactAlertId: alert.impactAlertId
+      });
+
+      result.results.push({
+        phoneNumber: alert.phoneNumber,
+        propertyAddress: alert.propertyAddress,
+        success: response.success,
+        messageSid: response.messageSid,
+        error: response.error
+      });
+
+      if (response.success) {
+        result.sent++;
+      } else if (response.error?.includes('Rate limit')) {
+        result.skipped++;
+      } else {
+        result.failed++;
+      }
+
+      // Small delay to avoid Twilio rate limits (max 1 msg/sec for trial accounts)
+      await new Promise(resolve => setTimeout(resolve, 1100));
     }
 
-    message += 'Check SA21 for details.';
+    console.log(`[Twilio] Batch complete: ${result.sent} sent, ${result.failed} failed, ${result.skipped} skipped`);
+    return result;
+  }
+
+  /**
+   * Format storm alert message for SMS
+   * Format: 🌩️ STORM ALERT - SA21
+   */
+  private formatStormAlertMessage(params: StormAlertParams): string {
+    // Get current date in Eastern timezone if not provided
+    const date = params.date || this.getEasternDate();
+
+    let message = `🌩️ STORM ALERT - SA21\n`;
+    message += `Hail detected near ${params.propertyAddress}\n`;
+
+    // Add event details
+    if (params.eventType === 'hail' && params.hailSize) {
+      message += `Size: ${params.hailSize}" | Date: ${date}\n`;
+    } else if (params.eventType === 'wind' && params.windSpeed) {
+      message += `Wind: ${params.windSpeed} mph | Date: ${date}\n`;
+    } else if (params.eventType === 'tornado') {
+      message += `Tornado activity | Date: ${date}\n`;
+    } else {
+      message += `Event: ${params.eventType} | Date: ${date}\n`;
+    }
+
+    message += 'View details in app';
 
     return message;
   }
@@ -190,23 +308,153 @@ export class TwilioService {
     configured: boolean;
     fromNumber: string | null;
     hasCredentials: boolean;
+    hasDatabase: boolean;
   } {
     return {
       configured: this.isConfigured(),
       fromNumber: this.fromNumber,
-      hasCredentials: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+      hasCredentials: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
+      hasDatabase: this.pool !== null
     };
+  }
+
+  /**
+   * Check rate limit for phone/property combination
+   * Returns true if rate limited (SMS sent in last hour)
+   */
+  private async checkRateLimit(phoneNumber: string, propertyId: string): Promise<boolean> {
+    if (!this.pool) {
+      return false; // No rate limiting without database
+    }
+
+    try {
+      const result = await this.pool.query(
+        `SELECT id FROM sms_notifications
+         WHERE phone_number = $1
+         AND message_body LIKE $2
+         AND sent_at > NOW() - INTERVAL '1 hour'
+         AND status = 'sent'
+         LIMIT 1`,
+        [phoneNumber, `%${propertyId}%`]
+      );
+
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('[Twilio] Rate limit check error:', error);
+      return false; // Allow sending on error
+    }
+  }
+
+  /**
+   * Log SMS notification to database
+   */
+  private async logSMSNotification(
+    userId: string,
+    phoneNumber: string,
+    messageBody: string,
+    messageSid: string | null,
+    impactAlertId?: string,
+    errorMessage?: string
+  ): Promise<void> {
+    if (!this.pool) {
+      return;
+    }
+
+    try {
+      await this.pool.query(
+        `INSERT INTO sms_notifications (
+          user_id,
+          impact_alert_id,
+          phone_number,
+          message_body,
+          message_sid,
+          status,
+          error_message,
+          sent_at,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+        [
+          userId,
+          impactAlertId || null,
+          phoneNumber,
+          messageBody,
+          messageSid,
+          messageSid ? 'sent' : 'failed',
+          errorMessage || null,
+          messageSid ? new Date().toISOString() : null
+        ]
+      );
+    } catch (error) {
+      console.error('[Twilio] Failed to log SMS notification:', error);
+    }
+  }
+
+  /**
+   * Get current date formatted in Eastern timezone
+   * Format: Jan 15, 2025
+   */
+  private getEasternDate(): string {
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    };
+
+    return new Date().toLocaleDateString('en-US', options);
+  }
+
+  /**
+   * Get SMS statistics for a user
+   */
+  async getUserStats(userId: string, daysBack: number = 30): Promise<{
+    totalSent: number;
+    totalDelivered: number;
+    totalFailed: number;
+    lastSentAt: string | null;
+  }> {
+    if (!this.pool) {
+      return {
+        totalSent: 0,
+        totalDelivered: 0,
+        totalFailed: 0,
+        lastSentAt: null
+      };
+    }
+
+    try {
+      const result = await this.pool.query(
+        `SELECT * FROM get_user_sms_stats($1, $2)`,
+        [userId, daysBack]
+      );
+
+      const stats = result.rows[0];
+      return {
+        totalSent: stats.total_sent || 0,
+        totalDelivered: stats.total_delivered || 0,
+        totalFailed: stats.total_failed || 0,
+        lastSentAt: stats.last_sent_at
+      };
+    } catch (error) {
+      console.error('[Twilio] Failed to get user stats:', error);
+      return {
+        totalSent: 0,
+        totalDelivered: 0,
+        totalFailed: 0,
+        lastSentAt: null
+      };
+    }
   }
 }
 
 /**
- * Singleton instance
+ * Singleton instance (pool will be set after server initializes)
  */
 export const twilioService = new TwilioService();
 
 /**
- * Export for testing
+ * Export for testing and initialization
  */
-export const createTwilioService = (): TwilioService => {
-  return new TwilioService();
+export const createTwilioService = (pool?: Pool): TwilioService => {
+  return new TwilioService(pool);
 };
