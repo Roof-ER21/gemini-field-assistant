@@ -90,6 +90,7 @@ class HailMapsService {
         headers: {
           Authorization: this.buildAuthHeader(),
           Accept: 'application/json',
+          'User-Agent': 'SA21/1.0',
           ...(init?.headers || {})
         }
       });
