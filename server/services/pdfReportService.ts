@@ -66,7 +66,7 @@ export class PDFReportService {
     hail: '#10b981',      // Green
     wind: '#8b5cf6',      // Purple
     tornado: '#ef4444',   // Red
-    ihm: '#3b82f6',       // Blue (IHM source)
+    ihm: '#f97316',       // Orange (IHM source)
     noaa: '#6366f1',      // Indigo (NOAA source)
   };
 
