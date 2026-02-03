@@ -3533,29 +3533,48 @@ app.get('/api/rep/goals/progress', async (req, res) => {
         // Find sales rep by email and get full info
         const repResult = await pool.query('SELECT * FROM sales_reps WHERE LOWER(email) = LOWER($1)', [requestingEmail]);
         if (repResult.rows.length === 0) {
-            // Return empty progress for users without sales rep profiles
-            // This allows the homepage to load without error
+            // Return default progress for users without sales rep profiles
+            // Default goal is 8 signups per month (standard for new reps)
             const now = new Date();
             const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const daysRemaining = daysInMonth - now.getDate();
+            const defaultMonthlyGoal = 8;
+            const defaultYearlyGoal = defaultMonthlyGoal * 12;
             return res.json({
                 success: true,
                 noSalesRepProfile: true,
-                monthly: {
-                    signups: { current: 0, goal: 0, percentage: 0, remaining: 0, status: 'no-profile' },
-                    revenue: { current: 0, goal: 0, percentage: 0, remaining: 0 }
+                rep: {
+                    id: null,
+                    name: 'New Rep',
+                    email: requestingEmail,
+                    team: null,
+                    monthlySignups: 0,
+                    monthlyRevenue: 0,
+                    yearlySignups: 0,
+                    yearlyRevenue: 0
                 },
-                yearly: {
-                    signups: { current: 0, goal: 0, percentage: 0, remaining: 0, monthlyAverageNeeded: 0 },
-                    revenue: { current: 0, goal: 0, percentage: 0, remaining: 0, monthlyAverageNeeded: 0 }
+                goal: {
+                    monthly: defaultMonthlyGoal,
+                    yearly: 0
                 },
-                calendar: {
-                    year: now.getFullYear(),
-                    month: now.getMonth() + 1,
-                    daysInMonth,
-                    currentDay: now.getDate(),
-                    daysRemaining: daysInMonth - now.getDate()
-                },
-                leaderboard: { rank: 0, percentile: 0 }
+                progress: {
+                    monthly: {
+                        signups: { current: 0, goal: defaultMonthlyGoal, percentage: 0, remaining: defaultMonthlyGoal, status: 'pending' },
+                        revenue: { current: 0, goal: 0, percentage: 0, remaining: 0 }
+                    },
+                    yearly: {
+                        signups: { current: 0, goal: defaultYearlyGoal, percentage: 0, remaining: defaultYearlyGoal, monthlyAverageNeeded: defaultMonthlyGoal },
+                        revenue: { current: 0, goal: 0, percentage: 0, remaining: 0, monthlyAverageNeeded: 0 }
+                    },
+                    calendar: {
+                        year: now.getFullYear(),
+                        month: now.getMonth() + 1,
+                        daysInMonth,
+                        currentDay: now.getDate(),
+                        daysRemaining
+                    },
+                    leaderboard: { rank: 0, percentile: 0 }
+                }
             });
         }
         const rep = repResult.rows[0];
