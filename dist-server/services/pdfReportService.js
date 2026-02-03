@@ -282,7 +282,12 @@ export class PDFReportService {
     }
     formatEventRow(event) {
         const date = new Date(event.date);
-        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const dateStr = date.toLocaleDateString('en-US', {
+            timeZone: 'America/New_York',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
         // Format size based on event type
         let sizeStr = '-';
         if (event.size) {
