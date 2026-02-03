@@ -531,14 +531,17 @@ router.get('/hot-zones', async (req, res) => {
 // POST /api/hail/generate-report - Generate PDF report
 router.post('/generate-report', async (req, res) => {
     try {
-        const { address, lat, lng, radius, events, noaaEvents, damageScore, repName, repPhone, repEmail, companyName } = req.body;
+        const { address, lat, lng, radius, events, noaaEvents, damageScore, repName, repPhone, repEmail, companyName, filter } = req.body;
         // Validate required fields
         if (!address || !lat || !lng || !radius || !damageScore) {
             return res.status(400).json({
                 error: 'Missing required fields: address, lat, lng, radius, damageScore'
             });
         }
-        console.log(`📄 Generating PDF report for ${address}...`);
+        // Validate filter if provided
+        const validFilters = ['all', 'hail-only', 'hail-wind', 'ihm-only', 'noaa-only'];
+        const reportFilter = validFilters.includes(filter) ? filter : 'all';
+        console.log(`📄 Generating PDF report for ${address} (filter: ${reportFilter})...`);
         // Generate PDF stream
         const pdfStream = pdfReportService.generateReport({
             address,
@@ -551,7 +554,8 @@ router.post('/generate-report', async (req, res) => {
             repName,
             repPhone,
             repEmail,
-            companyName
+            companyName,
+            filter: reportFilter
         });
         // Set response headers for PDF download
         const filename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
