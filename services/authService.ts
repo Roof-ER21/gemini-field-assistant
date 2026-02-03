@@ -1,7 +1,7 @@
 /**
  * Authentication Service
  * Simple email-based authentication for S21 Field AI
- * Uses magic link style authentication (no passwords for MVP)
+ * Direct login with @theroofdocs.com email - no verification code required
  */
 
 import { databaseService, User } from './databaseService';
@@ -168,21 +168,23 @@ class AuthService {
   }
 
   /**
-   * Send verification code via backend API
-   * The backend handles code generation, storage, and email sending
+   * Direct login via backend API (no email verification)
+   * Creates user if new, logs in if existing
    */
-  private async sendVerificationCode(email: string, isSignup: boolean = false, name?: string): Promise<{
+  private async directLogin(email: string, name?: string): Promise<{
     success: boolean;
     message: string;
-    emailSent?: boolean;
+    user?: any;
+    isNew?: boolean;
+    requiresSignup?: boolean;
   }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
+      const response = await fetch(`${API_BASE_URL}/auth/direct-login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, isSignup, name }),
+        body: JSON.stringify({ email, name }),
       });
 
       const result = await response.json();
@@ -191,16 +193,18 @@ class AuthService {
         return {
           success: true,
           message: result.message,
-          emailSent: result.emailSent
+          user: result.user,
+          isNew: result.isNew
         };
       }
 
       return {
         success: false,
-        message: result.error || 'Failed to send verification code'
+        message: result.error || 'Failed to login',
+        requiresSignup: result.requiresSignup
       };
     } catch (error) {
-      console.error('Error sending verification code:', error);
+      console.error('Error in direct login:', error);
       return {
         success: false,
         message: 'Network error. Please check your connection and try again.'
@@ -345,25 +349,87 @@ class AuthService {
         }
       }
 
-      // No valid token - proceed with normal verification code flow
-      console.log('📧 No valid auto-login token, requesting verification code from server');
+      // No valid token - proceed with direct login (no email verification)
+      console.log('🔐 No valid auto-login token, attempting direct login');
 
-      // Send verification code via backend API
-      const sendResult = await this.sendVerificationCode(email);
+      // Direct login via backend API
+      const loginResult = await this.directLogin(email, name);
 
-      if (sendResult.success) {
+      if (loginResult.success && loginResult.user) {
+        // Build AuthUser from backend response
+        const user: AuthUser = {
+          id: loginResult.user.id,
+          email: loginResult.user.email,
+          name: loginResult.user.name,
+          role: loginResult.user.role || 'sales_rep',
+          state: null,
+          created_at: new Date(),
+          last_login_at: new Date()
+        };
+
+        // Save user to localStorage
+        this.currentUser = user;
+        localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
+
+        // Create session with token expiry
+        const sessionId = crypto.randomUUID();
+        localStorage.setItem(this.SESSION_KEY, sessionId);
+
+        // Store authentication token with expiry
+        const expiryDuration = rememberMe ? 365 * 24 * 60 * 60 * 1000 : 0;
+        const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
+
+        const authData: StoredAuth = {
+          user,
+          expiresAt,
+          rememberMe
+        };
+
+        localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
+
+        // Update database service
+        await databaseService.setCurrentUser(user);
+
+        console.log('✅ Direct login successful:', user.email);
+
+        // Log login activity
+        try {
+          await activityService.logLogin();
+        } catch (err) {
+          console.error('Failed to log login activity:', err);
+        }
+
+        // Send email notification to admin ONLY on first login
+        if (loginResult.isNew) {
+          console.log('📧 First login detected - sending admin notification');
+          try {
+            await emailNotificationService.notifyLogin({
+              userName: user.name,
+              userEmail: user.email,
+              timestamp: user.last_login_at.toISOString()
+            });
+          } catch (err) {
+            console.error('Failed to send admin notification:', err);
+          }
+        }
+
         return {
           success: true,
-          message: sendResult.emailSent
-            ? 'Verification code sent! Check your email.'
-            : 'Unable to send email. Please contact your administrator.',
-          autoLoginSuccess: false,
-          emailSent: sendResult.emailSent
+          user,
+          message: loginResult.isNew ? 'Account created!' : 'Login successful!',
+          autoLoginSuccess: true
+        };
+      } else if (loginResult.requiresSignup) {
+        // New user needs to provide name
+        return {
+          success: false,
+          message: 'Please create an account first',
+          autoLoginSuccess: false
         };
       } else {
         return {
           success: false,
-          message: sendResult.message
+          message: loginResult.message
         };
       }
     } catch (error) {
@@ -404,23 +470,76 @@ class AuthService {
         };
       }
 
-      console.log('📧 Requesting signup verification code');
+      console.log('🔐 Creating account via direct login');
 
-      // Send verification code for signup
-      const sendResult = await this.sendVerificationCode(email, true, name);
+      // Direct signup - create account immediately
+      const loginResult = await this.directLogin(email, name);
 
-      if (sendResult.success) {
+      if (loginResult.success && loginResult.user) {
+        // Build AuthUser from backend response
+        const user: AuthUser = {
+          id: loginResult.user.id,
+          email: loginResult.user.email,
+          name: loginResult.user.name,
+          role: loginResult.user.role || 'sales_rep',
+          state: null,
+          created_at: new Date(),
+          last_login_at: new Date()
+        };
+
+        // Save user to localStorage
+        this.currentUser = user;
+        localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
+
+        // Create session with token expiry (always remember for new signups)
+        const sessionId = crypto.randomUUID();
+        localStorage.setItem(this.SESSION_KEY, sessionId);
+
+        // Store authentication token with 1 year expiry
+        const expiryDuration = 365 * 24 * 60 * 60 * 1000;
+        const expiresAt = Date.now() + expiryDuration;
+
+        const authData: StoredAuth = {
+          user,
+          expiresAt,
+          rememberMe: true
+        };
+
+        localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
+
+        // Update database service
+        await databaseService.setCurrentUser(user);
+
+        console.log('✅ Account created successfully:', user.email);
+
+        // Log login activity
+        try {
+          await activityService.logLogin();
+        } catch (err) {
+          console.error('Failed to log login activity:', err);
+        }
+
+        // Send email notification to admin for new user
+        console.log('📧 New user - sending admin notification');
+        try {
+          await emailNotificationService.notifyLogin({
+            userName: user.name,
+            userEmail: user.email,
+            timestamp: user.last_login_at.toISOString()
+          });
+        } catch (err) {
+          console.error('Failed to send admin notification:', err);
+        }
+
         return {
           success: true,
-          message: sendResult.emailSent
-            ? 'Verification code sent! Check your email.'
-            : 'Unable to send email. Please contact your administrator.',
-          emailSent: sendResult.emailSent
+          user,
+          message: 'Account created successfully!'
         };
       } else {
         return {
           success: false,
-          message: sendResult.message
+          message: loginResult.message || 'Failed to create account'
         };
       }
     } catch (error) {

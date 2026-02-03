@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { hailMapsService } from '../services/hailMapsService.js';
 import { noaaStormService } from '../services/noaaStormService.js';
+import { damageScoreService } from '../services/damageScoreService.js';
+import { hotZoneService } from '../services/hotZoneService.js';
+import { pdfReportService } from '../services/pdfReportService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -539,6 +542,160 @@ router.put('/reports/:id/access', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Update report access error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/damage-score - Calculate damage score for a location
+router.post('/damage-score', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, address, events, noaaEvents } = req.body;
+
+    // Validate input
+    if (!lat && !lng && !address) {
+      return res.status(400).json({
+        error: 'Either coordinates (lat/lng) or address is required'
+      });
+    }
+
+    // Calculate damage score
+    const result = damageScoreService.calculateDamageScore({
+      lat,
+      lng,
+      address,
+      events: events || [],
+      noaaEvents: noaaEvents || [],
+    });
+
+    console.log(`✅ Damage score calculated: ${result.score} (${result.riskLevel}) for ${address || `${lat},${lng}`}`);
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Damage score calculation error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/hot-zones - Get hot zones for canvassing
+router.get('/hot-zones', async (req: Request, res: Response) => {
+  try {
+    const { territoryId, north, south, east, west, lat, lng, radius } = req.query;
+
+    // Build params for hot zone service
+    const params: any = {};
+
+    if (territoryId) {
+      // Fetch territory bounds from database
+      const pool: Pool = req.app.get('pool');
+      const result = await pool.query(
+        `SELECT north_lat, south_lat, east_lng, west_lng FROM territories WHERE id = $1`,
+        [territoryId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Territory not found' });
+      }
+
+      const territory = result.rows[0];
+      params.north = territory.north_lat;
+      params.south = territory.south_lat;
+      params.east = territory.east_lng;
+      params.west = territory.west_lng;
+    } else if (north && south && east && west) {
+      // Use provided bounds
+      params.north = parseFloat(north as string);
+      params.south = parseFloat(south as string);
+      params.east = parseFloat(east as string);
+      params.west = parseFloat(west as string);
+    } else if (lat && lng) {
+      // Use center point with optional radius
+      params.centerLat = parseFloat(lat as string);
+      params.centerLng = parseFloat(lng as string);
+      params.radiusMiles = radius ? parseFloat(radius as string) : 50;
+    } else {
+      return res.status(400).json({
+        error: 'Provide territoryId, bounding box (north/south/east/west), or center coordinates (lat/lng)'
+      });
+    }
+
+    console.log('🔥 Hot zones request:', params);
+
+    const hotZones = await hotZoneService.getHotZones(params);
+
+    res.json({
+      success: true,
+      hotZones,
+      count: hotZones.length,
+      message: `Found ${hotZones.length} hot zones for canvassing`
+    });
+  } catch (error) {
+    console.error('❌ Hot zones error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/generate-report - Generate PDF report
+router.post('/generate-report', async (req: Request, res: Response) => {
+  try {
+    const {
+      address,
+      lat,
+      lng,
+      radius,
+      events,
+      noaaEvents,
+      damageScore,
+      repName,
+      repPhone,
+      repEmail,
+      companyName
+    } = req.body;
+
+    // Validate required fields
+    if (!address || !lat || !lng || !radius || !damageScore) {
+      return res.status(400).json({
+        error: 'Missing required fields: address, lat, lng, radius, damageScore'
+      });
+    }
+
+    console.log(`📄 Generating PDF report for ${address}...`);
+
+    // Generate PDF stream
+    const pdfStream = pdfReportService.generateReport({
+      address,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      radius: parseFloat(radius),
+      events: events || [],
+      noaaEvents: noaaEvents || [],
+      damageScore,
+      repName,
+      repPhone,
+      repEmail,
+      companyName
+    });
+
+    // Set response headers for PDF download
+    const filename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Pipe the PDF stream to response
+    pdfStream.pipe(res);
+
+    pdfStream.on('end', () => {
+      console.log(`✅ PDF report generated successfully: ${filename}`);
+    });
+
+    pdfStream.on('error', (error) => {
+      console.error('❌ PDF generation error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to generate PDF report' });
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ PDF report generation error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

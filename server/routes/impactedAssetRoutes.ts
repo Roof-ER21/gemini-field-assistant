@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { createImpactedAssetService } from '../services/impactedAssetService.js';
+import { twilioService } from '../services/twilioService.js';
 
 const router = Router();
 
@@ -656,6 +657,67 @@ router.post('/check-storm', async (req: Request, res: Response) => {
     const alerts = await service.createImpactAlerts(req.body);
 
     console.log(`✅ Created ${alerts.length} impact alerts for storm check`);
+
+    // Send SMS notifications for alerts if Twilio is configured
+    if (twilioService.isConfigured() && alerts.length > 0) {
+      console.log(`📱 Sending SMS alerts for ${alerts.length} impacted properties...`);
+
+      for (const alert of alerts) {
+        try {
+          // Get user details including phone number and SMS preference
+          const userResult = await pool.query(
+            `SELECT u.id, u.phone_number, u.sms_alerts_enabled, cp.address, cp.customer_name
+             FROM users u
+             JOIN customer_properties cp ON cp.user_id = u.id
+             WHERE u.id = $1 AND cp.id = $2`,
+            [alert.userId, alert.customerPropertyId]
+          );
+
+          if (userResult.rows.length === 0) {
+            console.log(`⚠️ User not found for alert ${alert.id}`);
+            continue;
+          }
+
+          const user = userResult.rows[0];
+
+          // Check if user has SMS enabled and phone number
+          if (user.sms_alerts_enabled && user.phone_number) {
+            // Send SMS alert
+            const smsResult = await twilioService.sendStormAlert({
+              phoneNumber: user.phone_number,
+              propertyAddress: user.address,
+              eventType: alert.alertType,
+              hailSize: alert.hailSizeInches,
+              windSpeed: alert.windSpeedMph,
+              date: new Date(alert.stormDate).toLocaleDateString()
+            });
+
+            if (smsResult.success) {
+              // Mark SMS as sent in alert
+              await service.markSMSSent(alert.id, smsResult.messageSid);
+
+              // Log SMS notification
+              await service.logSMSNotification({
+                userId: user.id,
+                phoneNumber: user.phone_number,
+                messageBody: `Storm Alert - ${user.address}`,
+                impactAlertId: alert.id,
+                messageSid: smsResult.messageSid
+              });
+
+              console.log(`✅ SMS sent to ${user.phone_number} for alert ${alert.id}`);
+            } else {
+              console.error(`❌ Failed to send SMS for alert ${alert.id}:`, smsResult.error);
+            }
+          } else {
+            console.log(`⏭️ Skipping SMS for alert ${alert.id} - SMS not enabled or no phone number`);
+          }
+        } catch (smsError) {
+          console.error(`❌ Error sending SMS for alert ${alert.id}:`, smsError);
+          // Continue with other alerts even if one fails
+        }
+      }
+    }
 
     res.json({
       success: true,

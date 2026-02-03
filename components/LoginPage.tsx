@@ -2,11 +2,10 @@
  * Login Page - Clean Red/Black Design
  * Mobile-first, properly sized for all screens
  *
- * Flow:
+ * Flow (Direct Login - No Email Verification):
  * 1. Email entry → Check if user exists
- * 2a. Existing user → "Welcome back" → Request code
- * 2b. New user → "Create Account" with name → Request code
- * 3. Enter verification code → Complete login/signup
+ * 2a. Existing user → Logged in immediately
+ * 2b. New user → "Create Account" with name → Account created & logged in
  */
 
 import React, { useState } from 'react';
@@ -72,21 +71,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
 
       if (result.exists) {
-        // Existing user - send code automatically and go to code entry
+        // Existing user - log in directly (no verification code)
         setExistingUserName(result.name || '');
         setIsSignup(false);
 
-        // Send ONE verification code
+        // Direct login - no code needed
         const loginResult = await authService.requestLoginCode(email, result.name || '', rememberMe);
         if (loginResult.success) {
-          if (loginResult.autoLoginSuccess) {
-            // Shouldn't happen since we already checked, but handle it
-            clearSavedLoginInfo();
-            onLoginSuccess();
-            return;
-          }
-          // Go directly to code entry
-          setStep('code');
+          clearSavedLoginInfo();
+          onLoginSuccess();
+          return;
         } else {
           setError(loginResult.message);
         }
@@ -129,7 +123,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Step 2b: New user signs up
+  // Step 2b: New user signs up (direct - no code verification)
   const handleSignupRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -144,7 +138,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     try {
       const result = await authService.requestSignup(email, name);
       if (result.success) {
-        setStep('code');
+        // Direct signup - logged in immediately
+        clearSavedLoginInfo();
+        onLoginSuccess();
       } else {
         setError(result.message);
       }
@@ -552,14 +548,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               {loading ? 'Creating account...' : (
                 <>
                   <UserPlus style={{ width: '18px', height: '18px' }} />
-                  Create Account
+                  Create Account & Sign In
                 </>
               )}
             </button>
           </form>
         )}
 
-        {/* Step 3: Code Verification */}
+        {/* Step 3: Code Verification (legacy - no longer used) */}
         {step === 'code' && (
           <form onSubmit={handleCodeSubmit}>
             {renderBackButton()}

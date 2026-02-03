@@ -15,6 +15,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { emailService, LoginNotificationData, ChatNotificationData, VerificationCodeData } from './services/emailService.js';
+import { twilioService } from './services/twilioService.js';
 import { cronService } from './services/cronService.js';
 import { initializePresenceService, getPresenceService } from './services/presenceService.js';
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
@@ -818,6 +819,126 @@ app.patch('/api/users/me', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating user:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update user phone number
+app.post('/api/users/phone', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET phone_number = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE email = $2
+       RETURNING id, email, name, phone_number, sms_alerts_enabled`,
+      [phoneNumber, email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating phone number:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update SMS alerts preference
+app.put('/api/users/sms-alerts', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Enabled must be a boolean value' });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET sms_alerts_enabled = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE email = $2
+       RETURNING id, email, name, phone_number, sms_alerts_enabled`,
+      [enabled, email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating SMS alerts preference:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Send test SMS
+app.post('/api/users/test-sms', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+
+    // Get user's phone number
+    const userResult = await pool.query(
+      'SELECT id, phone_number FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.phone_number) {
+      return res.status(400).json({ error: 'No phone number configured' });
+    }
+
+    // Check if Twilio is configured
+    if (!twilioService.isConfigured()) {
+      return res.status(503).json({
+        error: 'SMS service not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER environment variables.'
+      });
+    }
+
+    // Send test SMS
+    const result = await twilioService.sendTestSMS(user.phone_number);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Test SMS sent successfully',
+        messageSid: result.messageSid
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('Error sending test SMS:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get Twilio service status
+app.get('/api/sms/status', async (req, res) => {
+  try {
+    const status = twilioService.getStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting SMS status:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -2404,7 +2525,101 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
   }
 });
 
-// Verify code endpoint
+// Direct login endpoint (no email verification)
+// Users can log in with just their email - no code required
+app.post('/api/auth/direct-login', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email address is required'
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid email address'
+      });
+    }
+
+    // Domain validation
+    if (!isAllowedEmailDomain(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please use your @theroofdocs.com email address'
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if user exists
+    const existingUser = await pool.query(
+      'SELECT id, name, email, role FROM users WHERE LOWER(email) = $1',
+      [normalizedEmail]
+    );
+
+    let user;
+    let isNew = false;
+
+    if (existingUser.rows.length > 0) {
+      // Existing user - login
+      user = existingUser.rows[0];
+
+      // Update last login
+      await pool.query(
+        'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+        [user.id]
+      );
+
+      console.log(`[AUTH] Direct login: ${user.email} (${user.name})`);
+    } else if (name && name.trim().length >= 2) {
+      // New user - create account
+      const newUserId = require('uuid').v4();
+      const result = await pool.query(
+        `INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
+         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
+         RETURNING id, name, email, role`,
+        [newUserId, normalizedEmail, name.trim()]
+      );
+      user = result.rows[0];
+      isNew = true;
+
+      console.log(`[AUTH] New user created via direct login: ${user.email} (${user.name})`);
+    } else {
+      // New user but no name provided
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required for new users',
+        requiresSignup: true
+      });
+    }
+
+    res.json({
+      success: true,
+      message: isNew ? 'Account created successfully!' : 'Login successful',
+      isNew,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Error in direct login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An error occurred during login'
+    });
+  }
+});
+
+// Verify code endpoint (kept for backward compatibility)
 app.post('/api/auth/verify-code', async (req, res) => {
   try {
     const { email, code } = req.body;

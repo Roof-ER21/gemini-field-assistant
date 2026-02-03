@@ -3,9 +3,10 @@ import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygo
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
-import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown } from 'lucide-react';
+import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2 } from 'lucide-react';
 // @ts-ignore - jsPDF v4 types
 import jsPDF from 'jspdf';
+import { generateStormReport } from '../services/pdfService';
 
 interface Territory {
   id: string;
@@ -48,6 +49,20 @@ interface StormPath {
   events: (HailEvent | NOAAEvent)[];
   center: [number, number];
   date: string;
+}
+
+interface HotZone {
+  id: string;
+  centerLat: number;
+  centerLng: number;
+  intensity: number;
+  eventCount: number;
+  avgHailSize: number | null;
+  maxHailSize: number | null;
+  lastEventDate: string;
+  recommendation: string;
+  events: Array<HailEvent | NOAAEvent>;
+  radius: number;
 }
 
 interface SearchCriteria {
@@ -209,14 +224,23 @@ export default function TerritoryHailMap() {
     avgHailSize: number | null;
   } | null>(null);
 
+  // Damage Score
+  const [damageScore, setDamageScore] = useState<{
+    score: number;
+    riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
+    factors: any;
+    summary: string;
+    color: string;
+  } | null>(null);
+
   // Map auto-navigation state
   const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
 
   // Hail dates panel state
   const [showHailDates, setShowHailDates] = useState(false);
 
-  // Sidebar tab state - NEW: Recent / Impact / Saved
-  const [activeTab, setActiveTab] = useState<'recent' | 'impact' | 'saved'>('recent');
+  // Sidebar tab state - NEW: Recent / Impact / Saved / Hot Zones
+  const [activeTab, setActiveTab] = useState<'recent' | 'impact' | 'saved' | 'hotzones'>('recent');
 
   // Checked events state (replaces bookmarked - for tracking/selecting)
   const [checkedEvents, setCheckedEvents] = useState<Set<string>>(new Set());
@@ -234,6 +258,22 @@ export default function TerritoryHailMap() {
   // Filter state
   const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind' | 'tornado'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ihm' | 'noaa'>('all');
+
+  // Hot Zones state
+  const [showHotZones, setShowHotZones] = useState(false);
+  const [hotZones, setHotZones] = useState<HotZone[]>([]);
+  const [loadingHotZones, setLoadingHotZones] = useState(false);
+
+  // PDF Report Options state
+  const [showPdfOptions, setShowPdfOptions] = useState(false);
+  const [pdfOptions, setPdfOptions] = useState({
+    includeRepInfo: false,
+    repName: '',
+    repPhone: '',
+    repEmail: '',
+    companyName: 'SA21 Storm Intelligence System'
+  });
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Filtered events based on event type and source filters
   const filteredHailEvents = useMemo(() => {
@@ -316,6 +356,47 @@ export default function TerritoryHailMap() {
     setSearchLocation(null);
     setShowHailDates(false);
     fetchHailData(territory);
+
+    // Fetch hot zones if enabled
+    if (showHotZones) {
+      fetchHotZones(territory);
+    }
+  };
+
+  // Fetch hot zones for a territory
+  const fetchHotZones = async (territory: Territory) => {
+    setLoadingHotZones(true);
+    try {
+      const res = await fetch(
+        `${getApiBaseUrl()}/hail/hot-zones?north=${territory.northLat}&south=${territory.southLat}&east=${territory.eastLng}&west=${territory.westLng}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setHotZones(data.hotZones || []);
+        console.log(`🔥 Loaded ${data.hotZones?.length || 0} hot zones`);
+      } else {
+        console.error('Failed to load hot zones:', res.status);
+        setHotZones([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch hot zones:', err);
+      setHotZones([]);
+    } finally {
+      setLoadingHotZones(false);
+    }
+  };
+
+  // Toggle hot zones display
+  const toggleHotZones = () => {
+    const newState = !showHotZones;
+    setShowHotZones(newState);
+
+    if (newState && selectedTerritory) {
+      fetchHotZones(selectedTerritory);
+    } else if (!newState) {
+      setHotZones([]);
+    }
   };
 
   // Fetch saved reports
@@ -365,6 +446,28 @@ export default function TerritoryHailMap() {
             ? allHailSizes.reduce((a, b) => a + b, 0) / allHailSizes.length
             : null
         });
+
+        // Calculate damage score
+        try {
+          const scoreRes = await fetch(`${getApiBaseUrl()}/hail/damage-score`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lat: data.searchCriteria.latitude,
+              lng: data.searchCriteria.longitude,
+              address: data.searchCriteria.address || `${data.searchCriteria.city}, ${data.searchCriteria.state}`,
+              events: data.events || [],
+              noaaEvents: data.noaaEvents || []
+            })
+          });
+
+          if (scoreRes.ok) {
+            const scoreData = await scoreRes.json();
+            setDamageScore(scoreData);
+          }
+        } catch (err) {
+          console.error('Failed to calculate damage score:', err);
+        }
 
         // Auto-zoom to search location
         if (data.searchCriteria?.latitude && data.searchCriteria?.longitude) {
@@ -556,7 +659,46 @@ export default function TerritoryHailMap() {
     });
   };
 
-  // Generate PDF Report
+  // Generate PDF Report with options
+  const handleGeneratePDF = async () => {
+    if (!currentSearch || !searchStats) {
+      alert('No search data available to generate report');
+      return;
+    }
+
+    setGeneratingPdf(true);
+    setShowPdfOptions(false);
+
+    try {
+      // Build address string
+      const address = currentSearch.address ||
+        `${currentSearch.city || ''}${currentSearch.city && currentSearch.state ? ', ' : ''}${currentSearch.state || ''}${currentSearch.zip ? ' ' + currentSearch.zip : ''}` ||
+        `${currentSearch.latitude?.toFixed(6)}, ${currentSearch.longitude?.toFixed(6)}`;
+
+      await generateStormReport({
+        address,
+        lat: currentSearch.latitude,
+        lng: currentSearch.longitude,
+        radius: currentSearch.radius || 50,
+        events: filteredHailEvents,
+        noaaEvents: filteredNoaaEvents,
+        damageScore: damageScore || undefined,
+        searchCriteria: currentSearch,
+        searchStats,
+        ...pdfOptions
+      });
+
+      // Success notification could be added here
+      console.log('✅ PDF Report generated successfully');
+    } catch (error) {
+      console.error('❌ Failed to generate PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  // Quick generate PDF without options (legacy function)
   const generatePDFReport = () => {
     if (!currentSearch || !searchStats) {
       alert('No search data available to generate report');
@@ -632,6 +774,33 @@ export default function TerritoryHailMap() {
 
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
+
+    // Damage Score Section (if available)
+    if (damageScore) {
+      doc.setFillColor(220, 38, 38);
+      doc.roundedRect(15, yPos, pageWidth - 30, 25, 3, 3, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DAMAGE RISK SCORE', pageWidth / 2, yPos + 7, { align: 'center' });
+
+      doc.setFontSize(20);
+      doc.text(`${damageScore.score} / 100`, pageWidth / 2, yPos + 15, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.text(`${damageScore.riskLevel.toUpperCase()} RISK`, pageWidth / 2, yPos + 21, { align: 'center' });
+
+      yPos += 30;
+
+      // Damage Score Summary
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      const summaryLines = doc.splitTextToSize(damageScore.summary, pageWidth - 40);
+      doc.text(summaryLines, 20, yPos);
+      yPos += summaryLines.length * 5 + 8;
+    }
 
     // Statistics grid
     const stats = [
@@ -1153,6 +1322,49 @@ export default function TerritoryHailMap() {
             <option value={24}>Last 24 months</option>
             <option value={36}>Last 36 months</option>
           </select>
+
+          {/* Hot Zones Toggle */}
+          <button
+            onClick={toggleHotZones}
+            disabled={!selectedTerritory}
+            title="Show best canvassing areas based on storm activity"
+            style={{
+              background: showHotZones ? 'var(--roof-orange)' : 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              cursor: selectedTerritory ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+              opacity: selectedTerritory ? 1 : 0.5
+            }}
+          >
+            <span style={{
+              fontSize: '16px',
+              lineHeight: 1
+            }}>🔥</span>
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              color: showHotZones ? 'white' : 'var(--text-primary)'
+            }}>
+              Hot Zones
+            </span>
+            {showHotZones && hotZones.length > 0 && (
+              <span style={{
+                fontSize: '11px',
+                background: 'rgba(255,255,255,0.2)',
+                padding: '2px 6px',
+                borderRadius: '10px',
+                color: 'white',
+                fontWeight: 700
+              }}>
+                {hotZones.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1295,7 +1507,7 @@ export default function TerritoryHailMap() {
               borderBottom: '1px solid var(--border-default)',
               background: 'var(--bg-primary)'
             }}>
-              {(['recent', 'impact', 'saved'] as const).map(tab => (
+              {(['recent', 'impact', 'saved', 'hotzones'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -1306,14 +1518,19 @@ export default function TerritoryHailMap() {
                     border: 'none',
                     borderBottom: activeTab === tab ? '2px solid var(--roof-red)' : '2px solid transparent',
                     cursor: 'pointer',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: activeTab === tab ? 700 : 600,
                     color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
                     textTransform: 'capitalize',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
                   }}
                 >
-                  {tab}
+                  {tab === 'hotzones' && <span>🔥</span>}
+                  {tab === 'hotzones' ? 'Hot Zones' : tab}
                 </button>
               ))}
             </div>
@@ -1331,13 +1548,162 @@ export default function TerritoryHailMap() {
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px'
               }}>
-                Events ({getSortedEvents().length})
+                {activeTab === 'hotzones' ? `Hot Zones (${hotZones.length})` : `Events (${getSortedEvents().length})`}
               </div>
             </div>
 
-            {/* Event Cards List */}
+            {/* Hot Zones List or Event Cards List */}
             <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
-              {getSortedEvents().map((item, idx) => {
+              {activeTab === 'hotzones' ? (
+                // Hot Zones List
+                hotZones.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    color: 'var(--text-secondary)'
+                  }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔥</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
+                      {showHotZones ? 'No hot zones found' : 'Enable Hot Zones'}
+                    </div>
+                    <div style={{ fontSize: '12px' }}>
+                      {showHotZones
+                        ? 'Try selecting a different territory'
+                        : 'Click the Hot Zones button above to identify best canvassing areas'
+                      }
+                    </div>
+                  </div>
+                ) : (
+                  hotZones.map((zone, idx) => {
+                    let intensityColor: string;
+                    let intensityLabel: string;
+
+                    if (zone.intensity >= 80) {
+                      intensityColor = '#ef4444';
+                      intensityLabel = 'High Priority';
+                    } else if (zone.intensity >= 60) {
+                      intensityColor = '#f97316';
+                      intensityLabel = 'Strong';
+                    } else {
+                      intensityColor = '#eab308';
+                      intensityLabel = 'Moderate';
+                    }
+
+                    return (
+                      <div
+                        key={zone.id}
+                        onClick={() => {
+                          setSearchLocation({
+                            lat: zone.centerLat,
+                            lng: zone.centerLng,
+                            zoom: 14
+                          });
+                        }}
+                        style={{
+                          padding: '16px',
+                          marginBottom: '12px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: '12px',
+                          border: '1px solid var(--border-default)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          borderLeft: `4px solid ${intensityColor}`
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        {/* Rank and Intensity */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '12px'
+                        }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)'
+                          }}>
+                            #{idx + 1}
+                          </div>
+                          <div style={{
+                            background: intensityColor,
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 700
+                          }}>
+                            {zone.intensity}% • {intensityLabel}
+                          </div>
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '8px',
+                          marginBottom: '12px'
+                        }}>
+                          <div style={{
+                            background: 'var(--bg-primary)',
+                            padding: '8px',
+                            borderRadius: '6px'
+                          }}>
+                            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                              Events
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {zone.eventCount}
+                            </div>
+                          </div>
+                          <div style={{
+                            background: 'var(--bg-primary)',
+                            padding: '8px',
+                            borderRadius: '6px'
+                          }}>
+                            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                              Max Hail
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 700, color: intensityColor }}>
+                              {zone.maxHailSize ? `${zone.maxHailSize}"` : 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Last Event Date */}
+                        <div style={{
+                          fontSize: '11px',
+                          color: 'var(--text-secondary)',
+                          marginBottom: '8px'
+                        }}>
+                          Last event: <strong>{formatDate(zone.lastEventDate)}</strong>
+                        </div>
+
+                        {/* Recommendation */}
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#333',
+                          padding: '8px',
+                          background: zone.intensity >= 80 ? '#fee2e2' : zone.intensity >= 60 ? '#fed7aa' : '#fef3c7',
+                          borderRadius: '6px',
+                          lineHeight: '1.4'
+                        }}>
+                          {zone.recommendation}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : (
+                // Event Cards List
+                getSortedEvents().map((item, idx) => {
                 const isIHM = item.type === 'ihm';
                 const event = item.event;
                 const eventId = isIHM ? `ihm-${event.id}` : `noaa-${event.id}`;
@@ -1447,9 +1813,11 @@ export default function TerritoryHailMap() {
                     )}
                   </div>
                 );
-              })}
+              })
+              )}
 
-              {getSortedEvents().length === 0 && (
+              {/* No events message for non-hotzones tabs */}
+              {activeTab !== 'hotzones' && getSortedEvents().length === 0 && (
                 <div style={{
                   padding: '32px 16px',
                   textAlign: 'center',
@@ -1941,6 +2309,60 @@ export default function TerritoryHailMap() {
                 borderBottom: '1px solid var(--border-default)',
                 fontSize: '12px'
               }}>
+                {/* Damage Score Display - Prominent */}
+                {damageScore && (
+                  <div style={{
+                    marginBottom: '16px',
+                    padding: '16px',
+                    background: `linear-gradient(135deg, ${damageScore.color}15, ${damageScore.color}05)`,
+                    borderRadius: '12px',
+                    border: `2px solid ${damageScore.color}`,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      marginBottom: '8px'
+                    }}>
+                      Damage Risk Score
+                    </div>
+                    <div style={{
+                      fontSize: '48px',
+                      fontWeight: 800,
+                      color: damageScore.color,
+                      lineHeight: 1,
+                      marginBottom: '8px'
+                    }}>
+                      {damageScore.score}
+                    </div>
+                    <div style={{
+                      display: 'inline-block',
+                      padding: '6px 12px',
+                      background: damageScore.color,
+                      color: 'white',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      marginBottom: '12px'
+                    }}>
+                      {damageScore.riskLevel} Risk
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
+                      lineHeight: '1.5',
+                      marginTop: '8px'
+                    }}>
+                      {damageScore.summary}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <div>
                     <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
@@ -1957,39 +2379,81 @@ export default function TerritoryHailMap() {
                     </div>
                   )}
                 </div>
-                {/* Download PDF Button */}
-                <button
-                  onClick={generatePDFReport}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: 'var(--roof-red)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#b91c1c';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'var(--roof-red)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <FileDown className="w-4 h-4" />
-                  Download PDF Report
-                </button>
+                {/* Download PDF Buttons */}
+                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                  <button
+                    onClick={handleGeneratePDF}
+                    disabled={generatingPdf}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--roof-red)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease',
+                      opacity: generatingPdf ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!generatingPdf) {
+                        e.currentTarget.style.background = '#b91c1c';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!generatingPdf) {
+                        e.currentTarget.style.background = 'var(--roof-red)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    <FileDown className="w-4 h-4" />
+                    {generatingPdf ? 'Generating...' : 'Download PDF'}
+                  </button>
+                  <button
+                    onClick={() => setShowPdfOptions(true)}
+                    disabled={generatingPdf}
+                    style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: '8px',
+                      cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s ease',
+                      opacity: generatingPdf ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!generatingPdf) {
+                        e.currentTarget.style.background = 'var(--bg-tertiary)';
+                        e.currentTarget.style.borderColor = 'var(--roof-red)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!generatingPdf) {
+                        e.currentTarget.style.background = 'var(--bg-elevated)';
+                        e.currentTarget.style.borderColor = 'var(--border-default)';
+                      }
+                    }}
+                    title="PDF Options"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2481,6 +2945,101 @@ export default function TerritoryHailMap() {
               </Rectangle>
             ))}
 
+          {/* Hot Zones - Best Canvassing Areas */}
+          {showHotZones && hotZones.map((zone) => {
+            // Determine color based on intensity
+            let fillColor: string;
+            let fillOpacity: number;
+
+            if (zone.intensity >= 80) {
+              fillColor = 'rgba(244, 67, 54, 0.7)'; // High intensity - red
+              fillOpacity = 0.7;
+            } else if (zone.intensity >= 60) {
+              fillColor = 'rgba(255, 152, 0, 0.5)'; // Medium intensity - orange
+              fillOpacity = 0.5;
+            } else {
+              fillColor = 'rgba(255, 193, 7, 0.3)'; // Low intensity - yellow
+              fillOpacity = 0.3;
+            }
+
+            return (
+              <Circle
+                key={zone.id}
+                center={[zone.centerLat, zone.centerLng]}
+                radius={zone.radius * 1609.34} // Convert miles to meters
+                pathOptions={{
+                  color: fillColor,
+                  fillColor: fillColor,
+                  fillOpacity: fillOpacity,
+                  weight: 2,
+                  opacity: 0.8
+                }}
+              >
+                <Popup>
+                  <div style={{ minWidth: '250px', padding: '8px' }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      marginBottom: '12px',
+                      color: '#333',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span style={{ fontSize: '20px' }}>🔥</span>
+                      Hot Zone
+                      <span style={{
+                        fontSize: '12px',
+                        background: fillColor,
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontWeight: 600
+                      }}>
+                        {zone.intensity}%
+                      </span>
+                    </div>
+
+                    <div style={{
+                      background: '#f9fafb',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      marginBottom: '12px'
+                    }}>
+                      <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                        <strong style={{ color: '#333' }}>{zone.eventCount}</strong> storm events
+                      </div>
+                      {zone.maxHailSize && (
+                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                          Max hail: <strong style={{ color: '#ef4444' }}>{zone.maxHailSize}"</strong>
+                        </div>
+                      )}
+                      {zone.avgHailSize && (
+                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                          Avg hail: <strong style={{ color: '#f97316' }}>{zone.avgHailSize.toFixed(2)}"</strong>
+                        </div>
+                      )}
+                      <div style={{ fontSize: '13px', color: '#666' }}>
+                        Last event: <strong style={{ color: '#333' }}>{formatDate(zone.lastEventDate)}</strong>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#333',
+                      padding: '10px',
+                      background: zone.intensity >= 80 ? '#fee2e2' : zone.intensity >= 60 ? '#fed7aa' : '#fef3c7',
+                      borderRadius: '6px',
+                      borderLeft: `4px solid ${fillColor}`
+                    }}>
+                      {zone.recommendation}
+                    </div>
+                  </div>
+                </Popup>
+              </Circle>
+            );
+          })}
+
           {/* Individual IHM Event Markers */}
           {filteredHailEvents
             .filter(event => {
@@ -2690,6 +3249,324 @@ export default function TerritoryHailMap() {
           </div>
         )}
       </div>
+
+      {/* PDF Options Modal */}
+      {showPdfOptions && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }} onClick={() => setShowPdfOptions(false)}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            border: '1px solid var(--border-default)'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+              paddingBottom: '16px',
+              borderBottom: '1px solid var(--border-default)'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  PDF Report Options
+                </h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                  Customize your storm report
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPdfOptions(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-tertiary)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'none';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Include Rep Info Toggle */}
+              <div>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={pdfOptions.includeRepInfo}
+                    onChange={(e) => setPdfOptions({ ...pdfOptions, includeRepInfo: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  Include Contact Information
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0', paddingLeft: '24px' }}>
+                  Add your contact details to the report
+                </p>
+              </div>
+
+              {/* Rep Info Fields (shown when toggle is on) */}
+              {pdfOptions.includeRepInfo && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  padding: '16px',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-default)'
+                }}>
+                  {/* Rep Name */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      marginBottom: '6px'
+                    }}>
+                      <User className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                      Your Name
+                    </label>
+                    <input
+                      type="text"
+                      value={pdfOptions.repName}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repName: e.target.value })}
+                      placeholder="John Smith"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        outline: 'none',
+                        transition: 'border 0.2s'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
+                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                    />
+                  </div>
+
+                  {/* Rep Phone */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      marginBottom: '6px'
+                    }}>
+                      <Phone className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={pdfOptions.repPhone}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repPhone: e.target.value })}
+                      placeholder="(555) 123-4567"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        outline: 'none',
+                        transition: 'border 0.2s'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
+                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                    />
+                  </div>
+
+                  {/* Rep Email */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      marginBottom: '6px'
+                    }}>
+                      <Mail className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={pdfOptions.repEmail}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, repEmail: e.target.value })}
+                      placeholder="john@example.com"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        outline: 'none',
+                        transition: 'border 0.2s'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
+                      onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Company Name */}
+              <div>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  marginBottom: '6px'
+                }}>
+                  <Building2 className="w-4 h-4" style={{ color: 'var(--roof-red)' }} />
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  value={pdfOptions.companyName}
+                  onChange={(e) => setPdfOptions({ ...pdfOptions, companyName: e.target.value })}
+                  placeholder="SA21 Storm Intelligence System"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '6px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--roof-red)'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              marginTop: '24px',
+              paddingTop: '16px',
+              borderTop: '1px solid var(--border-default)'
+            }}>
+              <button
+                onClick={() => setShowPdfOptions(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-tertiary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-elevated)';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGeneratePDF}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: 'var(--roof-red)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#b91c1c';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--roof-red)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <FileDown className="w-4 h-4" />
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

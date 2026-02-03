@@ -41,9 +41,14 @@ const ImpactedAssetsPanel: React.FC = () => {
   const [properties, setProperties] = useState<CustomerProperty[]>([]);
   const [pendingAlerts, setPendingAlerts] = useState<ImpactAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'alerts' | 'properties'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'alerts' | 'properties' | 'settings'>('overview');
   const [showAddModal, setShowAddModal] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [smsAlertsEnabled, setSmsAlertsEnabled] = useState(false);
+  const [smsStatus, setSmsStatus] = useState<{ configured: boolean; fromNumber: string | null } | null>(null);
+  const [testSmsLoading, setTestSmsLoading] = useState(false);
+  const [testSmsMessage, setTestSmsMessage] = useState('');
   const [newProperty, setNewProperty] = useState({
     customerName: '',
     customerPhone: '',
@@ -72,15 +77,21 @@ const ImpactedAssetsPanel: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsData, propertiesData, alertsData] = await Promise.all([
+      const [statsData, propertiesData, alertsData, userData, smsStatusData] = await Promise.all([
         impactedAssetApi.getStats(30),
         impactedAssetApi.getProperties({ activeOnly: true }),
-        impactedAssetApi.getAlerts({ status: 'pending' })
+        impactedAssetApi.getAlerts({ status: 'pending' }),
+        fetch('/api/users/me', { headers: { 'x-user-email': localStorage.getItem('userEmail') || '' } })
+          .then(r => r.json()),
+        fetch('/api/sms/status').then(r => r.json())
       ]);
 
       setStats(statsData);
       setProperties(propertiesData);
       setPendingAlerts(alertsData);
+      setPhoneNumber(userData.phone_number || '');
+      setSmsAlertsEnabled(userData.sms_alerts_enabled || false);
+      setSmsStatus(smsStatusData);
     } catch (error) {
       console.error('Error fetching impacted assets data:', error);
     } finally {
@@ -136,6 +147,87 @@ const ImpactedAssetsPanel: React.FC = () => {
     const success = await impactedAssetApi.markAlertContacted(alertId);
     if (success) {
       fetchData();
+    }
+  };
+
+  const handleSavePhoneNumber = async () => {
+    try {
+      const response = await fetch('/api/users/phone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': localStorage.getItem('userEmail') || ''
+        },
+        body: JSON.stringify({ phoneNumber })
+      });
+
+      if (response.ok) {
+        alert('Phone number saved successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error saving phone number:', error);
+      alert('Failed to save phone number');
+    }
+  };
+
+  const handleToggleSmsAlerts = async () => {
+    try {
+      const newValue = !smsAlertsEnabled;
+      const response = await fetch('/api/users/sms-alerts', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': localStorage.getItem('userEmail') || ''
+        },
+        body: JSON.stringify({ enabled: newValue })
+      });
+
+      if (response.ok) {
+        setSmsAlertsEnabled(newValue);
+        alert(`SMS alerts ${newValue ? 'enabled' : 'disabled'} successfully!`);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error toggling SMS alerts:', error);
+      alert('Failed to update SMS alerts preference');
+    }
+  };
+
+  const handleTestSms = async () => {
+    if (!phoneNumber) {
+      alert('Please save a phone number first');
+      return;
+    }
+
+    setTestSmsLoading(true);
+    setTestSmsMessage('');
+
+    try {
+      const response = await fetch('/api/users/test-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': localStorage.getItem('userEmail') || ''
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTestSmsMessage('✅ Test SMS sent successfully! Check your phone.');
+      } else {
+        setTestSmsMessage(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error sending test SMS:', error);
+      setTestSmsMessage('❌ Failed to send test SMS');
+    } finally {
+      setTestSmsLoading(false);
     }
   };
 
@@ -337,7 +429,7 @@ const ImpactedAssetsPanel: React.FC = () => {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)' }}>
-          {(['overview', 'alerts', 'properties'] as const).map((tab) => (
+          {(['overview', 'alerts', 'properties', 'settings'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
@@ -775,6 +867,198 @@ const ImpactedAssetsPanel: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {selectedTab === 'settings' && (
+          <div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '20px', color: 'var(--text-primary)' }}>
+              SMS Alert Settings
+            </h3>
+
+            {/* Twilio Status */}
+            {smsStatus && (
+              <div style={{
+                marginBottom: '24px',
+                padding: '16px',
+                background: smsStatus.configured ? 'var(--bg-success)' : 'var(--bg-warning)',
+                borderRadius: '8px',
+                border: `1px solid ${smsStatus.configured ? 'var(--border-success)' : 'var(--border-warning)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  {smsStatus.configured ? (
+                    <CheckCircle className="w-5 h-5" style={{ color: 'var(--text-success)' }} />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5" style={{ color: 'var(--text-warning)' }} />
+                  )}
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    SMS Service {smsStatus.configured ? 'Configured' : 'Not Configured'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                  {smsStatus.configured
+                    ? `SMS alerts will be sent from ${smsStatus.fromNumber}`
+                    : 'SMS alerts are not available. Administrator needs to configure Twilio credentials.'}
+                </p>
+              </div>
+            )}
+
+            {/* Phone Number */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: 600,
+                marginBottom: '8px',
+                color: 'var(--text-primary)'
+              }}>
+                Phone Number
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="+1 (555) 123-4567"
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)'
+                  }}
+                />
+                <button
+                  onClick={handleSavePhoneNumber}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'var(--roof-red)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '6px' }}>
+                Enter your phone number to receive SMS alerts when storms impact your monitored properties.
+              </p>
+            </div>
+
+            {/* Enable SMS Alerts Toggle */}
+            <div style={{
+              marginBottom: '24px',
+              padding: '16px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-default)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  SMS Alerts
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Receive text messages when storms affect your properties
+                </div>
+              </div>
+              <button
+                onClick={handleToggleSmsAlerts}
+                disabled={!smsStatus?.configured || !phoneNumber}
+                style={{
+                  padding: '8px 16px',
+                  background: smsAlertsEnabled ? 'var(--roof-red)' : 'var(--bg-hover)',
+                  color: smsAlertsEnabled ? 'white' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: !smsStatus?.configured || !phoneNumber ? 'not-allowed' : 'pointer',
+                  opacity: !smsStatus?.configured || !phoneNumber ? 0.5 : 1
+                }}
+              >
+                {smsAlertsEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+
+            {/* Test SMS */}
+            <div style={{
+              padding: '16px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-default)'
+            }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                Test SMS Alerts
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Send a test message to verify your phone number and SMS configuration.
+              </p>
+              <button
+                onClick={handleTestSms}
+                disabled={!smsStatus?.configured || !phoneNumber || testSmsLoading}
+                style={{
+                  padding: '10px 20px',
+                  background: 'var(--roof-red)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: !smsStatus?.configured || !phoneNumber || testSmsLoading ? 'not-allowed' : 'pointer',
+                  opacity: !smsStatus?.configured || !phoneNumber || testSmsLoading ? 0.5 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <Bell className="w-4 h-4" />
+                {testSmsLoading ? 'Sending...' : 'Send Test SMS'}
+              </button>
+              {testSmsMessage && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '10px',
+                  background: testSmsMessage.includes('✅') ? 'var(--bg-success)' : 'var(--bg-error)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  color: 'var(--text-primary)'
+                }}>
+                  {testSmsMessage}
+                </div>
+              )}
+            </div>
+
+            {/* SMS History */}
+            <div style={{ marginTop: '24px' }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>
+                How SMS Alerts Work
+              </h4>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                  <li style={{ marginBottom: '8px' }}>
+                    When a storm is detected near a monitored property, you'll receive an instant text message
+                  </li>
+                  <li style={{ marginBottom: '8px' }}>
+                    Messages include property address, storm type, and severity details
+                  </li>
+                  <li style={{ marginBottom: '8px' }}>
+                    You can enable/disable alerts anytime without removing your phone number
+                  </li>
+                  <li>
+                    SMS alerts work alongside push notifications and email alerts for maximum coverage
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         )}
 

@@ -274,6 +274,27 @@ export class ImpactedAssetService {
       SET email_sent = TRUE, email_sent_at = NOW(), updated_at = NOW()
       WHERE id = $1`, [alertId]);
     }
+    /**
+     * Mark SMS as sent
+     */
+    async markSMSSent(alertId, messageSid) {
+        await this.pool.query(`UPDATE impact_alerts
+      SET sms_sent = TRUE, sms_sent_at = NOW(), sms_message_sid = $1, updated_at = NOW()
+      WHERE id = $2`, [messageSid || null, alertId]);
+    }
+    /**
+     * Log SMS notification
+     */
+    async logSMSNotification(params) {
+        const result = await this.pool.query(`SELECT log_sms_notification($1, $2, $3, $4, $5) as notification_id`, [
+            params.userId,
+            params.phoneNumber,
+            params.messageBody,
+            params.impactAlertId || null,
+            params.messageSid || null
+        ]);
+        return result.rows[0].notification_id;
+    }
     // ============================================================================
     // STATISTICS
     // ============================================================================
