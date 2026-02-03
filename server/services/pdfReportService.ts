@@ -34,6 +34,8 @@ interface NOAAEvent {
   distanceMiles?: number;
 }
 
+export type ReportFilter = 'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only';
+
 interface ReportInput {
   address: string;
   lat: number;
@@ -46,6 +48,7 @@ interface ReportInput {
   repPhone?: string;
   repEmail?: string;
   companyName?: string;
+  filter?: ReportFilter;
 }
 
 export class PDFReportService {
@@ -59,6 +62,12 @@ export class PDFReportService {
     text: '#1e293b',
     lightText: '#64748b',
     border: '#e2e8f0',
+    // Event type colors
+    hail: '#3b82f6',      // Blue
+    wind: '#8b5cf6',      // Purple
+    tornado: '#ef4444',   // Red
+    ihm: '#10b981',       // Green (IHM source)
+    noaa: '#6366f1',      // Indigo (NOAA source)
   };
 
   private readonly MARGIN = 40;
@@ -147,18 +156,78 @@ export class PDFReportService {
     doc.text(`• Largest Hail Size: ${maxHail > 0 ? maxHail.toFixed(1) + '"' : 'None recorded'}`);
     doc.text(`• Severe Events (1.5"+): ${severeCount}`);
     doc.text(`• Data Sources: NOAA Storm Events Database, Interactive Hail Maps (IHM)`);
-    doc.moveDown(0.8);
+    doc.moveDown(0.5);
+
+    // Color Legend
+    const legendY = doc.y;
+    doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica-Bold').text('EVENT TYPE LEGEND:', this.MARGIN, legendY);
+
+    // Legend items in a row
+    let legendX = this.MARGIN + 110;
+    const legendItems = [
+      { label: 'Hail', color: this.COLORS.hail },
+      { label: 'Wind', color: this.COLORS.wind },
+      { label: 'Tornado', color: this.COLORS.tornado },
+    ];
+    legendItems.forEach(item => {
+      doc.rect(legendX, legendY, 10, 10).fill(item.color);
+      doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica')
+         .text(item.label, legendX + 14, legendY + 1);
+      legendX += 60;
+    });
+
+    // Source legend
+    legendX += 20;
+    doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica-Bold').text('SOURCE:', legendX, legendY);
+    legendX += 50;
+    doc.rect(legendX, legendY, 10, 10).fill(this.COLORS.ihm);
+    doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica').text('IHM', legendX + 14, legendY + 1);
+    legendX += 40;
+    doc.rect(legendX, legendY, 10, 10).fill(this.COLORS.noaa);
+    doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica').text('NOAA', legendX + 14, legendY + 1);
+
+    doc.y = legendY + 20;
+
+    // Apply filter
+    const filter = input.filter || 'all';
+    let filteredIhmEvents = input.events;
+    let filteredNoaaEvents = input.noaaEvents;
+
+    switch (filter) {
+      case 'hail-only':
+        filteredNoaaEvents = input.noaaEvents.filter(e => e.eventType === 'hail');
+        break;
+      case 'hail-wind':
+        filteredNoaaEvents = input.noaaEvents.filter(e => e.eventType === 'hail' || e.eventType === 'wind');
+        break;
+      case 'ihm-only':
+        filteredNoaaEvents = [];
+        break;
+      case 'noaa-only':
+        filteredIhmEvents = [];
+        break;
+      // 'all' - no filtering
+    }
+
+    const filteredTotal = filteredIhmEvents.length + filteredNoaaEvents.length;
+
+    // Show filter info if not 'all'
+    if (filter !== 'all') {
+      doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+         .text(`Filter applied: ${this.getFilterLabel(filter)} (${filteredTotal} of ${allEvents.length} events)`, this.MARGIN, doc.y);
+      doc.moveDown(0.3);
+    }
 
     // Storm Event Timeline
     doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold').text('STORM EVENT TIMELINE');
     doc.moveDown(0.3);
 
-    if (allEvents.length === 0) {
+    if (filteredTotal === 0) {
       doc.fontSize(10).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
-         .text('No storm events found in the specified search area.');
+         .text('No storm events found matching the selected filter.');
     } else {
       // Sort events: IHM first, then NOAA
-      const sortedEvents = this.combineAndSortEvents(input.events, input.noaaEvents);
+      const sortedEvents = this.combineAndSortEvents(filteredIhmEvents, filteredNoaaEvents);
 
       // Table setup
       const colWidths = [85, 55, 75, 70, 55, 55];
@@ -206,8 +275,20 @@ export class PDFReportService {
         const row = this.formatEventRow(event);
         let x = this.MARGIN;
         row.forEach((cell, i) => {
-          const color = i === 3 ? this.getSeverityColor(event.severity) : this.COLORS.text;
-          doc.fontSize(8).fillColor(color).font(i === 3 ? 'Helvetica-Bold' : 'Helvetica')
+          // Color coding: Type (1), Severity (3), Source (4)
+          let color = this.COLORS.text;
+          let fontWeight = 'Helvetica';
+          if (i === 1) {
+            color = this.getEventTypeColor(event.type);
+            fontWeight = 'Helvetica-Bold';
+          } else if (i === 3) {
+            color = this.getSeverityColor(event.severity);
+            fontWeight = 'Helvetica-Bold';
+          } else if (i === 4) {
+            color = this.getSourceColor(event.source);
+            fontWeight = 'Helvetica-Bold';
+          }
+          doc.fontSize(8).fillColor(color).font(fontWeight)
              .text(cell, x + 3, tableY + 4, { width: colWidths[i] - 6 });
           x += colWidths[i];
         });
@@ -317,6 +398,29 @@ export class PDFReportService {
       case 'severe': return this.COLORS.critical;
       case 'moderate': return this.COLORS.moderate;
       default: return this.COLORS.low;
+    }
+  }
+
+  private getEventTypeColor(type: string): string {
+    switch (type.toLowerCase()) {
+      case 'hail': return this.COLORS.hail;
+      case 'wind': return this.COLORS.wind;
+      case 'tornado': return this.COLORS.tornado;
+      default: return this.COLORS.text;
+    }
+  }
+
+  private getSourceColor(source: string): string {
+    return source === 'IHM' ? this.COLORS.ihm : this.COLORS.noaa;
+  }
+
+  private getFilterLabel(filter: ReportFilter): string {
+    switch (filter) {
+      case 'hail-only': return 'Hail Events Only';
+      case 'hail-wind': return 'Hail & Wind Events';
+      case 'ihm-only': return 'IHM Data Only';
+      case 'noaa-only': return 'NOAA Data Only';
+      default: return 'All Events';
     }
   }
 }

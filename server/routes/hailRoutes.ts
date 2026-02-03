@@ -3,7 +3,7 @@ import { hailMapsService } from '../services/hailMapsService.js';
 import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
-import { pdfReportService } from '../services/pdfReportService.js';
+import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -648,7 +648,8 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       repName,
       repPhone,
       repEmail,
-      companyName
+      companyName,
+      filter
     } = req.body;
 
     // Validate required fields
@@ -658,7 +659,11 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`📄 Generating PDF report for ${address}...`);
+    // Validate filter if provided
+    const validFilters: ReportFilter[] = ['all', 'hail-only', 'hail-wind', 'ihm-only', 'noaa-only'];
+    const reportFilter: ReportFilter = validFilters.includes(filter) ? filter : 'all';
+
+    console.log(`📄 Generating PDF report for ${address} (filter: ${reportFilter})...`);
 
     // Generate PDF stream
     const pdfStream = pdfReportService.generateReport({
@@ -672,7 +677,8 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       repName,
       repPhone,
       repEmail,
-      companyName
+      companyName,
+      filter: reportFilter
     });
 
     // Set response headers for PDF download
