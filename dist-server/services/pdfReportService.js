@@ -20,10 +20,10 @@ export class PDFReportService {
         lightText: '#64748b',
         border: '#e2e8f0',
         // Event type colors
-        hail: '#3b82f6', // Blue
+        hail: '#10b981', // Green
         wind: '#8b5cf6', // Purple
         tornado: '#ef4444', // Red
-        ihm: '#10b981', // Green (IHM source)
+        ihm: '#3b82f6', // Blue (IHM source)
         noaa: '#6366f1', // Indigo (NOAA source)
     };
     MARGIN = 40;
