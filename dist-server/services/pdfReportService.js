@@ -99,46 +99,63 @@ export class PDFReportService {
                 .text('No storm events found in the specified search area.');
         }
         else {
-            // Sort events by date descending
+            // Sort events: IHM first, then NOAA
             const sortedEvents = this.combineAndSortEvents(input.events, input.noaaEvents);
-            // Table header
+            // Table setup
             const colWidths = [85, 55, 75, 70, 55, 55];
             const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-            let tableY = doc.y;
-            doc.rect(this.MARGIN, tableY, tableWidth, 18).fill(this.COLORS.primary);
             const headers = ['Date', 'Type', 'Size', 'Severity', 'Source', 'Distance'];
-            let x = this.MARGIN;
-            headers.forEach((h, i) => {
-                doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold')
-                    .text(h, x + 3, tableY + 5, { width: colWidths[i] - 6 });
-                x += colWidths[i];
-            });
-            tableY += 18;
-            // Table rows (limit to fit on page)
-            const maxRows = Math.min(sortedEvents.length, 12);
-            sortedEvents.slice(0, maxRows).forEach((event, idx) => {
+            const rowHeight = 16;
+            const headerHeight = 18;
+            const pageBottom = 700; // Leave room for footer
+            let tableY = doc.y;
+            // Helper to draw table header
+            const drawTableHeader = () => {
+                doc.rect(this.MARGIN, tableY, tableWidth, headerHeight).fill(this.COLORS.primary);
+                let x = this.MARGIN;
+                headers.forEach((h, i) => {
+                    doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold')
+                        .text(h, x + 3, tableY + 5, { width: colWidths[i] - 6 });
+                    x += colWidths[i];
+                });
+                tableY += headerHeight;
+            };
+            // Draw initial header
+            drawTableHeader();
+            // Draw ALL rows with pagination
+            sortedEvents.forEach((event, idx) => {
+                // Check if we need a new page
+                if (tableY + rowHeight > pageBottom) {
+                    doc.addPage();
+                    tableY = this.MARGIN;
+                    // Continuation header on new page
+                    doc.fontSize(10).fillColor(this.COLORS.primary).font('Helvetica-Bold')
+                        .text('STORM EVENT TIMELINE (continued)', this.MARGIN, tableY);
+                    tableY += 25;
+                    drawTableHeader();
+                }
                 // Alternate row colors
                 if (idx % 2 === 0) {
-                    doc.rect(this.MARGIN, tableY, tableWidth, 16).fill('#f8fafc');
+                    doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).fill('#f8fafc');
                 }
-                doc.rect(this.MARGIN, tableY, tableWidth, 16).stroke(this.COLORS.border);
+                doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).stroke(this.COLORS.border);
                 const row = this.formatEventRow(event);
-                x = this.MARGIN;
+                let x = this.MARGIN;
                 row.forEach((cell, i) => {
                     const color = i === 3 ? this.getSeverityColor(event.severity) : this.COLORS.text;
                     doc.fontSize(8).fillColor(color).font(i === 3 ? 'Helvetica-Bold' : 'Helvetica')
                         .text(cell, x + 3, tableY + 4, { width: colWidths[i] - 6 });
                     x += colWidths[i];
                 });
-                tableY += 16;
+                tableY += rowHeight;
             });
-            if (sortedEvents.length > maxRows) {
-                doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
-                    .text(`+ ${sortedEvents.length - maxRows} more events...`, this.MARGIN, tableY + 5);
-            }
             doc.y = tableY + 20;
         }
-        // Evidence Section (no forced page break - only if truly needed)
+        // Evidence Section - check if we need a new page (need ~120px)
+        if (doc.y > 620) {
+            doc.addPage();
+            doc.y = this.MARGIN;
+        }
         doc.moveDown(0.5);
         doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold')
             .text('EVIDENCE FOR INSURANCE CLAIMS');
@@ -155,7 +172,7 @@ export class PDFReportService {
         doc.rect(this.MARGIN, disclaimerY, pageWidth, 45).stroke(this.COLORS.border);
         doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
             .text('DISCLAIMER: This report is for informational purposes only. Storm data is based on historical records and may not capture all weather events. This does not constitute a roof inspection. Professional inspection required for insurance claims.', this.MARGIN + 8, disclaimerY + 8, { width: pageWidth - 16 });
-        // Footer (must stay above Y=720 to avoid new page)
+        // Footer at bottom of current page
         const footerY = 710;
         doc.moveTo(this.MARGIN, footerY).lineTo(612 - this.MARGIN, footerY).stroke(this.COLORS.border);
         doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica')
@@ -171,25 +188,26 @@ export class PDFReportService {
         return `SR-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     }
     combineAndSortEvents(events, noaaEvents) {
-        const combined = [
-            ...events.map(e => ({
-                date: e.date,
-                type: 'Hail',
-                size: e.hailSize,
-                severity: e.severity,
-                source: e.source || 'IHM',
-                distance: e.distanceMiles,
-            })),
-            ...noaaEvents.map(e => ({
-                date: e.date,
-                type: e.eventType.charAt(0).toUpperCase() + e.eventType.slice(1),
-                size: e.magnitude,
-                severity: this.getSeverityFromMagnitude(e.magnitude, e.eventType),
-                source: 'NOAA',
-                distance: e.distanceMiles,
-            })),
-        ];
-        return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // IHM events first, sorted by date descending
+        const ihmEvents = events.map(e => ({
+            date: e.date,
+            type: 'Hail',
+            size: e.hailSize,
+            severity: e.severity,
+            source: 'IHM',
+            distance: e.distanceMiles,
+        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // NOAA events second, sorted by date descending
+        const noaaFormatted = noaaEvents.map(e => ({
+            date: e.date,
+            type: e.eventType.charAt(0).toUpperCase() + e.eventType.slice(1),
+            size: e.magnitude,
+            severity: this.getSeverityFromMagnitude(e.magnitude, e.eventType),
+            source: 'NOAA',
+            distance: e.distanceMiles,
+        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // IHM always at the top, then NOAA
+        return [...ihmEvents, ...noaaFormatted];
     }
     formatEventRow(event) {
         const date = new Date(event.date);
