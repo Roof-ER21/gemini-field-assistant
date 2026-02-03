@@ -167,7 +167,6 @@ export class PDFReportService {
     const legendItems = [
       { label: 'Hail', color: this.COLORS.hail },
       { label: 'Wind', color: this.COLORS.wind },
-      { label: 'Tornado', color: this.COLORS.tornado },
     ];
     legendItems.forEach(item => {
       doc.rect(legendX, legendY, 10, 10).fill(item.color);
