@@ -6,6 +6,7 @@
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
@@ -2149,7 +2150,7 @@ app.post('/api/auth/direct-login', async (req, res) => {
         }
         else if (name && name.trim().length >= 2) {
             // New user - create account
-            const newUserId = require('uuid').v4();
+            const newUserId = uuidv4();
             const result = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
          VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
          RETURNING id, name, email, role`, [newUserId, normalizedEmail, name.trim()]);
@@ -2232,7 +2233,7 @@ app.post('/api/auth/verify-code', async (req, res) => {
         }
         else if (signupName) {
             // New user - create account (signup flow)
-            const newUserId = require('uuid').v4();
+            const newUserId = uuidv4();
             const result = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at, is_active)
          VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW(), true)
          RETURNING id, name, email, role`, [newUserId, normalizedEmail, signupName]);
