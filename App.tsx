@@ -157,10 +157,12 @@ const App: React.FC = () => {
       }
 
       // Check if this is first login and show welcome modal
+      // Only show if AI disclosure is NOT being shown (welcome comes after consent)
       // Use session storage to prevent showing multiple times per session
       const hasShownWelcomeThisSession = sessionStorage.getItem('welcome_shown');
 
-      if (!hasShownWelcomeThisSession) {
+      if (!hasShownWelcomeThisSession && consent) {
+        // Only show welcome if user already has AI consent
         try {
           const nickname = await memoryService.getUserNickname();
           const firstLogin = !nickname; // If no nickname, it's first login
@@ -174,12 +176,27 @@ const App: React.FC = () => {
           console.error('Error checking nickname:', error);
         }
       }
+      // If no consent, welcome modal will show after AI disclosure is accepted
     }
   };
 
-  const handleAIConsentAccept = () => {
+  const handleAIConsentAccept = async () => {
     setAIConsented(true);
     setShowAIDisclosure(false);
+
+    // Now show welcome modal if not shown this session
+    const hasShownWelcomeThisSession = sessionStorage.getItem('welcome_shown');
+    if (!hasShownWelcomeThisSession) {
+      try {
+        const nickname = await memoryService.getUserNickname();
+        const firstLogin = !nickname;
+        setIsFirstLogin(firstLogin);
+        setShowWelcome(true);
+        sessionStorage.setItem('welcome_shown', 'true');
+      } catch (error) {
+        console.error('Error checking nickname:', error);
+      }
+    }
   };
 
   const handleAIConsentDecline = () => {

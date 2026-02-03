@@ -4186,10 +4186,29 @@ app.get('/api/rep/goals/progress', async (req, res) => {
     );
 
     if (repResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Sales rep profile not found',
-        message: 'Your email is not linked to a sales rep account. Please contact an administrator.'
+      // Return empty progress for users without sales rep profiles
+      // This allows the homepage to load without error
+      const now = new Date();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      return res.json({
+        success: true,
+        noSalesRepProfile: true,
+        monthly: {
+          signups: { current: 0, goal: 0, percentage: 0, remaining: 0, status: 'no-profile' },
+          revenue: { current: 0, goal: 0, percentage: 0, remaining: 0 }
+        },
+        yearly: {
+          signups: { current: 0, goal: 0, percentage: 0, remaining: 0, monthlyAverageNeeded: 0 },
+          revenue: { current: 0, goal: 0, percentage: 0, remaining: 0, monthlyAverageNeeded: 0 }
+        },
+        calendar: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          daysInMonth,
+          currentDay: now.getDate(),
+          daysRemaining: daysInMonth - now.getDate()
+        },
+        leaderboard: { rank: 0, percentile: 0 }
       });
     }
 
