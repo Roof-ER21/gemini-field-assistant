@@ -231,7 +231,7 @@ export class PDFReportService {
       // Table setup
       const colWidths = [85, 55, 75, 70, 55, 55];
       const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-      const headers = ['Date', 'Type', 'Size', 'Impact', 'Source', 'Distance'];
+      const headers = ['Date', 'Type', 'Magnitude', 'Impact', 'Source', 'Distance'];
       const rowHeight = 16;
       const headerHeight = 18;
       const pageBottom = 700; // Leave room for footer
@@ -377,7 +377,19 @@ export class PDFReportService {
   private formatEventRow(event: { date: string; type: string; size: number | null; severity: string; source: string; distance?: number }): string[] {
     const date = new Date(event.date);
     const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const sizeStr = event.size ? `${event.size.toFixed(2)}"` : '-';
+
+    // Format size based on event type
+    let sizeStr = '-';
+    if (event.size) {
+      if (event.type.toLowerCase() === 'wind') {
+        // Wind magnitude is in knots
+        sizeStr = `${Math.round(event.size)} kts`;
+      } else {
+        // Hail/tornado size is in inches
+        sizeStr = `${event.size.toFixed(2)}"`;
+      }
+    }
+
     const distStr = event.distance ? `${event.distance.toFixed(1)} mi` : '-';
 
     // Convert internal severity to professional display label
