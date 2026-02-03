@@ -162,7 +162,7 @@ export class PDFReportService {
             // Table setup
             const colWidths = [85, 55, 75, 70, 55, 55];
             const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-            const headers = ['Date', 'Type', 'Size', 'Severity', 'Source', 'Distance'];
+            const headers = ['Date', 'Type', 'Size', 'Impact', 'Source', 'Distance'];
             const rowHeight = 16;
             const headerHeight = 18;
             const pageBottom = 700; // Leave room for footer
@@ -286,7 +286,9 @@ export class PDFReportService {
         const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const sizeStr = event.size ? `${event.size.toFixed(2)}"` : '-';
         const distStr = event.distance ? `${event.distance.toFixed(1)} mi` : '-';
-        return [dateStr, event.type, sizeStr, event.severity.toUpperCase(), event.source, distStr];
+        // Convert internal severity to professional display label
+        const impactLabel = this.getImpactLabel(event.severity);
+        return [dateStr, event.type, sizeStr, impactLabel, event.source, distStr];
     }
     getSeverityFromMagnitude(magnitude, eventType) {
         if (eventType === 'wind')
@@ -301,11 +303,19 @@ export class PDFReportService {
             return 'moderate';
         return 'minor';
     }
+    // Convert internal severity to adjuster-friendly labels
+    getImpactLabel(severity) {
+        switch (severity) {
+            case 'severe': return 'MAJOR';
+            case 'moderate': return 'SIGNIFICANT';
+            default: return 'DOCUMENTED';
+        }
+    }
     getSeverityColor(severity) {
         switch (severity) {
-            case 'severe': return this.COLORS.critical;
-            case 'moderate': return this.COLORS.moderate;
-            default: return this.COLORS.low;
+            case 'severe': return this.COLORS.critical; // Red for major
+            case 'moderate': return this.COLORS.high; // Orange for significant
+            default: return this.COLORS.primary; // Blue for documented (neutral, professional)
         }
     }
     getEventTypeColor(type) {
