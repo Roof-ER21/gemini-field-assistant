@@ -409,12 +409,13 @@ router.post('/:id/photos', async (req: Request, res: Response) => {
     // Store photo
     const result = await pool.query(
       `INSERT INTO inspection_photos (
-        inspection_id, photo_data, file_name, file_size,
+        inspection_id, user_id, photo_data, file_name, file_size,
         mime_type, category, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
       [
         id,
+        userId,
         photo_data,
         file_name || 'photo.jpg',
         file_size || 0,
