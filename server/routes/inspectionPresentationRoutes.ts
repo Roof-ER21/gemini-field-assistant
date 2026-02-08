@@ -12,6 +12,71 @@ const router = Router();
 // Environment helper function (server-side only)
 const getEnvKey = (key: string) => process.env[key] || process.env[`VITE_${key}`] || '';
 
+// ============================================================================
+// SECURITY HELPERS
+// ============================================================================
+
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isValidUUID = (id: string): boolean => {
+  return UUID_REGEX.test(id);
+};
+
+// Rate limiting for expensive operations (in-memory, resets on restart)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+const checkRateLimit = (key: string, maxRequests: number, windowMs: number): boolean => {
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  if (!record || record.resetTime < now) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxRequests) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+};
+
+// Allowed MIME types for photo uploads
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+// Max photo size: 10MB (base64 is ~33% larger than binary)
+const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+
+const validatePhotoUpload = (photo_data: string, mime_type?: string): { valid: boolean; error?: string } => {
+  if (!photo_data) {
+    return { valid: false, error: 'Photo data is required' };
+  }
+
+  // Check MIME type if provided
+  if (mime_type && !ALLOWED_MIME_TYPES.includes(mime_type.toLowerCase())) {
+    return { valid: false, error: `Invalid image type. Allowed: ${ALLOWED_MIME_TYPES.join(', ')}` };
+  }
+
+  // Estimate base64 size (base64 is ~4/3 of binary)
+  const base64Data = photo_data.includes(',') ? photo_data.split(',')[1] : photo_data;
+  const estimatedBytes = (base64Data.length * 3) / 4;
+
+  if (estimatedBytes > MAX_PHOTO_SIZE_BYTES) {
+    return { valid: false, error: `Photo too large. Maximum size: ${MAX_PHOTO_SIZE_BYTES / 1024 / 1024}MB` };
+  }
+
+  return { valid: true };
+};
+
 // Types
 interface InspectionPhoto {
   id: string;
@@ -387,6 +452,11 @@ router.get('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
 
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid inspection ID format' });
+    }
+
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
     }
@@ -436,6 +506,11 @@ router.post('/:id/photos', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
 
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid inspection ID format' });
+    }
+
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
     }
@@ -454,9 +529,10 @@ router.post('/:id/photos', async (req: Request, res: Response) => {
       notes,
     } = req.body;
 
-    // Validation
-    if (!photo_data) {
-      return res.status(400).json({ error: 'Photo data is required' });
+    // Security: Validate photo upload (MIME type, size)
+    const photoValidation = validatePhotoUpload(photo_data, mime_type);
+    if (!photoValidation.valid) {
+      return res.status(400).json({ error: photoValidation.error });
     }
 
     // Verify inspection exists and user owns it
@@ -524,6 +600,11 @@ router.get('/:id/photos', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
 
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid inspection ID format' });
+    }
+
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
     }
@@ -583,8 +664,22 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
 
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid inspection ID format' });
+    }
+
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
+    }
+
+    // Security: Rate limit AI analysis (max 10 per hour per user)
+    const rateLimitKey = `analyze:${userEmail}`;
+    if (!checkRateLimit(rateLimitKey, 10, 60 * 60 * 1000)) {
+      return res.status(429).json({
+        error: 'Rate limit exceeded. Please wait before running more analyses.',
+        retryAfter: 3600
+      });
     }
 
     const userId = await getUserIdFromEmail(pool, userEmail);
@@ -806,6 +901,11 @@ router.post('/presentations', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Inspection ID is required' });
     }
 
+    // Security: Validate UUID format
+    if (!isValidUUID(inspection_id)) {
+      return res.status(400).json({ error: 'Invalid inspection ID format' });
+    }
+
     // Get inspection details
     const inspectionResult = await pool.query(
       `SELECT * FROM inspections WHERE id = $1`,
@@ -960,6 +1060,11 @@ router.get('/presentations/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
 
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid presentation ID format' });
+    }
+
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
     }
@@ -1004,6 +1109,11 @@ router.put('/presentations/:id', async (req: Request, res: Response) => {
     const pool = getPool(req);
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
+
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid presentation ID format' });
+    }
 
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
@@ -1077,6 +1187,11 @@ router.post('/presentations/:id/share', async (req: Request, res: Response) => {
     const pool = getPool(req);
     const { id } = req.params;
     const userEmail = req.headers['x-user-email'] as string;
+
+    // Security: Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'Invalid presentation ID format' });
+    }
 
     if (!userEmail) {
       return res.status(401).json({ error: 'User email required' });
