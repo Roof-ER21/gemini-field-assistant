@@ -37,6 +37,7 @@ import { createContestRoutes } from './routes/contestRoutes.js';
 import { createProfileRoutes } from './routes/profileRoutes.js';
 import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
+import susanRoutes from './routes/susanRoutes.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
@@ -7315,6 +7316,8 @@ app.use('/api/presentations', authMiddleware);
 app.use('/api/presentations', inspectionPresentationRoutes);
 // Public presentation viewer (no auth required)
 app.use('/api/present', inspectionPresentationRoutes);
+// Register Susan AI chat routes
+app.use('/api/susan', susanRoutes);
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));

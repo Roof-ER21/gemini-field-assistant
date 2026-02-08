@@ -343,6 +343,89 @@ router.get('/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to get inspection' });
     }
 });
+/**
+ * PATCH /api/inspections/:id
+ * Update inspection details
+ */
+router.patch('/:id', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const { id } = req.params;
+        const userEmail = req.headers['x-user-email'];
+        console.log('[Inspections API] PATCH request:', { id, userEmail });
+        // Security: Validate UUID format
+        if (!isValidUUID(id)) {
+            console.log('[Inspections API] PATCH failed: Invalid UUID');
+            return res.status(400).json({ error: 'Invalid inspection ID format' });
+        }
+        if (!userEmail) {
+            console.log('[Inspections API] PATCH failed: No email');
+            return res.status(401).json({ error: 'User email required' });
+        }
+        const userId = await getUserIdFromEmail(pool, userEmail);
+        console.log('[Inspections API] PATCH userId lookup:', { userEmail, userId });
+        if (!userId) {
+            console.log('[Inspections API] PATCH failed: User not found for email:', userEmail);
+            return res.status(404).json({ error: 'User not found' });
+        }
+        // Check ownership
+        const existing = await pool.query('SELECT user_id FROM inspections WHERE id = $1', [id]);
+        console.log('[Inspections API] PATCH existing inspection:', existing.rows);
+        if (existing.rows.length === 0) {
+            console.log('[Inspections API] PATCH failed: Inspection not found:', id);
+            return res.status(404).json({ error: 'Inspection not found' });
+        }
+        const userCheck = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+        const isAdmin = userCheck.rows[0]?.role === 'admin';
+        if (existing.rows[0].user_id !== userId && !isAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        const { job_id, status, inspector_notes, weather_conditions, roof_type, roof_age, } = req.body;
+        // Build dynamic update query
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+        if (job_id !== undefined) {
+            updates.push(`job_id = $${paramCount++}`);
+            values.push(job_id);
+        }
+        if (status !== undefined) {
+            updates.push(`status = $${paramCount++}`);
+            values.push(status);
+        }
+        if (inspector_notes !== undefined) {
+            updates.push(`inspector_notes = $${paramCount++}`);
+            values.push(inspector_notes);
+        }
+        if (weather_conditions !== undefined) {
+            updates.push(`weather_conditions = $${paramCount++}`);
+            values.push(weather_conditions);
+        }
+        if (roof_type !== undefined) {
+            updates.push(`roof_type = $${paramCount++}`);
+            values.push(roof_type);
+        }
+        if (roof_age !== undefined) {
+            updates.push(`roof_age = $${paramCount++}`);
+            values.push(roof_age);
+        }
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        updates.push(`updated_at = NOW()`);
+        values.push(id);
+        const result = await pool.query(`UPDATE inspections SET ${updates.join(', ')}
+       WHERE id = $${paramCount}
+       RETURNING *`, values);
+        const inspection = result.rows[0];
+        console.log('[Inspections API] Updated inspection:', inspection.id);
+        res.json({ inspection });
+    }
+    catch (error) {
+        console.error('[Inspections API] Error updating inspection:', error);
+        res.status(500).json({ error: 'Failed to update inspection' });
+    }
+});
 // ============================================================================
 // PHOTOS
 // ============================================================================
@@ -456,6 +539,76 @@ router.get('/:id/photos', async (req, res) => {
     catch (error) {
         console.error('[Inspections API] Error listing photos:', error);
         res.status(500).json({ error: 'Failed to list photos' });
+    }
+});
+/**
+ * PATCH /api/inspections/:id/photos/:photoId
+ * Update photo (e.g., add AI analysis)
+ */
+router.patch('/:id/photos/:photoId', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const { id, photoId } = req.params;
+        const userEmail = req.headers['x-user-email'];
+        // Security: Validate UUID format
+        if (!isValidUUID(id) || !isValidUUID(photoId)) {
+            return res.status(400).json({ error: 'Invalid ID format' });
+        }
+        if (!userEmail) {
+            return res.status(401).json({ error: 'User email required' });
+        }
+        const userId = await getUserIdFromEmail(pool, userEmail);
+        if (!userId) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        // Check access
+        const inspectionCheck = await pool.query('SELECT user_id FROM inspections WHERE id = $1', [id]);
+        if (inspectionCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Inspection not found' });
+        }
+        const userCheck = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+        const isAdmin = userCheck.rows[0]?.role === 'admin';
+        if (inspectionCheck.rows[0].user_id !== userId && !isAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        const { ai_analysis, analyzed_at, notes, category } = req.body;
+        // Build dynamic update query
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+        if (ai_analysis !== undefined) {
+            updates.push(`ai_analysis = $${paramCount++}`);
+            values.push(JSON.stringify(ai_analysis));
+        }
+        if (analyzed_at !== undefined) {
+            updates.push(`analyzed_at = $${paramCount++}`);
+            values.push(analyzed_at);
+        }
+        if (notes !== undefined) {
+            updates.push(`notes = $${paramCount++}`);
+            values.push(notes);
+        }
+        if (category !== undefined) {
+            updates.push(`category = $${paramCount++}`);
+            values.push(category);
+        }
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        values.push(photoId, id);
+        const result = await pool.query(`UPDATE inspection_photos SET ${updates.join(', ')}
+       WHERE id = $${paramCount} AND inspection_id = $${paramCount + 1}
+       RETURNING *`, values);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Photo not found' });
+        }
+        const photo = result.rows[0];
+        console.log('[Inspections API] Updated photo:', photo.id);
+        res.json({ photo });
+    }
+    catch (error) {
+        console.error('[Inspections API] Error updating photo:', error);
+        res.status(500).json({ error: 'Failed to update photo' });
     }
 });
 // ============================================================================
