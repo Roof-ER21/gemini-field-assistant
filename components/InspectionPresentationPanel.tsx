@@ -1,13 +1,13 @@
 /**
  * InspectionPresentationPanel - Premium SaaS Inspection Builder
- * A refined, professional interface for roof inspection presentations
+ * Beautiful, colorful professional interface with forced light mode
  */
 
 import React, { useState } from 'react';
 import {
   Presentation, Camera, FileText, Play, Eye, BarChart3,
   Upload, Plus, ChevronRight, Clock, TrendingUp, Image,
-  CheckCircle2, ArrowRight, Sparkles, Shield, Zap
+  CheckCircle2, ArrowRight, Sparkles, Shield, Zap, AlertTriangle
 } from 'lucide-react';
 import { Button } from './ui/button';
 import InspectionUploader from './InspectionUploader';
@@ -37,95 +37,162 @@ interface PresentationSlide {
   order: number;
 }
 
-// Stats Card Component
+// Colorful Stats Card with forced light styling
 const StatCard: React.FC<{
   icon: React.ReactNode;
   value: string | number;
   label: string;
+  color: 'blue' | 'purple' | 'green' | 'orange';
   trend?: string;
-  trendUp?: boolean;
-}> = ({ icon, value, label, trend, trendUp }) => (
-  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-    <div className="flex items-start justify-between">
-      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-50 to-rose-100 flex items-center justify-center text-rose-600">
-        {icon}
-      </div>
-      {trend && (
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-          trendUp ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
-        }`}>
-          {trend}
-        </span>
-      )}
-    </div>
-    <div className="mt-4">
-      <p className="text-3xl font-bold text-slate-900 tracking-tight">{value}</p>
-      <p className="text-sm text-slate-500 mt-1">{label}</p>
-    </div>
-  </div>
-);
+}> = ({ icon, value, label, color, trend }) => {
+  const colorStyles = {
+    blue: {
+      bg: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+      iconBg: 'rgba(255,255,255,0.2)',
+      shadow: '0 10px 40px -10px rgba(59, 130, 246, 0.5)'
+    },
+    purple: {
+      bg: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+      iconBg: 'rgba(255,255,255,0.2)',
+      shadow: '0 10px 40px -10px rgba(139, 92, 246, 0.5)'
+    },
+    green: {
+      bg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+      iconBg: 'rgba(255,255,255,0.2)',
+      shadow: '0 10px 40px -10px rgba(16, 185, 129, 0.5)'
+    },
+    orange: {
+      bg: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+      iconBg: 'rgba(255,255,255,0.2)',
+      shadow: '0 10px 40px -10px rgba(249, 115, 22, 0.5)'
+    }
+  };
 
-// Step Indicator Component
+  const style = colorStyles[color];
+
+  return (
+    <div
+      style={{
+        background: style.bg,
+        boxShadow: style.shadow,
+        borderRadius: '16px',
+        padding: '20px',
+        color: 'white'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: style.iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {icon}
+        </div>
+        {trend && (
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '500',
+            padding: '4px 10px',
+            borderRadius: '20px',
+            background: 'rgba(255,255,255,0.2)'
+          }}>
+            {trend}
+          </span>
+        )}
+      </div>
+      <div style={{ marginTop: '16px' }}>
+        <p style={{ fontSize: '32px', fontWeight: '700', letterSpacing: '-0.02em' }}>{value}</p>
+        <p style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>{label}</p>
+      </div>
+    </div>
+  );
+};
+
+// Step Indicator with explicit colors
 const StepIndicator: React.FC<{
   step: number;
   label: string;
   description: string;
-  icon: React.ReactNode;
   isActive: boolean;
   isCompleted: boolean;
   onClick: () => void;
   disabled: boolean;
-}> = ({ step, label, description, icon, isActive, isCompleted, onClick, disabled }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`
-      relative flex items-center gap-4 p-4 rounded-xl transition-all duration-200 w-full text-left
-      ${isActive
-        ? 'bg-rose-50 border-2 border-rose-200'
-        : isCompleted
-        ? 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 cursor-pointer'
-        : 'bg-slate-50 border border-slate-100 opacity-60 cursor-not-allowed'
-      }
-    `}
-  >
-    {/* Step Number */}
-    <div className={`
-      w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-semibold text-sm
-      ${isActive
-        ? 'bg-rose-600 text-white shadow-lg shadow-rose-200'
-        : isCompleted
-        ? 'bg-emerald-500 text-white'
-        : 'bg-slate-200 text-slate-500'
-      }
-    `}>
-      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : step}
-    </div>
+}> = ({ step, label, description, isActive, isCompleted, onClick, disabled }) => {
+  let bgColor = '#F8FAFC'; // slate-50
+  let borderColor = '#E2E8F0'; // slate-200
+  let numberBg = '#CBD5E1'; // slate-300
+  let numberColor = '#64748B'; // slate-500
+  let textColor = '#64748B'; // slate-500
+  let descColor = '#94A3B8'; // slate-400
 
-    {/* Content */}
-    <div className="flex-1 min-w-0">
-      <p className={`font-semibold text-sm ${isActive ? 'text-rose-900' : isCompleted ? 'text-emerald-900' : 'text-slate-600'}`}>
-        {label}
-      </p>
-      <p className={`text-xs mt-0.5 truncate ${isActive ? 'text-rose-600' : isCompleted ? 'text-emerald-600' : 'text-slate-400'}`}>
-        {description}
-      </p>
-    </div>
+  if (isActive) {
+    bgColor = '#EFF6FF'; // blue-50
+    borderColor = '#3B82F6'; // blue-500
+    numberBg = '#3B82F6'; // blue-500
+    numberColor = '#FFFFFF';
+    textColor = '#1E40AF'; // blue-800
+    descColor = '#3B82F6'; // blue-500
+  } else if (isCompleted) {
+    bgColor = '#F0FDF4'; // green-50
+    borderColor = '#22C55E'; // green-500
+    numberBg = '#22C55E'; // green-500
+    numberColor = '#FFFFFF';
+    textColor = '#166534'; // green-800
+    descColor = '#22C55E'; // green-500
+  }
 
-    {/* Arrow */}
-    {(isActive || isCompleted) && (
-      <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-rose-400' : 'text-emerald-400'}`} />
-    )}
-  </button>
-);
-
-// Feature Badge Component
-const FeatureBadge: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon, label }) => (
-  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full">
-    <span className="text-rose-600">{icon}</span>
-    <span className="text-xs font-medium text-slate-700">{label}</span>
-  </div>
-);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '14px',
+        borderRadius: '12px',
+        background: bgColor,
+        border: `2px solid ${borderColor}`,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.2s ease',
+        textAlign: 'left'
+      }}
+    >
+      <div
+        style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '10px',
+          background: numberBg,
+          color: numberColor,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: '600',
+          fontSize: '14px',
+          flexShrink: 0
+        }}
+      >
+        {isCompleted ? <CheckCircle2 style={{ width: '20px', height: '20px' }} /> : step}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontWeight: '600', fontSize: '14px', color: textColor, margin: 0 }}>{label}</p>
+        <p style={{ fontSize: '12px', color: descColor, margin: '2px 0 0 0' }}>{description}</p>
+      </div>
+      {(isActive || isCompleted) && (
+        <ChevronRight style={{ width: '20px', height: '20px', color: borderColor, flexShrink: 0 }} />
+      )}
+    </button>
+  );
+};
 
 export const InspectionPresentationPanel: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
@@ -156,10 +223,10 @@ export const InspectionPresentationPanel: React.FC = () => {
   };
 
   const steps = [
-    { id: 'upload', label: 'Upload Photos', icon: <Camera className="w-5 h-5" />, description: 'Add inspection images' },
-    { id: 'review', label: 'Review Findings', icon: <FileText className="w-5 h-5" />, description: 'AI analysis results' },
-    { id: 'customize', label: 'Build Presentation', icon: <Presentation className="w-5 h-5" />, description: 'Customize slides' },
-    { id: 'present', label: 'Present & Share', icon: <Play className="w-5 h-5" />, description: 'Go live' }
+    { id: 'upload', label: 'Upload Photos', description: 'Add inspection images' },
+    { id: 'review', label: 'Review Findings', description: 'AI analysis results' },
+    { id: 'customize', label: 'Build Presentation', description: 'Customize slides' },
+    { id: 'present', label: 'Present & Share', description: 'Go live' }
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
@@ -168,79 +235,137 @@ export const InspectionPresentationPanel: React.FC = () => {
 
   return (
     <>
-      {/* Main Container - Light Theme */}
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      {/* FORCE LIGHT MODE - Override any dark theme */}
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 50%, #F1F5F9 100%)',
+          color: '#1E293B'
+        }}
+      >
         {/* Header */}
-        <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg shadow-rose-200">
-                  <Presentation className="w-5 h-5 text-white" />
+        <div
+          style={{
+            borderBottom: '1px solid #E2E8F0',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 40
+          }}
+        >
+          <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 8px 24px -8px rgba(59, 130, 246, 0.5)'
+                  }}
+                >
+                  <Presentation style={{ width: '24px', height: '24px', color: 'white' }} />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                  <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
                     Inspection Presentations
                   </h1>
-                  <p className="text-sm text-slate-500">Create professional roof inspection reports</p>
+                  <p style={{ fontSize: '14px', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Create professional roof inspection reports
+                  </p>
                 </div>
               </div>
               <Button
                 onClick={resetWorkflow}
-                className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 rounded-xl px-5"
+                style={{
+                  background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '12px 20px',
+                  fontWeight: '600',
+                  boxShadow: '0 8px 24px -8px rgba(59, 130, 246, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer'
+                }}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus style={{ width: '18px', height: '18px' }} />
                 New Inspection
               </Button>
             </div>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px' }}>
+          {/* Stats Row - Colorful Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
             <StatCard
-              icon={<Eye className="w-5 h-5" />}
+              icon={<Camera style={{ width: '24px', height: '24px' }} />}
               value={photos.length}
               label="Photos Uploaded"
+              color="blue"
             />
             <StatCard
-              icon={<Sparkles className="w-5 h-5" />}
+              icon={<Sparkles style={{ width: '24px', height: '24px' }} />}
               value={photos.filter(p => p.status === 'complete').length}
               label="AI Analyzed"
+              color="purple"
             />
             <StatCard
-              icon={<Shield className="w-5 h-5" />}
+              icon={<Shield style={{ width: '24px', height: '24px' }} />}
               value={insuranceCount}
               label="Insurance Claims"
+              color="green"
               trend={insuranceCount > 0 ? `${insuranceCount} flagged` : undefined}
-              trendUp={true}
             />
             <StatCard
-              icon={<Zap className="w-5 h-5" />}
+              icon={<AlertTriangle style={{ width: '24px', height: '24px' }} />}
               value={criticalCount}
               label="Critical Issues"
-              trend={criticalCount > 0 ? 'Needs attention' : undefined}
-              trendUp={false}
+              color="orange"
+              trend={criticalCount > 0 ? 'Urgent' : undefined}
             />
           </div>
 
-          {/* Main Layout - Sidebar + Content */}
-          <div className="flex gap-8">
-            {/* Sidebar - Workflow Steps */}
-            <div className="w-72 flex-shrink-0">
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 sticky top-28">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">
+          {/* Main Layout */}
+          <div style={{ display: 'flex', gap: '32px' }}>
+            {/* Sidebar */}
+            <div style={{ width: '280px', flexShrink: 0 }}>
+              <div
+                style={{
+                  background: 'white',
+                  borderRadius: '20px',
+                  padding: '20px',
+                  boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                  border: '1px solid #E2E8F0',
+                  position: 'sticky',
+                  top: '100px'
+                }}
+              >
+                <h3 style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#94A3B8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  margin: '0 0 16px 8px'
+                }}>
                   Workflow Steps
                 </h3>
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {steps.map((step, idx) => (
                     <StepIndicator
                       key={step.id}
                       step={idx + 1}
                       label={step.label}
                       description={step.description}
-                      icon={step.icon}
                       isActive={currentStep === step.id}
                       isCompleted={idx < currentStepIndex}
                       onClick={() => {
@@ -255,31 +380,38 @@ export const InspectionPresentationPanel: React.FC = () => {
 
                 {/* Quick Stats */}
                 {photos.length > 0 && (
-                  <div className="mt-6 pt-6 border-t border-slate-100">
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">
+                  <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #E2E8F0' }}>
+                    <h3 style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      color: '#94A3B8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      margin: '0 0 16px 8px'
+                    }}>
                       Quick Stats
                     </h3>
-                    <div className="space-y-3 px-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-600 flex items-center gap-2">
-                          <Image className="w-4 h-4 text-rose-500" />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748B' }}>
+                          <Image style={{ width: '16px', height: '16px', color: '#3B82F6' }} />
                           Total Photos
                         </span>
-                        <span className="font-semibold text-slate-900">{photos.length}</span>
+                        <span style={{ fontWeight: '600', color: '#0F172A' }}>{photos.length}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-600 flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4 text-rose-500" />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748B' }}>
+                          <BarChart3 style={{ width: '16px', height: '16px', color: '#8B5CF6' }} />
                           Slides
                         </span>
-                        <span className="font-semibold text-slate-900">{slides.length || '—'}</span>
+                        <span style={{ fontWeight: '600', color: '#0F172A' }}>{slides.length || '—'}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-600 flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-rose-500" />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748B' }}>
+                          <Clock style={{ width: '16px', height: '16px', color: '#10B981' }} />
                           Est. Time
                         </span>
-                        <span className="font-semibold text-slate-900">{slides.length ? `${Math.max(1, Math.ceil(slides.length * 1.5))}m` : '—'}</span>
+                        <span style={{ fontWeight: '600', color: '#0F172A' }}>{slides.length ? `${Math.max(1, Math.ceil(slides.length * 1.5))}m` : '—'}</span>
                       </div>
                     </div>
                   </div>
@@ -287,26 +419,63 @@ export const InspectionPresentationPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 min-w-0">
+            {/* Main Content */}
+            <div style={{ flex: 1, minWidth: 0 }}>
               {/* Step 1: Upload */}
               {currentStep === 'upload' && (
-                <div className="space-y-6">
-                  {/* Upload Card */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
-                      <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div
+                    style={{
+                      background: 'white',
+                      borderRadius: '20px',
+                      boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                      border: '1px solid #E2E8F0',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div style={{ padding: '24px', borderBottom: '1px solid #E2E8F0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                          <h2 className="text-lg font-bold text-slate-900">Upload Inspection Photos</h2>
-                          <p className="text-sm text-slate-500 mt-1">Add roof photos for AI-powered damage analysis</p>
+                          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
+                            Upload Inspection Photos
+                          </h2>
+                          <p style={{ fontSize: '14px', color: '#64748B', margin: '4px 0 0 0' }}>
+                            Add roof photos for AI-powered damage analysis
+                          </p>
                         </div>
-                        <div className="flex gap-2">
-                          <FeatureBadge icon={<Sparkles className="w-3.5 h-3.5" />} label="AI Analysis" />
-                          <FeatureBadge icon={<Shield className="w-3.5 h-3.5" />} label="Insurance Ready" />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            background: '#EFF6FF',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#3B82F6'
+                          }}>
+                            <Sparkles style={{ width: '14px', height: '14px' }} />
+                            AI Analysis
+                          </span>
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            background: '#F0FDF4',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#22C55E'
+                          }}>
+                            <Shield style={{ width: '14px', height: '14px' }} />
+                            Insurance Ready
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="p-6">
+                    <div style={{ padding: '24px' }}>
                       <InspectionUploader
                         onPhotosAnalyzed={handlePhotosAnalyzed}
                         maxPhotos={20}
@@ -315,13 +484,24 @@ export const InspectionPresentationPanel: React.FC = () => {
                   </div>
 
                   {photos.length > 0 && (
-                    <div className="flex justify-end">
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <Button
                         onClick={() => setCurrentStep('review')}
-                        className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+                        style={{
+                          background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '12px 24px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          cursor: 'pointer'
+                        }}
                       >
                         Continue to Review
-                        <ArrowRight className="w-4 h-4 ml-2" />
+                        <ArrowRight style={{ width: '18px', height: '18px' }} />
                       </Button>
                     </div>
                   )}
@@ -330,28 +510,40 @@ export const InspectionPresentationPanel: React.FC = () => {
 
               {/* Step 2: Review */}
               {currentStep === 'review' && (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
-                      <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div
+                    style={{
+                      background: 'white',
+                      borderRadius: '20px',
+                      boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                      border: '1px solid #E2E8F0',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div style={{ padding: '24px', borderBottom: '1px solid #E2E8F0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                          <h2 className="text-lg font-bold text-slate-900">Review AI Analysis</h2>
-                          <p className="text-sm text-slate-500 mt-1">{photos.length} findings documented and analyzed</p>
+                          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
+                            Review AI Analysis
+                          </h2>
+                          <p style={{ fontSize: '14px', color: '#64748B', margin: '4px 0 0 0' }}>
+                            {photos.length} findings documented and analyzed
+                          </p>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-rose-600">{insuranceCount}</p>
-                            <p className="text-xs text-slate-500">Insurance Claims</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontSize: '24px', fontWeight: '700', color: '#22C55E', margin: 0 }}>{insuranceCount}</p>
+                            <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>Insurance Claims</p>
                           </div>
-                          <div className="w-px h-10 bg-slate-200" />
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-amber-600">{criticalCount}</p>
-                            <p className="text-xs text-slate-500">Critical Issues</p>
+                          <div style={{ width: '1px', height: '40px', background: '#E2E8F0' }} />
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontSize: '24px', fontWeight: '700', color: '#F97316', margin: 0 }}>{criticalCount}</p>
+                            <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>Critical Issues</p>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="p-6 space-y-4">
+                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {photos.map((photo, idx) => (
                         photo.analysis && (
                           <PhotoAnalysisCard
@@ -365,20 +557,38 @@ export const InspectionPresentationPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-between">
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Button
-                      variant="outline"
                       onClick={() => setCurrentStep('upload')}
-                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                      style={{
+                        background: 'white',
+                        color: '#64748B',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '12px 20px',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
                     >
                       Back to Upload
                     </Button>
                     <Button
                       onClick={() => setCurrentStep('customize')}
-                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+                      style={{
+                        background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '12px 24px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer'
+                      }}
                     >
                       Build Presentation
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      <ArrowRight style={{ width: '18px', height: '18px' }} />
                     </Button>
                   </div>
                 </div>
@@ -386,13 +596,25 @@ export const InspectionPresentationPanel: React.FC = () => {
 
               {/* Step 3: Customize */}
               {currentStep === 'customize' && (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
-                      <h2 className="text-lg font-bold text-slate-900">Build Your Presentation</h2>
-                      <p className="text-sm text-slate-500 mt-1">Customize and arrange your presentation slides</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div
+                    style={{
+                      background: 'white',
+                      borderRadius: '20px',
+                      boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                      border: '1px solid #E2E8F0',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div style={{ padding: '24px', borderBottom: '1px solid #E2E8F0' }}>
+                      <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
+                        Build Your Presentation
+                      </h2>
+                      <p style={{ fontSize: '14px', color: '#64748B', margin: '4px 0 0 0' }}>
+                        Customize and arrange your presentation slides
+                      </p>
                     </div>
-                    <div className="p-6">
+                    <div style={{ padding: '24px' }}>
                       <PresentationGenerator
                         photos={photos}
                         onGenerate={handlePresentationGenerated}
@@ -401,21 +623,39 @@ export const InspectionPresentationPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-between">
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Button
-                      variant="outline"
                       onClick={() => setCurrentStep('review')}
-                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                      style={{
+                        background: 'white',
+                        color: '#64748B',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '12px 20px',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
                     >
                       Back to Review
                     </Button>
                     <Button
                       onClick={() => setCurrentStep('present')}
                       disabled={slides.length === 0}
-                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6 disabled:opacity-50"
+                      style={{
+                        background: slides.length === 0 ? '#E2E8F0' : 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                        color: slides.length === 0 ? '#94A3B8' : 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '12px 24px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: slides.length === 0 ? 'not-allowed' : 'pointer'
+                      }}
                     >
                       Continue to Present
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      <ArrowRight style={{ width: '18px', height: '18px' }} />
                     </Button>
                   </div>
                 </div>
@@ -423,96 +663,166 @@ export const InspectionPresentationPanel: React.FC = () => {
 
               {/* Step 4: Present */}
               {currentStep === 'present' && !isPresenting && (
-                <div className="space-y-6">
-                  {/* Ready to Present Card */}
-                  <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-8 text-white shadow-xl shadow-rose-200">
-                    <div className="flex items-start justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  {/* Hero Card */}
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 50%, #7C3AED 100%)',
+                      borderRadius: '24px',
+                      padding: '40px',
+                      color: 'white',
+                      boxShadow: '0 20px 60px -20px rgba(59, 130, 246, 0.5)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                       <div>
-                        <h2 className="text-2xl font-bold">Ready to Present</h2>
-                        <p className="text-rose-100 mt-2">Your presentation is ready with {slides.length} slides</p>
+                        <h2 style={{ fontSize: '28px', fontWeight: '700', margin: 0 }}>Ready to Present</h2>
+                        <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: '8px' }}>
+                          Your presentation is ready with {slides.length} slides
+                        </p>
                       </div>
-                      <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
-                        <Play className="w-8 h-8 text-white" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-4 mt-8">
-                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-3xl font-bold">{slides.length}</p>
-                        <p className="text-sm text-rose-200 mt-1">Total Slides</p>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-3xl font-bold">{photos.length}</p>
-                        <p className="text-sm text-rose-200 mt-1">Findings</p>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-3xl font-bold">{insuranceCount}</p>
-                        <p className="text-sm text-rose-200 mt-1">Insurance Claims</p>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-3xl font-bold">{Math.max(1, Math.ceil(slides.length * 1.5))}m</p>
-                        <p className="text-sm text-rose-200 mt-1">Est. Duration</p>
+                      <div
+                        style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '16px',
+                          background: 'rgba(255,255,255,0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Play style={{ width: '32px', height: '32px' }} />
                       </div>
                     </div>
 
-                    <div className="flex gap-3 mt-8">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginTop: '32px' }}>
+                      {[
+                        { value: slides.length, label: 'Total Slides' },
+                        { value: photos.length, label: 'Findings' },
+                        { value: insuranceCount, label: 'Insurance Claims' },
+                        { value: `${Math.max(1, Math.ceil(slides.length * 1.5))}m`, label: 'Est. Duration' }
+                      ].map((stat, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            borderRadius: '16px',
+                            padding: '20px'
+                          }}
+                        >
+                          <p style={{ fontSize: '28px', fontWeight: '700', margin: 0 }}>{stat.value}</p>
+                          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>{stat.label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                       <Button
                         onClick={() => setIsPresenting(true)}
-                        size="lg"
-                        className="bg-white text-rose-600 hover:bg-rose-50 rounded-xl px-8 font-semibold"
+                        style={{
+                          background: 'white',
+                          color: '#3B82F6',
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '14px 28px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          fontSize: '15px'
+                        }}
                       >
-                        <Play className="w-5 h-5 mr-2" />
+                        <Play style={{ width: '20px', height: '20px' }} />
                         Start Presentation
                       </Button>
                       <Button
-                        variant="outline"
                         onClick={() => setCurrentStep('customize')}
-                        className="border-white/30 text-white hover:bg-white/10 rounded-xl"
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          color: 'white',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          borderRadius: '12px',
+                          padding: '14px 20px',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
                       >
                         Edit Slides
                       </Button>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                    <h3 className="font-semibold text-slate-900 mb-4">Quick Actions</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
-                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
-                          <Eye className="w-5 h-5 text-rose-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900">Preview</p>
-                          <p className="text-xs text-slate-500">View before sharing</p>
-                        </div>
-                      </button>
-                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
-                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
-                          <BarChart3 className="w-5 h-5 text-rose-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900">Analytics</p>
-                          <p className="text-xs text-slate-500">View engagement</p>
-                        </div>
-                      </button>
-                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
-                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
-                          <TrendingUp className="w-5 h-5 text-rose-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900">Share Link</p>
-                          <p className="text-xs text-slate-500">Send to homeowner</p>
-                        </div>
-                      </button>
+                  {/* Quick Actions */}
+                  <div
+                    style={{
+                      background: 'white',
+                      borderRadius: '20px',
+                      padding: '24px',
+                      boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                      border: '1px solid #E2E8F0'
+                    }}
+                  >
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#0F172A', margin: '0 0 16px 0' }}>
+                      Quick Actions
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                      {[
+                        { icon: <Eye style={{ width: '20px', height: '20px' }} />, label: 'Preview', desc: 'View before sharing', color: '#3B82F6', bg: '#EFF6FF' },
+                        { icon: <BarChart3 style={{ width: '20px', height: '20px' }} />, label: 'Analytics', desc: 'View engagement', color: '#8B5CF6', bg: '#F5F3FF' },
+                        { icon: <TrendingUp style={{ width: '20px', height: '20px' }} />, label: 'Share Link', desc: 'Send to homeowner', color: '#22C55E', bg: '#F0FDF4' }
+                      ].map((action, idx) => (
+                        <button
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '16px',
+                            borderRadius: '14px',
+                            border: '1px solid #E2E8F0',
+                            background: 'white',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '12px',
+                              background: action.bg,
+                              color: action.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            {action.icon}
+                          </div>
+                          <div>
+                            <p style={{ fontWeight: '600', color: '#0F172A', margin: 0, fontSize: '14px' }}>{action.label}</p>
+                            <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>{action.desc}</p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex justify-start">
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                     <Button
-                      variant="outline"
                       onClick={resetWorkflow}
-                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                      style={{
+                        background: 'white',
+                        color: '#64748B',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '12px 20px',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
                     >
                       Start New Inspection
                     </Button>

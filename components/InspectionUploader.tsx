@@ -1,10 +1,10 @@
 /**
- * InspectionUploader - Premium SaaS Photo Upload
- * Clean, professional photo upload with AI analysis
+ * InspectionUploader - Colorful SaaS Photo Upload
+ * Beautiful upload zone with forced light theme
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, CloudUpload, Sparkles } from 'lucide-react';
+import { X, Loader2, AlertCircle, CheckCircle2, CloudUpload, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { analyzeImage } from '../services/geminiService';
 
@@ -192,18 +192,18 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
   const completedCount = photos.filter(p => p.status === 'complete').length;
   const progress = photos.length > 0 ? (completedCount / photos.length) * 100 : 0;
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityStyle = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-red-500 text-white';
-      case 'severe': return 'bg-orange-500 text-white';
-      case 'moderate': return 'bg-amber-500 text-white';
-      case 'minor': return 'bg-emerald-500 text-white';
-      default: return 'bg-slate-500 text-white';
+      case 'critical': return { bg: '#EF4444', color: 'white' };
+      case 'severe': return { bg: '#F97316', color: 'white' };
+      case 'moderate': return { bg: '#F59E0B', color: 'white' };
+      case 'minor': return { bg: '#22C55E', color: 'white' };
+      default: return { bg: '#64748B', color: 'white' };
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Upload Area */}
       <div
         onDragEnter={handleDragEnter}
@@ -211,14 +211,19 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onClick={handleUploadClick}
-        className={`
-          relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer
-          transition-all duration-300 ease-out
-          ${isDragging
-            ? 'border-rose-400 bg-rose-50 scale-[1.01]'
-            : 'border-slate-200 bg-slate-50/50 hover:border-rose-300 hover:bg-rose-50/50'
-          }
-        `}
+        style={{
+          position: 'relative',
+          borderRadius: '16px',
+          border: isDragging ? '2px dashed #3B82F6' : '2px dashed #CBD5E1',
+          padding: '48px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          background: isDragging
+            ? 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)'
+            : 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+          transform: isDragging ? 'scale(1.01)' : 'scale(1)'
+        }}
       >
         <input
           ref={fileInputRef}
@@ -226,35 +231,90 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
           accept="image/*"
           multiple
           onChange={(e) => handleFiles(e.target.files)}
-          className="hidden"
+          style={{ display: 'none' }}
         />
 
-        <div className={`
-          w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center
-          transition-all duration-300
-          ${isDragging
-            ? 'bg-rose-500 shadow-lg shadow-rose-200 scale-110'
-            : 'bg-slate-100'
-          }
-        `}>
-          <CloudUpload className={`w-8 h-8 transition-colors ${isDragging ? 'text-white' : 'text-slate-400'}`} />
+        <div
+          style={{
+            width: '72px',
+            height: '72px',
+            margin: '0 auto 20px',
+            borderRadius: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s ease',
+            background: isDragging
+              ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+              : 'linear-gradient(135deg, #E2E8F0 0%, #CBD5E1 100%)',
+            boxShadow: isDragging
+              ? '0 10px 30px -10px rgba(59, 130, 246, 0.5)'
+              : '0 4px 12px -4px rgba(0, 0, 0, 0.1)',
+            transform: isDragging ? 'scale(1.1)' : 'scale(1)'
+          }}
+        >
+          <CloudUpload style={{
+            width: '36px',
+            height: '36px',
+            color: isDragging ? 'white' : '#64748B',
+            transition: 'color 0.3s ease'
+          }} />
         </div>
 
-        <p className="text-lg font-semibold text-slate-700 mb-1">
+        <p style={{
+          fontSize: '18px',
+          fontWeight: '600',
+          color: '#1E293B',
+          margin: '0 0 6px 0'
+        }}>
           {isDragging ? 'Drop to upload' : 'Drop photos here or click to browse'}
         </p>
-        <p className="text-sm text-slate-500">
+        <p style={{
+          fontSize: '14px',
+          color: '#64748B',
+          margin: 0
+        }}>
           JPG, PNG, HEIC up to 10MB • Max {maxPhotos} photos
         </p>
 
         {/* Feature tags */}
-        <div className="flex items-center justify-center gap-3 mt-5">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-medium text-slate-600">
-            <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          marginTop: '20px'
+        }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            background: 'white',
+            border: '1px solid #E2E8F0',
+            fontSize: '13px',
+            fontWeight: '500',
+            color: '#475569',
+            boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)'
+          }}>
+            <Sparkles style={{ width: '15px', height: '15px', color: '#8B5CF6' }} />
             AI Analysis
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-medium text-slate-600">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            background: 'white',
+            border: '1px solid #E2E8F0',
+            fontSize: '13px',
+            fontWeight: '500',
+            color: '#475569',
+            boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)'
+          }}>
+            <CheckCircle2 style={{ width: '15px', height: '15px', color: '#22C55E' }} />
             Insurance Ready
           </span>
         </div>
@@ -262,17 +322,27 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
 
       {/* Progress Bar */}
       {photos.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-600 font-medium">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+            <span style={{ color: '#475569', fontWeight: '500' }}>
               {isAnalyzing ? 'Analyzing photos...' : `${completedCount} of ${photos.length} analyzed`}
             </span>
-            <span className="text-slate-600 font-medium">{Math.round(progress)}%</span>
+            <span style={{ color: '#475569', fontWeight: '600' }}>{Math.round(progress)}%</span>
           </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div style={{
+            height: '10px',
+            background: '#E2E8F0',
+            borderRadius: '10px',
+            overflow: 'hidden'
+          }}>
             <div
-              className="h-full bg-gradient-to-r from-rose-500 to-rose-600 transition-all duration-500 ease-out rounded-full"
-              style={{ width: `${progress}%` }}
+              style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%)',
+                transition: 'width 0.5s ease-out',
+                borderRadius: '10px',
+                width: `${progress}%`
+              }}
             />
           </div>
         </div>
@@ -280,85 +350,196 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
 
       {/* Photo Grid */}
       {photos.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {photos.map(photo => (
-            <div
-              key={photo.id}
-              className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <img
-                src={photo.preview}
-                alt="Inspection"
-                className="w-full h-full object-cover"
-              />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '16px'
+        }}>
+          {photos.map(photo => {
+            const severityStyle = photo.analysis ? getSeverityStyle(photo.analysis.severity) : null;
 
-              {/* Status Overlay */}
-              {photo.status !== 'complete' && (
-                <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center">
-                  {photo.status === 'uploading' && (
-                    <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
-                  )}
-                  {photo.status === 'analyzing' && (
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-rose-100 flex items-center justify-center">
-                        <Sparkles className="w-6 h-6 text-rose-500 animate-pulse" />
-                      </div>
-                      <p className="text-xs font-medium text-slate-600">Analyzing...</p>
-                    </div>
-                  )}
-                  {photo.status === 'error' && (
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-red-100 flex items-center justify-center">
-                        <AlertCircle className="w-6 h-6 text-red-500" />
-                      </div>
-                      <p className="text-xs font-medium text-red-600">{photo.error}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Complete indicator */}
-              {photo.status === 'complete' && (
-                <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
-                  <CheckCircle2 className="w-4 h-4 text-white" />
-                </div>
-              )}
-
-              {/* Remove Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removePhoto(photo.id);
+            return (
+              <div
+                key={photo.id}
+                style={{
+                  position: 'relative',
+                  aspectRatio: '1',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  background: '#F1F5F9',
+                  border: '1px solid #E2E8F0',
+                  boxShadow: '0 4px 12px -4px rgba(0, 0, 0, 0.1)'
                 }}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
               >
-                <X className="w-4 h-4 text-slate-600 hover:text-red-600" />
-              </button>
+                <img
+                  src={photo.preview}
+                  alt="Inspection"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover'
+                  }}
+                />
 
-              {/* Severity Badge */}
-              {photo.analysis && (
-                <div className={`
-                  absolute bottom-2 left-2 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-lg
-                  ${getSeverityColor(photo.analysis.severity)}
-                `}>
-                  {photo.analysis.severity.charAt(0).toUpperCase() + photo.analysis.severity.slice(1)}
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Status Overlay */}
+                {photo.status !== 'complete' && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(4px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {photo.status === 'uploading' && (
+                      <Loader2 style={{
+                        width: '32px',
+                        height: '32px',
+                        color: '#94A3B8',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                    )}
+                    {photo.status === 'analyzing' && (
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          margin: '0 auto 8px',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Sparkles style={{
+                            width: '24px',
+                            height: '24px',
+                            color: '#8B5CF6'
+                          }} />
+                        </div>
+                        <p style={{
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#64748B',
+                          margin: 0
+                        }}>Analyzing...</p>
+                      </div>
+                    )}
+                    {photo.status === 'error' && (
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          margin: '0 auto 8px',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <AlertCircle style={{ width: '24px', height: '24px', color: '#EF4444' }} />
+                        </div>
+                        <p style={{
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#EF4444',
+                          margin: 0
+                        }}>{photo.error}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Complete indicator */}
+                {photo.status === 'complete' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '8px',
+                    left: '8px',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px -2px rgba(34, 197, 94, 0.5)'
+                  }}>
+                    <CheckCircle2 style={{ width: '16px', height: '16px', color: 'white' }} />
+                  </div>
+                )}
+
+                {/* Remove Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePhoto(photo.id);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.95)',
+                    border: 'none',
+                    boxShadow: '0 4px 12px -2px rgba(0, 0, 0, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    opacity: 0,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
+                >
+                  <X style={{ width: '16px', height: '16px', color: '#64748B' }} />
+                </button>
+
+                {/* Severity Badge */}
+                {photo.analysis && severityStyle && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '8px',
+                    left: '8px',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    background: severityStyle.bg,
+                    color: severityStyle.color,
+                    boxShadow: '0 4px 12px -2px rgba(0, 0, 0, 0.2)',
+                    textTransform: 'capitalize'
+                  }}>
+                    {photo.analysis.severity}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Actions */}
       {photos.length > 0 && completedCount > 0 && (
-        <div className="flex gap-3 justify-end">
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <Button
-            variant="outline"
             onClick={() => {
               photos.forEach(p => URL.revokeObjectURL(p.preview));
               setPhotos([]);
             }}
-            className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+            style={{
+              background: 'white',
+              color: '#64748B',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              padding: '12px 20px',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
           >
             Clear All
           </Button>
@@ -370,12 +551,29 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
               }
             }}
             disabled={completedCount === 0}
-            className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+            style={{
+              background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '12px 24px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px -8px rgba(59, 130, 246, 0.5)'
+            }}
           >
             Continue with {completedCount} Photo{completedCount !== 1 ? 's' : ''}
           </Button>
         </div>
       )}
+
+      {/* CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
