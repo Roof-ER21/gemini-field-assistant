@@ -231,14 +231,21 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
           onDrop={handleDrop}
           onClick={handleUploadClick}
           className={`
-            border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-            transition-all duration-200
+            relative overflow-hidden rounded-2xl p-10 text-center cursor-pointer
+            transition-all duration-300 ease-out
             ${isDragging
-              ? 'border-[#e94560] bg-[#e94560]/10'
-              : 'border-white/20 hover:border-white/40 bg-white/5'
+              ? 'bg-[#e94560]/20 ring-2 ring-[#e94560] shadow-xl shadow-[#e94560]/20 scale-[1.02]'
+              : 'bg-zinc-900/60 hover:bg-zinc-800/80 ring-1 ring-zinc-700/50 hover:ring-zinc-600'
             }
           `}
         >
+          {/* Background pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -247,13 +254,39 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
             onChange={(e) => handleFiles(e.target.files)}
             className="hidden"
           />
-          <Upload className="w-12 h-12 mx-auto mb-4 text-white/60" />
-          <p className="text-white font-medium mb-2">
-            Drop photos here or click to browse
-          </p>
-          <p className="text-white/60 text-sm">
-            Supports JPG, PNG, HEIC. Max {maxPhotos} photos.
-          </p>
+
+          <div className="relative z-10">
+            <div className={`
+              w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center
+              transition-all duration-300
+              ${isDragging
+                ? 'bg-[#e94560] shadow-lg shadow-[#e94560]/40 scale-110'
+                : 'bg-zinc-800 ring-1 ring-zinc-700'
+              }
+            `}>
+              <Upload className={`w-10 h-10 transition-colors ${isDragging ? 'text-white' : 'text-zinc-400'}`} />
+            </div>
+
+            <p className="text-lg font-semibold text-white mb-2">
+              {isDragging ? 'Drop photos to upload' : 'Drop photos here or click to browse'}
+            </p>
+            <p className="text-zinc-500 text-sm">
+              Supports JPG, PNG, HEIC • Max {maxPhotos} photos
+            </p>
+
+            {/* Upload hint badges */}
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
+                AI Analysis
+              </span>
+              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
+                Insurance Ready
+              </span>
+              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
+                Auto Presentation
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Progress Bar */}

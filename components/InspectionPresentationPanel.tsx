@@ -98,48 +98,77 @@ export const InspectionPresentationPanel: React.FC = () => {
           </Card>
 
           {/* Progress Steps */}
-          <div className="grid grid-cols-4 gap-4">
-            {steps.map((step, idx) => {
-              const StepIcon = step.icon;
-              const isActive = currentStep === step.id;
-              const isCompleted = idx < currentStepIndex;
+          <Card className="p-2">
+            <div className="grid grid-cols-4 gap-2">
+              {steps.map((step, idx) => {
+                const StepIcon = step.icon;
+                const isActive = currentStep === step.id;
+                const isCompleted = idx < currentStepIndex;
+                const isLocked = !isCompleted && !isActive;
 
-              return (
-                <button
-                  key={step.id}
-                  onClick={() => {
-                    if (isCompleted || isActive) {
-                      setCurrentStep(step.id as WorkflowStep);
-                    }
-                  }}
-                  disabled={!isCompleted && !isActive}
-                  className={`p-4 rounded-lg border transition-all ${
-                    isActive
-                      ? 'bg-gradient-to-r from-[#e94560]/20 to-[#ff6b88]/20 border-[#e94560]'
-                      : isCompleted
-                      ? 'bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer'
-                      : 'bg-white/5 border-white/10 opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      isActive ? 'bg-[#e94560]' : isCompleted ? 'bg-green-500' : 'bg-white/20'
-                    }`}>
-                      <StepIcon className="w-6 h-6 text-white" />
+                return (
+                  <button
+                    key={step.id}
+                    onClick={() => {
+                      if (isCompleted || isActive) {
+                        setCurrentStep(step.id as WorkflowStep);
+                      }
+                    }}
+                    disabled={isLocked}
+                    className={`
+                      relative p-4 rounded-xl transition-all duration-200
+                      ${isActive
+                        ? 'bg-[#e94560]/20 ring-2 ring-[#e94560] shadow-lg shadow-[#e94560]/20'
+                        : isCompleted
+                        ? 'bg-zinc-800/80 hover:bg-zinc-700/80 cursor-pointer'
+                        : 'bg-zinc-900/50 opacity-40 cursor-not-allowed'
+                      }
+                    `}
+                  >
+                    {/* Step number badge */}
+                    <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center">
+                      <span className={`text-xs font-bold ${isActive ? 'text-[#e94560]' : isCompleted ? 'text-green-400' : 'text-zinc-500'}`}>
+                        {idx + 1}
+                      </span>
                     </div>
-                    <div className="text-center">
-                      <p className={`font-semibold text-sm ${isActive ? 'text-white' : 'text-white/60'}`}>
-                        {step.label}
-                      </p>
-                      <p className="text-xs text-white/40 mt-1">
-                        {step.description}
-                      </p>
+
+                    <div className="flex flex-col items-center gap-3">
+                      <div className={`
+                        w-14 h-14 rounded-2xl flex items-center justify-center transition-all
+                        ${isActive
+                          ? 'bg-gradient-to-br from-[#e94560] to-[#ff6b88] shadow-lg'
+                          : isCompleted
+                          ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                          : 'bg-zinc-800 border border-zinc-700'
+                        }
+                      `}>
+                        <StepIcon className={`w-7 h-7 ${isLocked ? 'text-zinc-500' : 'text-white'}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className={`font-semibold text-sm ${isActive ? 'text-white' : isCompleted ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                          {step.label}
+                        </p>
+                        <p className={`text-xs mt-1 ${isActive ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                          {step.description}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+
+                    {/* Lock indicator for locked steps */}
+                    {isLocked && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-zinc-900/80 rounded-xl p-2">
+                          <svg className="w-4 h-4 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
 
           {/* Step Content */}
           <div className="space-y-6">
