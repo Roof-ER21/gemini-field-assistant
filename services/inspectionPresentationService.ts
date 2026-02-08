@@ -147,7 +147,8 @@ export async function createPresentation(
   slides: PresentationSlide[],
   homeownerInfo: HomeownerInfo
 ): Promise<{ presentationId: string; shareToken?: string }> {
-  const response = await fetch('/api/presentations', {
+  // NOTE: Use /api/inspections/presentations because the router mounts presentation routes there
+  const response = await fetch('/api/inspections/presentations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -191,7 +192,8 @@ export async function sharePresentation(
   userEmail: string,
   presentationId: string
 ): Promise<{ shareUrl: string; shareToken: string }> {
-  const response = await fetch(`/api/presentations/${presentationId}/share`, {
+  // NOTE: Use /api/inspections/presentations because the router mounts presentation routes there
+  const response = await fetch(`/api/inspections/presentations/${presentationId}/share`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
