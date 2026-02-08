@@ -43,6 +43,9 @@ interface UserProfile {
   phone?: string;
   photoUrl?: string;
   credentials?: string[];
+  title?: string;
+  slug?: string;
+  startYear?: number;
 }
 
 // ============================================================================
@@ -61,12 +64,23 @@ export const InspectionPresentationPanel: React.FC = () => {
 
   // Get current user profile
   const currentUser = authService.getCurrentUser();
+
+  // Generate slug from name for QR code profile link
+  const generateSlug = (name: string): string => {
+    return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  };
+
+  const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Sales Representative';
+
   const userProfile: UserProfile | undefined = currentUser ? {
-    name: currentUser.name || currentUser.email?.split('@')[0] || 'Sales Representative',
+    name: userName,
     email: currentUser.email || '',
-    company: 'Roof-ER Roofing',
+    company: 'The Roof Docs',
     phone: '', // Phone not available in AuthUser
-    credentials: ['Licensed Contractor', 'Insurance Specialist', 'GAF Certified']
+    credentials: ['Licensed Contractor', 'Insurance Specialist', 'GAF Certified'],
+    title: 'Insurance Claims Specialist',
+    slug: generateSlug(userName),
+    startYear: 2020
   } : undefined;
 
   // Handle presentation ready

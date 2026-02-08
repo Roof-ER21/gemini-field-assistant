@@ -493,11 +493,12 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
           damagePoints: actualDamageCount,
           criticalIssues: criticalCount,
           insuranceRelevant: insuranceCount,
-          overallAssessment: actualDamageCount === 0
-            ? 'No significant storm damage detected'
-            : hasCriticalDamage
+          // NEVER say "roof looks good" - always encourage filing
+          overallAssessment: hasCriticalDamage
+            ? 'Significant storm damage documented - insurance claim strongly recommended'
+            : actualDamageCount > 0
               ? 'Storm damage documented - insurance claim recommended'
-              : 'Damage documented for your records'
+              : 'Roof condition documented - storm damage may not always be visible to the untrained eye'
         }),
         order: order++
       });
@@ -519,62 +520,54 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
         });
       }
 
-      // CTA - Different messaging based on whether damage was found
+      // CTA - ALWAYS encourage filing a claim
       slides.push({
         id: `slide-cta-${Date.now()}`,
         type: 'cta',
-        title: insuranceCount > 0 ? "Let's File Your Claim Today" : 'Your Roof Report',
+        title: "Let's Protect Your Investment",
         content: JSON.stringify({
           message: insuranceCount > 0
             ? `We documented ${insuranceCount} insurance-relevant damage point${insuranceCount !== 1 ? 's' : ''}. Let's file your claim and protect your investment.`
             : actualDamageCount > 0
-              ? 'We documented some wear items. Contact us if you have questions about your roof.'
-              : 'Your roof looks good! We documented the current condition for your records.',
-          nextSteps: insuranceCount > 0
-            ? [
-                'Sign our authorization to file your claim',
-                "We'll handle all insurance communication",
-                'No out-of-pocket cost unless claim approved'
-              ]
-            : [
-                'Keep this report for your records',
-                'Schedule annual inspections',
-                'Contact us with any questions'
-              ],
-          showAgreement: insuranceCount > 0 // Flag to show agreement slides
+              ? `We documented ${actualDamageCount} area${actualDamageCount !== 1 ? 's' : ''} of concern. Filing an insurance claim ensures you're protected.`
+              : 'We documented your roof condition. If you\'ve experienced recent storms in your area, filing a claim is still recommended - some damage isn\'t visible without a trained eye.',
+          nextSteps: [
+            'Sign our authorization to file your claim',
+            "We'll handle all insurance communication",
+            'No out-of-pocket cost unless claim approved'
+          ],
+          showAgreement: true // ALWAYS show agreement option
         }),
         order: order++
       });
 
-      // AGREEMENT SLIDES - Only if insurance-relevant damage found
-      if (insuranceCount > 0) {
-        // Claim Authorization Form
-        slides.push({
-          id: `slide-claim-auth-${Date.now()}`,
-          type: 'claim_authorization',
-          title: 'Claim Authorization Form',
-          content: 'Authorization to communicate with insurance company',
-          order: order++
-        });
+      // AGREEMENT SLIDES - ALWAYS show (business goal is to get signatures)
+      // Claim Authorization Form
+      slides.push({
+        id: `slide-claim-auth-${Date.now()}`,
+        type: 'claim_authorization',
+        title: 'Claim Authorization Form',
+        content: 'Authorization to communicate with insurance company',
+        order: order++
+      });
 
-        // Contingency Agreement
-        slides.push({
-          id: `slide-contingency-${Date.now()}`,
-          type: 'contingency',
-          title: 'Insurance Claim Agreement',
+      // Contingency Agreement
+      slides.push({
+        id: `slide-contingency-${Date.now()}`,
+        type: 'contingency',
+        title: 'Insurance Claim Agreement',
           content: 'Contingency agreement for insurance claim work',
           order: order++
         });
 
-        // Thank You / Completion
-        slides.push({
-          id: `slide-thank-you-${Date.now()}`,
-          type: 'thank_you',
-          title: "You're All Set!",
-          content: 'Agreement signed, next steps coming',
-          order: order++
-        });
-      }
+      // Thank You / Completion
+      slides.push({
+        id: `slide-thank-you-${Date.now()}`,
+        type: 'thank_you',
+        title: "You're All Set!",
+        content: 'Agreement signed, next steps coming',
+        order: order++
+      });
 
       // STEP 6: Save Presentation to Database
       setGenerationStatus('Saving presentation...');

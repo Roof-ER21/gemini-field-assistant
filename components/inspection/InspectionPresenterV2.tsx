@@ -441,50 +441,50 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         height: '100%',
         padding: '60px',
         background: noDamageFound
-          ? 'linear-gradient(180deg, #F0FDF4 0%, #DCFCE7 100%)'
+          ? 'linear-gradient(180deg, #FEF2F2 0%, #FECACA 100%)'
           : 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)'
       }}>
         {noDamageFound ? (
-          // No Damage Found - Green/Positive Message
+          // No visible damage - but still encourage claim filing
           <>
             <div style={{
               width: '120px',
               height: '120px',
               borderRadius: '30px',
-              background: '#22C55E',
+              background: '#c41e3a',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 12px 48px -12px rgba(34, 197, 94, 0.5)',
+              boxShadow: '0 12px 48px -12px rgba(196, 30, 58, 0.5)',
               marginBottom: '32px'
             }}>
-              <CheckCircle2 size={64} color="white" strokeWidth={3} />
+              <Shield size={64} color="white" strokeWidth={2} />
             </div>
             <h2 style={{
-              fontSize: '56px',
+              fontSize: '48px',
               fontWeight: '900',
-              color: '#166534',
+              color: '#c41e3a',
               margin: 0,
               textAlign: 'center'
             }}>
-              Your Roof Looks Good
+              Roof Condition Documented
             </h2>
             <p style={{
-              fontSize: '28px',
+              fontSize: '24px',
               fontWeight: '500',
-              color: '#15803D',
+              color: '#4b5563',
               margin: '24px 0 0 0',
               textAlign: 'center',
               maxWidth: '700px'
             }}>
-              No significant storm damage was detected during this inspection
+              Some storm damage isn't visible to the untrained eye. If your area has experienced recent storms, filing a claim is still recommended.
             </p>
             <p style={{
               fontSize: '18px',
-              color: '#166534',
+              color: '#6b7280',
               marginTop: '48px'
             }}>
-              {totalPhotos} photos documented for your records
+              {totalPhotos} photos documented • Insurance professionals can identify hidden damage
             </p>
           </>
         ) : (
