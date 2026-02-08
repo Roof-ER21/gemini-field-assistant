@@ -818,6 +818,17 @@ router.post('/presentations', async (req, res) => {
         }
         const { inspection_id, title, presentation_type = 'standard', branding, slides: frontendSlides, // Accept pre-generated slides from frontend
         customer_name: reqCustomerName, property_address: reqPropertyAddress, status: reqStatus, } = req.body;
+        console.log('[Presentations API] POST request received:', {
+            userEmail,
+            inspection_id,
+            title,
+            presentation_type,
+            hasFrontendSlides: !!frontendSlides,
+            frontendSlidesCount: frontendSlides?.length || 0,
+            reqCustomerName,
+            reqPropertyAddress,
+            reqStatus,
+        });
         if (!inspection_id) {
             return res.status(400).json({ error: 'Inspection ID is required' });
         }
@@ -851,8 +862,8 @@ router.post('/presentations', async (req, res) => {
             const photosResult = await pool.query(`SELECT * FROM inspection_photos
        WHERE inspection_id = $1
        ORDER BY created_at ASC`, [inspection_id]);
-            // Generate slides
-            const slides = [];
+            // Generate slides (assign to outer slides variable)
+            slides = [];
             let slideNumber = 1;
             // Cover slide
             slides.push({
