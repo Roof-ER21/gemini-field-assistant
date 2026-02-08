@@ -24,14 +24,16 @@ import {
   HardHat,
   Medal,
   Bot,
-  Globe
+  Globe,
+  QrCode,
+  Presentation
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -170,6 +172,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
     { id: 'image', label: 'Upload Analysis', desc: 'Docs & photos review', icon: Image },
+    { id: 'inspections', label: 'Inspection Presentations', desc: 'Build roof presentations', icon: Presentation },
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
     { id: 'documentjob', label: 'Jobs', desc: 'Manage your jobs', icon: Briefcase },
@@ -179,6 +182,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
     { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
+    // QR Profile - admin only until rollout
+    ...(isAdmin ? [{ id: 'myprofile', label: 'QR Profiles', desc: 'Public landing pages', icon: QrCode }] : []),
     // Admin panel - will be filtered by isAdmin check below
     ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel', desc: 'System settings', icon: Shield }] : [])
   ], [unreadCount, isAdmin]);
@@ -225,7 +230,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Tools',
         icon: Wrench,
         defaultExpanded: false,
-        items: ['email', 'transcribe', 'image', 'knowledge']
+        items: ['email', 'transcribe', 'image', 'inspections', 'knowledge', 'myprofile']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },

@@ -2,6 +2,7 @@
 export default {
   content: [
     "./index.html",
+    "./profile.html",
     "./src/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
     "./agnes21/**/*.{js,ts,jsx,tsx}",

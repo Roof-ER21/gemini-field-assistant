@@ -34,8 +34,10 @@ const TerritoryManager = lazy(() => import('./components/TerritoryManager'));
 const TerritoryHailMap = lazy(() => import('./components/TerritoryHailMap'));
 const LeaderboardPanel = lazy(() => import('./components/LeaderboardPanel'));
 const ContestSection = lazy(() => import('./src/components/ContestSection'));
+const MyProfilePanel = lazy(() => import('./components/MyProfilePanel'));
+const InspectionPresentationPanel = lazy(() => import('./components/InspectionPresentationPanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -110,7 +112,9 @@ const App: React.FC = () => {
     territories: 'Territory Management',
     stormmap: 'Storm Map',
     leaderboard: 'Leaderboard',
-    contests: 'Sales Contests'
+    contests: 'Sales Contests',
+    myprofile: 'My QR Profile',
+    inspections: 'Inspection Presentations'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -352,6 +356,18 @@ const App: React.FC = () => {
         return (
           <LazyLoadBoundary componentName="Contests">
             <ContestSection userEmail={currentUser?.email || ''} userRole={currentUser?.role || 'user'} />
+          </LazyLoadBoundary>
+        );
+      case 'myprofile':
+        return (
+          <LazyLoadBoundary componentName="My Profile">
+            <MyProfilePanel userEmail={currentUser?.email || ''} />
+          </LazyLoadBoundary>
+        );
+      case 'inspections':
+        return (
+          <LazyLoadBoundary componentName="Inspection Presentations">
+            <InspectionPresentationPanel />
           </LazyLoadBoundary>
         );
       default:

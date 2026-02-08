@@ -1,0 +1,55 @@
+{
+  "events": [
+    {
+      "id": "hailtrace-20240715-001",
+      "date": "2024-07-15",
+      "types": ["ALGORITHM_HAIL_SIZE", "METEOROLOGIST_HAIL_SIZE"],
+      "hailSize": 2.5,
+      "hailSizeAlgorithm": 2.25,
+      "hailSizeMeteo": 2.5,
+      "windSpeed": 65,
+      "windStarLevel": 2,
+      "latitude": 39.2904,
+      "longitude": -76.6122
+    },
+    {
+      "id": "hailtrace-20240715-002",
+      "date": "2024-07-15",
+      "types": ["ALGORITHM_HAIL_SIZE"],
+      "hailSize": 1.75,
+      "hailSizeAlgorithm": 1.75,
+      "windSpeed": 55,
+      "windStarLevel": 1,
+      "latitude": 39.3000,
+      "longitude": -76.6200
+    },
+    {
+      "id": "hailtrace-20240820-001",
+      "date": "2024-08-20",
+      "types": ["METEOROLOGIST_HAIL_SIZE", "WIND_EVENT"],
+      "hailSize": 3.0,
+      "hailSizeMeteo": 3.0,
+      "windSpeed": 80,
+      "windStarLevel": 3,
+      "latitude": 39.2800,
+      "longitude": -76.6000
+    },
+    {
+      "id": "hailtrace-20240920-001",
+      "date": "2024-09-20",
+      "types": ["ALGORITHM_HAIL_SIZE"],
+      "hailSize": 0.75,
+      "hailSizeAlgorithm": 0.75,
+      "windSpeed": 40,
+      "latitude": 39.2950,
+      "longitude": -76.6150
+    }
+  ],
+  "metadata": {
+    "exportDate": "2025-02-03",
+    "source": "HailTrace Automation Script",
+    "version": "1.0",
+    "region": "Baltimore, MD",
+    "notes": "Sample export for testing import service"
+  }
+}

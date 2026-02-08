@@ -161,7 +161,7 @@ interface AgnesScript {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -1707,6 +1707,27 @@ const AdminPanel: React.FC = () => {
         >
           <Bot style={{ width: '1.125rem', height: '1.125rem' }} />
           Agnes Training
+        </button>
+
+        <button
+          onClick={() => setActiveTab('qr-profiles')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'qr-profiles' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <MapPin style={{ width: '1.125rem', height: '1.125rem' }} />
+          QR Profiles
         </button>
       </div>
 
@@ -4931,6 +4952,44 @@ const AdminPanel: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* QR Profiles Tab */}
+        {activeTab === 'qr-profiles' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
+            {/* Header */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              padding: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                <MapPin style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
+                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                  QR Profile Management
+                </h2>
+              </div>
+              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
+                Manage employee landing pages, QR codes, and lead capture.
+              </p>
+            </div>
+
+            {/* Coming Soon Placeholder */}
+            <div style={{
+              background: '#0a0a0a',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              padding: '3rem',
+              textAlign: 'center'
+            }}>
+              <MapPin style={{ width: '3rem', height: '3rem', color: '#dc2626', margin: '0 auto 1rem' }} />
+              <h3 style={{ color: '#ffffff', margin: '0 0 0.5rem 0' }}>QR Profiles Coming Soon</h3>
+              <p style={{ color: '#a1a1aa', margin: 0, maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto' }}>
+                Create employee landing pages, generate QR codes, and track leads. Feature in development.
+              </p>
+            </div>
           </div>
         )}
       </div>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/roofdocs-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#171717" />
+    <meta name="description" content="Connect with your local roofing professional at The Roof Docs. Schedule your free roof inspection today." />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="The Roof Docs - Your Roofing Professional" />
+    <meta property="og:description" content="Schedule your free roof inspection with a certified professional." />
+
+    <title>The Roof Docs - Your Roofing Professional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              neutral: {
+                950: '#0a0a0a',
+                900: '#171717',
+                800: '#262626',
+                700: '#404040',
+              }
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-neutral-950">
+    <div id="root"></div>
+    <script type="module" src="/src/profile/profile-main.tsx"></script>
+  </body>
+</html>

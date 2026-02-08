@@ -10,6 +10,7 @@ import pg from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import http from 'http';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
@@ -22,6 +23,7 @@ import { initializePresenceService, getPresenceService } from './services/presen
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
+import inspectionPresentationRoutes from './routes/inspectionPresentationRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
 import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
 import canvassingRoutes from './routes/canvassingRoutes.js';
@@ -33,6 +35,9 @@ import alertRoutes from './routes/alertRoutes.js';
 import { createLeaderboardRoutes } from './routes/leaderboardRoutes.js';
 import { createRepGoalsRoutes } from './routes/repGoalsRoutes.js';
 import { createContestRoutes } from './routes/contestRoutes.js';
+import { createProfileRoutes } from './routes/profileRoutes.js';
+import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
+import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import { hailMapsService } from './services/hailMapsService.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
@@ -8436,6 +8441,14 @@ app.use('/api', createMessagingRoutes(pool)); // Also mount /api/team
 app.use('/api/jobs', authMiddleware);
 app.use('/api/jobs', jobRoutes);
 
+// Register inspection and presentation routes
+app.use('/api/inspections', authMiddleware);
+app.use('/api/inspections', inspectionPresentationRoutes);
+app.use('/api/presentations', authMiddleware);
+app.use('/api/presentations', inspectionPresentationRoutes);
+// Public presentation viewer (no auth required)
+app.use('/api/present', inspectionPresentationRoutes);
+
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
@@ -8471,6 +8484,504 @@ app.use('/api/rep', createRepGoalsRoutes(pool));
 
 // Register contest routes (sales competitions and leaderboards)
 app.use('/api', createContestRoutes(pool));
+
+// Register QR profile routes (employee landing pages)
+app.use('/api/profiles', createProfileRoutes(pool));
+app.use('/api/qr-analytics', createQRAnalyticsRoutes(pool));
+app.use('/api/profile-leads', createProfileLeadsRoutes(pool));
+
+// ============================================================================
+// PUBLIC PROFILE PAGE ROUTE (before SPA fallback)
+// ============================================================================
+
+// Serve public profile pages - SERVER-RENDERED HTML with inline styles
+app.get('/profile/:slug', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+
+    // Check if feature is enabled
+    const featureResult = await pool.query(
+      "SELECT enabled FROM feature_flags WHERE key = 'qr_profiles_enabled' LIMIT 1"
+    );
+    const featureEnabled = featureResult.rows[0]?.enabled === true;
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (!featureEnabled && !isDev) {
+      return next();
+    }
+
+    // Fetch profile from database
+    const profileResult = await pool.query(
+      'SELECT * FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1',
+      [slug]
+    );
+
+    const profile = profileResult.rows[0];
+
+    if (!profile) {
+      return res.status(404).send(renderProfileNotFound());
+    }
+
+    // Track scan
+    const userAgent = req.headers['user-agent'] || '';
+    const referrer = req.headers['referer'] || '';
+    const ipHash = crypto.createHash('sha256').update(req.ip || '').digest('hex').substring(0, 16);
+    const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
+
+    pool.query(
+      `INSERT INTO qr_scans (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [profile.id, slug, userAgent, referrer, ipHash, isMobile ? 'mobile' : 'desktop', 'direct']
+    ).catch(err => console.error('Error tracking scan:', err));
+
+    // Render complete HTML page with inline styles
+    res.set('Content-Type', 'text/html');
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.send(renderProfilePage(profile));
+  } catch (error) {
+    console.error('Profile page error:', error);
+    next();
+  }
+});
+
+// Profile page HTML renderer - Complete version matching mypage21
+function renderProfilePage(profile: any): string {
+  const name = profile.name || 'Team Member';
+  const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2);
+  const role = profile.title || getRoleLabel(profile.role_type);
+  const imageUrl = profile.image_url || '';
+  const email = profile.email || '';
+  const phone = profile.phone_number || '';
+  const bio = profile.bio || '';
+  const startYear = profile.start_year;
+  const yearsExp = startYear ? new Date().getFullYear() - startYear : null;
+
+  // Project images
+  const projectImages = [
+    '/lovable-uploads/359b0e2f-8075-497a-a848-a9e77471e392.png',
+    '/lovable-uploads/f121ff88-cee5-488f-bd60-50b764306df1.png',
+    '/lovable-uploads/a05b9082-6460-4174-91a0-ff5a6143613f.png',
+    '/lovable-uploads/fd93bf35-9a8e-4112-a8dc-e96bac655cbc.png',
+    '/lovable-uploads/c97b7966-6107-48c6-9e39-38051fff0bb3.png',
+    '/lovable-uploads/c1fafb65-ebd7-4c4f-b197-0ba017cc097e.png'
+  ];
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${name} - The Roof Docs</title>
+  <link rel="icon" type="image/png" href="/roofdocs-logo.png">
+  <meta name="description" content="Connect with ${name} at The Roof Docs. Schedule your free roof inspection today.">
+  <meta property="og:title" content="${name} - The Roof Docs">
+  <meta property="og:description" content="Schedule your free roof inspection with ${name}.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: white; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+    .section-title { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 12px; }
+    .section-subtitle { font-size: 16px; color: #6b7280; text-align: center; margin-bottom: 32px; }
+
+    /* Hero Section */
+    .hero { background: linear-gradient(to bottom right, #0a0a0a, #171717, #000); padding: 48px 0; position: relative; }
+    .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(220,38,38,0.05)); }
+    .hero-content { position: relative; z-index: 10; display: grid; grid-template-columns: 1fr; gap: 32px; align-items: center; }
+    @media (min-width: 768px) { .hero-content { grid-template-columns: 1fr 1fr; } }
+    .hero-left { text-align: center; }
+    @media (min-width: 768px) { .hero-left { text-align: left; } }
+    .profile-photo { width: 160px; height: 160px; border-radius: 50%; margin: 0 auto 24px; background: #262626; border: 4px solid rgba(220,38,38,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+    @media (min-width: 768px) { .profile-photo { width: 192px; height: 192px; margin: 0 0 24px; } }
+    .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-initials { font-size: 48px; font-weight: bold; color: #dc2626; }
+    .profile-name { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    @media (min-width: 768px) { .profile-name { font-size: 48px; } }
+    .profile-role { font-size: 18px; font-weight: 600; color: #dc2626; margin-bottom: 12px; }
+    .exp-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(220,38,38,0.2); color: #dc2626; padding: 8px 16px; border-radius: 50px; margin-bottom: 16px; font-size: 14px; font-weight: 500; }
+    .profile-bio { color: #d1d5db; font-size: 14px; line-height: 1.6; margin-bottom: 24px; max-width: 400px; }
+    .contact-buttons { display: flex; flex-direction: column; gap: 12px; }
+    @media (min-width: 640px) { .contact-buttons { flex-direction: row; justify-content: center; } }
+    @media (min-width: 768px) { .contact-buttons { justify-content: flex-start; } }
+    .contact-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 8px; font-weight: 500; text-decoration: none; transition: background 0.2s; }
+    .contact-btn:hover { background: rgba(255,255,255,0.2); }
+    .video-section { background: linear-gradient(to bottom right, #262626, #0a0a0a); border-radius: 12px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+    .video-placeholder { text-align: center; padding: 24px; }
+    .video-icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(220,38,38,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .video-icon svg { width: 40px; height: 40px; fill: #dc2626; }
+    .video-text { color: #9ca3af; font-size: 14px; }
+
+    /* CTA Section */
+    .cta-section { background: #dc2626; padding: 32px 0; text-align: center; }
+    .cta-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    @media (min-width: 768px) { .cta-title { font-size: 32px; } }
+    .cta-subtitle { font-size: 14px; margin-bottom: 16px; opacity: 0.9; }
+    .cta-btn { display: inline-block; background: white; color: #dc2626; font-weight: 600; padding: 12px 32px; border-radius: 8px; text-decoration: none; transition: background 0.2s; }
+    .cta-btn:hover { background: #f5f5f5; }
+
+    /* Services Section */
+    .services-section { background: white; color: #1a1a1a; padding: 48px 0; }
+    .services-card { max-width: 900px; margin: 0 auto; background: #dc2626; color: white; border-radius: 16px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    .services-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (min-width: 768px) { .services-grid { grid-template-columns: 1fr 1fr; gap: 24px; } }
+    .service-item { display: flex; align-items: flex-start; gap: 12px; }
+    .service-dot { width: 8px; height: 8px; border-radius: 50%; background: white; margin-top: 8px; flex-shrink: 0; }
+    .service-name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .service-desc { font-size: 14px; color: #fecaca; }
+    .services-cta { text-align: center; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.2); }
+    .services-btn { display: inline-block; background: white; color: #dc2626; font-weight: 600; padding: 12px 32px; border-radius: 8px; text-decoration: none; border: none; cursor: pointer; font-size: 16px; }
+
+    /* Why Choose Us - Enhanced */
+    .why-section { background: #f5f5f5; color: #1a1a1a; padding: 48px 0; }
+    .why-card { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .why-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+    .why-header-icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(220,38,38,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .why-header-icon svg { width: 24px; height: 24px; stroke: #dc2626; fill: none; }
+    .why-header-text h3 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .why-header-text p { color: #6b7280; font-size: 14px; }
+    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .stat-box { background: #fef2f2; border-radius: 12px; padding: 20px; text-align: center; }
+    .stat-number { font-size: 32px; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
+    .stat-label { font-size: 14px; color: #6b7280; }
+    .cert-list { margin-bottom: 24px; }
+    .cert-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+    .cert-icon { width: 24px; height: 24px; color: #dc2626; flex-shrink: 0; }
+    .cert-text { font-size: 15px; font-weight: 500; }
+    .why-btn { display: block; width: 100%; background: #dc2626; color: white; font-weight: 600; padding: 14px 32px; border-radius: 8px; text-decoration: none; text-align: center; border: none; cursor: pointer; font-size: 16px; }
+
+    /* Complete Project Solution */
+    .process-section { background: white; color: #1a1a1a; padding: 48px 0; }
+    .process-icon-top { width: 64px; height: 64px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; }
+    .process-icon-top svg { width: 48px; height: 48px; stroke: #6b7280; fill: none; }
+    .steps-grid { max-width: 900px; margin: 0 auto 32px; display: grid; grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 768px) { .steps-grid { grid-template-columns: 1fr 1fr; } }
+    .step-item { display: flex; align-items: flex-start; gap: 16px; }
+    .step-icon { width: 48px; height: 48px; border-radius: 12px; background: #fef2f2; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-icon svg { width: 24px; height: 24px; stroke: #dc2626; fill: none; }
+    .step-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #6b7280; }
+    .process-buttons { display: flex; flex-direction: column; gap: 12px; justify-content: center; align-items: center; }
+    @media (min-width: 640px) { .process-buttons { flex-direction: row; } }
+    .process-btn { padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 16px; }
+    .process-btn-outline { background: white; color: #dc2626; border: 2px solid #dc2626; }
+    .process-btn-fill { background: #dc2626; color: white; border: 2px solid #dc2626; }
+
+    /* Reviews Section */
+    .reviews-section { background: #f5f5f5; color: #1a1a1a; padding: 48px 0; }
+    .reviews-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 768px) { .reviews-grid { grid-template-columns: 1fr 1fr 1fr; } }
+    .review-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .review-stars { display: flex; gap: 4px; margin-bottom: 12px; }
+    .review-star { width: 20px; height: 20px; fill: #dc2626; }
+    .review-text { font-size: 15px; color: #374151; line-height: 1.6; margin-bottom: 16px; }
+    .review-author { font-weight: 600; color: #1a1a1a; }
+
+    /* Gallery Section */
+    .gallery-section { background: white; color: #1a1a1a; padding: 48px 0; }
+    .gallery-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (min-width: 768px) { .gallery-grid { grid-template-columns: 1fr 1fr 1fr; } }
+    .gallery-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 12px; }
+
+    /* Contact Form */
+    .form-section { background: white; color: #1a1a1a; padding: 48px 0; }
+    .form-container { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .form-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 24px; color: #1a1a1a; }
+    .form-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (min-width: 768px) { .form-row { grid-template-columns: 1fr 1fr; } }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 12px 16px; background: white; border: 1px solid #d1d5db; border-radius: 8px; color: #1a1a1a; font-size: 16px; }
+    .form-input::placeholder, .form-textarea::placeholder { color: #9ca3af; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+    .form-textarea { resize: none; min-height: 100px; }
+    .form-submit { width: 100%; background: #dc2626; color: white; font-weight: 600; padding: 14px 32px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; }
+    .form-submit:hover { background: #b91c1c; }
+    .form-success { text-align: center; padding: 32px; }
+    .success-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(34,197,94,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .success-icon svg { width: 32px; height: 32px; stroke: #22c55e; fill: none; }
+    .success-title { font-size: 20px; font-weight: 700; color: #22c55e; margin-bottom: 8px; }
+    .success-text { color: #6b7280; }
+    .form-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+
+    /* Footer */
+    .footer { background: #1a1a1a; padding: 24px 0; text-align: center; }
+    .footer-logo { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: white; }
+    .footer-text { color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-left">
+          <div class="profile-photo">
+            ${imageUrl ? `<img src="${imageUrl}" alt="${name}">` : `<span class="profile-initials">${initials}</span>`}
+          </div>
+          <h1 class="profile-name">${name}</h1>
+          <p class="profile-role">${role}</p>
+          ${yearsExp ? `<div class="exp-badge"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${yearsExp} Years of Experience</div>` : ''}
+          ${bio ? `<p class="profile-bio">${bio}</p>` : ''}
+          <div class="contact-buttons">
+            ${phone ? `<a href="tel:${phone}" class="contact-btn"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>${phone}</a>` : ''}
+            ${email ? `<a href="mailto:${email}" class="contact-btn"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>Email</a>` : ''}
+          </div>
+        </div>
+        <div class="video-section">
+          <div class="video-placeholder">
+            <div class="video-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+            <p class="video-text">Video coming soon</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="container">
+      <h2 class="cta-title">Get Your FREE Home Inspection Today!</h2>
+      <p class="cta-subtitle">Professional assessment of your roof, siding, gutters, windows, and doors</p>
+      <a href="#contact-form" class="cta-btn">Schedule Free Inspection</a>
+    </div>
+  </section>
+
+  <!-- Services Section -->
+  <section class="services-section">
+    <div class="container">
+      <h2 class="section-title" style="color:#1a1a1a">Our Services</h2>
+      <div class="services-card">
+        <div class="services-grid">
+          <div class="service-item"><div class="service-dot"></div><div><div class="service-name">Roofing</div><div class="service-desc">Complete roof replacement and repairs</div></div></div>
+          <div class="service-item"><div class="service-dot"></div><div><div class="service-name">Siding</div><div class="service-desc">Vinyl, wood, and fiber cement siding</div></div></div>
+          <div class="service-item"><div class="service-dot"></div><div><div class="service-name">Gutters</div><div class="service-desc">Seamless gutter installation and repair</div></div></div>
+          <div class="service-item"><div class="service-dot"></div><div><div class="service-name">Windows & Doors</div><div class="service-desc">Energy-efficient windows and door installation</div></div></div>
+          <div class="service-item"><div class="service-dot"></div><div><div class="service-name">Solar</div><div class="service-desc">Solar panel installation and energy solutions</div></div></div>
+        </div>
+        <div class="services-cta"><a href="#contact-form" class="services-btn">Schedule Free Inspection</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Us - Enhanced -->
+  <section class="why-section">
+    <div class="container">
+      <h2 class="section-title" style="color:#1a1a1a">Why Choose Us</h2>
+      <p class="section-subtitle">Local expertise, proven results, and complete project solutions</p>
+      <div class="why-card">
+        <div class="why-header">
+          <div class="why-header-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
+          <div class="why-header-text">
+            <h3>Local & Trusted</h3>
+            <p>Your Neighborhood Experts</p>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-number">9</div><div class="stat-label">Years in Business</div></div>
+          <div class="stat-box"><div class="stat-number">5,000+</div><div class="stat-label">Projects Completed</div></div>
+        </div>
+        <div class="cert-list">
+          <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg><span class="cert-text">GAF Master Elite</span></div>
+          <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg><span class="cert-text">Licensed & Insured</span></div>
+          <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg><span class="cert-text">BBB A+ Rating</span></div>
+          <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="cert-text">Lifetime Warranty</span></div>
+          <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg><span class="cert-text">Family-Owned Business</span></div>
+        </div>
+        <a href="#gallery" class="why-btn">See Local Projects</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Complete Project Solution -->
+  <section class="process-section">
+    <div class="container">
+      <div class="process-icon-top"><svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/></svg></div>
+      <h2 class="section-title" style="color:#1a1a1a">Complete Project Solution</h2>
+      <p class="section-subtitle">From tear-off to solar - we handle everything</p>
+      <div class="steps-grid">
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="step-title">Step 1: Free Inspection</div><div class="step-desc">Comprehensive roof and property assessment</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="step-title">Step 2: Insurance Coordination</div><div class="step-desc">We handle all insurance paperwork and claims</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div><div><div class="step-title">Step 3: Professional Tear-Off</div><div class="step-desc">Safe removal of old materials with cleanup</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></div><div><div class="step-title">Step 4: Premium Installation</div><div class="step-desc">Top-quality materials with expert craftsmanship</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div><div><div class="step-title">Step 5: Solar Integration</div><div class="step-desc">Optional solar panel installation for energy savings</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="step-title">Step 6: Final Walkthrough</div><div class="step-desc">Quality check and lifetime warranty activation</div></div></div>
+      </div>
+      <div class="process-buttons">
+        <a href="https://www.theroofdocs.com" target="_blank" class="process-btn process-btn-outline">See Our Complete Process</a>
+        <a href="#contact-form" class="process-btn process-btn-fill">Get Your Free Inspection</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reviews Section -->
+  <section class="reviews-section">
+    <div class="container">
+      <h2 class="section-title" style="color:#1a1a1a">What Our Customers Say</h2>
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars"><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
+          <p class="review-text">"The Roof Docs did an amazing job on our roof replacement. Professional team and quality work!"</p>
+          <p class="review-author">- Mike Thompson</p>
+        </div>
+        <div class="review-card">
+          <div class="review-stars"><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
+          <p class="review-text">"Excellent service from start to finish. Our new siding looks fantastic!"</p>
+          <p class="review-author">- Jennifer Martinez</p>
+        </div>
+        <div class="review-card">
+          <div class="review-stars"><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
+          <p class="review-text">"Outstanding window installation. Energy efficient and beautiful. Highly recommend The Roof Docs!"</p>
+          <p class="review-author">- Robert Chen</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gallery Section -->
+  <section id="gallery" class="gallery-section">
+    <div class="container">
+      <h2 class="section-title" style="color:#1a1a1a">Our Recent Projects</h2>
+      <div class="gallery-grid">
+        ${projectImages.map(img => `<img src="${img}" alt="Project" class="gallery-img" onerror="this.style.display='none'">`).join('')}
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Form -->
+  <section id="contact-form" class="form-section">
+    <div class="container">
+      <div class="form-container">
+        <h2 class="form-title">Request Your Free Estimate with ${name}</h2>
+        <div id="form-error" class="form-error" style="display:none;"></div>
+        <form id="contact-form-el">
+          <div class="form-row">
+            <div><label class="form-label">Name *</label><input type="text" name="name" required class="form-input" placeholder="John Doe"></div>
+            <div><label class="form-label">Email *</label><input type="email" name="email" required class="form-input" placeholder="john@example.com"></div>
+          </div>
+          <div class="form-row">
+            <div><label class="form-label">Phone Number</label><input type="tel" name="phone" class="form-input" placeholder="(555) 123-4567"></div>
+            <div><label class="form-label">Service Needed</label>
+              <select name="service" class="form-select">
+                <option value="">Select a service...</option>
+                <option value="roof_inspection">Roof Inspection</option>
+                <option value="roof_repair">Roof Repair</option>
+                <option value="roof_replacement">Roof Replacement</option>
+                <option value="storm_damage">Storm Damage</option>
+                <option value="siding">Siding</option>
+                <option value="gutters">Gutters</option>
+                <option value="windows_doors">Windows & Doors</option>
+                <option value="solar">Solar</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">Address</label><input type="text" name="address" class="form-input" placeholder="123 Main Street, City, State"></div>
+          <div class="form-group"><label class="form-label">Message</label><textarea name="message" class="form-textarea" placeholder="Tell us about your project..."></textarea></div>
+          <button type="submit" class="form-submit">Request Free Estimate</button>
+        </form>
+        <div id="form-success" class="form-success" style="display:none;">
+          <div class="success-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></div>
+          <h3 class="success-title">Thank You!</h3>
+          <p class="success-text">${name} will contact you soon!</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-logo">The Roof Docs</div>
+      <p class="footer-text">© ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    const form = document.getElementById('contact-form-el');
+    const formError = document.getElementById('form-error');
+    const formSuccess = document.getElementById('form-success');
+    const profileId = '${profile.id}';
+    const profileSlug = '${profile.slug}';
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.style.display = 'none';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      const formData = new FormData(form);
+      const data = {
+        profile_id: profileId,
+        profile_slug: profileSlug,
+        homeowner_name: formData.get('name'),
+        homeowner_email: formData.get('email'),
+        homeowner_phone: formData.get('phone') || null,
+        homeowner_address: formData.get('address') || null,
+        service_interest: formData.get('service') || null,
+        message: formData.get('message') || null,
+        source: 'qr_landing'
+      };
+
+      try {
+        const res = await fetch('/api/profiles/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.success) {
+          form.style.display = 'none';
+          formSuccess.style.display = 'block';
+        } else {
+          throw new Error(result.error || 'Failed to submit');
+        }
+      } catch (err) {
+        formError.textContent = err.message || 'Something went wrong. Please try again.';
+        formError.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Request Free Estimate';
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+function renderProfileNotFound(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile Not Found - The Roof Docs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { text-align: center; padding: 24px; }
+    h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    p { color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Profile Not Found</h1>
+    <p>The page you're looking for doesn't exist.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function getRoleLabel(roleType: string): string {
+  const labels: Record<string, string> = {
+    'admin': 'Administrator',
+    'sales_rep': 'Sales Representative',
+    'sales_manager': 'Sales Manager',
+    'team_lead': 'Team Lead',
+    'field_trainer': 'Field Trainer',
+    'manager': 'Manager',
+  };
+  return labels[roleType] || 'Team Member';
+}
 
 // ============================================================================
 // SPA FALLBACK (must be after all API routes)
