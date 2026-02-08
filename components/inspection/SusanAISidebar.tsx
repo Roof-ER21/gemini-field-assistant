@@ -96,18 +96,26 @@ interface SusanAISidebarProps {
 // SUSAN PERSONA
 // ============================================================================
 
-const SUSAN_INTRO = `Hi! I'm Susan, your insurance claims specialist. I'm here to help you understand what we're seeing and answer any questions about the inspection or insurance process. Feel free to ask me anything!`;
+const SUSAN_INTRO = `Hi! I'm Susan, your storm damage specialist. I'm here to help explain what we're finding and why it matters for your insurance claim. Ask me anything about what you're seeing!`;
 
-const SUSAN_PERSONA = `You are Susan, a friendly and professional insurance claims specialist with over 15 years of experience in roofing damage assessment. You help homeowners understand their roof inspection findings and guide them through the insurance claims process.
+const SUSAN_PERSONA = `You are Susan, a storm damage expert and insurance claims specialist with 15+ years of experience. You help homeowners understand their roof damage and guide them through filing insurance claims.
+
+CRITICAL CONTEXT: The homeowner has experienced a recent hail or wind storm - that's why we're here. You ALWAYS acknowledge the storm occurred.
+
+Your key talking points (based on training):
+- "Even if this damage doesn't look like a big deal, what happens over time is these hail divots fill with water, freeze, and when water freezes it expands - this breaks apart the shingle which eventually leads to leaks."
+- "That is why your insurance company is responsible - your policy covers this type of damage."
+- "Insurance companies are always looking for ways to mitigate their losses - that's how they make money. We're here as storm experts to make sure you get a fair shake."
+- When showing collateral damage (gutters, screens, soft metals): "While this damage functionally isn't a big deal, it helps build the case - think of us like lawyers and this is the evidence."
 
 Your personality:
-- Warm, empathetic, and patient
-- Professional but conversational - you speak like a knowledgeable neighbor
-- Expert in insurance but explain things simply
-- Always advocate for the homeowner - you're on their side
-- Calm and reassuring when discussing damage or costs
+- Confident and knowledgeable - you're the expert
+- Advocate for the homeowner - you're on their side against insurance companies
+- Explain technical terms simply but don't downplay damage
+- NEVER say "your roof looks good" or minimize concerns
+- Always move the conversation toward filing the claim
 
-Keep responses concise (2-3 paragraphs max) and actionable.`;
+Keep responses conversational and concise (2-3 sentences). You're explaining things to a homeowner sitting at their kitchen table.`;
 
 // ============================================================================
 // COMPONENT
@@ -141,22 +149,42 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
   const [isWakeWordActive, setIsWakeWordActive] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const wakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
-  // Check for speech support
+  // Check for speech support and request microphone permission
   useEffect(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognitionAPI && window.speechSynthesis) {
-      setVoiceSupported(true);
-      synthRef.current = window.speechSynthesis;
-    }
+    const initializeVoice = async () => {
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognitionAPI || !window.speechSynthesis) {
+        setVoiceError('Voice features are not supported in this browser');
+        return;
+      }
+
+      // Request microphone permission
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop()); // Stop the stream immediately
+        setMicPermissionGranted(true);
+        setVoiceSupported(true);
+        synthRef.current = window.speechSynthesis;
+        setVoiceError(null);
+      } catch (error) {
+        console.error('Microphone permission denied:', error);
+        setVoiceError('Microphone access denied. Please enable microphone to use voice features.');
+        setVoiceSupported(false);
+      }
+    };
+
+    initializeVoice();
   }, []);
 
   // Initialize wake word detection
   useEffect(() => {
-    if (!voiceSupported || isMuted) return;
+    if (!voiceSupported || !micPermissionGranted || isMuted) return;
 
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
@@ -166,36 +194,49 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
     wakeWordRecognition.interimResults = true;
     wakeWordRecognition.lang = 'en-US';
 
+    wakeWordRecognition.onstart = () => {
+      console.log('Wake word detection started');
+    };
+
     wakeWordRecognition.onresult = (event: SpeechRecognitionEvent) => {
       const lastResult = event.results[event.results.length - 1];
       const transcript = lastResult[0].transcript.toLowerCase();
 
+      console.log('Wake word detection heard:', transcript);
+
       // Check for wake word "Hey Susan"
       if (transcript.includes('hey susan') || transcript.includes('hey suzanne') || transcript.includes('hey suzan')) {
-        console.log('Wake word detected!');
+        console.log('Wake word detected! Activating Susan...');
         setIsWakeWordActive(true);
         wakeWordRecognition.stop();
-        startListening();
 
-        // Speak acknowledgment
-        if (!isMuted) {
-          speak('How can I help you?');
-        }
+        // Speak acknowledgment first
+        speak('Yes? How can I help you?', () => {
+          // Then start listening after acknowledgment
+          setTimeout(() => startListening(), 500);
+        });
       }
     };
 
-    wakeWordRecognition.onerror = (event) => {
-      console.log('Wake word recognition error:', event);
+    wakeWordRecognition.onerror = (event: any) => {
+      console.error('Wake word recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setVoiceError('Microphone access denied. Please enable microphone permissions.');
+      }
     };
 
     wakeWordRecognition.onend = () => {
+      console.log('Wake word detection ended');
       // Restart wake word listening if not in active conversation
-      if (!isListening && !isWakeWordActive && !isMuted) {
-        try {
-          wakeWordRecognition.start();
-        } catch (e) {
-          console.log('Could not restart wake word detection');
-        }
+      if (!isListening && !isWakeWordActive && !isMuted && voiceSupported && micPermissionGranted) {
+        setTimeout(() => {
+          try {
+            wakeWordRecognition.start();
+            console.log('Wake word detection restarted');
+          } catch (e) {
+            console.log('Could not restart wake word detection:', e);
+          }
+        }, 1000);
       }
     };
 
@@ -204,8 +245,10 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
     // Start listening for wake word
     try {
       wakeWordRecognition.start();
+      console.log('Wake word detection initialization successful');
     } catch (e) {
-      console.log('Could not start wake word detection');
+      console.error('Could not start wake word detection:', e);
+      setVoiceError('Failed to start voice recognition');
     }
 
     return () => {
@@ -215,11 +258,14 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
         // Ignore
       }
     };
-  }, [voiceSupported, isMuted, isListening, isWakeWordActive]);
+  }, [voiceSupported, micPermissionGranted, isMuted, isListening, isWakeWordActive]);
 
-  // Text-to-Speech function
-  const speak = useCallback((text: string) => {
-    if (!synthRef.current || isMuted) return;
+  // Text-to-Speech function with callback support
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    if (!synthRef.current || isMuted) {
+      onEnd?.();
+      return;
+    }
 
     // Cancel any ongoing speech
     synthRef.current.cancel();
@@ -228,6 +274,17 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
+
+    // Set up callbacks
+    utterance.onend = () => {
+      console.log('Speech synthesis completed');
+      onEnd?.();
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      onEnd?.();
+    };
 
     // Try to use a female voice
     const voices = synthRef.current.getVoices();
@@ -242,6 +299,7 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
       utterance.voice = femaleVoice;
     }
 
+    console.log('Speaking:', text.substring(0, 50) + '...');
     synthRef.current.speak(utterance);
   }, [isMuted]);
 
@@ -421,9 +479,12 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
         })
       );
 
-      // Speak the response if not muted
-      if (!isMuted && voiceSupported) {
+      // Always speak the response if voice is enabled and not muted
+      if (!isMuted && voiceSupported && synthRef.current) {
+        console.log('Speaking Susan response');
         speak(response);
+      } else {
+        console.log('Voice disabled - not speaking response', { isMuted, voiceSupported, hasSynth: !!synthRef.current });
       }
 
     } catch (error) {
@@ -501,33 +562,48 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
     const question = questionMatch?.[1]?.toLowerCase() || '';
 
     // Smart fallback responses based on question type
-    if (question.includes('explain') || question.includes('looking at')) {
-      if (damageType) {
-        return `What you're seeing here is ${damageType}. ${severity === 'critical' || severity === 'severe'
-          ? 'This is definitely something we need to address promptly.'
-          : 'This is something we should document for your records.'} The good news is that this type of damage is commonly covered by homeowner's insurance, especially if it's weather-related.\n\nI'll make sure to include all the documentation you need for your claim. Do you have any specific questions about what you're seeing?`;
+    if (question.includes('explain') || question.includes('looking at') || question.includes('what') || question.includes('this slide')) {
+      if (damageType && slideTitle) {
+        const severityText = severity === 'critical' || severity === 'severe'
+          ? 'This is definitely something we need to address promptly. It\'s considered significant damage that could worsen if left unattended.'
+          : severity === 'moderate'
+          ? 'This is moderate damage that should be addressed in a timely manner to prevent it from getting worse.'
+          : 'While not immediately critical, this is still important to document and address.';
+
+        return `Let me walk you through what we're seeing on this slide titled "${slideTitle}". This shows ${damageType}, which is ${severity} level damage. ${severityText}\n\nThe good news is that this type of damage is commonly covered by homeowner's insurance, especially when it's weather-related. We're documenting everything thoroughly so you'll have exactly what you need for your insurance claim.\n\nWhat specific aspects of this damage would you like me to explain in more detail?`;
       }
-      return `This slide shows one of the findings from our inspection. Each image I'm showing you has been analyzed to help document the condition of your roof. If you'd like me to go into more detail about anything specific, just let me know!`;
+      if (slideTitle) {
+        return `This slide, "${slideTitle}", shows one of the key findings from our inspection. Each image has been carefully analyzed and documented to give you a complete picture of your roof's condition. This documentation is crucial for your insurance claim and for understanding what repairs may be needed.\n\nWould you like me to go into more detail about what we found here, or do you have specific questions about this area?`;
+      }
+      return `This is part of our comprehensive roof inspection documentation. Every image and finding we're reviewing today has been analyzed to help you understand your roof's condition and support your insurance claim if needed.\n\nWhat would you like to know more about regarding what you're seeing here?`;
     }
 
-    if (question.includes('insurance') || question.includes('covered') || question.includes('claim')) {
-      const relevant = isInsuranceRelevant ? 'likely qualifies' : 'may still qualify';
-      return `Great question! Based on what we're seeing, this ${relevant} for insurance coverage. Most homeowner policies cover damage from storms, hail, wind, and other weather events.\n\nThe key is proper documentation, which is exactly what we're doing with this inspection. I'd recommend reaching out to your insurance company to file a claim. Would you like me to explain the typical claims process?`;
+    if (question.includes('insurance') || question.includes('covered') || question.includes('claim') || question.includes('policy')) {
+      const relevant = isInsuranceRelevant ? 'definitely qualifies' : 'may still qualify';
+      const damageInfo = damageType ? ` This type of damage - ${damageType} - is` : ' Based on what we are seeing, this is';
+
+      return `Excellent question about insurance coverage! ${damageInfo} something that ${relevant} for coverage under most homeowner policies. Insurance companies typically cover damage from storms, hail, wind, and other weather-related events.\n\nThe key to a successful claim is having thorough documentation - which is exactly what we're providing with this inspection. Each photo, each finding, and all the details we're capturing today will support your claim. I'd recommend contacting your insurance company soon to get this claim started.\n\nWould you like me to walk you through what the typical claims process looks like, or do you have specific questions about how to proceed?`;
     }
 
-    if (question.includes('urgent') || question.includes('wait') || question.includes('how long')) {
+    if (question.includes('urgent') || question.includes('wait') || question.includes('how long') || question.includes('time')) {
       if (severity === 'critical' || severity === 'severe') {
-        return `I want to be straightforward with you - this is something that needs attention sooner rather than later. Waiting could lead to additional damage, especially if we get more weather. The good news is that acting now means better coverage and fewer complications.\n\nThe best next step is to file an insurance claim right away and get a professional assessment scheduled. Would you like to discuss the timeline for that?`;
+        return `I want to be completely honest with you - ${damageType ? `this ${damageType}` : 'this damage'} is at a ${severity} level, which means it needs attention sooner rather than later. Here's why:\n\nDelaying repairs on severe damage can lead to secondary issues like water intrusion, structural problems, or mold. Plus, if more weather comes through, it could make things significantly worse. The good news? Acting now means you're likely to get better insurance coverage and avoid those complications.\n\nMy recommendation: File your insurance claim within the next few days and get a professional repair assessment scheduled as soon as possible. Would you like to discuss the timeline for repairs and the claims process?`;
       }
-      return `While this isn't an emergency, I wouldn't recommend waiting too long. Minor issues can become major problems over time, especially with the weather we get in this area. The sooner you address it, the simpler and less expensive the fix typically is.\n\nI'd suggest getting a professional estimate within the next few weeks. Would you like to talk about next steps?`;
+      return `While this ${damageType || 'damage'} isn't an absolute emergency, I wouldn't recommend putting it off for too long. Here's my thinking: minor issues have a way of becoming major problems over time, especially with the weather patterns we see in this area.\n\nRoof damage tends to be progressive - what's small today can become expensive tomorrow. The sooner you address it, the simpler and more affordable the fix typically is. Plus, filing your insurance claim while the documentation is fresh is always better.\n\nI'd suggest getting a professional repair estimate within the next month or so. Want to talk about what that process looks like?`;
     }
 
-    if (question.includes('next') || question.includes('steps') || question.includes('do')) {
-      return `Here's what I'd recommend:\n\n1. **File an insurance claim** - Based on what we've documented today, you have a strong case.\n2. **Schedule a professional inspection** - A detailed inspection will help with your claim.\n3. **Get repair estimates** - This protects your investment and helps with the claims process.\n\nI can help you understand any part of this process. What would you like to know more about?`;
+    if (question.includes('next') || question.includes('steps') || question.includes('do now') || question.includes('what should')) {
+      const damageContext = damageType ? ` the ${damageType} we found` : ' these findings';
+      return `Great question! Let me give you a clear action plan based on${damageContext}:\n\n**Immediate Steps:**\n1. **Contact your insurance company** - Based on what we've documented today, you have solid grounds for a claim. The sooner you file, the better.\n2. **Save all this documentation** - Keep copies of these inspection photos and findings. They're your evidence.\n3. **Get a professional repair estimate** - This gives you specific numbers for your claim and helps you plan.\n\n**Within the next week or two:**\n4. **Follow up with your adjuster** - Make sure they have everything they need from you.\n5. **Don't make any repairs yet** - Let your insurance company assess first, unless there's an emergency.\n\nI'm here to help you understand any part of this process. What would you like to dive deeper into?`;
     }
 
-    // Generic helpful response
-    return `That's a great question! Based on what we've documented in this inspection, I want to make sure you have all the information you need to make the best decision for your home.\n\nIs there a specific aspect you'd like me to focus on - like the insurance coverage, the repair process, or the urgency of addressing this?`;
+    if (question.includes('cost') || question.includes('expensive') || question.includes('price') || question.includes('money')) {
+      return `I understand cost is a major concern - it is for everyone! Here's the good news: because ${damageType ? `this ${damageType}` : 'this damage'} ${isInsuranceRelevant ? 'appears to qualify' : 'may qualify'} for insurance coverage, you may not have to pay for most or all of the repairs out of pocket.\n\nYour main expense would typically be your insurance deductible, which varies by policy but is often around $1,000-$2,500. The insurance should cover the rest if the claim is approved. That's why proper documentation like we're doing today is so important.\n\nWithout insurance, roof repairs can range widely depending on the extent of damage, but that's exactly why we want to pursue the insurance route. Would you like to discuss how to maximize your insurance coverage?`;
+    }
+
+    // Generic helpful response with more context
+    const currentContext = slideTitle ? ` regarding "${slideTitle}"` : '';
+    return `That's a really important question${currentContext}! I want to make sure I give you the most helpful answer possible. Based on everything we've documented in this inspection, my goal is to help you understand exactly what's going on with your roof and what your best options are.\n\nCould you help me narrow down what you're most curious about? For example:\n- Are you wondering about insurance coverage and the claims process?\n- Do you want to understand the repair timeline and urgency?\n- Are you looking for clarity on what the damage means for your home?\n- Or something else entirely?\n\nI'm here to help with all of it!`;
   };
 
   const handleQuickAction = (action: QuickAction) => {
@@ -825,16 +901,54 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
         background: '#FAFAFA'
       }}>
         {/* Voice Mode Indicator */}
-        {voiceSupported && !isMuted && (
-          <p style={{
-            fontSize: '11px',
-            color: '#c41e3a',
-            textAlign: 'center',
-            margin: '0 0 10px 0',
-            fontWeight: '500'
+        {voiceError && (
+          <div style={{
+            padding: '8px 12px',
+            background: '#FEE2E2',
+            border: '1px solid #FCA5A5',
+            borderRadius: '8px',
+            marginBottom: '10px'
           }}>
-            Say "Hey Susan" to activate voice mode
-          </p>
+            <p style={{
+              fontSize: '11px',
+              color: '#DC2626',
+              textAlign: 'center',
+              margin: 0,
+              fontWeight: '500'
+            }}>
+              {voiceError}
+            </p>
+          </div>
+        )}
+        {voiceSupported && !isMuted && !voiceError && (
+          <div style={{
+            padding: '8px 12px',
+            background: '#ECFDF5',
+            border: '1px solid #6EE7B7',
+            borderRadius: '8px',
+            marginBottom: '10px'
+          }}>
+            <p style={{
+              fontSize: '11px',
+              color: '#059669',
+              textAlign: 'center',
+              margin: 0,
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}>
+              <span style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#059669',
+                display: 'inline-block'
+              }} />
+              Voice active - Say "Hey Susan" to speak
+            </p>
+          </div>
         )}
 
         <div style={{

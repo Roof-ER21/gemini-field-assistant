@@ -445,7 +445,7 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
           : 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)'
       }}>
         {noDamageFound ? (
-          // No visible damage - but still encourage claim filing
+          // Storm occurred but damage not visible - still file claim
           <>
             <div style={{
               width: '120px',
@@ -461,13 +461,13 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
               <Shield size={64} color="white" strokeWidth={2} />
             </div>
             <h2 style={{
-              fontSize: '48px',
+              fontSize: '44px',
               fontWeight: '900',
               color: '#c41e3a',
               margin: 0,
               textAlign: 'center'
             }}>
-              Roof Condition Documented
+              Storm Damage Assessment
             </h2>
             <p style={{
               fontSize: '24px',
@@ -475,16 +475,16 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
               color: '#4b5563',
               margin: '24px 0 0 0',
               textAlign: 'center',
-              maxWidth: '700px'
+              maxWidth: '750px'
             }}>
-              Some storm damage isn't visible to the untrained eye. If your area has experienced recent storms, filing a claim is still recommended.
+              After the recent storm in your area, we've documented your roof's condition. Your insurance company should assess this - not all storm damage is immediately visible, but it can lead to leaks over time.
             </p>
             <p style={{
               fontSize: '18px',
               color: '#6b7280',
               marginTop: '48px'
             }}>
-              {totalPhotos} photos documented • Insurance professionals can identify hidden damage
+              {totalPhotos} photos documented • Your policy covers storm damage assessment
             </p>
           </>
         ) : (

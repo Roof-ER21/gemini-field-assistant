@@ -487,18 +487,18 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
       slides.push({
         id: `slide-summary-${Date.now()}`,
         type: 'summary',
-        title: 'What We Found Today',
+        title: 'Storm Damage Assessment',
         content: JSON.stringify({
           totalPhotos: completedPhotos.length,
           damagePoints: actualDamageCount,
           criticalIssues: criticalCount,
           insuranceRelevant: insuranceCount,
-          // NEVER say "roof looks good" - always encourage filing
+          // Based on training: Always acknowledge storm, explain why damage matters
           overallAssessment: hasCriticalDamage
-            ? 'Significant storm damage documented - insurance claim strongly recommended'
+            ? 'Significant storm damage documented. Your insurance policy covers this type of damage.'
             : actualDamageCount > 0
-              ? 'Storm damage documented - insurance claim recommended'
-              : 'Roof condition documented - storm damage may not always be visible to the untrained eye'
+              ? 'Storm damage documented. Even minor damage can lead to leaks over time as water seeps in and expands.'
+              : 'After the recent storm in your area, we documented your roof condition. Your insurance company should assess this damage.'
         }),
         order: order++
       });
@@ -520,23 +520,25 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
         });
       }
 
-      // CTA - ALWAYS encourage filing a claim
+      // CTA - Based on training script: Position as storm experts ensuring fair treatment
       slides.push({
         id: `slide-cta-${Date.now()}`,
         type: 'cta',
-        title: "Let's Protect Your Investment",
+        title: "Let's Get Your Claim Filed",
         content: JSON.stringify({
-          message: insuranceCount > 0
-            ? `We documented ${insuranceCount} insurance-relevant damage point${insuranceCount !== 1 ? 's' : ''}. Let's file your claim and protect your investment.`
-            : actualDamageCount > 0
-              ? `We documented ${actualDamageCount} area${actualDamageCount !== 1 ? 's' : ''} of concern. Filing an insurance claim ensures you're protected.`
-              : 'We documented your roof condition. If you\'ve experienced recent storms in your area, filing a claim is still recommended - some damage isn\'t visible without a trained eye.',
+          // From training: "insurance companies are always looking for ways to mitigate their losses"
+          // "we are here as storm experts to make sure you as a homeowner get a fair shake"
+          headline: "Your Insurance Policy Covers This Damage",
+          message: actualDamageCount > 0
+            ? `We documented ${actualDamageCount} area${actualDamageCount !== 1 ? 's' : ''} of storm damage. Insurance companies are always looking to mitigate their losses - that's how they make money. As storm damage experts, we're here to make sure you get a fair shake.`
+            : 'After the recent storm in your area, your insurance company should assess your roof. As storm damage experts, we ensure you get a fair evaluation - not all damage is visible to the untrained eye.',
           nextSteps: [
-            'Sign our authorization to file your claim',
-            "We'll handle all insurance communication",
-            'No out-of-pocket cost unless claim approved'
+            'We handle all communication with your insurance company',
+            'We ensure they see all the damage - nothing gets missed',
+            'No out-of-pocket cost unless your claim is approved'
           ],
-          showAgreement: true // ALWAYS show agreement option
+          callToAction: "Let's get this process started",
+          showAgreement: true
         }),
         order: order++
       });
