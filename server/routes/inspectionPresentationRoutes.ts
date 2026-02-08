@@ -1097,6 +1097,10 @@ router.post('/presentations', async (req: Request, res: Response) => {
       title,
       presentation_type = 'standard',
       branding,
+      slides: frontendSlides,  // Accept pre-generated slides from frontend
+      customer_name: reqCustomerName,
+      property_address: reqPropertyAddress,
+      status: reqStatus,
     } = req.body;
 
     if (!inspection_id) {
@@ -1127,6 +1131,17 @@ router.post('/presentations', async (req: Request, res: Response) => {
     if (inspection.user_id !== userId && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    // If frontend provided slides, use those; otherwise generate from photos
+    let slides: PresentationSlide[];
+
+    if (frontendSlides && Array.isArray(frontendSlides) && frontendSlides.length > 0) {
+      // Use pre-generated slides from frontend (with AI analysis already done)
+      console.log('[Presentations API] Using frontend-provided slides:', frontendSlides.length);
+      slides = frontendSlides;
+    } else {
+      // Generate slides from database photos (legacy behavior)
+      console.log('[Presentations API] Generating slides from database photos');
 
     // Get photos with analysis
     const photosResult = await pool.query(
@@ -1222,6 +1237,12 @@ Overall Severity: ${damagePhotos.length > 0 ? 'Requires attention' : 'No signifi
       content: branding?.contact_info || 'Contact us for more information',
       layout: 'text-only',
     });
+    } // End of else block (slide generation from database)
+
+    // Use frontend-provided values if available, fall back to inspection data
+    const customerName = reqCustomerName || inspection.customer_name;
+    const propertyAddress = reqPropertyAddress || inspection.property_address;
+    const presentationStatus = reqStatus || 'draft';
 
     // Create presentation
     const result = await pool.query(
@@ -1229,17 +1250,18 @@ Overall Severity: ${damagePhotos.length > 0 ? 'Requires attention' : 'No signifi
         inspection_id, user_id, title, customer_name,
         property_address, presentation_type, slides,
         branding, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         inspection_id,
         userId,
-        title || `Roof Inspection - ${inspection.customer_name}`,
-        inspection.customer_name,
-        inspection.property_address,
+        title || `Roof Inspection - ${customerName}`,
+        customerName,
+        propertyAddress,
         presentation_type,
         JSON.stringify(slides),
         branding ? JSON.stringify(branding) : null,
+        presentationStatus,
       ]
     );
 
