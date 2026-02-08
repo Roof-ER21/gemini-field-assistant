@@ -171,10 +171,13 @@ export async function createPresentation(
   }
 
   const data = await response.json();
-  console.log('[Presentation] API response:', data);
+  console.log('[Presentation] API response:', JSON.stringify(data, null, 2));
+  console.log('[Presentation] Response keys:', Object.keys(data));
+  console.log('[Presentation] Has presentation?', !!data.presentation);
+  console.log('[Presentation] Presentation data:', data.presentation);
 
   if (!data.presentation || !data.presentation.id) {
-    console.error('[Presentation] Invalid response structure:', data);
+    console.error('[Presentation] Invalid response structure:', JSON.stringify(data, null, 2));
     throw new Error('Presentation created but no ID returned');
   }
 
