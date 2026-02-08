@@ -48,6 +48,7 @@ export default defineConfig(({ mode }) => {
           input: {
             main: resolve(__dirname, 'index.html'),
             profile: resolve(__dirname, 'profile.html'),
+            present: resolve(__dirname, 'present.html'),
           },
           onwarn(warning, warn) {
             if (warning.code === 'UNRESOLVED_IMPORT' && warning.message.includes('victory-vendor')) {

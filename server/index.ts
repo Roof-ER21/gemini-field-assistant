@@ -8984,6 +8984,30 @@ function getRoleLabel(roleType: string): string {
 }
 
 // ============================================================================
+// PUBLIC PRESENTATION VIEWER ROUTE (before SPA fallback)
+// ============================================================================
+
+// Serve public presentation viewer at /present/:token
+app.get('/present/:token', (req, res, next) => {
+  try {
+    const distDir = path.join(process.cwd(), 'dist');
+    const presentPath = path.join(distDir, 'present.html');
+
+    if (fs.existsSync(presentPath)) {
+      res.set('Cache-Control', 'no-store, max-age=0');
+      res.sendFile(presentPath);
+    } else {
+      // In development, fallback to dev server
+      console.log('⚠️  present.html not found, check if build is complete');
+      next();
+    }
+  } catch (error) {
+    console.error('Presentation viewer error:', error);
+    next();
+  }
+});
+
+// ============================================================================
 // SPA FALLBACK (must be after all API routes)
 // ============================================================================
 
