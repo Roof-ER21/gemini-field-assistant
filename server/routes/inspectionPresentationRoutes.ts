@@ -1103,6 +1103,18 @@ router.post('/presentations', async (req: Request, res: Response) => {
       status: reqStatus,
     } = req.body;
 
+    console.log('[Presentations API] POST request received:', {
+      userEmail,
+      inspection_id,
+      title,
+      presentation_type,
+      hasFrontendSlides: !!frontendSlides,
+      frontendSlidesCount: frontendSlides?.length || 0,
+      reqCustomerName,
+      reqPropertyAddress,
+      reqStatus,
+    });
+
     if (!inspection_id) {
       return res.status(400).json({ error: 'Inspection ID is required' });
     }
@@ -1151,8 +1163,8 @@ router.post('/presentations', async (req: Request, res: Response) => {
       [inspection_id]
     );
 
-    // Generate slides
-    const slides: PresentationSlide[] = [];
+    // Generate slides (assign to outer slides variable)
+    slides = [];
     let slideNumber = 1;
 
     // Cover slide
