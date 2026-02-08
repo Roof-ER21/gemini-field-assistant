@@ -4,9 +4,9 @@
  * Susan is a friendly, professional insurance claims specialist with 15+ years experience
  */
 
-import { env } from '../src/config/env';
+import { env } from '../src/config/env.js';
 import { GoogleGenAI } from '@google/genai';
-import { DamageAssessment } from './imageAnalysisService';
+import { DamageAssessment } from './imageAnalysisService.js';
 
 // ============================================================================
 // TYPE DEFINITIONS

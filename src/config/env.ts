@@ -10,8 +10,13 @@ const getEnvVar = (key: string): string | undefined => {
   }
 
   // Fallback to Vite environment variable (development)
-  const viteKey = `VITE_${key}`;
-  return import.meta.env[viteKey];
+  // Only access import.meta.env in browser/Vite context
+  if (typeof import.meta !== 'undefined' && typeof (import.meta as any).env !== 'undefined') {
+    const viteKey = `VITE_${key}`;
+    return (import.meta as any).env[viteKey];
+  }
+
+  return undefined;
 };
 
 export const env = {
@@ -31,8 +36,8 @@ export const env = {
   TRANSCRIPTION_WARNING_THRESHOLD: parseInt(getEnvVar('TRANSCRIPTION_WARNING_THRESHOLD') || '150'), // 2:30 warning
 
   // Environment
-  IS_PRODUCTION: getEnvVar('RAILWAY_ENVIRONMENT') === 'production' || import.meta.env.PROD,
-  IS_DEVELOPMENT: !import.meta.env.PROD,
+  IS_PRODUCTION: getEnvVar('RAILWAY_ENVIRONMENT') === 'production' || (typeof (import.meta as any).env !== 'undefined' && (import.meta as any).env.PROD),
+  IS_DEVELOPMENT: !(typeof (import.meta as any).env !== 'undefined' && (import.meta as any).env.PROD),
 
   // Logging
   get isDevelopment() {

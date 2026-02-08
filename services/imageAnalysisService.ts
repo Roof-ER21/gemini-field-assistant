@@ -3,7 +3,7 @@
  * Uses Gemini Vision API to analyze roof damage photos
  */
 
-import { env } from '../src/config/env';
+import { env } from '../src/config/env.js';
 import { GoogleGenAI } from '@google/genai';
 
 export interface DamageAssessment {

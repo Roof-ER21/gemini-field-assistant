@@ -14,6 +14,10 @@ import { Button } from '../ui/button';
 import { analyzeImage } from '../../services/geminiService';
 import { jobService } from '../../services/jobService';
 import { authService } from '../../services/authService';
+import {
+  createInspectionWithPhotos,
+  createPresentation
+} from '../../services/inspectionPresentationService';
 import type { Job, JobNote } from '../../types/job';
 
 // ============================================================================
@@ -37,23 +41,26 @@ interface UploadedPhoto {
 }
 
 export interface PhotoAnalysis {
+  damageDetected: boolean;
   damageType: string;
-  severity: 'minor' | 'moderate' | 'severe' | 'critical';
+  severity: 'minor' | 'moderate' | 'severe' | 'critical' | 'none';
   location: string;
   description: string;
   recommendations: string[];
   insuranceRelevant: boolean;
   estimatedRepairCost?: string;
-  urgency: 'low' | 'medium' | 'high' | 'critical';
+  urgency: 'low' | 'medium' | 'high' | 'critical' | 'none';
+  photoType?: 'damage' | 'overview' | 'detail' | 'context';
 }
 
 interface PresentationSlide {
   id: string;
-  type: 'cover' | 'rep_profile' | 'photo' | 'summary' | 'recommendations' | 'cta';
+  type: 'cover' | 'rep_profile' | 'photo' | 'summary' | 'recommendations' | 'cta' | 'claim_authorization' | 'contingency' | 'thank_you';
   title: string;
   content?: string;
   photo?: string;
   photoBase64?: string;
+  photoId?: string; // Database photo ID for persistence
   analysis?: PhotoAnalysis;
   order: number;
 }
@@ -67,6 +74,9 @@ interface NewInspectionFlowProps {
     phone?: string;
     photoUrl?: string;
     credentials?: string[];
+    title?: string;
+    slug?: string;
+    startYear?: number;
   };
 }
 
@@ -96,10 +106,12 @@ export const NewInspectionFlow: React.FC<NewInspectionFlowProps> = ({
   const completedCount = photos.filter(p => p.status === 'complete').length;
   const analyzingCount = photos.filter(p => p.status === 'analyzing').length;
   const progress = photos.length > 0 ? (completedCount / photos.length) * 100 : 0;
-  const criticalCount = photos.filter(p =>
+  // Only count photos with ACTUAL damage detected
+  const damagePhotos = photos.filter(p => p.analysis?.damageDetected === true);
+  const criticalCount = damagePhotos.filter(p =>
     p.analysis?.severity === 'critical' || p.analysis?.severity === 'severe'
   ).length;
-  const insuranceCount = photos.filter(p => p.analysis?.insuranceRelevant).length;
+  const insuranceCount = damagePhotos.filter(p => p.analysis?.insuranceRelevant).length;
 
   // ============================================================================
   // PHOTO HANDLING
@@ -148,28 +160,45 @@ export const NewInspectionFlow: React.FC<NewInspectionFlowProps> = ({
         const base64Full = await fileToBase64(photo.file);
         const base64Data = base64Full.split(',')[1];
 
-        // AI Analysis prompt - persuasive insurance-focused
-        const prompt = `You are a professional roof inspector helping homeowners understand damage that may qualify for insurance claims. Analyze this roof inspection photo and provide detailed findings.
+        // AI Analysis prompt - HONEST damage assessment
+        const prompt = `You are a professional roofing damage assessment expert. Analyze this photo HONESTLY.
 
-IMPORTANT: Be thorough but fair. If you see damage, explain it clearly and note its insurance relevance. Focus on protecting the homeowner's investment.
+CRITICAL INSTRUCTION: Do NOT fabricate or exaggerate damage. If this photo does NOT show clear evidence of storm damage (hail, wind, impact), say so honestly.
 
-Provide your analysis in this JSON format:
+First, determine if this photo shows actual damage:
+- Hail impacts (circular dents, displaced granules)
+- Wind damage (lifted/missing shingles, exposed underlayment)
+- Impact damage (punctures, cracks)
+- Water damage (staining, rot)
+
+If NO clear damage is visible, respond with:
 {
-  "damageType": "type of damage (e.g., 'Hail Impact Damage', 'Wind-Lifted Shingles', 'Storm Damage', 'Wear Pattern')",
+  "damageDetected": false,
+  "photoType": "overview|detail|context",
+  "damageType": "No damage detected",
+  "severity": "none",
+  "location": "where on roof this photo shows",
+  "description": "Brief neutral description of what the photo shows (e.g., 'Overall view of asphalt shingle roof in good condition')",
+  "recommendations": [],
+  "insuranceRelevant": false,
+  "urgency": "none"
+}
+
+If CLEAR damage IS visible, respond with:
+{
+  "damageDetected": true,
+  "photoType": "damage",
+  "damageType": "specific type (e.g., 'Hail Impact Damage', 'Wind-Lifted Shingles')",
   "severity": "minor|moderate|severe|critical",
-  "location": "location on roof (e.g., 'North-facing slope', 'Ridge line', 'Valley')",
-  "description": "detailed description focusing on what this means for the homeowner and their insurance claim",
-  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+  "location": "specific location on roof",
+  "description": "detailed description of the damage and what it means for the homeowner",
+  "recommendations": ["recommendation 1", "recommendation 2"],
   "insuranceRelevant": true/false,
-  "estimatedRepairCost": "cost range (e.g., '$500-$1,000')",
+  "estimatedRepairCost": "cost range if applicable",
   "urgency": "low|medium|high|critical"
 }
 
-Focus on:
-1. Insurance-relevant damage patterns (hail, wind, storm)
-2. Safety concerns for the homeowner
-3. Why timely action protects their investment
-4. Clear, non-technical language homeowners understand`;
+Remember: Homeowners trust this assessment. Be honest and professional.`;
 
         const response = await analyzeImage(base64Data, photo.file.type, prompt);
 
@@ -178,27 +207,38 @@ Focus on:
         try {
           const jsonMatch = response.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            analysis = JSON.parse(jsonMatch[0]);
-          } else {
+            const parsed = JSON.parse(jsonMatch[0]);
+            // Ensure damageDetected field exists
             analysis = {
-              damageType: 'Damage detected',
-              severity: 'moderate',
+              ...parsed,
+              damageDetected: parsed.damageDetected ?? (parsed.severity !== 'none' && parsed.damageType !== 'No damage detected')
+            };
+          } else {
+            // Fallback - assume no damage if we can't parse
+            analysis = {
+              damageDetected: false,
+              photoType: 'detail',
+              damageType: 'Photo captured',
+              severity: 'none',
               location: 'Roof area',
-              description: response.substring(0, 300),
-              recommendations: ['Professional inspection recommended'],
-              insuranceRelevant: true,
-              urgency: 'medium'
+              description: response.substring(0, 300) || 'Photo documented for inspection records',
+              recommendations: [],
+              insuranceRelevant: false,
+              urgency: 'none'
             };
           }
         } catch {
+          // Parse error fallback - assume no damage
           analysis = {
-            damageType: 'Analysis available',
-            severity: 'moderate',
-            location: 'See details',
-            description: response.substring(0, 300),
-            recommendations: ['Review with inspector'],
-            insuranceRelevant: true,
-            urgency: 'medium'
+            damageDetected: false,
+            photoType: 'detail',
+            damageType: 'Photo captured',
+            severity: 'none',
+            location: 'Roof area',
+            description: 'Photo documented for inspection records',
+            recommendations: [],
+            insuranceRelevant: false,
+            urgency: 'none'
           };
         }
 
@@ -229,6 +269,80 @@ Focus on:
   };
 
   // ============================================================================
+  // ADDRESS PARSING HELPER
+  // ============================================================================
+
+  const parseAddress = (fullAddress: string): { address: string; city: string; state: string; zip?: string } => {
+    // Default values
+    const result = {
+      address: fullAddress || 'Address pending',
+      city: '',
+      state: 'VA' as 'VA' | 'MD' | 'PA',
+      zip: undefined as string | undefined
+    };
+
+    if (!fullAddress || fullAddress.trim() === '') {
+      return result;
+    }
+
+    try {
+      // Parse formats like:
+      // "123 Main St, Baltimore, MD 21201"
+      // "123 Main Street, Springfield, VA 22150"
+      // "456 Oak Ave, Richmond VA 23220"
+
+      const parts = fullAddress.split(',').map(p => p.trim());
+
+      if (parts.length >= 3) {
+        // Format: "street, city, state zip"
+        result.address = parts[0];
+        result.city = parts[1];
+
+        // Parse "state zip" or "state" from last part
+        const stateZipPart = parts[2];
+        const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5})?$/i);
+
+        if (stateZipMatch) {
+          const stateCode = stateZipMatch[1].toUpperCase();
+          if (stateCode === 'VA' || stateCode === 'MD' || stateCode === 'PA') {
+            result.state = stateCode as 'VA' | 'MD' | 'PA';
+          }
+          if (stateZipMatch[2]) {
+            result.zip = stateZipMatch[2];
+          }
+        }
+      } else if (parts.length === 2) {
+        // Format: "street, city state zip"
+        result.address = parts[0];
+
+        // Try to parse "city state zip"
+        const cityStateZipMatch = parts[1].match(/^(.+?)\s+([A-Z]{2})\s*(\d{5})?$/i);
+        if (cityStateZipMatch) {
+          result.city = cityStateZipMatch[1].trim();
+          const stateCode = cityStateZipMatch[2].toUpperCase();
+          if (stateCode === 'VA' || stateCode === 'MD' || stateCode === 'PA') {
+            result.state = stateCode as 'VA' | 'MD' | 'PA';
+          }
+          if (cityStateZipMatch[3]) {
+            result.zip = cityStateZipMatch[3];
+          }
+        } else {
+          result.city = parts[1];
+        }
+      } else {
+        // Single part - just use as street address
+        result.address = fullAddress;
+      }
+    } catch (error) {
+      console.error('Error parsing address:', error);
+      // Return original address if parsing fails
+      result.address = fullAddress;
+    }
+
+    return result;
+  };
+
+  // ============================================================================
   // PRESENTATION & JOB GENERATION
   // ============================================================================
 
@@ -239,17 +353,36 @@ Focus on:
     const completedPhotos = photos.filter(p => p.status === 'complete');
 
     try {
-      // Step 1: Create Job
-      setGenerationStatus('Creating job record...');
       const user = authService.getCurrentUser();
-      const userId = user?.email || 'unknown';
+      const userEmail = user?.email || 'unknown';
 
       const hasCriticalDamage = completedPhotos.some(
         p => p.analysis?.severity === 'critical' || p.analysis?.severity === 'severe'
       );
 
+      const parsedAddress = parseAddress(homeownerInfo.address);
+
+      // STEP 1: Create Inspection and Save Photos to Database
+      setGenerationStatus('Saving inspection and photos to database...');
+      const { inspectionId, photoIds } = await createInspectionWithPhotos(
+        userEmail,
+        homeownerInfo,
+        completedPhotos.map(p => ({
+          id: p.id,
+          file: p.file,
+          preview: p.preview,
+          base64: p.base64,
+          status: p.status,
+          analysis: p.analysis
+        }))
+      );
+
+      console.log('[Inspection] Saved to database:', { inspectionId, photoCount: photoIds.length });
+
+      // STEP 2: Create Job
+      setGenerationStatus('Creating job record...');
       const jobData: Partial<Job> = {
-        title: `Roof Inspection - ${homeownerInfo.address || 'New Property'}`,
+        title: `Roof Inspection - ${parsedAddress.address || 'New Property'}`,
         status: 'inspection_complete',
         priority: hasCriticalDamage ? 'urgent' : 'medium',
         leadSource: 'canvassing',
@@ -258,20 +391,34 @@ Focus on:
           phone: homeownerInfo.phone || undefined
         },
         property: {
-          address: homeownerInfo.address || 'Address pending',
-          city: '',
-          state: 'VA'
+          address: parsedAddress.address,
+          city: parsedAddress.city,
+          state: parsedAddress.state,
+          zip: parsedAddress.zip
         },
         notes: [],
         attachments: [],
         actions: []
       };
 
-      const job = await jobService.createJob(userId, jobData);
+      const job = await jobService.createJob(userEmail, jobData);
 
-      // Step 2: Generate AI Summary Note
+      // STEP 3: Link Inspection to Job
+      await fetch(`/api/inspections/${inspectionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': userEmail
+        },
+        body: JSON.stringify({
+          job_id: job.id,
+          status: 'completed'
+        })
+      });
+
+      // STEP 4: Generate AI Summary Note
       setGenerationStatus('Generating AI summary...');
-      const summaryText = generateAISummary(completedPhotos);
+      const summaryText = generateAISummary(completedPhotos, parsedAddress);
 
       const summaryNote: JobNote = {
         id: `note-${Date.now()}`,
@@ -281,17 +428,15 @@ Focus on:
         type: 'inspection'
       };
 
-      // Add note to job
       await jobService.updateJob(job.id, {
         notes: [summaryNote, ...(job.notes || [])]
       });
 
-      // Step 3: Build Slides
+      // STEP 5: Build Slides
       setGenerationStatus('Building presentation slides...');
       const slides: PresentationSlide[] = [];
       let order = 0;
 
-      // Rep Profile Slide (first)
       if (userProfile) {
         slides.push({
           id: `slide-rep-${Date.now()}`,
@@ -302,7 +447,6 @@ Focus on:
         });
       }
 
-      // Cover Slide
       slides.push({
         id: `slide-cover-${Date.now()}`,
         type: 'cover',
@@ -311,115 +455,210 @@ Focus on:
         order: order++
       });
 
-      // Photo Slides
-      for (const photo of completedPhotos) {
+      // Photo Slides - WITH DATABASE PHOTO IDs
+      // Handle photos WITH damage vs photos WITHOUT damage differently
+      for (let i = 0; i < completedPhotos.length; i++) {
+        const photo = completedPhotos[i];
+        const photoId = photoIds[i];
+        const hasDamage = photo.analysis?.damageDetected !== false &&
+                          photo.analysis?.severity !== 'none';
+
         slides.push({
-          id: `slide-photo-${photo.id}`,
+          id: `slide-photo-${photoId || photo.id}`,
           type: 'photo',
-          title: photo.analysis?.damageType || 'Inspection Finding',
+          // If no damage, use neutral title
+          title: hasDamage
+            ? (photo.analysis?.damageType || 'Inspection Finding')
+            : 'Property Photo',
           photo: photo.preview,
           photoBase64: photo.base64,
-          analysis: photo.analysis,
+          photoId: photoId, // DATABASE PHOTO ID for persistence
+          // Only include analysis if damage was detected
+          analysis: hasDamage ? photo.analysis : undefined,
+          // Add content for context if no damage
+          content: !hasDamage ? photo.analysis?.description : undefined,
           order: order++
         });
       }
 
-      // Summary Slide
+      // Count actual damage photos
+      const actualDamageCount = completedPhotos.filter(p => p.analysis?.damageDetected === true).length;
+
       slides.push({
         id: `slide-summary-${Date.now()}`,
         type: 'summary',
-        title: 'Inspection Summary',
+        title: 'What We Found Today',
         content: JSON.stringify({
-          totalFindings: completedPhotos.length,
+          totalPhotos: completedPhotos.length,
+          damagePoints: actualDamageCount,
           criticalIssues: criticalCount,
           insuranceRelevant: insuranceCount,
-          overallAssessment: hasCriticalDamage ? 'Immediate attention recommended' : 'Standard maintenance items found'
+          overallAssessment: actualDamageCount === 0
+            ? 'No significant storm damage detected'
+            : hasCriticalDamage
+              ? 'Storm damage documented - insurance claim recommended'
+              : 'Damage documented for your records'
         }),
         order: order++
       });
 
-      // Recommendations Slide
+      // Only include recommendations from photos WITH damage
       const allRecommendations = completedPhotos
+        .filter(p => p.analysis?.damageDetected === true)
         .flatMap(p => p.analysis?.recommendations || [])
         .filter((rec, idx, arr) => arr.indexOf(rec) === idx)
         .slice(0, 5);
 
-      slides.push({
-        id: `slide-recs-${Date.now()}`,
-        type: 'recommendations',
-        title: 'Recommended Next Steps',
-        content: JSON.stringify(allRecommendations),
-        order: order++
-      });
+      if (allRecommendations.length > 0) {
+        slides.push({
+          id: `slide-recs-${Date.now()}`,
+          type: 'recommendations',
+          title: 'Recommended Next Steps',
+          content: JSON.stringify(allRecommendations),
+          order: order++
+        });
+      }
 
-      // Call-to-Action Slide
+      // CTA - Different messaging based on whether damage was found
       slides.push({
         id: `slide-cta-${Date.now()}`,
         type: 'cta',
-        title: 'Protect Your Home',
+        title: insuranceCount > 0 ? "Let's File Your Claim Today" : 'Your Roof Report',
         content: JSON.stringify({
           message: insuranceCount > 0
-            ? `We found ${insuranceCount} insurance-relevant items. Let's file a claim to protect your investment.`
-            : 'Schedule a full inspection to ensure your roof is protected.',
-          nextSteps: [
-            'Schedule comprehensive inspection',
-            'Review insurance coverage',
-            'Get free estimate'
-          ]
+            ? `We documented ${insuranceCount} insurance-relevant damage point${insuranceCount !== 1 ? 's' : ''}. Let's file your claim and protect your investment.`
+            : actualDamageCount > 0
+              ? 'We documented some wear items. Contact us if you have questions about your roof.'
+              : 'Your roof looks good! We documented the current condition for your records.',
+          nextSteps: insuranceCount > 0
+            ? [
+                'Sign our authorization to file your claim',
+                "We'll handle all insurance communication",
+                'No out-of-pocket cost unless claim approved'
+              ]
+            : [
+                'Keep this report for your records',
+                'Schedule annual inspections',
+                'Contact us with any questions'
+              ],
+          showAgreement: insuranceCount > 0 // Flag to show agreement slides
         }),
         order: order++
       });
 
+      // AGREEMENT SLIDES - Only if insurance-relevant damage found
+      if (insuranceCount > 0) {
+        // Claim Authorization Form
+        slides.push({
+          id: `slide-claim-auth-${Date.now()}`,
+          type: 'claim_authorization',
+          title: 'Claim Authorization Form',
+          content: 'Authorization to communicate with insurance company',
+          order: order++
+        });
+
+        // Contingency Agreement
+        slides.push({
+          id: `slide-contingency-${Date.now()}`,
+          type: 'contingency',
+          title: 'Insurance Claim Agreement',
+          content: 'Contingency agreement for insurance claim work',
+          order: order++
+        });
+
+        // Thank You / Completion
+        slides.push({
+          id: `slide-thank-you-${Date.now()}`,
+          type: 'thank_you',
+          title: "You're All Set!",
+          content: 'Agreement signed, next steps coming',
+          order: order++
+        });
+      }
+
+      // STEP 6: Save Presentation to Database
+      setGenerationStatus('Saving presentation...');
+      const { presentationId } = await createPresentation(
+        userEmail,
+        inspectionId,
+        slides,
+        homeownerInfo
+      );
+
+      console.log('[Presentation] Created:', { presentationId, inspectionId, jobId: job.id });
+
       setGenerationStatus('Ready to present!');
 
-      // Callback with slides and job ID
       if (onPresentationReady) {
         onPresentationReady(slides, job.id);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating presentation:', error);
-      setGenerationStatus('Error generating presentation');
+      setGenerationStatus(`Error: ${error.message || 'Failed to generate presentation'}`);
+      alert(`Error: ${error.message || 'Failed to generate presentation'}`);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const generateAISummary = (analyzedPhotos: UploadedPhoto[]): string => {
-    const criticals = analyzedPhotos.filter(p =>
+  const generateAISummary = (analyzedPhotos: UploadedPhoto[], parsedAddress: { address: string; city: string; state: string; zip?: string }): string => {
+    // Only count photos with ACTUAL damage
+    const damagePhotos = analyzedPhotos.filter(p => p.analysis?.damageDetected === true);
+    const criticals = damagePhotos.filter(p =>
       p.analysis?.severity === 'critical' || p.analysis?.severity === 'severe'
     );
-    const insuranceItems = analyzedPhotos.filter(p => p.analysis?.insuranceRelevant);
+    const insuranceItems = damagePhotos.filter(p => p.analysis?.insuranceRelevant);
+
+    const fullAddress = [
+      parsedAddress.address,
+      parsedAddress.city,
+      parsedAddress.state,
+      parsedAddress.zip
+    ].filter(Boolean).join(', ');
 
     let summary = `## Roof Inspection Summary\n\n`;
     summary += `**Date:** ${new Date().toLocaleDateString()}\n`;
-    summary += `**Property:** ${homeownerInfo.address || 'Address pending'}\n`;
+    summary += `**Property:** ${fullAddress || 'Address pending'}\n`;
     summary += `**Homeowner:** ${homeownerInfo.name || 'Not provided'}\n\n`;
 
     summary += `### Key Findings\n`;
-    summary += `- **Total Items Documented:** ${analyzedPhotos.length}\n`;
+    summary += `- **Total Photos:** ${analyzedPhotos.length}\n`;
+    summary += `- **Damage Points Found:** ${damagePhotos.length}\n`;
     summary += `- **Critical/Severe Issues:** ${criticals.length}\n`;
     summary += `- **Insurance-Relevant Items:** ${insuranceItems.length}\n\n`;
 
-    if (criticals.length > 0) {
-      summary += `### Critical Issues Requiring Immediate Attention\n`;
-      criticals.forEach((p, i) => {
-        summary += `${i + 1}. **${p.analysis?.damageType}** (${p.analysis?.location})\n`;
-        summary += `   - ${p.analysis?.description}\n`;
-      });
-      summary += '\n';
-    }
+    if (damagePhotos.length === 0) {
+      summary += `### Assessment\n`;
+      summary += `No significant storm damage was detected during this inspection. `;
+      summary += `The roof appears to be in satisfactory condition based on the photos documented.\n\n`;
+    } else {
+      if (criticals.length > 0) {
+        summary += `### Damage Requiring Attention\n`;
+        criticals.forEach((p, i) => {
+          summary += `${i + 1}. **${p.analysis?.damageType}** (${p.analysis?.location})\n`;
+          summary += `   - ${p.analysis?.description}\n`;
+        });
+        summary += '\n';
+      }
 
-    if (insuranceItems.length > 0) {
-      summary += `### Insurance Claim Recommendation\n`;
-      summary += `Based on the documented damage, this property appears to have ${insuranceItems.length} items that may qualify for insurance coverage. `;
-      summary += `Recommend filing a claim promptly to protect the homeowner's investment.\n\n`;
+      if (insuranceItems.length > 0) {
+        summary += `### Insurance Claim Recommendation\n`;
+        summary += `Based on the documented damage, this property has ${insuranceItems.length} item${insuranceItems.length !== 1 ? 's' : ''} that may qualify for insurance coverage. `;
+        summary += `We recommend filing a claim to protect the homeowner's investment.\n\n`;
+      }
     }
 
     summary += `### Next Steps\n`;
-    summary += `1. Schedule full roof inspection\n`;
-    summary += `2. Contact insurance company to file claim\n`;
-    summary += `3. Obtain repair estimates\n`;
+    if (insuranceItems.length > 0) {
+      summary += `1. Sign Claim Authorization Form\n`;
+      summary += `2. Sign Insurance Claim Agreement\n`;
+      summary += `3. We'll file the claim and handle all insurance communication\n`;
+    } else {
+      summary += `1. Keep this inspection report for your records\n`;
+      summary += `2. Schedule annual roof inspections\n`;
+      summary += `3. Contact us if you notice any new damage\n`;
+    }
 
     return summary;
   };
@@ -464,11 +703,12 @@ Focus on:
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      overflowY: 'auto',
       background: 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 50%, #F1F5F9 100%)',
       padding: '24px'
     }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '40px' }}>
 
         {/* Header */}
         <div style={{
@@ -481,11 +721,11 @@ Focus on:
             width: '56px',
             height: '56px',
             borderRadius: '16px',
-            background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+            background: 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px -8px rgba(59, 130, 246, 0.5)'
+            boxShadow: '0 8px 24px -8px rgba(196, 30, 58, 0.5)'
           }}>
             <Camera style={{ width: '28px', height: '28px', color: 'white' }} />
           </div>
@@ -514,8 +754,8 @@ Focus on:
             marginBottom: '24px'
           }}>
             {[
-              { icon: <Camera size={20} />, value: photos.length, label: 'Photos', color: '#3B82F6' },
-              { icon: <Sparkles size={20} />, value: completedCount, label: 'Analyzed', color: '#8B5CF6' },
+              { icon: <Camera size={20} />, value: photos.length, label: 'Photos', color: '#c41e3a' },
+              { icon: <Sparkles size={20} />, value: completedCount, label: 'Analyzed', color: '#4b5563' },
               { icon: <Shield size={20} />, value: insuranceCount, label: 'Insurance', color: '#22C55E' },
               { icon: <AlertTriangle size={20} />, value: criticalCount, label: 'Critical', color: '#F97316' }
             ].map((stat, i) => (
@@ -579,7 +819,7 @@ Focus on:
                 width: '40px',
                 height: '40px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+                background: 'linear-gradient(135deg, #4b5563 0%, #1f2937 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -632,7 +872,7 @@ Focus on:
                       transition: 'border-color 0.2s, box-shadow 0.2s'
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#3B82F6';
+                      e.target.style.borderColor = '#c41e3a';
                       e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
                     }}
                     onBlur={(e) => {
@@ -670,7 +910,7 @@ Focus on:
                       outline: 'none'
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#3B82F6';
+                      e.target.style.borderColor = '#c41e3a';
                       e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
                     }}
                     onBlur={(e) => {
@@ -709,7 +949,7 @@ Focus on:
                     outline: 'none'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#3B82F6';
+                    e.target.style.borderColor = '#c41e3a';
                     e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
                   }}
                   onBlur={(e) => {
@@ -755,7 +995,7 @@ Focus on:
                 borderRadius: '20px',
                 fontSize: '12px',
                 fontWeight: '500',
-                color: '#3B82F6'
+                color: '#c41e3a'
               }}>
                 <Sparkles size={14} /> AI Powered
               </span>
@@ -772,7 +1012,7 @@ Focus on:
               onClick={() => fileInputRef.current?.click()}
               style={{
                 borderRadius: '16px',
-                border: isDragging ? '2px dashed #3B82F6' : '2px dashed #CBD5E1',
+                border: isDragging ? '2px dashed #c41e3a' : '2px dashed #CBD5E1',
                 padding: '40px',
                 textAlign: 'center',
                 cursor: 'pointer',
@@ -798,7 +1038,7 @@ Focus on:
                 margin: '0 auto 16px',
                 borderRadius: '16px',
                 background: isDragging
-                  ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+                  ? 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)'
                   : 'linear-gradient(135deg, #E2E8F0 0%, #CBD5E1 100%)',
                 display: 'flex',
                 alignItems: 'center',
@@ -840,7 +1080,7 @@ Focus on:
                 }}>
                   <div style={{
                     height: '100%',
-                    background: 'linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%)',
+                    background: 'linear-gradient(90deg, #c41e3a 0%, #4b5563 100%)',
                     borderRadius: '8px',
                     width: `${progress}%`,
                     transition: 'width 0.5s ease-out'
@@ -890,7 +1130,7 @@ Focus on:
                         }}>
                           {photo.status === 'analyzing' && (
                             <div style={{ textAlign: 'center' }}>
-                              <Sparkles size={24} color="#8B5CF6" style={{ animation: 'pulse 1.5s infinite' }} />
+                              <Sparkles size={24} color="#4b5563" style={{ animation: 'pulse 1.5s infinite' }} />
                               <p style={{ fontSize: '11px', color: '#64748B', margin: '8px 0 0 0' }}>Analyzing</p>
                             </div>
                           )}
@@ -976,7 +1216,7 @@ Focus on:
               style={{
                 background: isGenerating
                   ? '#94A3B8'
-                  : 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                  : 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '14px',

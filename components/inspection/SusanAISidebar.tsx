@@ -3,12 +3,59 @@
  * Uses susanPresenterService for live Q&A during presentations
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MessageCircle, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
   HelpCircle, Shield, AlertTriangle, Lightbulb, User, Bot, X,
-  Volume2, VolumeX
+  Volume2, VolumeX, Mic, MicOff
 } from 'lucide-react';
+
+// ============================================================================
+// SPEECH RECOGNITION TYPES
+// ============================================================================
+
+interface SpeechRecognitionEvent {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+  onstart: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -88,6 +135,196 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Voice State
+  const [isListening, setIsListening] = useState(false);
+  const [isWakeWordActive, setIsWakeWordActive] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const wakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+
+  // Check for speech support
+  useEffect(() => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognitionAPI && window.speechSynthesis) {
+      setVoiceSupported(true);
+      synthRef.current = window.speechSynthesis;
+    }
+  }, []);
+
+  // Initialize wake word detection
+  useEffect(() => {
+    if (!voiceSupported || isMuted) return;
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    const wakeWordRecognition = new SpeechRecognitionAPI();
+    wakeWordRecognition.continuous = true;
+    wakeWordRecognition.interimResults = true;
+    wakeWordRecognition.lang = 'en-US';
+
+    wakeWordRecognition.onresult = (event: SpeechRecognitionEvent) => {
+      const lastResult = event.results[event.results.length - 1];
+      const transcript = lastResult[0].transcript.toLowerCase();
+
+      // Check for wake word "Hey Susan"
+      if (transcript.includes('hey susan') || transcript.includes('hey suzanne') || transcript.includes('hey suzan')) {
+        console.log('Wake word detected!');
+        setIsWakeWordActive(true);
+        wakeWordRecognition.stop();
+        startListening();
+
+        // Speak acknowledgment
+        if (!isMuted) {
+          speak('How can I help you?');
+        }
+      }
+    };
+
+    wakeWordRecognition.onerror = (event) => {
+      console.log('Wake word recognition error:', event);
+    };
+
+    wakeWordRecognition.onend = () => {
+      // Restart wake word listening if not in active conversation
+      if (!isListening && !isWakeWordActive && !isMuted) {
+        try {
+          wakeWordRecognition.start();
+        } catch (e) {
+          console.log('Could not restart wake word detection');
+        }
+      }
+    };
+
+    wakeWordRecognitionRef.current = wakeWordRecognition;
+
+    // Start listening for wake word
+    try {
+      wakeWordRecognition.start();
+    } catch (e) {
+      console.log('Could not start wake word detection');
+    }
+
+    return () => {
+      try {
+        wakeWordRecognition.stop();
+      } catch (e) {
+        // Ignore
+      }
+    };
+  }, [voiceSupported, isMuted, isListening, isWakeWordActive]);
+
+  // Text-to-Speech function
+  const speak = useCallback((text: string) => {
+    if (!synthRef.current || isMuted) return;
+
+    // Cancel any ongoing speech
+    synthRef.current.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // Try to use a female voice
+    const voices = synthRef.current.getVoices();
+    const femaleVoice = voices.find(v =>
+      v.name.includes('Samantha') ||
+      v.name.includes('Karen') ||
+      v.name.includes('Victoria') ||
+      v.name.includes('Female') ||
+      (v.name.includes('Google') && v.name.includes('US'))
+    );
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    synthRef.current.speak(utterance);
+  }, [isMuted]);
+
+  // Start listening for user speech
+  const startListening = useCallback(() => {
+    if (!voiceSupported) return;
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    // Stop wake word detection
+    try {
+      wakeWordRecognitionRef.current?.stop();
+    } catch (e) {
+      // Ignore
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setInterimTranscript('');
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          final += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+
+      setInterimTranscript(interim);
+
+      if (final) {
+        setInputValue(final);
+        // Auto-send after getting final transcript
+        setTimeout(() => {
+          sendMessage(final);
+          setInterimTranscript('');
+        }, 500);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.log('Recognition error:', event);
+      setIsListening(false);
+      setIsWakeWordActive(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setIsWakeWordActive(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error('Could not start speech recognition:', e);
+    }
+  }, [voiceSupported]);
+
+  // Stop listening
+  const stopListening = useCallback(() => {
+    try {
+      recognitionRef.current?.stop();
+    } catch (e) {
+      // Ignore
+    }
+    setIsListening(false);
+    setIsWakeWordActive(false);
+    setInterimTranscript('');
+  }, []);
 
   // Quick Actions based on current slide context
   const quickActions: QuickAction[] = [
@@ -183,6 +420,11 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
           slideIndex: currentSlideIndex
         })
       );
+
+      // Speak the response if not muted
+      if (!isMuted && voiceSupported) {
+        speak(response);
+      }
 
     } catch (error) {
       console.error('Error getting Susan response:', error);
@@ -553,29 +795,66 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
         </div>
       )}
 
+      {/* Voice Status Indicator */}
+      {isListening && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'linear-gradient(135deg, #c41e3a15 0%, #a0183015 100%)',
+          borderTop: '1px solid #c41e3a30',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{
+            width: '12px',
+            height: '12px',
+            borderRadius: '50%',
+            background: '#c41e3a',
+            animation: 'pulse 1.5s infinite'
+          }} />
+          <span style={{ fontSize: '14px', color: '#c41e3a', fontWeight: '500' }}>
+            {interimTranscript || 'Listening...'}
+          </span>
+        </div>
+      )}
+
       {/* Input Area */}
       <div style={{
         padding: '16px',
         borderTop: '1px solid #E2E8F0',
         background: '#FAFAFA'
       }}>
+        {/* Voice Mode Indicator */}
+        {voiceSupported && !isMuted && (
+          <p style={{
+            fontSize: '11px',
+            color: '#c41e3a',
+            textAlign: 'center',
+            margin: '0 0 10px 0',
+            fontWeight: '500'
+          }}>
+            Say "Hey Susan" to activate voice mode
+          </p>
+        )}
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
           background: 'white',
           borderRadius: '12px',
-          border: '1px solid #E2E8F0',
-          padding: '4px 4px 4px 14px'
+          border: isListening ? '2px solid #c41e3a' : '1px solid #E2E8F0',
+          padding: '4px 4px 4px 14px',
+          transition: 'border 0.2s ease'
         }}>
           <input
             ref={inputRef}
             type="text"
-            placeholder="Ask Susan anything..."
-            value={inputValue}
+            placeholder={isListening ? 'Listening...' : 'Ask Susan anything...'}
+            value={isListening ? interimTranscript : inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={isLoading}
+            disabled={isLoading || isListening}
             style={{
               flex: 1,
               border: 'none',
@@ -585,6 +864,34 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
               color: '#1E293B'
             }}
           />
+
+          {/* Microphone Button */}
+          {voiceSupported && (
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={isLoading}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: isListening
+                  ? 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)'
+                  : '#F1F5F9',
+                border: 'none',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {isListening
+                ? <MicOff size={18} color="white" />
+                : <Mic size={18} color="#64748B" />}
+            </button>
+          )}
+
+          {/* Send Button */}
           <button
             onClick={() => sendMessage(inputValue)}
             disabled={isLoading || !inputValue.trim()}
@@ -593,7 +900,7 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
               height: '40px',
               borderRadius: '10px',
               background: inputValue.trim()
-                ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+                ? 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)'
                 : '#E2E8F0',
               border: 'none',
               cursor: inputValue.trim() && !isLoading ? 'pointer' : 'not-allowed',
@@ -623,6 +930,10 @@ export const SusanAISidebar: React.FC<SusanAISidebarProps> = ({
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.1); }
         }
       `}</style>
     </div>

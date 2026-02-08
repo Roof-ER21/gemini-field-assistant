@@ -31,6 +31,7 @@ interface PresentationSlide {
   content?: string;
   photo?: string;
   photoBase64?: string;
+  photoId?: string; // Database photo ID for persistence
   analysis?: PhotoAnalysis;
   order: number;
 }

@@ -1091,7 +1091,15 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <SectionContent id="notes">
               <NoteInput onAdd={(text) => handleAddNote(selectedJob.id, text)} />
               {selectedJob.notes.length > 0 ? (
-                <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{
+                  marginTop: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  maxHeight: '400px',
+                  overflowY: 'auto',
+                  paddingRight: '0.5rem'
+                }}>
                   {selectedJob.notes.map((note) => (
                     <div key={note.id} style={{
                       padding: '0.75rem',
