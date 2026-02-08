@@ -227,6 +227,76 @@ router.get('/status', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// PUBLIC PRESENTATION ROUTES (No auth - MUST be before /:id routes)
+// ============================================================================
+
+/**
+ * GET /:token - Public presentation viewer
+ * This route is used when mounted at /api/present
+ * It MUST be defined before /:id routes to prevent conflict
+ */
+router.get('/:token([a-z0-9]{20,})', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const { token } = req.params;
+
+    const result = await pool.query(
+      `SELECT * FROM presentations WHERE share_token = $1 AND is_public = true`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Presentation not found or not public' });
+    }
+
+    // Increment view count
+    await pool.query(
+      `UPDATE presentations SET view_count = view_count + 1 WHERE id = $1`,
+      [result.rows[0].id]
+    );
+
+    const presentation = result.rows[0];
+    console.log('[Presentations API] Public view:', presentation.id);
+    res.json({ presentation });
+  } catch (error) {
+    console.error('[Presentations API] Error viewing presentation:', error);
+    res.status(500).json({ error: 'Failed to view presentation' });
+  }
+});
+
+/**
+ * POST /:token/analytics - Track viewer analytics
+ */
+router.post('/:token([a-z0-9]{20,})/analytics', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const { token } = req.params;
+    const { timestamp, referrer, userAgent } = req.body;
+
+    const result = await pool.query(
+      `SELECT id FROM presentations WHERE share_token = $1 AND is_public = true`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Presentation not found' });
+    }
+
+    console.log('[Presentations API] Viewer analytics:', {
+      presentationId: result.rows[0].id,
+      timestamp,
+      referrer,
+      userAgent: userAgent?.substring(0, 100)
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Presentations API] Error tracking analytics:', error);
+    res.json({ success: false });
+  }
+});
+
+// ============================================================================
 // INSPECTIONS
 // ============================================================================
 
