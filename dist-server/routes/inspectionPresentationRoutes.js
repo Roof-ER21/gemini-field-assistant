@@ -21,6 +21,126 @@ const generateShareToken = () => {
     return Math.random().toString(36).substring(2, 15) +
         Math.random().toString(36).substring(2, 15);
 };
+// Helper to ensure tables exist
+const ensureTablesExist = async (pool) => {
+    const createTablesSQL = `
+    -- Create inspections table if not exists
+    CREATE TABLE IF NOT EXISTS inspections (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      job_id UUID,
+      property_address TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      inspection_date TIMESTAMPTZ DEFAULT NOW(),
+      inspector_notes TEXT,
+      weather_conditions TEXT,
+      roof_type TEXT,
+      roof_age INTEGER,
+      status TEXT DEFAULT 'draft',
+      photo_count INTEGER DEFAULT 0,
+      analyzed_photo_count INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Create inspection_photos table if not exists
+    CREATE TABLE IF NOT EXISTS inspection_photos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      photo_url TEXT,
+      photo_data TEXT,
+      file_name TEXT,
+      file_size INTEGER,
+      mime_type TEXT,
+      category TEXT DEFAULT 'other',
+      notes TEXT,
+      ai_analysis JSONB,
+      analyzed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Create presentations table if not exists
+    CREATE TABLE IF NOT EXISTS presentations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      property_address TEXT NOT NULL,
+      presentation_type TEXT DEFAULT 'standard',
+      slides JSONB DEFAULT '[]'::jsonb,
+      branding JSONB,
+      share_token TEXT UNIQUE,
+      is_public BOOLEAN DEFAULT false,
+      view_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'draft',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Create indexes if not exists
+    CREATE INDEX IF NOT EXISTS idx_inspections_user_id ON inspections(user_id);
+    CREATE INDEX IF NOT EXISTS idx_inspection_photos_inspection_id ON inspection_photos(inspection_id);
+    CREATE INDEX IF NOT EXISTS idx_presentations_inspection_id ON presentations(inspection_id);
+    CREATE INDEX IF NOT EXISTS idx_presentations_share_token ON presentations(share_token) WHERE share_token IS NOT NULL;
+  `;
+    await pool.query(createTablesSQL);
+    console.log('[Inspections API] Ensured tables exist');
+};
+// Track if tables have been initialized
+let tablesInitialized = false;
+// ============================================================================
+// ADMIN / INITIALIZATION
+// ============================================================================
+/**
+ * POST /api/inspections/init
+ * Initialize database tables (admin only)
+ */
+router.post('/init', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        await ensureTablesExist(pool);
+        tablesInitialized = true;
+        res.json({ success: true, message: 'Tables initialized successfully' });
+    }
+    catch (error) {
+        console.error('[Inspections API] Error initializing tables:', error);
+        res.status(500).json({ error: 'Failed to initialize tables', details: String(error) });
+    }
+});
+/**
+ * GET /api/inspections/status
+ * Get system status
+ */
+router.get('/status', async (req, res) => {
+    try {
+        const pool = getPool(req);
+        // Check if tables exist
+        const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'inspections'
+      ) as inspections_exists,
+      EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'presentations'
+      ) as presentations_exists
+    `);
+        res.json({
+            status: 'ok',
+            tables: {
+                inspections: tableCheck.rows[0].inspections_exists,
+                presentations: tableCheck.rows[0].presentations_exists
+            },
+            initialized: tablesInitialized
+        });
+    }
+    catch (error) {
+        console.error('[Inspections API] Error checking status:', error);
+        res.status(500).json({ error: 'Failed to check status' });
+    }
+});
 // ============================================================================
 // INSPECTIONS
 // ============================================================================
@@ -34,6 +154,17 @@ router.post('/', async (req, res) => {
         const userEmail = req.headers['x-user-email'];
         if (!userEmail) {
             return res.status(401).json({ error: 'User email required' });
+        }
+        // Auto-initialize tables on first use
+        if (!tablesInitialized) {
+            try {
+                await ensureTablesExist(pool);
+                tablesInitialized = true;
+            }
+            catch (initError) {
+                console.error('[Inspections API] Table initialization error:', initError);
+                // Continue anyway - tables might already exist
+            }
         }
         const userId = await getUserIdFromEmail(pool, userEmail);
         if (!userId) {
