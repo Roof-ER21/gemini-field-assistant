@@ -1,15 +1,14 @@
 /**
- * InspectionPresentationPanel - Complete workflow integration
- * Combines all inspection presentation components into one panel
- *
- * Usage Example:
- * import InspectionPresentationPanel from './components/InspectionPresentationPanel';
- * <InspectionPresentationPanel />
+ * InspectionPresentationPanel - Premium SaaS Inspection Builder
+ * A refined, professional interface for roof inspection presentations
  */
 
 import React, { useState } from 'react';
-import { Presentation, Camera, FileText, Play } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import {
+  Presentation, Camera, FileText, Play, Eye, BarChart3,
+  Upload, Plus, ChevronRight, Clock, TrendingUp, Image,
+  CheckCircle2, ArrowRight, Sparkles, Shield, Zap
+} from 'lucide-react';
 import { Button } from './ui/button';
 import InspectionUploader from './InspectionUploader';
 import PhotoAnalysisCard from './PhotoAnalysisCard';
@@ -38,31 +37,117 @@ interface PresentationSlide {
   order: number;
 }
 
+// Stats Card Component
+const StatCard: React.FC<{
+  icon: React.ReactNode;
+  value: string | number;
+  label: string;
+  trend?: string;
+  trendUp?: boolean;
+}> = ({ icon, value, label, trend, trendUp }) => (
+  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+    <div className="flex items-start justify-between">
+      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-50 to-rose-100 flex items-center justify-center text-rose-600">
+        {icon}
+      </div>
+      {trend && (
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+          trendUp ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
+        }`}>
+          {trend}
+        </span>
+      )}
+    </div>
+    <div className="mt-4">
+      <p className="text-3xl font-bold text-slate-900 tracking-tight">{value}</p>
+      <p className="text-sm text-slate-500 mt-1">{label}</p>
+    </div>
+  </div>
+);
+
+// Step Indicator Component
+const StepIndicator: React.FC<{
+  step: number;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  isActive: boolean;
+  isCompleted: boolean;
+  onClick: () => void;
+  disabled: boolean;
+}> = ({ step, label, description, icon, isActive, isCompleted, onClick, disabled }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`
+      relative flex items-center gap-4 p-4 rounded-xl transition-all duration-200 w-full text-left
+      ${isActive
+        ? 'bg-rose-50 border-2 border-rose-200'
+        : isCompleted
+        ? 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 cursor-pointer'
+        : 'bg-slate-50 border border-slate-100 opacity-60 cursor-not-allowed'
+      }
+    `}
+  >
+    {/* Step Number */}
+    <div className={`
+      w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-semibold text-sm
+      ${isActive
+        ? 'bg-rose-600 text-white shadow-lg shadow-rose-200'
+        : isCompleted
+        ? 'bg-emerald-500 text-white'
+        : 'bg-slate-200 text-slate-500'
+      }
+    `}>
+      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : step}
+    </div>
+
+    {/* Content */}
+    <div className="flex-1 min-w-0">
+      <p className={`font-semibold text-sm ${isActive ? 'text-rose-900' : isCompleted ? 'text-emerald-900' : 'text-slate-600'}`}>
+        {label}
+      </p>
+      <p className={`text-xs mt-0.5 truncate ${isActive ? 'text-rose-600' : isCompleted ? 'text-emerald-600' : 'text-slate-400'}`}>
+        {description}
+      </p>
+    </div>
+
+    {/* Arrow */}
+    {(isActive || isCompleted) && (
+      <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-rose-400' : 'text-emerald-400'}`} />
+    )}
+  </button>
+);
+
+// Feature Badge Component
+const FeatureBadge: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon, label }) => (
+  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full">
+    <span className="text-rose-600">{icon}</span>
+    <span className="text-xs font-medium text-slate-700">{label}</span>
+  </div>
+);
+
 export const InspectionPresentationPanel: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [slides, setSlides] = useState<PresentationSlide[]>([]);
   const [isPresenting, setIsPresenting] = useState(false);
 
-  // Handle photos analyzed
   const handlePhotosAnalyzed = (analyzedPhotos: UploadedPhoto[]) => {
     setPhotos(analyzedPhotos);
     setCurrentStep('review');
   };
 
-  // Handle presentation generated
   const handlePresentationGenerated = (generatedSlides: PresentationSlide[]) => {
     setSlides(generatedSlides);
     setIsPresenting(true);
   };
 
-  // Handle presentation preview
   const handlePresentationPreview = (generatedSlides: PresentationSlide[]) => {
     setSlides(generatedSlides);
     setIsPresenting(true);
   };
 
-  // Reset workflow
   const resetWorkflow = () => {
     setCurrentStep('upload');
     setPhotos([]);
@@ -70,231 +155,371 @@ export const InspectionPresentationPanel: React.FC = () => {
     setIsPresenting(false);
   };
 
-  // Workflow steps
   const steps = [
-    { id: 'upload', label: 'Upload Photos', icon: Camera, description: 'Upload and analyze inspection photos' },
-    { id: 'review', label: 'Review Findings', icon: FileText, description: 'Review AI analysis results' },
-    { id: 'customize', label: 'Customize', icon: Presentation, description: 'Build and customize presentation' },
-    { id: 'present', label: 'Present', icon: Play, description: 'Full-screen presentation mode' }
+    { id: 'upload', label: 'Upload Photos', icon: <Camera className="w-5 h-5" />, description: 'Add inspection images' },
+    { id: 'review', label: 'Review Findings', icon: <FileText className="w-5 h-5" />, description: 'AI analysis results' },
+    { id: 'customize', label: 'Build Presentation', icon: <Presentation className="w-5 h-5" />, description: 'Customize slides' },
+    { id: 'present', label: 'Present & Share', icon: <Play className="w-5 h-5" />, description: 'Go live' }
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
+  const criticalCount = photos.filter(p => p.analysis?.severity === 'critical' || p.analysis?.severity === 'severe').length;
+  const insuranceCount = photos.filter(p => p.analysis?.insuranceRelevant).length;
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black p-4 md:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-2xl">
-                <Presentation className="w-8 h-8 text-[#e94560]" />
-                Inspection Presentation Builder
-              </CardTitle>
-              <CardDescription>
-                Upload roof inspection photos, get AI analysis, and create professional presentations
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          {/* Progress Steps */}
-          <Card className="p-2">
-            <div className="grid grid-cols-4 gap-2">
-              {steps.map((step, idx) => {
-                const StepIcon = step.icon;
-                const isActive = currentStep === step.id;
-                const isCompleted = idx < currentStepIndex;
-                const isLocked = !isCompleted && !isActive;
-
-                return (
-                  <button
-                    key={step.id}
-                    onClick={() => {
-                      if (isCompleted || isActive) {
-                        setCurrentStep(step.id as WorkflowStep);
-                      }
-                    }}
-                    disabled={isLocked}
-                    className={`
-                      relative p-4 rounded-xl transition-all duration-200
-                      ${isActive
-                        ? 'bg-[#e94560]/20 ring-2 ring-[#e94560] shadow-lg shadow-[#e94560]/20'
-                        : isCompleted
-                        ? 'bg-zinc-800/80 hover:bg-zinc-700/80 cursor-pointer'
-                        : 'bg-zinc-900/50 opacity-40 cursor-not-allowed'
-                      }
-                    `}
-                  >
-                    {/* Step number badge */}
-                    <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center">
-                      <span className={`text-xs font-bold ${isActive ? 'text-[#e94560]' : isCompleted ? 'text-green-400' : 'text-zinc-500'}`}>
-                        {idx + 1}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-3">
-                      <div className={`
-                        w-14 h-14 rounded-2xl flex items-center justify-center transition-all
-                        ${isActive
-                          ? 'bg-gradient-to-br from-[#e94560] to-[#ff6b88] shadow-lg'
-                          : isCompleted
-                          ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                          : 'bg-zinc-800 border border-zinc-700'
-                        }
-                      `}>
-                        <StepIcon className={`w-7 h-7 ${isLocked ? 'text-zinc-500' : 'text-white'}`} />
-                      </div>
-                      <div className="text-center">
-                        <p className={`font-semibold text-sm ${isActive ? 'text-white' : isCompleted ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                          {step.label}
-                        </p>
-                        <p className={`text-xs mt-1 ${isActive ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Lock indicator for locked steps */}
-                    {isLocked && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-zinc-900/80 rounded-xl p-2">
-                          <svg className="w-4 h-4 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+      {/* Main Container - Light Theme */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+        {/* Header */}
+        <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg shadow-rose-200">
+                  <Presentation className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                    Inspection Presentations
+                  </h1>
+                  <p className="text-sm text-slate-500">Create professional roof inspection reports</p>
+                </div>
+              </div>
+              <Button
+                onClick={resetWorkflow}
+                className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 rounded-xl px-5"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Inspection
+              </Button>
             </div>
-          </Card>
+          </div>
+        </div>
 
-          {/* Step Content */}
-          <div className="space-y-6">
-            {/* Step 1: Upload */}
-            {currentStep === 'upload' && (
-              <div className="space-y-6">
-                <InspectionUploader
-                  onPhotosAnalyzed={handlePhotosAnalyzed}
-                  maxPhotos={20}
-                />
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Stats Row */}
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            <StatCard
+              icon={<Eye className="w-5 h-5" />}
+              value={photos.length}
+              label="Photos Uploaded"
+            />
+            <StatCard
+              icon={<Sparkles className="w-5 h-5" />}
+              value={photos.filter(p => p.status === 'complete').length}
+              label="AI Analyzed"
+            />
+            <StatCard
+              icon={<Shield className="w-5 h-5" />}
+              value={insuranceCount}
+              label="Insurance Claims"
+              trend={insuranceCount > 0 ? `${insuranceCount} flagged` : undefined}
+              trendUp={true}
+            />
+            <StatCard
+              icon={<Zap className="w-5 h-5" />}
+              value={criticalCount}
+              label="Critical Issues"
+              trend={criticalCount > 0 ? 'Needs attention' : undefined}
+              trendUp={false}
+            />
+          </div>
 
+          {/* Main Layout - Sidebar + Content */}
+          <div className="flex gap-8">
+            {/* Sidebar - Workflow Steps */}
+            <div className="w-72 flex-shrink-0">
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 sticky top-28">
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">
+                  Workflow Steps
+                </h3>
+                <div className="space-y-2">
+                  {steps.map((step, idx) => (
+                    <StepIndicator
+                      key={step.id}
+                      step={idx + 1}
+                      label={step.label}
+                      description={step.description}
+                      icon={step.icon}
+                      isActive={currentStep === step.id}
+                      isCompleted={idx < currentStepIndex}
+                      onClick={() => {
+                        if (idx <= currentStepIndex) {
+                          setCurrentStep(step.id as WorkflowStep);
+                        }
+                      }}
+                      disabled={idx > currentStepIndex}
+                    />
+                  ))}
+                </div>
+
+                {/* Quick Stats */}
                 {photos.length > 0 && (
-                  <div className="flex justify-end">
-                    <Button onClick={() => setCurrentStep('review')}>
-                      Continue to Review
-                    </Button>
+                  <div className="mt-6 pt-6 border-t border-slate-100">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">
+                      Quick Stats
+                    </h3>
+                    <div className="space-y-3 px-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 flex items-center gap-2">
+                          <Image className="w-4 h-4 text-rose-500" />
+                          Total Photos
+                        </span>
+                        <span className="font-semibold text-slate-900">{photos.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4 text-rose-500" />
+                          Slides
+                        </span>
+                        <span className="font-semibold text-slate-900">{slides.length || '—'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-rose-500" />
+                          Est. Time
+                        </span>
+                        <span className="font-semibold text-slate-900">{slides.length ? `${Math.max(1, Math.ceil(slides.length * 1.5))}m` : '—'}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
-            {/* Step 2: Review */}
-            {currentStep === 'review' && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Review Analysis Results</CardTitle>
-                    <CardDescription>
-                      Review AI-analyzed inspection photos. {photos.length} findings documented.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {photos.map((photo, idx) => (
-                      photo.analysis && (
-                        <PhotoAnalysisCard
-                          key={photo.id}
-                          photo={photo.preview}
-                          analysis={photo.analysis}
-                          photoNumber={idx + 1}
-                        />
-                      )
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => setCurrentStep('upload')}>
-                    Back to Upload
-                  </Button>
-                  <Button onClick={() => setCurrentStep('customize')}>
-                    Build Presentation
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Customize */}
-            {currentStep === 'customize' && (
-              <div className="space-y-6">
-                <PresentationGenerator
-                  photos={photos}
-                  onGenerate={handlePresentationGenerated}
-                  onPreview={handlePresentationPreview}
-                />
-
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => setCurrentStep('review')}>
-                    Back to Review
-                  </Button>
-                  <Button onClick={() => setCurrentStep('present')} disabled={slides.length === 0}>
-                    Start Presentation
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Present */}
-            {currentStep === 'present' && !isPresenting && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Ready to Present</CardTitle>
-                  <CardDescription>
-                    Your presentation is ready with {slides.length} slides. Click below to start.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <p className="text-3xl font-bold text-white">{slides.length}</p>
-                      <p className="text-sm text-white/60">Total Slides</p>
+            {/* Main Content Area */}
+            <div className="flex-1 min-w-0">
+              {/* Step 1: Upload */}
+              {currentStep === 'upload' && (
+                <div className="space-y-6">
+                  {/* Upload Card */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">Upload Inspection Photos</h2>
+                          <p className="text-sm text-slate-500 mt-1">Add roof photos for AI-powered damage analysis</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <FeatureBadge icon={<Sparkles className="w-3.5 h-3.5" />} label="AI Analysis" />
+                          <FeatureBadge icon={<Shield className="w-3.5 h-3.5" />} label="Insurance Ready" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <p className="text-3xl font-bold text-white">{photos.length}</p>
-                      <p className="text-sm text-white/60">Findings</p>
-                    </div>
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <p className="text-3xl font-bold text-[#e94560]">
-                        {photos.filter(p => p.analysis?.insuranceRelevant).length}
-                      </p>
-                      <p className="text-sm text-white/60">Insurance Claims</p>
-                    </div>
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <p className="text-3xl font-bold text-red-500">
-                        {photos.filter(p => p.analysis?.severity === 'critical' || p.analysis?.severity === 'severe').length}
-                      </p>
-                      <p className="text-sm text-white/60">Critical/Severe</p>
+                    <div className="p-6">
+                      <InspectionUploader
+                        onPhotosAnalyzed={handlePhotosAnalyzed}
+                        maxPhotos={20}
+                      />
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pt-4">
-                    <Button variant="outline" onClick={() => setCurrentStep('customize')}>
-                      Back to Customize
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={resetWorkflow}>
-                        Start Over
+                  {photos.length > 0 && (
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => setCurrentStep('review')}
+                        className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+                      >
+                        Continue to Review
+                        <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>
-                      <Button onClick={() => setIsPresenting(true)} size="lg">
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: Review */}
+              {currentStep === 'review' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">Review AI Analysis</h2>
+                          <p className="text-sm text-slate-500 mt-1">{photos.length} findings documented and analyzed</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-rose-600">{insuranceCount}</p>
+                            <p className="text-xs text-slate-500">Insurance Claims</p>
+                          </div>
+                          <div className="w-px h-10 bg-slate-200" />
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-amber-600">{criticalCount}</p>
+                            <p className="text-xs text-slate-500">Critical Issues</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {photos.map((photo, idx) => (
+                        photo.analysis && (
+                          <PhotoAnalysisCard
+                            key={photo.id}
+                            photo={photo.preview}
+                            analysis={photo.analysis}
+                            photoNumber={idx + 1}
+                          />
+                        )
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentStep('upload')}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Back to Upload
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentStep('customize')}
+                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+                    >
+                      Build Presentation
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Customize */}
+              {currentStep === 'customize' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100">
+                      <h2 className="text-lg font-bold text-slate-900">Build Your Presentation</h2>
+                      <p className="text-sm text-slate-500 mt-1">Customize and arrange your presentation slides</p>
+                    </div>
+                    <div className="p-6">
+                      <PresentationGenerator
+                        photos={photos}
+                        onGenerate={handlePresentationGenerated}
+                        onPreview={handlePresentationPreview}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentStep('review')}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Back to Review
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentStep('present')}
+                      disabled={slides.length === 0}
+                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6 disabled:opacity-50"
+                    >
+                      Continue to Present
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Present */}
+              {currentStep === 'present' && !isPresenting && (
+                <div className="space-y-6">
+                  {/* Ready to Present Card */}
+                  <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-8 text-white shadow-xl shadow-rose-200">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold">Ready to Present</h2>
+                        <p className="text-rose-100 mt-2">Your presentation is ready with {slides.length} slides</p>
+                      </div>
+                      <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-4 mt-8">
+                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                        <p className="text-3xl font-bold">{slides.length}</p>
+                        <p className="text-sm text-rose-200 mt-1">Total Slides</p>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                        <p className="text-3xl font-bold">{photos.length}</p>
+                        <p className="text-sm text-rose-200 mt-1">Findings</p>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                        <p className="text-3xl font-bold">{insuranceCount}</p>
+                        <p className="text-sm text-rose-200 mt-1">Insurance Claims</p>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                        <p className="text-3xl font-bold">{Math.max(1, Math.ceil(slides.length * 1.5))}m</p>
+                        <p className="text-sm text-rose-200 mt-1">Est. Duration</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-8">
+                      <Button
+                        onClick={() => setIsPresenting(true)}
+                        size="lg"
+                        className="bg-white text-rose-600 hover:bg-rose-50 rounded-xl px-8 font-semibold"
+                      >
                         <Play className="w-5 h-5 mr-2" />
                         Start Presentation
                       </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentStep('customize')}
+                        className="border-white/30 text-white hover:bg-white/10 rounded-xl"
+                      >
+                        Edit Slides
+                      </Button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+
+                  {/* Actions */}
+                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                    <h3 className="font-semibold text-slate-900 mb-4">Quick Actions</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
+                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                          <Eye className="w-5 h-5 text-rose-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Preview</p>
+                          <p className="text-xs text-slate-500">View before sharing</p>
+                        </div>
+                      </button>
+                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
+                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                          <BarChart3 className="w-5 h-5 text-rose-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Analytics</p>
+                          <p className="text-xs text-slate-500">View engagement</p>
+                        </div>
+                      </button>
+                      <button className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors text-left">
+                        <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                          <TrendingUp className="w-5 h-5 text-rose-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Share Link</p>
+                          <p className="text-xs text-slate-500">Send to homeowner</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-start">
+                    <Button
+                      variant="outline"
+                      onClick={resetWorkflow}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Start New Inspection
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

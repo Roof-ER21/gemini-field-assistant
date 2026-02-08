@@ -1,12 +1,11 @@
 /**
- * InspectionUploader - Multi-photo upload with drag & drop
- * Handles roof inspection photo uploads with AI analysis trigger
+ * InspectionUploader - Premium SaaS Photo Upload
+ * Clean, professional photo upload with AI analysis
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, CloudUpload, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { analyzeImage } from '../services/geminiService';
 
 interface UploadedPhoto {
@@ -43,7 +42,6 @@ export const InspectionUploader: React.FC<InspectionUploaderProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle file selection
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
 
@@ -61,26 +59,20 @@ export const InspectionUploader: React.FC<InspectionUploaderProps> = ({
     }));
 
     setPhotos(prev => [...prev, ...newPhotos]);
-
-    // Auto-analyze uploaded photos
     analyzePhotos(newPhotos);
   }, [photos.length, maxPhotos]);
 
-  // Analyze photos with Gemini AI
   const analyzePhotos = async (photosToAnalyze: UploadedPhoto[]) => {
     setIsAnalyzing(true);
 
     for (const photo of photosToAnalyze) {
       try {
-        // Update status to analyzing
         setPhotos(prev => prev.map(p =>
           p.id === photo.id ? { ...p, status: 'analyzing' } : p
         ));
 
-        // Convert image to base64
         const base64 = await fileToBase64(photo.file);
 
-        // Analyze with Gemini
         const prompt = `You are a professional roof inspector. Analyze this roof inspection photo and provide detailed information in the following JSON format:
 {
   "damageType": "type of damage (e.g., 'Shingle damage', 'Flashing issue', 'Hail damage', 'Wind damage', 'Wear and tear')",
@@ -97,15 +89,12 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
 
         const response = await analyzeImage(base64, photo.file.type, prompt);
 
-        // Parse AI response
         let analysis: PhotoAnalysis;
         try {
-          // Try to extract JSON from response
           const jsonMatch = response.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             analysis = JSON.parse(jsonMatch[0]);
           } else {
-            // Fallback parsing
             analysis = {
               damageType: 'Roof damage detected',
               severity: 'moderate',
@@ -128,7 +117,6 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
           };
         }
 
-        // Update photo with analysis
         setPhotos(prev => prev.map(p =>
           p.id === photo.id
             ? { ...p, status: 'complete', analysis }
@@ -147,14 +135,12 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
 
     setIsAnalyzing(false);
 
-    // Notify parent component
     const updatedPhotos = photos.filter(p => p.status === 'complete');
     if (onPhotosAnalyzed && updatedPhotos.length > 0) {
       onPhotosAnalyzed(updatedPhotos);
     }
   };
 
-  // Convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -168,7 +154,6 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
     });
   };
 
-  // Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -189,7 +174,6 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
     handleFiles(e.dataTransfer.files);
   };
 
-  // Remove photo
   const removePhoto = (id: string) => {
     setPhotos(prev => {
       const updated = prev.filter(p => p.id !== id);
@@ -201,203 +185,198 @@ Focus on insurance-relevant damage, safety concerns, and actionable recommendati
     });
   };
 
-  // Open file picker
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Calculate progress
   const completedCount = photos.filter(p => p.status === 'complete').length;
   const progress = photos.length > 0 ? (completedCount / photos.length) * 100 : 0;
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'bg-red-500 text-white';
+      case 'severe': return 'bg-orange-500 text-white';
+      case 'moderate': return 'bg-amber-500 text-white';
+      case 'minor': return 'bg-emerald-500 text-white';
+      default: return 'bg-slate-500 text-white';
+    }
+  };
+
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-[#e94560]" />
-          Upload Inspection Photos
-        </CardTitle>
-        <CardDescription>
-          Upload roof inspection photos for AI analysis. Drag & drop or click to browse.
-          {photos.length > 0 && ` (${photos.length}/${maxPhotos})`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Upload Area */}
-        <div
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onClick={handleUploadClick}
-          className={`
-            relative overflow-hidden rounded-2xl p-10 text-center cursor-pointer
-            transition-all duration-300 ease-out
-            ${isDragging
-              ? 'bg-[#e94560]/20 ring-2 ring-[#e94560] shadow-xl shadow-[#e94560]/20 scale-[1.02]'
-              : 'bg-zinc-900/60 hover:bg-zinc-800/80 ring-1 ring-zinc-700/50 hover:ring-zinc-600'
-            }
-          `}
-        >
-          {/* Background pattern */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }} />
-          </div>
+    <div className="space-y-6">
+      {/* Upload Area */}
+      <div
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onClick={handleUploadClick}
+        className={`
+          relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer
+          transition-all duration-300 ease-out
+          ${isDragging
+            ? 'border-rose-400 bg-rose-50 scale-[1.01]'
+            : 'border-slate-200 bg-slate-50/50 hover:border-rose-300 hover:bg-rose-50/50'
+          }
+        `}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => handleFiles(e.target.files)}
+          className="hidden"
+        />
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleFiles(e.target.files)}
-            className="hidden"
-          />
-
-          <div className="relative z-10">
-            <div className={`
-              w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center
-              transition-all duration-300
-              ${isDragging
-                ? 'bg-[#e94560] shadow-lg shadow-[#e94560]/40 scale-110'
-                : 'bg-zinc-800 ring-1 ring-zinc-700'
-              }
-            `}>
-              <Upload className={`w-10 h-10 transition-colors ${isDragging ? 'text-white' : 'text-zinc-400'}`} />
-            </div>
-
-            <p className="text-lg font-semibold text-white mb-2">
-              {isDragging ? 'Drop photos to upload' : 'Drop photos here or click to browse'}
-            </p>
-            <p className="text-zinc-500 text-sm">
-              Supports JPG, PNG, HEIC • Max {maxPhotos} photos
-            </p>
-
-            {/* Upload hint badges */}
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
-                AI Analysis
-              </span>
-              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
-                Insurance Ready
-              </span>
-              <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-medium">
-                Auto Presentation
-              </span>
-            </div>
-          </div>
+        <div className={`
+          w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center
+          transition-all duration-300
+          ${isDragging
+            ? 'bg-rose-500 shadow-lg shadow-rose-200 scale-110'
+            : 'bg-slate-100'
+          }
+        `}>
+          <CloudUpload className={`w-8 h-8 transition-colors ${isDragging ? 'text-white' : 'text-slate-400'}`} />
         </div>
 
-        {/* Progress Bar */}
-        {photos.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-white/80">
-                {isAnalyzing ? 'Analyzing photos...' : `${completedCount} of ${photos.length} analyzed`}
-              </span>
-              <span className="text-white/80">{Math.round(progress)}%</span>
-            </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#e94560] to-[#ff6b88] transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+        <p className="text-lg font-semibold text-slate-700 mb-1">
+          {isDragging ? 'Drop to upload' : 'Drop photos here or click to browse'}
+        </p>
+        <p className="text-sm text-slate-500">
+          JPG, PNG, HEIC up to 10MB • Max {maxPhotos} photos
+        </p>
+
+        {/* Feature tags */}
+        <div className="flex items-center justify-center gap-3 mt-5">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-medium text-slate-600">
+            <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+            AI Analysis
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-medium text-slate-600">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            Insurance Ready
+          </span>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      {photos.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600 font-medium">
+              {isAnalyzing ? 'Analyzing photos...' : `${completedCount} of ${photos.length} analyzed`}
+            </span>
+            <span className="text-slate-600 font-medium">{Math.round(progress)}%</span>
           </div>
-        )}
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-rose-500 to-rose-600 transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
-        {/* Photo Grid */}
-        {photos.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {photos.map(photo => (
-              <div
-                key={photo.id}
-                className="relative aspect-square rounded-lg overflow-hidden border border-white/10 bg-black/40"
-              >
-                <img
-                  src={photo.preview}
-                  alt="Inspection"
-                  className="w-full h-full object-cover"
-                />
+      {/* Photo Grid */}
+      {photos.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {photos.map(photo => (
+            <div
+              key={photo.id}
+              className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <img
+                src={photo.preview}
+                alt="Inspection"
+                className="w-full h-full object-cover"
+              />
 
-                {/* Status Overlay */}
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+              {/* Status Overlay */}
+              {photo.status !== 'complete' && (
+                <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center">
                   {photo.status === 'uploading' && (
-                    <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
                   )}
                   {photo.status === 'analyzing' && (
                     <div className="text-center">
-                      <Loader2 className="w-8 h-8 text-[#e94560] animate-spin mx-auto mb-2" />
-                      <p className="text-xs text-white">Analyzing...</p>
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-rose-100 flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-rose-500 animate-pulse" />
+                      </div>
+                      <p className="text-xs font-medium text-slate-600">Analyzing...</p>
                     </div>
-                  )}
-                  {photo.status === 'complete' && (
-                    <CheckCircle className="w-8 h-8 text-green-500" />
                   )}
                   {photo.status === 'error' && (
                     <div className="text-center">
-                      <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                      <p className="text-xs text-white">{photo.error}</p>
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-red-100 flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6 text-red-500" />
+                      </div>
+                      <p className="text-xs font-medium text-red-600">{photo.error}</p>
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Remove Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removePhoto(photo.id);
-                  }}
-                  className="absolute top-2 right-2 p-1 bg-black/80 rounded-full hover:bg-red-500 transition-colors"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
+              {/* Complete indicator */}
+              {photo.status === 'complete' && (
+                <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                </div>
+              )}
 
-                {/* Severity Badge */}
-                {photo.analysis && (
-                  <div className={`
-                    absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium
-                    ${photo.analysis.severity === 'critical' ? 'bg-red-500 text-white' : ''}
-                    ${photo.analysis.severity === 'severe' ? 'bg-orange-500 text-white' : ''}
-                    ${photo.analysis.severity === 'moderate' ? 'bg-yellow-500 text-black' : ''}
-                    ${photo.analysis.severity === 'minor' ? 'bg-green-500 text-white' : ''}
-                  `}>
-                    {photo.analysis.severity}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              {/* Remove Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removePhoto(photo.id);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+              >
+                <X className="w-4 h-4 text-slate-600 hover:text-red-600" />
+              </button>
 
-        {/* Actions */}
-        {photos.length > 0 && completedCount > 0 && (
-          <div className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                photos.forEach(p => URL.revokeObjectURL(p.preview));
-                setPhotos([]);
-              }}
-            >
-              Clear All
-            </Button>
-            <Button
-              onClick={() => {
-                const completedPhotos = photos.filter(p => p.status === 'complete');
-                if (onPhotosAnalyzed) {
-                  onPhotosAnalyzed(completedPhotos);
-                }
-              }}
-              disabled={completedCount === 0}
-            >
-              Generate Presentation ({completedCount})
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              {/* Severity Badge */}
+              {photo.analysis && (
+                <div className={`
+                  absolute bottom-2 left-2 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-lg
+                  ${getSeverityColor(photo.analysis.severity)}
+                `}>
+                  {photo.analysis.severity.charAt(0).toUpperCase() + photo.analysis.severity.slice(1)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      {photos.length > 0 && completedCount > 0 && (
+        <div className="flex gap-3 justify-end">
+          <Button
+            variant="outline"
+            onClick={() => {
+              photos.forEach(p => URL.revokeObjectURL(p.preview));
+              setPhotos([]);
+            }}
+            className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            Clear All
+          </Button>
+          <Button
+            onClick={() => {
+              const completedPhotos = photos.filter(p => p.status === 'complete');
+              if (onPhotosAnalyzed) {
+                onPhotosAnalyzed(completedPhotos);
+              }
+            }}
+            disabled={completedCount === 0}
+            className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6"
+          >
+            Continue with {completedCount} Photo{completedCount !== 1 ? 's' : ''}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 };
 
