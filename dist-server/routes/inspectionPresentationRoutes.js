@@ -796,8 +796,33 @@ router.post('/presentations/:id/share', async (req, res) => {
         res.status(500).json({ error: 'Failed to share presentation' });
     }
 });
+// Helper function for public presentation access
+const handlePublicPresentationView = async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const { token } = req.params;
+        const result = await pool.query(`SELECT * FROM presentations WHERE share_token = $1 AND is_public = true`, [token]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Presentation not found or not public' });
+        }
+        // Increment view count
+        await pool.query(`UPDATE presentations SET view_count = view_count + 1 WHERE id = $1`, [result.rows[0].id]);
+        const presentation = result.rows[0];
+        console.log('[Presentations API] Public view:', presentation.id);
+        res.json({ presentation });
+    }
+    catch (error) {
+        console.error('[Presentations API] Error viewing presentation:', error);
+        res.status(500).json({ error: 'Failed to view presentation' });
+    }
+};
 /**
- * GET /api/present/:token
+ * GET /api/present/:token (when mounted at /api/present)
+ * Public presentation viewer endpoint
+ */
+router.get('/:token', handlePublicPresentationView);
+/**
+ * GET /api/present/:token (legacy path)
  * Public presentation viewer endpoint
  */
 router.get('/present/:token', async (req, res) => {
@@ -819,8 +844,39 @@ router.get('/present/:token', async (req, res) => {
         res.status(500).json({ error: 'Failed to view presentation' });
     }
 });
+// Helper function for analytics tracking
+const handleAnalytics = async (req, res) => {
+    try {
+        const pool = getPool(req);
+        const { token } = req.params;
+        const { timestamp, referrer, userAgent } = req.body;
+        // Get presentation ID from token
+        const result = await pool.query(`SELECT id FROM presentations WHERE share_token = $1 AND is_public = true`, [token]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Presentation not found' });
+        }
+        const presentationId = result.rows[0].id;
+        // Store analytics data
+        console.log('[Presentations API] Viewer analytics:', {
+            presentationId,
+            timestamp,
+            referrer,
+            userAgent: userAgent?.substring(0, 100)
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('[Presentations API] Error tracking analytics:', error);
+        res.json({ success: false });
+    }
+};
 /**
- * POST /api/present/:token/analytics
+ * POST /api/present/:token/analytics (when mounted at /api/present)
+ * Track viewer session analytics (no auth required)
+ */
+router.post('/:token/analytics', handleAnalytics);
+/**
+ * POST /api/present/:token/analytics (legacy path)
  * Track viewer session analytics (no auth required)
  */
 router.post('/present/:token/analytics', async (req, res) => {
