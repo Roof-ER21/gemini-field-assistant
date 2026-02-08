@@ -816,7 +816,8 @@ router.post('/presentations', async (req, res) => {
         if (!userId) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const { inspection_id, title, presentation_type = 'standard', branding, } = req.body;
+        const { inspection_id, title, presentation_type = 'standard', branding, slides: frontendSlides, // Accept pre-generated slides from frontend
+        customer_name: reqCustomerName, property_address: reqPropertyAddress, status: reqStatus, } = req.body;
         if (!inspection_id) {
             return res.status(400).json({ error: 'Inspection ID is required' });
         }
@@ -836,102 +837,118 @@ router.post('/presentations', async (req, res) => {
         if (inspection.user_id !== userId && !isAdmin) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        // Get photos with analysis
-        const photosResult = await pool.query(`SELECT * FROM inspection_photos
+        // If frontend provided slides, use those; otherwise generate from photos
+        let slides;
+        if (frontendSlides && Array.isArray(frontendSlides) && frontendSlides.length > 0) {
+            // Use pre-generated slides from frontend (with AI analysis already done)
+            console.log('[Presentations API] Using frontend-provided slides:', frontendSlides.length);
+            slides = frontendSlides;
+        }
+        else {
+            // Generate slides from database photos (legacy behavior)
+            console.log('[Presentations API] Generating slides from database photos');
+            // Get photos with analysis
+            const photosResult = await pool.query(`SELECT * FROM inspection_photos
        WHERE inspection_id = $1
        ORDER BY created_at ASC`, [inspection_id]);
-        // Generate slides
-        const slides = [];
-        let slideNumber = 1;
-        // Cover slide
-        slides.push({
-            id: `slide-${slideNumber}`,
-            slide_number: slideNumber++,
-            slide_type: 'cover',
-            title: title || `Roof Inspection - ${inspection.customer_name}`,
-            content: `Property: ${inspection.property_address}\nInspection Date: ${new Date(inspection.inspection_date).toLocaleDateString()}`,
-            layout: 'text-only',
-        });
-        // Photo slides with analysis
-        for (const photo of photosResult.rows) {
-            const analysis = photo.ai_analysis;
+            // Generate slides
+            const slides = [];
+            let slideNumber = 1;
+            // Cover slide
             slides.push({
                 id: `slide-${slideNumber}`,
                 slide_number: slideNumber++,
-                slide_type: 'photo',
-                title: `Photo ${photo.category.charAt(0).toUpperCase() + photo.category.slice(1)}`,
-                content: photo.notes || '',
-                photo_id: photo.id,
-                photo_url: `data:${photo.mime_type};base64,${photo.photo_data}`,
-                ai_insights: analysis,
-                layout: 'split',
+                slide_type: 'cover',
+                title: title || `Roof Inspection - ${inspection.customer_name}`,
+                content: `Property: ${inspection.property_address}\nInspection Date: ${new Date(inspection.inspection_date).toLocaleDateString()}`,
+                layout: 'text-only',
             });
-            // Add analysis slide if available
-            if (analysis && analysis.damageDetected) {
+            // Photo slides with analysis
+            for (const photo of photosResult.rows) {
+                const analysis = photo.ai_analysis;
                 slides.push({
                     id: `slide-${slideNumber}`,
                     slide_number: slideNumber++,
-                    slide_type: 'analysis',
-                    title: 'AI Analysis Results',
-                    content: analysis.detailedAnalysis || '',
+                    slide_type: 'photo',
+                    title: `Photo ${photo.category.charAt(0).toUpperCase() + photo.category.slice(1)}`,
+                    content: photo.notes || '',
+                    photo_id: photo.id,
+                    photo_url: `data:${photo.mime_type};base64,${photo.photo_data}`,
                     ai_insights: analysis,
-                    layout: 'text-only',
+                    layout: 'split',
                 });
+                // Add analysis slide if available
+                if (analysis && analysis.damageDetected) {
+                    slides.push({
+                        id: `slide-${slideNumber}`,
+                        slide_number: slideNumber++,
+                        slide_type: 'analysis',
+                        title: 'AI Analysis Results',
+                        content: analysis.detailedAnalysis || '',
+                        ai_insights: analysis,
+                        layout: 'text-only',
+                    });
+                }
             }
-        }
-        // Summary slide
-        const damagePhotos = photosResult.rows.filter(p => p.ai_analysis?.damageDetected);
-        const summaryContent = `
+            // Summary slide
+            const damagePhotos = photosResult.rows.filter(p => p.ai_analysis?.damageDetected);
+            const summaryContent = `
 Total Photos: ${photosResult.rows.length}
 Damage Detected: ${damagePhotos.length}
 Overall Severity: ${damagePhotos.length > 0 ? 'Requires attention' : 'No significant damage'}
     `.trim();
-        slides.push({
-            id: `slide-${slideNumber}`,
-            slide_number: slideNumber++,
-            slide_type: 'summary',
-            title: 'Inspection Summary',
-            content: summaryContent,
-            layout: 'text-only',
-        });
-        // Recommendations slide
-        const allRecommendations = photosResult.rows
-            .flatMap(p => p.ai_analysis?.recommendations || [])
-            .filter((v, i, a) => a.indexOf(v) === i); // unique
-        if (allRecommendations.length > 0) {
             slides.push({
                 id: `slide-${slideNumber}`,
                 slide_number: slideNumber++,
-                slide_type: 'recommendations',
-                title: 'Recommendations',
-                content: allRecommendations.join('\n'),
+                slide_type: 'summary',
+                title: 'Inspection Summary',
+                content: summaryContent,
                 layout: 'text-only',
             });
-        }
-        // Contact slide
-        slides.push({
-            id: `slide-${slideNumber}`,
-            slide_number: slideNumber++,
-            slide_type: 'contact',
-            title: 'Contact Information',
-            content: branding?.contact_info || 'Contact us for more information',
-            layout: 'text-only',
-        });
+            // Recommendations slide
+            const allRecommendations = photosResult.rows
+                .flatMap(p => p.ai_analysis?.recommendations || [])
+                .filter((v, i, a) => a.indexOf(v) === i); // unique
+            if (allRecommendations.length > 0) {
+                slides.push({
+                    id: `slide-${slideNumber}`,
+                    slide_number: slideNumber++,
+                    slide_type: 'recommendations',
+                    title: 'Recommendations',
+                    content: allRecommendations.join('\n'),
+                    layout: 'text-only',
+                });
+            }
+            // Contact slide
+            slides.push({
+                id: `slide-${slideNumber}`,
+                slide_number: slideNumber++,
+                slide_type: 'contact',
+                title: 'Contact Information',
+                content: branding?.contact_info || 'Contact us for more information',
+                layout: 'text-only',
+            });
+        } // End of else block (slide generation from database)
+        // Use frontend-provided values if available, fall back to inspection data
+        const customerName = reqCustomerName || inspection.customer_name;
+        const propertyAddress = reqPropertyAddress || inspection.property_address;
+        const presentationStatus = reqStatus || 'draft';
         // Create presentation
         const result = await pool.query(`INSERT INTO presentations (
         inspection_id, user_id, title, customer_name,
         property_address, presentation_type, slides,
         branding, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`, [
             inspection_id,
             userId,
-            title || `Roof Inspection - ${inspection.customer_name}`,
-            inspection.customer_name,
-            inspection.property_address,
+            title || `Roof Inspection - ${customerName}`,
+            customerName,
+            propertyAddress,
             presentation_type,
             JSON.stringify(slides),
             branding ? JSON.stringify(branding) : null,
+            presentationStatus,
         ]);
         const presentation = result.rows[0];
         console.log('[Presentations API] Created presentation:', presentation.id);
