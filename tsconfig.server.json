@@ -11,6 +11,6 @@
     "strict": false
   },
   "include": ["server/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "server/**/__tests__/**", "server/**/*.test.ts", "server/**/*.spec.ts"]
 }
 
