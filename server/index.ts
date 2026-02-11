@@ -138,9 +138,14 @@ pushNotificationService.initializeFirebase().then((initialized) => {
   console.log('⚠️ Push notifications unavailable:', err.message);
 });
 
-// Initialize HailTrace import service
+// Initialize HailTrace import service with auto-watching
 hailtraceImportService.initialize(pool);
-console.log('✅ HailTrace import service initialized');
+try {
+  hailtraceImportService.startWatching(60000);
+  console.log('✅ HailTrace import service initialized (watching every 60s)');
+} catch {
+  console.log('✅ HailTrace import service initialized (watching disabled - export dir not found)');
+}
 
 // ============================================================================
 // MIDDLEWARE
