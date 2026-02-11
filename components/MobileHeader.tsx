@@ -5,7 +5,7 @@ import Logo from './icons/Logo';
 import { cn } from '../lib/utils';
 import NotificationBell from './NotificationBell';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'stormmap' | 'live' | 'knowledge';
 
 interface MobileHeaderProps {
   activePanel: PanelType;
@@ -20,7 +20,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
     { id: 'image', label: 'Image Analysis', icon: Image },
     { id: 'transcribe', label: 'Transcription', icon: Mic },
     { id: 'email', label: 'Email', icon: Mail },
-    { id: 'maps', label: 'Maps', icon: Map },
+    { id: 'stormmap', label: 'Storm Maps', icon: Map },
     { id: 'live', label: 'Live', icon: Radio },
     { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
   ];

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'stormmap' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
 
 interface HomePageRedesignedProps {
   setActivePanel: (panel: PanelType) => void;
@@ -152,9 +152,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
     },
     {
-      id: 'maps',
-      title: 'Hail + Insurance',
-      description: 'Hail history & adjuster contacts',
+      id: 'stormmap',
+      title: 'Storm Maps',
+      description: 'Hail history & radar',
       icon: Building2,
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
     },

@@ -16,7 +16,7 @@ import {
   Briefcase
 } from 'lucide-react';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
+type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'stormmap' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
 
 interface HomePageProps {
   setActivePanel: (panel: PanelType) => void;
@@ -49,9 +49,9 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
     },
     {
-      id: 'maps',
-      title: 'Hail + Insurance',
-      description: 'Hail history & adjuster contacts',
+      id: 'stormmap',
+      title: 'Storm Maps',
+      description: 'Hail history & radar',
       icon: Building2,
       color: '#8b5cf6',
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
@@ -103,11 +103,11 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
       stats: 'Templates Ready'
     },
     {
-      id: 'maps',
-      title: 'Hail & Insurance',
-      description: 'Hail history search + 50+ insurance contacts',
+      id: 'stormmap',
+      title: 'Storm Maps',
+      description: 'Hail history, NEXRAD radar & reports',
       icon: Building2,
-      stats: '50+ Companies'
+      stats: 'NEXRAD + NOAA'
     }
   ];
 
