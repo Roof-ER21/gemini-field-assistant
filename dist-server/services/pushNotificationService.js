@@ -25,11 +25,14 @@ export class PushNotificationService {
      */
     async initializeFirebase(serviceAccountPath) {
         try {
-            // Dynamic import to avoid issues if firebase-admin not installed
-            const admin = await import('firebase-admin');
-            if (admin.apps.length === 0) {
+            // Dynamic import - handle ESM default export
+            const adminModule = await import('firebase-admin');
+            const admin = adminModule.default || adminModule;
+            const apps = admin.apps ?? [];
+            if (apps.length === 0) {
                 if (serviceAccountPath) {
-                    const serviceAccount = require(serviceAccountPath);
+                    const fs = await import('fs');
+                    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
                     this.firebaseApp = admin.initializeApp({
                         credential: admin.credential.cert(serviceAccount)
                     });
@@ -46,7 +49,7 @@ export class PushNotificationService {
                 }
             }
             else {
-                this.firebaseApp = admin.apps[0];
+                this.firebaseApp = apps[0];
             }
             this.messaging = admin.messaging();
             console.log('✅ Firebase Admin SDK initialized for push notifications');
