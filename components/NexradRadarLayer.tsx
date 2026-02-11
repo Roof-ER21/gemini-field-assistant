@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { TileLayer, useMap } from 'react-leaflet';
+import { WMSTileLayer, useMap } from 'react-leaflet';
 import { Radio, Clock, Minus, Plus } from 'lucide-react';
 
 interface NexradRadarLayerProps {
@@ -43,12 +43,17 @@ const NexradTileLayer: React.FC<{ datetime: string; opacity: number }> = ({ date
   const wmsTime = getWmsTime(datetime);
 
   return (
-    <TileLayer
-      url={`https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r-t.cgi?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=nexrad-n0r-wmst&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:4326&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&TIME=${wmsTime}`}
+    <WMSTileLayer
+      url="https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r-t.cgi"
+      layers="nexrad-n0r-wmst"
+      format="image/png"
+      transparent={true}
       opacity={opacity}
       attribution='NEXRAD Radar: <a href="https://mesonet.agron.iastate.edu/">IEM</a>'
       maxZoom={19}
       zIndex={500}
+      // @ts-ignore - WMS-T time parameter
+      time={wmsTime}
     />
   );
 };
