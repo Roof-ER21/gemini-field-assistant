@@ -3,7 +3,6 @@ import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePageRedesigned';
 import ChatPanel from './components/ChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
-import MapsPanel from './components/MapsPanel';
 import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
 import UserProfile from './components/UserProfile';
@@ -37,7 +36,7 @@ const ContestSection = lazy(() => import('./src/components/ContestSection'));
 const MyProfilePanel = lazy(() => import('./components/MyProfilePanel'));
 const InspectionPresentationPanel = lazy(() => import('./components/InspectionPresentationPanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -99,7 +98,6 @@ const App: React.FC = () => {
     image: 'Upload Analysis',
     transcribe: 'Transcription',
     email: 'Email Generator',
-    maps: 'Hail & Insurance',
     live: 'Live Conversation',
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
@@ -110,7 +108,7 @@ const App: React.FC = () => {
     canvassing: 'Canvassing Tracker',
     impacted: 'Impacted Assets',
     territories: 'Territory Management',
-    stormmap: 'Storm Map',
+    stormmap: 'Storm Maps',
     leaderboard: 'Leaderboard',
     contests: 'Sales Contests',
     myprofile: 'My QR Profile',
@@ -255,8 +253,6 @@ const App: React.FC = () => {
             <EmailPanel emailContext={emailContext} onContextUsed={() => setEmailContext(null)} />
           </LazyLoadBoundary>
         );
-      case 'maps':
-        return <MapsPanel onOpenChat={() => setActivePanel('chat')} currentUser={currentUser} />;
       case 'live':
         return (
           <LazyLoadBoundary componentName="Live Conversation">
@@ -310,7 +306,7 @@ const App: React.FC = () => {
               setActivePanel('email');
             }}
             onNavigateToUpload={() => setActivePanel('image')}
-            onNavigateToInsurance={() => setActivePanel('maps')}
+            onNavigateToInsurance={() => setActivePanel('knowledge')}
             onNavigateToKnowledge={() => setActivePanel('knowledge')}
           />
         );

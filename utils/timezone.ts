@@ -178,6 +178,65 @@ export const monthsAgo = (months: number): Date => {
 };
 
 /**
+ * Format a date with full time and EDT/EST suffix
+ * @param date - Date string or Date object
+ * @returns Formatted date-time string with timezone suffix (e.g., "Aug 18, 2024 4:33 PM EDT")
+ */
+export const formatEasternDateTimeFull = (date: string | Date): string => {
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) {
+      return typeof date === 'string' ? date : '';
+    }
+
+    const formatted = d.toLocaleString('en-US', {
+      timeZone: EASTERN_TIMEZONE,
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Determine EDT vs EST based on whether DST is active
+    const jan = new Date(d.getFullYear(), 0, 1);
+    const jul = new Date(d.getFullYear(), 6, 1);
+    const janOffset = parseInt(jan.toLocaleString('en-US', { timeZone: EASTERN_TIMEZONE, timeZoneName: 'shortOffset' }).split('GMT')[1] || '-5');
+    const julOffset = parseInt(jul.toLocaleString('en-US', { timeZone: EASTERN_TIMEZONE, timeZoneName: 'shortOffset' }).split('GMT')[1] || '-4');
+    const dateOffset = parseInt(d.toLocaleString('en-US', { timeZone: EASTERN_TIMEZONE, timeZoneName: 'shortOffset' }).split('GMT')[1] || '-5');
+    const isDST = dateOffset === Math.max(janOffset, julOffset);
+    return `${formatted} ${isDST ? 'EDT' : 'EST'}`;
+  } catch {
+    return typeof date === 'string' ? date : '';
+  }
+};
+
+/**
+ * Format a date with EDT/EST suffix (date only, no time)
+ * @param date - Date string or Date object
+ * @returns e.g., "8/18/2024 EDT"
+ */
+export const formatEasternDateWithTZ = (date: string | Date): string => {
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) {
+      return typeof date === 'string' ? date : '';
+    }
+
+    return d.toLocaleDateString('en-US', {
+      timeZone: EASTERN_TIMEZONE,
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+      timeZoneName: 'short'
+    });
+  } catch {
+    return typeof date === 'string' ? date : '';
+  }
+};
+
+/**
  * Constants
  */
 export const TIMEZONE = {

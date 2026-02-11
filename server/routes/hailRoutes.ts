@@ -5,6 +5,9 @@ import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
 import { hailtraceImportService } from '../services/hailtraceImportService.js';
+import { fetchNexradImage } from '../services/nexradService.js';
+import { fetchNWSAlerts } from '../services/nwsAlertService.js';
+import { fetchMapImage } from '../services/mapImageService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -635,11 +638,13 @@ router.get('/hot-zones', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/hail/generate-report - Generate PDF report
+// POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req: Request, res: Response) => {
   try {
     const {
       address,
+      city,
+      state,
       lat,
       lng,
       radius,
@@ -650,7 +655,11 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       repPhone,
       repEmail,
       companyName,
-      filter
+      filter,
+      includeNexrad = true,
+      includeMap = true,
+      includeWarnings = true,
+      customerName
     } = req.body;
 
     // Validate required fields
@@ -664,13 +673,41 @@ router.post('/generate-report', async (req: Request, res: Response) => {
     const validFilters: ReportFilter[] = ['all', 'hail-only', 'hail-wind', 'ihm-only', 'noaa-only'];
     const reportFilter: ReportFilter = validFilters.includes(filter) ? filter : 'all';
 
-    console.log(`📄 Generating PDF report for ${address} (filter: ${reportFilter})...`);
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+
+    console.log(`📄 Generating Curran-style PDF report for ${address} (filter: ${reportFilter})...`);
+
+    // Determine primary storm date from events for NEXRAD/NWS queries
+    const allDates = [
+      ...(events || []).map((e: any) => e.date),
+      ...(noaaEvents || []).map((e: any) => e.date)
+    ].filter(Boolean).sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
+    const primaryStormDate = allDates.length > 0 ? allDates[0] : new Date().toISOString();
+    const earliestDate = allDates.length > 0 ? allDates[allDates.length - 1] : primaryStormDate;
+
+    // Fetch supplemental data in parallel (non-blocking)
+    const [nexradResult, nwsAlerts, mapImage] = await Promise.all([
+      includeNexrad
+        ? fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: primaryStormDate }).catch(e => { console.warn('NEXRAD fetch failed:', e.message); return null; })
+        : Promise.resolve(null),
+      includeWarnings
+        ? fetchNWSAlerts({ lat: parsedLat, lng: parsedLng, startDate: earliestDate, endDate: primaryStormDate }).catch(e => { console.warn('NWS alerts fetch failed:', e.message); return []; })
+        : Promise.resolve([]),
+      includeMap
+        ? fetchMapImage({ lat: parsedLat, lng: parsedLng, zoom: 15 }).catch(e => { console.warn('Map image fetch failed:', e.message); return null; })
+        : Promise.resolve(null)
+    ]);
+
+    console.log(`📊 Supplemental data: NEXRAD=${nexradResult ? 'yes' : 'no'}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
 
     // Generate PDF stream
     const pdfStream = pdfReportService.generateReport({
       address,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
+      city,
+      state,
+      lat: parsedLat,
+      lng: parsedLng,
       radius: parseFloat(radius),
       events: events || [],
       noaaEvents: noaaEvents || [],
@@ -679,7 +716,15 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       repPhone,
       repEmail,
       companyName,
-      filter: reportFilter
+      filter: reportFilter,
+      mapImage: mapImage || undefined,
+      nexradImage: nexradResult?.imageBuffer || undefined,
+      nexradTimestamp: nexradResult?.timestamp || undefined,
+      nwsAlerts: nwsAlerts || undefined,
+      includeNexrad,
+      includeMap,
+      includeWarnings,
+      customerName
     });
 
     // Set response headers for PDF download
@@ -703,6 +748,34 @@ router.post('/generate-report', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ PDF report generation error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/nws-warnings - Fetch NWS severe weather warnings for location
+router.get('/nws-warnings', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, startDate, endDate } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'lat and lng are required' });
+    }
+
+    const parsedLat = parseFloat(lat as string);
+    const parsedLng = parseFloat(lng as string);
+    const start = (startDate as string) || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const end = (endDate as string) || new Date().toISOString();
+
+    const alerts = await fetchNWSAlerts({
+      lat: parsedLat,
+      lng: parsedLng,
+      startDate: start,
+      endDate: end
+    });
+
+    res.json({ alerts, count: alerts.length });
+  } catch (error) {
+    console.error('NWS warnings error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

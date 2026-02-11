@@ -279,7 +279,7 @@ export function formatEventDate(date: string | Date): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    timeZone: 'UTC'
+    timeZone: 'America/New_York'
   });
 }
 

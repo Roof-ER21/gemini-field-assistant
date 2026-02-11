@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
-import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin } from 'lucide-react';
+import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin, Shield } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
+import InsuranceDirectory from './InsuranceDirectory';
 import { useToast } from './Toast';
 
-type ViewMode = 'all' | 'recent' | 'favorites';
+type ViewMode = 'all' | 'recent' | 'favorites' | 'insurance';
 type SearchMode = 'title' | 'content';
 
 interface KnowledgePanelProps {
@@ -303,8 +304,35 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             Favorites ({favorites.size})
           </button>
 
+          <button
+            onClick={() => setViewMode('insurance')}
+            style={{
+              padding: '8px 16px',
+              background: viewMode === 'insurance' ? 'var(--roof-red)' : 'var(--bg-hover)',
+              border: `1px solid ${viewMode === 'insurance' ? 'var(--roof-red)' : 'var(--border-default)'}`,
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Shield className="w-4 h-4" />
+            Insurance
+          </button>
+
         </div>
 
+        {/* Insurance Directory Tab */}
+        {viewMode === 'insurance' && (
+          <InsuranceDirectory />
+        )}
+
+        {/* Document Views (All, Recent, Favorites) */}
+        {viewMode !== 'insurance' && <>
         {/* Filters: Category + State */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -532,6 +560,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             No recently viewed documents. Open a document to see it here.
           </div>
         )}
+        </>}
       </div>
 
       {/* Document Viewer Modal */}

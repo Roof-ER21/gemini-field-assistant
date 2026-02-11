@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Cloud, AlertTriangle, Calendar, Wind, Mail, FileText, Download, Printer, Database, Tornado } from 'lucide-react';
 import { hailMapsApi, HailEvent, HailSearchResult } from '../services/hailMapsApi';
+import { formatEasternDate } from '../utils/timezone';
 
 interface HailHistoryPanelProps {
   onOpenChat?: () => void;
@@ -23,24 +24,7 @@ interface DisplayEvent {
 
 const formatDate = (value: string) => {
   if (!value) return 'Unknown date';
-  // Parse as local date to avoid timezone shift
-  // Input format is typically "YYYY-MM-DD" or "MM/DD/YYYY"
-  const parts = value.includes('-')
-    ? value.split('T')[0].split('-')
-    : value.split('/');
-
-  if (parts.length >= 3) {
-    // Handle YYYY-MM-DD format
-    if (value.includes('-') && parts[0].length === 4) {
-      const [year, month, day] = parts.map(Number);
-      return new Date(year, month - 1, day).toLocaleDateString();
-    }
-    // Handle MM/DD/YYYY format
-    const [month, day, year] = parts.map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString();
-  }
-
-  return value;
+  return formatEasternDate(value);
 };
 
 const inferSeverity = (eventType: string, magnitude: number | null): 'minor' | 'moderate' | 'severe' => {

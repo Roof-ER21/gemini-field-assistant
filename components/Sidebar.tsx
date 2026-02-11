@@ -6,7 +6,6 @@ import {
   Image,
   Mic,
   Mail,
-  Building2,
   Radio,
   Upload,
   Shield,
@@ -33,7 +32,7 @@ import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'maps' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -176,9 +175,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'transcribe', label: 'Transcription', desc: 'Voice to text', icon: Mic },
     { id: 'email', label: 'Email', desc: 'Generate emails', icon: Mail },
     { id: 'documentjob', label: 'Jobs', desc: 'Manage your jobs', icon: Briefcase },
-    { id: 'maps', label: 'Hail & Insurance', desc: 'Hail history + directory', icon: Building2 },
     { id: 'territories', label: 'Territories', desc: 'Manage sales areas', icon: MapPin },
-    { id: 'stormmap', label: 'Storm Map', desc: 'Hail history by region', icon: Cloud },
+    { id: 'stormmap', label: 'Storm Maps', desc: 'Hail history & radar', icon: Cloud },
     { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
     { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
@@ -248,7 +246,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Storm Intel',
         icon: Cloud,
         defaultExpanded: false,
-        items: ['stormmap', 'maps', 'impacted']
+        items: ['stormmap', 'impacted']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },

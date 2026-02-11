@@ -62,10 +62,11 @@ export async function generateStormReport(params: PdfReportParams): Promise<void
   const pageHeight = doc.internal.pageSize.getHeight();
   let yPos = 20;
 
-  // Helper to format dates
+  // Helper to format dates - always Eastern timezone
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('en-US', {
+        timeZone: 'America/New_York',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
@@ -102,13 +103,15 @@ export async function generateStormReport(params: PdfReportParams): Promise<void
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'italic');
-  doc.text(`Report Generated: ${new Date().toLocaleDateString('en-US', {
+  doc.text(`Report Generated: ${new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })}`, pageWidth - 15, yPos, { align: 'right' });
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })} ET`, pageWidth - 15, yPos, { align: 'right' });
   yPos += 15;
 
   // Rep Contact Info (if included)
