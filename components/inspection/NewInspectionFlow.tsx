@@ -18,6 +18,7 @@ import {
   createInspectionWithPhotos,
   createPresentation
 } from '../../services/inspectionPresentationService';
+import { PhotoReviewModal, type ManualDamageOverride, type DamageType } from './PhotoReviewModal';
 import type { Job, JobNote } from '../../types/job';
 
 // ============================================================================
@@ -40,6 +41,30 @@ interface UploadedPhoto {
   error?: string;
 }
 
+// Phase 9: Damage region annotation types
+export interface DamageRegion {
+  id: string;
+  type: string; // 'hail_impact', 'granule_loss', 'wind_lift', etc.
+  shape: 'circle' | 'rectangle' | 'polygon';
+  x: number;      // 0-1 normalized (0 = left edge)
+  y: number;      // 0-1 normalized (0 = top edge)
+  radius?: number; // For circles, 0-1 normalized
+  width?: number;  // For rectangles
+  height?: number;
+  label: string;
+  confidence: number; // 0-1
+}
+
+export interface DamageAnnotation {
+  id: string;
+  type: 'arrow' | 'label';
+  fromX: number;  // 0-1 normalized
+  fromY: number;
+  toX?: number;   // For arrows
+  toY?: number;
+  label?: string;
+}
+
 export interface PhotoAnalysis {
   damageDetected: boolean;
   damageType: string;
@@ -51,6 +76,15 @@ export interface PhotoAnalysis {
   estimatedRepairCost?: string;
   urgency: 'low' | 'medium' | 'high' | 'critical' | 'none';
   photoType?: 'damage' | 'overview' | 'detail' | 'context';
+  // Phase 8D: Enhanced detection fields
+  confidence?: 'low' | 'medium' | 'high';
+  possibleDamageTypes?: string[]; // For uncertain cases - let rep choose
+  shingleType?: string; // e.g., "3-tab", "architectural", "unknown"
+  shingleCondition?: 'good' | 'aged' | 'deteriorated' | 'discontinued';
+  estimatedAge?: string; // e.g., "15-20 years"
+  // Phase 9: Coordinate-based damage annotations
+  damageRegions?: DamageRegion[];
+  annotations?: DamageAnnotation[];
 }
 
 interface PresentationSlide {
@@ -99,6 +133,9 @@ export const NewInspectionFlow: React.FC<NewInspectionFlowProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [excludedPhotoIds, setExcludedPhotoIds] = useState<string[]>([]);
+  const [damageOverrides, setDamageOverrides] = useState<ManualDamageOverride[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Constants
@@ -160,45 +197,127 @@ export const NewInspectionFlow: React.FC<NewInspectionFlowProps> = ({
         const base64Full = await fileToBase64(photo.file);
         const base64Data = base64Full.split(',')[1];
 
-        // AI Analysis prompt - HONEST damage assessment
-        const prompt = `You are a professional roofing damage assessment expert. Analyze this photo HONESTLY.
+        // AI Analysis prompt - COMPREHENSIVE damage assessment with confidence levels
+        const prompt = `You are a professional roofing damage assessment expert with 20+ years experience. Analyze this photo thoroughly.
 
-CRITICAL INSTRUCTION: Do NOT fabricate or exaggerate damage. If this photo does NOT show clear evidence of storm damage (hail, wind, impact), say so honestly.
+DAMAGE TYPES TO LOOK FOR:
 
-First, determine if this photo shows actual damage:
-- Hail impacts (circular dents, displaced granules)
-- Wind damage (lifted/missing shingles, exposed underlayment)
-- Impact damage (punctures, cracks)
-- Water damage (staining, rot)
+1. HAIL DAMAGE (insurance claim eligible):
+   - Circular dents/dimples in shingles
+   - Displaced or missing granules in circular patterns
+   - Soft spots when touched (bruising)
+   - Random pattern across roof surface
+   - Metal components (vents, flashing) with dents
 
-If NO clear damage is visible, respond with:
+2. WIND DAMAGE (insurance claim eligible):
+   - Lifted, curled, or creased shingles
+   - Missing shingles or sections
+   - Exposed underlayment or decking
+   - Shingles folded over ridge
+   - Debris impact from wind-blown objects
+
+3. OUT OF CODE / AGED ROOF (may qualify for replacement):
+   - Heavy granule loss (bald spots)
+   - Curling at edges (cupping or clawing)
+   - Cracking or splitting shingles
+   - Moss or algae growth
+   - Visible wear patterns
+   - Estimated age 15+ years
+
+4. DISCONTINUED SHINGLES (replacement required):
+   - Obsolete shingle patterns
+   - Shingles no longer manufactured
+   - 3-tab shingles (many discontinued)
+   - Unique color/texture no longer available
+   - T-lock or interlocking shingles
+
+5. IMPACT DAMAGE:
+   - Punctures or holes
+   - Tree limb damage
+   - Mechanical damage
+   - Fallen object damage
+
+6. WATER DAMAGE:
+   - Staining or discoloration
+   - Rot or decay
+   - Algae streaks
+   - Ice dam evidence
+
+SHINGLE IDENTIFICATION:
+- 3-tab: Flat, uniform rectangular tabs, typically discontinued
+- Architectural/Dimensional: Layered, varied shadow lines, current standard
+- Designer/Premium: Slate/shake appearance, high-end
+
+RESPOND WITH THIS JSON FORMAT:
+
 {
-  "damageDetected": false,
-  "photoType": "overview|detail|context",
-  "damageType": "No damage detected",
-  "severity": "none",
-  "location": "where on roof this photo shows",
-  "description": "Brief neutral description of what the photo shows (e.g., 'Overall view of asphalt shingle roof in good condition')",
-  "recommendations": [],
-  "insuranceRelevant": false,
-  "urgency": "none"
-}
-
-If CLEAR damage IS visible, respond with:
-{
-  "damageDetected": true,
-  "photoType": "damage",
-  "damageType": "specific type (e.g., 'Hail Impact Damage', 'Wind-Lifted Shingles')",
-  "severity": "minor|moderate|severe|critical",
-  "location": "specific location on roof",
-  "description": "detailed description of the damage and what it means for the homeowner",
+  "damageDetected": true/false,
+  "confidence": "low|medium|high",
+  "photoType": "damage|overview|detail|context",
+  "damageType": "Primary damage type found",
+  "possibleDamageTypes": ["hail", "wind", "out_of_code", "discontinued", "impact", "water"],
+  "severity": "none|minor|moderate|severe|critical",
+  "location": "Specific area of roof",
+  "description": "Detailed professional description",
+  "shingleType": "3-tab|architectural|designer|metal|tile|unknown",
+  "shingleCondition": "good|aged|deteriorated|discontinued",
+  "estimatedAge": "estimated years (e.g., '15-20 years')",
   "recommendations": ["recommendation 1", "recommendation 2"],
   "insuranceRelevant": true/false,
   "estimatedRepairCost": "cost range if applicable",
-  "urgency": "low|medium|high|critical"
+  "urgency": "none|low|medium|high|critical",
+
+  "damageRegions": [
+    {
+      "id": "dmg_1",
+      "type": "hail_impact",
+      "shape": "circle",
+      "x": 0.35,
+      "y": 0.45,
+      "radius": 0.06,
+      "label": "Hail Impact",
+      "confidence": 0.95
+    }
+  ],
+  "annotations": [
+    {
+      "id": "arrow_1",
+      "type": "arrow",
+      "fromX": 0.15,
+      "fromY": 0.30,
+      "toX": 0.35,
+      "toY": 0.45,
+      "label": "Impact Site"
+    }
+  ]
 }
 
-Remember: Homeowners trust this assessment. Be honest and professional.`;
+DAMAGE REGION COORDINATES (CRITICAL):
+- Coordinates are NORMALIZED (0-1 scale): 0,0 = top-left corner, 1,1 = bottom-right
+- x: horizontal position (0 = left edge, 0.5 = center, 1 = right edge)
+- y: vertical position (0 = top edge, 0.5 = center, 1 = bottom edge)
+- radius: size of circle relative to image (0.03 = small, 0.06 = medium, 0.10 = large)
+
+FOR EACH DAMAGE AREA YOU IDENTIFY:
+1. Add a damageRegion with precise x,y coordinates pointing to the CENTER of the damage
+2. Add an annotation arrow pointing FROM a label area TO the damage
+3. Use short, clear labels like "Hail Impact", "Granule Loss", "Wind Lift"
+
+If NO damage is detected, return empty arrays: "damageRegions": [], "annotations": []
+
+CONFIDENCE LEVELS:
+- "high": Clear, unmistakable damage visible
+- "medium": Likely damage but could use field verification
+- "low": Uncertain - possible damage OR normal wear, let inspector decide
+
+IMPORTANT RULES:
+1. If you see POSSIBLE damage but aren't certain, set confidence to "low" or "medium" and list possibleDamageTypes
+2. Discontinued/aged shingles ARE valid reasons for replacement - don't ignore them
+3. 3-tab shingles are often discontinued - note this
+4. Be specific about what you see, not vague
+5. If photo quality is poor, say so but still assess what's visible
+
+Homeowners trust this assessment. Be thorough and professional.`;
 
         const response = await analyzeImage(base64Data, photo.file.type, prompt);
 
@@ -217,6 +336,7 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
             // Fallback - assume no damage if we can't parse
             analysis = {
               damageDetected: false,
+              confidence: 'low',
               photoType: 'detail',
               damageType: 'Photo captured',
               severity: 'none',
@@ -224,13 +344,19 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
               description: response.substring(0, 300) || 'Photo documented for inspection records',
               recommendations: [],
               insuranceRelevant: false,
-              urgency: 'none'
+              urgency: 'none',
+              possibleDamageTypes: [],
+              shingleType: 'unknown',
+              shingleCondition: 'good',
+              damageRegions: [],
+              annotations: []
             };
           }
         } catch {
           // Parse error fallback - assume no damage
           analysis = {
             damageDetected: false,
+            confidence: 'low',
             photoType: 'detail',
             damageType: 'Photo captured',
             severity: 'none',
@@ -238,7 +364,12 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
             description: 'Photo documented for inspection records',
             recommendations: [],
             insuranceRelevant: false,
-            urgency: 'none'
+            urgency: 'none',
+            possibleDamageTypes: [],
+            damageRegions: [],
+            annotations: [],
+            shingleType: 'unknown',
+            shingleCondition: 'good'
           };
         }
 
@@ -266,6 +397,69 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
       if (photo) URL.revokeObjectURL(photo.preview);
       return prev.filter(p => p.id !== id);
     });
+  };
+
+  // Check if photos have issues that need review before generation
+  const hasPhotosWithIssues = (): boolean => {
+    const completedPhotos = photos.filter(p => p.status === 'complete' || p.status === 'error');
+    return completedPhotos.some(photo => {
+      if (photo.status === 'error') return true;
+      if (photo.analysis?.damageDetected === false) return true;
+      if (photo.analysis?.severity === 'none') return true;
+      if (photo.analysis?.photoType === 'context') return true;
+      // Phase 8D: Also flag low/medium confidence for review
+      if (photo.analysis?.confidence === 'low') return true;
+      if (photo.analysis?.confidence === 'medium' && photo.analysis?.possibleDamageTypes?.length) return true;
+      return false;
+    });
+  };
+
+  // Handle photo review modal confirmation
+  const handleReviewConfirm = (excluded: string[], overrides: ManualDamageOverride[]) => {
+    setExcludedPhotoIds(excluded);
+    setDamageOverrides(overrides);
+    setShowReviewModal(false);
+
+    // Apply overrides to photos
+    const updatedPhotos = photos.map(photo => {
+      const override = overrides.find(o => o.photoId === photo.id);
+      if (override) {
+        // Apply the manual damage override
+        const damageTypeLabel = override.damageTypes
+          .map(t => t.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()))
+          .join(' + ');
+
+        return {
+          ...photo,
+          analysis: {
+            ...photo.analysis,
+            damageDetected: true,
+            damageType: damageTypeLabel,
+            severity: 'moderate' as const,
+            insuranceRelevant: true,
+            description: photo.analysis?.description || 'Damage marked by inspector',
+            location: photo.analysis?.location || 'Roof area',
+            recommendations: ['File insurance claim', 'Document for adjuster'],
+            urgency: 'medium' as const
+          }
+        };
+      }
+      return photo;
+    });
+
+    setPhotos(updatedPhotos);
+
+    // Proceed with generation using updated photos (excluding some)
+    generatePresentationWithExclusions(excluded);
+  };
+
+  // Trigger generation - check for issues first
+  const handleGenerateClick = () => {
+    if (hasPhotosWithIssues()) {
+      setShowReviewModal(true);
+    } else {
+      generatePresentationWithExclusions([]);
+    }
   };
 
   // ============================================================================
@@ -346,11 +540,14 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
   // PRESENTATION & JOB GENERATION
   // ============================================================================
 
-  const generatePresentation = async () => {
+  const generatePresentationWithExclusions = async (excluded: string[]) => {
     if (completedCount === 0) return;
 
     setIsGenerating(true);
-    const completedPhotos = photos.filter(p => p.status === 'complete');
+    // Filter out excluded photos
+    const completedPhotos = photos.filter(p =>
+      p.status === 'complete' && !excluded.includes(p.id)
+    );
 
     try {
       const user = authService.getCurrentUser();
@@ -484,41 +681,54 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
       // Count actual damage photos
       const actualDamageCount = completedPhotos.filter(p => p.analysis?.damageDetected === true).length;
 
+      // TOP 5 REASONS SLIDE - Combines summary + recommendations into one compelling slide
+      // Based on training script messaging
       slides.push({
-        id: `slide-summary-${Date.now()}`,
-        type: 'summary',
-        title: 'Storm Damage Assessment',
+        id: `slide-top5-${Date.now()}`,
+        type: 'top5_reasons',
+        title: 'Top 5 Reasons to File Your Claim',
         content: JSON.stringify({
           totalPhotos: completedPhotos.length,
           damagePoints: actualDamageCount,
           criticalIssues: criticalCount,
           insuranceRelevant: insuranceCount,
-          // Based on training: Always acknowledge storm, explain why damage matters
-          overallAssessment: hasCriticalDamage
-            ? 'Significant storm damage documented. Your insurance policy covers this type of damage.'
-            : actualDamageCount > 0
-              ? 'Storm damage documented. Even minor damage can lead to leaks over time as water seeps in and expands.'
-              : 'After the recent storm in your area, we documented your roof condition. Your insurance company should assess this damage.'
+          reasons: [
+            {
+              number: 1,
+              title: `Storm Damage Documented`,
+              subtitle: actualDamageCount > 0
+                ? `${actualDamageCount} area${actualDamageCount !== 1 ? 's' : ''} of concern identified`
+                : 'Your roof was assessed after the recent storm',
+              detail: 'Your insurance policy covers this type of damage'
+            },
+            {
+              number: 2,
+              title: 'Water Infiltration Risk',
+              subtitle: 'Damage worsens over time',
+              detail: 'Hail divots fill with water → freeze → expand → cause leaks'
+            },
+            {
+              number: 3,
+              title: 'We Handle Everything',
+              subtitle: 'All insurance communication managed',
+              detail: 'You do not have to deal with adjusters alone'
+            },
+            {
+              number: 4,
+              title: 'No Out-of-Pocket Cost',
+              subtitle: 'Unless your claim is approved',
+              detail: 'We work on contingency - you pay nothing upfront'
+            },
+            {
+              number: 5,
+              title: 'We Fight For You',
+              subtitle: 'Full replacement value',
+              detail: 'Insurance companies mitigate losses - we advocate for you'
+            }
+          ]
         }),
         order: order++
       });
-
-      // Only include recommendations from photos WITH damage
-      const allRecommendations = completedPhotos
-        .filter(p => p.analysis?.damageDetected === true)
-        .flatMap(p => p.analysis?.recommendations || [])
-        .filter((rec, idx, arr) => arr.indexOf(rec) === idx)
-        .slice(0, 5);
-
-      if (allRecommendations.length > 0) {
-        slides.push({
-          id: `slide-recs-${Date.now()}`,
-          type: 'recommendations',
-          title: 'Recommended Next Steps',
-          content: JSON.stringify(allRecommendations),
-          order: order++
-        });
-      }
 
       // CTA - Based on training script: Position as storm experts ensuring fair treatment
       slides.push({
@@ -1134,23 +1344,88 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
                         </div>
                       )}
 
-                      {/* Complete Badge */}
-                      {photo.status === 'complete' && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '6px',
-                          left: '6px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: '#22C55E',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <CheckCircle2 size={14} color="white" />
-                        </div>
-                      )}
+                      {/* Status Badge - Complete/Warning/Override */}
+                      {photo.status === 'complete' && (() => {
+                        const hasNoDetectedDamage = photo.analysis?.damageDetected === false ||
+                                                     photo.analysis?.severity === 'none';
+                        const hasOverride = damageOverrides.some(o => o.photoId === photo.id);
+                        const isExcluded = excludedPhotoIds.includes(photo.id);
+
+                        if (isExcluded) {
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              top: '6px',
+                              left: '6px',
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#EF4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <X size={14} color="white" />
+                            </div>
+                          );
+                        }
+
+                        if (hasOverride) {
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              top: '6px',
+                              left: '6px',
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#22C55E',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 2px 8px rgba(34, 197, 94, 0.5)'
+                            }}>
+                              <CheckCircle2 size={14} color="white" />
+                            </div>
+                          );
+                        }
+
+                        if (hasNoDetectedDamage) {
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              top: '6px',
+                              left: '6px',
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#F59E0B',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <AlertTriangle size={12} color="white" />
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div style={{
+                            position: 'absolute',
+                            top: '6px',
+                            left: '6px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#22C55E',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <CheckCircle2 size={14} color="white" />
+                          </div>
+                        );
+                      })()}
 
                       {/* Remove Button */}
                       <button
@@ -1173,23 +1448,68 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
                         <X size={12} color="white" />
                       </button>
 
-                      {/* Severity Badge */}
-                      {photo.analysis && severityStyle && (
-                        <div style={{
-                          position: 'absolute',
-                          bottom: '6px',
-                          left: '6px',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          background: severityStyle.bg,
-                          color: severityStyle.color,
-                          textTransform: 'capitalize'
-                        }}>
-                          {photo.analysis.severity}
-                        </div>
-                      )}
+                      {/* Severity / Override Badge */}
+                      {photo.analysis && (() => {
+                        const hasOverride = damageOverrides.some(o => o.photoId === photo.id);
+                        const isExcluded = excludedPhotoIds.includes(photo.id);
+
+                        if (isExcluded) {
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              bottom: '6px',
+                              left: '6px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10px',
+                              fontWeight: '600',
+                              background: '#EF4444',
+                              color: 'white'
+                            }}>
+                              EXCLUDED
+                            </div>
+                          );
+                        }
+
+                        if (hasOverride) {
+                          const override = damageOverrides.find(o => o.photoId === photo.id);
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              bottom: '6px',
+                              left: '6px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10px',
+                              fontWeight: '600',
+                              background: '#22C55E',
+                              color: 'white'
+                            }}>
+                              {override?.damageTypes.join(' + ').toUpperCase() || 'OVERRIDE'}
+                            </div>
+                          );
+                        }
+
+                        if (severityStyle) {
+                          return (
+                            <div style={{
+                              position: 'absolute',
+                              bottom: '6px',
+                              left: '6px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10px',
+                              fontWeight: '600',
+                              background: severityStyle.bg,
+                              color: severityStyle.color,
+                              textTransform: 'capitalize'
+                            }}>
+                              {photo.analysis.severity === 'none' ? 'No Damage' : photo.analysis.severity}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   );
                 })}
@@ -1206,7 +1526,7 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
             justifyContent: 'center'
           }}>
             <Button
-              onClick={generatePresentation}
+              onClick={handleGenerateClick}
               disabled={isGenerating || completedCount === 0}
               style={{
                 background: isGenerating
@@ -1254,6 +1574,14 @@ Remember: Homeowners trust this assessment. Be honest and professional.`;
           }
         `}</style>
       </div>
+
+      {/* Photo Review Modal */}
+      <PhotoReviewModal
+        isOpen={showReviewModal}
+        photos={photos.filter(p => p.status === 'complete' || p.status === 'error')}
+        onClose={() => setShowReviewModal(false)}
+        onConfirm={handleReviewConfirm}
+      />
     </div>
   );
 };

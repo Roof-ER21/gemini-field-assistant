@@ -4,6 +4,7 @@ import { hailMapsApi, HailEvent, HailSearchResult } from '../services/hailMapsAp
 
 interface HailHistoryPanelProps {
   onOpenChat?: () => void;
+  isAdmin?: boolean;
 }
 
 interface DisplayEvent {
@@ -127,7 +128,7 @@ const buildHailSummary = (address: string, months: number, events: HailEvent[]) 
   ].join('\n');
 };
 
-const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat }) => {
+const HailHistoryPanel: React.FC<HailHistoryPanelProps> = ({ onOpenChat, isAdmin }) => {
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [stateCode, setStateCode] = useState('');
@@ -551,47 +552,52 @@ NOAA data is certified and legally defensible for insurance claims.
                   Generate Adjuster Email
                 </button>
 
-                <button
-                  onClick={handleDownloadReport}
-                  disabled={mergeAllEvents(results).length === 0}
-                  style={{
-                    padding: '0.6rem 0.9rem',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(34,197,94,0.5)',
-                    background: 'rgba(34,197,94,0.12)',
-                    color: '#bbf7d0',
-                    cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontWeight: 600,
-                    opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
-                  }}
-                >
-                  <Download style={{ width: '16px', height: '16px' }} />
-                  Download Report
-                </button>
+                {/* Download and Print buttons - Admin only */}
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={handleDownloadReport}
+                      disabled={mergeAllEvents(results).length === 0}
+                      style={{
+                        padding: '0.6rem 0.9rem',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(34,197,94,0.5)',
+                        background: 'rgba(34,197,94,0.12)',
+                        color: '#bbf7d0',
+                        cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontWeight: 600,
+                        opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
+                      }}
+                    >
+                      <Download style={{ width: '16px', height: '16px' }} />
+                      Download Report
+                    </button>
 
-                <button
-                  onClick={handlePrintReport}
-                  disabled={mergeAllEvents(results).length === 0}
-                  style={{
-                    padding: '0.6rem 0.9rem',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(148,163,184,0.5)',
-                    background: 'rgba(148,163,184,0.12)',
-                    color: '#cbd5e1',
-                    cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontWeight: 600,
-                    opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
-                  }}
-                >
-                  <Printer style={{ width: '16px', height: '16px' }} />
-                  Print Report
-                </button>
+                    <button
+                      onClick={handlePrintReport}
+                      disabled={mergeAllEvents(results).length === 0}
+                      style={{
+                        padding: '0.6rem 0.9rem',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(148,163,184,0.5)',
+                        background: 'rgba(148,163,184,0.12)',
+                        color: '#cbd5e1',
+                        cursor: mergeAllEvents(results).length === 0 ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontWeight: 600,
+                        opacity: mergeAllEvents(results).length === 0 ? 0.5 : 1
+                      }}
+                    >
+                      <Printer style={{ width: '16px', height: '16px' }} />
+                      Print Report
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}

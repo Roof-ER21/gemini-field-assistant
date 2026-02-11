@@ -12,9 +12,12 @@ interface InsuranceCompany {
   score?: string;
 }
 
-interface MapsPanelProps { onOpenChat?: () => void }
+interface MapsPanelProps {
+  onOpenChat?: () => void;
+  currentUser?: { role?: string } | null;
+}
 
-const MapsPanel: React.FC<MapsPanelProps> = ({ onOpenChat }) => {
+const MapsPanel: React.FC<MapsPanelProps> = ({ onOpenChat, currentUser }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
   const [viewMode, setViewMode] = useState<'all' | 'goto'>('all');
@@ -515,7 +518,7 @@ const MapsPanel: React.FC<MapsPanelProps> = ({ onOpenChat }) => {
     <div className="roof-er-content-area">
       <div className="roof-er-content-scroll">
         <div style={{ marginBottom: '1.25rem' }}>
-          <HailHistoryPanel onOpenChat={onOpenChat} />
+          <HailHistoryPanel onOpenChat={onOpenChat} isAdmin={currentUser?.role === 'admin'} />
         </div>
         <div className="roof-er-page-title">
           <Building2 className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />

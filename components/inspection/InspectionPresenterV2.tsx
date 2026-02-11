@@ -7,12 +7,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, X, Share2, Download, Maximize2, Minimize2,
   Play, Pause, Camera, Shield, AlertTriangle, User, CheckCircle2,
-  FileText, Phone, Mail, MessageCircle
+  FileText, Phone, Mail, MessageCircle, Eye, EyeOff
 } from 'lucide-react';
 import { SusanAISidebar } from './SusanAISidebar';
 import { ClaimAuthorizationSlide } from './ClaimAuthorizationSlide';
 import { ContingencyAgreementSlide } from './ContingencyAgreementSlide';
 import { RepLandingSlide } from './RepLandingSlide';
+import { DamageAnnotationOverlay } from './DamageAnnotationOverlay';
+import type { DamageRegion, DamageAnnotation } from './NewInspectionFlow';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -29,11 +31,14 @@ interface PhotoAnalysis {
   estimatedRepairCost?: string;
   urgency: 'low' | 'medium' | 'high' | 'critical' | 'none';
   photoType?: 'damage' | 'overview' | 'detail' | 'context';
+  // Phase 9: Damage annotations
+  damageRegions?: DamageRegion[];
+  annotations?: DamageAnnotation[];
 }
 
 interface PresentationSlide {
   id: string;
-  type: 'cover' | 'rep_profile' | 'photo' | 'summary' | 'recommendations' | 'cta' | 'claim_authorization' | 'contingency' | 'thank_you';
+  type: 'cover' | 'rep_profile' | 'photo' | 'summary' | 'recommendations' | 'top5_reasons' | 'cta' | 'claim_authorization' | 'contingency' | 'thank_you';
   title: string;
   content?: string;
   photo?: string;
@@ -119,6 +124,7 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [showAnnotations, setShowAnnotations] = useState(true); // Phase 9: Damage annotations
 
   const currentSlide = slides[currentIndex];
   const progress = ((currentIndex + 1) / slides.length) * 100;
@@ -211,6 +217,8 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         return renderSummarySlide();
       case 'recommendations':
         return renderRecommendationsSlide();
+      case 'top5_reasons':
+        return renderTop5ReasonsSlide();
       case 'cta':
         return renderCtaSlide();
       case 'claim_authorization':
@@ -324,6 +332,10 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
                       analysis?.severity !== 'none' &&
                       analysis?.damageType !== 'No damage detected';
 
+    // Phase 9: Check if there are damage annotations
+    const hasAnnotations = (analysis?.damageRegions && analysis.damageRegions.length > 0) ||
+                           (analysis?.annotations && analysis.annotations.length > 0);
+
     return (
       <div style={{
         display: 'flex',
@@ -342,7 +354,19 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
           alignItems: 'center',
           justifyContent: 'center'
         }}>
-          {photoSrc && (
+          {/* Phase 9: Use annotation overlay if annotations exist and are visible */}
+          {photoSrc && hasAnnotations && showAnnotations ? (
+            <div style={{ maxWidth: '100%', maxHeight: '100%', width: '100%' }}>
+              <DamageAnnotationOverlay
+                imageUrl={photoSrc}
+                regions={analysis?.damageRegions || []}
+                annotations={analysis?.annotations || []}
+                editable={false}
+                showLabels={true}
+                annotationColor="#c41e3a"
+              />
+            </div>
+          ) : photoSrc ? (
             <img
               src={photoSrc}
               alt={currentSlide.title}
@@ -353,13 +377,42 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
                 borderRadius: '12px'
               }}
             />
+          ) : null}
+
+          {/* Annotation Toggle Button - only show if annotations exist */}
+          {hasAnnotations && (
+            <button
+              onClick={() => setShowAnnotations(!showAnnotations)}
+              style={{
+                position: 'absolute',
+                top: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                border: 'none',
+                background: showAnnotations ? '#c41e3a' : 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 0.2s'
+              }}
+            >
+              {showAnnotations ? <Eye size={20} /> : <EyeOff size={20} />}
+              {showAnnotations ? 'Hide Markup' : 'Show Markup'}
+            </button>
           )}
 
           {/* Only show severity badge if damage was detected */}
           {hasDamage && analysis?.severity && (
             <div style={{
               position: 'absolute',
-              top: '24px',
+              top: hasAnnotations ? '80px' : '24px',
               left: '24px',
               padding: '16px 28px',
               borderRadius: '16px',
@@ -401,7 +454,7 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
           {hasDamage && analysis?.insuranceRelevant && (
             <div style={{
               position: 'absolute',
-              top: '24px',
+              top: hasAnnotations ? '80px' : '24px',
               right: '24px',
               padding: '16px 28px',
               borderRadius: '16px',
@@ -752,6 +805,195 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         }}>
           We handle everything from inspection to completion
         </p>
+      </div>
+    );
+  };
+
+  const renderTop5ReasonsSlide = () => {
+    const content = currentSlide.content ? JSON.parse(currentSlide.content) : {};
+    const reasons = content.reasons || [];
+    const damagePoints = content.damagePoints || 0;
+
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 50%, #F1F5F9 100%)',
+        padding: '48px 64px',
+        overflow: 'hidden'
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '20px',
+          marginBottom: '40px'
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 24px -8px rgba(196, 30, 58, 0.5)'
+          }}>
+            <Shield size={32} color="white" />
+          </div>
+          <h2 style={{
+            fontSize: '48px',
+            fontWeight: '900',
+            color: '#0F172A',
+            margin: 0,
+            letterSpacing: '-0.02em'
+          }}>
+            Top 5 Reasons to File Your Claim
+          </h2>
+        </div>
+
+        {/* Reasons List */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          maxWidth: '1000px',
+          margin: '0 auto',
+          width: '100%'
+        }}>
+          {reasons.map((reason: any, index: number) => (
+            <div key={index} style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '24px',
+              padding: '24px 32px',
+              borderRadius: '20px',
+              background: 'white',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 4px 16px -4px rgba(0,0,0,0.08)',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}>
+              {/* Number Circle */}
+              <div style={{
+                minWidth: '56px',
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: index === 0
+                  ? 'linear-gradient(135deg, #c41e3a 0%, #a01830 100%)'
+                  : index === 1
+                    ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+                    : 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: index === 0
+                  ? '0 8px 24px -8px rgba(196, 30, 58, 0.5)'
+                  : index === 1
+                    ? '0 8px 24px -8px rgba(245, 158, 11, 0.5)'
+                    : '0 8px 24px -8px rgba(75, 85, 99, 0.4)'
+              }}>
+                <span style={{
+                  fontSize: '24px',
+                  fontWeight: '900',
+                  color: 'white'
+                }}>
+                  {reason.number}
+                </span>
+              </div>
+
+              {/* Content */}
+              <div style={{ flex: 1 }}>
+                <h3 style={{
+                  fontSize: '26px',
+                  fontWeight: '800',
+                  color: '#0F172A',
+                  margin: '0 0 4px 0'
+                }}>
+                  {reason.title}
+                </h3>
+                <p style={{
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  color: index === 0 ? '#c41e3a' : '#64748B',
+                  margin: '0 0 8px 0'
+                }}>
+                  {reason.subtitle}
+                </p>
+                <p style={{
+                  fontSize: '16px',
+                  color: '#475569',
+                  margin: 0,
+                  lineHeight: '1.5'
+                }}>
+                  {reason.detail}
+                </p>
+              </div>
+
+              {/* Checkmark for emphasis */}
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: '#22C55E',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <CheckCircle2 size={24} color="white" strokeWidth={3} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom Stats Bar */}
+        {damagePoints > 0 && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '32px',
+            marginTop: '24px',
+            paddingTop: '24px',
+            borderTop: '1px solid #E2E8F0'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <Camera size={24} color="#c41e3a" />
+              <span style={{ fontSize: '18px', fontWeight: '600', color: '#0F172A' }}>
+                {content.totalPhotos} Photos Documented
+              </span>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <AlertTriangle size={24} color="#F59E0B" />
+              <span style={{ fontSize: '18px', fontWeight: '600', color: '#0F172A' }}>
+                {damagePoints} Damage Point{damagePoints !== 1 ? 's' : ''} Found
+              </span>
+            </div>
+            {content.insuranceRelevant > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <Shield size={24} color="#22C55E" />
+                <span style={{ fontSize: '18px', fontWeight: '600', color: '#0F172A' }}>
+                  {content.insuranceRelevant} Claim Eligible
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };

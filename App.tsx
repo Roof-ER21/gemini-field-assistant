@@ -256,7 +256,7 @@ const App: React.FC = () => {
           </LazyLoadBoundary>
         );
       case 'maps':
-        return <MapsPanel onOpenChat={() => setActivePanel('chat')} />;
+        return <MapsPanel onOpenChat={() => setActivePanel('chat')} currentUser={currentUser} />;
       case 'live':
         return (
           <LazyLoadBoundary componentName="Live Conversation">
@@ -343,7 +343,7 @@ const App: React.FC = () => {
       case 'stormmap':
         return (
           <LazyLoadBoundary componentName="Storm Map">
-            <TerritoryHailMap />
+            <TerritoryHailMap isAdmin={currentUser?.role === 'admin'} />
           </LazyLoadBoundary>
         );
       case 'leaderboard':

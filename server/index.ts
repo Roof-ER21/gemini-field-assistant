@@ -18,6 +18,7 @@ import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { emailService, LoginNotificationData, ChatNotificationData, VerificationCodeData } from './services/emailService.js';
 import { twilioService } from './services/twilioService.js';
+import { createPushNotificationService } from './services/pushNotificationService.js';
 import { cronService } from './services/cronService.js';
 import { initializePresenceService, getPresenceService } from './services/presenceService.js';
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
@@ -124,6 +125,19 @@ initSettingsService(pool);
 // Initialize Twilio service with pool for rate limiting and logging
 twilioService.setPool(pool);
 
+// Initialize Push Notification Service
+const pushNotificationService = createPushNotificationService(pool);
+app.set('pushNotificationService', pushNotificationService);
+pushNotificationService.initializeFirebase().then((initialized) => {
+  if (initialized) {
+    console.log('✅ Push notification service initialized');
+  } else {
+    console.log('⚠️ Push notifications unavailable (Firebase credentials not configured)');
+  }
+}).catch((err: any) => {
+  console.log('⚠️ Push notifications unavailable:', err.message);
+});
+
 // Initialize HailTrace import service
 hailtraceImportService.initialize(pool);
 console.log('✅ HailTrace import service initialized');
@@ -193,9 +207,9 @@ app.use(cors({
   credentials: true
 }));
 
-// Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Body parsers - increased limit for photo uploads (base64 encoded)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Rate limiting - General API protection
 const generalLimiter = rateLimit({

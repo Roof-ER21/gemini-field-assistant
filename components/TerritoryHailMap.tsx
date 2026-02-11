@@ -206,7 +206,11 @@ const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; typ
   return groups;
 };
 
-export default function TerritoryHailMap() {
+interface TerritoryHailMapProps {
+  isAdmin?: boolean;
+}
+
+export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [hailEvents, setHailEvents] = useState<HailEvent[]>([]);
@@ -1621,117 +1625,122 @@ export default function TerritoryHailMap() {
                   </div>
                 )}
 
-                {/* PDF Report Filter Dropdown */}
-                <div style={{ marginTop: '12px', marginBottom: '8px' }}>
-                  <label style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    Report Filter
-                  </label>
-                  <select
-                    value={pdfReportFilter}
-                    onChange={(e) => setPdfReportFilter(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      background: 'var(--bg-elevated)',
-                      color: 'var(--text-primary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="all">All Events</option>
-                    <option value="hail-only">Hail Only</option>
-                    <option value="hail-wind">Hail + Wind</option>
-                    <option value="ihm-only">IHM Only</option>
-                    <option value="noaa-only">NOAA Only</option>
-                  </select>
-                </div>
+                {/* PDF Report Section - Admin only */}
+                {isAdmin && (
+                  <>
+                    {/* PDF Report Filter Dropdown */}
+                    <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                      <label style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        display: 'block',
+                        marginBottom: '4px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Report Filter
+                      </label>
+                      <select
+                        value={pdfReportFilter}
+                        onChange={(e) => setPdfReportFilter(e.target.value as any)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-default)',
+                          background: 'var(--bg-elevated)',
+                          color: 'var(--text-primary)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">All Events</option>
+                        <option value="hail-only">Hail Only</option>
+                        <option value="hail-wind">Hail + Wind</option>
+                        <option value="ihm-only">IHM Only</option>
+                        <option value="noaa-only">NOAA Only</option>
+                      </select>
+                    </div>
 
-                {/* Download PDF Buttons */}
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                  <button
-                    onClick={handleGeneratePDF}
-                    disabled={generatingPdf}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--roof-red)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      transition: 'all 0.2s ease',
-                      opacity: generatingPdf ? 0.6 : 1
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!generatingPdf) {
-                        e.currentTarget.style.background = '#b91c1c';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!generatingPdf) {
-                        e.currentTarget.style.background = 'var(--roof-red)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }
-                    }}
-                  >
-                    {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                    {generatingPdf ? 'Generating...' : 'Download Report'}
-                  </button>
-                  <button
-                    onClick={() => setShowPdfOptions(true)}
-                    disabled={generatingPdf}
-                    style={{
-                      padding: '10px 12px',
-                      background: 'var(--bg-elevated)',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: '8px',
-                      cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s ease',
-                      opacity: generatingPdf ? 0.6 : 1
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!generatingPdf) {
-                        e.currentTarget.style.background = 'var(--bg-tertiary)';
-                        e.currentTarget.style.borderColor = 'var(--roof-red)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!generatingPdf) {
-                        e.currentTarget.style.background = 'var(--bg-elevated)';
-                        e.currentTarget.style.borderColor = 'var(--border-default)';
-                      }
-                    }}
-                    title="PDF Options"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </div>
+                    {/* Download PDF Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                      <button
+                        onClick={handleGeneratePDF}
+                        disabled={generatingPdf}
+                        style={{
+                          flex: 1,
+                          padding: '10px 16px',
+                          background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--roof-red)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          transition: 'all 0.2s ease',
+                          opacity: generatingPdf ? 0.6 : 1
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!generatingPdf) {
+                            e.currentTarget.style.background = '#b91c1c';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!generatingPdf) {
+                            e.currentTarget.style.background = 'var(--roof-red)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }
+                        }}
+                      >
+                        {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                        {generatingPdf ? 'Generating...' : 'Download Report'}
+                      </button>
+                      <button
+                        onClick={() => setShowPdfOptions(true)}
+                        disabled={generatingPdf}
+                        style={{
+                          padding: '10px 12px',
+                          background: 'var(--bg-elevated)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: '8px',
+                          cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s ease',
+                          opacity: generatingPdf ? 0.6 : 1
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!generatingPdf) {
+                            e.currentTarget.style.background = 'var(--bg-tertiary)';
+                            e.currentTarget.style.borderColor = 'var(--roof-red)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!generatingPdf) {
+                            e.currentTarget.style.background = 'var(--bg-elevated)';
+                            e.currentTarget.style.borderColor = 'var(--border-default)';
+                          }
+                        }}
+                        title="PDF Options"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1922,8 +1931,8 @@ export default function TerritoryHailMap() {
           </div>
         )}
 
-        {/* PDF Options Modal */}
-        {showPdfOptions && (
+        {/* PDF Options Modal - Admin only */}
+        {isAdmin && showPdfOptions && (
           <div style={{
             position: 'absolute',
             top: 0,
