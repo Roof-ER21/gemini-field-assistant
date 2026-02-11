@@ -1,265 +1,705 @@
 /**
- * PDF Report Generation Service
+ * PDF Report Generation Service - Curran-Style Professional Storm Report
  *
- * Generates professional storm damage history reports for insurance claims
- * Superior to HailTrace - includes more data, better design, and NOAA certification
+ * Generates multi-page professional storm damage reports modeled after
+ * the IHM Curran Hail Report format. Includes:
+ * - Header with logo, report ID, verification
+ * - Property info with embedded map image
+ * - Hail impact details with narrative
+ * - Ground observations tables (Hail + Wind)
+ * - Severe weather warnings with NEXRAD radar image
+ * - Historical storm activity table
+ * - Disclaimer and footer
+ *
+ * ALL dates in Eastern timezone (EDT/EST).
  */
 import * as PDFKit from 'pdfkit';
 import { PassThrough } from 'stream';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { generateHailNarrative, generateExecutiveSummary } from './narrativeService.js';
 // PDFKit default export
 const PDFDocument = PDFKit.default || PDFKit;
+// ESM __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// ========== SERVICE CLASS ==========
 export class PDFReportService {
     COLORS = {
-        primary: '#1e3a8a',
-        secondary: '#475569',
-        critical: '#dc2626',
-        high: '#f97316',
-        moderate: '#eab308',
-        low: '#22c55e',
-        text: '#1e293b',
-        lightText: '#64748b',
-        border: '#e2e8f0',
-        // Event type colors
-        hail: '#10b981', // Green
-        wind: '#8b5cf6', // Purple
-        tornado: '#ef4444', // Red
-        ihm: '#f97316', // Orange (IHM source)
-        noaa: '#6366f1', // Indigo (NOAA source)
+        primary: '#1a365d', // Dark navy
+        accent: '#c53030', // RoofER red
+        secondary: '#4a5568', // Slate gray
+        text: '#1a202c', // Near-black
+        lightText: '#718096', // Gray
+        border: '#e2e8f0', // Light border
+        headerBg: '#1a365d', // Navy header
+        tableBg: '#f7fafc', // Light table row
+        tableHeader: '#2d3748', // Dark table header
+        // Severity
+        severe: '#e53e3e',
+        moderate: '#dd6b20',
+        minor: '#3182ce',
+        // Event types
+        hail: '#38a169',
+        wind: '#805ad5',
+        tornado: '#e53e3e',
+        // Sources
+        ihm: '#dd6b20',
+        noaa: '#4c51bf',
     };
     MARGIN = 40;
+    PAGE_WIDTH = 612;
+    PAGE_HEIGHT = 792;
+    CONTENT_WIDTH = 612 - 80; // PAGE_WIDTH - 2*MARGIN
+    PAGE_BOTTOM = 740; // Leave room for footer
     /**
-     * Generate PDF report and return as stream
+     * Format date in Eastern timezone with EDT/EST suffix
+     */
+    formatDateET(dateStr, includeTime = false) {
+        try {
+            const date = new Date(dateStr);
+            // Determine EDT vs EST
+            const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
+            const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
+            const isDST = date.getTimezoneOffset() < Math.max(jan, jul);
+            const tzSuffix = isDST ? 'EDT' : 'EST';
+            if (includeTime) {
+                const formatted = date.toLocaleString('en-US', {
+                    timeZone: 'America/New_York',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                return `${formatted} ${tzSuffix}`;
+            }
+            const formatted = date.toLocaleDateString('en-US', {
+                timeZone: 'America/New_York',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+            return `${formatted} ${tzSuffix}`;
+        }
+        catch {
+            return dateStr;
+        }
+    }
+    /**
+     * Generate the Curran-style report ID
+     */
+    generateReportId() {
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+        const seq = Math.random().toString(36).substring(2, 6).toUpperCase();
+        return `RER-${dateStr}-${seq}`;
+    }
+    /**
+     * Check if we need a new page, and if so, add one
+     */
+    checkPageBreak(doc, requiredSpace) {
+        if (doc.y + requiredSpace > this.PAGE_BOTTOM) {
+            doc.addPage();
+            doc.y = this.MARGIN;
+        }
+    }
+    /**
+     * Draw page footer
+     */
+    drawFooter(doc, reportId, pageNum, companyName) {
+        const footerY = this.PAGE_HEIGHT - 35;
+        doc.save();
+        doc.moveTo(this.MARGIN, footerY).lineTo(this.PAGE_WIDTH - this.MARGIN, footerY)
+            .strokeColor(this.COLORS.border).lineWidth(0.5).stroke();
+        doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica')
+            .text(`${companyName} | ${reportId} | Page ${pageNum}`, this.MARGIN, footerY + 5, {
+            width: this.CONTENT_WIDTH,
+            align: 'center'
+        });
+        doc.fontSize(6)
+            .text('Data Sources: NOAA Storm Events Database | Interactive Hail Maps (IHM) | National Weather Service', this.MARGIN, footerY + 15, { width: this.CONTENT_WIDTH, align: 'center' });
+        doc.restore();
+    }
+    /**
+     * Draw a section header
+     */
+    drawSectionHeader(doc, title) {
+        doc.moveDown(0.5);
+        doc.moveTo(this.MARGIN, doc.y).lineTo(this.PAGE_WIDTH - this.MARGIN, doc.y)
+            .strokeColor(this.COLORS.accent).lineWidth(1).stroke();
+        doc.moveDown(0.4);
+        doc.fontSize(13).fillColor(this.COLORS.primary).font('Helvetica-Bold').text(title);
+        doc.moveDown(0.3);
+    }
+    /**
+     * Draw a data table
+     */
+    drawTable(doc, headers, rows, colWidths, options = {}) {
+        const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+        const rowHeight = 16;
+        const headerHeight = 18;
+        const headerColor = options.headerColor || this.COLORS.tableHeader;
+        let tableY = doc.y;
+        const drawHeader = () => {
+            doc.rect(this.MARGIN, tableY, tableWidth, headerHeight).fill(headerColor);
+            let x = this.MARGIN;
+            headers.forEach((h, i) => {
+                doc.fontSize(7.5).fillColor('#ffffff').font('Helvetica-Bold')
+                    .text(h, x + 3, tableY + 5, { width: colWidths[i] - 6 });
+                x += colWidths[i];
+            });
+            tableY += headerHeight;
+        };
+        drawHeader();
+        rows.forEach((row, idx) => {
+            if (tableY + rowHeight > this.PAGE_BOTTOM) {
+                doc.addPage();
+                tableY = this.MARGIN;
+                drawHeader();
+            }
+            // Alternate row background
+            if (idx % 2 === 0) {
+                doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).fill(this.COLORS.tableBg);
+            }
+            doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).strokeColor(this.COLORS.border).lineWidth(0.3).stroke();
+            let x = this.MARGIN;
+            row.forEach((cell, i) => {
+                let color = this.COLORS.text;
+                let font = 'Helvetica';
+                if (options.colorColumns && options.colorColumns[i]) {
+                    color = options.colorColumns[i](cell);
+                }
+                if (options.boldColumns && options.boldColumns.includes(i)) {
+                    font = 'Helvetica-Bold';
+                }
+                doc.fontSize(7.5).fillColor(color).font(font)
+                    .text(cell, x + 3, tableY + 4, { width: colWidths[i] - 6 });
+                x += colWidths[i];
+            });
+            tableY += rowHeight;
+        });
+        doc.y = tableY + 10;
+    }
+    /**
+     * Generate the full Curran-style PDF report
      */
     generateReport(input) {
+        const companyName = input.companyName || 'Roof-ER Storm Intelligence';
+        const reportId = this.generateReportId();
+        let pageNum = 1;
         const doc = new PDFDocument({
             size: 'LETTER',
             margin: this.MARGIN,
             info: {
-                Title: 'Storm Damage History Report',
-                Author: input.companyName || 'SA21 Storm Intelligence',
+                Title: `Storm Damage Report - ${input.address}`,
+                Author: companyName,
                 Subject: `Storm History for ${input.address}`,
+                Creator: 'Roof-ER Storm Intelligence System',
             },
         });
         const stream = new PassThrough();
         doc.pipe(stream);
-        const reportId = this.generateReportId();
-        const pageWidth = 612 - (this.MARGIN * 2);
-        // === PAGE 1: Header, Property Info, Damage Score, Summary ===
-        // Header
-        doc.fontSize(20).fillColor(this.COLORS.primary).font('Helvetica-Bold')
-            .text('STORM DAMAGE HISTORY REPORT', { align: 'center' });
-        doc.moveDown(0.3);
-        doc.fontSize(9).fillColor(this.COLORS.lightText).font('Helvetica')
-            .text(`Report ID: ${reportId} | Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
-        // Divider
-        doc.moveDown(0.5);
-        doc.moveTo(this.MARGIN, doc.y).lineTo(612 - this.MARGIN, doc.y).stroke(this.COLORS.primary);
-        doc.moveDown(0.8);
-        // Property Information
-        doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold').text('PROPERTY INFORMATION');
-        doc.moveDown(0.3);
-        doc.fontSize(10).fillColor(this.COLORS.text).font('Helvetica');
-        doc.text(`Address: ${input.address}`);
-        doc.text(`Coordinates: ${input.lat.toFixed(5)}, ${input.lng.toFixed(5)}`);
-        doc.text(`Search Radius: ${input.radius} miles`);
-        doc.moveDown(0.8);
-        // Damage Score Box
-        const scoreY = doc.y;
-        const scoreBoxHeight = 80;
-        // Background
-        doc.rect(this.MARGIN, scoreY, pageWidth, scoreBoxHeight)
-            .fillOpacity(0.08).fill(input.damageScore.color).fillOpacity(1);
-        doc.rect(this.MARGIN, scoreY, pageWidth, scoreBoxHeight)
-            .strokeColor(input.damageScore.color).lineWidth(2).stroke();
-        // Score number
-        doc.fontSize(42).fillColor(input.damageScore.color).font('Helvetica-Bold')
-            .text(input.damageScore.score.toString(), this.MARGIN + 20, scoreY + 15, { width: 80 });
-        // Risk level
-        doc.fontSize(16).fillColor(input.damageScore.color).font('Helvetica-Bold')
-            .text(input.damageScore.riskLevel.toUpperCase() + ' RISK', this.MARGIN + 110, scoreY + 20);
-        // Summary
-        doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica')
-            .text(input.damageScore.summary, this.MARGIN + 110, scoreY + 45, { width: pageWidth - 130 });
-        doc.y = scoreY + scoreBoxHeight + 15;
-        // Executive Summary
-        doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold').text('EXECUTIVE SUMMARY');
-        doc.moveDown(0.3);
-        const allEvents = [...input.events, ...input.noaaEvents];
-        const hailSizes = [
+        // Compute stats
+        const allHailSizes = [
             ...input.events.map(e => e.hailSize || 0),
             ...input.noaaEvents.filter(e => e.eventType === 'hail').map(e => e.magnitude || 0)
         ].filter(s => s > 0);
-        const maxHail = hailSizes.length > 0 ? Math.max(...hailSizes) : 0;
-        const severeCount = hailSizes.filter(s => s >= 1.5).length;
+        const maxHail = allHailSizes.length > 0 ? Math.max(...allHailSizes) : 0;
+        const severeCount = allHailSizes.filter(s => s >= 1.5).length;
+        const windEvents = input.noaaEvents.filter(e => e.eventType === 'wind');
+        const hailEvents = [
+            ...input.events.map(e => ({
+                date: e.date,
+                size: e.hailSize,
+                source: 'IHM',
+                distance: e.distanceMiles,
+                location: '',
+            })),
+            ...input.noaaEvents.filter(e => e.eventType === 'hail').map(e => ({
+                date: e.date,
+                size: e.magnitude,
+                source: 'NOAA',
+                distance: e.distanceMiles,
+                location: e.location,
+            }))
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Most recent/significant storm date
+        const primaryStormDate = hailEvents.length > 0 ? hailEvents[0].date :
+            (input.noaaEvents.length > 0 ? input.noaaEvents[0].date : new Date().toISOString());
+        // =========================================================
+        // PAGE 1: HEADER, PROPERTY INFO, DAMAGE SCORE
+        // =========================================================
+        // === HEADER BAR ===
+        const headerHeight = 55;
+        doc.rect(0, 0, this.PAGE_WIDTH, headerHeight).fill(this.COLORS.headerBg);
+        // Try to load logo
+        try {
+            const logoPath = path.resolve(__dirname, '../../public/roofer-logo-icon.png');
+            if (fs.existsSync(logoPath)) {
+                doc.image(logoPath, this.MARGIN, 8, { height: 38 });
+            }
+        }
+        catch {
+            // Logo not available, continue without it
+        }
+        // Report title
+        doc.fontSize(18).fillColor('#ffffff').font('Helvetica-Bold')
+            .text('STORM DAMAGE REPORT', this.MARGIN + 55, 12, { width: 350 });
+        doc.fontSize(9).fillColor('#cbd5e0').font('Helvetica')
+            .text(companyName, this.MARGIN + 55, 34);
+        // Report ID / Date (right side)
+        doc.fontSize(8).fillColor('#cbd5e0').font('Helvetica')
+            .text(`Report #: ${reportId}`, this.PAGE_WIDTH - this.MARGIN - 150, 12, { width: 150, align: 'right' });
+        doc.text(`Generated: ${this.formatDateET(new Date().toISOString(), true)}`, this.PAGE_WIDTH - this.MARGIN - 150, 24, { width: 150, align: 'right' });
+        // Verification badge
+        doc.fontSize(7).fillColor('#68d391').font('Helvetica-Bold')
+            .text('VERIFIED DATA REPORT', this.PAGE_WIDTH - this.MARGIN - 150, 38, { width: 150, align: 'right' });
+        doc.y = headerHeight + 15;
+        // === REP INFO (if provided) ===
+        if (input.repName || input.repPhone || input.repEmail) {
+            const repBoxY = doc.y;
+            doc.rect(this.MARGIN, repBoxY, this.CONTENT_WIDTH, 22).fill('#f7fafc');
+            doc.rect(this.MARGIN, repBoxY, this.CONTENT_WIDTH, 22).strokeColor(this.COLORS.border).lineWidth(0.5).stroke();
+            doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica-Bold')
+                .text('Your Storm Specialist: ', this.MARGIN + 8, repBoxY + 7, { continued: true });
+            doc.font('Helvetica');
+            const repParts = [input.repName, input.repPhone, input.repEmail].filter(Boolean);
+            doc.text(repParts.join('  |  '));
+            doc.y = repBoxY + 28;
+        }
+        // === PROPERTY INFORMATION ===
+        this.drawSectionHeader(doc, 'PROPERTY INFORMATION');
+        // Two-column layout: text left, map right
+        const infoStartY = doc.y;
+        const infoColWidth = input.mapImage ? this.CONTENT_WIDTH * 0.55 : this.CONTENT_WIDTH;
         doc.fontSize(10).fillColor(this.COLORS.text).font('Helvetica');
-        doc.text(`• Total Storm Events: ${allEvents.length}`);
-        doc.text(`• Largest Hail Size: ${maxHail > 0 ? maxHail.toFixed(1) + '"' : 'None recorded'}`);
-        doc.text(`• Severe Events (1.5"+): ${severeCount}`);
-        doc.text(`• Data Sources: NOAA Storm Events Database, Interactive Hail Maps (IHM)`);
+        if (input.customerName) {
+            doc.font('Helvetica-Bold').text('Customer: ', this.MARGIN, doc.y, { continued: true });
+            doc.font('Helvetica').text(input.customerName);
+        }
+        doc.font('Helvetica-Bold').text('Address: ', this.MARGIN, doc.y, { continued: true });
+        doc.font('Helvetica').text(input.address, { width: infoColWidth - 10 });
+        doc.font('Helvetica-Bold').text('Coordinates: ', { continued: true });
+        doc.font('Helvetica').text(`${input.lat.toFixed(5)}, ${input.lng.toFixed(5)}`);
+        doc.font('Helvetica-Bold').text('Search Radius: ', { continued: true });
+        doc.font('Helvetica').text(`${input.radius} miles`);
+        doc.font('Helvetica-Bold').text('Report Date: ', { continued: true });
+        doc.font('Helvetica').text(this.formatDateET(new Date().toISOString(), true));
+        // Map image (right column)
+        if (input.mapImage) {
+            try {
+                const mapX = this.MARGIN + this.CONTENT_WIDTH * 0.58;
+                const mapWidth = this.CONTENT_WIDTH * 0.40;
+                const mapHeight = 120;
+                doc.image(input.mapImage, mapX, infoStartY, {
+                    width: mapWidth,
+                    height: mapHeight,
+                    fit: [mapWidth, mapHeight]
+                });
+                // Border around map
+                doc.rect(mapX, infoStartY, mapWidth, mapHeight).strokeColor(this.COLORS.border).lineWidth(1).stroke();
+                doc.fontSize(6).fillColor(this.COLORS.lightText).font('Helvetica')
+                    .text('Property Location', mapX, infoStartY + mapHeight + 2, { width: mapWidth, align: 'center' });
+                // Make sure Y position accounts for map
+                if (doc.y < infoStartY + mapHeight + 15) {
+                    doc.y = infoStartY + mapHeight + 15;
+                }
+            }
+            catch (e) {
+                console.warn('Failed to embed map image in PDF:', e);
+            }
+        }
+        // === DAMAGE RISK SCORE ===
+        this.checkPageBreak(doc, 100);
         doc.moveDown(0.5);
-        // Color Legend
-        const legendY = doc.y;
-        doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica-Bold').text('EVENT TYPE LEGEND:', this.MARGIN, legendY);
-        // Legend items in a row
-        let legendX = this.MARGIN + 110;
-        const legendItems = [
-            { label: 'Hail', color: this.COLORS.hail },
-            { label: 'Wind', color: this.COLORS.wind },
-        ];
-        legendItems.forEach(item => {
-            doc.rect(legendX, legendY, 10, 10).fill(item.color);
-            doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica')
-                .text(item.label, legendX + 14, legendY + 1);
-            legendX += 60;
+        const scoreY = doc.y;
+        const scoreBoxH = 75;
+        const scoreColor = input.damageScore.color || this.COLORS.accent;
+        // Score background
+        doc.rect(this.MARGIN, scoreY, this.CONTENT_WIDTH, scoreBoxH)
+            .fillOpacity(0.06).fill(scoreColor).fillOpacity(1);
+        doc.rect(this.MARGIN, scoreY, this.CONTENT_WIDTH, scoreBoxH)
+            .strokeColor(scoreColor).lineWidth(2).stroke();
+        // Left: big score number
+        doc.fontSize(40).fillColor(scoreColor).font('Helvetica-Bold')
+            .text(input.damageScore.score.toString(), this.MARGIN + 15, scoreY + 8, { width: 75 });
+        doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica')
+            .text('/ 100', this.MARGIN + 15, scoreY + 52, { width: 75 });
+        // Right: risk level and summary
+        doc.fontSize(14).fillColor(scoreColor).font('Helvetica-Bold')
+            .text(`${input.damageScore.riskLevel.toUpperCase()} RISK`, this.MARGIN + 100, scoreY + 10);
+        doc.fontSize(8.5).fillColor(this.COLORS.text).font('Helvetica')
+            .text(input.damageScore.summary, this.MARGIN + 100, scoreY + 30, {
+            width: this.CONTENT_WIDTH - 120
         });
-        // Source legend
-        legendX += 20;
-        doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica-Bold').text('SOURCE:', legendX, legendY);
-        legendX += 50;
-        doc.rect(legendX, legendY, 10, 10).fill(this.COLORS.ihm);
-        doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica').text('IHM', legendX + 14, legendY + 1);
-        legendX += 40;
-        doc.rect(legendX, legendY, 10, 10).fill(this.COLORS.noaa);
-        doc.fontSize(8).fillColor(this.COLORS.text).font('Helvetica').text('NOAA', legendX + 14, legendY + 1);
-        doc.y = legendY + 20;
+        doc.y = scoreY + scoreBoxH + 10;
+        // === EXECUTIVE SUMMARY ===
+        this.checkPageBreak(doc, 80);
+        this.drawSectionHeader(doc, 'EXECUTIVE SUMMARY');
+        const execSummary = generateExecutiveSummary({
+            address: input.address,
+            city: input.city,
+            state: input.state,
+            stormDate: primaryStormDate,
+            maxHailSize: maxHail,
+            totalEvents: input.events.length + input.noaaEvents.length,
+            severeCount,
+            radiusMiles: input.radius
+        });
+        doc.fontSize(9.5).fillColor(this.COLORS.text).font('Helvetica')
+            .text(execSummary, { width: this.CONTENT_WIDTH });
+        doc.moveDown(0.3);
+        // Quick stats row
+        const statsY = doc.y;
+        const statWidth = this.CONTENT_WIDTH / 4;
+        const stats = [
+            { label: 'Total Events', value: (input.events.length + input.noaaEvents.length).toString() },
+            { label: 'Max Hail Size', value: maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'N/A' },
+            { label: 'Severe (1.5"+)', value: severeCount.toString() },
+            { label: 'Wind Events', value: windEvents.length.toString() }
+        ];
+        stats.forEach((stat, i) => {
+            const x = this.MARGIN + i * statWidth;
+            doc.rect(x, statsY, statWidth - 4, 30).fill(this.COLORS.tableBg);
+            doc.rect(x, statsY, statWidth - 4, 30).strokeColor(this.COLORS.border).lineWidth(0.3).stroke();
+            doc.fontSize(14).fillColor(this.COLORS.primary).font('Helvetica-Bold')
+                .text(stat.value, x, statsY + 4, { width: statWidth - 4, align: 'center' });
+            doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica')
+                .text(stat.label, x, statsY + 20, { width: statWidth - 4, align: 'center' });
+        });
+        doc.y = statsY + 38;
+        this.drawFooter(doc, reportId, pageNum, companyName);
+        // =========================================================
+        // PAGE 2: HAIL IMPACT DETAILS + NARRATIVE
+        // =========================================================
+        doc.addPage();
+        pageNum++;
+        doc.y = this.MARGIN;
+        this.drawSectionHeader(doc, 'HAIL IMPACT DETAILS');
+        // Impact details box
+        if (hailEvents.length > 0) {
+            const topEvent = hailEvents[0];
+            const detailBoxY = doc.y;
+            const detailBoxH = 85;
+            doc.rect(this.MARGIN, detailBoxY, this.CONTENT_WIDTH, detailBoxH)
+                .fill(this.COLORS.tableBg);
+            doc.rect(this.MARGIN, detailBoxY, this.CONTENT_WIDTH, detailBoxH)
+                .strokeColor(this.COLORS.border).lineWidth(0.5).stroke();
+            const col1X = this.MARGIN + 10;
+            const col2X = this.MARGIN + this.CONTENT_WIDTH / 2 + 10;
+            let dy = detailBoxY + 8;
+            const drawDetailRow = (label, value, x, y) => {
+                doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica-Bold')
+                    .text(label, x, y);
+                doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica')
+                    .text(value, x + 100, y);
+            };
+            drawDetailRow('Primary Event Date:', this.formatDateET(topEvent.date, true), col1X, dy);
+            drawDetailRow('Max Hail Detected:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'N/A', col2X, dy);
+            dy += 16;
+            drawDetailRow('Total Hail Reports:', hailEvents.length.toString(), col1X, dy);
+            drawDetailRow('Nearby Reports (<1mi):', hailEvents.filter(e => (e.distance || 99) < 1).length.toString(), col2X, dy);
+            dy += 16;
+            drawDetailRow('Severe Events:', severeCount.toString(), col1X, dy);
+            drawDetailRow('Wind Reports:', windEvents.length.toString(), col2X, dy);
+            dy += 16;
+            drawDetailRow('Search Radius:', `${input.radius} miles`, col1X, dy);
+            drawDetailRow('Data Sources:', 'IHM + NOAA', col2X, dy);
+            doc.y = detailBoxY + detailBoxH + 10;
+        }
+        // Hail Impact Narrative
+        this.checkPageBreak(doc, 100);
+        doc.moveDown(0.3);
+        doc.fontSize(11).fillColor(this.COLORS.primary).font('Helvetica-Bold')
+            .text('Hail Impact Narrative');
+        doc.moveDown(0.2);
+        const narrative = generateHailNarrative({
+            address: input.address,
+            city: input.city,
+            state: input.state,
+            stormDate: primaryStormDate,
+            maxHailSize: maxHail,
+            totalEvents: input.events.length + input.noaaEvents.length,
+            severeCount,
+            windEvents: windEvents.length,
+            nearbyReports: hailEvents.filter(e => (e.distance || 99) < 1).length,
+            radiusMiles: input.radius
+        });
+        doc.fontSize(9.5).fillColor(this.COLORS.text).font('Helvetica')
+            .text(narrative, { width: this.CONTENT_WIDTH, lineGap: 2 });
+        // =========================================================
+        // PAGE 3: GROUND OBSERVATIONS TABLES
+        // =========================================================
+        this.checkPageBreak(doc, 60);
+        this.drawSectionHeader(doc, 'GROUND OBSERVATIONS - HAIL');
         // Apply filter
         const filter = input.filter || 'all';
-        let filteredIhmEvents = input.events;
-        let filteredNoaaEvents = input.noaaEvents;
+        let filteredIhm = input.events;
+        let filteredNoaa = input.noaaEvents;
         switch (filter) {
             case 'hail-only':
-                filteredNoaaEvents = input.noaaEvents.filter(e => e.eventType === 'hail');
+                filteredNoaa = input.noaaEvents.filter(e => e.eventType === 'hail');
                 break;
             case 'hail-wind':
-                filteredNoaaEvents = input.noaaEvents.filter(e => e.eventType === 'hail' || e.eventType === 'wind');
+                filteredNoaa = input.noaaEvents.filter(e => e.eventType === 'hail' || e.eventType === 'wind');
                 break;
             case 'ihm-only':
-                filteredNoaaEvents = [];
+                filteredNoaa = [];
                 break;
             case 'noaa-only':
-                filteredIhmEvents = [];
+                filteredIhm = [];
                 break;
-            // 'all' - no filtering
         }
-        const filteredTotal = filteredIhmEvents.length + filteredNoaaEvents.length;
-        // Show filter info if not 'all'
-        if (filter !== 'all') {
-            doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
-                .text(`Filter applied: ${this.getFilterLabel(filter)} (${filteredTotal} of ${allEvents.length} events)`, this.MARGIN, doc.y);
-            doc.moveDown(0.3);
-        }
-        // Storm Event Timeline
-        doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold').text('STORM EVENT TIMELINE');
-        doc.moveDown(0.3);
-        if (filteredTotal === 0) {
-            doc.fontSize(10).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
-                .text('No storm events found matching the selected filter.');
+        // Hail observations table
+        const hailObsHeaders = ['Date/Time (ET)', 'Source', 'Hail Size', 'Distance', 'Impact Level'];
+        const hailObsWidths = [120, 60, 70, 65, 80];
+        const hailObsRows = [];
+        filteredIhm.forEach(e => {
+            hailObsRows.push([
+                this.formatDateET(e.date),
+                'IHM',
+                e.hailSize ? `${e.hailSize.toFixed(2)}"` : '-',
+                e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '-',
+                this.getImpactLabel(e.severity)
+            ]);
+        });
+        filteredNoaa.filter(e => e.eventType === 'hail').forEach(e => {
+            hailObsRows.push([
+                this.formatDateET(e.date),
+                'NOAA',
+                e.magnitude ? `${e.magnitude.toFixed(2)}"` : '-',
+                e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '-',
+                this.getImpactLabel(this.getSeverityFromMagnitude(e.magnitude, 'hail'))
+            ]);
+        });
+        // Sort by date descending
+        hailObsRows.sort((a, b) => {
+            const dateA = new Date(a[0].replace(/ E[DS]T$/, '')).getTime();
+            const dateB = new Date(b[0].replace(/ E[DS]T$/, '')).getTime();
+            return dateB - dateA;
+        });
+        if (hailObsRows.length > 0) {
+            this.drawTable(doc, hailObsHeaders, hailObsRows, hailObsWidths, {
+                colorColumns: {
+                    4: (val) => val === 'MAJOR' ? this.COLORS.severe : val === 'SIGNIFICANT' ? this.COLORS.moderate : this.COLORS.minor,
+                    1: (val) => val === 'IHM' ? this.COLORS.ihm : this.COLORS.noaa
+                },
+                boldColumns: [1, 4]
+            });
         }
         else {
-            // Sort events: IHM first, then NOAA
-            const sortedEvents = this.combineAndSortEvents(filteredIhmEvents, filteredNoaaEvents);
-            // Table setup
-            const colWidths = [85, 55, 75, 70, 55, 55];
-            const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-            const headers = ['Date', 'Type', 'Magnitude', 'Impact', 'Source', 'Distance'];
-            const rowHeight = 16;
-            const headerHeight = 18;
-            const pageBottom = 700; // Leave room for footer
-            let tableY = doc.y;
-            // Helper to draw table header
-            const drawTableHeader = () => {
-                doc.rect(this.MARGIN, tableY, tableWidth, headerHeight).fill(this.COLORS.primary);
-                let x = this.MARGIN;
-                headers.forEach((h, i) => {
-                    doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold')
-                        .text(h, x + 3, tableY + 5, { width: colWidths[i] - 6 });
-                    x += colWidths[i];
-                });
-                tableY += headerHeight;
-            };
-            // Draw initial header
-            drawTableHeader();
-            // Draw ALL rows with pagination
-            sortedEvents.forEach((event, idx) => {
-                // Check if we need a new page
-                if (tableY + rowHeight > pageBottom) {
-                    doc.addPage();
-                    tableY = this.MARGIN;
-                    // Continuation header on new page
-                    doc.fontSize(10).fillColor(this.COLORS.primary).font('Helvetica-Bold')
-                        .text('STORM EVENT TIMELINE (continued)', this.MARGIN, tableY);
-                    tableY += 25;
-                    drawTableHeader();
-                }
-                // Alternate row colors
-                if (idx % 2 === 0) {
-                    doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).fill('#f8fafc');
-                }
-                doc.rect(this.MARGIN, tableY, tableWidth, rowHeight).stroke(this.COLORS.border);
-                const row = this.formatEventRow(event);
-                let x = this.MARGIN;
-                row.forEach((cell, i) => {
-                    // Color coding: Type (1), Severity (3), Source (4)
-                    let color = this.COLORS.text;
-                    let fontWeight = 'Helvetica';
-                    if (i === 1) {
-                        color = this.getEventTypeColor(event.type);
-                        fontWeight = 'Helvetica-Bold';
-                    }
-                    else if (i === 3) {
-                        color = this.getSeverityColor(event.severity);
-                        fontWeight = 'Helvetica-Bold';
-                    }
-                    else if (i === 4) {
-                        color = this.getSourceColor(event.source);
-                        fontWeight = 'Helvetica-Bold';
-                    }
-                    doc.fontSize(8).fillColor(color).font(fontWeight)
-                        .text(cell, x + 3, tableY + 4, { width: colWidths[i] - 6 });
-                    x += colWidths[i];
-                });
-                tableY += rowHeight;
-            });
-            doc.y = tableY + 20;
+            doc.fontSize(9).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+                .text('No hail observations found for the selected criteria.');
+            doc.moveDown(0.5);
         }
-        // Evidence Section - check if we need a new page (need ~120px)
-        if (doc.y > 620) {
+        // Wind observations table
+        const windObsNoaa = filteredNoaa.filter(e => e.eventType === 'wind');
+        if (windObsNoaa.length > 0 || filter === 'all' || filter === 'hail-wind') {
+            this.checkPageBreak(doc, 60);
+            this.drawSectionHeader(doc, 'GROUND OBSERVATIONS - WIND');
+            const windHeaders = ['Date/Time (ET)', 'Source', 'Wind Speed', 'Distance', 'Location'];
+            const windWidths = [120, 60, 70, 65, 80];
+            const windRows = windObsNoaa.map(e => [
+                this.formatDateET(e.date),
+                'NOAA',
+                e.magnitude ? `${Math.round(e.magnitude)} kts` : '-',
+                e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '-',
+                e.location || '-'
+            ]);
+            if (windRows.length > 0) {
+                this.drawTable(doc, windHeaders, windRows, windWidths, {
+                    colorColumns: {
+                        1: () => this.COLORS.noaa
+                    },
+                    boldColumns: [1]
+                });
+            }
+            else {
+                doc.fontSize(9).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+                    .text('No wind observations found for the selected criteria.');
+                doc.moveDown(0.5);
+            }
+        }
+        this.drawFooter(doc, reportId, pageNum, companyName);
+        // =========================================================
+        // PAGE 4: SEVERE WEATHER WARNINGS + NEXRAD (conditional)
+        // =========================================================
+        const hasWarnings = input.nwsAlerts && input.nwsAlerts.length > 0;
+        const hasNexrad = input.nexradImage && input.includeNexrad !== false;
+        if (hasWarnings || hasNexrad) {
             doc.addPage();
+            pageNum++;
             doc.y = this.MARGIN;
+            this.drawSectionHeader(doc, 'SEVERE WEATHER WARNINGS & RADAR');
+            // NEXRAD radar image
+            if (hasNexrad && input.nexradImage) {
+                try {
+                    const radarWidth = Math.min(this.CONTENT_WIDTH, 400);
+                    const radarHeight = 250;
+                    const radarX = this.MARGIN + (this.CONTENT_WIDTH - radarWidth) / 2;
+                    doc.image(input.nexradImage, radarX, doc.y, {
+                        width: radarWidth,
+                        height: radarHeight,
+                        fit: [radarWidth, radarHeight]
+                    });
+                    doc.rect(radarX, doc.y, radarWidth, radarHeight).strokeColor(this.COLORS.border).lineWidth(1).stroke();
+                    doc.y += radarHeight + 4;
+                    doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+                        .text(`NEXRAD Base Reflectivity | ${input.nexradTimestamp ? this.formatDateET(input.nexradTimestamp, true) : 'Historical'} | Source: Iowa Environmental Mesonet (IEM)`, this.MARGIN, doc.y, { width: this.CONTENT_WIDTH, align: 'center' });
+                    doc.moveDown(1);
+                }
+                catch (e) {
+                    console.warn('Failed to embed NEXRAD image:', e);
+                }
+            }
+            // NWS Warning boxes
+            if (hasWarnings && input.nwsAlerts) {
+                input.nwsAlerts.slice(0, 5).forEach(alert => {
+                    this.checkPageBreak(doc, 80);
+                    const alertY = doc.y;
+                    const isTornado = alert.event.toLowerCase().includes('tornado');
+                    const alertColor = isTornado ? this.COLORS.severe : this.COLORS.moderate;
+                    // Alert header bar
+                    doc.rect(this.MARGIN, alertY, this.CONTENT_WIDTH, 18).fill(alertColor);
+                    doc.fontSize(9).fillColor('#ffffff').font('Helvetica-Bold')
+                        .text(alert.event.toUpperCase(), this.MARGIN + 6, alertY + 5, { width: this.CONTENT_WIDTH - 12 });
+                    // Alert body
+                    const bodyY = alertY + 18;
+                    doc.rect(this.MARGIN, bodyY, this.CONTENT_WIDTH, 50)
+                        .fillOpacity(0.03).fill(alertColor).fillOpacity(1);
+                    doc.rect(this.MARGIN, bodyY, this.CONTENT_WIDTH, 50)
+                        .strokeColor(this.COLORS.border).lineWidth(0.3).stroke();
+                    doc.fontSize(7.5).fillColor(this.COLORS.text).font('Helvetica-Bold')
+                        .text(`Effective: `, this.MARGIN + 6, bodyY + 5, { continued: true });
+                    doc.font('Helvetica')
+                        .text(`${this.formatDateET(alert.onset, true)}  →  ${this.formatDateET(alert.expires, true)}`);
+                    doc.fontSize(7.5).font('Helvetica-Bold')
+                        .text(`Issued by: `, this.MARGIN + 6, bodyY + 16, { continued: true });
+                    doc.font('Helvetica').text(alert.senderName);
+                    // Truncate description
+                    const descText = alert.headline || alert.description.substring(0, 200);
+                    doc.fontSize(7).fillColor(this.COLORS.secondary).font('Helvetica-Oblique')
+                        .text(descText, this.MARGIN + 6, bodyY + 28, {
+                        width: this.CONTENT_WIDTH - 12,
+                        height: 18,
+                        ellipsis: true
+                    });
+                    doc.y = bodyY + 55;
+                });
+            }
+            this.drawFooter(doc, reportId, pageNum, companyName);
+        }
+        // =========================================================
+        // PAGE 5: HISTORICAL STORM ACTIVITY TABLE
+        // =========================================================
+        doc.addPage();
+        pageNum++;
+        doc.y = this.MARGIN;
+        this.drawSectionHeader(doc, 'HISTORICAL STORM ACTIVITY');
+        // Combined event timeline table
+        const timelineHeaders = ['Date (ET)', 'Type', 'Magnitude', 'Impact', 'Source', 'Distance'];
+        const timelineWidths = [100, 55, 65, 70, 50, 55];
+        const sortedEvents = this.combineAndSortEvents(filteredIhm, filteredNoaa);
+        const timelineRows = sortedEvents.map(e => this.formatEventRow(e));
+        if (timelineRows.length > 0) {
+            this.drawTable(doc, timelineHeaders, timelineRows, timelineWidths, {
+                colorColumns: {
+                    1: (val) => this.getEventTypeColor(val),
+                    3: (val) => val === 'MAJOR' ? this.COLORS.severe : val === 'SIGNIFICANT' ? this.COLORS.moderate : this.COLORS.minor,
+                    4: (val) => val === 'IHM' ? this.COLORS.ihm : this.COLORS.noaa
+                },
+                boldColumns: [1, 3, 4]
+            });
+        }
+        else {
+            doc.fontSize(9).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+                .text('No storm events found matching the selected filter.');
+        }
+        // Filter note
+        if (filter !== 'all') {
+            doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
+                .text(`Filter: ${this.getFilterLabel(filter)} (${sortedEvents.length} of ${input.events.length + input.noaaEvents.length} total events)`);
+        }
+        this.drawFooter(doc, reportId, pageNum, companyName);
+        // =========================================================
+        // FINAL PAGE: EVIDENCE, DISCLAIMER, FOOTER
+        // =========================================================
+        doc.addPage();
+        pageNum++;
+        doc.y = this.MARGIN;
+        this.drawSectionHeader(doc, 'EVIDENCE FOR INSURANCE CLAIMS');
+        doc.fontSize(9.5).fillColor(this.COLORS.text).font('Helvetica')
+            .text('This report contains official storm event data from certified and verified sources:');
+        doc.moveDown(0.3);
+        doc.fontSize(9).font('Helvetica-Bold').text('NOAA Storm Events Database', { continued: true });
+        doc.font('Helvetica').text(' - Official U.S. government record of severe weather events, maintained by the National Oceanic and Atmospheric Administration. Data is collected from NWS forecast offices and is legally admissible.');
+        doc.moveDown(0.2);
+        doc.font('Helvetica-Bold').text('Interactive Hail Maps (IHM)', { continued: true });
+        doc.font('Helvetica').text(' - Professional storm tracking platform combining radar analysis with ground-verified reports from certified storm spotters, insurance adjusters, and meteorologists.');
+        doc.moveDown(0.2);
+        if (hasNexrad) {
+            doc.font('Helvetica-Bold').text('NEXRAD Radar', { continued: true });
+            doc.font('Helvetica').text(' - NOAA Next-Generation Radar network imagery via Iowa Environmental Mesonet. Shows base reflectivity at the time of storm events.');
+            doc.moveDown(0.2);
+        }
+        if (hasWarnings) {
+            doc.font('Helvetica-Bold').text('NWS Severe Weather Warnings', { continued: true });
+            doc.font('Helvetica').text(' - Official severe weather warnings issued by National Weather Service offices, documenting government-recognized severe weather activity in the area.');
+            doc.moveDown(0.2);
         }
         doc.moveDown(0.5);
-        doc.fontSize(12).fillColor(this.COLORS.primary).font('Helvetica-Bold')
-            .text('EVIDENCE FOR INSURANCE CLAIMS');
-        doc.moveDown(0.3);
-        doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica');
-        doc.text('This report contains official storm event data from certified sources:', { continued: false });
-        doc.moveDown(0.3);
-        doc.text('1. NOAA Storm Events Database - Official U.S. government record of severe weather events.');
-        doc.text('2. Interactive Hail Maps (IHM) - Professional storm tracking with radar and ground verification.');
-        doc.moveDown(0.5);
-        // Disclaimer box
+        doc.fontSize(9).font('Helvetica-Bold').text('This report may be used as supporting documentation for:');
+        doc.moveDown(0.2);
+        doc.fontSize(9).font('Helvetica');
+        ['Insurance claims for storm damage',
+            'Property inspection reports and assessments',
+            'Real estate disclosure requirements',
+            'Risk assessment and mitigation planning',
+            'Contractor scope of work documentation'
+        ].forEach(item => {
+            doc.text(`  \u2022  ${item}`);
+        });
+        // Disclaimer
+        doc.moveDown(1);
         const disclaimerY = doc.y;
-        doc.rect(this.MARGIN, disclaimerY, pageWidth, 45).fillOpacity(0.05).fill('#666').fillOpacity(1);
-        doc.rect(this.MARGIN, disclaimerY, pageWidth, 45).stroke(this.COLORS.border);
-        doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica-Oblique')
-            .text('DISCLAIMER: This report is for informational purposes only. Storm data is based on historical records and may not capture all weather events. This does not constitute a roof inspection. Professional inspection required for insurance claims.', this.MARGIN + 8, disclaimerY + 8, { width: pageWidth - 16 });
-        // Footer at bottom of current page
-        const footerY = 710;
-        doc.moveTo(this.MARGIN, footerY).lineTo(612 - this.MARGIN, footerY).stroke(this.COLORS.border);
-        doc.fontSize(8).fillColor(this.COLORS.lightText).font('Helvetica')
-            .text('Generated by SA21 Storm Intelligence', this.MARGIN, footerY + 5);
-        if (input.repName || input.repPhone) {
-            const repInfo = [input.repName, input.repPhone, input.repEmail].filter(Boolean).join(' • ');
-            doc.fontSize(8).text(repInfo, this.MARGIN, footerY + 15, { width: pageWidth, align: 'center' });
+        doc.rect(this.MARGIN, disclaimerY, this.CONTENT_WIDTH, 60)
+            .fillOpacity(0.04).fill('#000').fillOpacity(1);
+        doc.rect(this.MARGIN, disclaimerY, this.CONTENT_WIDTH, 60)
+            .strokeColor(this.COLORS.border).lineWidth(0.5).stroke();
+        doc.fontSize(8).fillColor(this.COLORS.secondary).font('Helvetica-Bold')
+            .text('DISCLAIMER', this.MARGIN + 10, disclaimerY + 6);
+        doc.fontSize(7).fillColor(this.COLORS.lightText).font('Helvetica')
+            .text('This report is provided for informational purposes only and is based on historical weather data records. ' +
+            'It does not constitute a professional roof inspection, engineering assessment, or guarantee of property damage. ' +
+            'Storm data is based on publicly available records and may not capture all weather events that affected the subject property. ' +
+            'A licensed roofing contractor should perform a physical inspection to confirm the presence and extent of any storm damage. ' +
+            'The generating party makes no warranty, express or implied, regarding the completeness or accuracy of this data.', this.MARGIN + 10, disclaimerY + 17, { width: this.CONTENT_WIDTH - 20, lineGap: 1 });
+        // Rep contact at bottom
+        if (input.repName || input.repPhone || input.repEmail) {
+            doc.moveDown(1.5);
+            doc.fontSize(9).fillColor(this.COLORS.text).font('Helvetica-Bold')
+                .text('For questions about this report, contact:');
+            doc.moveDown(0.2);
+            doc.fontSize(9).font('Helvetica');
+            if (input.repName)
+                doc.text(`  ${input.repName}`);
+            if (input.repPhone)
+                doc.text(`  ${input.repPhone}`);
+            if (input.repEmail)
+                doc.text(`  ${input.repEmail}`);
         }
+        this.drawFooter(doc, reportId, pageNum, companyName);
+        // =========================================================
+        // FINALIZE
+        // =========================================================
         doc.end();
         return stream;
     }
-    generateReportId() {
-        return `SR-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    }
+    // ========== HELPER METHODS ==========
     combineAndSortEvents(events, noaaEvents) {
-        // IHM events first, sorted by date descending
         const ihmEvents = events.map(e => ({
             date: e.date,
             type: 'Hail',
@@ -267,8 +707,7 @@ export class PDFReportService {
             severity: e.severity,
             source: 'IHM',
             distance: e.distanceMiles,
-        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        // NOAA events second, sorted by date descending
+        }));
         const noaaFormatted = noaaEvents.map(e => ({
             date: e.date,
             type: e.eventType.charAt(0).toUpperCase() + e.eventType.slice(1),
@@ -276,32 +715,22 @@ export class PDFReportService {
             severity: this.getSeverityFromMagnitude(e.magnitude, e.eventType),
             source: 'NOAA',
             distance: e.distanceMiles,
-        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        // IHM always at the top, then NOAA
-        return [...ihmEvents, ...noaaFormatted];
+        }));
+        // Sort all by date descending
+        return [...ihmEvents, ...noaaFormatted].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
     formatEventRow(event) {
-        const date = new Date(event.date);
-        const dateStr = date.toLocaleDateString('en-US', {
-            timeZone: 'America/New_York',
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-        // Format size based on event type
+        const dateStr = this.formatDateET(event.date);
         let sizeStr = '-';
         if (event.size) {
             if (event.type.toLowerCase() === 'wind') {
-                // Wind magnitude is in knots
                 sizeStr = `${Math.round(event.size)} kts`;
             }
             else {
-                // Hail/tornado size is in inches
                 sizeStr = `${event.size.toFixed(2)}"`;
             }
         }
         const distStr = event.distance ? `${event.distance.toFixed(1)} mi` : '-';
-        // Convert internal severity to professional display label
         const impactLabel = this.getImpactLabel(event.severity);
         return [dateStr, event.type, sizeStr, impactLabel, event.source, distStr];
     }
@@ -318,19 +747,11 @@ export class PDFReportService {
             return 'moderate';
         return 'minor';
     }
-    // Convert internal severity to adjuster-friendly labels
     getImpactLabel(severity) {
         switch (severity) {
             case 'severe': return 'MAJOR';
             case 'moderate': return 'SIGNIFICANT';
             default: return 'DOCUMENTED';
-        }
-    }
-    getSeverityColor(severity) {
-        switch (severity) {
-            case 'severe': return this.COLORS.critical; // Red for major
-            case 'moderate': return this.COLORS.high; // Orange for significant
-            default: return this.COLORS.primary; // Blue for documented (neutral, professional)
         }
     }
     getEventTypeColor(type) {
@@ -340,9 +761,6 @@ export class PDFReportService {
             case 'tornado': return this.COLORS.tornado;
             default: return this.COLORS.text;
         }
-    }
-    getSourceColor(source) {
-        return source === 'IHM' ? this.COLORS.ihm : this.COLORS.noaa;
     }
     getFilterLabel(filter) {
         switch (filter) {

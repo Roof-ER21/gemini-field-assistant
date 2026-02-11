@@ -249,7 +249,7 @@ export function formatEventDate(date) {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: 'UTC'
+        timeZone: 'America/New_York'
     });
 }
 /**
