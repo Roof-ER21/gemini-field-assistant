@@ -17,6 +17,7 @@ import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { emailService } from './services/emailService.js';
 import { twilioService } from './services/twilioService.js';
+import { createPushNotificationService } from './services/pushNotificationService.js';
 import { cronService } from './services/cronService.js';
 import { initializePresenceService, getPresenceService } from './services/presenceService.js';
 import { createMessagingRoutes } from './routes/messagingRoutes.js';
@@ -98,6 +99,19 @@ app.set('pool', pool);
 initSettingsService(pool);
 // Initialize Twilio service with pool for rate limiting and logging
 twilioService.setPool(pool);
+// Initialize Push Notification Service
+const pushNotificationService = createPushNotificationService(pool);
+app.set('pushNotificationService', pushNotificationService);
+pushNotificationService.initializeFirebase().then((initialized) => {
+    if (initialized) {
+        console.log('✅ Push notification service initialized');
+    }
+    else {
+        console.log('⚠️ Push notifications unavailable (Firebase credentials not configured)');
+    }
+}).catch((err) => {
+    console.log('⚠️ Push notifications unavailable:', err.message);
+});
 // Initialize HailTrace import service
 hailtraceImportService.initialize(pool);
 console.log('✅ HailTrace import service initialized');

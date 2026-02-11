@@ -588,6 +588,44 @@ export function createMessagingRoutes(pool) {
             if (presenceService) {
                 presenceService.emitNewMessage(conversationId, completeMessage.rows[0]);
             }
+            // Send push notifications to offline users (non-blocking)
+            const pushService = req.app.get('pushNotificationService');
+            if (pushService) {
+                const senderName = completeMessage.rows[0]?.sender?.name || 'Team Member';
+                const preview = getMessagePreview(content);
+                if (conversationInfo.rows[0].type === 'direct') {
+                    // Push notification for DM recipient
+                    const dmRecipient = await pool.query(`SELECT user_id FROM conversation_participants
+             WHERE conversation_id = $1 AND user_id != $2 LIMIT 1`, [conversationId, userId]);
+                    if (dmRecipient.rows.length > 0) {
+                        pushService.sendToUser(dmRecipient.rows[0].user_id, {
+                            title: senderName,
+                            body: preview,
+                            data: { type: 'direct_message', conversationId, messageId: message.id, senderId: userId }
+                        }, 'team_message').catch((err) => console.error('Push error (DM):', err.message));
+                    }
+                }
+                else {
+                    // Push notifications for group message participants (except sender)
+                    const groupParticipants = await pool.query(`SELECT user_id FROM conversation_participants
+             WHERE conversation_id = $1 AND user_id != $2`, [conversationId, userId]);
+                    for (const p of groupParticipants.rows) {
+                        pushService.sendToUser(p.user_id, {
+                            title: `${senderName} in group`,
+                            body: preview,
+                            data: { type: 'group_message', conversationId, messageId: message.id, senderId: userId }
+                        }, 'team_message').catch((err) => console.error('Push error (group):', err.message));
+                    }
+                }
+                // Push notifications for @mentions
+                if (content.mentioned_users && Array.isArray(content.mentioned_users)) {
+                    for (const mentionedUserId of content.mentioned_users) {
+                        if (mentionedUserId === userId)
+                            continue;
+                        pushService.sendMentionNotification(mentionedUserId, senderName, typeof content.text === 'string' ? content.text : preview, message.id).catch((err) => console.error('Push error (mention):', err.message));
+                    }
+                }
+            }
             res.status(201).json({
                 success: true,
                 message: completeMessage.rows[0],
