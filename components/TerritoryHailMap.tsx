@@ -4,9 +4,8 @@ import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
 import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2 } from 'lucide-react';
-// @ts-ignore - jsPDF v4 types
-import jsPDF from 'jspdf';
-import { generateStormReport } from '../services/pdfService';
+import NexradRadarLayer from './NexradRadarLayer';
+import { downloadBlob } from '../services/pdfService';
 
 interface Territory {
   id: string;
@@ -283,6 +282,9 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   });
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfReportFilter, setPdfReportFilter] = useState<'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only'>('all');
+
+  // NEXRAD radar visibility
+  const [showNexrad, setShowNexrad] = useState(false);
 
   // Last updated timestamp
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -810,19 +812,35 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         `${currentSearch.city || ''}${currentSearch.city && currentSearch.state ? ', ' : ''}${currentSearch.state || ''}${currentSearch.zip ? ' ' + currentSearch.zip : ''}` ||
         `${currentSearch.latitude?.toFixed(6)}, ${currentSearch.longitude?.toFixed(6)}`;
 
-      await generateStormReport({
-        address,
-        lat: currentSearch.latitude,
-        lng: currentSearch.longitude,
-        radius: currentSearch.radius || 50,
-        events: pdfHailEvents,
-        noaaEvents: pdfNoaaEvents,
-        damageScore: damageScore || undefined,
-        searchCriteria: currentSearch,
-        searchStats,
-        filter: pdfReportFilter,
-        ...pdfOptions
+      // Use server-side Curran-style PDF generation
+      const response = await fetch(`${getApiBaseUrl()}/api/hail/generate-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address,
+          city: currentSearch.city,
+          state: currentSearch.state,
+          lat: currentSearch.latitude,
+          lng: currentSearch.longitude,
+          radius: currentSearch.radius || 50,
+          events: pdfHailEvents,
+          noaaEvents: pdfNoaaEvents,
+          damageScore: damageScore || { score: 0, riskLevel: 'Low', summary: 'No data', color: '#22c55e' },
+          filter: pdfReportFilter,
+          includeNexrad: true,
+          includeMap: true,
+          includeWarnings: true,
+          ...pdfOptions
+        })
       });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const filename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      downloadBlob(blob, filename);
 
       console.log('✅ PDF Report generated successfully');
     } catch (error) {
@@ -2115,6 +2133,17 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           />
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
+
+          {/* NEXRAD Radar Overlay */}
+          <NexradRadarLayer
+            visible={showNexrad}
+            onToggle={() => setShowNexrad(!showNexrad)}
+            stormDate={
+              hailEvents.length > 0 ? hailEvents[0].date :
+              noaaEvents.length > 0 ? noaaEvents[0].date :
+              undefined
+            }
+          />
 
           {/* Territory Rectangles */}
           {territories.map(t => (
