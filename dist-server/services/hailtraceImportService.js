@@ -1,5 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 /**
  * HailTrace Import Service
  *
@@ -14,9 +17,10 @@ class HailTraceImportService {
     exportDirectory;
     watching = false;
     processedFiles = new Set();
+    dirMissingWarned = false;
     constructor() {
         this.exportDirectory = path.resolve(process.env.HAILTRACE_EXPORT_DIR ||
-            '/Users/a21/gemini-field-assistant/scripts/hailtrace-automation/hailtrace-exports');
+            path.join(__dirname, '../../scripts/hailtrace-automation/hailtrace-exports'));
     }
     /**
      * Initialize the service with database pool
@@ -206,11 +210,15 @@ class HailTraceImportService {
         if (!this.pool)
             return;
         try {
-            // Ensure directory exists
+            // Ensure directory exists (only warn once to avoid log spam)
             if (!fs.existsSync(this.exportDirectory)) {
-                console.log(`[HailTrace] Export directory not found: ${this.exportDirectory}`);
+                if (!this.dirMissingWarned) {
+                    console.log(`[HailTrace] Export directory not found: ${this.exportDirectory}`);
+                    this.dirMissingWarned = true;
+                }
                 return;
             }
+            this.dirMissingWarned = false;
             // Read directory
             const files = fs.readdirSync(this.exportDirectory);
             const jsonFiles = files.filter(f => f.endsWith('.json'));

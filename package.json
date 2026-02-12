@@ -31,6 +31,8 @@
     "db:migrate:goals:railway": "railway run node run-migration-goals.js",
     "db:migrate:sms": "node run-migration-047.js",
     "db:migrate:sms:railway": "railway run node run-migration-047.js",
+    "db:migrate:docuseal": "node run-migration-053.js",
+    "db:migrate:docuseal:railway": "railway run node run-migration-053.js",
     "db:verify:indexes": "node verify-performance-indexes.js",
     "db:verify:indexes:railway": "railway run node verify-performance-indexes.js",
     "db:analyze": "psql $DATABASE_URL -c 'ANALYZE;'",
