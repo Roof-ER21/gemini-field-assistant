@@ -40,6 +40,8 @@ import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createAgreementRoutes } from './routes/agreementRoutes.js';
+import { createDocuSealRoutes } from './routes/docusealRoutes.js';
+import { createDocumentRoutes } from './routes/documentRoutes.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
@@ -7370,6 +7372,10 @@ app.use('/api/qr-analytics', createQRAnalyticsRoutes(pool));
 app.use('/api/profile-leads', createProfileLeadsRoutes(pool));
 // Register agreement routes (e-signatures for Claim Auth and Contingency)
 app.use('/api/agreements', createAgreementRoutes(pool));
+// Register DocuSeal e-signature routes
+app.use('/api/docuseal', createDocuSealRoutes(pool));
+// Register document generation routes (Carbone templates)
+app.use('/api/documents', createDocumentRoutes());
 // ============================================================================
 // PUBLIC PROFILE PAGE ROUTE (before SPA fallback)
 // ============================================================================

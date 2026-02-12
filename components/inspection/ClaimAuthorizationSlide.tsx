@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, CheckCircle2, ArrowRight } from 'lucide-react';
+import { FileText, CheckCircle2, ArrowRight, FileSignature } from 'lucide-react';
 import { SignaturePad } from './SignaturePad';
+import DocuSealSigning from '../DocuSealSigning';
 
 interface ClaimAuthorizationData {
   customerName: string;
@@ -23,6 +24,14 @@ interface ClaimAuthorizationSlideProps {
   initialData?: Partial<ClaimAuthorizationData>;
   onComplete: (data: ClaimAuthorizationData) => void;
   onSkip?: () => void;
+  /** Use DocuSeal for signing instead of canvas */
+  useDocuSeal?: boolean;
+  /** DocuSeal template ID for claim authorization */
+  docuSealTemplateId?: number;
+  /** Existing agreement ID to link DocuSeal submission */
+  agreementId?: string;
+  /** Agent name for pre-fill */
+  agentName?: string;
 }
 
 // Common insurance companies in DMV area
@@ -46,8 +55,13 @@ const INSURANCE_COMPANIES = [
 export const ClaimAuthorizationSlide: React.FC<ClaimAuthorizationSlideProps> = ({
   initialData,
   onComplete,
-  onSkip
+  onSkip,
+  useDocuSeal = false,
+  docuSealTemplateId,
+  agreementId,
+  agentName,
 }) => {
+  const [signingMethod, setSigningMethod] = useState<'canvas' | 'docuseal'>(useDocuSeal ? 'docuseal' : 'canvas');
   const [formData, setFormData] = useState<ClaimAuthorizationData>({
     customerName: initialData?.customerName || '',
     customerPhone: initialData?.customerPhone || '',
@@ -392,6 +406,53 @@ export const ClaimAuthorizationSlide: React.FC<ClaimAuthorizationSlideProps> = (
             </p>
           </div>
 
+          {/* Signing Method Toggle */}
+          {docuSealTemplateId && (
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px',
+              justifyContent: 'center',
+            }}>
+              <button
+                onClick={() => setSigningMethod('canvas')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${signingMethod === 'canvas' ? '#DC2626' : '#D1D5DB'}`,
+                  background: signingMethod === 'canvas' ? 'rgba(220, 38, 38, 0.1)' : 'white',
+                  color: signingMethod === 'canvas' ? '#DC2626' : '#6B7280',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <FileText size={14} /> Sign on Screen
+              </button>
+              <button
+                onClick={() => setSigningMethod('docuseal')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${signingMethod === 'docuseal' ? '#DC2626' : '#D1D5DB'}`,
+                  background: signingMethod === 'docuseal' ? 'rgba(220, 38, 38, 0.1)' : 'white',
+                  color: signingMethod === 'docuseal' ? '#DC2626' : '#6B7280',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <FileSignature size={14} /> DocuSeal E-Sign
+              </button>
+            </div>
+          )}
+
           {/* Signature Section */}
           <div style={{
             background: 'white',
@@ -409,24 +470,46 @@ export const ClaimAuthorizationSlide: React.FC<ClaimAuthorizationSlideProps> = (
               Customer Signature
             </h3>
 
-            <SignaturePad
-              width={500}
-              height={150}
-              lineColor="#1f2937"
-              backgroundColor="#ffffff"
-              onSignatureChange={handleSignatureChange}
-              label="Sign to authorize"
-              required={true}
-            />
-
-            <p style={{
-              fontSize: '12px',
-              color: '#9CA3AF',
-              marginTop: '12px',
-              textAlign: 'center'
-            }}>
-              Date: {new Date().toLocaleDateString()}
-            </p>
+            {signingMethod === 'docuseal' && docuSealTemplateId ? (
+              <DocuSealSigning
+                agreementId={agreementId}
+                templateId={docuSealTemplateId}
+                customerName={formData.customerName}
+                customerEmail={formData.customerEmail}
+                customerAddress={formData.customerAddress}
+                insuranceCompany={formData.insuranceCompany}
+                claimNumber={formData.claimNumber}
+                agentName={agentName}
+                onComplete={(data) => {
+                  onComplete({
+                    ...formData,
+                    customerSignature: `docuseal:${data.submissionId}`,
+                    signedAt: new Date().toISOString(),
+                  });
+                }}
+                onError={(err) => console.error('[DocuSeal] Claim auth error:', err)}
+              />
+            ) : (
+              <>
+                <SignaturePad
+                  width={500}
+                  height={150}
+                  lineColor="#1f2937"
+                  backgroundColor="#ffffff"
+                  onSignatureChange={handleSignatureChange}
+                  label="Sign to authorize"
+                  required={true}
+                />
+                <p style={{
+                  fontSize: '12px',
+                  color: '#9CA3AF',
+                  marginTop: '12px',
+                  textAlign: 'center'
+                }}>
+                  Date: {new Date().toLocaleDateString()}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Action Buttons */}

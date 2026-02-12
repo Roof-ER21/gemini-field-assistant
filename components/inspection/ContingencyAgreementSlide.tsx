@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FileText, CheckCircle2, AlertCircle, FileSignature } from 'lucide-react';
 import { SignaturePad } from './SignaturePad';
+import DocuSealSigning from '../DocuSealSigning';
 
 interface ContingencyAgreementData {
   customerName: string;
@@ -28,14 +29,24 @@ interface ContingencyAgreementSlideProps {
   agentName?: string;
   onComplete: (data: ContingencyAgreementData) => void;
   onBack?: () => void;
+  /** Use DocuSeal for signing instead of canvas */
+  useDocuSeal?: boolean;
+  /** DocuSeal template ID for contingency agreement */
+  docuSealTemplateId?: number;
+  /** Existing agreement ID to link DocuSeal submission */
+  agreementId?: string;
 }
 
 export const ContingencyAgreementSlide: React.FC<ContingencyAgreementSlideProps> = ({
   initialData,
   agentName = 'ROOF-ER Representative',
   onComplete,
-  onBack
+  onBack,
+  useDocuSeal = false,
+  docuSealTemplateId,
+  agreementId,
 }) => {
+  const [signingMethod, setSigningMethod] = useState<'canvas' | 'docuseal'>(useDocuSeal ? 'docuseal' : 'canvas');
   const [formData, setFormData] = useState<ContingencyAgreementData>({
     customerName: initialData?.customerName || '',
     customerAddress: initialData?.customerAddress || '',
@@ -349,6 +360,53 @@ export const ContingencyAgreementSlide: React.FC<ContingencyAgreementSlideProps>
             </p>
           </div>
 
+          {/* Signing Method Toggle */}
+          {docuSealTemplateId && (
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px',
+              justifyContent: 'center',
+            }}>
+              <button
+                onClick={() => setSigningMethod('canvas')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${signingMethod === 'canvas' ? '#16A34A' : '#D1D5DB'}`,
+                  background: signingMethod === 'canvas' ? 'rgba(22, 163, 74, 0.1)' : 'white',
+                  color: signingMethod === 'canvas' ? '#16A34A' : '#6B7280',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <FileText size={14} /> Sign on Screen
+              </button>
+              <button
+                onClick={() => setSigningMethod('docuseal')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${signingMethod === 'docuseal' ? '#16A34A' : '#D1D5DB'}`,
+                  background: signingMethod === 'docuseal' ? 'rgba(22, 163, 74, 0.1)' : 'white',
+                  color: signingMethod === 'docuseal' ? '#16A34A' : '#6B7280',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <FileSignature size={14} /> DocuSeal E-Sign
+              </button>
+            </div>
+          )}
+
           {/* Signature Section */}
           <div style={{
             background: 'white',
@@ -374,86 +432,111 @@ export const ContingencyAgreementSlide: React.FC<ContingencyAgreementSlideProps>
               I acknowledge receipt of a copy of this Agreement.
             </p>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '24px'
-            }}>
-              {/* Agent Signature */}
-              <div>
-                <SignaturePad
-                  width={300}
-                  height={120}
-                  lineColor="#1f2937"
-                  backgroundColor="#ffffff"
-                  onSignatureChange={handleAgentSignatureChange}
-                  label={`Agent of The Roof Docs LLC`}
-                  required={true}
-                />
-                <p style={{
-                  fontSize: '12px',
-                  color: '#6B7280',
-                  marginTop: '8px',
-                  textAlign: 'center'
+            {signingMethod === 'docuseal' && docuSealTemplateId ? (
+              <DocuSealSigning
+                agreementId={agreementId}
+                templateId={docuSealTemplateId}
+                customerName={formData.customerName}
+                customerEmail={formData.customerEmail}
+                customerAddress={formData.customerAddress}
+                insuranceCompany={formData.insuranceCompany}
+                claimNumber={formData.claimNumber}
+                agentName={agentName}
+                onComplete={(data) => {
+                  onComplete({
+                    ...formData,
+                    agentSignature: `docuseal:${data.submissionId}`,
+                    customerSignature1: `docuseal:${data.submissionId}`,
+                    customerSignature2: null,
+                    signedAt: new Date().toISOString(),
+                  });
+                }}
+                onError={(err) => console.error('[DocuSeal] Contingency error:', err)}
+              />
+            ) : (
+              <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '24px'
                 }}>
-                  {agentName}
-                </p>
-              </div>
+                  {/* Agent Signature */}
+                  <div>
+                    <SignaturePad
+                      width={300}
+                      height={120}
+                      lineColor="#1f2937"
+                      backgroundColor="#ffffff"
+                      onSignatureChange={handleAgentSignatureChange}
+                      label={`Agent of The Roof Docs LLC`}
+                      required={true}
+                    />
+                    <p style={{
+                      fontSize: '12px',
+                      color: '#6B7280',
+                      marginTop: '8px',
+                      textAlign: 'center'
+                    }}>
+                      {agentName}
+                    </p>
+                  </div>
 
-              {/* Customer Signature 1 */}
-              <div>
-                <SignaturePad
-                  width={300}
-                  height={120}
-                  lineColor="#1f2937"
-                  backgroundColor="#ffffff"
-                  onSignatureChange={handleCustomerSignature1Change}
-                  label="Customer Signature"
-                  required={true}
-                />
-                <p style={{
-                  fontSize: '12px',
-                  color: '#6B7280',
-                  marginTop: '8px',
-                  textAlign: 'center'
-                }}>
-                  {formData.customerName || 'Customer'}
-                </p>
-              </div>
-            </div>
-
-            {/* Second Customer Signature Toggle */}
-            <div style={{ marginTop: '24px' }}>
-              {!showSecondSignature ? (
-                <button
-                  onClick={() => setShowSecondSignature(true)}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: '1px dashed #D1D5DB',
-                    background: '#F9FAFB',
-                    color: '#6B7280',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    width: '100%'
-                  }}
-                >
-                  + Add Second Customer Signature (if applicable)
-                </button>
-              ) : (
-                <div style={{ maxWidth: '300px' }}>
-                  <SignaturePad
-                    width={300}
-                    height={120}
-                    lineColor="#1f2937"
-                    backgroundColor="#ffffff"
-                    onSignatureChange={handleCustomerSignature2Change}
-                    label="Second Customer Signature (optional)"
-                    required={false}
-                  />
+                  {/* Customer Signature 1 */}
+                  <div>
+                    <SignaturePad
+                      width={300}
+                      height={120}
+                      lineColor="#1f2937"
+                      backgroundColor="#ffffff"
+                      onSignatureChange={handleCustomerSignature1Change}
+                      label="Customer Signature"
+                      required={true}
+                    />
+                    <p style={{
+                      fontSize: '12px',
+                      color: '#6B7280',
+                      marginTop: '8px',
+                      textAlign: 'center'
+                    }}>
+                      {formData.customerName || 'Customer'}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Second Customer Signature Toggle */}
+                <div style={{ marginTop: '24px' }}>
+                  {!showSecondSignature ? (
+                    <button
+                      onClick={() => setShowSecondSignature(true)}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        border: '1px dashed #D1D5DB',
+                        background: '#F9FAFB',
+                        color: '#6B7280',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      + Add Second Customer Signature (if applicable)
+                    </button>
+                  ) : (
+                    <div style={{ maxWidth: '300px' }}>
+                      <SignaturePad
+                        width={300}
+                        height={120}
+                        lineColor="#1f2937"
+                        backgroundColor="#ffffff"
+                        onSignatureChange={handleCustomerSignature2Change}
+                        label="Second Customer Signature (optional)"
+                        required={false}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Date */}
