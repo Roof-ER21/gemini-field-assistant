@@ -20,7 +20,7 @@ export function createDocuSealRoutes(dbPool: Pool) {
   router.get('/status', (_req: Request, res: Response) => {
     res.json({
       configured: docusealService.isConfigured(),
-      apiUrl: process.env.DOCUSEAL_API_URL || 'https://api.docuseal.co',
+      apiUrl: process.env.DOCUSEAL_API_URL || 'https://api.docuseal.com',
     });
   });
 

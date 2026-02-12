@@ -6,7 +6,7 @@
  * Falls back gracefully when DocuSeal is not configured.
  */
 
-const DOCUSEAL_API_URL = process.env.DOCUSEAL_API_URL || 'https://api.docuseal.co';
+const DOCUSEAL_API_URL = process.env.DOCUSEAL_API_URL || 'https://api.docuseal.com';
 const DOCUSEAL_API_KEY = process.env.DOCUSEAL_API_KEY || '';
 
 export interface DocuSealTemplate {

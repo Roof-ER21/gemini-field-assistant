@@ -36,6 +36,9 @@ import { buildGoalsContext } from '../services/goalsContextService';
 import { buildContestContext } from '../services/contestContextService';
 import { buildCheckinContext } from '../services/checkinContextService';
 import { buildTerritoryContext } from '../services/territoryContextService';
+import { SusanChatProvider } from './chat/SusanChatProvider';
+import { SusanThread } from './chat/SusanThread';
+import { SusanMessage } from '../services/assistantUIRuntime';
 
 /**
  * Extract and compress key context from conversation history
@@ -208,6 +211,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [feedbackAdjuster, setFeedbackAdjuster] = useState('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({});
 
+  // Toggle for new assistant-ui rendering (incremental migration)
+  // Note: Set to false to use legacy rendering with full feature support
+  // (HAIL_RESULTS, EMAIL_GENERATED special rendering, etc.)
+  // Set to true to use new SusanThread with assistant-ui primitives
+  const [useNewChat, setUseNewChat] = useState(true);
+
   // Email generation state
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailRecipientType, setEmailRecipientType] = useState<'adjuster' | 'homeowner' | 'insurance' | 'custom'>('adjuster');
@@ -257,6 +266,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     'Not insurance-specific',
     'Confusing'
   ];
+
+  // Convert internal Message[] to SusanMessage[] for assistant-ui
+  const convertToSusanMessages = (msgs: Message[]): SusanMessage[] => {
+    return msgs.map(msg => ({
+      id: msg.id,
+      role: msg.sender === 'user' ? 'user' : 'assistant',
+      content: msg.text,
+      sources: msg.sources,
+      provider: msg.provider,
+      createdAt: msg.created_at,
+    }));
+  };
+
+  // Build metadata map for messages (sources, provider info)
+  const buildMessageMetadata = (msgs: Message[]): Map<string, { sources?: any[]; provider?: string }> => {
+    const metadata = new Map();
+    msgs.forEach(msg => {
+      if (msg.sources || msg.provider) {
+        metadata.set(msg.id, {
+          sources: msg.sources,
+          provider: msg.provider,
+        });
+      }
+    });
+    return metadata;
+  };
 
   // Effect to initialize and load messages from localStorage
   useEffect(() => {
@@ -1869,7 +1904,37 @@ Generate ONLY the email body text, no subject line or metadata.`;
               )}
             </div>
 
-            {messages.map((msg) => (
+            {/* Conditional rendering: New assistant-ui SusanThread vs Legacy rendering */}
+            {useNewChat ? (
+              <SusanChatProvider
+                messages={convertToSusanMessages(messages)}
+                setMessages={(susanMsgs) => {
+                  // Convert back from SusanMessage to Message format
+                  const convertedMsgs: Message[] = susanMsgs.map(sm => ({
+                    id: sm.id,
+                    text: sm.content,
+                    sender: sm.role === 'user' ? 'user' : 'bot',
+                    sources: sm.sources,
+                    provider: sm.provider,
+                    created_at: sm.createdAt,
+                  }));
+                  setMessages(convertedMsgs);
+                }}
+                selectedState={selectedState || undefined}
+              >
+                <SusanThread
+                  messageMetadata={buildMessageMetadata(messages)}
+                  isLoading={isLoading}
+                  style={{
+                    flex: 1,
+                    overflow: 'auto',
+                    padding: '16px',
+                  }}
+                />
+              </SusanChatProvider>
+            ) : (
+              <>
+                {messages.map((msg) => (
               <div key={msg.id} className={`roof-er-message ${msg.sender === 'user' ? 'user' : 'ai'}`}>
                 <div className="roof-er-message-avatar">
                   {msg.sender === 'user' ? 'YOU' : 'S21'}
@@ -2443,20 +2508,22 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   </div>
                 </div>
               </div>
-            ))}
-            {isLoading && (
-              <div className="roof-er-message ai">
-                <div className="roof-er-message-avatar">S21</div>
-                <div className="roof-er-message-content">
-                  <div className="roof-er-typing-indicator">
-                    <div className="roof-er-typing-dot"></div>
-                    <div className="roof-er-typing-dot"></div>
-                    <div className="roof-er-typing-dot"></div>
+                ))}
+                {isLoading && (
+                  <div className="roof-er-message ai">
+                    <div className="roof-er-message-avatar">S21</div>
+                    <div className="roof-er-message-content">
+                      <div className="roof-er-typing-indicator">
+                        <div className="roof-er-typing-dot"></div>
+                        <div className="roof-er-typing-dot"></div>
+                        <div className="roof-er-typing-dot"></div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
             )}
-            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
