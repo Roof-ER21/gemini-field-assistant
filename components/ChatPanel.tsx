@@ -215,7 +215,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Note: Set to false to use legacy rendering with full feature support
   // (HAIL_RESULTS, EMAIL_GENERATED special rendering, etc.)
   // Set to true to use new SusanThread with assistant-ui primitives
-  const [useNewChat, setUseNewChat] = useState(true);
+  const [useNewChat, setUseNewChat] = useState(false);
 
   // Email generation state
   const [showEmailDialog, setShowEmailDialog] = useState(false);

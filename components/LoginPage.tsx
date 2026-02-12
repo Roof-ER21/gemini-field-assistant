@@ -89,7 +89,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         setIsSignup(true);
         setStep('signup');
       } else {
-        setError('Unable to sign up with this email. Please try a different email address.');
+        setError('Please use your @theroofdocs.com email address.');
       }
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
@@ -426,7 +426,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 type="email"
                 value={email}
                 onChange={(e) => handleEmailChange(e.target.value)}
-                placeholder="you@yourcompany.com"
+                placeholder="you@theroofdocs.com"
                 required
                 autoComplete="email"
                 style={inputStyle}
@@ -434,7 +434,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 onBlur={handleInputBlur}
               />
               <p style={{ fontSize: '12px', color: '#52525b', margin: '8px 0 0 0' }}>
-                Enter your work email to get started
+                Use your @theroofdocs.com email
               </p>
             </div>
 

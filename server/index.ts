@@ -2418,11 +2418,10 @@ function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Email domain validation — open to all domains by default for public App Store distribution
-// Set ALLOWED_EMAIL_DOMAINS=theroofdocs.com to restrict to a specific domain
-const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || '*').split(',').map(d => d.trim().toLowerCase());
+// Email domain validation — Roof-ER internal tool
+// Add additional domains via ALLOWED_EMAIL_DOMAINS env var (comma-separated)
+const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'theroofdocs.com').split(',').map(d => d.trim().toLowerCase());
 const isAllowedEmailDomain = (email: string): boolean => {
-  if (ALLOWED_EMAIL_DOMAINS.includes('*')) return true;
   const domain = email.split('@')[1]?.toLowerCase();
   return ALLOWED_EMAIL_DOMAINS.includes(domain);
 };
@@ -2452,7 +2451,7 @@ app.post('/api/auth/check-email', async (req, res) => {
     if (!isAllowedEmailDomain(email)) {
       return res.status(400).json({
         success: false,
-        error: 'This email domain is not allowed. Please use an authorized email address.',
+        error: 'Please use your @theroofdocs.com email address',
         canSignup: false
       });
     }
@@ -2515,7 +2514,7 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     if (!isAllowedEmailDomain(email)) {
       return res.status(400).json({
         success: false,
-        error: 'This email domain is not allowed. Please use an authorized email address.'
+        error: 'Please use your @theroofdocs.com email address'
       });
     }
 
@@ -2594,7 +2593,7 @@ app.post('/api/auth/direct-login', async (req, res) => {
     if (!isAllowedEmailDomain(email)) {
       return res.status(400).json({
         success: false,
-        error: 'This email domain is not allowed. Please use an authorized email address.'
+        error: 'Please use your @theroofdocs.com email address'
       });
     }
 
