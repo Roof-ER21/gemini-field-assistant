@@ -1540,6 +1540,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               </button>
             </div>
 
+            {/* Scrollable content: stats + events list */}
+            <div style={{ flex: 1, overflow: 'auto' }}>
             {/* Stats Summary with Damage Score */}
             {searchStats && (
               <div style={{
@@ -1768,7 +1770,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             )}
 
             {/* Events List */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+            <div style={{ padding: '8px' }}>
               {/* IHM Events */}
               {filteredHailEvents.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
@@ -1951,6 +1953,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                 </div>
               )}
             </div>
+            </div>{/* end scrollable content wrapper */}
           </div>
         )}
 
