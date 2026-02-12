@@ -35,8 +35,9 @@ const LeaderboardPanel = lazy(() => import('./components/LeaderboardPanel'));
 const ContestSection = lazy(() => import('./src/components/ContestSection'));
 const MyProfilePanel = lazy(() => import('./components/MyProfilePanel'));
 const InspectionPresentationPanel = lazy(() => import('./components/InspectionPresentationPanel'));
+const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,8 +58,23 @@ const App: React.FC = () => {
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent)?.detail || {};
-      if (detail.type === 'system' && detail.notification?.data?.feedback_id) {
-        setActivePanel('learning');
+      switch (detail.type) {
+        case 'system':
+          if (detail.notification?.data?.feedback_id) {
+            setActivePanel('learning');
+          } else {
+            setActivePanel('notifications');
+          }
+          break;
+        case 'mention':
+        case 'direct_message':
+          setActivePanel('team');
+          break;
+        case 'shared_content':
+          setActivePanel('chat');
+          break;
+        default:
+          setActivePanel('notifications');
       }
     };
     window.addEventListener('notification-click', handler as EventListener);
@@ -112,7 +128,8 @@ const App: React.FC = () => {
     leaderboard: 'Leaderboard',
     contests: 'Sales Contests',
     myprofile: 'My QR Profile',
-    inspections: 'Inspection Presentations'
+    inspections: 'Inspection Presentations',
+    notifications: 'Notifications'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -364,6 +381,12 @@ const App: React.FC = () => {
         return (
           <LazyLoadBoundary componentName="Inspection Presentations">
             <InspectionPresentationPanel />
+          </LazyLoadBoundary>
+        );
+      case 'notifications':
+        return (
+          <LazyLoadBoundary componentName="Notifications">
+            <NotificationsPage userEmail={currentUser?.email} />
           </LazyLoadBoundary>
         );
       default:

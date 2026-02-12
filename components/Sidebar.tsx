@@ -32,7 +32,7 @@ import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -298,7 +298,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     <div className="roof-er-sidebar">
       {/* Notification Bell - Top Right */}
       <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
-        <NotificationBell />
+        <NotificationBell onViewAll={() => setActivePanel('notifications')} />
       </div>
 
       {/* Navigation Section */}

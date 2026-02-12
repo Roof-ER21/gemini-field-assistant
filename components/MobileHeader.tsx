@@ -5,7 +5,7 @@ import Logo from './icons/Logo';
 import { cn } from '../lib/utils';
 import NotificationBell from './NotificationBell';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'stormmap' | 'live' | 'knowledge';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
 
 interface MobileHeaderProps {
   activePanel: PanelType;
@@ -60,7 +60,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
           {/* Actions */}
           <div className="flex items-center gap-2">
             {/* Notification Bell */}
-            <NotificationBell />
+            <NotificationBell onViewAll={() => setActivePanel('notifications')} />
 
             {/* Menu Button */}
             <motion.button

@@ -25,6 +25,7 @@ interface NotificationsPanelProps {
   onMarkAllRead: () => void;
   onRefresh: () => void;
   onNotificationClick?: (notification: Notification) => void;
+  onViewAll?: () => void;
 }
 
 const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
@@ -34,7 +35,8 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onClose,
   onMarkAllRead,
   onRefresh,
-  onNotificationClick
+  onNotificationClick,
+  onViewAll
 }) => {
   // Detect mobile viewport for responsive positioning
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
@@ -319,24 +321,32 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
           textAlign: 'center'
         }}
       >
-        <button
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            margin: '0 auto',
-            padding: '0.25rem'
-          }}
-        >
-          <Settings style={{ width: '14px', height: '14px' }} />
-          Notification Settings
-        </button>
+        {onViewAll && (
+          <button
+            onClick={() => {
+              onViewAll();
+              // Don't call onClose - let the parent handle closing
+            }}
+            style={{
+              width: '100%',
+              background: 'var(--bg-secondary)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'var(--roof-red)',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem'
+            }}
+          >
+            <Bell style={{ width: '14px', height: '14px' }} />
+            View All Notifications
+          </button>
+        )}
       </div>
 
       {/* Spin Animation */}

@@ -219,7 +219,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Search panel state
-  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>({});
   const [currentSearch, setCurrentSearch] = useState<SearchCriteria | null>(null);
 
@@ -1156,25 +1155,30 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
         {/* Source Filter (IHM vs NOAA) */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: 'auto' }}>
-          {(['all', 'ihm', 'noaa'] as const).map(source => (
-            <button
-              key={source}
-              onClick={() => setSourceFilter(source)}
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: 'none',
-                background: sourceFilter === source ? 'var(--roof-orange)' : 'var(--bg-elevated)',
-                color: sourceFilter === source ? 'white' : 'var(--text-primary)',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: '600',
-                transition: 'all 0.2s'
-              }}
-            >
-              {source === 'all' ? 'All Sources' : source.toUpperCase()}
-            </button>
-          ))}
+          {(['all', 'ihm', 'noaa'] as const).map(source => {
+            const isActive = sourceFilter === source;
+            const activeColor = source === 'ihm' ? 'var(--roof-blue)' : source === 'noaa' ? 'var(--roof-orange)' : 'var(--roof-red)';
+            return (
+              <button
+                key={source}
+                onClick={() => setSourceFilter(source)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: isActive ? `2px solid ${activeColor}` : '2px solid transparent',
+                  background: isActive ? activeColor : 'var(--bg-elevated)',
+                  color: isActive ? 'white' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  boxShadow: isActive ? `0 0 8px ${activeColor}40` : 'none'
+                }}
+              >
+                {source === 'all' ? 'All Sources' : source.toUpperCase()}
+              </button>
+            );
+          })}
         </div>
 
         {/* Event Type Filter */}
@@ -1186,16 +1190,17 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               style={{
                 padding: '6px 10px',
                 borderRadius: '6px',
-                border: 'none',
+                border: eventTypeFilter === type ? '2px solid var(--roof-red)' : '2px solid transparent',
                 background: eventTypeFilter === type ? 'var(--roof-red)' : 'var(--bg-elevated)',
-                color: eventTypeFilter === type ? 'white' : 'var(--text-primary)',
+                color: eventTypeFilter === type ? 'white' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 fontSize: '11px',
                 fontWeight: '600',
                 transition: 'all 0.2s',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                boxShadow: eventTypeFilter === type ? '0 0 8px rgba(196, 30, 58, 0.3)' : 'none'
               }}
             >
               {type === 'wind' && <Wind className="w-3 h-3" />}
@@ -1287,9 +1292,9 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           </button>
 
           <button
-            onClick={() => setSearchPanelOpen(!searchPanelOpen)}
+            onClick={() => setSearchCollapsed(!searchCollapsed)}
             style={{
-              background: 'var(--roof-red)',
+              background: searchCollapsed ? 'var(--roof-red)' : 'var(--roof-red-dark)',
               border: 'none',
               borderRadius: '6px',
               padding: '6px 12px',

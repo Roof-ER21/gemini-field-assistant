@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-type PanelType = 'chat' | 'image' | 'transcribe' | 'email' | 'stormmap' | 'live' | 'knowledge' | 'agnes' | 'agnes-learning' | 'documentjob';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
 
 interface HomePageRedesignedProps {
   setActivePanel: (panel: PanelType) => void;

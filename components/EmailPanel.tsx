@@ -1340,7 +1340,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               fontWeight: 600,
                               color: !complianceResult.canSend ? '#991b1b' :
                                      complianceResult.warnings.length > 0 ? '#92400e' :
-                                     complianceResult.cautions.length > 0 ? '#374151' : '#065f46',
+                                     complianceResult.cautions.length > 0 ? '#d1d5db' : '#065f46',
                               marginBottom: '2px'
                             }}>
                               {!complianceResult.canSend ? 'BLOCKED - Fix Before Sending' :
@@ -1491,7 +1491,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               <div style={{
                                 fontSize: '13px',
                                 fontWeight: 600,
-                                color: '#374151',
+                                color: '#d1d5db',
                                 marginBottom: '8px'
                               }}>
                                 Suggestions ({complianceResult.cautions.length})
@@ -1504,7 +1504,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                                   padding: '8px',
                                   marginBottom: '4px',
                                   fontSize: '12px',
-                                  color: '#374151'
+                                  color: '#d1d5db'
                                 }}>
                                   "{c.found}" - {c.why}
                                 </div>

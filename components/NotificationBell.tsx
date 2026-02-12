@@ -8,7 +8,11 @@ import { Bell, X } from 'lucide-react';
 import { messagingService, Notification } from '../services/messagingService';
 import NotificationsPanel from './NotificationsPanel';
 
-const NotificationBell: React.FC = () => {
+interface NotificationBellProps {
+  onViewAll?: () => void;
+}
+
+const NotificationBell: React.FC<NotificationBellProps> = ({ onViewAll }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -191,6 +195,7 @@ const NotificationBell: React.FC = () => {
             onMarkAllRead={handleMarkAllRead}
             onRefresh={fetchNotifications}
             onNotificationClick={handleNotificationClick}
+            onViewAll={onViewAll ? () => { setIsOpen(false); onViewAll(); } : undefined}
           />
         </div>
       )}
