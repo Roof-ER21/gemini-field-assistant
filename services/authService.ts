@@ -1,7 +1,7 @@
 /**
  * Authentication Service
  * Simple email-based authentication for S21 Field AI
- * Direct login with @theroofdocs.com email - no verification code required
+ * Direct login with email - no verification code required
  */
 
 import { databaseService, User } from './databaseService';
@@ -452,14 +452,6 @@ class AuthService {
         return {
           success: false,
           message: 'Please enter a valid email address'
-        };
-      }
-
-      // Domain validation (client-side hint)
-      if (!email.toLowerCase().endsWith('@theroofdocs.com')) {
-        return {
-          success: false,
-          message: 'Please use your @theroofdocs.com email address'
         };
       }
 

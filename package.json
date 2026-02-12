@@ -48,8 +48,11 @@
   "dependencies": {
     "@assistant-ui/react": "^0.12.10",
     "@assistant-ui/react-markdown": "^0.12.3",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/camera": "^8.0.1",
     "@capacitor/cli": "^7.4.5",
     "@capacitor/core": "^8.0.1",
+    "@capacitor/geolocation": "^8.1.0",
     "@capacitor/ios": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.0",
     "@docuseal/react": "^1.0.71",
