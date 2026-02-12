@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
 import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2 } from 'lucide-react';
 import NexradRadarLayer from './NexradRadarLayer';
+import RainViewerRadarLayer from './RainViewerRadarLayer';
 import { downloadBlob } from '../services/pdfService';
 
 interface Territory {
@@ -284,6 +285,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   // NEXRAD radar visibility
   const [showNexrad, setShowNexrad] = useState(false);
+  // RainViewer live radar visibility
+  const [showRainViewer, setShowRainViewer] = useState(false);
 
   // Last updated timestamp
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -2151,6 +2154,12 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               noaaEvents.length > 0 ? noaaEvents[0].date :
               undefined
             }
+          />
+
+          {/* RainViewer Live Radar Overlay */}
+          <RainViewerRadarLayer
+            visible={showRainViewer}
+            onToggle={() => setShowRainViewer(!showRainViewer)}
           />
 
           {/* Territory Rectangles */}

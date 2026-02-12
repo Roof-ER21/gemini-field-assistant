@@ -15,8 +15,10 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Calendar
+  Calendar,
+  DollarSign
 } from 'lucide-react';
+import AdminSalesDashboard from './AdminSalesDashboard';
 import {
   LineChart,
   Line,
@@ -184,7 +186,7 @@ const transformKnowledgeBase = (data: any): KnowledgeBaseStats => {
 
 const AdminAnalyticsTab: React.FC = () => {
   // Sub-section navigation state
-  type SubSection = 'overview' | 'leaderboard' | 'canvassing' | 'knowledge-base' | 'ai-monitoring';
+  type SubSection = 'overview' | 'leaderboard' | 'sales-dashboard' | 'canvassing' | 'knowledge-base' | 'ai-monitoring';
   const [activeSubSection, setActiveSubSection] = useState<SubSection>('overview');
 
   // State
@@ -802,6 +804,7 @@ const AdminAnalyticsTab: React.FC = () => {
         {([
           { key: 'overview', label: 'Overview', icon: <BarChart3 size={16} /> },
           { key: 'leaderboard', label: 'Leaderboard', icon: <TrendingUp size={16} /> },
+          { key: 'sales-dashboard', label: 'Sales Dashboard', icon: <DollarSign size={16} /> },
           { key: 'canvassing', label: 'Canvassing', icon: <Users size={16} /> },
           { key: 'knowledge-base', label: 'Knowledge Base', icon: <BookOpen size={16} /> },
           { key: 'ai-monitoring', label: 'AI Monitoring', icon: <AlertTriangle size={16} /> },
@@ -1231,6 +1234,13 @@ const AdminAnalyticsTab: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* SALES DASHBOARD SECTION */}
+      {activeSubSection === 'sales-dashboard' && (
+        <div id="sales-dashboard-panel" role="tabpanel" aria-labelledby="sales-dashboard-tab">
+          <AdminSalesDashboard />
         </div>
       )}
 
