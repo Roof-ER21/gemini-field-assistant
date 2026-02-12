@@ -133,9 +133,9 @@ export class HailKnowledgeService {
     async getContextForChat(params) {
         // Extract location info from query
         const locationInfo = this.extractLocationFromQuery(params.userQuery);
-        // Search for relevant knowledge
+        // Search for relevant knowledge - universal by default (no userId filter)
         const searchParams = {
-            userId: params.userId,
+            ...(params.userId ? { userId: params.userId } : {}),
             state: params.state || locationInfo.state,
             city: locationInfo.city,
             zipCode: locationInfo.zipCode,
@@ -148,7 +148,7 @@ export class HailKnowledgeService {
         }
         // Format as context for Susan
         const contextParts = [
-            '**Recent Storm Reports (Saved by User):**',
+            '**Verified Storm Reports (Team Database):**',
             ''
         ];
         for (const doc of documents) {
