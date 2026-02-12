@@ -7,7 +7,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { useThreadMessages, useThreadRuntime } from '@assistant-ui/react';
+import { useThread } from '@assistant-ui/react';
 import { SusanMessageComponent } from './SusanMessage';
 import { Loader2 } from 'lucide-react';
 
@@ -24,7 +24,7 @@ export const SusanThread: React.FC<SusanThreadProps> = ({
   isLoading = false,
   style,
 }) => {
-  const messages = useThreadMessages();
+  const messages = useThread((state) => state.messages);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages

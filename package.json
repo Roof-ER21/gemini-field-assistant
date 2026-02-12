@@ -40,6 +40,9 @@
     "ios:sync": "npx cap sync ios",
     "ios:run": "npx cap run ios"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@assistant-ui/react": "^0.12.10",
     "@assistant-ui/react-markdown": "^0.12.3",
