@@ -334,7 +334,7 @@ router.post('/outcome', async (req: Request, res: Response) => {
  * Get statistics about storm lookups
  *
  * Query params:
- * - userOnly: boolean (default: true)
+ * - userOnly: boolean (default: false) - storm data is universal
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {
@@ -350,7 +350,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { userOnly = 'true' } = req.query;
+    const { userOnly = 'false' } = req.query;
 
     const service = createStormMemoryService(pool);
 
@@ -377,7 +377,7 @@ router.get('/stats', async (req: Request, res: Response) => {
  * - minMagnitude?: number
  * - dateFrom?: string (YYYY-MM-DD)
  * - dateTo?: string (YYYY-MM-DD)
- * - userOnly?: boolean (default: true)
+ * - userOnly?: boolean (default: false) - storm data is universal
  */
 router.get('/search', async (req: Request, res: Response) => {
   try {
@@ -393,7 +393,7 @@ router.get('/search', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { eventType, minMagnitude, dateFrom, dateTo, userOnly = 'true' } = req.query;
+    const { eventType, minMagnitude, dateFrom, dateTo, userOnly = 'false' } = req.query;
 
     const service = createStormMemoryService(pool);
 
@@ -443,11 +443,7 @@ router.get('/:lookupId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Storm lookup not found' });
     }
 
-    // Users can only see their own lookups (unless admin - could add check)
-    if (lookup.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
+    // Storm data is universal - any authenticated user can view any lookup (read-only)
     res.json({
       success: true,
       lookup
@@ -536,13 +532,17 @@ router.get('/by-address', async (req: Request, res: Response) => {
 
     const service = createStormMemoryService(pool);
 
-    // Search for exact or similar address match
+    // Search for exact or similar address match across ALL users (storm data is universal)
+    const { userOnly = 'false' } = req.query;
     const result = await pool.query(
-      `SELECT * FROM storm_lookups
-      WHERE user_id = $1 AND LOWER(address) LIKE LOWER($2)
-      ORDER BY created_at DESC
-      LIMIT 1`,
-      [userId, `%${address}%`]
+      userOnly === 'true'
+        ? `SELECT * FROM storm_lookups
+           WHERE user_id = $1 AND LOWER(address) LIKE LOWER($2)
+           ORDER BY created_at DESC LIMIT 1`
+        : `SELECT * FROM storm_lookups
+           WHERE LOWER(address) LIKE LOWER($1)
+           ORDER BY created_at DESC LIMIT 1`,
+      userOnly === 'true' ? [userId, `%${address}%`] : [`%${address}%`]
     );
 
     if (result.rows.length === 0) {
@@ -583,19 +583,23 @@ router.get('/recent', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { limit = '10', daysBack = '30' } = req.query;
+    const { limit = '10', daysBack = '30', userOnly = 'false' } = req.query;
     const limitNum = parseInt(limit as string, 10);
     const daysBackNum = parseInt(daysBack as string, 10);
 
     const service = createStormMemoryService(pool);
 
+    // Storm data is universal by default - all reps benefit from verified lookups
     const result = await pool.query(
-      `SELECT * FROM storm_lookups
-      WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '${daysBackNum} days'
-      ORDER BY created_at DESC
-      LIMIT $2`,
-      [userId, limitNum]
+      userOnly === 'true'
+        ? `SELECT * FROM storm_lookups
+           WHERE user_id = $1
+             AND created_at > NOW() - INTERVAL '${daysBackNum} days'
+           ORDER BY created_at DESC LIMIT $2`
+        : `SELECT * FROM storm_lookups
+           WHERE created_at > NOW() - INTERVAL '${daysBackNum} days'
+           ORDER BY created_at DESC LIMIT $1`,
+      userOnly === 'true' ? [userId, limitNum] : [limitNum]
     );
 
     const lookups = result.rows.map((row: any) => service['rowToStormLookup'](row));
@@ -706,8 +710,8 @@ router.get('/knowledge/context', async (req: Request, res: Response) => {
 
     const knowledgeService = createHailKnowledgeService(pool);
 
+    // Storm knowledge is universal - query across all users
     const context = await knowledgeService.getContextForChat({
-      userId,
       userQuery: query,
       state: state as string | undefined,
       limit: parseInt(limit as string, 10)

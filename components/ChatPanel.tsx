@@ -1100,7 +1100,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
     try {
       let currentGlobalLearnings = globalLearningHints;
       try {
-        const refreshedContext = await buildSusanContext(30);
+        const refreshedContext = await buildSusanContext(30, originalQuery);
         const refreshedLearnings = extractGlobalLearnings(refreshedContext);
         setSusanContext(refreshedContext);
         setGlobalLearningHints(refreshedLearnings);

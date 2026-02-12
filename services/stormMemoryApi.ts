@@ -206,7 +206,7 @@ export const stormMemoryApi = {
 
   /**
    * Get memory context for Susan's prompt
-   * Returns a formatted string with recent storm lookups
+   * Returns a formatted string with recent storm lookups (universal - all reps)
    */
   async getMemoryContext(params: {
     address?: string;
@@ -239,7 +239,7 @@ export const stormMemoryApi = {
       }
 
       // Build context string
-      let context = '\n[STORM MEMORY CONTEXT]\nRecent storm lookups you remember:\n';
+      let context = '\n[STORM MEMORY CONTEXT]\nVerified storm lookups from the team database:\n';
 
       for (const item of lookups.slice(0, 3)) {
         const lookup = 'lookup' in item ? item.lookup : item;
