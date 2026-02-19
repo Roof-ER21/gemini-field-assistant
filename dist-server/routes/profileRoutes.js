@@ -757,7 +757,7 @@ export function createProfileRoutes(pool) {
     // ============================================================================
     /**
      * POST /api/profiles/:id/image
-     * Upload headshot image for a profile
+     * Upload headshot image for a profile — stores as base64 data URL in DB
      */
     router.post('/:id/image', uploadHeadshot.single('image'), async (req, res) => {
         try {
@@ -775,24 +775,22 @@ export function createProfileRoutes(pool) {
                     return res.status(403).json({ success: false, error: 'Not authorized' });
                 }
             }
-            const imageUrl = `/uploads/headshots/${req.file.filename}`;
-            // Delete old image if exists
-            const oldResult = await pool.query(`SELECT image_url FROM employee_profiles WHERE id = $1`, [id]);
-            if (oldResult.rows[0]?.image_url?.startsWith('/uploads/')) {
-                const oldPath = path.join(process.cwd(), 'public', oldResult.rows[0].image_url);
-                if (fs.existsSync(oldPath))
-                    fs.unlinkSync(oldPath);
-            }
-            const result = await pool.query(`UPDATE employee_profiles SET image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *`, [imageUrl, id]);
+            // Read file and convert to base64 data URL for DB storage (Railway has ephemeral filesystem)
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'image/jpeg';
+            const base64 = fileBuffer.toString('base64');
+            const dataUrl = `data:${mimeType};base64,${base64}`;
+            // Clean up temp file
+            fs.unlinkSync(req.file.path);
+            const result = await pool.query(`UPDATE employee_profiles SET image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *`, [dataUrl, id]);
             if (result.rows.length === 0) {
-                fs.unlinkSync(req.file.path);
                 return res.status(404).json({ success: false, error: 'Profile not found' });
             }
-            res.json({ success: true, profile: result.rows[0], imageUrl });
+            res.json({ success: true, profile: result.rows[0], imageUrl: dataUrl });
         }
         catch (error) {
             console.error('❌ Image upload error:', error);
-            if (req.file)
+            if (req.file?.path && fs.existsSync(req.file.path))
                 fs.unlinkSync(req.file.path);
             res.status(500).json({ success: false, error: 'Failed to upload image' });
         }
@@ -817,9 +815,10 @@ export function createProfileRoutes(pool) {
     });
     /**
      * POST /api/profiles/:id/videos
-     * Add a video to a profile (upload or URL)
+     * Add a video to a profile via URL (YouTube, Vimeo, direct MP4 link, etc.)
+     * File uploads are not supported on Railway (ephemeral filesystem)
      */
-    router.post('/:id/videos', uploadVideo.single('video'), async (req, res) => {
+    router.post('/:id/videos', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
             const { id } = req.params;
@@ -827,19 +826,15 @@ export function createProfileRoutes(pool) {
             if (!isAdmin) {
                 const ownerCheck = await pool.query(`SELECT id FROM employee_profiles WHERE id = $1 AND email = $2`, [id, userEmail]);
                 if (ownerCheck.rows.length === 0) {
-                    if (req.file)
-                        fs.unlinkSync(req.file.path);
                     return res.status(403).json({ success: false, error: 'Not authorized' });
                 }
             }
-            const { title, description, url: externalUrl, is_welcome_video, duration, display_order } = req.body;
-            const videoUrl = req.file ? `/uploads/videos/${req.file.filename}` : externalUrl;
+            const { title, description, video_url, url, is_welcome_video, duration, display_order } = req.body;
+            const videoUrl = video_url || url;
             if (!videoUrl) {
-                return res.status(400).json({ success: false, error: 'No video file or URL provided' });
+                return res.status(400).json({ success: false, error: 'Video URL is required. Paste a YouTube, Vimeo, or direct MP4 link.' });
             }
             if (!title) {
-                if (req.file)
-                    fs.unlinkSync(req.file.path);
                 return res.status(400).json({ success: false, error: 'Title is required' });
             }
             const result = await pool.query(`INSERT INTO profile_videos (profile_id, title, description, url, is_welcome_video, duration, display_order)
@@ -848,8 +843,6 @@ export function createProfileRoutes(pool) {
         }
         catch (error) {
             console.error('❌ Add video error:', error);
-            if (req.file)
-                fs.unlinkSync(req.file.path);
             res.status(500).json({ success: false, error: 'Failed to add video' });
         }
     });
