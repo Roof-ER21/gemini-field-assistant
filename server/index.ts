@@ -180,11 +180,12 @@ app.use(helmet({
       ],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "blob:"],
-      frameSrc: ["'none'"],
+      mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
+      frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com"],
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // CORS configuration - restrict to known origins

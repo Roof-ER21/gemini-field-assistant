@@ -265,7 +265,9 @@ const ProfilePage: React.FC = () => {
             {profile.videos && profile.videos.length > 0 ? (
               <div className="space-y-4">
                 {profile.videos.map((video) => {
-                  const url = video.url || '';
+                  // Make relative upload URLs absolute using current origin
+                  const rawUrl = video.url || '';
+                  const url = rawUrl.startsWith('/uploads/') ? `${window.location.origin}${rawUrl}` : rawUrl;
                   const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
                   const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
                   const isEmbed = youtubeMatch || vimeoMatch;
