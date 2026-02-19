@@ -657,7 +657,6 @@ Respond in JSON format:
       {/* Conversation Area */}
       <div style={{
         flex: 1,
-        overflowY: 'auto',
         padding: '20px',
         background: 'var(--bg-primary)'
       }}>

@@ -418,6 +418,7 @@ html, body {
   flex-direction: column;
   background: transparent;
   overflow: hidden;
+  overflow-y: auto;
   backdrop-filter: blur(10px) saturate(115%);
   position: relative;
   min-width: 0;
@@ -441,6 +442,7 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -451,6 +453,7 @@ html, body {
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Chat-specific: content at bottom - use flex-grow spacer instead of justify-content */

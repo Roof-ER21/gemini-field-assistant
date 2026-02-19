@@ -564,9 +564,10 @@ The rep leads. You help.`;
         {/* Main Content */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 300px',
+          gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 300px',
           gap: '16px',
-          height: 'calc(100vh - 200px)'
+          flex: 1,
+          minHeight: 0
         }}>
           {/* Transcript */}
           <div style={{

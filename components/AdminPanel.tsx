@@ -39,6 +39,7 @@ import { databaseService } from '../services/databaseService';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
+import AdminQRProfilesPanel from './AdminQRProfilesPanel';
 import { useToast } from './Toast';
 
 interface UserSummary {
@@ -1370,13 +1371,15 @@ const AdminPanel: React.FC = () => {
   return (
     <div style={{
       background: '#0f0f0f',
-      minHeight: '100vh',
+      minHeight: '100%',
       overflowY: 'auto',
       overflowX: 'hidden',
-      maxWidth: '100vw',
+      maxWidth: '100%',
       boxSizing: 'border-box',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
-    }}>
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+      WebkitOverflowScrolling: 'touch'
+    } as React.CSSProperties}>
       {/* Database Migrations Section */}
       <div style={{
         background: '#0a0a0a',
@@ -4957,40 +4960,12 @@ const AdminPanel: React.FC = () => {
 
         {/* QR Profiles Tab */}
         {activeTab === 'qr-profiles' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
-            {/* Header */}
-            <div style={{
-              background: '#0a0a0a',
-              borderRadius: '12px',
-              border: '1px solid #262626',
-              padding: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                <MapPin style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
-                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
-                  QR Profile Management
-                </h2>
-              </div>
-              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
-                Manage employee landing pages, QR codes, and lead capture.
-              </p>
-            </div>
-
-            {/* Coming Soon Placeholder */}
-            <div style={{
-              background: '#0a0a0a',
-              borderRadius: '12px',
-              border: '1px solid #262626',
-              padding: '3rem',
-              textAlign: 'center'
-            }}>
-              <MapPin style={{ width: '3rem', height: '3rem', color: '#dc2626', margin: '0 auto 1rem' }} />
-              <h3 style={{ color: '#ffffff', margin: '0 0 0.5rem 0' }}>QR Profiles Coming Soon</h3>
-              <p style={{ color: '#a1a1aa', margin: 0, maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto' }}>
-                Create employee landing pages, generate QR codes, and track leads. Feature in development.
-              </p>
-            </div>
-          </div>
+          <AdminQRProfilesPanel userEmail={(() => {
+            try {
+              const authUser = localStorage.getItem('s21_auth_user');
+              return authUser ? JSON.parse(authUser).email : '';
+            } catch { return ''; }
+          })()} />
         )}
       </div>
 

@@ -800,8 +800,9 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             zIndex: 9999,
             backgroundColor: '#111827',
             padding: isPortrait ? '0.5rem' : '1rem',
-            overflowY: 'auto'
-          }}
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          } as React.CSSProperties}
           onClick={() => setSelectedContest(null)}
         >
           <div
@@ -1241,8 +1242,9 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
             zIndex: 9999,
             backgroundColor: '#111827',
             padding: isPortrait ? '0.5rem' : '1rem',
-            overflowY: 'auto'
-          }}
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          } as React.CSSProperties}
           onClick={() => {
             setShowCreateModal(false);
             resetForm();

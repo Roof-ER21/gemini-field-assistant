@@ -192,6 +192,7 @@ const allowedOrigins = [
   'https://a21.up.railway.app',
   'https://sa21.up.railway.app',
   'http://localhost:5173',
+  'http://localhost:5176',
   'http://localhost:3001',
   'http://localhost:3000',
   'capacitor://localhost',  // iOS Capacitor app
@@ -2421,8 +2422,11 @@ function generateVerificationCode(): string {
 // Email domain validation — Roof-ER internal tool
 // Add additional domains via ALLOWED_EMAIL_DOMAINS env var (comma-separated)
 const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'theroofdocs.com').split(',').map(d => d.trim().toLowerCase());
+const DEMO_EMAILS = ['demo@roofer.com'];
 const isAllowedEmailDomain = (email: string): boolean => {
-  const domain = email.split('@')[1]?.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (DEMO_EMAILS.includes(normalizedEmail)) return true;
+  const domain = normalizedEmail.split('@')[1]?.toLowerCase();
   return ALLOWED_EMAIL_DOMAINS.includes(domain);
 };
 
@@ -8370,12 +8374,27 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // ============================================================================
 
 try {
-  const uploadsDir = path.resolve(__dirname, '../uploads');
-  if (fs.existsSync(uploadsDir)) {
-    app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
-    console.log('✅ Uploads static serving enabled:', uploadsDir);
-  } else {
-    console.log('⚠️  uploads directory not found at:', uploadsDir);
+  // Try multiple upload dir locations
+  const uploadsDirs = [
+    path.resolve(process.cwd(), 'public/uploads'),
+    path.resolve(__dirname, '../uploads'),
+    path.resolve(__dirname, '../public/uploads')
+  ];
+  let served = false;
+  for (const uploadsDir of uploadsDirs) {
+    if (fs.existsSync(uploadsDir)) {
+      app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
+      console.log('✅ Uploads static serving enabled:', uploadsDir);
+      served = true;
+      break;
+    }
+  }
+  if (!served) {
+    // Create and serve default location
+    const defaultDir = path.resolve(process.cwd(), 'public/uploads');
+    fs.mkdirSync(defaultDir, { recursive: true });
+    app.use('/uploads', express.static(defaultDir, { maxAge: '7d' }));
+    console.log('✅ Created and serving uploads from:', defaultDir);
   }
 } catch (e) {
   console.error('❌ Error configuring uploads serving:', e);

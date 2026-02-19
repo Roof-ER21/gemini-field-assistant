@@ -396,7 +396,7 @@ const App: React.FC = () => {
 
   return (
     <SettingsProvider>
-    <div className="flex flex-col h-screen" style={{ background: 'var(--bg-primary)' }}>
+    <div className="flex flex-col" style={{ background: 'var(--bg-primary)', height: '100dvh', minHeight: '100dvh' }}>
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">
@@ -488,7 +488,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0 }}>
+      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0, maxHeight: '100%' }}>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
@@ -524,7 +524,7 @@ const App: React.FC = () => {
           />
         </div>
 
-        <main className="flex-1" style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <main className="flex-1" style={{ minWidth: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ErrorBoundary>
             {renderPanel()}
           </ErrorBoundary>

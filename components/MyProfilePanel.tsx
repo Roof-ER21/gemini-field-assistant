@@ -236,7 +236,8 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
   }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="roof-er-content-area">
+    <div className="roof-er-content-scroll" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -282,7 +283,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr', gap: '2rem' }}>
         {/* Left Column - Profile Info */}
         <div style={{
           background: '#0a0a0a',
@@ -665,6 +666,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           100% { transform: rotate(360deg); }
         }
       `}} />
+    </div>
     </div>
   );
 };

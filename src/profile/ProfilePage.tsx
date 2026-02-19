@@ -5,6 +5,17 @@
 
 import React, { useState, useEffect } from 'react';
 
+interface ProfileVideo {
+  id: string;
+  title: string;
+  description: string | null;
+  url: string;
+  thumbnail_url: string | null;
+  is_welcome_video: boolean;
+  duration: number | null;
+  display_order: number;
+}
+
 interface EmployeeProfile {
   id: string;
   name: string;
@@ -17,6 +28,7 @@ interface EmployeeProfile {
   slug: string;
   start_year: number | null;
   is_active: boolean;
+  videos?: ProfileVideo[];
 }
 
 const API_BASE = '';
@@ -249,24 +261,52 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Video Placeholder */}
-            <div className="relative">
-              <div className="overflow-hidden shadow-2xl rounded-lg border-0">
-                <div className="relative aspect-video bg-[#171717]">
-                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#262626] to-[#0a0a0a]">
-                    <div className="text-center p-6">
-                      <div className="w-20 h-20 rounded-full bg-[#dc2626]/20 flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-10 h-10 text-[#dc2626]" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
+            {/* Video Section */}
+            {profile.videos && profile.videos.length > 0 ? (
+              <div className="space-y-4">
+                {profile.videos.map((video) => (
+                  <div key={video.id} className="relative">
+                    <div className="overflow-hidden shadow-2xl rounded-lg border-0">
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        poster={video.thumbnail_url || undefined}
+                        className="w-full aspect-video bg-black"
+                        style={{ borderRadius: '8px' }}
+                      >
+                        <source src={video.url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                    {video.title && (
+                      <p className="text-white font-medium mt-2 text-sm">{video.title}</p>
+                    )}
+                    {video.description && (
+                      <p className="text-gray-400 text-xs mt-1">{video.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="overflow-hidden shadow-2xl rounded-lg border-0">
+                  <div className="relative aspect-video bg-[#171717]">
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#262626] to-[#0a0a0a]">
+                      <div className="text-center p-6">
+                        <div className="w-20 h-20 rounded-full bg-[#dc2626]/20 flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-10 h-10 text-[#dc2626]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                        <p className="text-white font-medium mb-1">Welcome Video</p>
+                        <p className="text-sm text-gray-400">Coming soon</p>
                       </div>
-                      <p className="text-white font-medium mb-1">Welcome Video</p>
-                      <p className="text-sm text-gray-400">Coming soon</p>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>

@@ -6,6 +6,56 @@
 import { Router, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import crypto from 'crypto';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Multer config for headshot uploads
+const headshotStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(process.cwd(), 'public/uploads/headshots');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+  }
+});
+
+const videoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(process.cwd(), 'public/uploads/videos');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+  }
+});
+
+const uploadHeadshot = multer({
+  storage: headshotStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp|heic/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype) || file.mimetype === 'image/heic';
+    cb(null, ext || mime);
+  }
+});
+
+const uploadVideo = multer({
+  storage: videoStorage,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /mp4|mov|webm|m4v/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = file.mimetype.startsWith('video/');
+    cb(null, ext || mime);
+  }
+});
 
 export interface EmployeeProfile {
   id: string;
@@ -899,6 +949,208 @@ export function createProfileRoutes(pool: Pool) {
         success: false,
         error: 'Failed to toggle feature'
       });
+    }
+  });
+
+  // ============================================================================
+  // IMAGE UPLOAD
+  // ============================================================================
+
+  /**
+   * POST /api/profiles/:id/image
+   * Upload headshot image for a profile
+   */
+  router.post('/:id/image', uploadHeadshot.single('image'), async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      const { id } = req.params;
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No image file provided' });
+      }
+
+      // Check admin or profile owner
+      const isAdmin = await isAdminUser(userEmail);
+      if (!isAdmin) {
+        const ownerCheck = await pool.query(
+          `SELECT id FROM employee_profiles WHERE id = $1 AND email = $2`,
+          [id, userEmail]
+        );
+        if (ownerCheck.rows.length === 0) {
+          fs.unlinkSync(req.file.path);
+          return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+      }
+
+      const imageUrl = `/uploads/headshots/${req.file.filename}`;
+
+      // Delete old image if exists
+      const oldResult = await pool.query(`SELECT image_url FROM employee_profiles WHERE id = $1`, [id]);
+      if (oldResult.rows[0]?.image_url?.startsWith('/uploads/')) {
+        const oldPath = path.join(process.cwd(), 'public', oldResult.rows[0].image_url);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      const result = await pool.query(
+        `UPDATE employee_profiles SET image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+        [imageUrl, id]
+      );
+
+      if (result.rows.length === 0) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ success: false, error: 'Profile not found' });
+      }
+
+      res.json({ success: true, profile: result.rows[0], imageUrl });
+    } catch (error) {
+      console.error('❌ Image upload error:', error);
+      if (req.file) fs.unlinkSync(req.file.path);
+      res.status(500).json({ success: false, error: 'Failed to upload image' });
+    }
+  });
+
+  // ============================================================================
+  // VIDEO MANAGEMENT
+  // ============================================================================
+
+  /**
+   * GET /api/profiles/:id/videos
+   * List all videos for a profile
+   */
+  router.get('/:id/videos', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(
+        `SELECT * FROM profile_videos WHERE profile_id = $1 ORDER BY display_order ASC, created_at DESC`,
+        [id]
+      );
+      res.json({ success: true, videos: result.rows });
+    } catch (error) {
+      console.error('❌ Get videos error:', error);
+      res.status(500).json({ success: false, error: 'Failed to get videos' });
+    }
+  });
+
+  /**
+   * POST /api/profiles/:id/videos
+   * Add a video to a profile (upload or URL)
+   */
+  router.post('/:id/videos', uploadVideo.single('video'), async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      const { id } = req.params;
+
+      const isAdmin = await isAdminUser(userEmail);
+      if (!isAdmin) {
+        const ownerCheck = await pool.query(
+          `SELECT id FROM employee_profiles WHERE id = $1 AND email = $2`,
+          [id, userEmail]
+        );
+        if (ownerCheck.rows.length === 0) {
+          if (req.file) fs.unlinkSync(req.file.path);
+          return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+      }
+
+      const { title, description, url: externalUrl, is_welcome_video, duration, display_order } = req.body;
+      const videoUrl = req.file ? `/uploads/videos/${req.file.filename}` : externalUrl;
+
+      if (!videoUrl) {
+        return res.status(400).json({ success: false, error: 'No video file or URL provided' });
+      }
+      if (!title) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ success: false, error: 'Title is required' });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO profile_videos (profile_id, title, description, url, is_welcome_video, duration, display_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [id, title, description || null, videoUrl, is_welcome_video === 'true' || is_welcome_video === true, duration ? parseInt(duration as string) : null, display_order ? parseInt(display_order as string) : 0]
+      );
+
+      res.json({ success: true, video: result.rows[0] });
+    } catch (error) {
+      console.error('❌ Add video error:', error);
+      if (req.file) fs.unlinkSync(req.file.path);
+      res.status(500).json({ success: false, error: 'Failed to add video' });
+    }
+  });
+
+  /**
+   * DELETE /api/profiles/:profileId/videos/:videoId
+   * Remove a video
+   */
+  router.delete('/:profileId/videos/:videoId', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      const { profileId, videoId } = req.params;
+
+      const isAdmin = await isAdminUser(userEmail);
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+
+      // Delete file if local
+      const videoResult = await pool.query(`SELECT url FROM profile_videos WHERE id = $1 AND profile_id = $2`, [videoId, profileId]);
+      if (videoResult.rows[0]?.url?.startsWith('/uploads/')) {
+        const filePath = path.join(process.cwd(), 'public', videoResult.rows[0].url);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+
+      await pool.query(`DELETE FROM profile_videos WHERE id = $1 AND profile_id = $2`, [videoId, profileId]);
+      res.json({ success: true, message: 'Video deleted' });
+    } catch (error) {
+      console.error('❌ Delete video error:', error);
+      res.status(500).json({ success: false, error: 'Failed to delete video' });
+    }
+  });
+
+  /**
+   * POST /api/profiles/bulk-import
+   * Bulk import profiles from JSON array
+   */
+  router.post('/bulk-import', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!await isAdminUser(userEmail)) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+
+      const { profiles } = req.body;
+      if (!Array.isArray(profiles) || profiles.length === 0) {
+        return res.status(400).json({ success: false, error: 'Profiles array required' });
+      }
+
+      const results = { created: 0, skipped: 0, errors: [] as string[] };
+
+      for (const p of profiles) {
+        try {
+          if (!p.name) { results.skipped++; continue; }
+          const slug = p.slug || generateSlug(p.name);
+
+          // Skip if slug exists
+          const existing = await pool.query(`SELECT id FROM employee_profiles WHERE slug = $1`, [slug]);
+          if (existing.rows.length > 0) {
+            results.skipped++;
+            continue;
+          }
+
+          await pool.query(
+            `INSERT INTO employee_profiles (name, title, role_type, email, phone_number, bio, image_url, slug, start_year, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [p.name, p.title || null, p.role_type || 'sales_rep', p.email || null, p.phone_number || null, p.bio || null, p.image_url || null, slug, p.start_year || null, p.is_active !== false]
+          );
+          results.created++;
+        } catch (err: any) {
+          results.errors.push(`${p.name}: ${err.message}`);
+        }
+      }
+
+      res.json({ success: true, ...results });
+    } catch (error) {
+      console.error('❌ Bulk import error:', error);
+      res.status(500).json({ success: false, error: 'Failed to bulk import' });
     }
   });
 
