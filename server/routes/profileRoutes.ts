@@ -13,7 +13,16 @@ import fs from 'fs';
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)
 // - Local dev: ./public/uploads (local filesystem)
-const UPLOADS_ROOT = fs.existsSync('/app/data/uploads') ? '/app/data/uploads' : path.join(process.cwd(), 'public/uploads');
+const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PROJECT_ID;
+const UPLOADS_ROOT = isRailway ? '/app/data/uploads' : path.join(process.cwd(), 'public/uploads');
+// Ensure directory tree exists on startup
+try {
+  fs.mkdirSync(path.join(UPLOADS_ROOT, 'headshots'), { recursive: true });
+  fs.mkdirSync(path.join(UPLOADS_ROOT, 'videos'), { recursive: true });
+  console.log(`📂 Uploads root: ${UPLOADS_ROOT} (railway=${isRailway})`);
+} catch (e) {
+  console.error('❌ Failed to create uploads dirs:', e);
+}
 
 // Multer config for headshot uploads
 const headshotStorage = multer.diskStorage({
