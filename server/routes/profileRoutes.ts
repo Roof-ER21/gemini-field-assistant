@@ -10,10 +10,15 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+// Persistent uploads directory:
+// - Railway: /app/data/uploads (Railway Volume, survives redeployments)
+// - Local dev: ./public/uploads (local filesystem)
+const UPLOADS_ROOT = fs.existsSync('/app/data/uploads') ? '/app/data/uploads' : path.join(process.cwd(), 'public/uploads');
+
 // Multer config for headshot uploads
 const headshotStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    const dir = path.join(process.cwd(), 'public/uploads/headshots');
+    const dir = path.join(UPLOADS_ROOT, 'headshots');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -25,7 +30,7 @@ const headshotStorage = multer.diskStorage({
 
 const videoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    const dir = path.join(process.cwd(), 'public/uploads/videos');
+    const dir = path.join(UPLOADS_ROOT, 'videos');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -56,6 +61,8 @@ const uploadVideo = multer({
     cb(null, ext || mime);
   }
 });
+
+export { UPLOADS_ROOT };
 
 export interface EmployeeProfile {
   id: string;
@@ -958,7 +965,7 @@ export function createProfileRoutes(pool: Pool) {
 
   /**
    * POST /api/profiles/:id/image
-   * Upload headshot image for a profile — stores as base64 data URL in DB
+   * Upload headshot image for a profile — saves to persistent volume
    */
   router.post('/:id/image', uploadHeadshot.single('image'), async (req: Request, res: Response) => {
     try {
@@ -982,25 +989,28 @@ export function createProfileRoutes(pool: Pool) {
         }
       }
 
-      // Read file and convert to base64 data URL for DB storage (Railway has ephemeral filesystem)
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const mimeType = req.file.mimetype || 'image/jpeg';
-      const base64 = fileBuffer.toString('base64');
-      const dataUrl = `data:${mimeType};base64,${base64}`;
+      const imageUrl = `/uploads/headshots/${req.file.filename}`;
 
-      // Clean up temp file
-      fs.unlinkSync(req.file.path);
+      // Delete old file if exists on volume
+      const oldResult = await pool.query(`SELECT image_url FROM employee_profiles WHERE id = $1`, [id]);
+      const oldUrl = oldResult.rows[0]?.image_url;
+      if (oldUrl?.startsWith('/uploads/')) {
+        const oldPath = path.join(UPLOADS_ROOT, oldUrl.replace('/uploads/', ''));
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
 
       const result = await pool.query(
         `UPDATE employee_profiles SET image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-        [dataUrl, id]
+        [imageUrl, id]
       );
 
       if (result.rows.length === 0) {
+        fs.unlinkSync(req.file.path);
         return res.status(404).json({ success: false, error: 'Profile not found' });
       }
 
-      res.json({ success: true, profile: result.rows[0], imageUrl: dataUrl });
+      console.log(`✅ Headshot uploaded for profile ${id}: ${imageUrl} (stored at ${UPLOADS_ROOT})`);
+      res.json({ success: true, profile: result.rows[0], imageUrl });
     } catch (error) {
       console.error('❌ Image upload error:', error);
       if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -1032,10 +1042,10 @@ export function createProfileRoutes(pool: Pool) {
 
   /**
    * POST /api/profiles/:id/videos
-   * Add a video to a profile via URL (YouTube, Vimeo, direct MP4 link, etc.)
-   * File uploads are not supported on Railway (ephemeral filesystem)
+   * Add a video to a profile — supports file upload OR URL
+   * Files are stored on Railway persistent volume
    */
-  router.post('/:id/videos', async (req: Request, res: Response) => {
+  router.post('/:id/videos', uploadVideo.single('video'), async (req: Request, res: Response) => {
     try {
       const userEmail = req.headers['x-user-email'] as string;
       const { id } = req.params;
@@ -1047,17 +1057,19 @@ export function createProfileRoutes(pool: Pool) {
           [id, userEmail]
         );
         if (ownerCheck.rows.length === 0) {
+          if (req.file) fs.unlinkSync(req.file.path);
           return res.status(403).json({ success: false, error: 'Not authorized' });
         }
       }
 
       const { title, description, video_url, url, is_welcome_video, duration, display_order } = req.body;
-      const videoUrl = video_url || url;
+      const videoUrl = req.file ? `/uploads/videos/${req.file.filename}` : (video_url || url);
 
       if (!videoUrl) {
-        return res.status(400).json({ success: false, error: 'Video URL is required. Paste a YouTube, Vimeo, or direct MP4 link.' });
+        return res.status(400).json({ success: false, error: 'Please upload a video file or provide a URL' });
       }
       if (!title) {
+        if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({ success: false, error: 'Title is required' });
       }
 
@@ -1067,9 +1079,11 @@ export function createProfileRoutes(pool: Pool) {
         [id, title, description || null, videoUrl, is_welcome_video === 'true' || is_welcome_video === true, duration ? parseInt(duration as string) : null, display_order ? parseInt(display_order as string) : 0]
       );
 
+      console.log(`✅ Video added for profile ${id}: ${videoUrl} (volume: ${UPLOADS_ROOT})`);
       res.json({ success: true, video: result.rows[0] });
     } catch (error) {
       console.error('❌ Add video error:', error);
+      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       res.status(500).json({ success: false, error: 'Failed to add video' });
     }
   });

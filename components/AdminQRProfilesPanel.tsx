@@ -656,10 +656,14 @@ function VideoManagementModal({
   const [videos, setVideos] = React.useState<ProfileVideo[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [videoFile, setVideoFile] = React.useState<File | null>(null);
   const [videoUrl, setVideoUrl] = React.useState('');
   const [videoTitle, setVideoTitle] = React.useState('');
   const [videoDesc, setVideoDesc] = React.useState('');
   const [isWelcome, setIsWelcome] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  const videoInputRef = React.useRef<HTMLInputElement>(null);
 
   async function fetchVideos() {
     setLoading(true);
@@ -683,40 +687,80 @@ function VideoManagementModal({
       addToast('Video title is required', 'error');
       return;
     }
-    if (!videoUrl.trim()) {
-      addToast('Please paste a video URL (YouTube, Vimeo, or direct MP4 link)', 'error');
+    if (!videoFile && !videoUrl.trim()) {
+      addToast('Please upload a video file or paste a URL', 'error');
       return;
     }
 
     setUploading(true);
+    setUploadProgress(0);
     try {
-      const res = await fetch(`${API_BASE}/api/profiles/${profile.id}/videos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-email': userEmail,
-        },
-        body: JSON.stringify({
-          title: videoTitle.trim(),
-          description: videoDesc.trim(),
-          video_url: videoUrl.trim(),
-          is_welcome_video: isWelcome,
-        }),
-      });
+      if (videoFile) {
+        // File upload with progress tracking via XMLHttpRequest
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${API_BASE}/api/profiles/${profile.id}/videos`);
+          xhr.setRequestHeader('x-user-email', userEmail);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to add video' }));
-        throw new Error(err.error || 'Failed to add video');
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              try {
+                const err = JSON.parse(xhr.responseText);
+                reject(new Error(err.error || 'Upload failed'));
+              } catch {
+                reject(new Error('Upload failed'));
+              }
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Network error during upload'));
+
+          const fd = new FormData();
+          fd.append('title', videoTitle.trim());
+          fd.append('description', videoDesc.trim());
+          fd.append('is_welcome_video', String(isWelcome));
+          fd.append('video', videoFile);
+          xhr.send(fd);
+        });
+      } else {
+        // URL-based video
+        const res = await fetch(`${API_BASE}/api/profiles/${profile.id}/videos`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-email': userEmail,
+          },
+          body: JSON.stringify({
+            title: videoTitle.trim(),
+            description: videoDesc.trim(),
+            video_url: videoUrl.trim(),
+            is_welcome_video: isWelcome,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Failed to add video' }));
+          throw new Error(err.error || 'Failed to add video');
+        }
       }
 
       addToast('Video added', 'success');
+      setVideoFile(null);
       setVideoUrl('');
       setVideoTitle('');
       setVideoDesc('');
       setIsWelcome(false);
+      setUploadProgress(0);
       fetchVideos();
     } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : 'Failed to add video', 'error');
+      addToast(err instanceof Error ? err.message : 'Upload failed', 'error');
     } finally {
       setUploading(false);
     }
@@ -812,17 +856,65 @@ function VideoManagementModal({
         <textarea style={{ ...textareaStyle, minHeight: 60 }} value={videoDesc} placeholder="Optional description" onChange={e => setVideoDesc(e.target.value)} />
       </div>
 
+      {/* File upload area */}
       <div style={fieldStyle}>
-        <label style={labelStyle}>Video URL *</label>
+        <label style={labelStyle}>Upload Video File</label>
+        <div
+          onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) { setVideoFile(f); setVideoUrl(''); } }}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onClick={() => videoInputRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragOver ? '#dc2626' : '#262626'}`,
+            borderRadius: 8,
+            padding: '1.25rem',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: dragOver ? 'rgba(220,38,38,0.05)' : '#0f0f0f',
+            transition: 'border-color 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <Upload size={20} color={videoFile ? '#dc2626' : '#71717a'} />
+          <span style={{ fontSize: 13, color: videoFile ? '#fff' : '#71717a' }}>
+            {videoFile ? `${videoFile.name} (${(videoFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Click or drag video file (MP4, MOV up to 200MB)'}
+          </span>
+        </div>
+        <input ref={videoInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setVideoFile(f); setVideoUrl(''); } }} />
+      </div>
+
+      {/* Upload progress bar */}
+      {uploading && uploadProgress > 0 && (
+        <div style={{ width: '100%', background: '#1a1a1a', borderRadius: 6, overflow: 'hidden', height: 8 }}>
+          <div style={{
+            width: `${uploadProgress}%`,
+            height: '100%',
+            background: uploadProgress < 100 ? '#dc2626' : '#22c55e',
+            transition: 'width 0.3s ease',
+            borderRadius: 6,
+          }} />
+          <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 4, textAlign: 'center' }}>
+            {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Processing...'}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1, borderTop: '1px solid #262626' }} />
+        <span style={{ fontSize: 12, color: '#71717a' }}>OR paste a URL</span>
+        <div style={{ flex: 1, borderTop: '1px solid #262626' }} />
+      </div>
+
+      <div style={fieldStyle}>
         <input
           style={inputStyle}
           value={videoUrl}
           placeholder="https://youtube.com/watch?v=... or direct .mp4 link"
-          onChange={e => setVideoUrl(e.target.value)}
+          onChange={e => { setVideoUrl(e.target.value); if (e.target.value) setVideoFile(null); }}
         />
-        <span style={{ fontSize: 11, color: '#71717a' }}>
-          Paste a YouTube, Vimeo, or direct MP4 link
-        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

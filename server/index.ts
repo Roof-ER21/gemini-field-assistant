@@ -8374,16 +8374,29 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // ============================================================================
 
 try {
-  // Try multiple upload dir locations
+  // Try multiple upload dir locations — Railway Volume first (persistent), then local fallbacks
   const uploadsDirs = [
-    path.resolve(process.cwd(), 'public/uploads'),
+    '/app/data/uploads',                                    // Railway Volume (persistent across deploys)
+    path.resolve(process.cwd(), 'public/uploads'),          // Local dev
     path.resolve(__dirname, '../uploads'),
     path.resolve(__dirname, '../public/uploads')
   ];
   let served = false;
   for (const uploadsDir of uploadsDirs) {
     if (fs.existsSync(uploadsDir)) {
-      app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
+      app.use('/uploads', express.static(uploadsDir, {
+        maxAge: '30d',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          // Allow cross-origin for media files
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          // Set proper content types for video streaming
+          if (filePath.endsWith('.mp4') || filePath.endsWith('.m4v')) {
+            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Accept-Ranges', 'bytes');
+          }
+        }
+      }));
       console.log('✅ Uploads static serving enabled:', uploadsDir);
       served = true;
       break;
@@ -8391,10 +8404,12 @@ try {
   }
   if (!served) {
     // Create and serve default location
-    const defaultDir = path.resolve(process.cwd(), 'public/uploads');
-    fs.mkdirSync(defaultDir, { recursive: true });
-    app.use('/uploads', express.static(defaultDir, { maxAge: '7d' }));
-    console.log('✅ Created and serving uploads from:', defaultDir);
+    const defaultDir = '/app/data/uploads';
+    try { fs.mkdirSync(defaultDir, { recursive: true }); } catch { /* ignore */ }
+    const fallback = fs.existsSync(defaultDir) ? defaultDir : path.resolve(process.cwd(), 'public/uploads');
+    fs.mkdirSync(fallback, { recursive: true });
+    app.use('/uploads', express.static(fallback, { maxAge: '30d' }));
+    console.log('✅ Created and serving uploads from:', fallback);
   }
 } catch (e) {
   console.error('❌ Error configuring uploads serving:', e);
