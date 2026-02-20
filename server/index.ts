@@ -8573,6 +8573,14 @@ app.get('/profile/:slug', async (req, res, next) => {
       return res.status(404).send(renderProfileNotFound());
     }
 
+    // Fetch videos for this profile
+    const videosResult = await pool.query(
+      `SELECT id, title, description, url, thumbnail_url, is_welcome_video, duration
+       FROM profile_videos WHERE profile_id = $1 ORDER BY display_order ASC`,
+      [profile.id]
+    );
+    profile.videos = videosResult.rows;
+
     // Track scan
     const userAgent = req.headers['user-agent'] || '';
     const referrer = req.headers['referer'] || '';
@@ -8627,51 +8635,70 @@ function renderProfilePage(profile: any): string {
   <meta name="description" content="Connect with ${name} at The Roof Docs. Schedule your free roof inspection today.">
   <meta property="og:title" content="${name} - The Roof Docs">
   <meta property="og:description" content="Schedule your free roof inspection with ${name}.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: white; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: white; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
     .section-title { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 12px; }
     .section-subtitle { font-size: 16px; color: #6b7280; text-align: center; margin-bottom: 32px; }
 
+    /* Top Navbar */
+    .top-nav { background: #111; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 12px 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo img { height: 36px; width: auto; }
+    .nav-links { display: flex; align-items: center; gap: 8px; }
+    .nav-link { color: #9ca3af; font-size: 13px; font-weight: 500; text-decoration: none; padding: 8px 14px; border-radius: 6px; transition: all 0.2s; }
+    .nav-link:hover { color: white; background: rgba(255,255,255,0.06); }
+    .nav-cta { background: #b60807; color: white; font-size: 13px; font-weight: 600; padding: 8px 18px; border-radius: 6px; text-decoration: none; transition: all 0.2s; }
+    .nav-cta:hover { background: #9a0706; }
+    @media (max-width: 640px) { .nav-links { display: none; } }
+
     /* Hero Section */
-    .hero { background: linear-gradient(to bottom right, #0a0a0a, #171717, #000); padding: 48px 0; position: relative; }
-    .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(220,38,38,0.05)); }
-    .hero-content { position: relative; z-index: 10; display: grid; grid-template-columns: 1fr; gap: 32px; align-items: center; }
+    .hero { background: #0a0a0a; padding: 56px 0 48px; position: relative; overflow: hidden; }
+    .hero::before { content: ''; position: absolute; top: -50%; right: -20%; width: 600px; height: 600px; background: radial-gradient(circle, rgba(182,8,7,0.08) 0%, transparent 70%); pointer-events: none; }
+    .hero::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(to right, transparent, rgba(182,8,7,0.3), transparent); }
+    .hero-content { position: relative; z-index: 10; display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
     @media (min-width: 768px) { .hero-content { grid-template-columns: 1fr 1fr; } }
     .hero-left { text-align: center; }
     @media (min-width: 768px) { .hero-left { text-align: left; } }
-    .profile-photo { width: 160px; height: 160px; border-radius: 50%; margin: 0 auto 24px; background: #262626; border: 4px solid rgba(220,38,38,0.3); display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+    .profile-photo { width: 160px; height: 160px; border-radius: 50%; margin: 0 auto 24px; background: #1a1a1a; border: 3px solid rgba(182,8,7,0.4); display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 0 0 6px rgba(182,8,7,0.1), 0 25px 50px -12px rgba(0,0,0,0.6); }
     @media (min-width: 768px) { .profile-photo { width: 192px; height: 192px; margin: 0 0 24px; } }
     .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
-    .profile-initials { font-size: 48px; font-weight: bold; color: #dc2626; }
-    .profile-name { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    .profile-initials { font-size: 48px; font-weight: bold; color: #b60807; }
+    .profile-name { font-size: 36px; font-weight: 900; margin-bottom: 6px; letter-spacing: -0.02em; }
     @media (min-width: 768px) { .profile-name { font-size: 48px; } }
-    .profile-role { font-size: 18px; font-weight: 600; color: #dc2626; margin-bottom: 12px; }
-    .exp-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(220,38,38,0.2); color: #dc2626; padding: 8px 16px; border-radius: 50px; margin-bottom: 16px; font-size: 14px; font-weight: 500; }
-    .profile-bio { color: #d1d5db; font-size: 14px; line-height: 1.6; margin-bottom: 24px; max-width: 400px; }
-    .contact-buttons { display: flex; flex-direction: column; gap: 12px; }
+    .profile-role { font-size: 16px; font-weight: 600; color: #b60807; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .exp-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(182,8,7,0.12); color: #ef4444; padding: 8px 16px; border-radius: 50px; margin-bottom: 16px; font-size: 13px; font-weight: 600; border: 1px solid rgba(182,8,7,0.2); }
+    .profile-bio { color: #a1a1aa; font-size: 15px; line-height: 1.7; margin-bottom: 24px; max-width: 420px; }
+    @media (min-width: 768px) { .profile-bio { margin-left: 0; margin-right: auto; } }
+    .contact-buttons { display: flex; flex-direction: column; gap: 10px; }
     @media (min-width: 640px) { .contact-buttons { flex-direction: row; justify-content: center; } }
     @media (min-width: 768px) { .contact-buttons { justify-content: flex-start; } }
-    .contact-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 8px; font-weight: 500; text-decoration: none; transition: background 0.2s; }
-    .contact-btn:hover { background: rgba(255,255,255,0.2); }
-    .video-section { background: linear-gradient(to bottom right, #262626, #0a0a0a); border-radius: 12px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-    .video-placeholder { text-align: center; padding: 24px; }
-    .video-icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(220,38,38,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
-    .video-icon svg { width: 40px; height: 40px; fill: #dc2626; }
-    .video-text { color: #9ca3af; font-size: 14px; }
+    .contact-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px 24px; border-radius: 10px; font-weight: 500; text-decoration: none; transition: all 0.2s; font-size: 14px; }
+    .contact-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .video-section { background: #111; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 25px 60px -12px rgba(0,0,0,0.7); position: relative; }
+    .video-section video { width: 100%; display: block; border-radius: 16px; }
+    .video-placeholder { text-align: center; padding: 24px; aspect-ratio: 16/9; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .video-icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(182,8,7,0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; border: 1px solid rgba(182,8,7,0.2); }
+    .video-icon svg { width: 40px; height: 40px; fill: #b60807; }
+    .video-text { color: #6b7280; font-size: 14px; }
 
     /* CTA Section */
-    .cta-section { background: #dc2626; padding: 32px 0; text-align: center; }
-    .cta-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .cta-section { background: linear-gradient(135deg, #b60807 0%, #8b0000 100%); padding: 36px 0; text-align: center; position: relative; overflow: hidden; }
+    .cta-section::before { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+    .cta-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; position: relative; }
     @media (min-width: 768px) { .cta-title { font-size: 32px; } }
-    .cta-subtitle { font-size: 14px; margin-bottom: 16px; opacity: 0.9; }
-    .cta-btn { display: inline-block; background: white; color: #dc2626; font-weight: 600; padding: 12px 32px; border-radius: 8px; text-decoration: none; transition: background 0.2s; }
-    .cta-btn:hover { background: #f5f5f5; }
+    .cta-subtitle { font-size: 14px; margin-bottom: 16px; opacity: 0.9; position: relative; }
+    .cta-btn { display: inline-block; background: white; color: #b60807; font-weight: 700; padding: 14px 36px; border-radius: 10px; text-decoration: none; transition: all 0.2s; position: relative; font-size: 15px; }
+    .cta-btn:hover { background: #f5f5f5; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 
     /* Services Section */
     .services-section { background: white; color: #1a1a1a; padding: 48px 0; }
-    .services-card { max-width: 900px; margin: 0 auto; background: #dc2626; color: white; border-radius: 16px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    .services-card { max-width: 900px; margin: 0 auto; background: linear-gradient(135deg, #b60807 0%, #8b0000 100%); color: white; border-radius: 16px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
     .services-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
     @media (min-width: 768px) { .services-grid { grid-template-columns: 1fr 1fr; gap: 24px; } }
     .service-item { display: flex; align-items: flex-start; gap: 12px; }
@@ -8685,19 +8712,20 @@ function renderProfilePage(profile: any): string {
     .why-section { background: #f5f5f5; color: #1a1a1a; padding: 48px 0; }
     .why-card { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .why-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
-    .why-header-icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(220,38,38,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .why-header-icon svg { width: 24px; height: 24px; stroke: #dc2626; fill: none; }
+    .why-header-icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(182,8,7,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .why-header-icon svg { width: 24px; height: 24px; stroke: #b60807; fill: none; }
     .why-header-text h3 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
     .why-header-text p { color: #6b7280; font-size: 14px; }
     .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
     .stat-box { background: #fef2f2; border-radius: 12px; padding: 20px; text-align: center; }
-    .stat-number { font-size: 32px; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
+    .stat-number { font-size: 32px; font-weight: 700; color: #b60807; margin-bottom: 4px; }
     .stat-label { font-size: 14px; color: #6b7280; }
     .cert-list { margin-bottom: 24px; }
     .cert-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
-    .cert-icon { width: 24px; height: 24px; color: #dc2626; flex-shrink: 0; }
+    .cert-icon { width: 24px; height: 24px; color: #b60807; flex-shrink: 0; }
     .cert-text { font-size: 15px; font-weight: 500; }
-    .why-btn { display: block; width: 100%; background: #dc2626; color: white; font-weight: 600; padding: 14px 32px; border-radius: 8px; text-decoration: none; text-align: center; border: none; cursor: pointer; font-size: 16px; }
+    .why-btn { display: block; width: 100%; background: #b60807; color: white; font-weight: 600; padding: 14px 32px; border-radius: 10px; text-decoration: none; text-align: center; border: none; cursor: pointer; font-size: 16px; transition: all 0.2s; }
+    .why-btn:hover { background: #9a0706; }
 
     /* Complete Project Solution */
     .process-section { background: white; color: #1a1a1a; padding: 48px 0; }
@@ -8707,59 +8735,197 @@ function renderProfilePage(profile: any): string {
     @media (min-width: 768px) { .steps-grid { grid-template-columns: 1fr 1fr; } }
     .step-item { display: flex; align-items: flex-start; gap: 16px; }
     .step-icon { width: 48px; height: 48px; border-radius: 12px; background: #fef2f2; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .step-icon svg { width: 24px; height: 24px; stroke: #dc2626; fill: none; }
+    .step-icon svg { width: 24px; height: 24px; stroke: #b60807; fill: none; }
     .step-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .step-desc { font-size: 14px; color: #6b7280; }
     .process-buttons { display: flex; flex-direction: column; gap: 12px; justify-content: center; align-items: center; }
     @media (min-width: 640px) { .process-buttons { flex-direction: row; } }
     .process-btn { padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 16px; }
-    .process-btn-outline { background: white; color: #dc2626; border: 2px solid #dc2626; }
-    .process-btn-fill { background: #dc2626; color: white; border: 2px solid #dc2626; }
+    .process-btn-outline { background: white; color: #b60807; border: 2px solid #b60807; transition: all 0.2s; }
+    .process-btn-outline:hover { background: #fef2f2; }
+    .process-btn-fill { background: #b60807; color: white; border: 2px solid #b60807; transition: all 0.2s; }
+    .process-btn-fill:hover { background: #9a0706; border-color: #9a0706; }
 
     /* Reviews Section */
     .reviews-section { background: #f5f5f5; color: #1a1a1a; padding: 48px 0; }
-    .reviews-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 24px; }
-    @media (min-width: 768px) { .reviews-grid { grid-template-columns: 1fr 1fr 1fr; } }
+    .reviews-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 768px) { .reviews-grid { grid-template-columns: 1fr 1fr; } }
     .review-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .review-stars { display: flex; gap: 4px; margin-bottom: 12px; }
-    .review-star { width: 20px; height: 20px; fill: #dc2626; }
+    .review-star { width: 20px; height: 20px; fill: #b60807; }
     .review-text { font-size: 15px; color: #374151; line-height: 1.6; margin-bottom: 16px; }
     .review-author { font-weight: 600; color: #1a1a1a; }
 
     /* Gallery Section */
     .gallery-section { background: white; color: #1a1a1a; padding: 48px 0; }
-    .gallery-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .gallery-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (min-width: 768px) { .gallery-grid { grid-template-columns: 1fr 1fr 1fr; } }
     .gallery-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 12px; }
 
-    /* Contact Form */
-    .form-section { background: white; color: #1a1a1a; padding: 48px 0; }
-    .form-container { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .form-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 24px; color: #1a1a1a; }
-    .form-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
-    @media (min-width: 768px) { .form-row { grid-template-columns: 1fr 1fr; } }
-    .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px; }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 12px 16px; background: white; border: 1px solid #d1d5db; border-radius: 8px; color: #1a1a1a; font-size: 16px; }
-    .form-input::placeholder, .form-textarea::placeholder { color: #9ca3af; }
-    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
-    .form-textarea { resize: none; min-height: 100px; }
-    .form-submit { width: 100%; background: #dc2626; color: white; font-weight: 600; padding: 14px 32px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; }
-    .form-submit:hover { background: #b91c1c; }
-    .form-success { text-align: center; padding: 32px; }
-    .success-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(34,197,94,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
-    .success-icon svg { width: 32px; height: 32px; stroke: #22c55e; fill: none; }
-    .success-title { font-size: 20px; font-weight: 700; color: #22c55e; margin-bottom: 8px; }
-    .success-text { color: #6b7280; }
-    .form-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+    /* Split Layout - Content + Sticky Form */
+    .split-wrapper { background: #f5f5f5; }
+    .split-layout { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: 1fr; gap: 0; }
+    @media (min-width: 1024px) { .split-layout { grid-template-columns: 1fr 380px; gap: 32px; padding: 32px 20px; } }
+    .split-content { min-width: 0; }
+    .split-content .services-section,
+    .split-content .why-section,
+    .split-content .process-section,
+    .split-content .reviews-section,
+    .split-content .gallery-section { padding: 32px 0; background: transparent; }
+    .split-content .services-section { padding-top: 0; }
+    .split-content .container { padding: 0; }
+    .split-sidebar { position: relative; }
+    @media (min-width: 1024px) { .split-sidebar { position: sticky; top: 80px; align-self: start; height: fit-content; } }
+
+    /* Contact Form - JotForm Embed */
+    .form-section { background: transparent; color: #1a1a1a; padding: 32px 0; }
+    @media (min-width: 1024px) { .form-section { padding: 0; } }
+    .form-container { max-width: 700px; margin: 0 auto; background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06); }
+    @media (min-width: 1024px) { .form-container { max-width: none; } }
+    .form-title { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 20px; color: #1a1a1a; }
 
     /* Footer */
-    .footer { background: #1a1a1a; padding: 24px 0; text-align: center; }
-    .footer-logo { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: white; }
-    .footer-text { color: #6b7280; font-size: 14px; }
+    .footer { background: #111; border-top: 1px solid rgba(255,255,255,0.06); padding: 32px 0; }
+    .footer-inner { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .footer-logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .footer-logo-link img { height: 32px; width: auto; }
+    .footer-logo-text { font-size: 16px; font-weight: 700; color: white; }
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+    .footer-link { color: #6b7280; font-size: 13px; text-decoration: none; transition: color 0.2s; }
+    .footer-link:hover { color: white; }
+    .footer-text { color: #4b5563; font-size: 13px; text-align: center; }
+
+    /* Contact Modal */
+    .contact-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
+    .contact-modal-card { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; max-width: 420px; width: 100%; position: relative; }
+    .contact-modal-close { position: absolute; top: 12px; right: 16px; background: none; border: none; color: #6b7280; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1; }
+    .contact-modal-close:hover { color: white; }
+    .contact-modal h3 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: white; }
+    .contact-modal-section { margin-bottom: 20px; }
+    .contact-modal-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 8px; }
+    .contact-modal-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 6px; text-decoration: none; color: white; transition: background 0.2s; font-size: 14px; }
+    .contact-modal-item:hover { background: rgba(255,255,255,0.1); }
+    .contact-modal-item svg { width: 18px; height: 18px; flex-shrink: 0; stroke: #b60807; fill: none; }
+
+    /* Mobile Sticky CTA Bar */
+    .mobile-cta-bar { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; background: #111; border-top: 1px solid rgba(255,255,255,0.08); padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+    .mobile-cta-inner { display: flex; gap: 8px; max-width: 500px; margin: 0 auto; }
+    .mobile-cta-call { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: white; padding: 12px 8px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .mobile-cta-call svg { width: 18px; height: 18px; stroke: white; fill: none; }
+    .mobile-cta-inspect { flex: 1.5; display: flex; align-items: center; justify-content: center; gap: 6px; background: #b60807; color: white; padding: 12px 8px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px; border: none; cursor: pointer; }
+
+    /* ===== MOBILE OPTIMIZATIONS ===== */
+    @media (max-width: 767px) {
+      .mobile-cta-bar { display: block; }
+      body { padding-bottom: 72px; }
+
+      /* Navbar */
+      .top-nav { padding: 8px 0; }
+      .nav-logo img { height: 28px; }
+      .nav-cta { font-size: 12px; padding: 7px 12px; }
+
+      /* Hero */
+      .hero { padding: 32px 0 28px; }
+      .profile-photo { width: 120px; height: 120px; margin-bottom: 16px; }
+      .profile-name { font-size: 28px; }
+      .profile-role { font-size: 14px; margin-bottom: 8px; }
+      .exp-badge { font-size: 12px; padding: 6px 12px; margin-bottom: 12px; }
+      .profile-bio { font-size: 14px; margin-bottom: 16px; }
+      .contact-buttons { gap: 8px; }
+      .contact-btn { padding: 11px 16px; font-size: 13px; border-radius: 8px; }
+
+      /* Video */
+      .video-section { border-radius: 12px; margin-top: 4px; }
+      .video-section video { border-radius: 12px; }
+
+      /* CTA Banner */
+      .cta-section { padding: 24px 0; }
+      .cta-title { font-size: 20px; }
+      .cta-subtitle { font-size: 13px; }
+      .cta-btn { padding: 12px 24px; font-size: 14px; }
+
+      /* Split Layout — stacked on mobile */
+      .split-wrapper { background: #f5f5f5; }
+      .split-content .services-section,
+      .split-content .why-section,
+      .split-content .process-section,
+      .split-content .reviews-section,
+      .split-content .gallery-section { padding: 24px 0; }
+      .split-content .services-section { padding-top: 24px; }
+
+      /* Services */
+      .services-card { padding: 20px; border-radius: 12px; }
+      .service-name { font-size: 16px; }
+      .service-desc { font-size: 13px; }
+      .services-btn { padding: 12px 24px; font-size: 14px; }
+
+      /* Section titles in split */
+      .section-title { font-size: 22px; margin-bottom: 8px; }
+      .section-subtitle { font-size: 14px; margin-bottom: 20px; }
+
+      /* Why Choose Us */
+      .why-card { padding: 20px; border-radius: 12px; }
+      .why-header-text h3 { font-size: 18px; }
+      .stat-number { font-size: 28px; }
+      .stat-box { padding: 16px; border-radius: 10px; }
+      .cert-text { font-size: 14px; }
+
+      /* Process Steps */
+      .steps-grid { gap: 16px; }
+      .step-title { font-size: 15px; }
+      .step-desc { font-size: 13px; }
+      .process-buttons { gap: 8px; }
+      .process-btn { padding: 12px 20px; font-size: 14px; border-radius: 8px; }
+
+      /* Reviews */
+      .reviews-grid { grid-template-columns: 1fr; gap: 12px; }
+      .review-card { padding: 16px; border-radius: 10px; }
+      .review-text { font-size: 14px; }
+
+      /* Gallery */
+      .gallery-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .gallery-img { border-radius: 8px; }
+
+      /* Form */
+      .form-container { padding: 0; border-radius: 12px; margin: 0 -4px; }
+      .form-title { font-size: 18px; margin-bottom: 16px; }
+
+      /* Footer */
+      .footer { padding: 24px 0 80px; }
+      .footer-links { gap: 16px; }
+
+      /* Contact Modal */
+      .contact-modal-card { padding: 24px; margin: 0 8px; border-radius: 12px; }
+    }
+
+    /* Small phones */
+    @media (max-width: 374px) {
+      .profile-name { font-size: 24px; }
+      .profile-photo { width: 100px; height: 100px; }
+      .cta-title { font-size: 18px; }
+      .section-title { font-size: 20px; }
+      .services-card { padding: 16px; }
+      .gallery-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
+  <!-- Top Navigation -->
+  <nav class="top-nav">
+    <div class="container">
+      <div class="nav-inner">
+        <a href="https://www.theroofdocs.com" target="_blank" class="nav-logo">
+          <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/Main_Logo-1.png" alt="The Roof Docs">
+        </a>
+        <div class="nav-links">
+          <a href="https://www.theroofdocs.com/services/" target="_blank" class="nav-link">Services</a>
+          <a href="https://www.theroofdocs.com/about/" target="_blank" class="nav-link">About</a>
+          <a href="#contact-form" class="nav-cta">Free Inspection</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
   <!-- Hero Section -->
   <section class="hero">
     <div class="container">
@@ -8778,10 +8944,21 @@ function renderProfilePage(profile: any): string {
           </div>
         </div>
         <div class="video-section">
-          <div class="video-placeholder">
+          ${(profile.videos && profile.videos.length > 0) ? profile.videos.map((v: any) => {
+            const vUrl = v.url || '';
+            const ytMatch = vUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
+            const vimMatch = vUrl.match(/vimeo\.com\/(\d+)/);
+            if (ytMatch) {
+              return `<iframe src="https://www.youtube.com/embed/${ytMatch[1]}" style="width:100%;aspect-ratio:16/9;border:none;border-radius:12px;" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>`;
+            } else if (vimMatch) {
+              return `<iframe src="https://player.vimeo.com/video/${vimMatch[1]}" style="width:100%;aspect-ratio:16/9;border:none;border-radius:12px;" allow="autoplay;fullscreen" allowfullscreen></iframe>`;
+            } else {
+              return `<video controls autoplay muted playsinline preload="auto" style="width:100%;border-radius:16px;background:#000;object-fit:contain;display:block;"><source src="${vUrl}" type="video/mp4">Your browser does not support video.</video>`;
+            }
+          }).join('') : `<div class="video-placeholder">
             <div class="video-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
             <p class="video-text">Video coming soon</p>
-          </div>
+          </div>`}
         </div>
       </div>
     </div>
@@ -8795,6 +8972,11 @@ function renderProfilePage(profile: any): string {
       <a href="#contact-form" class="cta-btn">Schedule Free Inspection</a>
     </div>
   </section>
+
+  <!-- Split Layout: Content + Sticky Form -->
+  <div class="split-wrapper">
+    <div class="split-layout">
+      <div class="split-content">
 
   <!-- Services Section -->
   <section class="services-section">
@@ -8828,7 +9010,7 @@ function renderProfilePage(profile: any): string {
         </div>
         <div class="stats-row">
           <div class="stat-box"><div class="stat-number">9</div><div class="stat-label">Years in Business</div></div>
-          <div class="stat-box"><div class="stat-number">5,000+</div><div class="stat-label">Projects Completed</div></div>
+          <div class="stat-box"><div class="stat-number">8,000+</div><div class="stat-label">Projects Completed</div></div>
         </div>
         <div class="cert-list">
           <div class="cert-item"><svg class="cert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg><span class="cert-text">GAF Master Elite</span></div>
@@ -8857,7 +9039,7 @@ function renderProfilePage(profile: any): string {
         <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="step-title">Step 6: Final Walkthrough</div><div class="step-desc">Quality check and lifetime warranty activation</div></div></div>
       </div>
       <div class="process-buttons">
-        <a href="https://www.theroofdocs.com" target="_blank" class="process-btn process-btn-outline">See Our Complete Process</a>
+        <a href="https://www.theroofdocs.com/wp-content/uploads/2025/04/Step-By-Step-Roof-Replacement-Video.mp4" target="_blank" class="process-btn process-btn-outline">See Our Complete Process</a>
         <a href="#contact-form" class="process-btn process-btn-fill">Get Your Free Inspection</a>
       </div>
     </div>
@@ -8897,101 +9079,113 @@ function renderProfilePage(profile: any): string {
     </div>
   </section>
 
-  <!-- Contact Form -->
-  <section id="contact-form" class="form-section">
-    <div class="container">
-      <div class="form-container">
-        <h2 class="form-title">Request Your Free Estimate with ${name}</h2>
-        <div id="form-error" class="form-error" style="display:none;"></div>
-        <form id="contact-form-el">
-          <div class="form-row">
-            <div><label class="form-label">Name *</label><input type="text" name="name" required class="form-input" placeholder="John Doe"></div>
-            <div><label class="form-label">Email *</label><input type="email" name="email" required class="form-input" placeholder="john@example.com"></div>
-          </div>
-          <div class="form-row">
-            <div><label class="form-label">Phone Number</label><input type="tel" name="phone" class="form-input" placeholder="(555) 123-4567"></div>
-            <div><label class="form-label">Service Needed</label>
-              <select name="service" class="form-select">
-                <option value="">Select a service...</option>
-                <option value="roof_inspection">Roof Inspection</option>
-                <option value="roof_repair">Roof Repair</option>
-                <option value="roof_replacement">Roof Replacement</option>
-                <option value="storm_damage">Storm Damage</option>
-                <option value="siding">Siding</option>
-                <option value="gutters">Gutters</option>
-                <option value="windows_doors">Windows & Doors</option>
-                <option value="solar">Solar</option>
-                <option value="other">Other</option>
-              </select>
+      </div><!-- end split-content -->
+
+      <!-- Sticky Sidebar Form - JotForm Embed -->
+      <div class="split-sidebar">
+        <section id="contact-form" class="form-section">
+          <div class="form-container" style="padding:0;overflow:hidden;">
+            <div style="padding:16px 20px 8px;text-align:center;">
+              <h2 class="form-title" style="margin-bottom:4px;">Request Your Free Inspection</h2>
+              <p style="font-size:13px;color:#6b7280;margin-bottom:0;">with <strong style="color:#b60807;">${name}</strong></p>
             </div>
+            <iframe
+              id="JotFormIFrame-251884526474164"
+              title="Request Free Inspection"
+              src="https://form.jotform.com/251884526474164?howDid=Spoke+to+a+Rep&provideComments=${encodeURIComponent('Rep: ' + name + ' (' + profile.slug + ')')}"
+              style="min-width:100%;max-width:100%;height:1200px;border:none;"
+              scrolling="no"
+              allowfullscreen
+              allow="geolocation; microphone; camera; fullscreen"
+            ></iframe>
           </div>
-          <div class="form-group"><label class="form-label">Address</label><input type="text" name="address" class="form-input" placeholder="123 Main Street, City, State"></div>
-          <div class="form-group"><label class="form-label">Message</label><textarea name="message" class="form-textarea" placeholder="Tell us about your project..."></textarea></div>
-          <button type="submit" class="form-submit">Request Free Estimate</button>
-        </form>
-        <div id="form-success" class="form-success" style="display:none;">
-          <div class="success-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></div>
-          <h3 class="success-title">Thank You!</h3>
-          <p class="success-text">${name} will contact you soon!</p>
-        </div>
+        </section>
+      </div><!-- end split-sidebar -->
+
+    </div><!-- end split-layout -->
+  </div><!-- end split-wrapper -->
+
+  <!-- Mobile Sticky CTA Bar -->
+  <div class="mobile-cta-bar">
+    <div class="mobile-cta-inner">
+      ${phone ? `<a href="tel:${phone}" class="mobile-cta-call"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call</a>` : ''}
+      <a href="#contact-form" class="mobile-cta-inspect">Free Inspection</a>
+    </div>
+  </div>
+
+  <!-- Contact Modal -->
+  <div id="contact-modal" class="contact-modal" onclick="if(event.target===this)this.style.display='none'">
+    <div class="contact-modal-card">
+      <button class="contact-modal-close" onclick="document.getElementById('contact-modal').style.display='none'">&times;</button>
+      <h3>Get In Touch</h3>
+      <div class="contact-modal-section">
+        <div class="contact-modal-label">Your Rep &mdash; ${name}</div>
+        ${phone ? `<a href="tel:${phone}" class="contact-modal-item"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>${phone}</a>` : ''}
+        ${email ? `<a href="mailto:${email}" class="contact-modal-item"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>${email}</a>` : ''}
+      </div>
+      <div class="contact-modal-section" style="margin-bottom:0">
+        <div class="contact-modal-label">The Roof Docs &mdash; Main Office</div>
+        <a href="tel:7032393738" class="contact-modal-item"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>(703) 239-3738</a>
+        <a href="mailto:info@theroofdocs.com" class="contact-modal-item"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>info@theroofdocs.com</a>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <div class="footer-logo">The Roof Docs</div>
-      <p class="footer-text">© ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+      <div class="footer-inner">
+        <a href="https://www.theroofdocs.com" target="_blank" class="footer-logo-link">
+          <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="The Roof Docs">
+        </a>
+        <div class="footer-links">
+          <a href="https://www.theroofdocs.com/services/" target="_blank" class="footer-link">Services</a>
+          <a href="https://www.theroofdocs.com/about/" target="_blank" class="footer-link">About Us</a>
+          <a href="#" onclick="document.getElementById('contact-modal').style.display='flex';return false;" class="footer-link">Contact</a>
+          <a href="https://www.google.com/maps/search/The+Roof+Docs+Vienna+VA" target="_blank" class="footer-link">Reviews</a>
+        </div>
+        <p class="footer-text">&copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+      </div>
     </div>
   </footer>
 
   <script>
-    const form = document.getElementById('contact-form-el');
-    const formError = document.getElementById('form-error');
-    const formSuccess = document.getElementById('form-success');
-    const profileId = '${profile.id}';
-    const profileSlug = '${profile.slug}';
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      formError.style.display = 'none';
-      const submitBtn = form.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting...';
-
-      const formData = new FormData(form);
-      const data = {
-        profile_id: profileId,
-        profile_slug: profileSlug,
-        homeowner_name: formData.get('name'),
-        homeowner_email: formData.get('email'),
-        homeowner_phone: formData.get('phone') || null,
-        homeowner_address: formData.get('address') || null,
-        service_interest: formData.get('service') || null,
-        message: formData.get('message') || null,
-        source: 'qr_landing'
-      };
-
-      try {
-        const res = await fetch('/api/profiles/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        if (result.success) {
-          form.style.display = 'none';
-          formSuccess.style.display = 'block';
-        } else {
-          throw new Error(result.error || 'Failed to submit');
-        }
-      } catch (err) {
-        formError.textContent = err.message || 'Something went wrong. Please try again.';
-        formError.style.display = 'block';
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Request Free Estimate';
+    // JotForm auto-resize handler
+    var ifr = document.getElementById('JotFormIFrame-251884526474164');
+    if (window.location.href && window.location.href.indexOf('?') > -1) {
+      var get = window.location.href.substr(window.location.href.indexOf('?') + 1);
+      if (ifr && get.length > 0) {
+        var src = ifr.src;
+        src = src.indexOf('?') > -1 ? src + '&' + get : src + '?' + get;
+        ifr.src = src;
       }
+    }
+    window.handleIFrameMessage = function(e) {
+      if (typeof e.data === 'object') return;
+      var args = e.data.split(':');
+      var iframe;
+      if (args.length > 2) { iframe = document.getElementById('JotFormIFrame-' + args[(args.length - 1)]); } else { iframe = document.getElementById('JotFormIFrame'); }
+      if (!iframe) return;
+      switch (args[0]) {
+        case 'scrollIntoView': iframe.scrollIntoView(); break;
+        case 'setHeight': iframe.style.height = args[1] + 'px'; if (parseInt(args[1]) < 100) iframe.style.height = '1200px'; break;
+        case 'collapse': iframe.style.height = args[1] + 'px'; break;
+        case 'reloadPage': window.location.reload(); break;
+      }
+      var isJotForm = (e.origin && e.origin.indexOf('jotform') > -1) ? true : false;
+      if (isJotForm && 'contentWindow' in iframe && 'postMessage' in iframe.contentWindow) {
+        var urls = {'docurl': encodeURIComponent(document.URL), 'referurl': encodeURIComponent(document.referrer)};
+        iframe.contentWindow.postMessage(JSON.stringify({'type':'urls','value':urls}), '*');
+      }
+    };
+    if (window.addEventListener) { window.addEventListener('message', handleIFrameMessage, false); }
+    else if (window.attachEvent) { window.attachEvent('onmessage', handleIFrameMessage); }
+
+    // Autoplay video when visible
+    document.querySelectorAll('.video-section video').forEach(function(vid) {
+      vid.muted = true;
+      var p = vid.play();
+      if (p !== undefined) { p.catch(function(){}); }
     });
   </script>
 </body>
