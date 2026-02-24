@@ -8,6 +8,9 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
+import { susanAgentChat, type AgentToolResult } from '../services/susanAgentService';
+import ToolResultCard from './ToolResultCard';
+import { messagingService } from '../services/messagingService';
 import { Send, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar, MapPin, MoreHorizontal } from 'lucide-react';
 import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
 import S21ResponseFormatter from './S21ResponseFormatter';
@@ -1336,14 +1339,40 @@ Generate ONLY the email body text, no subject line or metadata.`;
         { role: 'user' as const, content: userPrompt },
       ];
 
-      const response = await multiAI.generate(conversationMessages);
-      setCurrentProvider(response.provider);
+      // Try agent endpoint first (Gemini with tools), fall back to multiAI
+      let responseText = '';
+      let responseProvider = '';
+      let agentToolResults: AgentToolResult[] = [];
+
+      try {
+        // Separate system prompt from conversation messages for the agent endpoint
+        const agentMessages = conversationMessages.filter(m => m.role !== 'system');
+        const agentSystemPrompt = conversationMessages
+          .filter(m => m.role === 'system')
+          .map(m => m.content)
+          .join('\n\n');
+
+        const agentResponse = await susanAgentChat(agentMessages, agentSystemPrompt);
+        responseText = agentResponse.content;
+        responseProvider = agentResponse.provider;
+        agentToolResults = agentResponse.toolResults || [];
+
+        if (agentResponse.warning) {
+          console.warn('[SusanAgent]', agentResponse.warning);
+        }
+      } catch (agentErr) {
+        console.warn('[SusanAgent] Agent endpoint failed, falling back to multiAI:', (agentErr as Error).message);
+        const fallbackResponse = await multiAI.generate(conversationMessages);
+        responseText = fallbackResponse.content;
+        responseProvider = fallbackResponse.provider;
+      }
+
+      setCurrentProvider(responseProvider);
 
       // Sources are handled by S21ResponseFormatter via interactive citations
       // No need to append text-based sources - they're redundant
-      let responseText = response.content;
 
-      // 🔴 CITATION ENFORCEMENT: Auto-add citations if AI forgot them
+      // CITATION ENFORCEMENT: Auto-add citations if AI forgot them
       if (sources.length > 0) {
         responseText = enforceCitations(responseText, sources);
 
@@ -1362,7 +1391,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
         text: responseText,
         sender: 'bot',
         sources: sources.length > 0 ? sources : undefined,
-        ...(appliedGlobal.length > 0 ? { applied_global: appliedGlobal } : {})
+        ...(appliedGlobal.length > 0 ? { applied_global: appliedGlobal } : {}),
+        ...(agentToolResults.length > 0 ? { toolResults: agentToolResults } : {}),
       };
       setMessages(prev => [...prev, botMessage]);
 
@@ -1518,6 +1548,20 @@ Generate ONLY the email body text, no subject line or metadata.`;
       stopVoiceInputResources();
     };
   }, [stopVoiceInputResources]);
+
+  // Listen for proactive agent messages (due tasks/reminders via Socket.io)
+  useEffect(() => {
+    const unsubscribe = messagingService.onAgentProactive((data) => {
+      const proactiveMsg: Message = {
+        id: `proactive-${data.taskId}-${Date.now()}`,
+        text: `**Reminder:** ${data.message}`,
+        sender: 'bot',
+      };
+      setMessages(prev => [...prev, proactiveMsg]);
+      setShowWelcome(false);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleQuickCommand = (command: string) => {
     setUserInput(command);
@@ -2359,6 +2403,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
                       msg.text
                     )}
                   </div>
+                  {msg.sender === 'bot' && msg.toolResults && msg.toolResults.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      {msg.toolResults.map((tr, idx) => (
+                        <ToolResultCard key={`${msg.id}-tool-${idx}`} toolResult={tr} />
+                      ))}
+                    </div>
+                  )}
                   {msg.sender === 'bot' && msg.applied_global && msg.applied_global.length > 0 && (
                     <div style={{
                       marginTop: '10px',

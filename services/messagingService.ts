@@ -162,6 +162,7 @@ class MessagingService {
   private pinListeners: Set<PinCallback> = new Set();
   private pollVoteListeners: Set<PollVoteCallback> = new Set();
   private eventRsvpListeners: Set<EventRsvpCallback> = new Set();
+  private agentProactiveListeners: Set<(data: { taskId: string; title: string; message: string }) => void> = new Set();
   private broadcastEventListeners: Set<BroadcastEventCallback> = new Set();
 
   // Heartbeat
@@ -272,6 +273,11 @@ class MessagingService {
     this.socket.on('broadcast:event', (event: { type: string; data: any }) => {
       this.broadcastEventListeners.forEach(listener => listener(event));
     });
+
+    // Agent proactive messages (due tasks, reminders)
+    this.socket.on('agent:proactive', (data: { taskId: string; title: string; message: string }) => {
+      this.agentProactiveListeners.forEach(listener => listener(data));
+    });
   }
 
   private startHeartbeat(): void {
@@ -372,6 +378,11 @@ class MessagingService {
   onReadReceipt(callback: ReadReceiptCallback): () => void {
     this.readReceiptListeners.add(callback);
     return () => this.readReceiptListeners.delete(callback);
+  }
+
+  onAgentProactive(callback: (data: { taskId: string; title: string; message: string }) => void): () => void {
+    this.agentProactiveListeners.add(callback);
+    return () => this.agentProactiveListeners.delete(callback);
   }
 
   onPinUpdate(callback: PinCallback): () => void {

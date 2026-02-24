@@ -8,6 +8,7 @@ import { authService, AuthUser } from '../services/authService';
 import { User, LogOut, Save, X, MapPin, Trash2, Download, AlertTriangle, Shield, FileText } from 'lucide-react';
 import { API_BASE_URL } from '../services/config';
 import LegalPage from './LegalPage';
+import PersonalitySettings from './PersonalitySettings';
 
 interface UserProfileProps {
   onClose: () => void;
@@ -350,6 +351,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout }) => {
               Edit Profile
             </button>
           )}
+
+          {/* Susan Personality Preferences */}
+          <div style={{ marginBottom: '20px', padding: '16px', background: '#111', borderRadius: '12px', border: '1px solid #262626' }}>
+            <PersonalitySettings />
+          </div>
 
           {/* Logout */}
           <button

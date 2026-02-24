@@ -36,8 +36,9 @@ const ContestSection = lazy(() => import('./src/components/ContestSection'));
 const MyProfilePanel = lazy(() => import('./components/MyProfilePanel'));
 const InspectionPresentationPanel = lazy(() => import('./components/InspectionPresentationPanel'));
 const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
+const AgentNetworkPanel = lazy(() => import('./components/AgentNetworkPanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'agent-network';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -129,7 +130,8 @@ const App: React.FC = () => {
     contests: 'Sales Contests',
     myprofile: 'My QR Profile',
     inspections: 'Inspection Presentations',
-    notifications: 'Notifications'
+    notifications: 'Notifications',
+    'agent-network': 'Agent Intel'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -387,6 +389,12 @@ const App: React.FC = () => {
         return (
           <LazyLoadBoundary componentName="Notifications">
             <NotificationsPage userEmail={currentUser?.email} />
+          </LazyLoadBoundary>
+        );
+      case 'agent-network':
+        return (
+          <LazyLoadBoundary componentName="Agent Intel">
+            <AgentNetworkPanel />
           </LazyLoadBoundary>
         );
       default:

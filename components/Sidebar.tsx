@@ -25,14 +25,15 @@ import {
   Bot,
   Globe,
   QrCode,
-  Presentation
+  Presentation,
+  Network
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'agent-network';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -179,6 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'stormmap', label: 'Storm Maps', desc: 'Hail history & radar', icon: Cloud },
     { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
     { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
+    { id: 'agent-network', label: 'Agent Intel', desc: 'Team field insights', icon: Network },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
     // QR Profile - admin only until rollout
     ...(isAdmin ? [{ id: 'myprofile', label: 'QR Profiles', desc: 'Public landing pages', icon: QrCode }] : []),
@@ -219,7 +221,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Team',
         icon: Users,
         defaultExpanded: true,
-        items: ['team', 'learning', 'leaderboard', 'contests']
+        items: ['team', 'learning', 'leaderboard', 'contests', 'agent-network']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },

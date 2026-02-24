@@ -21,6 +21,26 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
   const blocks: string[] = [];
   const apiBaseUrl = getApiBaseUrl();
 
+  // 0. Per-rep agent personality preferences
+  try {
+    const email = authService.getCurrentUser()?.email || '';
+    if (email) {
+      const res = await fetch(`${apiBaseUrl}/memory/personality`, {
+        headers: { 'x-user-email': email },
+      });
+      if (res.ok) {
+        const personality = await res.json() as Record<string, string>;
+        const entries = Object.entries(personality).filter(([, v]) => v);
+        if (entries.length > 0) {
+          const lines = entries.map(([k, v]) => `- ${k}: ${v}`);
+          blocks.push(`[PERSONALIZATION]\nThis rep's preferences:\n${lines.join('\n')}\nAdapt your tone, name usage, and verbosity accordingly.`);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Personality context failed:', (error as Error).message);
+  }
+
   // 1. User-specific memory context
   try {
     const memoryBlock = await memoryService.buildUserContext();
@@ -180,7 +200,44 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
     console.warn('[SusanContext] Learning summary failed:', (error as Error).message);
   }
 
-  // 8. Agnes training knowledge (what Agnes teaches reps)
+  // 8. Manager directives (admin instructions Susan must follow)
+  try {
+    const email = authService.getCurrentUser()?.email || '';
+    const res = await fetch(`${apiBaseUrl}/directives?active=true`, {
+      headers: { ...(email ? { 'x-user-email': email } : {}) },
+    });
+    if (res.ok) {
+      const directives = await res.json() as Array<{ title: string; content: string; priority: string }>;
+      if (directives.length > 0) {
+        const lines = directives.map(
+          (d) => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`
+        );
+        blocks.push(`[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${lines.join('\n')}`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Directives context failed:', (error as Error).message);
+  }
+
+  // 9. Agent network intel (recent approved field intelligence from peers)
+  try {
+    const intelRes = await fetch(`${apiBaseUrl}/agent-network?limit=10`, {
+      headers: { ...(email ? { 'x-user-email': email } : {}) },
+    });
+    if (intelRes.ok) {
+      const intel = await intelRes.json() as Array<{ intel_type: string; content: string; state: string | null; insurer: string | null; author_name: string }>;
+      if (intel.length > 0) {
+        const lines = intel.map(
+          (i) => `- [${i.intel_type}]${i.state ? ` (${i.state})` : ''}${i.insurer ? ` re: ${i.insurer}` : ''}: ${i.content}`
+        );
+        blocks.push(`[AGENT NETWORK INTEL]\nRecent field intelligence from the team:\n${lines.join('\n')}\nReference this intel when relevant to the rep's question.`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Agent network intel failed:', (error as Error).message);
+  }
+
+  // 10. Agnes training knowledge (what Agnes teaches reps)
   blocks.push(AGNES_TRAINING_KNOWLEDGE);
 
   if (blocks.length === 0) return '';

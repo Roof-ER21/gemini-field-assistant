@@ -17,6 +17,13 @@ export interface Message {
   provider?: string;
   session_id?: string;
   created_at?: Date;
+  toolResults?: Array<{
+    tool: string;
+    args: Record<string, unknown>;
+    result: unknown;
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 export interface GroundingChunk {

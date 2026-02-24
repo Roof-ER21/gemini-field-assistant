@@ -32,7 +32,8 @@ import {
   Trash2,
   Edit2,
   Send,
-  Power
+  Power,
+  TrendingUp
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
@@ -40,6 +41,7 @@ import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
+import DirectivesPanel from './DirectivesPanel';
 import { useToast } from './Toast';
 
 interface UserSummary {
@@ -160,9 +162,132 @@ interface AgnesScript {
   updatedAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Inline Intel Review Panel for admin approval of agent network submissions
+// ---------------------------------------------------------------------------
+const IntelReviewPanel: React.FC = () => {
+  const [pending, setPending] = useState<Array<{
+    id: string; intel_type: string; content: string; state: string | null;
+    insurer: string | null; author_name: string; author_email: string; created_at: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPending = async () => {
+    setLoading(true);
+    try {
+      const user = authService.getCurrentUser();
+      const res = await fetch(`${databaseService.getApiBaseUrl()}/agent-network/pending`, {
+        headers: { 'x-user-email': user?.email || '' },
+      });
+      if (res.ok) setPending(await res.json());
+    } catch (err) {
+      console.error('[IntelReview] Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchPending(); }, []);
+
+  const handleAction = async (id: string, action: 'approve' | 'reject') => {
+    try {
+      const user = authService.getCurrentUser();
+      await fetch(`${databaseService.getApiBaseUrl()}/agent-network/${id}/${action}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user?.email || '' },
+      });
+      fetchPending();
+    } catch (err) {
+      console.error(`[IntelReview] ${action} error:`, err);
+    }
+  };
+
+  const handlePromote = async (id: string) => {
+    try {
+      const user = authService.getCurrentUser();
+      await fetch(`${databaseService.getApiBaseUrl()}/agent-network/${id}/promote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user?.email || '' },
+        body: JSON.stringify({ category: 'field_intel' }),
+      });
+      fetchPending();
+    } catch (err) {
+      console.error('[IntelReview] Promote error:', err);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '2rem', color: '#9ca3af', textAlign: 'center' }}>Loading pending intel...</div>;
+
+  return (
+    <div style={{ padding: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h3 style={{ color: '#ffffff', margin: 0, fontSize: '1.125rem' }}>Pending Agent Intel ({pending.length})</h3>
+        <button onClick={fetchPending} style={{
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '8px', padding: '0.5rem', cursor: 'pointer', color: '#9ca3af'
+        }}>
+          <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+        </button>
+      </div>
+      {pending.length === 0 ? (
+        <div style={{ padding: '2rem', color: '#6b7280', textAlign: 'center' }}>No pending intel to review.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {pending.map(item => (
+            <div key={item.id} style={{
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '12px', padding: '1rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '0.125rem 0.5rem', borderRadius: '999px', fontSize: '0.6875rem',
+                    fontWeight: '600', background: 'rgba(239,68,68,0.15)', color: '#ef4444'
+                  }}>{item.intel_type}</span>
+                  {item.state && <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>{item.state}</span>}
+                  {item.insurer && <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>• {item.insurer}</span>}
+                </div>
+                <span style={{ fontSize: '0.6875rem', color: '#4b5563' }}>
+                  {item.author_name || item.author_email?.split('@')[0]}
+                </span>
+              </div>
+              <p style={{ margin: '0 0 0.75rem', color: '#e5e7eb', fontSize: '0.875rem', lineHeight: '1.5' }}>
+                {item.content}
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => handleAction(item.id, 'approve')} style={{
+                  padding: '0.375rem 0.75rem', background: '#10b981', border: 'none', borderRadius: '6px',
+                  color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+                  display: 'flex', alignItems: 'center', gap: '0.25rem'
+                }}>
+                  <CheckCircle style={{ width: '0.75rem', height: '0.75rem' }} /> Approve
+                </button>
+                <button onClick={() => handleAction(item.id, 'reject')} style={{
+                  padding: '0.375rem 0.75rem', background: '#ef4444', border: 'none', borderRadius: '6px',
+                  color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+                  display: 'flex', alignItems: 'center', gap: '0.25rem'
+                }}>
+                  <XCircle style={{ width: '0.75rem', height: '0.75rem' }} /> Reject
+                </button>
+                <button onClick={() => handlePromote(item.id)} style={{
+                  padding: '0.375rem 0.75rem', background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.3)',
+                  borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+                  display: 'flex', alignItems: 'center', gap: '0.25rem'
+                }}>
+                  <TrendingUp style={{ width: '0.75rem', height: '0.75rem' }} /> Approve & Promote to KB
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review'>('users');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -1731,6 +1856,48 @@ const AdminPanel: React.FC = () => {
         >
           <MapPin style={{ width: '1.125rem', height: '1.125rem' }} />
           QR Profiles
+        </button>
+
+        <button
+          onClick={() => setActiveTab('directives')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'directives' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Target style={{ width: '1.125rem', height: '1.125rem' }} />
+          Directives
+        </button>
+
+        <button
+          onClick={() => setActiveTab('intel-review')}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: activeTab === 'intel-review' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Bot style={{ width: '1.125rem', height: '1.125rem' }} />
+          Intel Review
         </button>
       </div>
 
@@ -4966,6 +5133,16 @@ const AdminPanel: React.FC = () => {
               return authUser ? JSON.parse(authUser).email : '';
             } catch { return ''; }
           })()} />
+        )}
+
+        {/* Directives Tab */}
+        {activeTab === 'directives' && (
+          <DirectivesPanel />
+        )}
+
+        {/* Intel Review Tab */}
+        {activeTab === 'intel-review' && (
+          <IntelReviewPanel />
         )}
       </div>
 

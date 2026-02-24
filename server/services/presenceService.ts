@@ -402,6 +402,16 @@ export class PresenceService {
     }
   }
 
+  // Emit a proactive agent message to a specific user
+  emitAgentProactive(userId: string, payload: { taskId: string; title: string; message: string }) {
+    const userSocketSet = this.userSockets.get(userId);
+    if (userSocketSet) {
+      userSocketSet.forEach(socketId => {
+        this.io.to(socketId).emit('agent:proactive', payload);
+      });
+    }
+  }
+
   // Periodic cleanup job to mark stale connections as offline
   private startCleanupJob() {
     setInterval(async () => {
