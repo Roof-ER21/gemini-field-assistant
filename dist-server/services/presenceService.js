@@ -308,6 +308,15 @@ export class PresenceService {
             });
         }
     }
+    // Emit a proactive agent message to a specific user
+    emitAgentProactive(userId, payload) {
+        const userSocketSet = this.userSockets.get(userId);
+        if (userSocketSet) {
+            userSocketSet.forEach(socketId => {
+                this.io.to(socketId).emit('agent:proactive', payload);
+            });
+        }
+    }
     // Periodic cleanup job to mark stale connections as offline
     startCleanupJob() {
         setInterval(async () => {

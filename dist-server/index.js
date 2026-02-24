@@ -39,6 +39,11 @@ import { createProfileRoutes } from './routes/profileRoutes.js';
 import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
+import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
+import { createDirectiveRoutes } from './routes/directiveRoutes.js';
+import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
+import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
+import { AgentProactiveService } from './services/agentProactiveService.js';
 import { createAgreementRoutes } from './routes/agreementRoutes.js';
 import { createDocuSealRoutes } from './routes/docusealRoutes.js';
 import { createDocumentRoutes } from './routes/documentRoutes.js';
@@ -6935,6 +6940,57 @@ app.delete('/api/memory/:memoryId', async (req, res) => {
         return res.status(500).json({ error: 'Failed to delete memory' });
     }
 });
+// --------------------------------------------------------------------------
+// Agent Personality Preferences (stored in user_memory, category='agent_personality')
+// --------------------------------------------------------------------------
+app.get('/api/memory/personality', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId)
+            return res.status(401).json({ error: 'User not found' });
+        const result = await pool.query(`SELECT key, value FROM user_memory
+       WHERE user_id = $1 AND category = 'agent_personality'`, [userId]);
+        const personality = {};
+        for (const row of result.rows) {
+            personality[row.key] = row.value;
+        }
+        return res.json(personality);
+    }
+    catch (error) {
+        console.error('Error fetching personality:', error);
+        return res.status(500).json({ error: 'Failed to fetch personality' });
+    }
+});
+app.put('/api/memory/personality', async (req, res) => {
+    try {
+        const email = getRequestEmail(req);
+        const userId = await getOrCreateUserIdByEmail(email);
+        if (!userId)
+            return res.status(401).json({ error: 'User not found' });
+        const allowed = ['preferred_name', 'tone', 'verbosity', 'specialties', 'greeting_style'];
+        const updates = req.body;
+        for (const [key, value] of Object.entries(updates)) {
+            if (!allowed.includes(key))
+                continue;
+            if (!value || value.trim().length === 0) {
+                // Delete the key if value is empty
+                await pool.query(`DELETE FROM user_memory WHERE user_id = $1 AND category = 'agent_personality' AND key = $2`, [userId, key]);
+            }
+            else {
+                await pool.query(`INSERT INTO user_memory (user_id, memory_type, category, key, value, confidence, source_type)
+           VALUES ($1, 'preference', 'agent_personality', $2, $3, 1.0, 'user_setting')
+           ON CONFLICT (user_id, memory_type, category, key)
+           DO UPDATE SET value = EXCLUDED.value, last_updated = NOW()`, [userId, key, value.trim()]);
+            }
+        }
+        return res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error saving personality:', error);
+        return res.status(500).json({ error: 'Failed to save personality' });
+    }
+});
 // Save conversation summary
 app.post('/api/memory/summaries', async (req, res) => {
     try {
@@ -7357,6 +7413,11 @@ app.use('/api/presentations', inspectionPresentationRoutes);
 app.use('/api/present', inspectionPresentationRoutes);
 // Register Susan AI chat routes
 app.use('/api/susan', susanRoutes);
+// Register Susan Agent routes (ReAct loop with Gemini function calling)
+app.use('/api/susan/agent', createSusanAgentRoutes(pool));
+app.use('/api/directives', createDirectiveRoutes(pool));
+app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
+app.use('/api/agent-network', createAgentNetworkRoutes(pool));
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
@@ -8175,8 +8236,12 @@ runStartupMigrations().then(() => {
         console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
         // Initialize WebSocket presence service
         try {
-            initializePresenceService(httpServer, pool, allowedOrigins);
+            const presence = initializePresenceService(httpServer, pool, allowedOrigins);
             console.log('✅ WebSocket presence service initialized');
+            // Start proactive agent task checker (5-min interval, uses Socket.io push)
+            const proactive = new AgentProactiveService(pool, presence);
+            proactive.start();
+            console.log('✅ Agent proactive task checker started');
         }
         catch (error) {
             console.error('⚠️  Failed to initialize WebSocket:', error);
