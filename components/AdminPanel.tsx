@@ -41,6 +41,7 @@ import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
+import AdminLeadsPanel from './AdminLeadsPanel';
 import DirectivesPanel from './DirectivesPanel';
 import { useToast } from './Toast';
 
@@ -216,21 +217,21 @@ const IntelReviewPanel: React.FC = () => {
     }
   };
 
-  if (loading) return <div style={{ padding: '2rem', color: '#9ca3af', textAlign: 'center' }}>Loading pending intel...</div>;
+  if (loading) return <div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>Loading pending intel...</div>;
 
   return (
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ color: '#ffffff', margin: 0, fontSize: '1.125rem' }}>Pending Agent Intel ({pending.length})</h3>
+        <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1.125rem' }}>Pending Agent Intel ({pending.length})</h3>
         <button onClick={fetchPending} style={{
           background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '8px', padding: '0.5rem', cursor: 'pointer', color: '#9ca3af'
+          borderRadius: '8px', padding: '0.5rem', cursor: 'pointer', color: 'var(--text-tertiary)'
         }}>
           <RefreshCw style={{ width: '1rem', height: '1rem' }} />
         </button>
       </div>
       {pending.length === 0 ? (
-        <div style={{ padding: '2rem', color: '#6b7280', textAlign: 'center' }}>No pending intel to review.</div>
+        <div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>No pending intel to review.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {pending.map(item => (
@@ -244,27 +245,27 @@ const IntelReviewPanel: React.FC = () => {
                     padding: '0.125rem 0.5rem', borderRadius: '999px', fontSize: '0.6875rem',
                     fontWeight: '600', background: 'rgba(239,68,68,0.15)', color: '#ef4444'
                   }}>{item.intel_type}</span>
-                  {item.state && <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>{item.state}</span>}
-                  {item.insurer && <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>• {item.insurer}</span>}
+                  {item.state && <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>{item.state}</span>}
+                  {item.insurer && <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>• {item.insurer}</span>}
                 </div>
-                <span style={{ fontSize: '0.6875rem', color: '#4b5563' }}>
+                <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>
                   {item.author_name || item.author_email?.split('@')[0]}
                 </span>
               </div>
-              <p style={{ margin: '0 0 0.75rem', color: '#e5e7eb', fontSize: '0.875rem', lineHeight: '1.5' }}>
+              <p style={{ margin: '0 0 0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.5' }}>
                 {item.content}
               </p>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => handleAction(item.id, 'approve')} style={{
                   padding: '0.375rem 0.75rem', background: '#10b981', border: 'none', borderRadius: '6px',
-                  color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+                  color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
                   display: 'flex', alignItems: 'center', gap: '0.25rem'
                 }}>
                   <CheckCircle style={{ width: '0.75rem', height: '0.75rem' }} /> Approve
                 </button>
                 <button onClick={() => handleAction(item.id, 'reject')} style={{
                   padding: '0.375rem 0.75rem', background: '#ef4444', border: 'none', borderRadius: '6px',
-                  color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+                  color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
                   display: 'flex', alignItems: 'center', gap: '0.25rem'
                 }}>
                   <XCircle style={{ width: '0.75rem', height: '0.75rem' }} /> Reject
@@ -287,7 +288,8 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads'>('users');
+  const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
 
@@ -1455,11 +1457,11 @@ const AdminPanel: React.FC = () => {
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ background: '#0f0f0f' }}>
+      <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-secondary)' }}>
         <div
           className="p-12 rounded-2xl text-center max-w-md"
           style={{
-            background: '#1a1a1a',
+            background: 'var(--bg-elevated)',
             border: '2px solid #991b1b',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
           }}
@@ -1473,8 +1475,8 @@ const AdminPanel: React.FC = () => {
           >
             <Users className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold mb-3" style={{ color: '#e4e4e7' }}>Access Denied</h2>
-          <p className="text-base mb-6" style={{ color: '#a1a1aa' }}>
+          <h2 className="text-2xl font-bold mb-3" style={{ color: 'var(--text-secondary)' }}>Access Denied</h2>
+          <p className="text-base mb-6" style={{ color: 'var(--text-tertiary)' }}>
             You need admin privileges to access this panel.
           </p>
           <div
@@ -1484,7 +1486,7 @@ const AdminPanel: React.FC = () => {
               border: '1px solid rgba(153, 27, 27, 0.3)'
             }}
           >
-            <p style={{ color: '#71717a' }}>
+            <p style={{ color: 'var(--text-tertiary)' }}>
               If you believe this is an error, please contact your administrator.
             </p>
           </div>
@@ -1495,7 +1497,7 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div style={{
-      background: '#0f0f0f',
+      background: 'var(--bg-secondary)',
       minHeight: '100%',
       overflowY: 'auto',
       overflowX: 'hidden',
@@ -1507,8 +1509,8 @@ const AdminPanel: React.FC = () => {
     } as React.CSSProperties}>
       {/* Database Migrations Section */}
       <div style={{
-        background: '#0a0a0a',
-        borderBottom: '2px solid #262626',
+        background: 'var(--bg-primary)',
+        borderBottom: '2px solid var(--border-subtle)',
         padding: '1.5rem 2rem'
       }}>
         <div style={{
@@ -1522,7 +1524,7 @@ const AdminPanel: React.FC = () => {
             marginBottom: '1rem'
           }}>
             <Database style={{ width: '20px', height: '20px', color: '#dc2626' }} />
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#ffffff', margin: 0 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
               Database Migrations
             </h3>
           </div>
@@ -1531,7 +1533,7 @@ const AdminPanel: React.FC = () => {
             {/* Leaderboard Sync */}
             <div style={{ flex: '1', minWidth: '300px' }}>
               <div style={{
-                border: '1px solid #262626',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 padding: '0.75rem 1.25rem',
                 background: 'rgba(17, 17, 17, 0.6)'
@@ -1544,7 +1546,7 @@ const AdminPanel: React.FC = () => {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <RefreshCw style={{ width: '16px', height: '16px', color: '#dc2626' }} />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       Leaderboard Sync
                     </span>
                   </div>
@@ -1556,13 +1558,13 @@ const AdminPanel: React.FC = () => {
                   </span>
                 </div>
 
-                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                   Last sync: {formatSyncTime(leaderboardSyncStatus?.lastSync)}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                   Next sync: {leaderboardSyncStatus?.nextSyncLocal || formatSyncTime(leaderboardSyncStatus?.nextSync)}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.75rem' }}>
                   Active reps: {leaderboardSyncStatus?.recordCount ?? 0}
                 </div>
 
@@ -1573,11 +1575,11 @@ const AdminPanel: React.FC = () => {
                     width: '100%',
                     padding: '0.6rem 1rem',
                     background: leaderboardSyncRunning
-                      ? '#262626'
+                      ? 'var(--bg-card)'
                       : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                     border: 'none',
                     borderRadius: '8px',
-                    color: 'white',
+                    color: 'var(--text-primary)',
                     fontSize: '0.8rem',
                     fontWeight: 600,
                     cursor: leaderboardSyncRunning ? 'not-allowed' : 'pointer',
@@ -1639,267 +1641,102 @@ const AdminPanel: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div style={{
-        background: '#0a0a0a',
-        borderBottom: '1px solid #262626',
-        padding: '1rem 2rem',
-        display: 'flex',
-        gap: '1rem',
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        flexWrap: 'nowrap'
-      }}>
-        <button
-          onClick={() => setActiveTab('users')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'users' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Users style={{ width: '1.125rem', height: '1.125rem' }} />
-          Users
-        </button>
+      {(() => {
+        const tabGroups = [
+          { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
+          { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
+          { id: 'perf' as const, label: 'Performance', tabs: ['analytics', 'budget', 'tiers'] },
+          { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review'] },
+          { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles'] }
+        ];
 
-        <button
-          onClick={() => setActiveTab('emails')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'emails' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Mail style={{ width: '1.125rem', height: '1.125rem' }} />
-          Emails
-        </button>
+        const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
+          users: { label: 'Users', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          mappings: { label: 'User Mappings', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          leads: { label: 'Leads', icon: <Target style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          emails: { label: 'Emails', icon: <Mail style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          messages: { label: 'Messages', icon: <MessageSquare style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          analytics: { label: 'Analytics', icon: <BarChart3 style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          budget: { label: 'Budget', icon: <DollarSign style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          tiers: { label: 'Bonus Tiers', icon: <Trophy style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          agnes: { label: 'Agnes Training', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          directives: { label: 'Directives', icon: <Target style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'intel-review': { label: 'Intel Review', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          settings: { label: 'Settings', icon: <Sliders style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'qr-profiles': { label: 'QR Profiles', icon: <MapPin style={{ width: '0.875rem', height: '0.875rem' }} /> }
+        };
 
-        <button
-          onClick={() => setActiveTab('messages')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'messages' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <MessageSquare style={{ width: '1.125rem', height: '1.125rem' }} />
-          Messages
-        </button>
+        const currentGroup = tabGroups.find(g => g.id === activeGroup) || tabGroups[0];
 
-        <button
-          onClick={() => setActiveTab('analytics')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'analytics' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <BarChart3 style={{ width: '1.125rem', height: '1.125rem' }} />
-          Analytics
-        </button>
+        return (
+          <>
+            {/* Level 1 — Group buttons */}
+            <div style={{
+              background: 'var(--bg-primary)',
+              borderBottom: '1px solid var(--border-subtle)',
+              padding: '0.75rem 2rem',
+              display: 'flex',
+              gap: '0.75rem',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              flexWrap: 'nowrap'
+            }}>
+              {tabGroups.map(group => (
+                <button key={group.id} onClick={() => {
+                  setActiveGroup(group.id);
+                  setActiveTab(group.tabs[0] as any);
+                }} style={{
+                  padding: '0.625rem 1.25rem',
+                  background: activeGroup === group.id ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-primary)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: activeGroup === group.id ? '600' : '400',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {group.label}
+                </button>
+              ))}
+            </div>
 
-        <button
-          onClick={() => setActiveTab('budget')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'budget' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <DollarSign style={{ width: '1.125rem', height: '1.125rem' }} />
-          Budget
-        </button>
-        <button
-          onClick={() => setActiveTab('mappings')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'mappings' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Users style={{ width: '1.125rem', height: '1.125rem' }} />
-          User Mappings
-        </button>
-
-        <button
-          onClick={() => setActiveTab('tiers')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'tiers' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Trophy style={{ width: '1.125rem', height: '1.125rem' }} />
-          Bonus Tiers
-        </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'settings' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Sliders style={{ width: '1.125rem', height: '1.125rem' }} />
-          Settings
-        </button>
-
-        <button
-          onClick={() => setActiveTab('agnes')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'agnes' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Bot style={{ width: '1.125rem', height: '1.125rem' }} />
-          Agnes Training
-        </button>
-
-        <button
-          onClick={() => setActiveTab('qr-profiles')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'qr-profiles' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <MapPin style={{ width: '1.125rem', height: '1.125rem' }} />
-          QR Profiles
-        </button>
-
-        <button
-          onClick={() => setActiveTab('directives')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'directives' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Target style={{ width: '1.125rem', height: '1.125rem' }} />
-          Directives
-        </button>
-
-        <button
-          onClick={() => setActiveTab('intel-review')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: activeTab === 'intel-review' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'transparent',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.9375rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Bot style={{ width: '1.125rem', height: '1.125rem' }} />
-          Intel Review
-        </button>
-      </div>
+            {/* Level 2 — Sub-tabs (only tabs in active group) */}
+            <div style={{
+              background: 'var(--bg-primary)',
+              borderBottom: '1px solid var(--bg-elevated)',
+              padding: '0.5rem 2rem',
+              display: 'flex',
+              gap: '0.5rem'
+            }}>
+              {currentGroup.tabs.map(tabId => {
+                const tabMeta = tabMetadata[tabId];
+                return (
+                  <button key={tabId} onClick={() => setActiveTab(tabId as any)} style={{
+                    padding: '0.5rem 1rem',
+                    background: activeTab === tabId ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    color: activeTab === tabId ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                    border: activeTab === tabId ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.8125rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}>
+                    {tabMeta.icon}
+                    {tabMeta.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Main Container */}
       <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
@@ -1908,8 +1745,8 @@ const AdminPanel: React.FC = () => {
             {/* Header and Filter Bar */}
             <div style={{
               marginBottom: '2rem',
-              background: '#0a0a0a',
-              border: '1px solid #262626',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '1.5rem'
             }}>
@@ -1926,7 +1763,7 @@ const AdminPanel: React.FC = () => {
                   gap: '12px',
                   fontSize: '24px',
                   fontWeight: 700,
-                  color: '#ffffff'
+                  color: 'var(--text-primary)'
                 }}>
                   <div style={{
                     width: '40px',
@@ -1941,7 +1778,7 @@ const AdminPanel: React.FC = () => {
                     👥
                   </div>
                   All Users
-                  <span style={{ fontSize: '16px', color: '#a1a1aa', fontWeight: 400, marginLeft: '8px' }}>
+                  <span style={{ fontSize: '16px', color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: '8px' }}>
                     {filteredUsers.length} of {users.length}
                   </span>
                 </div>
@@ -1958,7 +1795,7 @@ const AdminPanel: React.FC = () => {
                       alignItems: 'center',
                       gap: '8px',
                       fontSize: '14px',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       fontWeight: 600,
                       transition: 'all 0.2s ease'
                     }}
@@ -2016,21 +1853,21 @@ const AdminPanel: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '12px 40px 12px 16px',
-                      background: '#171717',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '10px',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       fontSize: '14px',
                       transition: 'all 0.3s ease',
                       outline: 'none'
                     }}
                     onFocus={(e) => {
                       e.currentTarget.style.borderColor = '#dc2626';
-                      e.currentTarget.style.background = '#1a1a1a';
+                      e.currentTarget.style.background = 'var(--bg-elevated)';
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#262626';
-                      e.currentTarget.style.background = '#171717';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                      e.currentTarget.style.background = 'var(--bg-secondary)';
                     }}
                   />
                   <Search style={{
@@ -2040,7 +1877,7 @@ const AdminPanel: React.FC = () => {
                     transform: 'translateY(-50%)',
                     width: '18px',
                     height: '18px',
-                    color: '#a1a1aa'
+                    color: 'var(--text-tertiary)'
                   }} />
                 </div>
 
@@ -2050,10 +1887,10 @@ const AdminPanel: React.FC = () => {
                   onChange={(e) => setRoleFilter(e.target.value)}
                   style={{
                     padding: '12px 16px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     cursor: 'pointer',
                     outline: 'none',
@@ -2076,10 +1913,10 @@ const AdminPanel: React.FC = () => {
                   }}
                   style={{
                     padding: '12px 16px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     minWidth: '150px'
@@ -2096,10 +1933,10 @@ const AdminPanel: React.FC = () => {
                   }}
                   style={{
                     padding: '12px 16px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     minWidth: '150px'
@@ -2115,10 +1952,10 @@ const AdminPanel: React.FC = () => {
                     onClick={() => handleQuickFilter(filter)}
                     style={{
                       padding: '8px 16px',
-                      background: quickFilter === filter ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
-                      border: `1px solid ${quickFilter === filter ? '#dc2626' : '#262626'}`,
+                      background: quickFilter === filter ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'var(--bg-secondary)',
+                      border: `1px solid ${quickFilter === filter ? '#dc2626' : 'var(--border-subtle)'}`,
                       borderRadius: '8px',
-                      color: quickFilter === filter ? '#ffffff' : '#a1a1aa',
+                      color: quickFilter === filter ? 'var(--text-primary)' : 'var(--text-tertiary)',
                       fontSize: '14px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
@@ -2127,12 +1964,12 @@ const AdminPanel: React.FC = () => {
                     }}
                     onMouseEnter={(e) => {
                       if (quickFilter !== filter) {
-                        e.currentTarget.style.background = '#1a1a1a';
+                        e.currentTarget.style.background = 'var(--bg-elevated)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (quickFilter !== filter) {
-                        e.currentTarget.style.background = '#171717';
+                        e.currentTarget.style.background = 'var(--bg-secondary)';
                       }
                     }}
                   >
@@ -2152,18 +1989,18 @@ const AdminPanel: React.FC = () => {
                     display: 'inline-block',
                     width: '50px',
                     height: '50px',
-                    border: '4px solid #262626',
+                    border: '4px solid var(--border-subtle)',
                     borderTop: '4px solid #dc2626',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite'
                   }} />
-                  <p style={{ color: '#a1a1aa', marginTop: '20px', fontSize: '16px' }}>
+                  <p style={{ color: 'var(--text-tertiary)', marginTop: '20px', fontSize: '16px' }}>
                     Loading users...
                   </p>
                 </div>
               ) : error ? (
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   border: '1px solid #dc2626',
                   borderRadius: '12px',
                   padding: '24px',
@@ -2171,18 +2008,18 @@ const AdminPanel: React.FC = () => {
                   margin: '0 auto'
                 }}>
                   <div style={{ color: '#dc2626', fontWeight: 600, fontSize: '18px', marginBottom: '12px' }}>Error</div>
-                  <div style={{ color: '#a1a1aa', fontSize: '14px' }}>{error}</div>
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>{error}</div>
                 </div>
               ) : filteredUsers.length === 0 ? (
                 <div style={{
                   textAlign: 'center',
                   padding: '80px 20px',
-                  color: '#a1a1aa'
+                  color: 'var(--text-tertiary)'
                 }}>
                   <div style={{
                     width: '120px',
                     height: '120px',
-                    background: '#171717',
+                    background: 'var(--bg-secondary)',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
@@ -2192,10 +2029,10 @@ const AdminPanel: React.FC = () => {
                   }}>
                     👥
                   </div>
-                  <div style={{ fontSize: '22px', fontWeight: 600, color: '#ffffff', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>
                     No users found
                   </div>
-                  <div style={{ fontSize: '16px', color: '#a1a1aa' }}>
+                  <div style={{ fontSize: '16px', color: 'var(--text-tertiary)' }}>
                     Try adjusting your filters or search query
                   </div>
                 </div>
@@ -2209,8 +2046,8 @@ const AdminPanel: React.FC = () => {
                     <div
                       key={user.id}
                       style={{
-                        background: '#111111',
-                        border: '1px solid #262626',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '16px',
                         padding: '24px',
                         transition: 'all 0.3s ease',
@@ -2218,14 +2055,14 @@ const AdminPanel: React.FC = () => {
                         position: 'relative'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#171717';
+                        e.currentTarget.style.background = 'var(--bg-secondary)';
                         e.currentTarget.style.borderColor = '#dc2626';
                         e.currentTarget.style.transform = 'translateY(-4px)';
                         e.currentTarget.style.boxShadow = '0 8px 24px rgba(220, 38, 38, 0.15)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#111111';
-                        e.currentTarget.style.borderColor = '#262626';
+                        e.currentTarget.style.background = 'var(--bg-secondary)';
+                        e.currentTarget.style.borderColor = 'var(--border-subtle)';
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = 'none';
                       }}
@@ -2248,7 +2085,7 @@ const AdminPanel: React.FC = () => {
                           fontSize: '32px',
                           fontWeight: 700,
                           position: 'relative',
-                          color: '#ffffff',
+                          color: 'var(--text-primary)',
                           marginBottom: '12px'
                         }}>
                           {getInitials(user.name)}
@@ -2259,15 +2096,15 @@ const AdminPanel: React.FC = () => {
                             right: '4px',
                             width: '18px',
                             height: '18px',
-                            background: isUserOnline(user.last_active) ? '#10b981' : '#52525b',
-                            border: '3px solid #111111',
+                            background: isUserOnline(user.last_active) ? '#10b981' : 'var(--text-disabled)',
+                            border: '3px solid var(--bg-secondary)',
                             borderRadius: '50%'
                           }} />
                         </div>
                         <div style={{
                           fontSize: '18px',
                           fontWeight: 600,
-                          color: '#ffffff',
+                          color: 'var(--text-primary)',
                           marginBottom: '4px',
                           textAlign: 'center'
                         }}>
@@ -2275,7 +2112,7 @@ const AdminPanel: React.FC = () => {
                         </div>
                         <div style={{
                           fontSize: '14px',
-                          color: '#a1a1aa',
+                          color: 'var(--text-tertiary)',
                           marginBottom: '12px',
                           textAlign: 'center',
                           maxWidth: '100%',
@@ -2297,24 +2134,24 @@ const AdminPanel: React.FC = () => {
                       }}>
                         <span style={{
                           padding: '6px 12px',
-                          background: user.role === 'admin' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : user.role.includes('sales') ? '#dc2626' : '#262626',
+                          background: user.role === 'admin' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : user.role.includes('sales') ? '#dc2626' : 'var(--bg-card)',
                           borderRadius: '8px',
                           fontSize: '12px',
                           fontWeight: 600,
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
-                          color: user.role === 'admin' || user.role.includes('sales') ? '#ffffff' : '#d4d4d8'
+                          color: user.role === 'admin' || user.role.includes('sales') ? 'var(--text-primary)' : 'var(--text-secondary)'
                         }}>
                           {user.role}
                         </span>
                         {user.state && (
                           <span style={{
                             padding: '6px 12px',
-                            background: '#262626',
+                            background: 'var(--bg-card)',
                             borderRadius: '8px',
                             fontSize: '12px',
                             fontWeight: 600,
-                            color: '#d4d4d8'
+                            color: 'var(--text-secondary)'
                           }}>
                             {user.state}
                           </span>
@@ -2328,22 +2165,22 @@ const AdminPanel: React.FC = () => {
                         gap: '12px',
                         marginBottom: '20px',
                         padding: '16px',
-                        background: '#0a0a0a',
+                        background: 'var(--bg-primary)',
                         borderRadius: '12px',
-                        border: '1px solid #1a1a1a'
+                        border: '1px solid var(--bg-elevated)'
                       }}>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{
                             fontSize: '24px',
                             fontWeight: 700,
-                            color: '#ffffff',
+                            color: 'var(--text-primary)',
                             marginBottom: '4px'
                           }}>
                             {user.total_messages}
                           </div>
                           <div style={{
                             fontSize: '12px',
-                            color: '#a1a1aa',
+                            color: 'var(--text-tertiary)',
                             textTransform: 'uppercase',
                             letterSpacing: '0.5px'
                           }}>
@@ -2354,14 +2191,14 @@ const AdminPanel: React.FC = () => {
                           <div style={{
                             fontSize: '12px',
                             fontWeight: 600,
-                            color: isUserOnline(user.last_active) ? '#10b981' : '#a1a1aa',
+                            color: isUserOnline(user.last_active) ? '#10b981' : 'var(--text-tertiary)',
                             marginBottom: '4px'
                           }}>
                             {isUserOnline(user.last_active) ? 'ONLINE' : 'OFFLINE'}
                           </div>
                           <div style={{
                             fontSize: '11px',
-                            color: '#71717a'
+                            color: 'var(--text-tertiary)'
                           }}>
                             {new Date(user.last_active).toLocaleDateString()}
                           </div>
@@ -2397,7 +2234,7 @@ const AdminPanel: React.FC = () => {
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = '#dc2626';
-                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.color = 'var(--text-primary)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)';
@@ -2427,7 +2264,7 @@ const AdminPanel: React.FC = () => {
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = '#3b82f6';
-                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.color = 'var(--text-primary)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
@@ -2457,7 +2294,7 @@ const AdminPanel: React.FC = () => {
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = '#ef4444';
-                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.color = 'var(--text-primary)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
@@ -2499,9 +2336,9 @@ const AdminPanel: React.FC = () => {
               }}>
                 <div
                   style={{
-                    background: '#0a0a0a',
+                    background: 'var(--bg-primary)',
                     borderRadius: '16px',
-                    border: '1px solid #262626',
+                    border: '1px solid var(--border-subtle)',
                     maxWidth: '1200px',
                     width: '100%',
                     maxHeight: '90vh',
@@ -2514,7 +2351,7 @@ const AdminPanel: React.FC = () => {
                   {/* Modal Header */}
                   <div style={{
                     padding: '24px',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between'
@@ -2523,12 +2360,12 @@ const AdminPanel: React.FC = () => {
                       <div style={{
                         fontSize: '24px',
                         fontWeight: 700,
-                        color: '#ffffff',
+                        color: 'var(--text-primary)',
                         marginBottom: '4px'
                       }}>
                         {conversationsModalUser.name}'s Conversations
                       </div>
-                      <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                      <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
                         {conversationsModalUser.email}
                       </div>
                     </div>
@@ -2545,7 +2382,7 @@ const AdminPanel: React.FC = () => {
                         border: 'none',
                         cursor: 'pointer',
                         borderRadius: '8px',
-                        color: '#a1a1aa',
+                        color: 'var(--text-tertiary)',
                         fontSize: '24px',
                         lineHeight: 1,
                         transition: 'all 0.2s ease'
@@ -2556,7 +2393,7 @@ const AdminPanel: React.FC = () => {
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#a1a1aa';
+                        e.currentTarget.style.color = 'var(--text-tertiary)';
                       }}
                     >
                       ×
@@ -2572,19 +2409,19 @@ const AdminPanel: React.FC = () => {
                     {/* Conversations List */}
                     <div style={{
                       width: '350px',
-                      borderRight: '1px solid #262626',
+                      borderRight: '1px solid var(--border-subtle)',
                       display: 'flex',
                       flexDirection: 'column',
-                      background: '#111111'
+                      background: 'var(--bg-secondary)'
                     }}>
                       <div style={{
                         padding: '20px',
-                        borderBottom: '1px solid #262626'
+                        borderBottom: '1px solid var(--border-subtle)'
                       }}>
                         <div style={{
                           fontSize: '16px',
                           fontWeight: 600,
-                          color: '#ffffff'
+                          color: 'var(--text-primary)'
                         }}>
                           Chat Sessions
                         </div>
@@ -2600,12 +2437,12 @@ const AdminPanel: React.FC = () => {
                               display: 'inline-block',
                               width: '40px',
                               height: '40px',
-                              border: '4px solid #262626',
+                              border: '4px solid var(--border-subtle)',
                               borderTop: '4px solid #dc2626',
                               borderRadius: '50%',
                               animation: 'spin 1s linear infinite'
                             }} />
-                            <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
+                            <p style={{ color: 'var(--text-tertiary)', marginTop: '16px', fontSize: '14px' }}>
                               Loading...
                             </p>
                           </div>
@@ -2613,7 +2450,7 @@ const AdminPanel: React.FC = () => {
                           <div style={{
                             textAlign: 'center',
                             padding: '40px 20px',
-                            color: '#71717a'
+                            color: 'var(--text-tertiary)'
                           }}>
                             <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
                             <div style={{ fontSize: '14px' }}>No conversations yet</div>
@@ -2624,8 +2461,8 @@ const AdminPanel: React.FC = () => {
                               key={conv.session_id}
                               onClick={() => handleConversationSelect(conv)}
                               style={{
-                                background: selectedConversation?.session_id === conv.session_id ? '#171717' : '#0a0a0a',
-                                border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#dc2626' : '#262626'}`,
+                                background: selectedConversation?.session_id === conv.session_id ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+                                border: `1px solid ${selectedConversation?.session_id === conv.session_id ? '#dc2626' : 'var(--border-subtle)'}`,
                                 borderRadius: '12px',
                                 padding: '16px',
                                 marginBottom: '12px',
@@ -2634,12 +2471,12 @@ const AdminPanel: React.FC = () => {
                               }}
                               onMouseEnter={(e) => {
                                 if (selectedConversation?.session_id !== conv.session_id) {
-                                  e.currentTarget.style.background = '#171717';
+                                  e.currentTarget.style.background = 'var(--bg-secondary)';
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (selectedConversation?.session_id !== conv.session_id) {
-                                  e.currentTarget.style.background = '#0a0a0a';
+                                  e.currentTarget.style.background = 'var(--bg-primary)';
                                 }
                               }}
                             >
@@ -2658,17 +2495,17 @@ const AdminPanel: React.FC = () => {
                                   borderRadius: '6px',
                                   fontSize: '12px',
                                   fontWeight: 600,
-                                  color: '#ffffff'
+                                  color: 'var(--text-primary)'
                                 }}>
                                   {conv.message_count} msgs
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#71717a' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
                                   {new Date(conv.last_message_at).toLocaleDateString()}
                                 </div>
                               </div>
                               <div style={{
                                 fontSize: '13px',
-                                color: '#a1a1aa',
+                                color: 'var(--text-tertiary)',
                                 lineHeight: '1.4',
                                 display: '-webkit-box',
                                 WebkitLineClamp: 2,
@@ -2688,13 +2525,13 @@ const AdminPanel: React.FC = () => {
                       flex: 1,
                       display: 'flex',
                       flexDirection: 'column',
-                      background: '#0a0a0a'
+                      background: 'var(--bg-primary)'
                     }}>
                       {selectedConversation ? (
                         <>
                           <div style={{
                             padding: '20px',
-                            borderBottom: '1px solid #262626',
+                            borderBottom: '1px solid var(--border-subtle)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between'
@@ -2703,12 +2540,12 @@ const AdminPanel: React.FC = () => {
                               <div style={{
                                 fontSize: '16px',
                                 fontWeight: 600,
-                                color: '#ffffff',
+                                color: 'var(--text-primary)',
                                 marginBottom: '4px'
                               }}>
                                 Conversation Messages
                               </div>
-                              <div style={{ fontSize: '13px', color: '#a1a1aa' }}>
+                              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
                                 {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
                               </div>
                             </div>
@@ -2719,7 +2556,7 @@ const AdminPanel: React.FC = () => {
                                 background: 'rgba(220, 38, 38, 0.2)',
                                 border: '1px solid #dc2626',
                                 borderRadius: '8px',
-                                color: '#ffffff',
+                                color: 'var(--text-primary)',
                                 fontSize: '14px',
                                 fontWeight: 600,
                                 cursor: 'pointer',
@@ -2750,12 +2587,12 @@ const AdminPanel: React.FC = () => {
                                   display: 'inline-block',
                                   width: '40px',
                                   height: '40px',
-                                  border: '4px solid #262626',
+                                  border: '4px solid var(--border-subtle)',
                                   borderTop: '4px solid #dc2626',
                                   borderRadius: '50%',
                                   animation: 'spin 1s linear infinite'
                                 }} />
-                                <p style={{ color: '#a1a1aa', marginTop: '16px', fontSize: '14px' }}>
+                                <p style={{ color: 'var(--text-tertiary)', marginTop: '16px', fontSize: '14px' }}>
                                   Loading messages...
                                 </p>
                               </div>
@@ -2763,7 +2600,7 @@ const AdminPanel: React.FC = () => {
                               <div style={{
                                 textAlign: 'center',
                                 padding: '60px 20px',
-                                color: '#71717a'
+                                color: 'var(--text-tertiary)'
                               }}>
                                 <div style={{ fontSize: '64px', marginBottom: '16px' }}>📭</div>
                                 <div style={{ fontSize: '16px' }}>No messages in this conversation</div>
@@ -2781,7 +2618,7 @@ const AdminPanel: React.FC = () => {
                                 >
                                   <div style={{
                                     maxWidth: '70%',
-                                    background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#171717',
+                                    background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'var(--bg-secondary)',
                                     padding: '14px 18px',
                                     borderRadius: '12px'
                                   }}>
@@ -2789,7 +2626,7 @@ const AdminPanel: React.FC = () => {
                                       fontSize: '11px',
                                       fontWeight: 600,
                                       marginBottom: '8px',
-                                      color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.8)' : '#a1a1aa',
+                                      color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.8)' : 'var(--text-tertiary)',
                                       textTransform: 'uppercase',
                                       letterSpacing: '0.5px'
                                     }}>
@@ -2798,7 +2635,7 @@ const AdminPanel: React.FC = () => {
                                     <div style={{
                                       fontSize: '15px',
                                       lineHeight: '1.6',
-                                      color: msg.sender === 'user' ? '#ffffff' : '#d4d4d8',
+                                      color: msg.sender === 'user' ? 'var(--text-primary)' : 'var(--text-secondary)',
                                       whiteSpace: 'pre-wrap',
                                       wordBreak: 'break-word'
                                     }}>
@@ -2808,7 +2645,7 @@ const AdminPanel: React.FC = () => {
                                       <div style={{
                                         marginTop: '8px',
                                         fontSize: '11px',
-                                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : '#a1a1aa'
+                                        color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-tertiary)'
                                       }}>
                                         Provider: {msg.provider}
                                       </div>
@@ -2816,7 +2653,7 @@ const AdminPanel: React.FC = () => {
                                   </div>
                                   <div style={{
                                     fontSize: '12px',
-                                    color: '#71717a',
+                                    color: 'var(--text-tertiary)',
                                     marginTop: '4px',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -2836,7 +2673,7 @@ const AdminPanel: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#71717a',
+                          color: 'var(--text-tertiary)',
                           fontSize: '16px'
                         }}>
                           <div style={{ textAlign: 'center' }}>
@@ -2873,10 +2710,10 @@ const AdminPanel: React.FC = () => {
                 style={{
                   flex: 1,
                   padding: '0.75rem',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -2884,7 +2721,7 @@ const AdminPanel: React.FC = () => {
                   e.currentTarget.style.borderColor = '#dc2626';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#262626';
+                  e.currentTarget.style.borderColor = 'var(--border-subtle)';
                 }}
               />
               <button
@@ -2894,7 +2731,7 @@ const AdminPanel: React.FC = () => {
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -2917,30 +2754,31 @@ const AdminPanel: React.FC = () => {
 
             {/* Email Table */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               overflow: 'hidden'
             }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
                 <thead>
-                  <tr style={{ background: '#000000', borderBottom: '1px solid #262626' }}>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>User</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Subject</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Recipient</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Date</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' }}>Action</th>
+                  <tr style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>User</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>Subject</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>Recipient</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>Date</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {emailsLoading ? (
-                    <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
-                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#a1a1aa' }}>
+                    <tr style={{ borderBottom: '1px solid var(--bg-elevated)' }}>
+                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
                         <div style={{
                           display: 'inline-block',
                           width: '30px',
                           height: '30px',
-                          border: '3px solid #262626',
+                          border: '3px solid var(--border-subtle)',
                           borderTop: '3px solid #dc2626',
                           borderRadius: '50%',
                           animation: 'spin 1s linear infinite',
@@ -2950,12 +2788,12 @@ const AdminPanel: React.FC = () => {
                       </td>
                     </tr>
                   ) : filteredEmails.length === 0 ? (
-                    <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
-                      <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
+                    <tr style={{ borderBottom: '1px solid var(--bg-elevated)' }}>
+                      <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
                         <div style={{
                           width: '64px',
                           height: '64px',
-                          background: '#171717',
+                          background: 'var(--bg-secondary)',
                           borderRadius: '50%',
                           display: 'flex',
                           alignItems: 'center',
@@ -2965,40 +2803,40 @@ const AdminPanel: React.FC = () => {
                         }}>
                           📧
                         </div>
-                        <div style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                           No emails found
                         </div>
-                        <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                        <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
                           {emailSearch ? 'Try adjusting your search' : 'No emails have been generated yet'}
                         </div>
                       </td>
                     </tr>
                   ) : (
                     filteredEmails.map((email, index) => (
-                      <tr key={email.id || index} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
-                          <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '0.25rem' }}>
+                      <tr key={email.id || index} style={{ borderBottom: '1px solid var(--bg-elevated)' }}>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                             {email.user_name || 'Unknown User'}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                             {email.user_email || 'N/A'}
                           </div>
                         </td>
-                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa', maxWidth: '300px' }}>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: '300px' }}>
                           <div style={{
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             fontWeight: 500,
-                            color: '#d4d4d8'
+                            color: 'var(--text-secondary)'
                           }}>
                             {email.subject || 'No Subject'}
                           </div>
                         </td>
-                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
                           {email.recipient || 'N/A'}
                         </td>
-                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#a1a1aa', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                           {new Date(email.created_at).toLocaleDateString()} {new Date(email.created_at).toLocaleTimeString()}
                         </td>
                         <td style={{ padding: '1rem' }}>
@@ -3011,7 +2849,7 @@ const AdminPanel: React.FC = () => {
                               background: 'rgba(220, 38, 38, 0.2)',
                               border: '1px solid #dc2626',
                               borderRadius: '6px',
-                              color: '#ffffff',
+                              color: 'var(--text-primary)',
                               fontSize: '0.75rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -3036,6 +2874,7 @@ const AdminPanel: React.FC = () => {
                   )}
                 </tbody>
               </table>
+             </div>
             </div>
 
             {/* Email Count */}
@@ -3043,7 +2882,7 @@ const AdminPanel: React.FC = () => {
               <div style={{
                 marginTop: '1rem',
                 fontSize: '0.875rem',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 textAlign: 'right'
               }}>
                 Showing {filteredEmails.length} of {emails.length} emails
@@ -3058,7 +2897,7 @@ const AdminPanel: React.FC = () => {
             padding: '2rem',
             paddingBottom: '40px'
           }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'white' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>
               All Messages
             </h2>
 
@@ -3069,10 +2908,10 @@ const AdminPanel: React.FC = () => {
                 onChange={(e) => setMessageUserFilter(e.target.value)}
                 style={{
                   padding: '0.75rem',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '14px',
                   cursor: 'pointer',
                   outline: 'none',
@@ -3093,10 +2932,10 @@ const AdminPanel: React.FC = () => {
                 style={{
                   flex: 1,
                   padding: '0.75rem',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -3104,7 +2943,7 @@ const AdminPanel: React.FC = () => {
                   e.currentTarget.style.borderColor = '#dc2626';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#262626';
+                  e.currentTarget.style.borderColor = 'var(--border-subtle)';
                 }}
               />
 
@@ -3115,7 +2954,7 @@ const AdminPanel: React.FC = () => {
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -3140,18 +2979,18 @@ const AdminPanel: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {messagesLoading ? (
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
                   padding: '3rem',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   textAlign: 'center',
-                  color: '#a1a1aa'
+                  color: 'var(--text-tertiary)'
                 }}>
                   <div style={{
                     display: 'inline-block',
                     width: '40px',
                     height: '40px',
-                    border: '4px solid #262626',
+                    border: '4px solid var(--border-subtle)',
                     borderTop: '4px solid #dc2626',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite',
@@ -3161,17 +3000,17 @@ const AdminPanel: React.FC = () => {
                 </div>
               ) : filteredMessages.length === 0 ? (
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
                   padding: '4rem',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   textAlign: 'center',
-                  color: '#a1a1aa'
+                  color: 'var(--text-tertiary)'
                 }}>
                   <div style={{
                     width: '80px',
                     height: '80px',
-                    background: '#171717',
+                    background: 'var(--bg-secondary)',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
@@ -3181,10 +3020,10 @@ const AdminPanel: React.FC = () => {
                   }}>
                     💬
                   </div>
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                     No messages found
                   </div>
-                  <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                  <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
                     {messageSearch || messageUserFilter ? 'Try adjusting your filters' : 'No messages have been sent yet'}
                   </div>
                 </div>
@@ -3193,19 +3032,19 @@ const AdminPanel: React.FC = () => {
                   <div
                     key={msg.id || index}
                     style={{
-                      background: '#0a0a0a',
+                      background: 'var(--bg-primary)',
                       borderRadius: '12px',
                       padding: '1.5rem',
-                      border: '1px solid #262626',
+                      border: '1px solid var(--border-subtle)',
                       transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = '#dc2626';
-                      e.currentTarget.style.background = '#171717';
+                      e.currentTarget.style.background = 'var(--bg-secondary)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#262626';
-                      e.currentTarget.style.background = '#0a0a0a';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                      e.currentTarget.style.background = 'var(--bg-primary)';
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'flex-start' }}>
@@ -3214,31 +3053,31 @@ const AdminPanel: React.FC = () => {
                           width: '40px',
                           height: '40px',
                           borderRadius: '50%',
-                          background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : '#262626',
+                          background: msg.sender === 'user' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'var(--bg-card)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: '14px',
                           fontWeight: 600,
-                          color: '#ffffff'
+                          color: 'var(--text-primary)'
                         }}>
                           {msg.sender === 'user' ? getInitials(msg.user_name || 'User') : 'AI'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: '600', color: '#ffffff', fontSize: '15px' }}>
+                          <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '15px' }}>
                             {msg.sender === 'user' ? (msg.user_name || 'Unknown User') : 'S21 AI'}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                             {msg.user_email || 'N/A'}
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#a1a1aa', textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textAlign: 'right' }}>
                         <div>{new Date(msg.created_at).toLocaleDateString()}</div>
                         <div>{new Date(msg.created_at).toLocaleTimeString()}</div>
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.9375rem', lineHeight: '1.6', color: '#a1a1aa', whiteSpace: 'pre-wrap' }}>
+                    <div style={{ fontSize: '0.9375rem', lineHeight: '1.6', color: 'var(--text-tertiary)', whiteSpace: 'pre-wrap' }}>
                       {msg.content}
                     </div>
                     {msg.provider && (
@@ -3266,7 +3105,7 @@ const AdminPanel: React.FC = () => {
               <div style={{
                 marginTop: '1rem',
                 fontSize: '0.875rem',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 textAlign: 'right'
               }}>
                 Showing {filteredMessages.length} of {allMessages.length} messages
@@ -3287,32 +3126,32 @@ const AdminPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '40px' }}>
             {/* Header */}
             <div style={{
-              background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+              background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-elevated) 100%)',
               borderRadius: '12px',
               padding: '1.5rem',
-              border: '1px solid #262626'
+              border: '1px solid var(--border-subtle)'
             }}>
-              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <h2 style={{ color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 User to Sales Rep Mappings
               </h2>
-              <p style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+              <p style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                 Link app users to their sales rep records for leaderboard tracking. Users with matching emails are auto-linked.
               </p>
             </div>
 
             {/* Create New Mapping */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
               padding: '1.5rem',
-              border: '1px solid #262626'
+              border: '1px solid var(--border-subtle)'
             }}>
-              <h3 style={{ color: '#ffffff', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
+              <h3 style={{ color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
                 Create New Mapping
               </h3>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div style={{ flex: '1', minWidth: '200px' }}>
-                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
                     Select User (Not Yet Linked)
                   </label>
                   <select
@@ -3321,10 +3160,10 @@ const AdminPanel: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      background: '#171717',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '8px',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       fontSize: '0.875rem'
                     }}
                   >
@@ -3337,7 +3176,7 @@ const AdminPanel: React.FC = () => {
                   </select>
                 </div>
                 <div style={{ flex: '1', minWidth: '200px' }}>
-                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
                     Select Sales Rep (Not Yet Linked)
                   </label>
                   <select
@@ -3346,10 +3185,10 @@ const AdminPanel: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      background: '#171717',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '8px',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       fontSize: '0.875rem'
                     }}
                   >
@@ -3362,7 +3201,7 @@ const AdminPanel: React.FC = () => {
                   </select>
                 </div>
                 <div style={{ flex: '1', minWidth: '200px' }}>
-                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
                     Notes (Optional)
                   </label>
                   <input
@@ -3373,10 +3212,10 @@ const AdminPanel: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      background: '#171717',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '8px',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       fontSize: '0.875rem'
                     }}
                   />
@@ -3388,8 +3227,8 @@ const AdminPanel: React.FC = () => {
                     padding: '0.75rem 1.5rem',
                     background: selectedUnmappedUser && selectedUnmappedRep
                       ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                      : '#262626',
-                    color: '#ffffff',
+                      : 'var(--bg-card)',
+                    color: 'var(--text-primary)',
                     border: 'none',
                     borderRadius: '8px',
                     cursor: selectedUnmappedUser && selectedUnmappedRep ? 'pointer' : 'not-allowed',
@@ -3409,47 +3248,47 @@ const AdminPanel: React.FC = () => {
 
             {/* Existing Mappings */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
               padding: '1.5rem',
-              border: '1px solid #262626'
+              border: '1px solid var(--border-subtle)'
             }}>
-              <h3 style={{ color: '#ffffff', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
+              <h3 style={{ color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
                 Manual Mappings ({userMappings.length})
               </h3>
               {mappingsLoading ? (
-                <p style={{ color: '#a1a1aa' }}>Loading...</p>
+                <p style={{ color: 'var(--text-tertiary)' }}>Loading...</p>
               ) : userMappings.length === 0 ? (
-                <p style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+                <p style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                   No manual mappings created yet. Users with matching emails are auto-linked.
                 </p>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #262626' }}>
-                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>User</th>
-                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Sales Rep</th>
-                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Notes</th>
-                        <th style={{ textAlign: 'left', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Created</th>
-                        <th style={{ textAlign: 'right', padding: '0.75rem', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '500' }}>User</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '500' }}>Sales Rep</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '500' }}>Notes</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '500' }}>Created</th>
+                        <th style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '500' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {userMappings.map(mapping => (
-                        <tr key={mapping.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                        <tr key={mapping.id} style={{ borderBottom: '1px solid var(--bg-elevated)' }}>
                           <td style={{ padding: '0.75rem' }}>
-                            <div style={{ color: '#ffffff', fontSize: '0.875rem' }}>{mapping.user_name || 'Unknown'}</div>
-                            <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{mapping.user_email}</div>
+                            <div style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>{mapping.user_name || 'Unknown'}</div>
+                            <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{mapping.user_email}</div>
                           </td>
                           <td style={{ padding: '0.75rem' }}>
-                            <div style={{ color: '#ffffff', fontSize: '0.875rem' }}>{mapping.sales_rep_name}</div>
-                            <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{mapping.sales_rep_email}</div>
+                            <div style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>{mapping.sales_rep_name}</div>
+                            <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{mapping.sales_rep_email}</div>
                           </td>
-                          <td style={{ padding: '0.75rem', color: '#a1a1aa', fontSize: '0.875rem' }}>
+                          <td style={{ padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             {mapping.notes || '-'}
                           </td>
-                          <td style={{ padding: '0.75rem', color: '#71717a', fontSize: '0.75rem' }}>
+                          <td style={{ padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
                             {new Date(mapping.created_at).toLocaleDateString()}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right' }}>
@@ -3483,34 +3322,34 @@ const AdminPanel: React.FC = () => {
               gap: '1rem'
             }}>
               <div style={{
-                background: '#0a0a0a',
+                background: 'var(--bg-primary)',
                 borderRadius: '12px',
                 padding: '1.5rem',
-                border: '1px solid #262626',
+                border: '1px solid var(--border-subtle)',
                 textAlign: 'center'
               }}>
                 <div style={{ color: '#22c55e', fontSize: '2rem', fontWeight: '700' }}>{userMappings.length}</div>
-                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Manual Mappings</div>
+                <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>Manual Mappings</div>
               </div>
               <div style={{
-                background: '#0a0a0a',
+                background: 'var(--bg-primary)',
                 borderRadius: '12px',
                 padding: '1.5rem',
-                border: '1px solid #262626',
+                border: '1px solid var(--border-subtle)',
                 textAlign: 'center'
               }}>
                 <div style={{ color: '#f59e0b', fontSize: '2rem', fontWeight: '700' }}>{unmappedUsers.length}</div>
-                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Unmapped Users</div>
+                <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>Unmapped Users</div>
               </div>
               <div style={{
-                background: '#0a0a0a',
+                background: 'var(--bg-primary)',
                 borderRadius: '12px',
                 padding: '1.5rem',
-                border: '1px solid #262626',
+                border: '1px solid var(--border-subtle)',
                 textAlign: 'center'
               }}>
                 <div style={{ color: '#3b82f6', fontSize: '2rem', fontWeight: '700' }}>{unmappedSalesReps.length}</div>
-                <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>Unmapped Sales Reps</div>
+                <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>Unmapped Sales Reps</div>
               </div>
             </div>
           </div>
@@ -3520,7 +3359,7 @@ const AdminPanel: React.FC = () => {
         {activeTab === 'settings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
             {settingsLoading ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-tertiary)' }}>
                 <Loader className="animate-spin" style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem' }} />
                 Loading settings...
               </div>
@@ -3533,7 +3372,7 @@ const AdminPanel: React.FC = () => {
                     marginTop: '1rem',
                     padding: '0.5rem 1rem',
                     background: '#dc2626',
-                    color: 'white',
+                    color: 'var(--text-primary)',
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer'
@@ -3546,30 +3385,30 @@ const AdminPanel: React.FC = () => {
               <>
                 {/* User-Specific Settings Section */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                   }}>
                     <User style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
-                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: '600' }}>
                       User Actions
                     </h2>
-                    <span style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                       Select a user to manage
                     </span>
                   </div>
                   <div style={{ padding: '1.5rem' }}>
                     {/* User Dropdown */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                      <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                      <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                         Select User
                       </label>
                       <select
@@ -3579,10 +3418,10 @@ const AdminPanel: React.FC = () => {
                           width: '100%',
                           maxWidth: '400px',
                           padding: '0.75rem 1rem',
-                          background: '#111111',
-                          border: '1px solid #262626',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-subtle)',
                           borderRadius: '8px',
-                          color: '#ffffff',
+                          color: 'var(--text-primary)',
                           fontSize: '1rem'
                         }}
                       >
@@ -3601,9 +3440,9 @@ const AdminPanel: React.FC = () => {
                       if (!selectedUser) return null;
                       return (
                         <div style={{
-                          background: '#111111',
+                          background: 'var(--bg-secondary)',
                           borderRadius: '12px',
-                          border: '1px solid #262626',
+                          border: '1px solid var(--border-subtle)',
                           padding: '1.5rem'
                         }}>
                           {/* User Info Header */}
@@ -3618,15 +3457,15 @@ const AdminPanel: React.FC = () => {
                               justifyContent: 'center',
                               fontSize: '1.5rem',
                               fontWeight: '700',
-                              color: '#ffffff'
+                              color: 'var(--text-primary)'
                             }}>
                               {selectedUser.name.charAt(0).toUpperCase()}
                             </div>
                             <div style={{ flex: 1 }}>
-                              <div style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                              <div style={{ color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                                 {selectedUser.name}
                               </div>
-                              <div style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>
+                              <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                                 {selectedUser.email}
                               </div>
                               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
@@ -3636,7 +3475,7 @@ const AdminPanel: React.FC = () => {
                                   fontSize: '0.75rem',
                                   fontWeight: '600',
                                   background: selectedUser.role === 'admin' ? '#7c3aed' : selectedUser.role === 'manager' ? '#2563eb' : '#059669',
-                                  color: '#ffffff'
+                                  color: 'var(--text-primary)'
                                 }}>
                                   {selectedUser.role}
                                 </span>
@@ -3646,8 +3485,8 @@ const AdminPanel: React.FC = () => {
                                     borderRadius: '9999px',
                                     fontSize: '0.75rem',
                                     fontWeight: '500',
-                                    background: '#262626',
-                                    color: '#a1a1aa'
+                                    background: 'var(--bg-card)',
+                                    color: 'var(--text-tertiary)'
                                   }}>
                                     {selectedUser.state}
                                   </span>
@@ -3657,8 +3496,8 @@ const AdminPanel: React.FC = () => {
                                   borderRadius: '9999px',
                                   fontSize: '0.75rem',
                                   fontWeight: '500',
-                                  background: '#262626',
-                                  color: '#71717a'
+                                  background: 'var(--bg-card)',
+                                  color: 'var(--text-tertiary)'
                                 }}>
                                   {selectedUser.total_messages} messages
                                 </span>
@@ -3667,8 +3506,8 @@ const AdminPanel: React.FC = () => {
                           </div>
 
                           {/* Quick Actions */}
-                          <div style={{ borderTop: '1px solid #262626', paddingTop: '1.5rem' }}>
-                            <div style={{ color: '#a1a1aa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
+                          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.5rem' }}>
+                            <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
                               Quick Actions
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -3700,7 +3539,7 @@ const AdminPanel: React.FC = () => {
                                   background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                                   border: 'none',
                                   borderRadius: '8px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   fontWeight: '500',
                                   cursor: settingsUserActionLoading ? 'wait' : 'pointer',
@@ -3726,10 +3565,10 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 style={{
                                   padding: '0.75rem 1.25rem',
-                                  background: '#262626',
-                                  border: '1px solid #3f3f46',
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border-default)',
                                   borderRadius: '8px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   fontWeight: '500',
                                   cursor: 'pointer',
@@ -3748,10 +3587,10 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 style={{
                                   padding: '0.75rem 1.25rem',
-                                  background: '#262626',
-                                  border: '1px solid #3f3f46',
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border-default)',
                                   borderRadius: '8px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   fontWeight: '500',
                                   cursor: 'pointer',
@@ -3817,23 +3656,23 @@ const AdminPanel: React.FC = () => {
 
                 {/* Feature Toggles Section */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                   }}>
                     <Power style={{ width: '1.25rem', height: '1.25rem', color: '#dc2626' }} />
-                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: '600' }}>
                       Feature Toggles
                     </h2>
-                    <span style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                       Enable/disable features app-wide
                     </span>
                   </div>
@@ -3855,20 +3694,20 @@ const AdminPanel: React.FC = () => {
                           <div
                             key={key}
                             style={{
-                              background: '#111111',
+                              background: 'var(--bg-secondary)',
                               borderRadius: '8px',
                               padding: '1rem',
-                              border: '1px solid #262626',
+                              border: '1px solid var(--border-subtle)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between'
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <Icon style={{ width: '1.25rem', height: '1.25rem', color: enabled ? '#22c55e' : '#71717a' }} />
+                              <Icon style={{ width: '1.25rem', height: '1.25rem', color: enabled ? '#22c55e' : 'var(--text-tertiary)' }} />
                               <div>
-                                <div style={{ color: '#ffffff', fontWeight: '500' }}>{label}</div>
-                                <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{desc}</div>
+                                <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{label}</div>
+                                <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{desc}</div>
                               </div>
                             </div>
                             <button
@@ -3885,7 +3724,7 @@ const AdminPanel: React.FC = () => {
                               {enabled ? (
                                 <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
                               ) : (
-                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: 'var(--text-tertiary)' }} />
                               )}
                             </button>
                           </div>
@@ -3897,20 +3736,20 @@ const AdminPanel: React.FC = () => {
 
                 {/* Leaderboard Settings Section */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                   }}>
                     <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#f59e0b' }} />
-                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: '600' }}>
                       Leaderboard Settings
                     </h2>
                   </div>
@@ -3921,14 +3760,14 @@ const AdminPanel: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        background: '#111111',
+                        background: 'var(--bg-secondary)',
                         borderRadius: '8px',
                         padding: '1rem',
-                        border: '1px solid #262626'
+                        border: '1px solid var(--border-subtle)'
                       }}>
                         <div>
-                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Automatic Sync</div>
-                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                          <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Automatic Sync</div>
+                          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             Sync leaderboard from Google Sheets
                           </div>
                         </div>
@@ -3940,9 +3779,9 @@ const AdminPanel: React.FC = () => {
                               interval_hours: parseInt(e.target.value)
                             })}
                             style={{
-                              background: '#1a1a1a',
-                              color: '#ffffff',
-                              border: '1px solid #262626',
+                              background: 'var(--bg-elevated)',
+                              color: 'var(--text-primary)',
+                              border: '1px solid var(--border-subtle)',
                               borderRadius: '6px',
                               padding: '0.5rem'
                             }}
@@ -3963,7 +3802,7 @@ const AdminPanel: React.FC = () => {
                             {systemSettings['leaderboard_sync_enabled']?.value?.enabled ?? true ? (
                               <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
                             ) : (
-                              <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                              <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: 'var(--text-tertiary)' }} />
                             )}
                           </button>
                         </div>
@@ -3974,14 +3813,14 @@ const AdminPanel: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        background: '#111111',
+                        background: 'var(--bg-secondary)',
                         borderRadius: '8px',
                         padding: '1rem',
-                        border: '1px solid #262626'
+                        border: '1px solid var(--border-subtle)'
                       }}>
                         <div>
-                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Manual Sync</div>
-                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                          <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Manual Sync</div>
+                          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             {leaderboardSyncStatus?.lastSync
                               ? `Last synced: ${new Date(leaderboardSyncStatus.lastSync).toLocaleString()}`
                               : 'Never synced'}
@@ -3992,8 +3831,8 @@ const AdminPanel: React.FC = () => {
                           disabled={leaderboardSyncRunning}
                           style={{
                             padding: '0.75rem 1.5rem',
-                            background: leaderboardSyncRunning ? '#262626' : '#dc2626',
-                            color: '#ffffff',
+                            background: leaderboardSyncRunning ? 'var(--bg-card)' : '#dc2626',
+                            color: 'var(--text-primary)',
                             border: 'none',
                             borderRadius: '8px',
                             cursor: leaderboardSyncRunning ? 'wait' : 'pointer',
@@ -4037,20 +3876,20 @@ const AdminPanel: React.FC = () => {
 
                 {/* Susan AI Settings Section */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                   }}>
                     <Bot style={{ width: '1.25rem', height: '1.25rem', color: '#8b5cf6' }} />
-                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: '600' }}>
                       Susan AI Settings
                     </h2>
                   </div>
@@ -4071,15 +3910,15 @@ const AdminPanel: React.FC = () => {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              background: '#111111',
+                              background: 'var(--bg-secondary)',
                               borderRadius: '8px',
                               padding: '1rem',
-                              border: '1px solid #262626'
+                              border: '1px solid var(--border-subtle)'
                             }}
                           >
                             <div>
-                              <div style={{ color: '#ffffff', fontWeight: '500' }}>{label}</div>
-                              <div style={{ color: '#71717a', fontSize: '0.875rem' }}>{desc}</div>
+                              <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{label}</div>
+                              <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>{desc}</div>
                             </div>
                             <button
                               onClick={() => toggleFeature(key)}
@@ -4095,7 +3934,7 @@ const AdminPanel: React.FC = () => {
                               {enabled ? (
                                 <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
                               ) : (
-                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                                <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: 'var(--text-tertiary)' }} />
                               )}
                             </button>
                           </div>
@@ -4107,20 +3946,20 @@ const AdminPanel: React.FC = () => {
 
                 {/* Territory & Canvassing Settings */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                   }}>
                     <MapPin style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
-                    <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem', fontWeight: '600' }}>
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: '600' }}>
                       Territory & Canvassing Settings
                     </h2>
                   </div>
@@ -4130,14 +3969,14 @@ const AdminPanel: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        background: '#111111',
+                        background: 'var(--bg-secondary)',
                         borderRadius: '8px',
                         padding: '1rem',
-                        border: '1px solid #262626'
+                        border: '1px solid var(--border-subtle)'
                       }}>
                         <div>
-                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Auto-Assign Territories</div>
-                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                          <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Auto-Assign Territories</div>
+                          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             Automatically assign territories to new users
                           </div>
                         </div>
@@ -4157,7 +3996,7 @@ const AdminPanel: React.FC = () => {
                           {systemSettings['territory_auto_assign']?.value?.enabled ? (
                             <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
                           ) : (
-                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: 'var(--text-tertiary)' }} />
                           )}
                         </button>
                       </div>
@@ -4166,14 +4005,14 @@ const AdminPanel: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        background: '#111111',
+                        background: 'var(--bg-secondary)',
                         borderRadius: '8px',
                         padding: '1rem',
-                        border: '1px solid #262626'
+                        border: '1px solid var(--border-subtle)'
                       }}>
                         <div>
-                          <div style={{ color: '#ffffff', fontWeight: '500' }}>Require Location Check-in</div>
-                          <div style={{ color: '#71717a', fontSize: '0.875rem' }}>
+                          <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Require Location Check-in</div>
+                          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             Require GPS verification for canvassing activities
                           </div>
                         </div>
@@ -4196,7 +4035,7 @@ const AdminPanel: React.FC = () => {
                           {systemSettings['territory_checkin_required']?.value?.enabled ?? true ? (
                             <ToggleRight style={{ width: '2.5rem', height: '2.5rem', color: '#22c55e' }} />
                           ) : (
-                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: '#71717a' }} />
+                            <ToggleLeft style={{ width: '2.5rem', height: '2.5rem', color: 'var(--text-tertiary)' }} />
                           )}
                         </button>
                       </div>
@@ -4213,24 +4052,24 @@ const AdminPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
             {/* Header */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               padding: '1.5rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                 <Trophy style={{ width: '1.5rem', height: '1.5rem', color: '#ffd700' }} />
-                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                   Bonus Tier Configuration
                 </h2>
               </div>
-              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
+              <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                 Configure the bonus tier structure for sales representatives. Changes will recalculate all rep tier levels.
               </p>
             </div>
 
             {tiersLoading ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-tertiary)' }}>
                 <Loader className="animate-spin" style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem' }} />
                 Loading bonus tiers...
               </div>
@@ -4243,7 +4082,7 @@ const AdminPanel: React.FC = () => {
                     marginTop: '1rem',
                     padding: '0.5rem 1rem',
                     background: '#dc2626',
-                    color: 'white',
+                    color: 'var(--text-primary)',
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer'
@@ -4256,19 +4095,19 @@ const AdminPanel: React.FC = () => {
               <>
                 {/* Tiers Table */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   overflow: 'hidden'
                 }}>
                   <div style={{
                     padding: '1.5rem',
-                    borderBottom: '1px solid #262626',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center'
                   }}>
-                    <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                    <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                       Tier Structure
                     </h3>
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -4277,8 +4116,8 @@ const AdminPanel: React.FC = () => {
                         disabled={savingTiers}
                         style={{
                           padding: '0.5rem 1rem',
-                          background: '#262626',
-                          color: '#ffffff',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
                           border: 'none',
                           borderRadius: '6px',
                           cursor: savingTiers ? 'not-allowed' : 'pointer',
@@ -4298,7 +4137,7 @@ const AdminPanel: React.FC = () => {
                         style={{
                           padding: '0.5rem 1.5rem',
                           background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                          color: '#ffffff',
+                          color: 'var(--text-primary)',
                           border: 'none',
                           borderRadius: '6px',
                           cursor: savingTiers ? 'not-allowed' : 'pointer',
@@ -4320,9 +4159,9 @@ const AdminPanel: React.FC = () => {
                   {typeof window !== 'undefined' && window.innerWidth < 900 && (
                     <div style={{
                       padding: '0.75rem 1.5rem',
-                      background: '#1a1a1a',
-                      borderTop: '1px solid #262626',
-                      color: '#a1a1aa',
+                      background: 'var(--bg-elevated)',
+                      borderTop: '1px solid var(--border-subtle)',
+                      color: 'var(--text-tertiary)',
                       fontSize: '0.8125rem',
                       textAlign: 'center'
                     }}>
@@ -4336,20 +4175,20 @@ const AdminPanel: React.FC = () => {
                   <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                       <thead>
-                        <tr style={{ background: '#111111', borderBottom: '1px solid #262626' }}>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Tier</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Name</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Min Signups</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Max Signups</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Color</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Bonus Display</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#a1a1aa', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Preview</th>
+                        <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Tier</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Name</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Min Signups</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Max Signups</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Color</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Bonus Display</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Preview</th>
                         </tr>
                       </thead>
                       <tbody>
                         {bonusTiers.map((tier, index) => (
-                          <tr key={tier.tier} style={{ borderBottom: '1px solid #262626' }}>
-                            <td style={{ padding: '0.75rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                          <tr key={tier.tier} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '600' }}>
                               {tier.tier}
                             </td>
                             <td style={{ padding: '0.75rem' }}>
@@ -4362,10 +4201,10 @@ const AdminPanel: React.FC = () => {
                                   maxWidth: '150px',
                                   minWidth: '100px',
                                   padding: '0.5rem',
-                                  background: '#111111',
-                                  border: '1px solid #262626',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '6px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   minHeight: '40px'
                                 }}
@@ -4380,10 +4219,10 @@ const AdminPanel: React.FC = () => {
                                 style={{
                                   width: '80px',
                                   padding: '0.5rem',
-                                  background: '#111111',
-                                  border: '1px solid #262626',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '6px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   minHeight: '40px'
                                 }}
@@ -4398,10 +4237,10 @@ const AdminPanel: React.FC = () => {
                                 style={{
                                   width: '80px',
                                   padding: '0.5rem',
-                                  background: '#111111',
-                                  border: '1px solid #262626',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '6px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   minHeight: '40px'
                                 }}
@@ -4417,8 +4256,8 @@ const AdminPanel: React.FC = () => {
                                     width: '44px',
                                     height: '44px',
                                     padding: '2px',
-                                    background: '#111111',
-                                    border: '1px solid #262626',
+                                    background: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border-subtle)',
                                     borderRadius: '6px',
                                     cursor: 'pointer'
                                   }}
@@ -4430,10 +4269,10 @@ const AdminPanel: React.FC = () => {
                                   style={{
                                     width: '90px',
                                     padding: '0.5rem',
-                                    background: '#111111',
-                                    border: '1px solid #262626',
+                                    background: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border-subtle)',
                                     borderRadius: '6px',
-                                    color: '#ffffff',
+                                    color: 'var(--text-primary)',
                                     fontSize: '0.75rem',
                                     fontFamily: 'monospace',
                                     minHeight: '40px'
@@ -4450,10 +4289,10 @@ const AdminPanel: React.FC = () => {
                                 style={{
                                   width: '80px',
                                   padding: '0.5rem',
-                                  background: '#111111',
-                                  border: '1px solid #262626',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '6px',
-                                  color: '#ffffff',
+                                  color: 'var(--text-primary)',
                                   fontSize: '0.875rem',
                                   textAlign: 'center',
                                   minHeight: '40px'
@@ -4468,7 +4307,7 @@ const AdminPanel: React.FC = () => {
                                 padding: '0.5rem 1rem',
                                 background: tier.color,
                                 borderRadius: '6px',
-                                color: '#ffffff',
+                                color: 'var(--text-primary)',
                                 fontSize: '0.875rem',
                                 fontWeight: '600',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
@@ -4493,55 +4332,55 @@ const AdminPanel: React.FC = () => {
                   gap: '1rem'
                 }}>
                   <div style={{
-                    background: '#0a0a0a',
+                    background: 'var(--bg-primary)',
                     borderRadius: '12px',
                     padding: '1.5rem',
-                    border: '1px solid #262626'
+                    border: '1px solid var(--border-subtle)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <Target style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
-                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '600' }}>
                         How Tiers Work
                       </h4>
                     </div>
-                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '0.8125rem', lineHeight: '1.5' }}>
                       Tiers are automatically calculated based on monthly signups. Each rep is assigned to the highest tier they qualify for. The bonus display appears in the leaderboard.
                     </p>
                   </div>
 
                   <div style={{
-                    background: '#0a0a0a',
+                    background: 'var(--bg-primary)',
                     borderRadius: '12px',
                     padding: '1.5rem',
-                    border: '1px solid #262626'
+                    border: '1px solid var(--border-subtle)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#ffd700' }} />
-                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '600' }}>
                         Total Tiers
                       </h4>
                     </div>
-                    <p style={{ margin: 0, color: '#ffffff', fontSize: '1.75rem', fontWeight: '700' }}>
+                    <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.75rem', fontWeight: '700' }}>
                       {bonusTiers.length}
                     </p>
-                    <p style={{ margin: '0.25rem 0 0', color: '#a1a1aa', fontSize: '0.8125rem' }}>
+                    <p style={{ margin: '0.25rem 0 0', color: 'var(--text-tertiary)', fontSize: '0.8125rem' }}>
                       Active bonus tiers
                     </p>
                   </div>
 
                   <div style={{
-                    background: '#0a0a0a',
+                    background: 'var(--bg-primary)',
                     borderRadius: '12px',
                     padding: '1.5rem',
-                    border: '1px solid #262626'
+                    border: '1px solid var(--border-subtle)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <CloudLightning style={{ width: '1.25rem', height: '1.25rem', color: '#f59e0b' }} />
-                      <h4 style={{ margin: 0, color: '#ffffff', fontSize: '0.875rem', fontWeight: '600' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '600' }}>
                         Auto-Recalculation
                       </h4>
                     </div>
-                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '0.8125rem', lineHeight: '1.5' }}>
                       When you save changes, all sales rep bonus tiers will be automatically recalculated based on their current monthly signups.
                     </p>
                   </div>
@@ -4556,18 +4395,18 @@ const AdminPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '40px' }}>
             {/* Header */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               padding: '1.5rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                 <Bot style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
-                <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                   Agnes 21 Training Management
                 </h2>
               </div>
-              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.875rem' }}>
+              <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                 Manage training sessions, analytics, and custom scripts.
               </p>
             </div>
@@ -4576,7 +4415,7 @@ const AdminPanel: React.FC = () => {
             <div style={{
               display: 'flex',
               gap: '0.5rem',
-              borderBottom: '1px solid #262626',
+              borderBottom: '1px solid var(--border-subtle)',
               paddingBottom: '0.5rem'
             }}>
               <button
@@ -4584,7 +4423,7 @@ const AdminPanel: React.FC = () => {
                 style={{
                   padding: '0.75rem 1.5rem',
                   background: agnesSubTab === 'sessions' ? '#dc2626' : 'transparent',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -4600,7 +4439,7 @@ const AdminPanel: React.FC = () => {
                 style={{
                   padding: '0.75rem 1.5rem',
                   background: agnesSubTab === 'analytics' ? '#dc2626' : 'transparent',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -4616,7 +4455,7 @@ const AdminPanel: React.FC = () => {
                 style={{
                   padding: '0.75rem 1.5rem',
                   background: agnesSubTab === 'scripts' ? '#dc2626' : 'transparent',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -4634,22 +4473,22 @@ const AdminPanel: React.FC = () => {
               <>
                 {/* Sessions List */}
             <div style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '12px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               overflow: 'hidden'
             }}>
               <div style={{
                 padding: '1.5rem',
-                borderBottom: '1px solid #262626'
+                borderBottom: '1px solid var(--border-subtle)'
               }}>
-                <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                   Recent Sessions ({agnesSessions.length})
                 </h3>
               </div>
 
               {agnesSessions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-tertiary)' }}>
                   No training sessions found. Complete a session in Agnes 21 Learning to see data here.
                 </div>
               ) : (
@@ -4659,14 +4498,14 @@ const AdminPanel: React.FC = () => {
                       key={session.sessionId}
                       style={{
                         padding: '1.5rem',
-                        borderBottom: index < agnesSessions.length - 1 ? '1px solid #262626' : 'none',
-                        background: index % 2 === 0 ? '#0a0a0a' : '#171717'
+                        borderBottom: index < agnesSessions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                        background: index % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <span style={{ color: '#ffffff', fontWeight: '500' }}>
+                            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>
                               {session.mode === 'ROLEPLAY' ? 'Roleplay' : 'Coach'} Mode
                             </span>
                             <span style={{
@@ -4675,7 +4514,7 @@ const AdminPanel: React.FC = () => {
                                          session.difficulty === 'ROOKIE' ? '#1e40af' :
                                          session.difficulty === 'PRO' ? '#7c2d12' :
                                          session.difficulty === 'ELITE' ? '#581c87' : '#7f1d1d',
-                              color: '#ffffff',
+                              color: 'var(--text-primary)',
                               fontSize: '0.75rem',
                               borderRadius: '4px',
                               fontWeight: '500'
@@ -4683,7 +4522,7 @@ const AdminPanel: React.FC = () => {
                               {session.difficulty}
                             </span>
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                             {new Date(session.timestamp).toLocaleString()}
                           </div>
                         </div>
@@ -4700,7 +4539,7 @@ const AdminPanel: React.FC = () => {
                             </div>
                           )}
                           {session.duration && (
-                            <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                               {Math.floor(session.duration / 60)}m {session.duration % 60}s
                             </div>
                           )}
@@ -4712,19 +4551,19 @@ const AdminPanel: React.FC = () => {
                         <div style={{
                           marginTop: '0.75rem',
                           padding: '0.75rem',
-                          background: '#0a0a0a',
-                          border: '1px solid #262626',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-subtle)',
                           borderRadius: '6px',
                           fontSize: '0.875rem',
-                          color: '#e0e0e0'
+                          color: 'var(--text-secondary)'
                         }}>
-                          <span style={{ color: '#a1a1aa' }}>Script:</span> {session.scriptName}
+                          <span style={{ color: 'var(--text-tertiary)' }}>Script:</span> {session.scriptName}
                           {session.isMiniModule && (
                             <span style={{
                               marginLeft: '0.5rem',
                               padding: '2px 6px',
                               background: '#dc2626',
-                              color: '#ffffff',
+                              color: 'var(--text-primary)',
                               fontSize: '0.7rem',
                               borderRadius: '4px'
                             }}>
@@ -4746,7 +4585,7 @@ const AdminPanel: React.FC = () => {
                         <div style={{
                           marginTop: '0.75rem',
                           fontSize: '0.75rem',
-                          color: '#a1a1aa'
+                          color: 'var(--text-tertiary)'
                         }}>
                           {session.transcript.length} message{session.transcript.length !== 1 ? 's' : ''} exchanged
                         </div>
@@ -4769,26 +4608,26 @@ const AdminPanel: React.FC = () => {
                   gap: '1rem'
                 }}>
                   <div style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '12px',
                     padding: '1.5rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                       Total Sessions
                     </div>
-                    <div style={{ fontSize: '2rem', color: '#ffffff', fontWeight: '600' }}>
+                    <div style={{ fontSize: '2rem', color: 'var(--text-primary)', fontWeight: '600' }}>
                       {agnesStats.totalSessions}
                     </div>
                   </div>
 
                   <div style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '12px',
                     padding: '1.5rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                       Average Score
                     </div>
                     <div style={{ fontSize: '2rem', color: '#4ade80', fontWeight: '600' }}>
@@ -4797,12 +4636,12 @@ const AdminPanel: React.FC = () => {
                   </div>
 
                   <div style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '12px',
                     padding: '1.5rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                       Best Score
                     </div>
                     <div style={{ fontSize: '2rem', color: '#fbbf24', fontWeight: '600' }}>
@@ -4811,12 +4650,12 @@ const AdminPanel: React.FC = () => {
                   </div>
 
                   <div style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '12px',
                     padding: '1.5rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                       Completion Rate
                     </div>
                     <div style={{ fontSize: '2rem', color: '#60a5fa', fontWeight: '600' }}>
@@ -4829,12 +4668,12 @@ const AdminPanel: React.FC = () => {
 
                 {/* Sessions by Difficulty */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   padding: '1.5rem'
                 }}>
-                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                     Sessions by Difficulty Level
                   </h3>
                   <div style={{
@@ -4851,19 +4690,19 @@ const AdminPanel: React.FC = () => {
                         <div
                           key={difficulty}
                           style={{
-                            background: '#171717',
-                            border: '1px solid #262626',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '8px',
                             padding: '1rem'
                           }}
                         >
-                          <div style={{ fontSize: '0.875rem', color: '#ffffff', fontWeight: '500', marginBottom: '0.5rem' }}>
+                          <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: '500', marginBottom: '0.5rem' }}>
                             {difficulty}
                           </div>
-                          <div style={{ fontSize: '1.5rem', color: '#ffffff', fontWeight: '600', marginBottom: '0.25rem' }}>
+                          <div style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '0.25rem' }}>
                             {count as number}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                             Avg: {Math.round(avgScore) || 0}
                           </div>
                         </div>
@@ -4874,12 +4713,12 @@ const AdminPanel: React.FC = () => {
 
                 {/* Sessions Over Time (Last 7 Days) */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   padding: '1.5rem'
                 }}>
-                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                     Sessions Per Day (Last 7 Days)
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -4900,10 +4739,10 @@ const AdminPanel: React.FC = () => {
 
                         return (
                           <div key={dateStr} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '100px', fontSize: '0.875rem', color: '#a1a1aa' }}>
+                            <div style={{ width: '100px', fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
                               {new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             </div>
-                            <div style={{ flex: 1, background: '#171717', borderRadius: '4px', height: '24px', overflow: 'hidden' }}>
+                            <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: '4px', height: '24px', overflow: 'hidden' }}>
                               <div style={{
                                 width: `${(count / maxCount) * 100}%`,
                                 height: '100%',
@@ -4911,7 +4750,7 @@ const AdminPanel: React.FC = () => {
                                 transition: 'width 0.3s'
                               }} />
                             </div>
-                            <div style={{ width: '40px', textAlign: 'right', fontSize: '0.875rem', color: '#ffffff', fontWeight: '500' }}>
+                            <div style={{ width: '40px', textAlign: 'right', fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: '500' }}>
                               {count}
                             </div>
                           </div>
@@ -4923,12 +4762,12 @@ const AdminPanel: React.FC = () => {
 
                 {/* Top Performers (by script if available) */}
                 <div style={{
-                  background: '#0a0a0a',
+                  background: 'var(--bg-primary)',
                   borderRadius: '12px',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   padding: '1.5rem'
                 }}>
-                  <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                     Most Used Scripts
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -4949,8 +4788,8 @@ const AdminPanel: React.FC = () => {
                         <div
                           key={name}
                           style={{
-                            background: '#171717',
-                            border: '1px solid #262626',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '8px',
                             padding: '1rem',
                             display: 'flex',
@@ -4958,11 +4797,11 @@ const AdminPanel: React.FC = () => {
                             alignItems: 'center'
                           }}
                         >
-                          <div style={{ fontSize: '0.875rem', color: '#ffffff' }}>{name}</div>
+                          <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{name}</div>
                           <div style={{ fontSize: '1.25rem', color: '#dc2626', fontWeight: '600' }}>{count}</div>
                         </div>
                       )) : (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: '#a1a1aa' }}>
+                        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
                           No script data available
                         </div>
                       );
@@ -4981,7 +4820,7 @@ const AdminPanel: React.FC = () => {
                   alignItems: 'center',
                   marginBottom: '1rem'
                 }}>
-                  <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                     Custom Training Scripts ({agnesScripts.length})
                   </h3>
                   <button
@@ -4993,7 +4832,7 @@ const AdminPanel: React.FC = () => {
                     style={{
                       padding: '0.75rem 1.5rem',
                       background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                      color: '#ffffff',
+                      color: 'var(--text-primary)',
                       border: 'none',
                       borderRadius: '8px',
                       cursor: 'pointer',
@@ -5019,10 +4858,10 @@ const AdminPanel: React.FC = () => {
                       gridColumn: '1 / -1',
                       textAlign: 'center',
                       padding: '3rem',
-                      background: '#0a0a0a',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '12px',
-                      color: '#a1a1aa'
+                      color: 'var(--text-tertiary)'
                     }}>
                       No custom scripts yet. Click "Add Script" to create one.
                     </div>
@@ -5031,8 +4870,8 @@ const AdminPanel: React.FC = () => {
                       <div
                         key={script.id}
                         style={{
-                          background: '#0a0a0a',
-                          border: '1px solid #262626',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-subtle)',
                           borderRadius: '12px',
                           padding: '1.5rem',
                           display: 'flex',
@@ -5042,16 +4881,16 @@ const AdminPanel: React.FC = () => {
                       >
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                            <h4 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: '600' }}>
+                            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: '600' }}>
                               {script.name}
                             </h4>
                             <span style={{
                               padding: '4px 8px',
-                              background: '#171717',
-                              border: '1px solid #262626',
+                              background: 'var(--bg-secondary)',
+                              border: '1px solid var(--border-subtle)',
                               borderRadius: '6px',
                               fontSize: '0.75rem',
-                              color: '#a1a1aa',
+                              color: 'var(--text-tertiary)',
                               textTransform: 'capitalize'
                             }}>
                               {script.category.replace('-', ' ')}
@@ -5059,7 +4898,7 @@ const AdminPanel: React.FC = () => {
                           </div>
                           <div style={{
                             fontSize: '0.875rem',
-                            color: '#a1a1aa',
+                            color: 'var(--text-tertiary)',
                             marginTop: '0.75rem',
                             maxHeight: '100px',
                             overflow: 'auto',
@@ -5074,9 +4913,9 @@ const AdminPanel: React.FC = () => {
                           justifyContent: 'space-between',
                           alignItems: 'center',
                           paddingTop: '1rem',
-                          borderTop: '1px solid #262626'
+                          borderTop: '1px solid var(--border-subtle)'
                         }}>
-                          <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                             Updated {new Date(script.updatedAt).toLocaleDateString()}
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -5084,11 +4923,11 @@ const AdminPanel: React.FC = () => {
                               onClick={() => editScript(script)}
                               style={{
                                 padding: '0.5rem',
-                                background: '#171717',
-                                border: '1px solid #262626',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-subtle)',
                                 borderRadius: '6px',
                                 cursor: 'pointer',
-                                color: '#ffffff',
+                                color: 'var(--text-primary)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center'
@@ -5101,7 +4940,7 @@ const AdminPanel: React.FC = () => {
                               onClick={() => deleteScript(script.id)}
                               style={{
                                 padding: '0.5rem',
-                                background: '#171717',
+                                background: 'var(--bg-secondary)',
                                 border: '1px solid #dc2626',
                                 borderRadius: '6px',
                                 cursor: 'pointer',
@@ -5144,6 +4983,11 @@ const AdminPanel: React.FC = () => {
         {activeTab === 'intel-review' && (
           <IntelReviewPanel />
         )}
+
+        {/* Leads Tab */}
+        {activeTab === 'leads' && (
+          <AdminLeadsPanel />
+        )}
       </div>
 
       {/* Global Styles */}
@@ -5162,12 +5006,12 @@ const AdminPanel: React.FC = () => {
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #3a3a3a;
+          background: var(--border-default);
           border-radius: 3px;
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #4a4a4a;
+          background: var(--border-strong);
         }
 
         @media (max-width: 1400px) {
@@ -5198,9 +5042,9 @@ const AdminPanel: React.FC = () => {
         >
           <div
             style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '16px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               padding: '2rem',
               width: '100%',
               maxWidth: '600px',
@@ -5211,7 +5055,7 @@ const AdminPanel: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.25rem', fontWeight: '600' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                 {editingScript ? 'Edit Script' : 'Create New Script'}
               </h3>
               <button
@@ -5219,7 +5063,7 @@ const AdminPanel: React.FC = () => {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#a1a1aa',
+                  color: 'var(--text-tertiary)',
                   cursor: 'pointer',
                   padding: '0.5rem',
                   display: 'flex',
@@ -5233,7 +5077,7 @@ const AdminPanel: React.FC = () => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '500' }}>
                   Script Name *
                 </label>
                 <input
@@ -5244,17 +5088,17 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.875rem'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '500' }}>
                   Category *
                 </label>
                 <select
@@ -5263,10 +5107,10 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.875rem'
                   }}
                 >
@@ -5279,7 +5123,7 @@ const AdminPanel: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ffffff', fontSize: '0.875rem', fontWeight: '500' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: '500' }}>
                   Script Content *
                 </label>
                 <textarea
@@ -5290,10 +5134,10 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.875rem',
                     fontFamily: 'monospace',
                     resize: 'vertical'
@@ -5306,10 +5150,10 @@ const AdminPanel: React.FC = () => {
                   onClick={() => setShowScriptModal(false)}
                   style={{
                     padding: '0.75rem 1.5rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.875rem',
                     fontWeight: '500',
                     cursor: 'pointer'
@@ -5324,7 +5168,7 @@ const AdminPanel: React.FC = () => {
                     background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.875rem',
                     fontWeight: '500',
                     cursor: 'pointer'
@@ -5356,9 +5200,9 @@ const AdminPanel: React.FC = () => {
         >
           <div
             style={{
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '16px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               padding: '2rem',
               width: '100%',
               maxWidth: '480px',
@@ -5367,7 +5211,7 @@ const AdminPanel: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{
-              color: '#ffffff',
+              color: 'var(--text-primary)',
               fontSize: '1.5rem',
               fontWeight: '600',
               marginBottom: '1.5rem',
@@ -5391,7 +5235,7 @@ const AdminPanel: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Email field - readonly when editing */}
               <div>
-                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   Email
                 </label>
                 <input
@@ -5403,16 +5247,16 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    background: editingUser ? '#1a1a1a' : '#171717',
-                    border: '1px solid #262626',
+                    background: editingUser ? 'var(--bg-elevated)' : 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.9375rem',
                     opacity: editingUser ? 0.6 : 1
                   }}
                 />
                 {editingUser && (
-                  <p style={{ color: '#71717a', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  <p style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                     Email cannot be changed
                   </p>
                 )}
@@ -5420,7 +5264,7 @@ const AdminPanel: React.FC = () => {
 
               {/* Name field */}
               <div>
-                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   Name
                 </label>
                 <input
@@ -5431,10 +5275,10 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.9375rem'
                   }}
                 />
@@ -5442,7 +5286,7 @@ const AdminPanel: React.FC = () => {
 
               {/* Role field */}
               <div>
-                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   Role
                 </label>
                 <select
@@ -5451,10 +5295,10 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.9375rem'
                   }}
                 >
@@ -5466,7 +5310,7 @@ const AdminPanel: React.FC = () => {
 
               {/* State field */}
               <div>
-                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   State (Optional)
                 </label>
                 <select
@@ -5475,10 +5319,10 @@ const AdminPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.9375rem'
                   }}
                 >
@@ -5496,9 +5340,9 @@ const AdminPanel: React.FC = () => {
                   style={{
                     padding: '0.75rem 1rem',
                     background: 'transparent',
-                    border: '1px solid #262626',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#a1a1aa',
+                    color: 'var(--text-tertiary)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                     display: 'flex',
@@ -5512,8 +5356,8 @@ const AdminPanel: React.FC = () => {
                     e.currentTarget.style.color = '#3b82f6';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#262626';
-                    e.currentTarget.style.color = '#a1a1aa';
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    e.currentTarget.style.color = 'var(--text-tertiary)';
                   }}
                 >
                   <Send style={{ width: '1rem', height: '1rem' }} />
@@ -5538,9 +5382,9 @@ const AdminPanel: React.FC = () => {
                 style={{
                   padding: '0.75rem 1.5rem',
                   background: 'transparent',
-                  border: '1px solid #262626',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: '#a1a1aa',
+                  color: 'var(--text-tertiary)',
                   fontSize: '0.9375rem',
                   cursor: 'pointer'
                 }}
@@ -5552,10 +5396,10 @@ const AdminPanel: React.FC = () => {
                 disabled={userModalLoading}
                 style={{
                   padding: '0.75rem 1.5rem',
-                  background: userModalLoading ? '#262626' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  background: userModalLoading ? 'var(--bg-card)' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '0.9375rem',
                   fontWeight: '500',
                   cursor: userModalLoading ? 'wait' : 'pointer',
