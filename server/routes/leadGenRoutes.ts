@@ -257,6 +257,19 @@ export function createLeadGenRoutes(pool: Pool) {
         zipCode,
       });
 
+      // --- Sanitize preferredDate (may be "Monday" not a real date) ----------
+      let safeDate: string | null = null;
+      let dateNote = '';
+      if (preferredDate) {
+        const parsed = new Date(preferredDate);
+        if (!isNaN(parsed.getTime())) {
+          safeDate = preferredDate;
+        } else {
+          // Not a valid date — store in message instead
+          dateNote = ` | Preferred: ${preferredDate}${preferredTime ? ' at ' + preferredTime : ''}`;
+        }
+      }
+
       // --- Insert lead ------------------------------------------------------
       const insertResult = await pool.query(
         `INSERT INTO profile_leads (
@@ -294,9 +307,9 @@ export function createLeadGenRoutes(pool: Pool) {
           address          || null,
           zipCode          || null,
           serviceType      || null,
-          preferredDate    || null,
+          safeDate,
           preferredTime    || null,
-          message          || null,
+          (message || '') + dateNote || null,
           resolvedSource,
           referralCode     || null,
           score,
@@ -1050,6 +1063,16 @@ export function createLeadGenRoutes(pool: Pool) {
       // Boost score for phone calls (they called us = high intent)
       const boostedScore = Math.min(score + 20, 100);
 
+      // Sanitize appointmentDate (may be "Monday" not a valid date)
+      let safeAppointmentDate: string | null = null;
+      if (appointmentDate) {
+        const parsed = new Date(appointmentDate);
+        if (!isNaN(parsed.getTime())) {
+          safeAppointmentDate = appointmentDate;
+        }
+        // Non-date values already captured in appointmentSummary/leadMessage
+      }
+
       const insertResult = await pool.query(
         `INSERT INTO profile_leads (
           homeowner_name, homeowner_email, homeowner_phone,
@@ -1070,7 +1093,7 @@ export function createLeadGenRoutes(pool: Pool) {
           callerAddress || null,
           zipCode || null,
           damageType || 'Roof Inspection',
-          appointmentDate || null,
+          safeAppointmentDate,
           appointmentTime || null,
           leadMessage,
           boostedScore,
