@@ -1,10 +1,11 @@
 /**
  * Lead Generation Landing Pages — Server-Rendered HTML
  *
- * Three public routes for The Roof Docs:
- *   GET /storm/:zip      — Storm damage targeted landing page
- *   GET /claim-help      — Multi-step insurance claim quiz funnel
- *   GET /refer/:code     — Referral landing page from rep codes
+ * Four public routes for The Roof Docs:
+ *   GET /storm/:zip        — Storm damage targeted landing page
+ *   GET /claim-help        — Multi-step insurance claim quiz funnel
+ *   GET /refer/:code       — Referral landing page from rep codes
+ *   GET /free-inspection   — General free roof inspection landing page
  *
  * All pages are mobile-first, fully inline-CSS, zero external JS deps,
  * and POST leads to /api/leads/intake on submit.
@@ -796,6 +797,178 @@ ${formScript('Request Free Inspection →')}
 }
 
 // ---------------------------------------------------------------------------
+// Page 4: Free Inspection — /free-inspection
+// ---------------------------------------------------------------------------
+
+function renderFreeInspectionPage(): string {
+  const title = 'Free Roof Inspection | Licensed & Insured | The Roof Docs';
+  const desc = 'Schedule your 100% free roof inspection with The Roof Docs. GAF Master Elite certified, A+ BBB rated. Serving Virginia, Maryland, and Pennsylvania.';
+
+  const services = [
+    { value: '', label: 'What brings you in today?\u2026' },
+    { value: 'storm_damage', label: 'Storm Damage / Hail' },
+    { value: 'roof_inspection', label: 'General Roof Inspection' },
+    { value: 'roof_replacement', label: 'Roof Replacement' },
+    { value: 'roof_repair', label: 'Roof Repair' },
+    { value: 'insurance_claim', label: 'Insurance Claim Help' },
+    { value: 'leak', label: 'Leak / Water Damage' },
+    { value: 'gutters', label: 'Gutters' },
+    { value: 'siding', label: 'Siding' },
+    { value: 'other', label: 'Other / Not Sure' },
+  ];
+
+  const faqs = [
+    {
+      q: 'Is the inspection really free?',
+      a: 'Yes — 100% free with no obligation. We inspect your roof, document any damage with photos, and give you a detailed report. No pressure, no strings attached.',
+    },
+    {
+      q: 'How long does an inspection take?',
+      a: 'A typical inspection takes 30–45 minutes. We examine the roof surface, flashing, gutters, ventilation, and attic (when accessible). You\'ll receive your report the same day.',
+    },
+    {
+      q: 'What if you find damage?',
+      a: 'We walk you through exactly what we found, explain your options, and help determine if your homeowner\'s insurance may cover the repairs. We handle the entire claims process at no extra cost to you.',
+    },
+    {
+      q: 'Are you licensed and insured?',
+      a: 'Absolutely. We\'re licensed in Virginia (#2705194709), Maryland (MHIC #164697), and Pennsylvania (#145926). We\'re also a GAF Master Elite contractor — a distinction held by only 2% of roofers nationwide.',
+    },
+    {
+      q: 'What areas do you serve?',
+      a: 'We serve Virginia, Maryland, and Pennsylvania — including the greater Washington D.C. metro area, Northern Virginia, Baltimore metro, and surrounding counties.',
+    },
+  ];
+
+  const whyUs = [
+    { icon: '&#127942;', title: 'GAF Master Elite', desc: 'Top 2% of roofers nationwide' },
+    { icon: '&#128170;', title: '25-Year Warranty', desc: 'Industry-leading Golden Pledge coverage' },
+    { icon: '&#128176;', title: '100% Free', desc: 'No cost, no obligation inspection' },
+    { icon: '&#9201;', title: '1-Hour Response', desc: 'We call you back within 60 minutes' },
+  ];
+
+  return `${htmlHead(title, desc, 'https://sa21.up.railway.app/free-inspection')}
+${navBar()}
+<div class="urgency-banner" role="alert">&#128293; Limited Availability &mdash; Book Your Free Inspection Today</div>
+
+<main>
+  <section class="hero">
+    <div class="container">
+      <div class="hero-eyebrow">100% Free &bull; No Obligation</div>
+      <h1 class="hero-title">Get Your <em>Free Roof Inspection</em> Today</h1>
+      <p class="hero-sub">Licensed, insured, and trusted by thousands of homeowners across VA, MD &amp; PA. We'll inspect your roof, document everything, and give you an honest assessment &mdash; at no cost.</p>
+    </div>
+  </section>
+
+  <!-- Why Choose Us -->
+  <section aria-label="Why choose The Roof Docs" style="padding:0 0 32px">
+    <div class="container-wide">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        ${whyUs.map(item => `
+        <div style="background:${BRAND.card};border:1px solid ${BRAND.border};border-radius:12px;padding:20px 16px;text-align:center">
+          <div style="font-size:28px;margin-bottom:8px">${item.icon}</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">${item.title}</div>
+          <div style="font-size:12px;color:${BRAND.textMuted}">${item.desc}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </section>
+  <style>@media(max-width:640px){[style*="grid-template-columns:repeat(4"]{grid-template-columns:repeat(2,1fr) !important}}</style>
+
+  <!-- Lead Capture Form -->
+  <section aria-label="Lead capture form">
+    <div class="container">
+      <div class="card">
+        <h2 class="card-title">Schedule Your Free Inspection</h2>
+        <p class="card-subtitle">Fill out the form below and we'll contact you within 1 hour.</p>
+
+        <form id="lead-form" novalidate aria-label="Free inspection request form">
+          <input type="hidden" name="source" value="claim_help">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="name">Full Name <span class="req" aria-hidden="true">*</span></label>
+              <input class="form-control" id="name" name="name" type="text" placeholder="Jane Smith" required autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="phone">Phone Number <span class="req" aria-hidden="true">*</span></label>
+              <input class="form-control" id="phone" name="phone" type="tel" placeholder="(703) 239-3738" required autocomplete="tel">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input class="form-control" id="email" name="email" type="email" placeholder="jane@example.com" autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="address">Property Address <span class="req" aria-hidden="true">*</span></label>
+            <input class="form-control" id="address" name="address" type="text" placeholder="123 Main St, Springfield, VA 22150" required autocomplete="street-address">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="zip">ZIP Code</label>
+              <input class="form-control" id="zip" name="zip" type="text" placeholder="22150" inputmode="numeric" maxlength="10" autocomplete="postal-code">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="service_needed">Service Needed</label>
+              <select class="form-control" id="service_needed" name="service_needed">
+                ${services.map(s => `<option value="${escHtml(s.value)}">${escHtml(s.label)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="preferredDate">Preferred Date</label>
+            <input class="form-control" id="preferredDate" name="preferredDate" type="date" min="${new Date().toISOString().split('T')[0]}">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="message">Anything else we should know?</label>
+            <textarea class="form-control" id="message" name="message" placeholder="e.g. I noticed missing shingles after the last storm, or my roof is 20+ years old\u2026" rows="3"></textarea>
+          </div>
+
+          <button type="submit" class="btn-submit">Book My Free Inspection &rarr;</button>
+          <p class="form-note">&#128274; Your information is private and will never be sold.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust Badges -->
+  <section aria-label="Trust credentials">
+    <div class="container-wide">
+      ${trustBadges()}
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq-section" aria-label="Frequently asked questions">
+    <div class="container">
+      <h2 class="faq-title">Free Inspection &mdash; Your Questions Answered</h2>
+      ${faqs.map((faq, i) => `
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false" aria-controls="faq-a-${i}">
+          ${escHtml(faq.q)}
+          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="faq-a" id="faq-a-${i}" role="region">${escHtml(faq.a)}</div>
+      </div>`).join('')}
+    </div>
+  </section>
+</main>
+
+${footer()}
+${formScript('Book My Free Inspection →')}
+${faqScript()}
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -835,6 +1008,13 @@ export function registerLeadGenPages(app: Application, pool: Pool): void {
     res.set('Content-Type', 'text/html');
     res.set('Cache-Control', 'public, max-age=3600'); // static page, 1hr cache
     res.send(renderClaimHelpPage());
+  });
+
+  // ── Page 4: Free Inspection ──────────────────────────────────────────────
+  app.get('/free-inspection', (_req, res) => {
+    res.set('Content-Type', 'text/html');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(renderFreeInspectionPage());
   });
 
   // ── Page 3: Referral Landing ─────────────────────────────────────────────
