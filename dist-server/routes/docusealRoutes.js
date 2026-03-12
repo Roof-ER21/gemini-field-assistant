@@ -66,7 +66,7 @@ export function createDocuSealRoutes(dbPool) {
             if (agentName)
                 fields.push({ name: 'Agent Name', default_value: agentName });
             fields.push({ name: 'Date', default_value: new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' }) });
-            const signerEmail = customerEmail || 'signer@placeholder.com';
+            const signerEmail = customerEmail || 'signing@theroofdocs.com';
             const submission = await docusealService.createSubmission({
                 templateId,
                 submitters: [{ email: signerEmail, role: 'Signer', fields }],

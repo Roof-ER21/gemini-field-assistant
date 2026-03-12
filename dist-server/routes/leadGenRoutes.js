@@ -832,7 +832,7 @@ export function createLeadGenRoutes(pool) {
                 score: boostedScore,
             });
             // --- Send email notification to admin ---
-            const adminEmail = process.env.EMAIL_ADMIN_ADDRESS || 'admin@roofer.com';
+            const adminEmail = process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com';
             const emailTemplate = generateCallLeadEmail({
                 callerName: callerName || 'Unknown',
                 callerPhone: callerPhone || 'Not provided',

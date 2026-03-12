@@ -16,7 +16,7 @@ async function getGridPoint(lat, lng) {
         const url = `https://api.weather.gov/points/${lat.toFixed(4)},${lng.toFixed(4)}`;
         const response = await fetch(url, {
             headers: {
-                'User-Agent': 'RoofER-StormIntelligence/1.0 (contact@roofer21.com)',
+                'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
                 'Accept': 'application/geo+json'
             }
         });
@@ -70,7 +70,7 @@ export async function fetchNWSAlerts(params) {
         console.log(`⚠️ Fetching NWS alerts for ${lat.toFixed(3)},${lng.toFixed(3)} (${startDate} to ${endDate})`);
         const response = await fetch(url.toString(), {
             headers: {
-                'User-Agent': 'RoofER-StormIntelligence/1.0 (contact@roofer21.com)',
+                'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
                 'Accept': 'application/geo+json'
             }
         });

@@ -30,7 +30,7 @@ export class PushNotificationService {
     initializeWebPush() {
         const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
         const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-        const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@roofer21.com';
+        const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:ahmed.mahmoud@theroofdocs.com';
         if (vapidPublicKey && vapidPrivateKey) {
             webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
             this.webPushConfigured = true;
