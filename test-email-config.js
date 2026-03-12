@@ -131,7 +131,7 @@ if (allSet && provider !== 'console') {
 
   if (!process.env.EMAIL_FROM_ADDRESS) {
     console.log('   3. Set EMAIL_FROM_ADDRESS in .env.local');
-    console.log('      Example: EMAIL_FROM_ADDRESS=s21-assistant@roofer.com');
+    console.log('      Example: EMAIL_FROM_ADDRESS=onboarding@resend.dev');
     console.log('      Note: Must be a verified domain in Resend');
   }
 

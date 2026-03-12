@@ -5,7 +5,7 @@
 # Usage: ./scripts/test-analytics-endpoints.sh [base_url]
 
 BASE_URL="${1:-http://localhost:3001}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@roofer.com}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-ahmed.mahmoud@theroofdocs.com}"
 TEST_EMAIL="${TEST_EMAIL:-test@roofer.com}"
 
 echo "======================================"

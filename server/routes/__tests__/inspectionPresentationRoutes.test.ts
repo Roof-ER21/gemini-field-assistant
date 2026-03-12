@@ -70,7 +70,7 @@ const mockUser = {
 
 const mockAdminUser = {
   id: 'admin-123',
-  email: 'admin@roofer.com',
+  email: 'ahmed.mahmoud@theroofdocs.com',
   role: 'admin',
   name: 'Admin User',
 };
@@ -293,7 +293,7 @@ describe('Inspection Routes', () => {
     });
 
     it('should allow admin to view any inspection', async () => {
-      req.headers = { 'x-user-email': 'admin@roofer.com' };
+      req.headers = { 'x-user-email': 'ahmed.mahmoud@theroofdocs.com' };
 
       (mockPool.query as any)
         .mockResolvedValueOnce({ rows: [{ id: 'admin-123' }] })

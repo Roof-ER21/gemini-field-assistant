@@ -17,8 +17,8 @@ console.log('='.repeat(80));
 console.log('');
 
 // Simulate environment variables (you can modify these for testing)
-process.env.EMAIL_ADMIN_ADDRESS = process.env.EMAIL_ADMIN_ADDRESS || 'admin@roofer.com';
-process.env.EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 's21-assistant@roofer.com';
+process.env.EMAIL_ADMIN_ADDRESS = process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com';
+process.env.EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev';
 
 // Import email service (use dynamic import for ES modules)
 import('../dist-server/services/emailService.js').then(async ({ emailService }) => {

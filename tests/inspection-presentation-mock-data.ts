@@ -185,7 +185,7 @@ export const MOCK_USERS = {
   },
   admin: {
     id: 'user-admin-789',
-    email: 'admin@roofer.com',
+    email: 'ahmed.mahmoud@theroofdocs.com',
     role: 'admin',
     name: 'Admin User',
     state: null,

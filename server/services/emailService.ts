@@ -48,8 +48,8 @@ class EmailService {
     // Initialize email configuration from environment variables
     this.config = {
       provider: this.detectProvider(),
-      from: process.env.EMAIL_FROM_ADDRESS || 's21-assistant@roofer.com',
-      adminEmail: process.env.EMAIL_ADMIN_ADDRESS || 'admin@roofer.com'
+      from: process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev',
+      adminEmail: process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com'
     };
 
     this.initializeProvider();
