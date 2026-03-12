@@ -7,6 +7,7 @@
  * Private routes — require x-user-email header (admin or profile owner)
  */
 import { Router } from 'express';
+import { emailService } from '../services/emailService.js';
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -139,7 +140,7 @@ export function createLeadGenRoutes(pool) {
             const validSources = [
                 'profile', 'storm', 'storm_landing', 'claim_quiz', 'claim_help',
                 'referral', 'qr_door', 'cold_email', 'social_reddit', 'social_scanner',
-                'reengagement', 'appointment_ai',
+                'reengagement', 'appointment_ai', 'phone_call',
             ];
             const resolvedSource = validSources.includes(source)
                 ? source
@@ -693,6 +694,308 @@ export function createLeadGenRoutes(pool) {
             res.status(200).send('OK');
         }
     });
+    // =========================================================================
+    // ELEVENLABS POST-CALL WEBHOOK
+    // =========================================================================
+    /**
+     * POST /api/leads/elevenlabs-webhook
+     * Receives post-conversation data from ElevenLabs after every Susan call.
+     * Parses transcript, extracts lead info, saves to DB, sends email + Telegram.
+     */
+    router.post('/elevenlabs-webhook', async (req, res) => {
+        try {
+            const payload = req.body;
+            // ElevenLabs wraps conversation data under "data" for post_call_transcription
+            const convData = payload.data || payload;
+            const conversationId = convData.conversation_id || 'unknown';
+            const agentId = convData.agent_id || 'unknown';
+            const transcript = convData.transcript || [];
+            const metadata = convData.metadata || {};
+            const analysis = convData.analysis || {};
+            const dataCollection = analysis.data_collection_results || {};
+            const callSuccessful = analysis.call_successful || 'unknown';
+            const transcriptSummary = analysis.transcript_summary || '';
+            console.log(`\n📞 [ElevenLabs Webhook] Type: ${payload.type || 'direct'}, Conversation: ${conversationId}`);
+            console.log(`   Status: ${convData.status}, Success: ${callSuccessful}`);
+            console.log(`   Transcript lines: ${transcript.length}`);
+            // Build full transcript text
+            const fullTranscript = transcript
+                .map((t) => `${t.role === 'agent' ? 'Susan' : 'Caller'}: ${t.message}`)
+                .join('\n');
+            // --- Extract data from structured fields (if ElevenLabs data collection configured) ---
+            let callerName = dataCollection.caller_name?.value || '';
+            let callerPhone = dataCollection.phone_number?.value || dataCollection.caller_phone?.value || '';
+            let callerAddress = dataCollection.address?.value || dataCollection.property_address?.value || '';
+            let appointmentDate = dataCollection.appointment_date?.value || dataCollection.preferred_date?.value || '';
+            let appointmentTime = dataCollection.appointment_time?.value || dataCollection.preferred_time?.value || '';
+            let damageType = dataCollection.damage_type?.value || dataCollection.service_type?.value || '';
+            let callerEmail = dataCollection.email?.value || dataCollection.caller_email?.value || '';
+            let zipCode = dataCollection.zip_code?.value || '';
+            // --- Fallback: extract from transcript text if structured data missing ---
+            if (!callerName || !callerPhone || !callerAddress) {
+                const parsed = parseTranscriptForLeadData(fullTranscript);
+                callerName = callerName || parsed.name;
+                callerPhone = callerPhone || parsed.phone;
+                callerAddress = callerAddress || parsed.address;
+                appointmentDate = appointmentDate || parsed.date;
+                appointmentTime = appointmentTime || parsed.time;
+                damageType = damageType || parsed.damageType;
+                zipCode = zipCode || parsed.zipCode;
+            }
+            // --- Calculate call duration ---
+            const callDurationSecs = metadata.call_duration_secs
+                || (transcript.length > 0
+                    ? Math.max(...transcript.map((t) => t.time_in_call_secs || 0))
+                    : 0);
+            const callDurationFormatted = callDurationSecs > 0
+                ? `${Math.floor(callDurationSecs / 60)}m ${Math.round(callDurationSecs % 60)}s`
+                : 'unknown';
+            // --- Build appointment summary ---
+            const hasAppointment = !!(appointmentDate || appointmentTime);
+            const appointmentSummary = hasAppointment
+                ? `${appointmentDate || 'TBD'} at ${appointmentTime || 'TBD'}`
+                : 'No appointment scheduled';
+            // --- Save to profile_leads ---
+            const leadMessage = [
+                `Phone call via Susan AI`,
+                hasAppointment ? `Appointment: ${appointmentSummary}` : null,
+                damageType ? `Damage: ${damageType}` : null,
+                `Duration: ${callDurationFormatted}`,
+                `Call status: ${callSuccessful}`,
+            ].filter(Boolean).join(' | ');
+            const { score, scoreFactors } = await calculateLeadScore({
+                homeownerPhone: callerPhone || undefined,
+                homeownerEmail: callerEmail || undefined,
+                address: callerAddress || undefined,
+                serviceType: damageType || 'Roof Inspection',
+                preferredDate: appointmentDate || undefined,
+                source: 'phone_call',
+                zipCode: zipCode || undefined,
+            });
+            // Boost score for phone calls (they called us = high intent)
+            const boostedScore = Math.min(score + 20, 100);
+            const insertResult = await pool.query(`INSERT INTO profile_leads (
+          homeowner_name, homeowner_email, homeowner_phone,
+          address, zip_code, service_type,
+          preferred_date, preferred_time,
+          message, source, lead_score, score_factors,
+          status, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          'phone_call', $10, $11,
+          'new', NOW(), NOW()
+        )
+        RETURNING id`, [
+                callerName || 'Phone Caller',
+                callerEmail || null,
+                callerPhone || null,
+                callerAddress || null,
+                zipCode || null,
+                damageType || 'Roof Inspection',
+                appointmentDate || null,
+                appointmentTime || null,
+                leadMessage,
+                boostedScore,
+                JSON.stringify({ ...scoreFactors, phoneCall: true, hasAppointment }),
+            ]);
+            const leadId = insertResult.rows[0].id;
+            console.log(`   ✅ Lead saved: #${leadId} (score: ${boostedScore})`);
+            // --- Send Telegram notification ---
+            notifyTelegram({
+                homeownerName: callerName || 'Phone Caller',
+                homeownerPhone: callerPhone,
+                zipCode,
+                serviceType: damageType || 'Roof Inspection',
+                source: 'phone_call',
+                score: boostedScore,
+            });
+            // --- Send email notification to admin ---
+            const adminEmail = process.env.EMAIL_ADMIN_ADDRESS || 'admin@roofer.com';
+            const emailTemplate = generateCallLeadEmail({
+                callerName: callerName || 'Unknown',
+                callerPhone: callerPhone || 'Not provided',
+                callerEmail: callerEmail || '',
+                callerAddress: callerAddress || 'Not provided',
+                appointmentDate,
+                appointmentTime,
+                appointmentSummary,
+                hasAppointment,
+                damageType: damageType || 'Not specified',
+                callDuration: callDurationFormatted,
+                callSuccessful,
+                leadScore: boostedScore,
+                leadId,
+                conversationId,
+                transcript: fullTranscript,
+            });
+            emailService.sendCustomEmail(adminEmail, emailTemplate).catch((err) => {
+                console.error('❌ Failed to send call lead email:', err);
+            });
+            res.status(200).json({ success: true, leadId });
+        }
+        catch (error) {
+            console.error('❌ ElevenLabs webhook error:', error);
+            // Always return 200 so ElevenLabs doesn't retry
+            res.status(200).json({ success: false, error: 'Processing failed' });
+        }
+    });
     return router;
+}
+// =============================================================================
+// HELPERS — Transcript parsing & email template
+// =============================================================================
+/** Extract lead data from a call transcript using pattern matching. */
+function parseTranscriptForLeadData(transcript) {
+    const result = { name: '', phone: '', address: '', date: '', time: '', damageType: '', zipCode: '' };
+    // Phone number patterns
+    const phoneMatch = transcript.match(/(?:phone|number|reach|call|contact).*?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i) || transcript.match(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
+    if (phoneMatch)
+        result.phone = phoneMatch[1];
+    // Name — look for "my name is X" or "this is X" or "I'm X"
+    const nameMatch = transcript.match(/(?:my name is|this is|i'm|i am|name's)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+    if (nameMatch)
+        result.name = nameMatch[1].trim();
+    // Address — look for street number + street name patterns
+    const addressMatch = transcript.match(/(\d{1,5}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:St|Street|Rd|Road|Ave|Avenue|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Way|Place|Pl|Circle|Cir|Pike|Highway|Hwy)[.,]?\s*(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)?(?:[.,]?\s*(?:VA|MD|PA|Virginia|Maryland|Pennsylvania))?\s*(?:\d{5})?)/i);
+    if (addressMatch)
+        result.address = addressMatch[1].trim();
+    // ZIP code
+    const zipMatch = transcript.match(/\b(\d{5})(?:-\d{4})?\b/);
+    if (zipMatch)
+        result.zipCode = zipMatch[1];
+    // Date — look for "Monday", "Tuesday", specific dates, "tomorrow", etc.
+    const dateMatch = transcript.match(/(?:appointment|schedule|come out|inspection|visit).*?((?:this |next )?(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|tomorrow|today)/i) || transcript.match(/((?:this |next )?(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))/i);
+    if (dateMatch)
+        result.date = dateMatch[1].trim();
+    // Time
+    const timeMatch = transcript.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|a\.m\.|p\.m\.))/i) || transcript.match(/(?:at|around|about)\s+(\d{1,2}(?::\d{2})?)\s*(?:o'clock)?/i);
+    if (timeMatch)
+        result.time = timeMatch[1].trim();
+    // Damage type
+    const damageKeywords = ['hail', 'wind', 'storm', 'leak', 'leaking', 'missing shingles', 'water damage', 'tree', 'fallen tree', 'ice dam', 'gutter', 'flashing'];
+    const lowerTranscript = transcript.toLowerCase();
+    for (const keyword of damageKeywords) {
+        if (lowerTranscript.includes(keyword)) {
+            result.damageType = keyword.charAt(0).toUpperCase() + keyword.slice(1) + ' damage';
+            break;
+        }
+    }
+    return result;
+}
+/** Generate a formatted email template for a phone call lead. */
+function generateCallLeadEmail(data) {
+    const { callerName, callerPhone, callerEmail, callerAddress, appointmentSummary, hasAppointment, damageType, callDuration, callSuccessful, leadScore, leadId, conversationId, transcript, } = data;
+    const scoreEmoji = leadScore >= 70 ? '🔥' : leadScore >= 40 ? '⚡' : '📋';
+    const appointmentBadge = hasAppointment
+        ? '<span style="display:inline-block;padding:4px 12px;background:#22c55e;color:white;border-radius:12px;font-size:12px;font-weight:600;">APPOINTMENT SET</span>'
+        : '<span style="display:inline-block;padding:4px 12px;background:#f59e0b;color:white;border-radius:12px;font-size:12px;font-weight:600;">NO APPOINTMENT</span>';
+    const truncatedTranscript = transcript.length > 2000
+        ? transcript.substring(0, 2000) + '\n\n... (truncated)'
+        : transcript;
+    const subject = `📞 ${hasAppointment ? 'APPOINTMENT SET' : 'New Call Lead'} — ${callerName} ${scoreEmoji} Score: ${leadScore}`;
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Susan Call Lead</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+        .header .subtitle { margin-top: 8px; font-size: 14px; opacity: 0.9; }
+        .content { padding: 25px 20px; }
+        .section { margin-bottom: 20px; }
+        .section-title { font-size: 14px; font-weight: 600; color: #ef4444; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; border-bottom: 2px solid #fecaca; padding-bottom: 5px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .info-row { margin: 6px 0; }
+        .label { font-weight: 600; color: #555; font-size: 13px; }
+        .value { color: #333; font-size: 14px; }
+        .appointment-box { background: ${hasAppointment ? '#f0fdf4' : '#fffbeb'}; border: 2px solid ${hasAppointment ? '#22c55e' : '#f59e0b'}; padding: 15px; border-radius: 8px; text-align: center; margin: 15px 0; }
+        .appointment-box .big { font-size: 20px; font-weight: bold; color: ${hasAppointment ? '#15803d' : '#92400e'}; }
+        .score-bar { background: #f3f4f6; border-radius: 20px; height: 24px; position: relative; margin: 10px 0; overflow: hidden; }
+        .score-fill { height: 100%; border-radius: 20px; background: ${leadScore >= 70 ? '#22c55e' : leadScore >= 40 ? '#f59e0b' : '#6b7280'}; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
+        .transcript-box { background: #f8f9fa; border: 1px solid #e5e7eb; padding: 15px; margin: 15px 0; border-radius: 8px; white-space: pre-wrap; word-break: break-word; font-family: 'Courier New', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; line-height: 1.8; }
+        .footer { background: #f8f9fa; padding: 15px 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>📞 Susan AI — Call Lead</h1>
+          <div class="subtitle">The Roof Docs • ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })}</div>
+        </div>
+        <div class="content">
+
+          <div class="appointment-box">
+            ${appointmentBadge}
+            <div class="big" style="margin-top:8px;">${appointmentSummary}</div>
+            ${callerAddress ? `<div style="margin-top:5px;color:#555;">${callerAddress}</div>` : ''}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Caller Info</div>
+            <div class="info-row"><span class="label">Name:</span> <span class="value">${callerName}</span></div>
+            <div class="info-row"><span class="label">Phone:</span> <span class="value">${callerPhone}</span></div>
+            ${callerEmail ? `<div class="info-row"><span class="label">Email:</span> <span class="value">${callerEmail}</span></div>` : ''}
+            <div class="info-row"><span class="label">Address:</span> <span class="value">${callerAddress || 'Not provided'}</span></div>
+            <div class="info-row"><span class="label">Damage:</span> <span class="value">${damageType}</span></div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Call Details</div>
+            <div class="info-row"><span class="label">Duration:</span> <span class="value">${callDuration}</span></div>
+            <div class="info-row"><span class="label">Outcome:</span> <span class="value">${callSuccessful}</span></div>
+            <div class="info-row"><span class="label">Lead ID:</span> <span class="value">#${leadId}</span></div>
+            <div class="info-row">
+              <span class="label">Score:</span>
+              <div class="score-bar"><div class="score-fill" style="width:${leadScore}%">${leadScore}/100</div></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Full Transcript</div>
+            <div class="transcript-box">${truncatedTranscript.replace(/\n/g, '<br>')}</div>
+          </div>
+
+        </div>
+        <div class="footer">
+          Susan AI • The Roof Docs • Lead #${leadId} • Conv: ${conversationId.substring(0, 8)}
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+    const text = `
+📞 SUSAN AI — CALL LEAD
+${'='.repeat(50)}
+
+${hasAppointment ? '✅ APPOINTMENT SET' : '⚠️ NO APPOINTMENT'}
+${appointmentSummary}
+${callerAddress ? `Location: ${callerAddress}` : ''}
+
+CALLER INFO
+Name: ${callerName}
+Phone: ${callerPhone}
+${callerEmail ? `Email: ${callerEmail}` : ''}
+Address: ${callerAddress || 'Not provided'}
+Damage: ${damageType}
+
+CALL DETAILS
+Duration: ${callDuration}
+Outcome: ${callSuccessful}
+Lead Score: ${leadScore}/100
+Lead ID: #${leadId}
+
+TRANSCRIPT
+${'-'.repeat(50)}
+${truncatedTranscript}
+${'-'.repeat(50)}
+
+Susan AI • The Roof Docs
+  `.trim();
+    return { subject, html, text };
 }
 export default createLeadGenRoutes;
