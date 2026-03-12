@@ -1,0 +1,7 @@
+[phases.setup]
+# Only include packages needed for canvas/sharp native builds
+# Explicitly exclude Chromium/browser packages (no puppeteer in this project)
+aptPkgs = ["build-essential", "libcairo2-dev", "libjpeg-dev", "libpango1.0-dev", "libgif-dev", "librsvg2-dev", "libvips-dev"]
+
+[start]
+cmd = "node dist-server/index.js"
