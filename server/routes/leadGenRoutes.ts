@@ -853,6 +853,110 @@ export function createLeadGenRoutes(pool: Pool) {
     }
   });
 
+  // =========================================================================
+  // TWILIO WEBHOOKS (no auth — Twilio POST callbacks)
+  // =========================================================================
+
+  /**
+   * POST /api/leads/sms-webhook
+   * Receives inbound SMS to the Susan Twilio number.
+   * Creates a lead from the text message and auto-replies.
+   */
+  router.post('/sms-webhook', async (req: Request, res: Response) => {
+    try {
+      const { From, Body, FromCity, FromState, FromZip } = req.body;
+
+      console.log(`[SMS] Inbound from ${From}: ${Body}`);
+
+      // Insert as a lead
+      if (From) {
+        await pool.query(
+          `INSERT INTO profile_leads (
+            homeowner_name, homeowner_phone, zip_code,
+            message, source, lead_score, score_factors,
+            status, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, 'sms_inbound', 60,
+            $5, 'new', NOW(), NOW()
+          )`,
+          [
+            `SMS from ${FromCity || 'Unknown'}, ${FromState || ''}`.trim(),
+            From,
+            FromZip || null,
+            Body || null,
+            JSON.stringify({ hasPhone: true, smsInbound: true }),
+          ]
+        );
+      }
+
+      // Telegram notification
+      notifyTelegram({
+        homeownerName: `SMS Lead from ${From}`,
+        homeownerPhone: From,
+        zipCode: FromZip,
+        source: 'sms_inbound' as LeadSource,
+        score: 60,
+      });
+
+      // Respond with TwiML
+      res.type('text/xml').send(
+        `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>Thanks for reaching out to The Roof Docs! We offer free roof inspections in VA, MD, and PA. A team member will call you shortly. For immediate help, call us at (571) 520-8507.</Message>
+</Response>`
+      );
+    } catch (error) {
+      console.error('❌ SMS webhook error:', error);
+      res.type('text/xml').send(
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Thanks for contacting The Roof Docs! We'll be in touch soon.</Message></Response>`
+      );
+    }
+  });
+
+  /**
+   * POST /api/leads/call-status
+   * Receives Twilio call status callbacks (completed, no-answer, busy, etc.)
+   * Logs call outcomes for analytics.
+   */
+  router.post('/call-status', async (req: Request, res: Response) => {
+    try {
+      const { CallSid, CallStatus, From, To, Duration, CallDuration } = req.body;
+      console.log(`[Call Status] ${CallSid}: ${CallStatus} from ${From} (${Duration || CallDuration || 0}s)`);
+
+      // Log missed calls as leads
+      if (CallStatus === 'no-answer' || CallStatus === 'busy') {
+        await pool.query(
+          `INSERT INTO profile_leads (
+            homeowner_name, homeowner_phone,
+            message, source, lead_score, score_factors,
+            status, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, 'missed_call', 50,
+            $4, 'new', NOW(), NOW()
+          )`,
+          [
+            `Missed call (${CallStatus})`,
+            From,
+            `Call status: ${CallStatus}`,
+            JSON.stringify({ hasPhone: true, missedCall: true }),
+          ]
+        );
+
+        notifyTelegram({
+          homeownerName: `Missed Call (${CallStatus})`,
+          homeownerPhone: From,
+          source: 'missed_call' as LeadSource,
+          score: 50,
+        });
+      }
+
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('❌ Call status webhook error:', error);
+      res.status(200).send('OK');
+    }
+  });
+
   return router;
 }
 
