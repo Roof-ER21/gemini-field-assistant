@@ -729,7 +729,7 @@ FORMAT YOUR RESPONSE AS JSON:
   "detailedAnalysis": "Insurance adjuster-focused analysis"
 }`;
                 const response = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
+                    model: 'gemini-2.0-flash',
                     contents: [
                         {
                             role: 'user',

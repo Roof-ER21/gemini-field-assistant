@@ -109,7 +109,10 @@ class HailMapsService {
             return '';
         try {
             // IHM dates may be in format "MM/DD/YYYY", "YYYY-MM-DD", or ISO format
-            const d = new Date(dateStr);
+            // For date-only strings (YYYY-MM-DD), append noon to avoid UTC midnight
+            // shifting back one day when converted to Eastern timezone
+            const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim()) ? dateStr.trim() + 'T12:00:00' : dateStr;
+            const d = new Date(normalized);
             if (!isNaN(d.getTime())) {
                 // Convert to Eastern timezone - en-CA locale gives YYYY-MM-DD format
                 return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });

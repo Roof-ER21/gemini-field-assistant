@@ -12,12 +12,33 @@
  * - Token management (register, remove, validate)
  * - Notification preferences and quiet hours
  */
+// Note: Firebase Admin SDK needs to be installed: npm install firebase-admin
+// Web Push (VAPID) for browser notifications
+import webpush from 'web-push';
 export class PushNotificationService {
     pool;
     firebaseApp = null;
     messaging = null;
+    webPushConfigured = false;
     constructor(pool) {
         this.pool = pool;
+        this.initializeWebPush();
+    }
+    /**
+     * Initialize Web Push (VAPID) for browser notifications
+     */
+    initializeWebPush() {
+        const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+        const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@roofer21.com';
+        if (vapidPublicKey && vapidPrivateKey) {
+            webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+            this.webPushConfigured = true;
+            console.log('✅ Web Push (VAPID) configured');
+        }
+        else {
+            console.warn('⚠️  Web Push not configured: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY missing');
+        }
     }
     /**
      * Initialize Firebase Admin SDK
@@ -110,17 +131,17 @@ export class PushNotificationService {
      * Send notification to a specific user (all their devices)
      */
     async sendToUser(userId, notification, notificationType = 'general') {
-        if (!this.messaging) {
-            console.warn('Firebase not initialized. Notification not sent.');
-            return [{ success: false, error: 'Firebase not initialized' }];
-        }
         // Check if user should receive notifications
         const shouldSend = await this.shouldSendNotification(userId, notificationType);
         if (!shouldSend) {
             return [{ success: false, error: 'User has disabled notifications or is in quiet hours' }];
         }
         const tokens = await this.getUserTokens(userId);
+        // If no push tokens, try SMS fallback
         if (tokens.length === 0) {
+            const smsResult = await this.trySMSFallback(userId, notification);
+            if (smsResult)
+                return [smsResult];
             return [{ success: false, error: 'No active push tokens for user' }];
         }
         const results = [];
@@ -128,12 +149,22 @@ export class PushNotificationService {
             const result = await this.sendToToken(token, notification, notificationType);
             results.push(result);
         }
+        // If all push attempts failed, try SMS fallback
+        if (results.every(r => !r.success)) {
+            const smsResult = await this.trySMSFallback(userId, notification);
+            if (smsResult)
+                results.push(smsResult);
+        }
         return results;
     }
     /**
      * Send notification to a single token
      */
     async sendToToken(token, notification, notificationType) {
+        // Route to web push for web tokens
+        if (token.deviceType === 'web') {
+            return this.sendToWebToken(token, notification, notificationType);
+        }
         if (!this.messaging) {
             return { success: false, error: 'Firebase not initialized' };
         }
@@ -185,6 +216,59 @@ export class PushNotificationService {
             }
             await this.logNotification(token.userId, token.id, token.deviceToken, notification, notificationType, 'failed', undefined, error.message);
             return { success: false, error: error.message };
+        }
+    }
+    /**
+     * Send notification via Web Push (VAPID) for browser clients
+     */
+    async sendToWebToken(token, notification, notificationType) {
+        if (!this.webPushConfigured) {
+            return { success: false, error: 'Web Push (VAPID) not configured' };
+        }
+        try {
+            // Web tokens store the full PushSubscription as JSON
+            const subscription = JSON.parse(token.deviceToken);
+            const payload = JSON.stringify({
+                title: notification.title,
+                body: notification.body,
+                data: notification.data || {},
+                tag: notificationType
+            });
+            const result = await webpush.sendNotification(subscription, payload);
+            await this.logNotification(token.userId, token.id, token.deviceToken.substring(0, 50), notification, notificationType, 'sent', `web-push-${result.statusCode}`);
+            return { success: true, messageId: `web-push-${result.statusCode}` };
+        }
+        catch (error) {
+            console.error('Error sending web push:', error);
+            // 410 Gone or 404 = subscription expired, deactivate token
+            if (error.statusCode === 410 || error.statusCode === 404) {
+                await this.removeToken(token.userId, token.deviceToken);
+            }
+            await this.logNotification(token.userId, token.id, token.deviceToken.substring(0, 50), notification, notificationType, 'failed', undefined, error.message);
+            return { success: false, error: error.message };
+        }
+    }
+    /**
+     * SMS fallback — sends an SMS when push delivery fails or no tokens exist
+     */
+    async trySMSFallback(userId, notification) {
+        try {
+            const userResult = await this.pool.query(`SELECT phone_number, sms_alerts_enabled FROM users WHERE id = $1`, [userId]);
+            const user = userResult.rows[0];
+            if (!user?.phone_number || !user.sms_alerts_enabled)
+                return null;
+            const { twilioService } = await import('./twilioService.js');
+            const smsText = `${notification.title}\n${notification.body}`;
+            const result = await twilioService.sendSMS(user.phone_number, smsText, userId);
+            if (result.success) {
+                console.log(`[Push→SMS Fallback] Sent SMS to ${user.phone_number} for user ${userId}`);
+                return { success: true, messageId: `sms-${result.messageSid}` };
+            }
+            return null;
+        }
+        catch (err) {
+            console.warn('[Push→SMS Fallback] SMS send failed:', err.message);
+            return null;
         }
     }
     /**
@@ -396,8 +480,12 @@ export class PushNotificationService {
     }
 }
 /**
- * Create a push notification service instance
+ * Create a push notification service instance (singleton — reuses Firebase init)
  */
+let _singletonInstance = null;
 export const createPushNotificationService = (pool) => {
-    return new PushNotificationService(pool);
+    if (!_singletonInstance) {
+        _singletonInstance = new PushNotificationService(pool);
+    }
+    return _singletonInstance;
 };

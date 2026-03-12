@@ -7,6 +7,8 @@ import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { createCalendarEvent } from '../services/googleCalendarService.js';
+import { sendGmailEmail } from '../services/googleGmailService.js';
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)
 // - Local dev: ./public/uploads (local filesystem)
@@ -21,6 +23,18 @@ try {
 catch (e) {
     console.error('❌ Failed to create uploads dirs:', e);
 }
+// Service type labels for calendar events and emails
+const SERVICE_LABELS = {
+    roof_inspection: 'Roof Inspection',
+    roof_repair: 'Roof Repair',
+    roof_replacement: 'Roof Replacement',
+    storm_damage: 'Storm Damage Assessment',
+    siding: 'Siding',
+    gutters: 'Gutters',
+    windows_doors: 'Windows & Doors',
+    solar: 'Solar',
+    other: 'Service Request',
+};
 // Multer config for headshot uploads
 const headshotStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -165,7 +179,7 @@ export function createProfileRoutes(pool) {
      */
     router.post('/contact', async (req, res) => {
         try {
-            const { profileId, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, message } = req.body;
+            const { profileId, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, preferredDate, preferredTime, message } = req.body;
             if (!homeownerName) {
                 return res.status(400).json({
                     success: false,
@@ -173,12 +187,119 @@ export function createProfileRoutes(pool) {
                 });
             }
             const result = await pool.query(`INSERT INTO profile_leads
-         (profile_id, homeowner_name, homeowner_email, homeowner_phone, address, service_type, message, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'new')
-         RETURNING id`, [profileId || null, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, message]);
+         (profile_id, homeowner_name, homeowner_email, homeowner_phone, address, service_type, preferred_date, preferred_time, message, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
+         RETURNING id`, [profileId || null, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, preferredDate || null, preferredTime || null, message]);
+            const leadId = result.rows[0].id;
+            // ── Google Calendar + Gmail integration (async, non-blocking) ──
+            // Look up the rep's user_id from their employee profile
+            if (profileId) {
+                (async () => {
+                    try {
+                        const profileRow = await pool.query('SELECT user_id, name, email FROM employee_profiles WHERE id = $1', [profileId]);
+                        const repUserId = profileRow.rows[0]?.user_id;
+                        const repName = profileRow.rows[0]?.name || 'Rep';
+                        const repEmail = profileRow.rows[0]?.email;
+                        if (!repUserId)
+                            return;
+                        const serviceLabel = serviceType
+                            ? SERVICE_LABELS[serviceType] || serviceType.replace(/_/g, ' ')
+                            : 'Service Request';
+                        // 1) Create calendar event if date was provided
+                        if (preferredDate) {
+                            const startTime = preferredTime
+                                ? `${preferredDate}T${preferredTime}:00`
+                                : `${preferredDate}T09:00:00`;
+                            const start = new Date(startTime);
+                            const end = new Date(start.getTime() + 90 * 60 * 1000); // 90 min
+                            const eventDescription = [
+                                `Homeowner: ${homeownerName}`,
+                                homeownerEmail ? `Email: ${homeownerEmail}` : '',
+                                homeownerPhone ? `Phone: ${homeownerPhone}` : '',
+                                address ? `Address: ${address}` : '',
+                                message ? `\nNotes: ${message}` : '',
+                                `\nLead ID: ${leadId}`,
+                                'Scheduled via QR code contact form',
+                            ].filter(Boolean).join('\n');
+                            // Try Google Calendar first
+                            const calResult = await createCalendarEvent(pool, repUserId, {
+                                summary: `${serviceLabel} - ${homeownerName}`,
+                                startTime: start.toISOString(),
+                                endTime: end.toISOString(),
+                                location: address || undefined,
+                                description: eventDescription,
+                                attendeeEmails: homeownerEmail ? [homeownerEmail] : undefined,
+                                timeZone: 'America/New_York',
+                            });
+                            if (calResult.success) {
+                                console.log(`[QR Lead] Google Calendar event created for rep=${repUserId} lead=${leadId} event=${calResult.eventId}`);
+                            }
+                            else {
+                                console.log(`[QR Lead] Google Calendar not available for rep=${repUserId}: ${calResult.error}`);
+                            }
+                            // Always create local calendar event (ensures it shows in CalendarPanel)
+                            try {
+                                await pool.query(`INSERT INTO calendar_events
+                   (user_id, summary, description, location, start_time, end_time, event_type, attendees, color, google_event_id)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [
+                                    repUserId,
+                                    `${serviceLabel} - ${homeownerName}`,
+                                    eventDescription,
+                                    address || null,
+                                    start.toISOString(),
+                                    end.toISOString(),
+                                    'inspection',
+                                    JSON.stringify(homeownerEmail ? [{ email: homeownerEmail, name: homeownerName }] : []),
+                                    '#dc2626', // red for inspections
+                                    calResult.success ? calResult.eventId : null
+                                ]);
+                                console.log(`[QR Lead] Local calendar event created for rep=${repUserId} lead=${leadId}`);
+                            }
+                            catch (localCalErr) {
+                                console.error(`[QR Lead] Failed to create local calendar event:`, localCalErr);
+                            }
+                        }
+                        // 2) Send rep a notification email about the new lead
+                        const emailResult = await sendGmailEmail(pool, repUserId, {
+                            to: repEmail || 'me',
+                            subject: `New Lead: ${homeownerName} - ${serviceLabel}`,
+                            body: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                    <h2 style="margin: 0;">New Lead from QR Code</h2>
+                  </div>
+                  <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
+                    <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr><td style="padding: 8px 0; color: #999;">Name</td><td style="padding: 8px 0; font-weight: 600;">${homeownerName}</td></tr>
+                      ${homeownerEmail ? `<tr><td style="padding: 8px 0; color: #999;">Email</td><td style="padding: 8px 0;">${homeownerEmail}</td></tr>` : ''}
+                      ${homeownerPhone ? `<tr><td style="padding: 8px 0; color: #999;">Phone</td><td style="padding: 8px 0;">${homeownerPhone}</td></tr>` : ''}
+                      ${address ? `<tr><td style="padding: 8px 0; color: #999;">Address</td><td style="padding: 8px 0;">${address}</td></tr>` : ''}
+                      <tr><td style="padding: 8px 0; color: #999;">Service</td><td style="padding: 8px 0;">${serviceLabel}</td></tr>
+                      ${preferredDate ? `<tr><td style="padding: 8px 0; color: #999;">Preferred Date</td><td style="padding: 8px 0; font-weight: 600;">${preferredDate}${preferredTime ? ` at ${preferredTime}` : ''}</td></tr>` : ''}
+                      ${message ? `<tr><td style="padding: 8px 0; color: #999;">Message</td><td style="padding: 8px 0;">${message}</td></tr>` : ''}
+                    </table>
+                    ${preferredDate ? '<p style="color: #4ade80; margin-top: 16px;">A calendar event has been created for this appointment.</p>' : ''}
+                    <p style="margin-top: 16px; font-size: 13px; color: #666;">Sent from Susan AI Field Assistant</p>
+                  </div>
+                </div>
+              `,
+                        });
+                        if (emailResult.success) {
+                            console.log(`[QR Lead] Notification email sent to rep=${repUserId} msgId=${emailResult.messageId}`);
+                        }
+                        else {
+                            console.log(`[QR Lead] Gmail not connected for rep=${repUserId}: ${emailResult.error}`);
+                        }
+                    }
+                    catch (err) {
+                        console.error('[QR Lead] Calendar/Email integration error:', err);
+                    }
+                })();
+            }
             res.json({
                 success: true,
-                leadId: result.rows[0].id,
+                leadId,
                 message: 'Thank you! We will contact you shortly.'
             });
         }

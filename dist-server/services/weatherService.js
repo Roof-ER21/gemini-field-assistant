@@ -44,7 +44,7 @@ class WeatherService {
                     if (eventType !== 'other') {
                         events.push({
                             id: `vc-${day.datetime}-${events.length}`,
-                            date: day.datetime || event.datetime,
+                            date: this.normalizeDate(day.datetime || event.datetime),
                             type: eventType,
                             latitude: event.latitude || defaultLat,
                             longitude: event.longitude || defaultLng,
@@ -66,7 +66,7 @@ class WeatherService {
                 if (!hasWindEvent) {
                     events.push({
                         id: `vc-wind-${day.datetime}`,
-                        date: day.datetime,
+                        date: this.normalizeDate(day.datetime),
                         type: 'wind',
                         latitude: defaultLat,
                         longitude: defaultLng,
@@ -90,6 +90,23 @@ class WeatherService {
         if (type.includes('wind') || type.includes('gust') || type.includes('thunderstorm'))
             return 'wind';
         return 'other';
+    }
+    normalizeDate(dateStr) {
+        if (!dateStr)
+            return '';
+        try {
+            // For date-only strings (YYYY-MM-DD), append noon to avoid UTC midnight
+            // shifting back one day when converted to Eastern timezone
+            const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim()) ? dateStr.trim() + 'T12:00:00' : dateStr;
+            const d = new Date(normalized);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            }
+            return dateStr;
+        }
+        catch {
+            return dateStr;
+        }
     }
     inferSeverity(event, day) {
         // Check hail size first

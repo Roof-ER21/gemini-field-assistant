@@ -501,6 +501,19 @@ router.patch('/:id/status', async (req, res) => {
             return res.status(404).json({ error: 'Job not found' });
         }
         console.log('[Jobs API] Updated status:', result.rows[0].job_number, '->', status);
+        // Push notification to assigned rep about job status change
+        const pushService = req.app.get('pushNotificationService');
+        if (pushService && userEmail) {
+            const jobOwner = await pool.query(`SELECT j.assigned_to FROM jobs j WHERE j.id = $1`, [id]);
+            const assignedUserId = jobOwner.rows[0]?.assigned_to;
+            if (assignedUserId) {
+                pushService.sendToUser(assignedUserId, {
+                    title: `📋 Job #${result.rows[0].job_number} Updated`,
+                    body: `Status changed to "${status}"`,
+                    data: { type: 'job_update', jobId: id, jobNumber: result.rows[0].job_number, newStatus: status }
+                }, 'general').catch((e) => console.error('Job push error:', e.message));
+            }
+        }
         res.json({ success: true, jobNumber: result.rows[0].job_number, status });
     }
     catch (error) {

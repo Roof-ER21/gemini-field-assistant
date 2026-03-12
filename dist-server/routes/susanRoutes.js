@@ -60,7 +60,7 @@ router.post('/chat', async (req, res) => {
         }
         try {
             const response = await geminiClient.models.generateContent({
-                model: 'gemini-2.0-flash-exp',
+                model: 'gemini-2.0-flash',
                 contents: `You are Susan, a friendly and professional insurance claims specialist with over 15 years of experience in roofing damage assessment.
 
 User question: ${message}

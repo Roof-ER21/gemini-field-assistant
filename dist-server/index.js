@@ -43,10 +43,15 @@ import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
+import { createGoogleOAuthRoutes } from './routes/googleOAuthRoutes.js';
+import { createCalendarRoutes } from './routes/calendarRoutes.js';
 import { AgentProactiveService } from './services/agentProactiveService.js';
 import { createAgreementRoutes } from './routes/agreementRoutes.js';
 import { createDocuSealRoutes } from './routes/docusealRoutes.js';
 import { createDocumentRoutes } from './routes/documentRoutes.js';
+import { registerLeadGenPages } from './routes/leadGenPages.js';
+import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
+import deafModeRoutes from './routes/deafModeRoutes.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
@@ -136,7 +141,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org"],
             connectSrc: [
@@ -159,7 +164,7 @@ app.use(helmet({
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
-            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com"],
+            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com"],
         },
     },
     crossOriginEmbedderPolicy: false,
@@ -170,6 +175,7 @@ const allowedOrigins = [
     'https://a21.up.railway.app',
     'https://sa21.up.railway.app',
     'http://localhost:5173',
+    'http://localhost:5174',
     'http://localhost:5176',
     'http://localhost:3001',
     'http://localhost:3000',
@@ -379,7 +385,7 @@ async function callGemini(prompt) {
     if (!geminiClient)
         throw new Error('GEMINI_API_KEY not set');
     const result = await geminiClient.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp',
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     const text = result?.text;
@@ -519,7 +525,7 @@ app.post('/api/ai/generate', async (req, res) => {
                 const prompt = formattedMessages.map((m) => `${m.role === 'system' ? 'Instructions: ' : m.role === 'user' ? 'User: ' : 'Assistant: '}${m.content}`).join('\n\n');
                 content = await callGemini(prompt);
                 provider = 'gemini';
-                model = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+                model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
             }
             catch (geminiError) {
                 console.warn('[AI] Gemini failed:', geminiError.message);
@@ -7418,6 +7424,8 @@ app.use('/api/susan/agent', createSusanAgentRoutes(pool));
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
+app.use('/api/google', createGoogleOAuthRoutes(pool));
+app.use('/api/calendar', createCalendarRoutes(pool));
 // Register roof (team feed) routes
 app.use('/api/roof', authMiddleware);
 app.use('/api/roof', createRoofRoutes(pool));
@@ -7447,12 +7455,21 @@ app.use('/api', createContestRoutes(pool));
 app.use('/api/profiles', createProfileRoutes(pool));
 app.use('/api/qr-analytics', createQRAnalyticsRoutes(pool));
 app.use('/api/profile-leads', createProfileLeadsRoutes(pool));
+// Register lead generation routes (storm zones, referrals, lead scoring)
+app.use('/api/leads', createLeadGenRoutes(pool));
 // Register agreement routes (e-signatures for Claim Auth and Contingency)
 app.use('/api/agreements', createAgreementRoutes(pool));
 // Register DocuSeal e-signature routes
 app.use('/api/docuseal', createDocuSealRoutes(pool));
 // Register document generation routes (Carbone templates)
 app.use('/api/documents', createDocumentRoutes());
+// Register deaf communication mode routes
+app.use('/api/deaf-mode', deafModeRoutes);
+// ============================================================================
+// PUBLIC LEAD-GEN PAGES (before SPA fallback)
+// /storm/:zip  |  /claim-help  |  /refer/:code
+// ============================================================================
+registerLeadGenPages(app, pool);
 // ============================================================================
 // PUBLIC PROFILE PAGE ROUTE (before SPA fallback)
 // ============================================================================
