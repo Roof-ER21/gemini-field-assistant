@@ -1,40 +1,45 @@
 /*
- * ROOF ER S21 FIELD AI - Design System
- * Dark theme with Roof ER red accent
+ * ROOFER MOBILE COMMAND CENTER - Design System
+ * Matches RoofER Command Center branding
+ * Dark theme default with full light mode support
  */
 
 :root {
-  /* Color Palette */
+  /* ===== BRAND COLORS ===== */
   --roof-red: #c41e3a;
-  --roof-red-dark: #a01830;
+  --roof-red-dark: #9b1830;
   --roof-red-darker: #8a1528;
+  --roof-red-light: #e8354f;
   --roof-orange: #e67e22;
   --roof-orange-dark: #d35400;
   --roof-blue: #3b82f6;
+  --roof-silver: #c0c0c0;
 
-  /* Background Colors */
-  --bg-primary: rgba(10, 10, 10, 0.62);
-  --bg-secondary: rgba(15, 15, 15, 0.56);
-  --bg-tertiary: rgba(22, 22, 22, 0.52);
-  --bg-elevated: rgba(26, 26, 26, 0.64);
-  --bg-hover: rgba(37, 37, 37, 0.64);
-  --bg-card: rgba(30, 30, 30, 0.66);
+  /* ===== COMMAND CENTER CSS VARIABLES (dark mode — default) ===== */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #1a1a1a;
+  --bg-elevated: #2d2d2d;
+  --bg-hover: #333333;
+  --text-primary: #ffffff;
+  --text-secondary: #c0c0c0;
+  --text-muted: #808080;
+  --border: #2a2a2a;
+  --accent: #c41e3a;
+  --accent-hover: #9b1830;
+
+  /* Legacy aliases — kept for backward compat with existing components */
+  --bg-tertiary: #1a1a1a;
+  --text-tertiary: #808080;
+  --text-disabled: #666666;
+  --border-subtle: #2a2a2a;
+  --border-default: #2a2a2a;
+  --border-strong: #3a3a3a;
+  --border-color: #2a2a2a;
 
   /* Glass accents */
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-highlight: rgba(255, 255, 255, 0.04);
-
-  /* Text Colors */
-  --text-primary: #ffffff;
-  --text-secondary: #e0e0e0;
-  --text-tertiary: #888888;
-  --text-disabled: #666666;
-
-  /* Border Colors */
-  --border-subtle: #2a2a2a;
-  --border-default: #3a3a3a;
-  --border-strong: #4a4a4a;
-  --border-color: #3a3a3a; /* Alias for border-default */
 
   /* Status Colors */
   --success: #4ade80;
@@ -44,9 +49,9 @@
   --info: #a1a1aa;
 
   /* User Message Colors */
-  --user-bg: #171717;
-  --user-border: #262626;
-  --user-avatar: #dc2626;
+  --user-bg: #1a1a1a;
+  --user-border: #2a2a2a;
+  --user-avatar: #c41e3a;
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -170,7 +175,7 @@ html, body {
 
 .roof-er-menu-btn:hover {
   background: linear-gradient(135deg, rgba(40, 40, 40, 0.7), rgba(20, 20, 20, 0.6));
-  border-color: rgba(220, 38, 38, 0.6);
+  border-color: rgba(196, 30, 58, 0.6);
   transform: scale(1.05);
 }
 
@@ -210,6 +215,33 @@ html, body {
   color: var(--text-primary);
   font-family: 'Rajdhani', 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
   letter-spacing: 0.02em;
+}
+
+/* Mobile Command Center brand lockup */
+.roof-er-brand-title {
+  font-family: 'Rajdhani', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.roof-er-brand-name {
+  color: var(--text-primary);
+}
+
+.roof-er-brand-accent {
+  color: var(--roof-red);
+}
+
+@media (max-width: 600px) {
+  .roof-er-brand-title {
+    font-size: 14px;
+    letter-spacing: 0.05em;
+  }
 }
 
 .roof-er-page-subtitle {
@@ -319,7 +351,7 @@ html, body {
 
 .roof-er-nav-item:hover {
   background: linear-gradient(135deg, rgba(36, 36, 36, 0.75), rgba(18, 18, 18, 0.65));
-  border-color: rgba(220, 38, 38, 0.5);
+  border-color: rgba(196, 30, 58, 0.5);
   transform: translateX(4px);
   box-shadow: var(--shadow-glass);
 }
@@ -373,7 +405,7 @@ html, body {
 
 .roof-er-nav-category-header:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(220, 38, 38, 0.3);
+  border-color: rgba(196, 30, 58, 0.3);
 }
 
 .roof-er-nav-category-header:active {
@@ -394,7 +426,7 @@ html, body {
 
 .roof-er-action-card:hover {
   background: linear-gradient(135deg, rgba(34, 34, 34, 0.75), rgba(16, 16, 16, 0.65));
-  border-color: rgba(220, 38, 38, 0.5);
+  border-color: rgba(196, 30, 58, 0.5);
   transform: translateX(4px);
   box-shadow: var(--shadow-glass);
 }
@@ -763,9 +795,9 @@ html, body {
 
 .roof-er-input-field:focus {
   outline: none;
-  border-color: rgba(220, 38, 38, 0.7);
+  border-color: rgba(196, 30, 58, 0.7);
   background: rgba(18, 18, 18, 0.6);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+  box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.15);
 }
 
 .roof-er-input-field::placeholder {
@@ -798,14 +830,14 @@ html, body {
 }
 
 .roof-er-send-btn {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  border-color: rgba(220, 38, 38, 0.6);
-  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35);
+  background: linear-gradient(135deg, #c41e3a 0%, #9b1830 100%);
+  border-color: rgba(196, 30, 58, 0.6);
+  box-shadow: 0 6px 18px rgba(196, 30, 58, 0.35);
 }
 
 .roof-er-send-btn:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-  border-color: rgba(239, 68, 68, 0.7);
+  background: linear-gradient(135deg, #e8354f 0%, #9b1830 100%);
+  border-color: rgba(232, 53, 79, 0.7);
   transform: scale(1.05);
 }
 
@@ -910,14 +942,15 @@ html, body {
 
 .roof-er-content-area table {
   width: 100%;
-  table-layout: fixed;
   border-collapse: collapse;
 }
 
 .roof-er-content-area th,
 .roof-er-content-area td {
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
 }
 
 /* Knowledge Base Cards */
@@ -1109,8 +1142,8 @@ html, body {
 
 .roof-er-search-input:focus {
   outline: none;
-  border-color: rgba(220, 38, 38, 0.6);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  border-color: rgba(196, 30, 58, 0.6);
+  box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.12);
 }
 
 .roof-er-search-input::placeholder {
@@ -1631,4 +1664,435 @@ html, body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ========== LIGHT MODE ========== */
+[data-theme="light"] {
+  /* ===== BRAND COLORS — unchanged ===== */
+  --roof-red: #c41e3a;
+  --roof-red-dark: #9b1830;
+  --roof-red-darker: #8a1528;
+  --roof-red-light: #e8354f;
+  --roof-orange: #e67e22;
+  --roof-orange-dark: #d35400;
+  --roof-blue: #3b82f6;
+  --roof-silver: #c0c0c0;
+
+  /* ===== COMMAND CENTER CSS VARIABLES (light mode) ===== */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-card: #ffffff;
+  --bg-elevated: #fafafa;
+  --bg-hover: #f0f0f0;
+  --text-primary: #000000;
+  --text-secondary: #4a4a4a;
+  --text-muted: #808080;
+  --border: #e5e5e5;
+  --accent: #c41e3a;
+  --accent-hover: #9b1830;
+
+  /* Legacy aliases */
+  --bg-tertiary: #f5f5f5;
+  --text-tertiary: #6b6b6b;
+  --text-disabled: #999999;
+  --border-subtle: #e5e5e5;
+  --border-default: #e5e5e5;
+  --border-strong: #d0d0d0;
+  --border-color: #e5e5e5;
+
+  /* Glass */
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-highlight: rgba(0, 0, 0, 0.03);
+
+  /* User chat */
+  --user-bg: #f5f5f5;
+  --user-border: #e5e5e5;
+  --user-avatar: #c41e3a;
+
+  /* Status */
+  --success: #16a34a;
+  --success-dark: #dcfce7;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #6b7280;
+
+  /* Shadows — lighter */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
+  --shadow-red: 0 2px 8px rgba(196, 30, 58, 0.15);
+  --shadow-red-lg: 0 4px 16px rgba(196, 30, 58, 0.2);
+  --shadow-glass: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Light mode global background */
+[data-theme="light"],
+[data-theme="light"] html,
+[data-theme="light"] body {
+  background-color: #ffffff;
+  background-image: none;
+  color: #000000;
+}
+
+/* Light mode component overrides */
+[data-theme="light"] .roof-er-header {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%) !important;
+  border-bottom: 2px solid var(--roof-red) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .roof-er-header * {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .roof-er-header .roof-er-status-badge {
+  background: rgba(196, 30, 58, 0.08);
+  color: #1a1a1a;
+  border-color: rgba(196, 30, 58, 0.2);
+}
+
+[data-theme="light"] .roof-er-brand-accent {
+  color: #c41e3a;
+}
+
+[data-theme="light"] .roof-er-brand-name {
+  color: #000000;
+}
+
+[data-theme="light"] .roof-er-sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f5f5 100%) !important;
+  border-right: 1px solid #e0e0e0 !important;
+}
+
+[data-theme="light"] .roof-er-sidebar * {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .roof-er-sidebar-title {
+  color: var(--roof-red) !important;
+}
+
+[data-theme="light"] .roof-er-nav-item {
+  background: #ffffff !important;
+  border-color: #e0e0e0 !important;
+  color: #333 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .roof-er-nav-item:hover {
+  background: #f0f0f0 !important;
+  border-color: var(--roof-red) !important;
+}
+
+[data-theme="light"] .roof-er-nav-item.active {
+  background: var(--roof-red) !important;
+  border-color: var(--roof-red) !important;
+  color: white !important;
+}
+
+[data-theme="light"] .roof-er-nav-item.active .roof-er-nav-item-title,
+[data-theme="light"] .roof-er-nav-item.active .roof-er-nav-item-desc {
+  color: white !important;
+}
+
+[data-theme="light"] .roof-er-content-area {
+  background: #f5f5f5 !important;
+}
+
+[data-theme="light"] .roof-er-content-area::before {
+  background: linear-gradient(180deg, rgba(255,255,255, 0.3) 0%, rgba(245,245,245, 0.2) 100%) !important;
+}
+
+[data-theme="light"] .roof-er-content-scroll {
+  background: transparent !important;
+}
+
+/* ---- Light mode: Chat message bubbles ---- */
+[data-theme="light"] .roof-er-message-content {
+  background: #ffffff !important;
+  border-color: #e0e0e0 !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .roof-er-message.user .roof-er-message-content {
+  background: linear-gradient(135deg, #c41e3a 0%, #9b1830 100%) !important;
+  border-color: transparent !important;
+  color: white !important;
+}
+
+[data-theme="light"] .roof-er-message.user .roof-er-message-content * {
+  color: white !important;
+}
+
+[data-theme="light"] .roof-er-message-text {
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .roof-er-message.user .roof-er-message-text {
+  color: white !important;
+}
+
+[data-theme="light"] .roof-er-message.user .roof-er-message-avatar {
+  background: linear-gradient(135deg, #c41e3a 0%, #9b1830 100%) !important;
+  color: white !important;
+}
+
+/* ---- Light mode: Chat input area ---- */
+[data-theme="light"] .roof-er-input-area {
+  background: #ffffff !important;
+  border-top: 1px solid #e0e0e0 !important;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06) !important;
+  backdrop-filter: none !important;
+}
+
+[data-theme="light"] .roof-er-input-field {
+  background: #f5f5f5 !important;
+  border-color: #d0d0d0 !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .roof-er-input-field:focus {
+  background: #ffffff !important;
+  border-color: rgba(196, 30, 58, 0.7) !important;
+}
+
+/* ---- Light mode: Typing indicator ---- */
+[data-theme="light"] .roof-er-typing-indicator {
+  background: #f5f5f5 !important;
+}
+
+[data-theme="light"] .roof-er-typing-dot {
+  background: #999 !important;
+}
+
+/* ---- Light mode: CSS-class-based component overrides ---- */
+
+/* Doc cards, upload zones, search inputs */
+[data-theme="light"] .roof-er-doc-card {
+  background: #ffffff !important;
+  border-color: #e0e0e0 !important;
+}
+
+[data-theme="light"] .roof-er-upload-zone {
+  background: #ffffff !important;
+  border-color: #d0d0d0 !important;
+}
+
+[data-theme="light"] .roof-er-search-input {
+  background: #ffffff !important;
+  border-color: #d0d0d0 !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .roof-er-location-card {
+  background: #ffffff !important;
+  border-color: #e0e0e0 !important;
+}
+
+[data-theme="light"] .roof-er-location-btn {
+  background: #f5f5f5 !important;
+  border-color: #d0d0d0 !important;
+  color: #1a1a1a !important;
+}
+
+/* Action cards in sidebar */
+[data-theme="light"] .roof-er-action-card {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: #e0e0e0 !important;
+}
+
+/* Nav category headers */
+[data-theme="light"] .roof-er-nav-category-header {
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Content area general overrides */
+[data-theme="light"] .roof-er-content-area {
+  color: #1a1a1a;
+}
+
+/* Tables */
+[data-theme="light"] .roof-er-content-area table {
+  background: #ffffff !important;
+  border-color: #d0d0d0 !important;
+}
+
+[data-theme="light"] .roof-er-content-area thead tr {
+  background: #f0f0f0 !important;
+}
+
+[data-theme="light"] .roof-er-content-area tbody tr {
+  border-color: #e5e5e5 !important;
+}
+
+[data-theme="light"] .roof-er-content-area tbody tr:hover {
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Input fields in content */
+[data-theme="light"] .roof-er-content-area input,
+[data-theme="light"] .roof-er-content-area textarea,
+[data-theme="light"] .roof-er-content-area select {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #d0d0d0 !important;
+}
+
+[data-theme="light"] .roof-er-content-area input::placeholder,
+[data-theme="light"] .roof-er-content-area textarea::placeholder {
+  color: #999 !important;
+}
+
+/* ============================================
+   NUCLEAR LIGHT MODE OVERRIDES
+   Forces light backgrounds on ALL remaining
+   dark elements including inline styles
+   ============================================ */
+
+/* Override Tailwind arbitrary dark background classes */
+[data-theme="light"] [class*="bg-[#0"],
+[data-theme="light"] [class*="bg-[#1"],
+[data-theme="light"] [class*="bg-[#2"],
+[data-theme="light"] [class*="bg-[#3"],
+[data-theme="light"] [class*="bg-black"],
+[data-theme="light"] .bg-black {
+  background-color: var(--bg-card) !important;
+}
+
+/* Override Tailwind dark text classes that become invisible on light bg */
+[data-theme="light"] [class*="text-[#f"],
+[data-theme="light"] [class*="text-[#e"],
+[data-theme="light"] [class*="text-[#d"],
+[data-theme="light"] [class*="text-[#c"],
+[data-theme="light"] [class*="text-[#a"],
+[data-theme="light"] [class*="text-[#9"],
+[data-theme="light"] .text-white,
+[data-theme="light"] [class*="text-white"] {
+  color: var(--text-primary) !important;
+}
+
+/* Override Tailwind dark border classes */
+[data-theme="light"] [class*="border-[#0"],
+[data-theme="light"] [class*="border-[#1"],
+[data-theme="light"] [class*="border-[#2"],
+[data-theme="light"] [class*="border-[#3"],
+[data-theme="light"] [class*="border-[#4"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Force ALL elements in content area to use proper text color */
+[data-theme="light"] .roof-er-content-area {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .roof-er-content-area h1,
+[data-theme="light"] .roof-er-content-area h2,
+[data-theme="light"] .roof-er-content-area h3,
+[data-theme="light"] .roof-er-content-area h4,
+[data-theme="light"] .roof-er-content-area h5,
+[data-theme="light"] .roof-er-content-area h6,
+[data-theme="light"] .roof-er-content-area p,
+[data-theme="light"] .roof-er-content-area span,
+[data-theme="light"] .roof-er-content-area label,
+[data-theme="light"] .roof-er-content-area li {
+  color: inherit;
+}
+
+/* Force light backgrounds on common component patterns */
+[data-theme="light"] .roof-er-content-area > div > div {
+  color: var(--text-primary);
+}
+
+/* Override ALL dark rgba backgrounds on light mode */
+[data-theme="light"] .roof-er-content-area [style*="rgba(0"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(0,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(10,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(15,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(17,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(22,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(23,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(26,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(30,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(37,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(38,"],
+[data-theme="light"] .roof-er-content-area [style*="rgb(51,"] {
+  background-color: var(--bg-card) !important;
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Specific inline dark gradients */
+[data-theme="light"] .roof-er-content-area [style*="linear-gradient"] {
+  background: var(--bg-card) !important;
+}
+
+/* BUT preserve brand-colored gradients (buttons, status) */
+[data-theme="light"] .roof-er-content-area [style*="linear-gradient"][style*="196, 30"],
+[data-theme="light"] .roof-er-content-area [style*="linear-gradient"][style*="220, 38"],
+[data-theme="light"] .roof-er-content-area [style*="linear-gradient"][style*="#dc2626"],
+[data-theme="light"] .roof-er-content-area [style*="linear-gradient"][style*="#c41e3a"],
+[data-theme="light"] .roof-er-content-area button[style*="linear-gradient"] {
+  background: unset !important;
+}
+
+/* Override white text in inline styles (rendered as rgb(255, 255, 255)) */
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(255, 255, 255)"],
+[data-theme="light"] .roof-er-content-area [style*="color: white"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(229,"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(212,"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(224,"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(161,"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(113,"],
+[data-theme="light"] .roof-er-content-area [style*="color: rgb(136,"] {
+  color: var(--text-primary) !important;
+}
+
+/* Preserve white text on colored/dark backgrounds (buttons) */
+[data-theme="light"] .roof-er-content-area button[style*="background"][style*="220, 38"] *,
+[data-theme="light"] .roof-er-content-area button[style*="background"][style*="196, 30"] *,
+[data-theme="light"] .roof-er-content-area [style*="background"][style*="dc2626"] *,
+[data-theme="light"] .roof-er-content-area [style*="background-color: rgb(220, 38"] *,
+[data-theme="light"] .roof-er-content-area [style*="background: linear-gradient"][style*="dc2626"] * {
+  color: white !important;
+}
+
+/* Fix remaining dark borders in inline styles */
+[data-theme="light"] .roof-er-content-area [style*="border-color: rgb(38,"],
+[data-theme="light"] .roof-er-content-area [style*="border-bottom: 1px solid rgb(38,"],
+[data-theme="light"] .roof-er-content-area [style*="border: 1px solid rgb(38,"],
+[data-theme="light"] .roof-er-content-area [style*="border: 1px solid rgb(51,"],
+[data-theme="light"] .roof-er-content-area [style*="border-color: rgb(51,"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Fix glassmorphic/transparent backgrounds that are invisible on light */
+[data-theme="light"] .roof-er-content-area [style*="rgba(255, 255, 255, 0.0"],
+[data-theme="light"] .roof-er-content-area [style*="rgba(255, 255, 255, 0.1"] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* === Chat-specific overrides === */
+/* Message bubbles - both inline and Tailwind */
+[data-theme="light"] .roof-er-content-area [class*="bg-gradient"] {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* === Modal/overlay overrides === */
+[data-theme="light"] [style*="position: fixed"][style*="rgb(0, 0, 0)"],
+[data-theme="light"] [style*="position: fixed"][style*="rgb(10,"] {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Light mode scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c0c0c0 !important;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f0f0f0 !important;
 }

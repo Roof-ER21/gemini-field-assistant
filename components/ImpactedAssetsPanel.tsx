@@ -1085,8 +1085,8 @@ const ImpactedAssetsPanel: React.FC = () => {
           >
             <div
               style={{
-                background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
-                border: '1px solid #333',
+                background: 'linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-primary) 100%)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '16px',
                 maxWidth: '500px',
                 width: '100%',

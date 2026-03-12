@@ -244,7 +244,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                         transform: 'translateX(-50%)',
                         marginBottom: '10px',
                         padding: '14px 16px',
-                        background: '#1a1a1a',
+                        background: 'var(--bg-elevated)',
                         border: '2px solid var(--roof-red)',
                         borderRadius: '10px',
                         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(220, 38, 38, 0.2)',
@@ -268,15 +268,15 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
                         borderTop: '8px solid var(--roof-red)'
                       }} />
 
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', marginBottom: '6px', lineHeight: '1.3' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', lineHeight: '1.3' }}>
                         📄 {source.document.name}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
                         {source.document.category}
                       </div>
                       <div style={{
                         fontSize: '13px',
-                        color: '#e2e8f0',
+                        color: 'var(--text-secondary)',
                         lineHeight: '1.6',
                         maxHeight: '140px',
                         overflow: 'hidden',
@@ -360,7 +360,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
               <div style={{ fontSize: '13px', color: '#d1fae5', fontWeight: 500, marginBottom: '2px' }}>
                 S21's Assessment
               </div>
-              <div style={{ fontSize: '22px', color: 'white', fontWeight: 700, letterSpacing: '-0.5px' }}>
+              <div style={{ fontSize: '22px', color: 'var(--text-primary)', fontWeight: 700, letterSpacing: '-0.5px' }}>
                 "Success Rate: {section.content}%"
               </div>
             </div>

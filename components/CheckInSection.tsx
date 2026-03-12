@@ -680,7 +680,7 @@ const CheckInSection: React.FC = () => {
                       style={{
                         padding: '0.75rem',
                         borderRadius: '8px',
-                        background: 'rgba(12, 12, 12, 0.35)',
+                        background: 'var(--bg-secondary)',
                         border: '1px solid var(--glass-border)',
                         backdropFilter: 'blur(10px) saturate(120%)'
                       }}

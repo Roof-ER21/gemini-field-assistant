@@ -336,7 +336,8 @@ router.post('/test', async (req: Request, res: Response) => {
 
     const { title = 'Test Notification', body = 'This is a test notification from Gemini Field Assistant' } = req.body;
 
-    const service = createPushNotificationService(pool);
+    // Use the app-level service (already has Firebase initialized) if available
+    const service = req.app.get('pushNotificationService') || createPushNotificationService(pool);
 
     const results = await service.sendToUser(
       userId,
@@ -361,6 +362,18 @@ router.post('/test', async (req: Request, res: Response) => {
     console.error('❌ Error sending test notification:', error);
     res.status(500).json({ error: (error as Error).message });
   }
+});
+
+/**
+ * GET /api/push/vapid-key
+ * Get the VAPID public key for web push subscription
+ */
+router.get('/vapid-key', (_req: Request, res: Response) => {
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) {
+    return res.status(503).json({ error: 'Web push not configured' });
+  }
+  res.json({ publicKey: vapidPublicKey });
 });
 
 /**
@@ -396,6 +409,105 @@ router.get('/stats', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting notification stats:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/push/tokens
+ * List registered push tokens for debugging
+ */
+router.get('/tokens', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+    if (!userEmail) return res.status(401).json({ error: 'User email required' });
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) return res.status(404).json({ error: 'User not found' });
+
+    const result = await pool.query(
+      `SELECT id, device_type, device_name, is_active, notifications_enabled, created_at,
+              LEFT(device_token, 60) AS token_preview
+       FROM push_tokens WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    res.json({ tokens: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * POST /api/push/phone
+ * Save phone number for SMS notifications (fallback when push isn't available)
+ *
+ * Body: { phone_number: string, sms_enabled?: boolean }
+ */
+router.post('/phone', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { phone_number, sms_enabled } = req.body;
+
+    // Clean phone number — keep only digits, allow leading +
+    const cleaned = (phone_number || '').replace(/[^\d+]/g, '');
+    if (cleaned && cleaned.replace(/\+/g, '').length < 10) {
+      return res.status(400).json({ error: 'Phone number must be at least 10 digits' });
+    }
+
+    await pool.query(
+      `UPDATE users SET phone_number = $2, sms_alerts_enabled = $3 WHERE id = $1`,
+      [userId, cleaned || null, sms_enabled !== false]
+    );
+
+    res.json({ success: true, phone_number: cleaned || null, sms_enabled: sms_enabled !== false });
+  } catch (error) {
+    console.error('❌ Error saving phone number:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/push/phone
+ * Get current phone number and SMS alert status
+ */
+router.get('/phone', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT phone_number, sms_alerts_enabled FROM users WHERE id = $1`,
+      [userId]
+    );
+    const user = result.rows[0];
+
+    res.json({
+      phone_number: user?.phone_number || null,
+      sms_enabled: user?.sms_alerts_enabled || false
+    });
+  } catch (error) {
+    console.error('❌ Error getting phone number:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

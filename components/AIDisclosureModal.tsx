@@ -56,7 +56,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        background: 'rgba(0, 0, 0, 0.95)',
+        background: 'rgba(0, 0, 0, 0.85)',
         zIndex: 10001,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
@@ -68,9 +68,9 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
           width: '100%',
           maxWidth: '380px',
           maxHeight: 'calc(100vh - 100px)',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '20px',
-          border: '1px solid #262626',
+          border: '1px solid var(--border-subtle)',
           overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)',
@@ -82,7 +82,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
           style={{
             padding: '28px 24px 20px',
             textAlign: 'center',
-            borderBottom: '1px solid #262626'
+            borderBottom: '1px solid var(--border-subtle)'
           }}
         >
           <div
@@ -103,7 +103,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
             style={{
               fontSize: '20px',
               fontWeight: '600',
-              color: '#ffffff',
+              color: 'var(--text-primary)',
               margin: '0 0 6px 0'
             }}
           >
@@ -112,7 +112,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
           <p
             style={{
               fontSize: '14px',
-              color: '#a1a1aa',
+              color: 'var(--text-tertiary)',
               margin: 0
             }}
           >
@@ -125,7 +125,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
           {/* Features List */}
           <div
             style={{
-              background: '#171717',
+              background: 'var(--bg-secondary)',
               borderRadius: '12px',
               padding: '16px',
               marginBottom: '16px'
@@ -135,7 +135,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
               style={{
                 fontSize: '13px',
                 fontWeight: '500',
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 margin: '0 0 12px 0'
               }}
             >
@@ -166,7 +166,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
                       flexShrink: 0
                     }}
                   />
-                  <span style={{ fontSize: '13px', color: '#d4d4d8' }}>{feature}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{feature}</span>
                 </div>
               ))}
             </div>
@@ -175,7 +175,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
           {/* Important Notice */}
           <div
             style={{
-              background: '#171717',
+              background: 'var(--bg-secondary)',
               borderRadius: '12px',
               padding: '16px',
               marginBottom: '20px'
@@ -184,7 +184,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
             <p
               style={{
                 fontSize: '12px',
-                color: '#a1a1aa',
+                color: 'var(--text-tertiary)',
                 margin: 0,
                 lineHeight: '1.5'
               }}
@@ -203,7 +203,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
               gap: '12px',
               cursor: 'pointer',
               padding: '14px',
-              background: agreed ? 'rgba(220, 38, 38, 0.1)' : '#171717',
+              background: agreed ? 'rgba(220, 38, 38, 0.1)' : 'var(--bg-secondary)',
               borderRadius: '12px',
               border: agreed ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid transparent',
               transition: 'all 0.2s'
@@ -220,8 +220,8 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
                 width: '22px',
                 height: '22px',
                 borderRadius: '6px',
-                background: agreed ? '#dc2626' : '#262626',
-                border: agreed ? 'none' : '2px solid #404040',
+                background: agreed ? '#dc2626' : 'var(--bg-card)',
+                border: agreed ? 'none' : '2px solid var(--border-default)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -234,7 +234,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
             <span
               style={{
                 fontSize: '14px',
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 lineHeight: '1.4'
               }}
             >
@@ -260,10 +260,10 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
               padding: '14px',
               fontSize: '15px',
               fontWeight: '600',
-              color: '#ffffff',
+              color: 'var(--text-primary)',
               background: agreed
                 ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                : '#262626',
+                : 'var(--bg-card)',
               border: 'none',
               borderRadius: '12px',
               cursor: agreed ? 'pointer' : 'not-allowed',
@@ -286,7 +286,7 @@ const AIDisclosureModal: React.FC<AIDisclosureModalProps> = ({ onAccept, onDecli
               padding: '12px',
               fontSize: '14px',
               fontWeight: '500',
-              color: '#71717a',
+              color: 'var(--text-tertiary)',
               background: 'transparent',
               border: 'none',
               borderRadius: '12px',

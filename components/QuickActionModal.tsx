@@ -45,8 +45,8 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
       <div
         className="w-full max-w-[420px] mx-4 rounded-2xl overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
-          border: '1px solid #262626',
+          background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-primary) 100%)',
+          border: '1px solid var(--border-subtle)',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)'
         }}
         role="dialog"
@@ -55,12 +55,12 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
         {/* Compact Header */}
         <div style={{
           padding: '16px 20px',
-          borderBottom: '1px solid #262626',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
         }}>
-          <div className="font-bold" style={{ color: '#ffffff', fontSize: '16px' }}>
+          <div className="font-bold" style={{ color: 'var(--text-primary)', fontSize: '16px' }}>
             ⚡ Quick Actions
           </div>
           <button
@@ -69,7 +69,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'rgba(255, 255, 255, 0.7)',
+              color: 'var(--text-tertiary)',
               cursor: 'pointer',
               padding: '4px',
               display: 'flex',
@@ -79,12 +79,12 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.background = 'var(--glass-border)';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+              e.currentTarget.style.color = 'var(--text-tertiary)';
             }}
           >
             <X className="w-5 h-5" />
@@ -113,11 +113,11 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   justifyContent: 'center',
                   gap: '6px',
                   borderRadius: '12px',
-                  border: isActive ? '1px solid #dc2626' : '1px solid #262626',
+                  border: isActive ? '1px solid #dc2626' : '1px solid var(--border-subtle)',
                   background: isActive
                     ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                    : '#171717',
-                  color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
+                    : 'var(--bg-secondary)',
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   fontWeight: isActive ? '600' : '500',
@@ -125,14 +125,14 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = '#262626';
-                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.background = 'var(--bg-hover)';
+                    e.currentTarget.style.color = 'var(--text-primary)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = '#171717';
-                    e.currentTarget.style.color = '#a1a1aa';
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
+                    e.currentTarget.style.color = 'var(--text-tertiary)';
                   }
                 }}
               >
@@ -154,10 +154,10 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     width: '100%',
                     height: '46px',
                     padding: '0 14px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     transition: 'all 0.2s'
@@ -170,7 +170,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.border = '1px solid #262626';
+                    e.currentTarget.style.border = '1px solid var(--border-subtle)';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
@@ -183,10 +183,10 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     width: '100%',
                     height: '46px',
                     padding: '0 14px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     transition: 'all 0.2s'
@@ -199,7 +199,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.border = '1px solid #262626';
+                    e.currentTarget.style.border = '1px solid var(--border-subtle)';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
@@ -212,10 +212,10 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     width: '100%',
                     height: '90px',
                     padding: '12px 14px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     resize: 'vertical',
@@ -230,7 +230,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.border = '1px solid #262626';
+                    e.currentTarget.style.border = '1px solid var(--border-subtle)';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
@@ -248,20 +248,20 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   style={{
                     flex: 1,
                     height: '48px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#262626';
+                    e.currentTarget.style.background = 'var(--bg-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
                   }}
                 >
                   Cancel
@@ -299,7 +299,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           {active === 'transcribe' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <p style={{
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: 'var(--text-secondary)',
                 fontSize: '14px',
                 lineHeight: '1.6',
                 margin: 0
@@ -316,20 +316,20 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   style={{
                     flex: 1,
                     height: '48px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#262626';
+                    e.currentTarget.style.background = 'var(--bg-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
                   }}
                 >
                   Cancel
@@ -367,7 +367,7 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
           {active === 'image' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <p style={{
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: 'var(--text-secondary)',
                 fontSize: '14px',
                 lineHeight: '1.6',
                 margin: 0
@@ -384,20 +384,20 @@ const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   style={{
                     flex: 1,
                     height: '48px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#262626';
+                    e.currentTarget.style.background = 'var(--bg-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
                   }}
                 >
                   Cancel

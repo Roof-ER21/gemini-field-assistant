@@ -837,7 +837,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           background: categoryFilter === cat.value ? 'var(--roof-red)' : 'var(--bg-elevated)',
                           border: `2px solid ${categoryFilter === cat.value ? 'var(--roof-red)' : 'var(--border-default)'}`,
                           borderRadius: '20px',
-                          color: categoryFilter === cat.value ? '#fff' : 'var(--text-primary)',
+                          color: categoryFilter === cat.value ? 'var(--text-primary)' : 'var(--text-primary)',
                           cursor: 'pointer',
                           fontSize: '13px',
                           fontWeight: 600,
@@ -1209,7 +1209,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           background: isEditingEmail ? 'var(--roof-red)' : 'var(--bg-tertiary)',
                           border: '1px solid var(--border-default)',
                           borderRadius: 'var(--radius-md)',
-                          color: isEditingEmail ? '#fff' : 'var(--text-primary)',
+                          color: isEditingEmail ? 'var(--text-primary)' : 'var(--text-primary)',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -1307,12 +1307,12 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         : complianceResult.warnings.length > 0
                         ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
                         : complianceResult.cautions.length > 0
-                        ? 'linear-gradient(135deg, #262626 0%, #171717 100%)'
+                        ? 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%)'
                         : 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
                       border: `2px solid ${
                         !complianceResult.canSend ? '#dc2626' :
                         complianceResult.warnings.length > 0 ? '#d97706' :
-                        complianceResult.cautions.length > 0 ? '#52525b' : '#059669'
+                        complianceResult.cautions.length > 0 ? 'var(--text-disabled)' : '#059669'
                       }`,
                       borderRadius: 'var(--radius-lg)',
                       padding: '16px',
@@ -1330,7 +1330,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           ) : complianceResult.warnings.length > 0 ? (
                             <ShieldAlert className="w-6 h-6" style={{ color: '#d97706' }} />
                           ) : complianceResult.cautions.length > 0 ? (
-                            <Shield className="w-6 h-6" style={{ color: '#6b7280' }} />
+                            <Shield className="w-6 h-6" style={{ color: 'var(--text-tertiary)' }} />
                           ) : (
                             <ShieldCheck className="w-6 h-6" style={{ color: '#059669' }} />
                           )}
@@ -1368,7 +1368,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                                 background: '#dc2626',
                                 border: 'none',
                                 borderRadius: 'var(--radius-md)',
-                                color: '#fff',
+                                color: 'var(--text-primary)',
                                 cursor: isAutoFixing ? 'not-allowed' : 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1594,7 +1594,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         background: 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: isEnhancing ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1620,7 +1620,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         background: 'linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: (isEnhancing || isGeneratingQuestions) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1646,7 +1646,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         background: 'linear-gradient(135deg, #52525B 0%, #27272A 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: isEnhancing ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1672,7 +1672,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         background: 'linear-gradient(135deg, #71717A 0%, #3F3F46 100%)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: isEnhancing ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1700,11 +1700,11 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       width: '100%',
                       padding: '14px',
                       background: complianceResult && !complianceResult.canSend
-                        ? '#9ca3af'
+                        ? 'var(--text-tertiary)'
                         : 'var(--roof-red)',
                       border: 'none',
                       borderRadius: 'var(--radius-md)',
-                      color: '#fff',
+                      color: 'var(--text-primary)',
                       cursor: complianceResult && !complianceResult.canSend ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1874,7 +1874,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                             background: 'var(--roof-red)',
                             border: 'none',
                             borderRadius: 'var(--radius-md)',
-                            color: '#fff',
+                            color: 'var(--text-primary)',
                             cursor: 'pointer',
                             fontSize: '13px',
                             fontWeight: 600,
@@ -2002,7 +2002,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         background: 'var(--roof-red)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: 'pointer',
                         fontSize: '14px',
                         fontWeight: 600,
@@ -2198,7 +2198,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           width: '24px',
                           height: '24px',
                           background: 'var(--roof-red)',
-                          color: '#fff',
+                          color: 'var(--text-primary)',
                           borderRadius: '50%',
                           fontSize: '13px',
                           fontWeight: 700,
@@ -2282,7 +2282,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                           : 'var(--roof-red)',
                         border: 'none',
                         borderRadius: 'var(--radius-md)',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         cursor: (isRefiningEmail || Object.keys(conversationAnswers).length === 0)
                           ? 'not-allowed'
                           : 'pointer',

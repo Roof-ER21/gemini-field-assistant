@@ -12,6 +12,7 @@ export interface FeatureFlags {
   feature_agnes: boolean;
   feature_live: boolean;
   feature_susan_chat: boolean;
+  feature_deaf_mode: boolean;
 }
 
 interface SettingsContextType {
@@ -31,7 +32,8 @@ const DEFAULT_FEATURES: FeatureFlags = {
   feature_storm_map: true,
   feature_agnes: true,
   feature_live: true,
-  feature_susan_chat: true
+  feature_susan_chat: true,
+  feature_deaf_mode: true
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

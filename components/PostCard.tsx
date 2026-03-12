@@ -122,7 +122,7 @@ const PostCard: React.FC<PostCardProps> = ({
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, rgba(18, 18, 18, 0.7), rgba(10, 10, 10, 0.6))',
+        background: 'var(--bg-elevated)',
         border: '1px solid var(--glass-border)',
         borderRadius: '14px',
         padding: '16px',
@@ -271,7 +271,7 @@ const PostCard: React.FC<PostCardProps> = ({
       {post.shared_content && (
         <div
           style={{
-            background: 'rgba(12, 12, 12, 0.55)',
+            background: 'var(--bg-elevated)',
             border: '1px solid var(--glass-border)',
             borderRadius: '10px',
             padding: '12px',

@@ -21,7 +21,8 @@ const TypingIndicator: React.FC = () => {
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        className="flex-shrink-0 h-9 w-9 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center shadow-lg"
+        className="flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center shadow-lg"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)' }}
       >
         <div className="relative">
           <Bot className="h-5 w-5 text-red-400" strokeWidth={2} />
@@ -44,7 +45,8 @@ const TypingIndicator: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative px-5 py-3.5 rounded-2xl bg-gradient-to-br from-zinc-800/90 via-zinc-800/90 to-zinc-900/90 border border-zinc-700/50 shadow-xl backdrop-blur-xl"
+        className="relative px-5 py-3.5 rounded-2xl shadow-xl backdrop-blur-xl"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)' }}
       >
         {/* Glassmorphism effect */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent rounded-2xl pointer-events-none" />

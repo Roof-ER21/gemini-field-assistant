@@ -64,7 +64,7 @@ const PROVIDERS: Record<AIProvider, ProviderConfig> = {
   gemini: {
     name: 'Google Gemini',
     baseUrl: '', // Uses @google/genai SDK
-    defaultModel: 'gemini-2.0-flash-exp',
+    defaultModel: 'gemini-2.0-flash',
     costPerToken: 0.00000075, // $0.075 per 1M tokens (input)
     speedRank: 2,
   },

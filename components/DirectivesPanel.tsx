@@ -111,16 +111,16 @@ const DirectivesPanel: React.FC = () => {
     width: '100%',
     padding: '10px 12px',
     fontSize: '14px',
-    background: '#171717',
-    border: '1px solid #262626',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-subtle)',
     borderRadius: '8px',
-    color: '#ffffff',
+    color: 'var(--text-primary)',
     outline: 'none',
     boxSizing: 'border-box',
   };
 
   if (loading) {
-    return <div style={{ color: '#71717a', padding: '20px' }}>Loading directives...</div>;
+    return <div style={{ color: 'var(--text-tertiary)', padding: '20px' }}>Loading directives...</div>;
   }
 
   return (
@@ -128,8 +128,8 @@ const DirectivesPanel: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', fontWeight: 700 }}>Manager Directives</h3>
-          <p style={{ margin: '4px 0 0', color: '#71717a', fontSize: '13px' }}>
+          <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: 700 }}>Manager Directives</h3>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-tertiary)', fontSize: '13px' }}>
             Instructions that Susan follows for every rep
           </p>
         </div>
@@ -143,7 +143,7 @@ const DirectivesPanel: React.FC = () => {
             border: 'none',
             cursor: 'pointer',
             background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-            color: '#fff',
+            color: 'var(--text-primary)',
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
@@ -157,14 +157,14 @@ const DirectivesPanel: React.FC = () => {
       {/* Create/Edit Form */}
       {showForm && (
         <div style={{
-          background: '#0a0a0a',
-          border: '1px solid #262626',
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '12px',
           padding: '20px',
           marginBottom: '20px',
         }}>
           <div style={{ marginBottom: '14px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a1a1aa', marginBottom: '4px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px' }}>
               Title
             </label>
             <input
@@ -176,7 +176,7 @@ const DirectivesPanel: React.FC = () => {
             />
           </div>
           <div style={{ marginBottom: '14px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a1a1aa', marginBottom: '4px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px' }}>
               Instructions for Susan
             </label>
             <textarea
@@ -188,7 +188,7 @@ const DirectivesPanel: React.FC = () => {
             />
           </div>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a1a1aa', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '6px' }}>
               Priority
             </label>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -203,7 +203,7 @@ const DirectivesPanel: React.FC = () => {
                       padding: '8px',
                       fontSize: '13px',
                       borderRadius: '8px',
-                      border: priority === p ? `1px solid ${colors.border}` : '1px solid #262626',
+                      border: priority === p ? `1px solid ${colors.border}` : '1px solid var(--border-subtle)',
                       background: priority === p ? colors.bg : 'transparent',
                       color: priority === p ? colors.text : '#71717a',
                       cursor: 'pointer',
@@ -224,9 +224,9 @@ const DirectivesPanel: React.FC = () => {
                 flex: 1,
                 padding: '10px',
                 borderRadius: '8px',
-                border: '1px solid #262626',
+                border: '1px solid var(--border-subtle)',
                 background: 'transparent',
-                color: '#a1a1aa',
+                color: 'var(--text-tertiary)',
                 cursor: 'pointer',
                 fontSize: '14px',
               }}
@@ -242,7 +242,7 @@ const DirectivesPanel: React.FC = () => {
                 borderRadius: '8px',
                 border: 'none',
                 background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 cursor: saving ? 'wait' : 'pointer',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -259,11 +259,11 @@ const DirectivesPanel: React.FC = () => {
         <div style={{
           padding: '40px 20px',
           textAlign: 'center',
-          color: '#52525b',
+          color: 'var(--text-disabled)',
           fontSize: '14px',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '12px',
-          border: '1px solid #262626',
+          border: '1px solid var(--border-subtle)',
         }}>
           No directives yet. Create one to guide Susan for all reps.
         </div>
@@ -275,8 +275,8 @@ const DirectivesPanel: React.FC = () => {
               <div
                 key={d.id}
                 style={{
-                  background: '#0a0a0a',
-                  border: `1px solid ${d.is_active ? colors.border : '#262626'}`,
+                  background: 'var(--bg-primary)',
+                  border: `1px solid ${d.is_active ? colors.border : 'var(--border-subtle)'}`,
                   borderRadius: '12px',
                   padding: '16px',
                   opacity: d.is_active ? 1 : 0.5,
@@ -290,7 +290,7 @@ const DirectivesPanel: React.FC = () => {
                       ) : (
                         <CheckCircle style={{ width: '14px', height: '14px', color: colors.text }} />
                       )}
-                      <span style={{ fontWeight: 600, color: '#fff', fontSize: '15px' }}>{d.title}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '15px' }}>{d.title}</span>
                       <span style={{
                         fontSize: '11px',
                         padding: '2px 8px',
@@ -303,10 +303,10 @@ const DirectivesPanel: React.FC = () => {
                         {d.priority}
                       </span>
                     </div>
-                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '13px', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '13px', lineHeight: '1.5' }}>
                       {d.content}
                     </p>
-                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#52525b' }}>
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-disabled)' }}>
                       By {d.created_by_name} &middot; {new Date(d.created_at).toLocaleDateString()}
                     </div>
                   </div>
@@ -318,9 +318,9 @@ const DirectivesPanel: React.FC = () => {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        border: '1px solid #262626',
+                        border: '1px solid var(--border-subtle)',
                         background: 'transparent',
-                        color: d.is_active ? '#22c55e' : '#71717a',
+                        color: d.is_active ? '#22c55e' : 'var(--text-tertiary)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -339,9 +339,9 @@ const DirectivesPanel: React.FC = () => {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        border: '1px solid #262626',
+                        border: '1px solid var(--border-subtle)',
                         background: 'transparent',
-                        color: '#a1a1aa',
+                        color: 'var(--text-tertiary)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -356,7 +356,7 @@ const DirectivesPanel: React.FC = () => {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        border: '1px solid #262626',
+                        border: '1px solid var(--border-subtle)',
                         background: 'transparent',
                         color: '#dc2626',
                         cursor: 'pointer',

@@ -208,7 +208,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
         top: '1rem',
         right: '1rem',
         zIndex: 1000,
-        background: 'rgba(10, 10, 10, 0.9)',
+        background: 'var(--bg-primary)',
         padding: '0.75rem',
         borderRadius: '8px',
         backdropFilter: 'blur(10px)',
@@ -240,7 +240,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
           top: '1rem',
           left: '1rem',
           zIndex: 1000,
-          background: 'rgba(10, 10, 10, 0.9)',
+          background: 'var(--bg-primary)',
           padding: '0.5rem 0.75rem',
           borderRadius: '8px',
           backdropFilter: 'blur(10px)',
@@ -283,7 +283,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                   </strong>
                 </div>
 
-                <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-disabled)', marginBottom: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
                     <Clock style={{ width: '12px', height: '12px' }} />
                     <span>Checked in at {formatTime(checkIn.checkin_time)}</span>
@@ -303,10 +303,10 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                 {checkIn.notes && (
                   <div style={{
                     padding: '0.5rem',
-                    background: '#f3f4f6',
+                    background: 'var(--bg-elevated)',
                     borderRadius: '4px',
                     fontSize: '0.75rem',
-                    color: '#666',
+                    color: 'var(--text-disabled)',
                     fontStyle: 'italic',
                     marginTop: '0.5rem'
                   }}>
@@ -319,7 +319,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                   <div style={{
                     marginTop: '0.5rem',
                     paddingTop: '0.5rem',
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border-subtle)',
                     fontSize: '0.75rem'
                   }}>
                     <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>Stats:</div>
@@ -357,7 +357,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                     <strong style={{ fontSize: '0.875rem' }}>Hail Event</strong>
                   </div>
 
-                  <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
                       <Calendar style={{ width: '12px', height: '12px' }} />
                       <span>{formatDate(event.date)}</span>

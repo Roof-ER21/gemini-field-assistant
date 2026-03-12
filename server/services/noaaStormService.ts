@@ -151,7 +151,10 @@ class NOAAStormService {
     // Format: "01-JAN-24 12:00:00" or similar
     // NOAA data is typically in UTC, we need to convert to Eastern for consistency
     try {
-      const d = new Date(dateStr);
+      // For date-only strings (YYYY-MM-DD), append noon to avoid UTC midnight
+      // shifting back one day when converted to Eastern timezone
+      const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim()) ? dateStr.trim() + 'T12:00:00' : dateStr;
+      const d = new Date(normalized);
       if (!isNaN(d.getTime())) {
         // Convert to Eastern timezone (America/New_York handles DST automatically)
         return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // en-CA gives YYYY-MM-DD format

@@ -257,7 +257,7 @@ Create a concise context summary (3-5 sentences) that captures:
 Keep it brief and focused on what matters for guiding the conversation.`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -338,7 +338,7 @@ Create a natural, conversational narration for this slide. Speak as if you're si
 }`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -402,7 +402,7 @@ Provide a clear, detailed explanation that:
 Keep it conversational and empathetic. Limit to 3-4 paragraphs.`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -486,7 +486,7 @@ Answer this question thoroughly but conversationally.
 }`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -592,7 +592,7 @@ Address this objection with empathy, evidence, and reassurance. Remember: you're
 }`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -673,7 +673,7 @@ Conversation:
 ${conversation}`;
 
     const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 

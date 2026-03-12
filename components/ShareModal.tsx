@@ -200,7 +200,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
     const colors = {
       online: '#22c55e',
       away: '#f59e0b',
-      offline: '#6b7280'
+      offline: 'var(--text-tertiary)'
     };
 
     return (
@@ -495,7 +495,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
                           borderRadius: '50%',
                           background: member.status === 'online'
                             ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-                            : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+                            : 'linear-gradient(135deg, var(--text-tertiary) 0%, var(--text-disabled) 100%)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',

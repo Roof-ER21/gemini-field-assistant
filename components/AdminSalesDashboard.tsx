@@ -145,7 +145,7 @@ const AdminSalesDashboard: React.FC = () => {
 
   const labelStyle: React.CSSProperties = {
     fontSize: '12px',
-    color: '#a1a1aa',
+    color: 'var(--text-tertiary)',
     marginBottom: '4px',
     fontWeight: 500,
   };
@@ -153,13 +153,13 @@ const AdminSalesDashboard: React.FC = () => {
   const valueStyle: React.CSSProperties = {
     fontSize: '28px',
     fontWeight: 700,
-    color: '#fafafa',
+    color: 'var(--text-primary)',
     lineHeight: 1.1,
   };
 
   if (loading && !stats) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#a1a1aa' }}>
+      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
         <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
         <div>Loading sales dashboard...</div>
       </div>
@@ -170,7 +170,7 @@ const AdminSalesDashboard: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fafafa', margin: 0 }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
           Sales Performance Dashboard
         </h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -181,7 +181,7 @@ const AdminSalesDashboard: React.FC = () => {
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',
               borderRadius: '6px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               padding: '6px 10px',
               fontSize: '13px'
             }}
@@ -195,7 +195,7 @@ const AdminSalesDashboard: React.FC = () => {
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',
               borderRadius: '6px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               padding: '6px 10px',
               cursor: 'pointer',
               display: 'flex',
@@ -267,7 +267,7 @@ const AdminSalesDashboard: React.FC = () => {
           <Trophy size={24} style={{ color: '#fbbf24' }} />
           <div>
             <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 600 }}>Top Performer</div>
-            <div style={{ fontSize: '16px', color: '#fafafa', fontWeight: 700 }}>
+            <div style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: 700 }}>
               {stats.topPerformer.name} — {sortBy === 'monthly_revenue'
                 ? `$${stats.topPerformer.value.toLocaleString()}`
                 : `${stats.topPerformer.value} signups`
@@ -281,17 +281,17 @@ const AdminSalesDashboard: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '16px' }}>
         {/* Top 10 Reps Bar Chart */}
         <div style={cardStyle}>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Top 10 Reps — {sortBy === 'monthly_revenue' ? 'Revenue' : 'Signups'}
           </div>
           {topRepsData.length > 0 ? (
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={topRepsData} layout="vertical" margin={{ left: 0, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis type="number" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                <YAxis dataKey="name" type="category" width={70} tick={{ fill: '#d4d4d8', fontSize: 11 }} />
+                <XAxis type="number" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} />
+                <YAxis dataKey="name" type="category" width={70} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
                 <Tooltip
-                  contentStyle={{ background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#e4e4e7' }}
+                  contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'var(--text-secondary)' }}
                   formatter={(value: number, name: string) => [
                     name === 'revenue' ? `$${value.toLocaleString()}` : value,
                     name === 'revenue' ? 'Revenue' : 'Signups'
@@ -309,13 +309,13 @@ const AdminSalesDashboard: React.FC = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ color: '#71717a', padding: '40px', textAlign: 'center' }}>No rep data available</div>
+            <div style={{ color: 'var(--text-tertiary)', padding: '40px', textAlign: 'center' }}>No rep data available</div>
           )}
         </div>
 
         {/* Tier Distribution Pie Chart */}
         <div style={cardStyle}>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Tier Distribution
           </div>
           {tierData.length > 0 ? (
@@ -337,16 +337,16 @@ const AdminSalesDashboard: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#e4e4e7' }}
+                  contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'var(--text-secondary)' }}
                   formatter={(value: number, name: string) => [`${value} reps`, name]}
                 />
                 <Legend
-                  wrapperStyle={{ color: '#a1a1aa', fontSize: '12px' }}
+                  wrapperStyle={{ color: 'var(--text-tertiary)', fontSize: '12px' }}
                 />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ color: '#71717a', padding: '40px', textAlign: 'center' }}>No tier data available</div>
+            <div style={{ color: 'var(--text-tertiary)', padding: '40px', textAlign: 'center' }}>No tier data available</div>
           )}
         </div>
       </div>
@@ -354,7 +354,7 @@ const AdminSalesDashboard: React.FC = () => {
       {/* Teams Section */}
       {teams.length > 0 && (
         <div style={cardStyle}>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Teams Overview
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
@@ -368,11 +368,11 @@ const AdminSalesDashboard: React.FC = () => {
                   padding: '14px'
                 }}
               >
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#e4e4e7' }}>{team.name}</div>
-                <div style={{ fontSize: '12px', color: '#a1a1aa', marginTop: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-secondary)' }}>{team.name}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
                   Led by {team.leader_name || 'Unassigned'}
                 </div>
-                <div style={{ fontSize: '12px', color: '#71717a', marginTop: '2px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                   {team.member_count} member{team.member_count !== 1 ? 's' : ''}
                 </div>
               </div>
@@ -386,7 +386,7 @@ const AdminSalesDashboard: React.FC = () => {
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Trophy size={18} style={{ color: '#fbbf24' }} />
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Active Contests</span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Active Contests</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
             {contests.map(contest => (
@@ -400,7 +400,7 @@ const AdminSalesDashboard: React.FC = () => {
                 }}
               >
                 <div style={{ fontSize: '14px', fontWeight: 600, color: '#fbbf24' }}>{contest.name}</div>
-                <div style={{ fontSize: '11px', color: '#a1a1aa', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
                   Metric: {contest.metric} | Ends: {new Date(contest.end_date).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                 </div>
                 {contest.standings && contest.standings.length > 0 && (
@@ -436,22 +436,22 @@ const AdminSalesDashboard: React.FC = () => {
         padding: '16px 20px'
       }}>
         <div>
-          <div style={{ fontSize: '11px', color: '#71717a', fontWeight: 500 }}>Avg Signups/Rep</div>
-          <div style={{ fontSize: '18px', color: '#e4e4e7', fontWeight: 600 }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Avg Signups/Rep</div>
+          <div style={{ fontSize: '18px', color: 'var(--text-secondary)', fontWeight: 600 }}>
             {(stats?.avgMonthlySignups || 0).toFixed(1)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: '11px', color: '#71717a', fontWeight: 500 }}>Teams</div>
-          <div style={{ fontSize: '18px', color: '#e4e4e7', fontWeight: 600 }}>{teams.length}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Teams</div>
+          <div style={{ fontSize: '18px', color: 'var(--text-secondary)', fontWeight: 600 }}>{teams.length}</div>
         </div>
         <div>
-          <div style={{ fontSize: '11px', color: '#71717a', fontWeight: 500 }}>Active Contests</div>
-          <div style={{ fontSize: '18px', color: '#e4e4e7', fontWeight: 600 }}>{contests.length}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Active Contests</div>
+          <div style={{ fontSize: '18px', color: 'var(--text-secondary)', fontWeight: 600 }}>{contests.length}</div>
         </div>
         <div>
-          <div style={{ fontSize: '11px', color: '#71717a', fontWeight: 500 }}>Tier Levels</div>
-          <div style={{ fontSize: '18px', color: '#e4e4e7', fontWeight: 600 }}>{tierData.length}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Tier Levels</div>
+          <div style={{ fontSize: '18px', color: 'var(--text-secondary)', fontWeight: 600 }}>{tierData.length}</div>
         </div>
       </div>
     </div>

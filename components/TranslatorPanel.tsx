@@ -433,24 +433,24 @@ The rep leads. You help.`;
               <AgnesAvatar speaking={false} size={120} />
             </div>
 
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
               Real-Time Field Translator
             </h2>
 
-            <p style={{ color: '#a1a1aa', fontSize: '15px', marginBottom: '32px', lineHeight: 1.6 }}>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', marginBottom: '32px', lineHeight: 1.6 }}>
               Agnes will help you communicate with homeowners who speak different languages.
               Just start talking and she'll automatically detect the language and translate in real-time.
             </p>
 
             {/* Supported Languages */}
             <div style={{
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '16px',
               marginBottom: '32px'
             }}>
-              <div style={{ fontSize: '13px', color: '#71717a', marginBottom: '12px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
                 Supports 20+ Languages
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
@@ -459,10 +459,10 @@ The rep leads. You help.`;
                     key={lang.code}
                     style={{
                       padding: '4px 10px',
-                      background: '#1a1a1a',
+                      background: 'var(--bg-elevated)',
                       borderRadius: '6px',
                       fontSize: '13px',
-                      color: '#fff'
+                      color: 'var(--text-primary)'
                     }}
                   >
                     {lang.flag} {lang.name}
@@ -470,10 +470,10 @@ The rep leads. You help.`;
                 ))}
                 <span style={{
                   padding: '4px 10px',
-                  background: '#1a1a1a',
+                  background: 'var(--bg-elevated)',
                   borderRadius: '6px',
                   fontSize: '13px',
-                  color: '#71717a'
+                  color: 'var(--text-tertiary)'
                 }}>
                   +{SUPPORTED_LANGUAGES.length - 12} more
                 </span>
@@ -502,7 +502,7 @@ The rep leads. You help.`;
               Start Translation
             </button>
 
-            <p style={{ color: '#52525b', fontSize: '13px', marginTop: '16px' }}>
+            <p style={{ color: 'var(--text-disabled)', fontSize: '13px', marginTop: '16px' }}>
               Say "Hey Agnes, I have a homeowner here..." to begin
             </p>
           </div>
@@ -524,7 +524,7 @@ The rep leads. You help.`;
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Languages className="w-5 h-5" style={{ color: '#dc2626' }} />
-            <span style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>
+            <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
               Agnes Translator
             </span>
             {detectedLanguage && (
@@ -571,8 +571,8 @@ The rep leads. You help.`;
         }}>
           {/* Transcript */}
           <div style={{
-            background: '#0a0a0a',
-            border: '1px solid #1a1a1a',
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             display: 'flex',
             flexDirection: 'column',
@@ -580,13 +580,13 @@ The rep leads. You help.`;
           }}>
             <div style={{
               padding: '12px 16px',
-              borderBottom: '1px solid #1a1a1a',
+              borderBottom: '1px solid var(--border-subtle)',
               display: 'flex',
               alignItems: 'center',
               gap: '8px'
             }}>
               <MessageSquare className="w-4 h-4" style={{ color: '#dc2626' }} />
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
                 Conversation
               </span>
             </div>
@@ -600,16 +600,16 @@ The rep leads. You help.`;
               gap: '12px'
             }}>
               {transcript.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#52525b', padding: '40px' }}>
+                <div style={{ textAlign: 'center', color: 'var(--text-disabled)', padding: '40px' }}>
                   <Globe className="w-8 h-8 mx-auto mb-3" style={{ opacity: 0.5 }} />
                   <p>Start speaking to begin translation</p>
                 </div>
               ) : (
                 transcript.map(entry => {
                   const speakerInfo =
-                    entry.speaker === 'agnes' ? { label: 'Agnes', color: '#dc2626', bg: '#1a1a1a' } :
-                    entry.speaker === 'user' ? { label: 'Rep (You)', color: '#10b981', bg: '#111' } :
-                    { label: 'Homeowner', color: '#3b82f6', bg: '#111' };
+                    entry.speaker === 'agnes' ? { label: 'Agnes', color: '#dc2626', bg: 'var(--bg-elevated)' } :
+                    entry.speaker === 'user' ? { label: 'Rep (You)', color: '#10b981', bg: 'var(--bg-secondary)' } :
+                    { label: 'Homeowner', color: '#3b82f6', bg: 'var(--bg-secondary)' };
 
                   return (
                     <div
@@ -643,7 +643,7 @@ The rep leads. You help.`;
                           </span>
                         )}
                       </div>
-                      <div style={{ color: '#fff', fontSize: '14px', lineHeight: 1.5 }}>
+                      <div style={{ color: 'var(--text-primary)', fontSize: '14px', lineHeight: 1.5 }}>
                         {entry.originalText}
                       </div>
                       {entry.translatedText && (
@@ -651,7 +651,7 @@ The rep leads. You help.`;
                           marginTop: '8px',
                           paddingTop: '8px',
                           borderTop: '1px solid rgba(255,255,255,0.1)',
-                          color: '#a1a1aa',
+                          color: 'var(--text-tertiary)',
                           fontSize: '13px',
                           fontStyle: 'italic'
                         }}>
@@ -668,8 +668,8 @@ The rep leads. You help.`;
 
           {/* Agnes Panel */}
           <div style={{
-            background: '#0a0a0a',
-            border: '1px solid #1a1a1a',
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             padding: '20px',
             display: 'flex',
@@ -683,11 +683,11 @@ The rep leads. You help.`;
             <div style={{
               marginTop: '16px',
               padding: '8px 16px',
-              background: state === 'listening' ? '#166534' : state === 'speaking' ? '#dc2626' : '#1a1a1a',
+              background: state === 'listening' ? '#166534' : state === 'speaking' ? '#dc2626' : 'var(--bg-elevated)',
               borderRadius: '20px',
               fontSize: '13px',
               fontWeight: 600,
-              color: '#fff'
+              color: 'var(--text-primary)'
             }}>
               {state === 'connecting' && 'Connecting...'}
               {state === 'listening' && 'Listening...'}
@@ -716,9 +716,9 @@ The rep leads. You help.`;
                   width: '50px',
                   height: '50px',
                   borderRadius: '50%',
-                  background: isMuted ? '#dc2626' : '#1a1a1a',
-                  border: '1px solid #333',
-                  color: '#fff',
+                  background: isMuted ? '#dc2626' : 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -735,9 +735,9 @@ The rep leads. You help.`;
                   width: '50px',
                   height: '50px',
                   borderRadius: '50%',
-                  background: isSpeakerOn ? '#1a1a1a' : '#dc2626',
-                  border: '1px solid #333',
-                  color: '#fff',
+                  background: isSpeakerOn ? 'var(--bg-elevated)' : '#dc2626',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',

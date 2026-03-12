@@ -753,7 +753,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   };
 
   const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
+    // Plain date strings (YYYY-MM-DD) are parsed as UTC midnight by Date constructor,
+    // which shifts back one day in US Eastern timezone. Add noon to prevent this.
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + 'T12:00:00' : dateStr;
+    const date = new Date(normalized);
     return date.toLocaleDateString('en-US', {
       timeZone: 'America/New_York',
       month: 'short',
@@ -763,7 +766,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   };
 
   const formatDateLong = (dateStr: string): string => {
-    const date = new Date(dateStr);
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + 'T12:00:00' : dateStr;
+    const date = new Date(normalized);
     return date.toLocaleDateString('en-US', {
       timeZone: 'America/New_York',
       weekday: 'long',

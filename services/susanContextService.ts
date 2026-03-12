@@ -221,8 +221,9 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
 
   // 9. Agent network intel (recent approved field intelligence from peers)
   try {
+    const email9 = authService.getCurrentUser()?.email || '';
     const intelRes = await fetch(`${apiBaseUrl}/agent-network?limit=10`, {
-      headers: { ...(email ? { 'x-user-email': email } : {}) },
+      headers: { ...(email9 ? { 'x-user-email': email9 } : {}) },
     });
     if (intelRes.ok) {
       const intel = await intelRes.json() as Array<{ intel_type: string; content: string; state: string | null; insurer: string | null; author_name: string }>;
@@ -239,6 +240,25 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
 
   // 10. Agnes training knowledge (what Agnes teaches reps)
   blocks.push(AGNES_TRAINING_KNOWLEDGE);
+
+  // 11. Calendar / upcoming schedule
+  try {
+    const email11 = authService.getCurrentUser()?.email || '';
+    const calRes = await fetch(`${apiBaseUrl}/calendar/upcoming`, {
+      headers: { ...(email11 ? { 'x-user-email': email11 } : {}) },
+    });
+    if (calRes.ok) {
+      const calData = await calRes.json();
+      if (calData.events?.length > 0) {
+        const lines = calData.events.map((e: any) =>
+          `- ${e.summary} @ ${new Date(e.start_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${e.location ? ' (' + e.location + ')' : ''}`
+        );
+        blocks.push(`[UPCOMING SCHEDULE]\nThe rep's next events:\n${lines.join('\n')}\nReference this when discussing scheduling or availability.`);
+      }
+    }
+  } catch (error) {
+    console.warn('[SusanContext] Calendar context failed:', (error as Error).message);
+  }
 
   if (blocks.length === 0) return '';
 

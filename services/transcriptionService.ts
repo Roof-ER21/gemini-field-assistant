@@ -242,7 +242,7 @@ Focus on sales-relevant details that help close deals and maintain customer rela
   while (retries > 0) {
     try {
       result = await genAI.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.0-flash',
         contents: {
           parts: [
             { text: prompt },

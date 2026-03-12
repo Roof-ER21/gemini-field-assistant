@@ -84,6 +84,8 @@ const ProfilePage: React.FC = () => {
     phone: '',
     address: '',
     service: '',
+    preferredDate: '',
+    preferredTime: '',
     message: '',
   });
   const [formLoading, setFormLoading] = useState(false);
@@ -155,6 +157,8 @@ const ProfilePage: React.FC = () => {
           homeownerPhone: formData.phone || null,
           address: formData.address || null,
           serviceType: formData.service || null,
+          preferredDate: formData.preferredDate || null,
+          preferredTime: formData.preferredTime || null,
           message: formData.message || null,
         })
       });
@@ -405,7 +409,12 @@ const ProfilePage: React.FC = () => {
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold text-green-500 mb-2">Thank You!</h3>
-                <p className="text-gray-300">{profile?.name} will contact you soon!</p>
+                <p className="text-gray-300">
+                  {formData.preferredDate
+                    ? `Your inspection has been scheduled! ${profile?.name} will confirm your appointment.`
+                    : `${profile?.name} will contact you soon!`
+                  }
+                </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -475,6 +484,39 @@ const ProfilePage: React.FC = () => {
                     className="w-full h-12 px-4 bg-[#1a1a1a] border border-[#404040] rounded-lg text-white placeholder-gray-500 focus:border-[#dc2626] focus:outline-none"
                     placeholder="123 Main Street, City, State"
                   />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Preferred Date</label>
+                    <input
+                      type="date"
+                      value={formData.preferredDate}
+                      onChange={(e) => setFormData({...formData, preferredDate: e.target.value})}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full h-12 px-4 bg-[#1a1a1a] border border-[#404040] rounded-lg text-white focus:border-[#dc2626] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Preferred Time</label>
+                    <select
+                      value={formData.preferredTime}
+                      onChange={(e) => setFormData({...formData, preferredTime: e.target.value})}
+                      className="w-full h-12 px-4 bg-[#1a1a1a] border border-[#404040] rounded-lg text-white focus:border-[#dc2626] focus:outline-none"
+                    >
+                      <option value="">Select a time...</option>
+                      <option value="08:00">8:00 AM</option>
+                      <option value="09:00">9:00 AM</option>
+                      <option value="10:00">10:00 AM</option>
+                      <option value="11:00">11:00 AM</option>
+                      <option value="12:00">12:00 PM</option>
+                      <option value="13:00">1:00 PM</option>
+                      <option value="14:00">2:00 PM</option>
+                      <option value="15:00">3:00 PM</option>
+                      <option value="16:00">4:00 PM</option>
+                      <option value="17:00">5:00 PM</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>

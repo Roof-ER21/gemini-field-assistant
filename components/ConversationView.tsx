@@ -478,7 +478,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     const colors = {
       online: '#22c55e',
       away: '#f59e0b',
-      offline: '#6b7280'
+      offline: 'var(--text-tertiary)'
     };
 
     return (
@@ -504,10 +504,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       return (
         <div
           style={{
-            background: isOwn ? 'rgba(255, 255, 255, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+            background: isOwn ? 'var(--glass-highlight)' : 'rgba(220, 38, 38, 0.1)',
             borderRadius: '8px',
             padding: '0.75rem',
-            border: `1px solid ${isOwn ? 'rgba(255, 255, 255, 0.2)' : 'rgba(220, 38, 38, 0.2)'}`,
+            border: `1px solid ${isOwn ? 'var(--glass-border)' : 'rgba(220, 38, 38, 0.2)'}`,
             maxWidth: '100%'
           }}
         >
@@ -587,10 +587,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       return (
         <div
           style={{
-            background: isOwn ? 'rgba(255, 255, 255, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+            background: isOwn ? 'var(--glass-highlight)' : 'rgba(220, 38, 38, 0.1)',
             borderRadius: '8px',
             padding: '0.75rem',
-            border: `1px solid ${isOwn ? 'rgba(255, 255, 255, 0.2)' : 'rgba(220, 38, 38, 0.2)'}`,
+            border: `1px solid ${isOwn ? 'var(--glass-border)' : 'rgba(220, 38, 38, 0.2)'}`,
             maxWidth: '100%'
           }}
         >
@@ -701,7 +701,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                     <span>{opt}</span>
                     <span>{count}</span>
                   </div>
-                  <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '999px', marginTop: '0.35rem' }}>
+                  <div style={{ height: '6px', background: 'var(--glass-highlight)', borderRadius: '999px', marginTop: '0.35rem' }}>
                     <div
                       style={{
                         width: `${percent}%`,
@@ -964,7 +964,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   borderRadius: '50%',
                   background: (teamMap[otherParticipant.userId]?.status || otherParticipant.status) === 'online'
                     ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-                    : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+                    : 'linear-gradient(135deg, var(--text-tertiary) 0%, var(--text-disabled) 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1235,7 +1235,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                   width: '100%',
                   padding: '0.5rem',
                   marginBottom: '1rem',
-                  background: 'rgba(12, 12, 12, 0.6)',
+                  background: 'var(--bg-elevated)',
                   border: '1px solid var(--glass-border)',
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -1266,7 +1266,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                     >
                       <span
                         style={{
-                          background: 'rgba(12, 12, 12, 0.55)',
+                          background: 'var(--bg-elevated)',
                           padding: '0.25rem 0.75rem',
                           borderRadius: '12px',
                           border: '1px solid var(--glass-border)'
@@ -1294,7 +1294,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                           : '16px 16px 16px 4px',
                         background: isOwn
                           ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                          : 'rgba(16, 16, 16, 0.6)',
+                          : 'var(--bg-elevated)',
                         color: isOwn ? 'white' : 'var(--text-primary)',
                         boxShadow: isHighlighted ? '0 0 0 2px rgba(234,179,8,0.55), 0 0 18px rgba(234,179,8,0.35)' : 'none',
                         transition: 'box-shadow 0.3s ease',
@@ -1331,7 +1331,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                                 padding: '0.1rem 0.4rem',
                                 borderRadius: '999px',
                                 border: reacted ? '1px solid rgba(255,255,255,0.8)' : '1px solid var(--glass-border)',
-                                background: reacted ? 'rgba(255,255,255,0.18)' : 'rgba(12,12,12,0.45)',
+                                background: reacted ? 'var(--glass-border)' : 'var(--bg-elevated)',
                                 fontSize: '0.75rem',
                                 cursor: 'pointer'
                               }}
@@ -1349,7 +1349,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                               height: '24px',
                               borderRadius: '50%',
                               border: '1px solid var(--glass-border)',
-                              background: 'rgba(12,12,12,0.45)',
+                              background: 'var(--bg-elevated)',
                               color: 'var(--text-secondary)',
                               cursor: 'pointer',
                               display: 'flex',
@@ -1365,7 +1365,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                                 position: 'absolute',
                                 bottom: '110%',
                                 right: 0,
-                                background: 'rgba(12,12,12,0.85)',
+                                background: 'var(--bg-card)',
                                 border: '1px solid var(--glass-border)',
                                 borderRadius: '10px',
                                 padding: '0.35rem',
@@ -1402,7 +1402,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                             height: '24px',
                             borderRadius: '50%',
                             border: message.is_pinned ? '1px solid rgba(234,179,8,0.9)' : '1px solid var(--border-color)',
-                            background: message.is_pinned ? 'rgba(234,179,8,0.2)' : 'rgba(12,12,12,0.45)',
+                            background: message.is_pinned ? 'rgba(234,179,8,0.2)' : 'var(--bg-elevated)',
                             color: message.is_pinned ? '#facc15' : 'var(--text-secondary)',
                             cursor: 'pointer',
                             display: 'flex',

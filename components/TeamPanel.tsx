@@ -208,7 +208,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
     const colors = {
       online: '#22c55e',
       away: '#f59e0b',
-      offline: '#6b7280'
+      offline: 'var(--text-tertiary)'
     };
 
     return (
@@ -233,10 +233,10 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: 'rgba(10, 10, 10, 0.55)',
+        background: 'var(--bg-primary)',
         borderRadius: '12px',
         overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.06)',
+        border: '1px solid var(--glass-border)',
         backdropFilter: 'blur(14px) saturate(120%)'
       }}
     >
@@ -336,7 +336,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             {totalUnread > 0 && activeTab !== 'messages' && (
               <span
                 style={{
-                  background: 'white',
+                  background: 'var(--text-primary)',
                   color: 'var(--roof-red)',
                   fontSize: '0.7rem',
                   padding: '1px 5px',
@@ -422,7 +422,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              background: 'rgba(14, 14, 14, 0.55)',
+              background: 'var(--bg-elevated)',
               borderRadius: '10px',
               padding: '0.5rem 0.75rem',
               border: '1px solid var(--glass-border)',
@@ -549,7 +549,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                     borderRadius: '12px',
                     cursor: 'pointer',
                     marginBottom: '0.25rem',
-                    background: conv.unread_count > 0 ? 'rgba(220, 38, 38, 0.12)' : 'rgba(12, 12, 12, 0.35)',
+                    background: conv.unread_count > 0 ? 'rgba(220, 38, 38, 0.12)' : 'var(--bg-elevated)',
                     border: conv.unread_count > 0 ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid var(--glass-border)',
                     boxShadow: 'var(--shadow-glass)',
                     backdropFilter: 'blur(10px) saturate(120%)'
@@ -557,12 +557,12 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = conv.unread_count > 0
                       ? 'rgba(220, 38, 38, 0.2)'
-                      : 'rgba(18, 18, 18, 0.6)';
+                      : 'var(--bg-hover)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = conv.unread_count > 0
                       ? 'rgba(220, 38, 38, 0.12)'
-                      : 'rgba(12, 12, 12, 0.35)';
+                      : 'var(--bg-elevated)';
                   }}
                 >
                   {/* Avatar with status */}
@@ -689,7 +689,7 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
                       borderRadius: '50%',
                       background: member.status === 'online'
                         ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-                        : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+                        : 'linear-gradient(135deg, var(--text-tertiary) 0%, var(--text-disabled) 100%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

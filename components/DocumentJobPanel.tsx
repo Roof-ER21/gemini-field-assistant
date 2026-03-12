@@ -35,7 +35,7 @@ interface InputFieldProps {
 
 const FormInputField: React.FC<InputFieldProps> = ({ label, value, onChange, type = 'text', placeholder, required }) => (
   <div style={{ marginBottom: '1rem' }}>
-    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
+    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.375rem' }}>
       {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
     </label>
     <input
@@ -46,10 +46,10 @@ const FormInputField: React.FC<InputFieldProps> = ({ label, value, onChange, typ
       style={{
         width: '100%',
         padding: '0.75rem',
-        background: 'rgba(255, 255, 255, 0.05)',
+        background: 'var(--glass-highlight)',
         border: '1px solid rgba(255, 255, 255, 0.15)',
         borderRadius: '8px',
-        color: '#fff',
+        color: 'var(--text-primary)',
         fontSize: '0.9375rem',
       }}
     />
@@ -65,7 +65,7 @@ interface SelectFieldProps {
 
 const FormSelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, options }) => (
   <div style={{ marginBottom: '1rem' }}>
-    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.375rem' }}>
+    <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.375rem' }}>
       {label}
     </label>
     <select
@@ -74,16 +74,16 @@ const FormSelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, o
       style={{
         width: '100%',
         padding: '0.75rem',
-        background: 'rgba(255, 255, 255, 0.05)',
+        background: 'var(--glass-highlight)',
         border: '1px solid rgba(255, 255, 255, 0.15)',
         borderRadius: '8px',
-        color: '#fff',
+        color: 'var(--text-primary)',
         fontSize: '0.9375rem',
       }}
     >
-      <option value="" style={{ background: '#1a1a2e' }}>Select...</option>
+      <option value="" style={{ background: 'var(--bg-elevated)' }}>Select...</option>
       {options.map((opt) => (
-        <option key={opt.value} value={opt.value} style={{ background: '#1a1a2e' }}>{opt.label}</option>
+        <option key={opt.value} value={opt.value} style={{ background: 'var(--bg-elevated)' }}>{opt.label}</option>
       ))}
     </select>
   </div>
@@ -424,8 +424,8 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
 
   const renderPriorityBadge = (priority: Job['priority']) => {
     const colors = {
-      low: '#6b7280',
-      medium: '#a1a1aa',
+      low: 'var(--text-tertiary)',
+      medium: 'var(--text-tertiary)',
       high: '#f59e0b',
       urgent: '#ef4444',
     };
@@ -468,7 +468,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               setSelectedJobId(null);
             }}
             style={{
-              background: 'rgba(255, 255, 255, 0.2)',
+              background: 'var(--glass-border)',
               border: 'none',
               borderRadius: '8px',
               padding: '0.5rem',
@@ -477,19 +477,19 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               alignItems: 'center',
             }}
           >
-            <ArrowLeft style={{ width: '1.25rem', height: '1.25rem', color: '#fff' }} />
+            <ArrowLeft style={{ width: '1.25rem', height: '1.25rem', color: 'var(--text-primary)' }} />
           </button>
         )}
-        <Briefcase style={{ width: '1.5rem', height: '1.5rem', color: '#fff' }} />
+        <Briefcase style={{ width: '1.5rem', height: '1.5rem', color: 'var(--text-primary)' }} />
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600', color: '#fff' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)' }}>
             {viewMode === 'list' ? 'Job Manager' :
              viewMode === 'kanban' ? 'Job Pipeline' :
              viewMode === 'create' ? 'New Job' :
              viewMode === 'edit' ? 'Edit Job' :
              selectedJob?.jobNumber || 'Job Details'}
           </h2>
-          <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.8)' }}>
+          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             {viewMode === 'list' ? `${filteredJobs.length} jobs` :
              viewMode === 'kanban' ? 'Drag to change status' :
              viewMode === 'create' ? 'Fill in job details' :
@@ -504,7 +504,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'kanban' : 'list')}
               style={{
-                background: 'rgba(255, 255, 255, 0.2)',
+                background: 'var(--glass-border)',
                 border: 'none',
                 borderRadius: '8px',
                 padding: '0.5rem 0.75rem',
@@ -512,7 +512,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.875rem',
               }}
             >
@@ -543,14 +543,14 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
         <button
           onClick={onClose}
           style={{
-            background: 'rgba(255, 255, 255, 0.2)',
+            background: 'var(--glass-border)',
             border: 'none',
             borderRadius: '8px',
             padding: '0.5rem',
             cursor: 'pointer',
           }}
         >
-          <X style={{ width: '1.25rem', height: '1.25rem', color: '#fff' }} />
+          <X style={{ width: '1.25rem', height: '1.25rem', color: 'var(--text-primary)' }} />
         </button>
       </div>
     </div>
@@ -565,31 +565,31 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
       gap: '1rem',
       padding: '1rem 1.5rem',
       background: 'rgba(220, 38, 38, 0.05)',
-      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      borderBottom: '1px solid var(--border-subtle)',
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>{stats.total}</div>
-        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>Total Jobs</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total Jobs</div>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#a1a1aa' }}>
+        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-tertiary)' }}>
           {jobs.filter(j => JOB_STATUS_GROUPS.active.includes(j.status)).length}
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>Active</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active</div>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#ffffff' }}>
+        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
           {jobs.filter(j => JOB_STATUS_GROUPS.won.includes(j.status)).length}
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>Won</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Won</div>
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#f59e0b' }}>{stats.needsAction}</div>
-        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>Needs Action</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Needs Action</div>
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>{formatCurrency(stats.totalValue)}</div>
-        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>Pipeline Value</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Pipeline Value</div>
       </div>
     </div>
   );
@@ -617,7 +617,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             transform: 'translateY(-50%)',
             width: '1rem',
             height: '1rem',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'var(--text-disabled)',
           }} />
           <input
             type="text"
@@ -627,10 +627,10 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             style={{
               width: '100%',
               padding: '0.625rem 1rem 0.625rem 2.5rem',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--glass-highlight)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               borderRadius: '8px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '0.875rem',
             }}
           />
@@ -642,11 +642,11 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               onClick={() => setListFilter(filter)}
               style={{
                 padding: '0.5rem 1rem',
-                background: listFilter === filter ? '#dc2626' : 'rgba(255, 255, 255, 0.05)',
+                background: listFilter === filter ? '#dc2626' : 'var(--glass-highlight)',
                 border: '1px solid',
                 borderColor: listFilter === filter ? '#dc2626' : 'rgba(255, 255, 255, 0.15)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.8125rem',
                 fontWeight: listFilter === filter ? '600' : '400',
                 cursor: 'pointer',
@@ -674,7 +674,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           <div style={{
             textAlign: 'center',
             padding: '3rem',
-            color: 'rgba(255, 255, 255, 0.5)',
+            color: 'var(--text-tertiary)',
           }}>
             <Briefcase style={{ width: '3rem', height: '3rem', marginBottom: '1rem', opacity: 0.3 }} />
             <p>No jobs found</p>
@@ -686,7 +686,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 border: 'none',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontWeight: '600',
                 cursor: 'pointer',
               }}
@@ -701,30 +701,30 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 key={job.id}
                 onClick={() => handleViewJob(job.id)}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '12px',
                   padding: '1rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                  e.currentTarget.style.background = 'var(--bg-card)';
                   e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.3)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.background = 'var(--bg-elevated)';
+                  e.currentTarget.style.borderColor = 'var(--border-subtle)';
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>#{job.jobNumber}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>#{job.jobNumber}</span>
                       {renderStatusBadge(job.status, 'sm')}
                       {renderPriorityBadge(job.priority)}
                     </div>
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#fff' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                       {job.customer.name || 'No Name'}
                     </h3>
                   </div>
@@ -737,7 +737,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   )}
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <MapPin style={{ width: '0.875rem', height: '0.875rem' }} />
                     {job.property.address}, {job.property.city}
@@ -756,18 +756,18 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   )}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                     Updated {new Date(job.updatedAt).toLocaleDateString()}
                   </span>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {job.notes.length > 0 && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                         <FileText style={{ width: '0.75rem', height: '0.75rem' }} /> {job.notes.length}
                       </span>
                     )}
                     {job.attachments.length > 0 && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                         <Camera style={{ width: '0.75rem', height: '0.75rem' }} /> {job.attachments.length}
                       </span>
                     )}
@@ -776,7 +776,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                         <AlertCircle style={{ width: '0.75rem', height: '0.75rem' }} /> {job.actions.filter(a => !a.completed).length}
                       </span>
                     )}
-                    <ChevronRight style={{ width: '1rem', height: '1rem', color: 'rgba(255, 255, 255, 0.3)' }} />
+                    <ChevronRight style={{ width: '1rem', height: '1rem', color: 'var(--text-disabled)' }} />
                   </div>
                 </div>
               </div>
@@ -801,11 +801,11 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '1rem',
-          background: 'rgba(255, 255, 255, 0.03)',
+          background: 'var(--bg-elevated)',
           border: 'none',
           borderRadius: expandedSections.has(id) ? '12px 12px 0 0' : '12px',
           cursor: 'pointer',
-          color: '#fff',
+          color: 'var(--text-primary)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -832,9 +832,9 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
       expandedSections.has(id) ? (
         <div style={{
           padding: '1rem',
-          background: 'rgba(255, 255, 255, 0.02)',
+          background: 'var(--bg-card)',
           borderRadius: '0 0 12px 12px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          border: '1px solid var(--border-subtle)',
           borderTop: 'none',
         }}>
           {children}
@@ -843,12 +843,12 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
     );
 
     const InfoRow: React.FC<{ label: string; value?: string | number | null; icon?: React.ReactNode }> = ({ label, value, icon }) => (
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-        <span style={{ color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+        <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {icon}
           {label}
         </span>
-        <span style={{ color: '#fff', fontWeight: '500' }}>{value || '-'}</span>
+        <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{value || '-'}</span>
       </div>
     );
 
@@ -858,7 +858,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
         <div style={{
           padding: '1.5rem',
           background: 'rgba(220, 38, 38, 0.05)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid var(--border-subtle)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
             <div>
@@ -866,17 +866,17 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 {renderStatusBadge(selectedJob.status)}
                 {renderPriorityBadge(selectedJob.priority)}
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#fff' }}>
+              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                 {selectedJob.customer.name}
               </h2>
-              <p style={{ margin: '0.25rem 0 0', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <MapPin style={{ width: '1rem', height: '1rem' }} />
                 {selectedJob.property.address}, {selectedJob.property.city}, {selectedJob.property.state}
               </p>
             </div>
             {selectedJob.financials?.estimateAmount && (
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>Estimate</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Estimate</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>
                   {formatCurrency(selectedJob.financials.estimateAmount)}
                 </div>
@@ -891,10 +891,10 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                 padding: '0.5rem 1rem',
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'var(--glass-border)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.8125rem',
                 cursor: 'pointer',
               }}
@@ -910,7 +910,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   background: 'rgba(161, 161, 170, 0.2)',
                   border: '1px solid rgba(161, 161, 170, 0.3)',
                   borderRadius: '8px',
-                  color: '#a1a1aa',
+                  color: 'var(--text-tertiary)',
                   fontSize: '0.8125rem',
                   textDecoration: 'none',
                 }}
@@ -949,7 +949,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 border: 'none',
                 borderRadius: '12px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.875rem',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -967,7 +967,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                 border: 'none',
                 borderRadius: '12px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.875rem',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -985,7 +985,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'rgba(113, 113, 122, 0.2)',
                 border: '1px solid rgba(113, 113, 122, 0.3)',
                 borderRadius: '12px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.875rem',
                 fontWeight: '500',
                 cursor: 'pointer',
@@ -1002,7 +1002,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'rgba(113, 113, 122, 0.2)',
                 border: '1px solid rgba(113, 113, 122, 0.3)',
                 borderRadius: '12px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.875rem',
                 fontWeight: '500',
                 cursor: 'pointer',
@@ -1019,7 +1019,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {/* Status Change */}
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                 Change Status
               </label>
               <select
@@ -1028,15 +1028,15 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'var(--glass-highlight)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   borderRadius: '8px',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   fontSize: '0.875rem',
                 }}
               >
                 {JOB_PIPELINE_STAGES.map((stage) => (
-                  <option key={stage.id} value={stage.id} style={{ background: '#1a1a2e' }}>
+                  <option key={stage.id} value={stage.id} style={{ background: 'var(--bg-elevated)' }}>
                     {stage.label}
                   </option>
                 ))}
@@ -1053,7 +1053,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             </SectionContent>
 
             {/* Property Section */}
-            <SectionHeader id="property" title="Property Details" icon={<Home style={{ width: '1.25rem', height: '1.25rem', color: '#a1a1aa' }} />} />
+            <SectionHeader id="property" title="Property Details" icon={<Home style={{ width: '1.25rem', height: '1.25rem', color: 'var(--text-tertiary)' }} />} />
             <SectionContent id="property">
               <InfoRow label="Address" value={selectedJob.property.address} icon={<MapPin style={{ width: '1rem', height: '1rem' }} />} />
               <InfoRow label="City" value={selectedJob.property.city} />
@@ -1063,8 +1063,8 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               <InfoRow label="Stories" value={selectedJob.property.stories} />
               {selectedJob.property.accessNotes && (
                 <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: 'rgba(161, 161, 170, 0.1)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Access Notes:</span>
-                  <p style={{ margin: '0.25rem 0 0', color: '#fff', fontSize: '0.875rem' }}>{selectedJob.property.accessNotes}</p>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Access Notes:</span>
+                  <p style={{ margin: '0.25rem 0 0', color: 'var(--text-primary)', fontSize: '0.875rem' }}>{selectedJob.property.accessNotes}</p>
                 </div>
               )}
             </SectionContent>
@@ -1072,7 +1072,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             {/* Insurance Section */}
             {selectedJob.insurance && (
               <>
-                <SectionHeader id="insurance" title="Insurance Claim" icon={<Shield style={{ width: '1.25rem', height: '1.25rem', color: '#71717a' }} />} />
+                <SectionHeader id="insurance" title="Insurance Claim" icon={<Shield style={{ width: '1.25rem', height: '1.25rem', color: 'var(--text-tertiary)' }} />} />
                 <SectionContent id="insurance">
                   <InfoRow label="Company" value={selectedJob.insurance.company} />
                   <InfoRow label="Claim #" value={selectedJob.insurance.claimNumber} />
@@ -1087,7 +1087,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             )}
 
             {/* Notes Section */}
-            <SectionHeader id="notes" title="Notes" icon={<FileText style={{ width: '1.25rem', height: '1.25rem', color: '#a1a1aa' }} />} count={selectedJob.notes.length} />
+            <SectionHeader id="notes" title="Notes" icon={<FileText style={{ width: '1.25rem', height: '1.25rem', color: 'var(--text-tertiary)' }} />} count={selectedJob.notes.length} />
             <SectionContent id="notes">
               <NoteInput onAdd={(text) => handleAddNote(selectedJob.id, text)} />
               {selectedJob.notes.length > 0 ? (
@@ -1103,12 +1103,12 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   {selectedJob.notes.map((note) => (
                     <div key={note.id} style={{
                       padding: '0.75rem',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'var(--bg-elevated)',
                       borderRadius: '8px',
                       borderLeft: '3px solid #dc2626',
                     }}>
-                      <p style={{ margin: 0, color: '#fff', fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>{note.text}</p>
-                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                      <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>{note.text}</p>
+                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                         <span>{note.author}</span>
                         <span>{new Date(note.createdAt).toLocaleString()}</span>
                       </div>
@@ -1116,7 +1116,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   ))}
                 </div>
               ) : (
-                <p style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.875rem', marginTop: '0.5rem' }}>No notes yet</p>
+                <p style={{ color: 'var(--text-disabled)', fontSize: '0.875rem', marginTop: '0.5rem' }}>No notes yet</p>
               )}
             </SectionContent>
 
@@ -1143,7 +1143,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                         alignItems: 'center',
                         gap: '0.75rem',
                         padding: '0.75rem',
-                        background: action.completed ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255, 255, 255, 0.03)',
+                        background: action.completed ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-elevated)',
                         borderRadius: '8px',
                         cursor: 'pointer',
                       }}
@@ -1152,24 +1152,24 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                         width: '1.25rem',
                         height: '1.25rem',
                         borderRadius: '4px',
-                        border: action.completed ? 'none' : '2px solid rgba(255, 255, 255, 0.3)',
-                        background: action.completed ? '#71717a' : 'transparent',
+                        border: action.completed ? 'none' : '2px solid var(--border-default)',
+                        background: action.completed ? 'var(--text-tertiary)' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        {action.completed && <CheckCircle2 style={{ width: '1rem', height: '1rem', color: '#fff' }} />}
+                        {action.completed && <CheckCircle2 style={{ width: '1rem', height: '1rem', color: 'var(--text-primary)' }} />}
                       </div>
                       <span style={{
                         flex: 1,
-                        color: action.completed ? 'rgba(255, 255, 255, 0.4)' : '#fff',
+                        color: action.completed ? 'var(--text-disabled)' : 'var(--text-primary)',
                         textDecoration: action.completed ? 'line-through' : 'none',
                         fontSize: '0.875rem',
                       }}>
                         {action.description}
                       </span>
                       {action.dueDate && (
-                        <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                           {new Date(action.dueDate).toLocaleDateString()}
                         </span>
                       )}
@@ -1177,7 +1177,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   ))}
                 </div>
               ) : (
-                <p style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.875rem', marginTop: '0.5rem' }}>No action items</p>
+                <p style={{ color: 'var(--text-disabled)', fontSize: '0.875rem', marginTop: '0.5rem' }}>No action items</p>
               )}
             </SectionContent>
           </div>
@@ -1230,7 +1230,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             padding: '1.25rem',
             marginBottom: '1.5rem',
           }}>
-            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a1a1aa', fontSize: '1rem' }}>
+            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-tertiary)', fontSize: '1rem' }}>
               <Home style={{ width: '1.25rem', height: '1.25rem' }} /> Property Details
             </h3>
             <FormInputField label="Street Address" value={editingJob.property?.address} onChange={(v) => updateJobField('property.address', v)} placeholder="123 Main Street" required />
@@ -1258,7 +1258,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             padding: '1.25rem',
             marginBottom: '1.5rem',
           }}>
-            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#71717a', fontSize: '1rem' }}>
+            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-tertiary)', fontSize: '1rem' }}>
               <Briefcase style={{ width: '1.25rem', height: '1.25rem' }} /> Job Details
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
@@ -1303,7 +1303,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             padding: '1.25rem',
             marginBottom: '1.5rem',
           }}>
-            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a1a1aa', fontSize: '1rem' }}>
+            <h3 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-tertiary)', fontSize: '1rem' }}>
               <Shield style={{ width: '1.25rem', height: '1.25rem' }} /> Insurance (Optional)
             </h3>
             <FormSelectField
@@ -1333,7 +1333,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <h3 style={{ margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontSize: '1.125rem', fontWeight: '700' }}>
               <FileText style={{ width: '1.25rem', height: '1.25rem' }} /> Job Notes
             </h3>
-            <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
               Notes are saved with the job. Add damage details, customer requests, next steps, etc.
             </p>
             <textarea
@@ -1362,7 +1362,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                 background: 'rgba(0, 0, 0, 0.3)',
                 border: '1px solid rgba(220, 38, 38, 0.3)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.9375rem',
                 lineHeight: '1.5',
                 resize: 'vertical',
@@ -1373,9 +1373,9 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             <div style={{
               marginTop: '1.25rem',
               paddingTop: '1rem',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              borderTop: '1px solid var(--border-subtle)',
             }}>
-              <p style={{ margin: '0 0 0.75rem', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.75rem', color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Optional: Get AI Help
               </p>
             </div>
@@ -1408,7 +1408,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                   border: 'none',
                   borderRadius: '10px',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   fontSize: '0.875rem',
                   fontWeight: '600',
                   cursor: 'pointer',
@@ -1443,7 +1443,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                   background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                   border: 'none',
                   borderRadius: '10px',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   fontSize: '0.875rem',
                   fontWeight: '600',
                   cursor: 'pointer',
@@ -1460,10 +1460,10 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
         {/* Save Button - Sticky Footer */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           gap: '1rem',
-          background: 'linear-gradient(to top, rgba(26, 26, 46, 1) 0%, rgba(26, 26, 46, 0.98) 100%)',
+          background: 'var(--bg-secondary)',
           position: 'sticky',
           bottom: 0,
           zIndex: 100,
@@ -1476,10 +1476,10 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
             style={{
               flex: 1,
               padding: '0.875rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'var(--glass-highlight)',
+              border: '1px solid var(--border-default)',
               borderRadius: '12px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '1rem',
               fontWeight: '600',
               cursor: 'pointer',
@@ -1495,7 +1495,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
               background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
               border: 'none',
               borderRadius: '12px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '1rem',
               fontWeight: '700',
               cursor: 'pointer',
@@ -1519,12 +1519,12 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
   const renderKanbanView = () => {
     // Group jobs by main status categories
     const stages = [
-      { id: 'leads', label: 'Leads', statuses: ['new_lead', 'contacted'], color: '#71717a' },
-      { id: 'inspection', label: 'Inspection', statuses: ['inspection_scheduled', 'inspection_complete'], color: '#a1a1aa' },
-      { id: 'estimate', label: 'Estimate', statuses: ['estimate_sent', 'follow_up'], color: '#d4d4d8' },
+      { id: 'leads', label: 'Leads', statuses: ['new_lead', 'contacted'], color: 'var(--text-tertiary)' },
+      { id: 'inspection', label: 'Inspection', statuses: ['inspection_scheduled', 'inspection_complete'], color: 'var(--text-tertiary)' },
+      { id: 'estimate', label: 'Estimate', statuses: ['estimate_sent', 'follow_up'], color: 'var(--text-secondary)' },
       { id: 'sold', label: 'Sold', statuses: ['contract_signed', 'insurance_filed', 'adjuster_scheduled', 'adjuster_complete', 'supplement_requested', 'approved'], color: '#dc2626' },
       { id: 'production', label: 'Production', statuses: ['materials_ordered', 'scheduled', 'in_progress'], color: '#ef4444' },
-      { id: 'complete', label: 'Complete', statuses: ['complete', 'invoiced', 'paid'], color: '#ffffff' },
+      { id: 'complete', label: 'Complete', statuses: ['complete', 'invoiced', 'paid'], color: 'var(--text-primary)' },
     ];
 
     return (
@@ -1552,21 +1552,21 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                     flexShrink: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--bg-elevated)',
                     borderRadius: '12px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid var(--border-subtle)',
                   }}
                 >
                   <div style={{
                     padding: '1rem',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: stage.color }} />
-                      <span style={{ fontWeight: '600', color: '#fff' }}>{stage.label}</span>
+                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{stage.label}</span>
                     </div>
                     <span style={{
                       padding: '2px 8px',
@@ -1592,7 +1592,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                         key={job.id}
                         onClick={() => handleViewJob(job.id)}
                         style={{
-                          background: 'rgba(255, 255, 255, 0.05)',
+                          background: 'var(--glass-highlight)',
                           borderRadius: '8px',
                           padding: '0.75rem',
                           cursor: 'pointer',
@@ -1601,17 +1601,17 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.borderColor = stage.color;
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          e.currentTarget.style.background = 'var(--glass-border)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = 'transparent';
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.background = 'var(--glass-highlight)';
                         }}
                       >
-                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#fff', marginBottom: '0.25rem' }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                           {job.customer.name}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
                           {job.property.address}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1644,7 +1644,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      background: 'var(--bg-primary, #0a0a0a)',
+      background: 'var(--bg-primary)',
     }}>
       <div className="roof-er-content-scroll" style={{
         width: '100%',
@@ -1687,10 +1687,10 @@ const NoteInput: React.FC<{ onAdd: (text: string) => void }> = ({ onAdd }) => {
         style={{
           flex: 1,
           padding: '0.625rem 0.875rem',
-          background: 'rgba(255, 255, 255, 0.05)',
+          background: 'var(--glass-highlight)',
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: '8px',
-          color: '#fff',
+          color: 'var(--text-primary)',
           fontSize: '0.875rem',
         }}
       />
@@ -1699,10 +1699,10 @@ const NoteInput: React.FC<{ onAdd: (text: string) => void }> = ({ onAdd }) => {
         disabled={!text.trim()}
         style={{
           padding: '0.625rem 1rem',
-          background: text.trim() ? '#dc2626' : 'rgba(255, 255, 255, 0.1)',
+          background: text.trim() ? '#dc2626' : 'var(--glass-border)',
           border: 'none',
           borderRadius: '8px',
-          color: '#fff',
+          color: 'var(--text-primary)',
           cursor: text.trim() ? 'pointer' : 'not-allowed',
           display: 'flex',
           alignItems: 'center',
@@ -1735,10 +1735,10 @@ const ActionInput: React.FC<{ onAdd: (desc: string) => void }> = ({ onAdd }) => 
         style={{
           flex: 1,
           padding: '0.625rem 0.875rem',
-          background: 'rgba(255, 255, 255, 0.05)',
+          background: 'var(--glass-highlight)',
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: '8px',
-          color: '#fff',
+          color: 'var(--text-primary)',
           fontSize: '0.875rem',
         }}
       />
@@ -1747,10 +1747,10 @@ const ActionInput: React.FC<{ onAdd: (desc: string) => void }> = ({ onAdd }) => 
         disabled={!desc.trim()}
         style={{
           padding: '0.625rem 1rem',
-          background: desc.trim() ? '#dc2626' : 'rgba(255, 255, 255, 0.1)',
+          background: desc.trim() ? '#dc2626' : 'var(--glass-border)',
           border: 'none',
           borderRadius: '8px',
-          color: '#fff',
+          color: 'var(--text-primary)',
           cursor: desc.trim() ? 'pointer' : 'not-allowed',
           display: 'flex',
           alignItems: 'center',

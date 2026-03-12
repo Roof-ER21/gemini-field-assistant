@@ -241,7 +241,7 @@ const LearningDashboard: React.FC = () => {
                 padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
                 border: windowDays === w.value ? '1px solid rgba(220,38,38,0.7)' : '1px solid rgba(255,255,255,0.1)',
-                background: windowDays === w.value ? 'rgba(220,38,38,0.2)' : 'rgba(20,20,20,0.5)',
+                background: windowDays === w.value ? 'rgba(220,38,38,0.2)' : 'var(--bg-elevated)',
                 color: 'var(--text-primary)',
                 cursor: 'pointer',
                 fontSize: '0.85rem'
@@ -265,7 +265,7 @@ const LearningDashboard: React.FC = () => {
         {summary && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
                   <TrendingUp className="w-4 h-4" style={{ color: '#22c55e' }} />
                   <span style={{ fontWeight: 600 }}>Working</span>
@@ -273,7 +273,7 @@ const LearningDashboard: React.FC = () => {
                 <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{positiveTotal || 0}</div>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>total positive tags</div>
               </div>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
                   <TrendingDown className="w-4 h-4" style={{ color: '#f87171' }} />
                   <span style={{ fontWeight: 600 }}>Needs Work</span>
@@ -284,7 +284,7 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Weekly Insight</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
                   {weekly.total_last7 || 0} feedback
@@ -293,7 +293,7 @@ const LearningDashboard: React.FC = () => {
                   {weeklyTrend === 'up' ? '▲' : weeklyTrend === 'down' ? '▼' : '•'} {Math.abs(weeklyDelta)} vs prior 7 days
                 </div>
               </div>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Window Totals</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
                   {totals.total_window || 0} entries
@@ -305,7 +305,7 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Top “Working” Tags</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                   {(summary.positive_tags || []).slice(0, 8).map((t: any) => (
@@ -329,7 +329,7 @@ const LearningDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Top “Needs Work” Tags</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                   {(summary.negative_tags || []).slice(0, 8).map((t: any) => (
@@ -355,7 +355,7 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Working Tag Clusters</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {positiveClusters.slice(0, 6).map((cluster) => (
@@ -370,7 +370,7 @@ const LearningDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Needs Work Clusters</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {negativeClusters.slice(0, 6).map((cluster) => (
@@ -387,7 +387,7 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Recent Wins</div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
                   {(summary.recent_wins || []).slice(0, 6).map((w: any, idx: number) => (
@@ -401,7 +401,7 @@ const LearningDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Recent Issues</div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
                   {(summary.recent_issues || []).slice(0, 6).map((w: any, idx: number) => (
@@ -417,7 +417,7 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Your Memory</div>
                 {memoryLoading && (
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading memories...</div>
@@ -428,7 +428,7 @@ const LearningDashboard: React.FC = () => {
                 {!memoryLoading && memories.length > 0 && (
                   <div style={{ display: 'grid', gap: '0.6rem' }}>
                     {memories.map((memory) => (
-                      <div key={memory.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.6rem' }}>
+                      <div key={memory.id} style={{ border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '0.6rem' }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                           {memory.category} · {memory.memory_type} · {Math.round((memory.confidence || 0) * 100)}%
                         </div>
@@ -496,7 +496,7 @@ const LearningDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Global Learnings (Approved)</div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
                   {globalLearnings.length === 0 && (
@@ -512,8 +512,8 @@ const LearningDashboard: React.FC = () => {
                             width: '100%',
                             minHeight: '70px',
                             borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            background: 'rgba(12,12,12,0.55)',
+                            border: '1px solid var(--glass-border)',
+                            background: 'var(--bg-secondary)',
                             color: 'var(--text-primary)',
                             padding: '0.5rem',
                             fontSize: '0.8rem'
@@ -598,14 +598,14 @@ const LearningDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Outcome Follow-ups</div>
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {followups.length === 0 && (
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No follow-ups due</span>
                   )}
                   {followups.map((f: any) => (
-                    <div key={f.feedback_id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
+                    <div key={f.feedback_id} style={{ border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '0.65rem' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                         Due {new Date(f.due_at).toLocaleDateString()}
                       </div>
@@ -620,8 +620,8 @@ const LearningDashboard: React.FC = () => {
                             style={{
                               padding: '0.25rem 0.6rem',
                               borderRadius: '999px',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              background: 'rgba(12,12,12,0.5)',
+                              border: '1px solid var(--glass-border)',
+                              background: 'var(--bg-secondary)',
                               color: 'var(--text-primary)',
                               fontSize: '0.7rem',
                               cursor: 'pointer'
@@ -639,8 +639,8 @@ const LearningDashboard: React.FC = () => {
                           width: '100%',
                           padding: '0.4rem 0.6rem',
                           borderRadius: '8px',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          background: 'rgba(12,12,12,0.45)',
+                          border: '1px solid var(--glass-border)',
+                          background: 'var(--bg-secondary)',
                           color: 'var(--text-primary)',
                           fontSize: '0.75rem'
                         }}
@@ -652,14 +652,14 @@ const LearningDashboard: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <div style={{ background: 'rgba(16,16,16,0.6)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '1rem' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '14px', border: '1px solid var(--glass-border)', padding: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Admin: Ready for Approval</div>
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {pendingCandidates.length === 0 && (
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No candidates ready yet</span>
                   )}
                   {pendingCandidates.map((c: any) => (
-                    <div key={c.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '0.65rem' }}>
+                    <div key={c.id} style={{ border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '0.65rem' }}>
                       {editingId === c.id ? (
                         <textarea
                           value={editingContent[c.id] ?? c.content}
@@ -668,8 +668,8 @@ const LearningDashboard: React.FC = () => {
                             width: '100%',
                             minHeight: '70px',
                             borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            background: 'rgba(12,12,12,0.55)',
+                            border: '1px solid var(--glass-border)',
+                            background: 'var(--bg-secondary)',
                             color: 'var(--text-primary)',
                             padding: '0.5rem',
                             fontSize: '0.8rem',
@@ -777,8 +777,8 @@ const LearningDashboard: React.FC = () => {
                             style={{
                               padding: '0.3rem 0.5rem',
                               borderRadius: '8px',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              background: hasMergeTargets(c.id) ? 'rgba(12,12,12,0.6)' : 'rgba(12,12,12,0.35)',
+                              border: '1px solid var(--glass-border)',
+                              background: hasMergeTargets(c.id) ? 'var(--bg-elevated)' : 'var(--bg-secondary)',
                               color: hasMergeTargets(c.id) ? 'var(--text-secondary)' : 'var(--text-tertiary)',
                               fontSize: '0.7rem'
                             }}

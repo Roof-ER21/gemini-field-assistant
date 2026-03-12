@@ -166,7 +166,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                 </p>
               ))}
             </div>
-            <div className="mt-12 px-6 py-3 bg-gradient-to-r from-[#e94560] to-[#ff6b88] rounded-full">
+            <div className="mt-12 px-6 py-3 bg-gradient-to-r from-[#c41e3a] to-[#9b1830] rounded-full">
               <p className="text-white font-semibold">
                 {slides.length - 1} Findings Documented
               </p>
@@ -186,7 +186,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                   className="w-full h-full object-contain bg-black"
                 />
                 {slide.analysis?.insuranceRelevant && (
-                  <div className="absolute top-4 right-4 px-4 py-2 bg-[#e94560] rounded-full flex items-center gap-2">
+                  <div className="absolute top-4 right-4 px-4 py-2 bg-[#c41e3a] rounded-full flex items-center gap-2">
                     <Shield className="w-5 h-5 text-white" />
                     <span className="text-sm font-bold text-white">INSURANCE CLAIM</span>
                   </div>
@@ -231,7 +231,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                   <ul className="space-y-2">
                     {slide.analysis.recommendations.slice(0, 3).map((rec, idx) => (
                       <li key={idx} className="flex items-start gap-3 text-white/80">
-                        <span className="text-[#e94560] font-bold text-lg flex-shrink-0">{idx + 1}.</span>
+                        <span className="text-[#c41e3a] font-bold text-lg flex-shrink-0">{idx + 1}.</span>
                         <span className="text-base">{rec}</span>
                       </li>
                     ))}
@@ -252,7 +252,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                   <div key={idx} className="mb-4 animate-fade-in" style={{ animationDelay: `${idx * 100}ms` }}>
                     {line.startsWith('•') ? (
                       <div className="flex items-center gap-4">
-                        <div className="w-3 h-3 rounded-full bg-[#e94560]" />
+                        <div className="w-3 h-3 rounded-full bg-[#c41e3a]" />
                         <span>{line.substring(1).trim()}</span>
                       </div>
                     ) : (
@@ -277,7 +277,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                   style={{ animationDelay: `${idx * 100}ms` }}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#e94560] to-[#ff6b88] flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#c41e3a] to-[#9b1830] flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
                       {idx + 1}
                     </div>
                     <p className="text-lg text-white/90 leading-relaxed flex-grow">{rec}</p>
@@ -355,7 +355,7 @@ export const InspectionPresenter: React.FC<InspectionPresenterProps> = ({
                 onClick={() => setCurrentSlide(idx)}
                 className={`w-2 h-2 rounded-full transition-all ${
                   idx === currentSlide
-                    ? 'bg-[#e94560] w-8'
+                    ? 'bg-[#c41e3a] w-8'
                     : 'bg-white/30 hover:bg-white/50'
                 }`}
               />

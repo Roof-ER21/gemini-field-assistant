@@ -223,9 +223,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     height: '52px',
     padding: '0 16px',
     fontSize: '16px',
-    color: '#ffffff',
-    background: '#171717',
-    border: '1px solid #262626',
+    color: 'var(--text-primary)',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-subtle)',
     borderRadius: '12px',
     outline: 'none',
     transition: 'border-color 0.2s, box-shadow 0.2s',
@@ -236,7 +236,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     display: 'block',
     fontSize: '14px',
     fontWeight: '500',
-    color: '#a1a1aa',
+    color: 'var(--text-tertiary)',
     marginBottom: '8px'
   };
 
@@ -248,7 +248,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     color: '#ffffff',
     background: loading
       ? '#4b1818'
-      : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+      : 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
     border: 'none',
     borderRadius: '12px',
     cursor: loading ? 'not-allowed' : 'pointer',
@@ -256,17 +256,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
-    boxShadow: loading ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)',
+    boxShadow: loading ? 'none' : '0 4px 16px rgba(196, 30, 58, 0.35)',
     transition: 'all 0.2s'
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = '#dc2626';
-    e.target.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+    e.target.style.borderColor = '#c41e3a';
+    e.target.style.boxShadow = '0 0 0 3px rgba(196, 30, 58, 0.15)';
   };
 
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = '#262626';
+    e.target.style.borderColor = 'var(--border-subtle)';
     e.target.style.boxShadow = 'none';
   };
 
@@ -277,8 +277,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         padding: '12px 14px',
         marginBottom: '16px',
         borderRadius: '10px',
-        background: 'rgba(220, 38, 38, 0.1)',
-        border: '1px solid rgba(220, 38, 38, 0.3)',
+        background: 'rgba(196, 30, 58, 0.1)',
+        border: '1px solid rgba(196, 30, 58, 0.3)',
         fontSize: '13px',
         color: '#f87171'
       }}
@@ -299,7 +299,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         marginBottom: '20px',
         padding: '0',
         fontSize: '14px',
-        color: '#71717a',
+        color: 'var(--text-tertiary)',
         background: 'transparent',
         border: 'none',
         cursor: 'pointer'
@@ -327,8 +327,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           width: '22px',
           height: '22px',
           borderRadius: '6px',
-          background: rememberMe ? '#dc2626' : '#262626',
-          border: rememberMe ? 'none' : '2px solid #404040',
+          background: rememberMe ? '#c41e3a' : 'var(--bg-card)',
+          border: rememberMe ? 'none' : '2px solid var(--border-default)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -344,8 +344,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         )}
       </div>
       <div>
-        <span style={{ fontSize: '14px', color: '#ffffff' }}>Remember me</span>
-        <p style={{ fontSize: '12px', color: '#71717a', margin: '2px 0 0 0' }}>
+        <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Remember me</span>
+        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: '2px 0 0 0' }}>
           Stay logged in for 1 year
         </p>
       </div>
@@ -357,7 +357,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       style={{
         minHeight: '100dvh',
         width: '100%',
-        background: '#000000',
+        background: 'var(--bg-primary)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -373,9 +373,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         style={{
           width: '100%',
           maxWidth: '360px',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '20px',
-          border: '1px solid #262626',
+          border: '1px solid var(--border-subtle)',
           padding: '32px 24px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)'
         }}
@@ -389,7 +389,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               margin: '0 auto 16px',
               borderRadius: '20px',
               overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(220, 38, 38, 0.3)'
+              boxShadow: '0 8px 24px rgba(196, 30, 58, 0.3)'
             }}
           >
             <img
@@ -402,42 +402,34 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 padding: '8px'
               }}
               onError={(e) => {
-                e.currentTarget.parentElement!.style.background = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
+                e.currentTarget.parentElement!.style.background = 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)';
                 e.currentTarget.style.display = 'none';
               }}
             />
           </div>
-          {/* S21 above ROOF ER */}
-          <div
-            style={{
-              fontSize: '20px',
-              fontWeight: '700',
-              color: '#dc2626',
-              letterSpacing: '0.1em',
-              marginBottom: '4px'
-            }}
-          >
-            S21
-          </div>
+          {/* RoofER brand lockup */}
           <h1
             style={{
               fontSize: '32px',
               fontWeight: '700',
-              margin: '0 0 6px 0',
-              letterSpacing: '-0.02em'
+              margin: '0 0 4px 0',
+              letterSpacing: '0.06em',
+              fontFamily: "'Rajdhani', ui-sans-serif, system-ui, sans-serif"
             }}
           >
-            <span style={{ color: '#ffffff' }}>ROOF</span>
-            <span style={{ color: '#dc2626' }}> ER</span>
+            <span style={{ color: 'var(--text-primary)' }}>Roof</span>
+            <span style={{ color: '#c41e3a' }}>ER</span>
           </h1>
           <p
             style={{
-              fontSize: '14px',
-              color: '#71717a',
-              margin: 0
+              fontSize: '13px',
+              color: 'var(--text-tertiary)',
+              margin: 0,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase'
             }}
           >
-            The Roof Docs AI Assistant
+            Mobile Command Center
           </p>
         </div>
 
@@ -457,7 +449,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
               />
-              <p style={{ fontSize: '12px', color: '#52525b', margin: '8px 0 0 0' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-disabled)', margin: '8px 0 0 0' }}>
                 Use your @theroofdocs.com email
               </p>
             </div>
@@ -488,21 +480,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   height: '64px',
                   margin: '0 auto 12px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  background: 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '24px',
                   fontWeight: '700',
-                  color: '#ffffff'
+                  color: 'var(--text-primary)'
                 }}
               >
                 {existingUserName.charAt(0).toUpperCase() || email.charAt(0).toUpperCase()}
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff', margin: '0 0 4px 0' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
                 Welcome back{existingUserName ? `, ${existingUserName.split(' ')[0]}` : ''}!
               </h2>
-              <p style={{ fontSize: '14px', color: '#71717a', margin: 0 }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>
                 {email}
               </p>
             </div>
@@ -541,10 +533,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               >
                 <UserPlus style={{ width: '28px', height: '28px', color: '#ffffff' }} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff', margin: '0 0 4px 0' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
                 Create Your Account
               </h2>
-              <p style={{ fontSize: '14px', color: '#71717a', margin: 0 }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>
                 {email}
               </p>
             </div>
@@ -585,10 +577,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             {renderBackButton()}
 
             <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <p style={{ fontSize: '14px', color: '#a1a1aa', margin: '0 0 4px 0' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '0 0 4px 0' }}>
                 {isSignup ? 'Creating account for' : 'Logging in as'}
               </p>
-              <p style={{ fontSize: '15px', fontWeight: '600', color: '#dc2626', margin: 0 }}>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#c41e3a', margin: 0 }}>
                 {email}
               </p>
             </div>
@@ -598,16 +590,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 padding: '16px',
                 marginBottom: '20px',
                 borderRadius: '12px',
-                background: '#171717',
-                border: '1px solid #262626',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
                 textAlign: 'center'
               }}
             >
-              <Mail style={{ width: '32px', height: '32px', color: '#dc2626', margin: '0 auto 8px' }} />
-              <p style={{ fontSize: '14px', color: '#ffffff', margin: '0 0 4px 0' }}>
+              <Mail style={{ width: '32px', height: '32px', color: '#c41e3a', margin: '0 auto 8px' }} />
+              <p style={{ fontSize: '14px', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
                 Check your email
               </p>
-              <p style={{ fontSize: '12px', color: '#71717a', margin: 0 }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>
                 We sent a 6-digit code to your inbox
               </p>
             </div>
@@ -644,9 +636,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 ...buttonStyle,
                 background: loading || code.length < 6
                   ? '#4b1818'
-                  : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  : 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
                 cursor: loading || code.length < 6 ? 'not-allowed' : 'pointer',
-                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(220, 38, 38, 0.35)'
+                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(196, 30, 58, 0.35)'
               }}
             >
               {loading ? 'Verifying...' : (
@@ -672,7 +664,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 marginTop: '12px',
                 padding: '10px',
                 fontSize: '13px',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 background: 'transparent',
                 border: 'none',
                 cursor: loading ? 'not-allowed' : 'pointer'
@@ -687,9 +679,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         {step === 'email' && (
           <div style={{ marginTop: '16px', textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <div style={{ flex: 1, height: '1px', background: '#262626' }} />
-              <span style={{ fontSize: '12px', color: '#52525b' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: '#262626' }} />
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
             </div>
             <button
               type="button"
@@ -700,9 +692,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 height: '48px',
                 fontSize: '15px',
                 fontWeight: '500',
-                color: '#a1a1aa',
-                background: '#171717',
-                border: '1px solid #262626',
+                color: 'var(--text-tertiary)',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '12px',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 display: 'flex',
@@ -723,14 +715,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           style={{
             marginTop: '24px',
             paddingTop: '20px',
-            borderTop: '1px solid #1a1a1a',
+            borderTop: '1px solid var(--bg-elevated)',
             textAlign: 'center'
           }}
         >
-          <p style={{ fontSize: '13px', color: '#52525b', margin: '0 0 4px 0' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-disabled)', margin: '0 0 4px 0' }}>
             ROOF-ER S21 - The Roof Docs
           </p>
-          <p style={{ fontSize: '11px', color: '#3f3f46', margin: '0 0 12px 0' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-disabled)', margin: '0 0 12px 0' }}>
             Secure email authentication
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
@@ -739,7 +731,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               onClick={() => setShowLegal('privacy')}
               style={{
                 fontSize: '11px',
-                color: '#52525b',
+                color: 'var(--text-disabled)',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -753,7 +745,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               onClick={() => setShowLegal('terms')}
               style={{
                 fontSize: '11px',
-                color: '#52525b',
+                color: 'var(--text-disabled)',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',

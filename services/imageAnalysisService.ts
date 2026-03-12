@@ -131,7 +131,7 @@ FORMAT YOUR RESPONSE AS JSON:
 REMEMBER: You're helping document a CLAIM, not make a SALE. Focus on coverage, not upgrades.`;
 
   const response = await genAI.models.generateContent({
-    model: 'gemini-2.0-flash-exp', // Vision-capable model
+    model: 'gemini-2.0-flash', // Vision-capable model
     contents: [
       {
         role: 'user',
@@ -249,7 +249,7 @@ FORMAT YOUR RESPONSE AS JSON:
 }`;
 
   const response = await genAI.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.0-flash',
     contents: prompt,
   });
   const text = response.text ?? '';

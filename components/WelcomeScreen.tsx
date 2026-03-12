@@ -171,10 +171,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
           {/* Title */}
           <div className="space-y-4 s21-card-glass inline-block text-left">
-            <motion.h1 variants={itemVariants} className="s21-header-title">ROOFER S21</motion.h1>
-            <div className="s21-header-subtitle">The Roof Docs</div>
+            <motion.h1 variants={itemVariants} className="s21-header-title" style={{ fontFamily: "'Rajdhani', ui-sans-serif, sans-serif", letterSpacing: '0.06em' }}>
+              <span style={{ color: 'var(--text-primary)' }}>MOBILE</span>
+              <span style={{ color: '#c41e3a' }}> COMMAND</span>
+              <span style={{ color: 'var(--text-primary)' }}> CENTER</span>
+            </motion.h1>
+            <div className="s21-header-subtitle">RoofER Field Operations</div>
             <motion.p variants={itemVariants} className="text-lg text-[color:var(--s21-text-secondary)] max-w-2xl">
-              Your premium AI-powered assistant with Egyptian-themed intelligence, designed for storm restoration professionals.
+              Your AI-powered mobile operations hub for roofing field reps, techs, and subs.
             </motion.p>
           </div>
 
@@ -189,12 +193,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
                 <motion.div
                   key={cap.label}
                   whileHover={{ scale: 1.05, y: -5 }}
-                  className="flex items-center gap-3 px-6 py-3 rounded-xl bg-[#0a0a0a] border border-[#262626] shadow-md"
+                  className="flex items-center gap-3 px-6 py-3 rounded-xl border shadow-md" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-subtle)' }}
                 >
-                  <Icon className="h-5 w-5 text-[#dc2626]" strokeWidth={2} />
+                  <Icon className="h-5 w-5 text-[#c41e3a]" strokeWidth={2} />
                   <div className="text-left">
-                    <div className="text-xs text-[#a1a1aa] font-medium">{cap.label}</div>
-                    <div className="text-sm font-bold text-[#ffffff]">{cap.count}</div>
+                    <div className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>{cap.label}</div>
+                    <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{cap.count}</div>
                   </div>
                 </motion.div>
               );
@@ -204,7 +208,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
         {/* Features Grid */}
         <motion.div variants={itemVariants} className="space-y-6">
-          <h2 className="text-3xl font-bold text-center text-[#ffffff]">
+          <h2 className="text-3xl font-bold text-center" style={{ color: 'var(--text-primary)' }}>
             Powerful Features
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -227,13 +231,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
                         <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} shadow-lg`}>
                           <Icon className="h-6 w-6 text-white" strokeWidth={2} />
                         </div>
-                        <Badge variant="outline" className="text-[10px] text-[#d4d4d8] border-[#262626]">
+                        <Badge variant="outline" className="text-[10px]" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
                           {feature.badge}
                         </Badge>
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-bold text-[#ffffff]">{feature.title}</h3>
-                        <p className="text-sm text-[#a1a1aa] leading-relaxed">
+                        <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{feature.title}</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
                           {feature.description}
                         </p>
                       </div>
@@ -241,7 +245,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
 
                     {/* Hover Effect */}
                     <motion.div
-                      className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#dc2626] to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#c41e3a] to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
                       initial={{ x: '-100%' }}
                       whileHover={{ x: '100%' }}
                       transition={{ duration: 0.6 }}
@@ -258,17 +262,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
           variants={itemVariants}
           className="text-center space-y-6 py-12"
         >
-          <h3 className="text-2xl font-bold text-[#ffffff]">
+          <h3 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
             Ready to Get Started?
           </h3>
-          <p className="text-[#a1a1aa] max-w-lg mx-auto">
-            Start chatting with ROOFER S21 and experience the power of multi-provider AI assistance
+          <p className="max-w-lg mx-auto" style={{ color: 'var(--text-tertiary)' }}>
+            Launch the Mobile Command Center and experience the power of AI-powered field operations
           </p>
           <motion.button
             onClick={onGetStarted}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-[#dc2626] to-[#b91c1c] text-white font-bold shadow-2xl shadow-red-600/30 hover:shadow-red-600/50 transition-all duration-300"
+            className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-[#c41e3a] to-[#9b1830] text-white font-bold shadow-2xl shadow-red-600/30 hover:shadow-red-600/50 transition-all duration-300"
           >
             <MessageSquare className="h-5 w-5" />
             <span>Start Chatting</span>
@@ -279,12 +283,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
         {/* Footer Info */}
         <motion.div
           variants={itemVariants}
-          className="text-center space-y-3 py-8 border-t border-[#262626]"
+          className="text-center space-y-3 py-8 border-t" style={{ borderColor: 'var(--border-subtle)' }}
         >
-          <p className="text-sm text-[#71717a]">
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
             Powered by cutting-edge AI technology
           </p>
-          <div className="flex justify-center gap-4 text-xs text-[#52525b]">
+          <div className="flex justify-center gap-4 text-xs" style={{ color: 'var(--text-disabled)' }}>
             <span>OpenAI GPT-4</span>
             <span>•</span>
             <span>Anthropic Claude</span>

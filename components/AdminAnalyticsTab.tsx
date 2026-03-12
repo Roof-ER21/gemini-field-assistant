@@ -691,10 +691,10 @@ const AdminAnalyticsTab: React.FC = () => {
       }}
     >
       <div style={{ color: '#ef4444' }}>{icon}</div>
-      <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
+      <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)' }}>
         {value.toLocaleString()}
       </div>
-      <div style={{ fontSize: '12px', color: '#a1a1aa', textAlign: 'center' }}>{label}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>{label}</div>
     </div>
   );
 
@@ -782,7 +782,7 @@ const AdminAnalyticsTab: React.FC = () => {
         background: 'transparent',
         padding: '0',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        color: '#e4e4e7',
+        color: 'var(--text-secondary)',
         paddingBottom: '40px',
       }}
     >
@@ -955,7 +955,7 @@ const AdminAnalyticsTab: React.FC = () => {
               marginBottom: '24px',
             }}
           >
-            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-secondary)' }}>
               Feature Usage Over Time
             </h2>
             {error.featureUsage ? (
@@ -966,7 +966,7 @@ const AdminAnalyticsTab: React.FC = () => {
               <div style={{
                 textAlign: 'center',
                 padding: '60px 20px',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 background: 'rgba(255, 255, 255, 0.02)',
                 borderRadius: '8px',
               }}>
@@ -978,14 +978,14 @@ const AdminAnalyticsTab: React.FC = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={featureUsage}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                  <XAxis dataKey="date" stroke="#a1a1aa" style={{ fontSize: '12px' }} />
-                  <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
+                  <XAxis dataKey="date" stroke="var(--text-tertiary)" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="var(--text-tertiary)" style={{ fontSize: '12px' }} />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a1a1a',
+                      background: 'var(--bg-elevated)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '8px',
-                      color: '#e4e4e7',
+                      color: 'var(--text-secondary)',
                     }}
                   />
                   <Legend />
@@ -1015,7 +1015,7 @@ const AdminAnalyticsTab: React.FC = () => {
               marginBottom: '24px',
             }}
           >
-            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-secondary)' }}>
               Top 10 Active Users
             </h2>
             {error.userActivity ? (
@@ -1026,7 +1026,7 @@ const AdminAnalyticsTab: React.FC = () => {
               <div style={{
                 textAlign: 'center',
                 padding: '60px 20px',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 background: 'rgba(255, 255, 255, 0.02)',
                 borderRadius: '8px',
               }}>
@@ -1040,17 +1040,17 @@ const AdminAnalyticsTab: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
                   <XAxis
                     dataKey="email"
-                    stroke="#a1a1aa"
+                    stroke="var(--text-tertiary)"
                     style={{ fontSize: '12px' }}
                     tickFormatter={(value) => value.split('@')[0].substring(0, 10)}
                   />
-                  <YAxis stroke="#a1a1aa" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="var(--text-tertiary)" style={{ fontSize: '12px' }} />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a1a1a',
+                      background: 'var(--bg-elevated)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '8px',
-                      color: '#e4e4e7',
+                      color: 'var(--text-secondary)',
                     }}
                   />
                   <Bar dataKey="chats" fill="#ef4444" />
@@ -1069,7 +1069,7 @@ const AdminAnalyticsTab: React.FC = () => {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>User Activity Breakdown</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-secondary)' }}>User Activity Breakdown</h2>
               <button
                 onClick={exportToCSV}
                 aria-label="Export analytics data to CSV"
@@ -1135,7 +1135,7 @@ const AdminAnalyticsTab: React.FC = () => {
                           textAlign: 'left',
                           fontSize: '13px',
                           fontWeight: 700,
-                          color: '#a1a1aa',
+                          color: 'var(--text-tertiary)',
                           cursor: 'pointer',
                           userSelect: 'none',
                         }}
@@ -1165,8 +1165,8 @@ const AdminAnalyticsTab: React.FC = () => {
                         e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.email}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.email}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                         <span
                           style={{
                             padding: '4px 8px',
@@ -1179,14 +1179,14 @@ const AdminAnalyticsTab: React.FC = () => {
                           {user.role}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.state || '-'}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.chats}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.emails}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.transcriptions}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.uploads}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.susan}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{user.kbViews}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#a1a1aa' }}>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.state || '-'}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.chats}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.emails}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.transcriptions}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.uploads}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.susan}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.kbViews}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
                         {new Date(user.lastActive).toLocaleDateString()}
                       </td>
                     </tr>
@@ -1213,7 +1213,7 @@ const AdminAnalyticsTab: React.FC = () => {
                 >
                   Previous
                 </button>
-                <span style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
@@ -1257,10 +1257,10 @@ const AdminAnalyticsTab: React.FC = () => {
             }}
           >
             <div style={{ fontSize: '64px', marginBottom: '24px' }}>🚪</div>
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#e4e4e7', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px' }}>
               Canvassing Analytics Coming Soon
             </h2>
-            <p style={{ fontSize: '16px', color: '#a1a1aa', lineHeight: 1.6, maxWidth: '600px', margin: '0 auto' }}>
+            <p style={{ fontSize: '16px', color: 'var(--text-tertiary)', lineHeight: 1.6, maxWidth: '600px', margin: '0 auto' }}>
               This section will track door-to-door metrics including:
             </p>
             <div style={{
@@ -1277,7 +1277,7 @@ const AdminAnalyticsTab: React.FC = () => {
                 borderRadius: '8px',
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>📍</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Doors Knocked</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Doors Knocked</div>
               </div>
               <div style={{
                 background: 'rgba(255, 255, 255, 0.03)',
@@ -1285,7 +1285,7 @@ const AdminAnalyticsTab: React.FC = () => {
                 borderRadius: '8px',
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Conversations</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conversations</div>
               </div>
               <div style={{
                 background: 'rgba(255, 255, 255, 0.03)',
@@ -1293,7 +1293,7 @@ const AdminAnalyticsTab: React.FC = () => {
                 borderRadius: '8px',
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>📈</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Conversion Rate</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conversion Rate</div>
               </div>
               <div style={{
                 background: 'rgba(255, 255, 255, 0.03)',
@@ -1301,7 +1301,7 @@ const AdminAnalyticsTab: React.FC = () => {
                 borderRadius: '8px',
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>Leads Generated</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Leads Generated</div>
               </div>
             </div>
           </div>
@@ -1334,10 +1334,10 @@ const AdminAnalyticsTab: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <Eye size={18} style={{ color: '#ef4444' }} />
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Viewed Documents</h3>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Most Viewed Documents</h3>
                 </div>
                 {knowledgeBase.mostViewed.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)' }}>
                     <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄</div>
                     <div style={{ fontSize: '14px' }}>No document views yet</div>
                   </div>
@@ -1352,10 +1352,10 @@ const AdminAnalyticsTab: React.FC = () => {
                         marginBottom: '8px',
                       }}
                     >
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                         {doc.name}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-tertiary)' }}>
                         <span>{doc.category}</span>
                         <span>{doc.views} views</span>
                       </div>
@@ -1375,10 +1375,10 @@ const AdminAnalyticsTab: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <Star size={18} style={{ color: '#ef4444' }} />
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Most Favorited</h3>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Most Favorited</h3>
                 </div>
                 {knowledgeBase.mostFavorited.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)' }}>
                     <div style={{ fontSize: '32px', marginBottom: '8px' }}>⭐</div>
                     <div style={{ fontSize: '14px' }}>No favorites yet</div>
                   </div>
@@ -1393,10 +1393,10 @@ const AdminAnalyticsTab: React.FC = () => {
                         marginBottom: '8px',
                       }}
                     >
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                         {doc.name}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#a1a1aa' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-tertiary)' }}>
                         <span>{doc.category}</span>
                         <span>{doc.favorites} favorites</span>
                       </div>
@@ -1416,10 +1416,10 @@ const AdminAnalyticsTab: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <BookOpen size={18} style={{ color: '#ef4444' }} />
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e4e4e7' }}>Top Categories</h3>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Top Categories</h3>
                 </div>
                 {knowledgeBase.topCategories.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)' }}>
                     <div style={{ fontSize: '32px', marginBottom: '8px' }}>📚</div>
                     <div style={{ fontSize: '14px' }}>No categories yet</div>
                   </div>
@@ -1437,7 +1437,7 @@ const AdminAnalyticsTab: React.FC = () => {
                         alignItems: 'center',
                       }}
                     >
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{cat.category}</span>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>{cat.category}</span>
                       <span
                         style={{
                           fontSize: '12px',
@@ -1475,7 +1475,7 @@ const AdminAnalyticsTab: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-                <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7' }}>Concerning Chats Monitor</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-secondary)' }}>Concerning Chats Monitor</h2>
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Filter concerning chats by severity">
                 {(['critical', 'warning', 'info', 'all'] as SeverityFilter[]).map((severity) => (
@@ -1507,7 +1507,7 @@ const AdminAnalyticsTab: React.FC = () => {
             ) : loading.concerningChats ? (
               <LoadingSkeleton />
             ) : filteredConcerningChats.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No Concerning Chats</div>
                 <div style={{ fontSize: '14px' }}>All conversations are within normal parameters</div>
@@ -1532,8 +1532,8 @@ const AdminAnalyticsTab: React.FC = () => {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e4e4e7' }}>{chat.userEmail}</span>
-                        <span style={{ fontSize: '12px', color: '#71717a' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>{chat.userEmail}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
                           {chat.timestamp ? new Date(chat.timestamp).toLocaleString() : 'Unknown'}
                         </span>
                       </div>
@@ -1552,7 +1552,7 @@ const AdminAnalyticsTab: React.FC = () => {
                       >
                         {chat.concernType}
                       </div>
-                      <div style={{ fontSize: '14px', color: '#a1a1aa', lineHeight: 1.6 }}>{chat.content}</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', lineHeight: 1.6 }}>{chat.content}</div>
                       {expandedChat === chat.id && (
                         <div
                           style={{
@@ -1561,7 +1561,7 @@ const AdminAnalyticsTab: React.FC = () => {
                             background: 'rgba(0, 0, 0, 0.3)',
                             borderRadius: '6px',
                             fontSize: '13px',
-                            color: '#e4e4e7',
+                            color: 'var(--text-secondary)',
                             whiteSpace: 'pre-wrap',
                           }}
                         >
@@ -1571,9 +1571,9 @@ const AdminAnalyticsTab: React.FC = () => {
                     </div>
                     <div>
                       {expandedChat === chat.id ? (
-                        <ChevronUp size={18} style={{ color: '#a1a1aa' }} />
+                        <ChevronUp size={18} style={{ color: 'var(--text-tertiary)' }} />
                       ) : (
-                        <ChevronDown size={18} style={{ color: '#a1a1aa' }} />
+                        <ChevronDown size={18} style={{ color: 'var(--text-tertiary)' }} />
                       )}
                     </div>
                   </div>
@@ -1591,14 +1591,14 @@ const AdminAnalyticsTab: React.FC = () => {
               padding: '24px',
             }}
           >
-            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: '#e4e4e7' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-secondary)' }}>
               AI Usage & API Costs
             </h2>
             <div
               style={{
                 textAlign: 'center',
                 padding: '40px 20px',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 background: 'rgba(255, 255, 255, 0.02)',
                 borderRadius: '8px',
               }}

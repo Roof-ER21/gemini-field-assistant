@@ -69,7 +69,7 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-white/60 text-sm">Photo #{photoNumber}</span>
+            <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Photo #{photoNumber}</span>
             <div className={`px-3 py-1 rounded-full text-xs font-bold text-white ${getSeverityColor(analysis.severity)}`}>
               {analysis.severity.toUpperCase()}
             </div>
@@ -79,9 +79,9 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
             className="p-1 hover:bg-white/10 rounded transition-colors"
           >
             {isExpanded ? (
-              <ChevronUp className="w-5 h-5 text-white" />
+              <ChevronUp className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
             ) : (
-              <ChevronDown className="w-5 h-5 text-white" />
+              <ChevronDown className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
             )}
           </button>
         </CardTitle>
@@ -97,7 +97,7 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
           />
           {/* Insurance Badge */}
           {analysis.insuranceRelevant && (
-            <div className="absolute top-3 right-3 px-3 py-1.5 bg-[#e94560] rounded-full flex items-center gap-2">
+            <div className="absolute top-3 right-3 px-3 py-1.5 bg-[#c41e3a] rounded-full flex items-center gap-2">
               <Shield className="w-4 h-4 text-white" />
               <span className="text-xs font-bold text-white">INSURANCE</span>
             </div>
@@ -106,11 +106,11 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
 
         {/* Damage Type */}
         <div>
-          <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <h3 className="text-lg font-bold mb-1 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             <AlertTriangle className={`w-5 h-5 ${getSeverityTextColor(analysis.severity)}`} />
             {analysis.damageType}
           </h3>
-          <div className="flex items-center gap-4 text-sm text-white/60">
+          <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--text-tertiary)' }}>
             <div className="flex items-center gap-1">
               <MapPin className="w-4 h-4" />
               {analysis.location}
@@ -124,20 +124,20 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
 
         {/* Description */}
         <div>
-          <p className="text-white/80 text-sm leading-relaxed">
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {analysis.description}
           </p>
         </div>
 
         {/* Expandable Section */}
         {isExpanded && (
-          <div className="space-y-4 pt-2 border-t border-white/10">
+          <div className="space-y-4 pt-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
             {/* Estimated Cost */}
             {analysis.estimatedRepairCost && (
-              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-subtle)' }}>
                 <DollarSign className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="text-sm font-semibold text-white mb-1">
+                  <h4 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
                     Estimated Repair Cost
                   </h4>
                   <p className="text-lg font-bold text-green-400">
@@ -149,17 +149,18 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
 
             {/* Recommendations */}
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-[#e94560]" />
+              <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <Wrench className="w-4 h-4 text-[#c41e3a]" />
                 Recommendations
               </h4>
               <ul className="space-y-2">
                 {analysis.recommendations.map((rec, idx) => (
                   <li
                     key={idx}
-                    className="flex items-start gap-2 text-sm text-white/80 p-2 bg-white/5 rounded border border-white/10"
+                    className="flex items-start gap-2 text-sm p-2 rounded"
+                    style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)', border: '1px solid var(--border-subtle)' }}
                   >
-                    <span className="text-[#e94560] font-bold flex-shrink-0 mt-0.5">
+                    <span className="text-[#c41e3a] font-bold flex-shrink-0 mt-0.5">
                       {idx + 1}.
                     </span>
                     <span>{rec}</span>
@@ -170,14 +171,14 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
 
             {/* Insurance Relevance */}
             {analysis.insuranceRelevant && (
-              <div className="p-3 bg-gradient-to-r from-[#e94560]/20 to-transparent rounded-lg border border-[#e94560]/30">
+              <div className="p-3 bg-gradient-to-r from-[#c41e3a]/20 to-transparent rounded-lg border border-[#c41e3a]/30">
                 <div className="flex items-start gap-2">
-                  <Shield className="w-5 h-5 text-[#e94560] mt-0.5 flex-shrink-0" />
+                  <Shield className="w-5 h-5 text-[#c41e3a] mt-0.5 flex-shrink-0" />
                   <div>
-                    <h4 className="text-sm font-semibold text-white mb-1">
+                    <h4 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
                       Insurance Documentation
                     </h4>
-                    <p className="text-xs text-white/80">
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                       This damage is insurance-relevant. Include in claim documentation.
                       Photos and analysis will be automatically formatted for insurance submission.
                     </p>
@@ -189,28 +190,28 @@ export const PhotoAnalysisCard: React.FC<PhotoAnalysisCardProps> = ({
         )}
 
         {/* Quick Stats Row */}
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/10">
-          <div className="text-center p-2 bg-white/5 rounded">
+        <div className="grid grid-cols-3 gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="text-center p-2 rounded" style={{ background: 'var(--bg-hover)' }}>
             <div className={`text-xs font-semibold ${getSeverityTextColor(analysis.severity)}`}>
               Severity
             </div>
-            <div className="text-lg font-bold text-white capitalize">
+            <div className="text-lg font-bold capitalize" style={{ color: 'var(--text-primary)' }}>
               {analysis.severity}
             </div>
           </div>
-          <div className="text-center p-2 bg-white/5 rounded">
-            <div className="text-xs font-semibold text-white/60">
+          <div className="text-center p-2 rounded" style={{ background: 'var(--bg-hover)' }}>
+            <div className="text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
               Urgency
             </div>
-            <div className="text-lg font-bold text-white capitalize">
+            <div className="text-lg font-bold capitalize" style={{ color: 'var(--text-primary)' }}>
               {analysis.urgency}
             </div>
           </div>
-          <div className="text-center p-2 bg-white/5 rounded">
-            <div className="text-xs font-semibold text-white/60">
+          <div className="text-center p-2 rounded" style={{ background: 'var(--bg-hover)' }}>
+            <div className="text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
               Insurance
             </div>
-            <div className="text-lg font-bold text-white">
+            <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
               {analysis.insuranceRelevant ? 'Yes' : 'No'}
             </div>
           </div>

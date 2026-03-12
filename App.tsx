@@ -10,10 +10,12 @@ import QuickActionModal from './components/QuickActionModal';
 import AIDisclosureModal, { hasAIConsent } from './components/AIDisclosureModal';
 import WelcomeModal from './components/WelcomeModal';
 import MessagingPanel from './components/MessagingPanel';
-import LearningDashboard from './components/LearningDashboard';
+import TeamKnowledgeHub from './components/TeamKnowledgeHub';
 import { authService, AuthUser } from './services/authService';
 import memoryService from './services/memoryService';
 import { Settings, History, Menu, X } from 'lucide-react';
+import NotificationBell from './components/NotificationBell';
+import ThemeToggle from './components/ThemeToggle';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -36,9 +38,10 @@ const ContestSection = lazy(() => import('./src/components/ContestSection'));
 const MyProfilePanel = lazy(() => import('./components/MyProfilePanel'));
 const InspectionPresentationPanel = lazy(() => import('./components/InspectionPresentationPanel'));
 const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
-const AgentNetworkPanel = lazy(() => import('./components/AgentNetworkPanel'));
+const CalendarPanel = lazy(() => import('./components/CalendarPanel'));
+const DeafCommunicationPanel = lazy(() => import('./components/DeafCommunicationPanel'));
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'agent-network';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'calendar' | 'deaf-mode';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -55,6 +58,7 @@ const App: React.FC = () => {
   const [aiConsented, setAIConsented] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [isFirstLogin, setIsFirstLogin] = useState(false);
+  const [profileDefaultTab, setProfileDefaultTab] = useState<'profile' | 'notifications' | 'preferences'>('profile');
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -64,7 +68,8 @@ const App: React.FC = () => {
           if (detail.notification?.data?.feedback_id) {
             setActivePanel('learning');
           } else {
-            setActivePanel('notifications');
+            setProfileDefaultTab('notifications');
+            setShowUserProfile(true);
           }
           break;
         case 'mention':
@@ -75,7 +80,8 @@ const App: React.FC = () => {
           setActivePanel('chat');
           break;
         default:
-          setActivePanel('notifications');
+          setProfileDefaultTab('notifications');
+          setShowUserProfile(true);
       }
     };
     window.addEventListener('notification-click', handler as EventListener);
@@ -107,6 +113,14 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Apply saved theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+  }, []);
+
   const pageTitles: Record<PanelType, string> = {
     home: 'Home',
     chat: 'Chat',
@@ -121,7 +135,7 @@ const App: React.FC = () => {
     'agnes-learning': 'Agnes 21 Learning',
     translator: 'Agnes Translator',
     documentjob: 'Document Job',
-    learning: 'Susan 21 Learning',
+    learning: 'Team Knowledge',
     canvassing: 'Canvassing Tracker',
     impacted: 'Impacted Assets',
     territories: 'Territory Management',
@@ -131,7 +145,8 @@ const App: React.FC = () => {
     myprofile: 'My QR Profile',
     inspections: 'Inspection Presentations',
     notifications: 'Notifications',
-    'agent-network': 'Agent Intel'
+    calendar: 'Calendar',
+    'deaf-mode': 'Deaf Communication'
   };
 
   const handleStartEmail = (template: string, context: string) => {
@@ -330,7 +345,7 @@ const App: React.FC = () => {
           />
         );
       case 'learning':
-        return <LearningDashboard />;
+        return <TeamKnowledgeHub />;
       case 'team':
         return (
           <MessagingPanel
@@ -391,10 +406,16 @@ const App: React.FC = () => {
             <NotificationsPage userEmail={currentUser?.email} />
           </LazyLoadBoundary>
         );
-      case 'agent-network':
+      case 'calendar':
         return (
-          <LazyLoadBoundary componentName="Agent Intel">
-            <AgentNetworkPanel />
+          <LazyLoadBoundary componentName="Calendar">
+            <CalendarPanel />
+          </LazyLoadBoundary>
+        );
+      case 'deaf-mode':
+        return (
+          <LazyLoadBoundary componentName="Deaf Communication">
+            <DeafCommunicationPanel />
           </LazyLoadBoundary>
         );
       default:
@@ -420,8 +441,13 @@ const App: React.FC = () => {
           <div className="roof-er-logo">
             <img
               src="/roofer-s21-logo.webp"
-              alt="ROOFER S21 - The Roof Docs"
+              alt="RoofER"
             />
+          </div>
+          <div className="roof-er-brand-title">
+            <span className="roof-er-brand-name">MOBILE</span>
+            <span className="roof-er-brand-accent"> COMMAND</span>
+            <span className="roof-er-brand-name"> CENTER</span>
           </div>
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>
         </div>
@@ -430,6 +456,7 @@ const App: React.FC = () => {
             <div className="roof-er-status-dot"></div>
             <span>4 AI Systems Active</span>
           </div>
+          <NotificationBell onViewAll={() => { setProfileDefaultTab('notifications'); setShowUserProfile(true); }} />
           {currentUser && (
             <div
               className="roof-er-header-btn cursor-pointer"
@@ -445,6 +472,7 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{currentUser.name}</span>
             </div>
           )}
+          <ThemeToggle />
           <button
             className="roof-er-header-btn"
             onClick={handleOpenUserProfile}
@@ -474,8 +502,9 @@ const App: React.FC = () => {
       {/* User Profile Modal */}
       {showUserProfile && (
         <UserProfile
-          onClose={() => setShowUserProfile(false)}
+          onClose={() => { setShowUserProfile(false); setProfileDefaultTab('profile'); }}
           onLogout={handleLogout}
+          defaultTab={profileDefaultTab}
         />
       )}
 

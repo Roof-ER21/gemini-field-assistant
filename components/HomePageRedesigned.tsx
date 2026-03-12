@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
+const CalendarPanel = lazy(() => import('./CalendarPanel'));
 import {
   MessageSquare,
   Image,
@@ -241,7 +242,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             cy={size / 2}
             r={size / 2 - 15}
             fill="none"
-            stroke="#1a1a1a"
+            stroke="var(--bg-elevated)"
             strokeWidth="12"
           />
           {/* Progress circle */}
@@ -270,10 +271,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             textAlign: 'center'
           }}
         >
-          <div style={{ fontSize: '2rem', fontWeight: '700', color: '#ffffff', lineHeight: '1' }}>
+          <div style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', lineHeight: '1' }}>
             {current}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#71717a', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
             of {goal}
           </div>
           <div style={{ fontSize: '1.25rem', fontWeight: '600', color: statusColor, marginTop: '0.5rem' }}>
@@ -297,14 +298,14 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         <div style={{
           textAlign: 'center',
           padding: '2rem',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '16px',
-          border: '1px solid #1a1a1a'
+          border: '1px solid var(--bg-elevated)'
         }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#ffffff', marginBottom: '1rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
             Welcome to Susan 21
           </h2>
-          <p style={{ fontSize: '1rem', color: '#71717a' }}>
+          <p style={{ fontSize: '1rem', color: 'var(--text-tertiary)' }}>
             Please log in to view your personalized dashboard
           </p>
         </div>
@@ -326,13 +327,13 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           <div style={{
             width: '48px',
             height: '48px',
-            border: '4px solid #1a1a1a',
+            border: '4px solid var(--bg-elevated)',
             borderTopColor: '#dc2626',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
             margin: '0 auto 1rem'
           }} />
-          <p style={{ fontSize: '1rem', color: '#71717a' }}>Loading your dashboard...</p>
+          <p style={{ fontSize: '1rem', color: 'var(--text-tertiary)' }}>Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -352,9 +353,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         <div style={{
           textAlign: 'center',
           padding: '2rem',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '16px',
-          border: '1px solid #1a1a1a',
+          border: '1px solid var(--bg-elevated)',
           maxWidth: '500px'
         }}>
           <div style={{
@@ -369,10 +370,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           }}>
             <Target style={{ width: '32px', height: '32px', color: '#ef4444' }} />
           </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#ffffff', marginBottom: '0.5rem' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
             Goal Data Unavailable
           </h3>
-          <p style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginBottom: '1.5rem' }}>
             {error || 'Unable to load your goal progress. You may not be synced from Google Sheets yet.'}
           </p>
           <button
@@ -410,8 +411,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     }}>
       {/* Hero Section with Status Badge */}
       <div style={{
-        background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
-        borderBottom: '1px solid #262626',
+        background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-primary) 100%)',
+        borderBottom: '1px solid var(--border-subtle)',
         padding: '1.5rem 1rem',
         textAlign: 'center'
       }}>
@@ -426,7 +427,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           border: `1px solid rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.3)`
         }}>
           <StatusIcon style={{ width: '16px', height: '16px', color: statusColor }} />
-          <span style={{ fontSize: '0.875rem', color: '#d4d4d8', fontWeight: '500' }}>
+          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
             {getStatusLabel(progress.monthly.signups.status)}
           </span>
         </div>
@@ -434,7 +435,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         <h1 style={{
           fontSize: 'clamp(1.5rem, 5vw, 2rem)',
           fontWeight: '700',
-          color: '#ffffff',
+          color: 'var(--text-primary)',
           marginBottom: '0.5rem'
         }}>
           Your Dashboard
@@ -442,7 +443,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
         <p style={{
           fontSize: 'clamp(0.875rem, 3vw, 1rem)',
-          color: '#a1a1aa',
+          color: 'var(--text-tertiary)',
           marginBottom: '1.5rem'
         }}>
           Track your goals, analyze performance, and drive success
@@ -450,12 +451,19 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       </div>
 
       <div style={{ padding: '1rem', maxWidth: '100%', boxSizing: 'border-box' }}>
+        {/* Full Calendar */}
+        <section style={{ marginBottom: '1.5rem', height: '500px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+          <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>Loading calendar...</div>}>
+            <CalendarPanel />
+          </Suspense>
+        </section>
+
         {/* Goal Progress Section */}
         <section style={{ marginBottom: '2rem' }}>
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -472,8 +480,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           }}>
             {/* Monthly Signup Goal Card */}
             <div style={{
-              background: 'linear-gradient(135deg, #0a0a0a 0%, #171717 100%)',
-              border: '1px solid #262626',
+              background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '16px',
               padding: '1.5rem',
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
@@ -485,7 +493,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 marginBottom: '1.5rem'
               }}>
                 <div>
-                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#ffffff', marginBottom: '0.25rem' }}>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                     Monthly Signups
                   </h3>
                   <div style={{
@@ -493,7 +501,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                     alignItems: 'center',
                     gap: '0.5rem',
                     fontSize: '0.875rem',
-                    color: '#71717a'
+                    color: 'var(--text-tertiary)'
                   }}>
                     <Calendar style={{ width: '14px', height: '14px' }} />
                     <span>{getMonthName(progress.calendar.month)} {progress.calendar.year}</span>
@@ -523,24 +531,24 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 gridTemplateColumns: 'repeat(2, 1fr)',
                 gap: '1rem',
                 paddingTop: '1rem',
-                borderTop: '1px solid #262626'
+                borderTop: '1px solid var(--border-subtle)'
               }}>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                     Remaining
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {progress.monthly.signups.remaining}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                     Days Left
                   </div>
                   <div style={{
                     fontSize: '1.25rem',
                     fontWeight: '600',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.25rem'
@@ -554,8 +562,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
             {/* Yearly Revenue Goal Card */}
             <div style={{
-              background: 'linear-gradient(135deg, #0a0a0a 0%, #171717 100%)',
-              border: '1px solid #262626',
+              background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '16px',
               padding: '1.5rem',
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
@@ -567,7 +575,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 marginBottom: '1.5rem'
               }}>
                 <div>
-                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#ffffff', marginBottom: '0.25rem' }}>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                     Yearly Revenue
                   </h3>
                   <div style={{
@@ -575,7 +583,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                     alignItems: 'center',
                     gap: '0.5rem',
                     fontSize: '0.875rem',
-                    color: '#71717a'
+                    color: 'var(--text-tertiary)'
                   }}>
                     <Trophy style={{ width: '14px', height: '14px' }} />
                     <span>{progress.calendar.year} Goal</span>
@@ -598,7 +606,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                   alignItems: 'baseline',
                   marginBottom: '0.5rem'
                 }}>
-                  <span style={{ fontSize: '0.875rem', color: '#71717a' }}>Progress</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Progress</span>
                   <span style={{ fontSize: '1.125rem', fontWeight: '600', color: '#8b5cf6' }}>
                     {Math.round(progress.yearly.revenue.percentage)}%
                   </span>
@@ -606,7 +614,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 <div style={{
                   width: '100%',
                   height: '12px',
-                  background: '#1a1a1a',
+                  background: 'var(--bg-elevated)',
                   borderRadius: '6px',
                   overflow: 'hidden'
                 }}>
@@ -626,10 +634,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 gridTemplateColumns: 'repeat(2, 1fr)',
                 gap: '1rem',
                 paddingTop: '1rem',
-                borderTop: '1px solid #262626'
+                borderTop: '1px solid var(--border-subtle)'
               }}>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                     Current
                   </div>
                   <div style={{ fontSize: '1rem', fontWeight: '600', color: '#10b981' }}>
@@ -637,10 +645,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                     Target
                   </div>
-                  <div style={{ fontSize: '1rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {formatCurrency(progress.yearly.revenue.goal)}
                   </div>
                 </div>
@@ -654,7 +662,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                   borderRadius: '8px',
                   border: '1px solid rgba(139, 92, 246, 0.1)'
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
                     Monthly Avg Needed
                   </div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#8b5cf6' }}>
@@ -672,7 +680,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             <h2 style={{
               fontSize: '1.25rem',
               fontWeight: '600',
-              color: '#ffffff',
+              color: 'var(--text-primary)',
               marginBottom: '1rem',
               display: 'flex',
               alignItems: 'center',
@@ -683,16 +691,16 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             </h2>
 
             <div style={{
-              background: '#0a0a0a',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '16px',
               padding: '1.5rem'
             }}>
               <div style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#ffffff', marginBottom: '0.25rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                   Monthly Signups (Last 6 Months)
                 </h3>
-                <p style={{ fontSize: '0.875rem', color: '#71717a' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
                   Track your signup trends against your goal
                 </p>
               </div>
@@ -704,8 +712,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                   <YAxis stroke="#71717a" style={{ fontSize: '0.75rem' }} />
                   <Tooltip
                     contentStyle={{
-                      background: '#171717',
-                      border: '1px solid #262626',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '8px',
                       padding: '0.75rem',
                       fontSize: '0.875rem'
@@ -738,7 +746,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -754,8 +762,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             gap: '1rem'
           }}>
             <div style={{
-              background: '#0a0a0a',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '1.25rem'
             }}>
@@ -772,9 +780,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 }}>
                   <Target style={{ width: '18px', height: '18px', color: '#10b981' }} />
                 </div>
-                <span style={{ fontSize: '0.875rem', color: '#71717a' }}>This Month</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>This Month</span>
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.25rem' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                 {progress.monthly.signups.current}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#10b981' }}>
@@ -783,8 +791,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             </div>
 
             <div style={{
-              background: '#0a0a0a',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '1.25rem'
             }}>
@@ -801,9 +809,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 }}>
                   <Trophy style={{ width: '18px', height: '18px', color: '#8b5cf6' }} />
                 </div>
-                <span style={{ fontSize: '0.875rem', color: '#71717a' }}>This Year</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>This Year</span>
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.25rem' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                 {progress.yearly.signups.current}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#8b5cf6' }}>
@@ -812,8 +820,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             </div>
 
             <div style={{
-              background: '#0a0a0a',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '1.25rem'
             }}>
@@ -830,9 +838,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 }}>
                   <Award style={{ width: '18px', height: '18px', color: '#f59e0b' }} />
                 </div>
-                <span style={{ fontSize: '0.875rem', color: '#71717a' }}>Leaderboard</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Leaderboard</span>
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.25rem' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                 #{progress.leaderboard.rank}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#f59e0b' }}>
@@ -847,7 +855,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',

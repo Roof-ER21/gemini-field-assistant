@@ -7,6 +7,7 @@ import {
   Mic,
   Mail,
   Radio,
+  Ear,
   Upload,
   Shield,
   Briefcase,
@@ -26,14 +27,13 @@ import {
   Globe,
   QrCode,
   Presentation,
-  Network
+  Calendar
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { messagingService } from '../services/messagingService';
-import NotificationBell from './NotificationBell';
 import { useSettings, FeatureFlags } from '../contexts/SettingsContext';
 
-type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'agent-network';
+type PanelType = 'home' | 'chat' | 'image' | 'transcribe' | 'email' | 'live' | 'knowledge' | 'admin' | 'agnes' | 'agnes-learning' | 'translator' | 'documentjob' | 'team' | 'learning' | 'canvassing' | 'impacted' | 'territories' | 'stormmap' | 'leaderboard' | 'contests' | 'myprofile' | 'inspections' | 'notifications' | 'calendar' | 'deaf-mode';
 type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
@@ -129,7 +129,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     impacted: 'feature_impacted_assets',
     live: 'feature_live',
     agnes: 'feature_agnes',
-    'agnes-learning': 'feature_agnes'
+    'agnes-learning': 'feature_agnes',
+    'deaf-mode': 'feature_deaf_mode'
   };
 
   // Fetch unread message count
@@ -165,9 +166,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'home', label: 'Home', desc: 'Dashboard', icon: Home },
     { id: 'chat', label: 'Susan 21', desc: 'AI conversation', icon: S21Icon },
     { id: 'team', label: 'Team', desc: 'Message colleagues', icon: Users, badge: unreadCount },
-    { id: 'learning', label: 'Susan 21 Learning', desc: 'Team feedback', icon: TrendingUp },
+    { id: 'learning', label: 'Team Knowledge', desc: 'Learning & field intel', icon: TrendingUp },
     { id: 'agnes-learning', label: 'Agnes 21', desc: 'Roleplay training', icon: Bot },
     { id: 'translator', label: 'Pocket Linguist', desc: 'Translate + close deals', icon: Globe },
+    { id: 'deaf-mode', label: 'Deaf Communication', desc: 'Sign language + captions', icon: Ear },
     { id: 'leaderboard', label: 'Leaderboard', desc: 'Sales rankings', icon: Trophy },
     { id: 'contests', label: 'Contests', desc: 'Sales competitions', icon: Medal },
     { id: 'knowledge', label: 'Knowledge Base', desc: 'Documents & guides', icon: BookOpen },
@@ -180,7 +182,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
     { id: 'stormmap', label: 'Storm Maps', desc: 'Hail history & radar', icon: Cloud },
     { id: 'canvassing', label: 'Canvassing', desc: 'Track door knocking', icon: MapPin },
     { id: 'impacted', label: 'Impacted Assets', desc: 'Customer storm alerts', icon: AlertTriangle },
-    { id: 'agent-network', label: 'Agent Intel', desc: 'Team field insights', icon: Network },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
     // QR Profile - admin only until rollout
     ...(isAdmin ? [{ id: 'myprofile', label: 'QR Profiles', desc: 'Public landing pages', icon: QrCode }] : []),
@@ -212,7 +213,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Main',
         icon: Sparkles,
         defaultExpanded: true,
-        items: ['home', 'chat', 'agnes-learning', 'translator']
+        items: ['home', 'chat', 'agnes-learning', 'translator', 'deaf-mode']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
@@ -221,7 +222,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
         label: 'Team',
         icon: Users,
         defaultExpanded: true,
-        items: ['team', 'learning', 'leaderboard', 'contests', 'agent-network']
+        items: ['team', 'learning', 'leaderboard', 'contests']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
@@ -298,11 +299,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
 
   return (
     <div className="roof-er-sidebar">
-      {/* Notification Bell - Top Right */}
-      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
-        <NotificationBell onViewAll={() => setActivePanel('notifications')} />
-      </div>
-
       {/* Navigation Section */}
       <div className="roof-er-sidebar-section">
         <div className="roof-er-sidebar-title">Navigation</div>
@@ -323,7 +319,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
                   padding: '0.5rem 0.75rem',
                   cursor: 'pointer',
                   borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'var(--glass-highlight)',
                   marginBottom: '0.25rem',
                   transition: 'all 0.2s ease',
                   userSelect: 'none'

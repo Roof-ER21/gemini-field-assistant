@@ -159,7 +159,7 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
         style={{
           padding: '16px',
           borderBottom: '1px solid var(--glass-border)',
-          background: 'rgba(12, 12, 12, 0.65)',
+          background: 'var(--bg-secondary)',
           backdropFilter: 'blur(12px) saturate(120%)'
         }}
       >
@@ -256,8 +256,8 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
                 style={{
                   padding: '0.35rem 0.7rem',
                   borderRadius: '999px',
-                  border: filter === option.id ? '1px solid rgba(220,38,38,0.7)' : '1px solid rgba(255,255,255,0.12)',
-                  background: filter === option.id ? 'rgba(220,38,38,0.18)' : 'rgba(12,12,12,0.35)',
+                  border: filter === option.id ? '1px solid rgba(220,38,38,0.7)' : '1px solid var(--glass-border)',
+                  background: filter === option.id ? 'rgba(220,38,38,0.18)' : 'var(--bg-elevated)',
                   color: 'var(--text-primary)',
                   fontSize: '0.75rem',
                   cursor: 'pointer'
@@ -273,8 +273,8 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
             style={{
               padding: '0.35rem 0.6rem',
               borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(12,12,12,0.35)',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--bg-elevated)',
               color: 'var(--text-primary)',
               fontSize: '0.75rem'
             }}
@@ -295,7 +295,7 @@ const RoofFeed: React.FC<RoofFeedProps> = ({ onClose }) => {
           overflowY: 'auto',
           overflowX: 'hidden',
           padding: '16px',
-          background: 'rgba(8, 8, 8, 0.25)',
+          background: 'var(--bg-primary)',
           backdropFilter: 'blur(8px) saturate(120%)'
         }}
       >

@@ -6,10 +6,11 @@
  * - Configure notification preferences
  * - Set quiet hours
  * - Send test notifications
+ * - Set up SMS text alerts
  */
 
-import React, { useState } from 'react';
-import { Bell, BellOff, CloudLightning, Users, MapPin, Clock, TestTube, Check, X, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, BellOff, CloudLightning, Users, MapPin, Clock, TestTube, Check, X, Loader2, Smartphone, MessageSquare } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 interface NotificationSettingsProps {
@@ -33,6 +34,48 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
   const [testSent, setTestSent] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // SMS phone number state
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneSaved, setPhoneSaved] = useState(false);
+  const [phoneLoading, setPhoneLoading] = useState(true);
+
+  const API_URL = import.meta.env.VITE_API_URL || '';
+
+  // Load phone number on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/push/phone`, {
+          headers: { 'x-user-email': userEmail }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPhoneNumber(data.phone_number || '');
+          setSmsEnabled(data.sms_enabled || false);
+        }
+      } catch {}
+      setPhoneLoading(false);
+    })();
+  }, [userEmail]);
+
+  const handleSavePhone = async () => {
+    setPhoneSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/push/phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
+        body: JSON.stringify({ phone_number: phoneNumber, sms_enabled: smsEnabled })
+      });
+      if (res.ok) {
+        setPhoneSaved(true);
+        setTimeout(() => setPhoneSaved(false), 3000);
+      }
+    } catch {}
+    setPhoneSaving(false);
+  };
 
   const handleRequestPermission = async () => {
     const success = await requestPermission();
@@ -59,12 +102,19 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
 
   if (!isSupported) {
     return (
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div className="flex items-center gap-3 text-yellow-400">
-          <BellOff className="w-6 h-6" />
+      <div style={{
+        background: 'var(--bg-card)',
+        borderRadius: '12px',
+        padding: '24px',
+        border: '1px solid var(--border-default)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--warning)' }}>
+          <BellOff style={{ width: '24px', height: '24px' }} />
           <div>
-            <h3 className="font-semibold">Push Notifications Not Supported</h3>
-            <p className="text-sm text-gray-400 mt-1">
+            <h3 style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)', fontSize: '15px' }}>
+              Push Notifications Not Supported
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
               Your device or browser doesn't support push notifications.
             </p>
           </div>
@@ -74,48 +124,102 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
   }
 
   return (
-    <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+    <div style={{
+      background: 'var(--bg-card)',
+      borderRadius: '12px',
+      border: '1px solid var(--border-default)',
+      overflow: 'hidden'
+    }}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Bell className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white">Notification Settings</h2>
+      <div style={{
+        padding: '16px 20px',
+        borderBottom: '1px solid var(--border-default)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Bell style={{ width: '18px', height: '18px', color: 'var(--roof-blue)' }} />
+          </div>
+          <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            Notification Settings
+          </h2>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
           >
-            <X className="w-5 h-5" />
+            <X style={{ width: '18px', height: '18px' }} />
           </button>
         )}
       </div>
 
-      <div className="p-4 space-y-6">
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Permission Status */}
         {permission !== 'granted' ? (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Bell className="w-5 h-5 text-blue-400 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-medium text-white">Enable Push Notifications</h3>
-                <p className="text-sm text-gray-400 mt-1">
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            borderRadius: '10px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <Bell style={{ width: '20px', height: '20px', color: 'var(--roof-blue)', marginTop: '2px', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                  Enable Push Notifications
+                </h3>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   Get alerts when storms hit your territory, team mentions you, or customer properties are impacted.
                 </p>
                 <button
                   onClick={handleRequestPermission}
                   disabled={isLoading}
-                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+                  style={{
+                    marginTop: '12px',
+                    padding: '8px 18px',
+                    background: permission === 'denied' ? 'var(--bg-elevated)' : 'var(--roof-blue)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: isLoading ? 'default' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: isLoading ? 0.5 : 1
+                  }}
                 >
                   {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
                   ) : (
-                    <Bell className="w-4 h-4" />
+                    <Bell style={{ width: '16px', height: '16px' }} />
                   )}
                   {permission === 'denied' ? 'Notifications Blocked' : 'Enable Notifications'}
                 </button>
                 {permission === 'denied' && (
-                  <p className="text-xs text-yellow-400 mt-2">
+                  <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--warning)' }}>
                     Notifications are blocked. Please enable them in your device settings.
                   </p>
                 )}
@@ -125,24 +229,25 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
         ) : (
           <>
             {/* Enabled Status */}
-            <div className="flex items-center gap-3 text-green-400">
-              <Check className="w-5 h-5" />
-              <span className="text-sm">Push notifications enabled</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--success)' }}>
+              <Check style={{ width: '18px', height: '18px' }} />
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>Push notifications enabled</span>
               {deviceToken && (
-                <span className="text-xs text-gray-500 ml-auto">
-                  Token: ...{deviceToken.slice(-8)}
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
+                  Registered
                 </span>
               )}
             </div>
 
             {/* Notification Types */}
             {preferences && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-gray-300">Notification Types</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <h3 style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Notification Types
+                </h3>
 
-                {/* Storm Alerts */}
                 <ToggleItem
-                  icon={<CloudLightning className="w-4 h-4" />}
+                  icon={<CloudLightning style={{ width: '16px', height: '16px' }} />}
                   label="Storm Alerts"
                   description="Get notified when storms hit your territory"
                   enabled={preferences.stormAlertsEnabled}
@@ -150,9 +255,8 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
                   disabled={saving}
                 />
 
-                {/* Impact Alerts */}
                 <ToggleItem
-                  icon={<MapPin className="w-4 h-4" />}
+                  icon={<MapPin style={{ width: '16px', height: '16px' }} />}
                   label="Impact Alerts"
                   description="Alerts when customer properties are affected"
                   enabled={preferences.impactAlertsEnabled}
@@ -160,9 +264,8 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
                   disabled={saving}
                 />
 
-                {/* Team Mentions */}
                 <ToggleItem
-                  icon={<Users className="w-4 h-4" />}
+                  icon={<Users style={{ width: '16px', height: '16px' }} />}
                   label="Team Mentions"
                   description="When someone mentions you in team feed"
                   enabled={preferences.teamMentionAlerts}
@@ -170,9 +273,8 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
                   disabled={saving}
                 />
 
-                {/* Team Messages */}
                 <ToggleItem
-                  icon={<Users className="w-4 h-4" />}
+                  icon={<Users style={{ width: '16px', height: '16px' }} />}
                   label="Team Messages"
                   description="New messages in team feed"
                   enabled={preferences.teamMessageAlerts}
@@ -184,9 +286,9 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
 
             {/* Quiet Hours */}
             {preferences && (
-              <div className="space-y-3 pt-4 border-t border-gray-700">
+              <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <ToggleItem
-                  icon={<Clock className="w-4 h-4" />}
+                  icon={<Clock style={{ width: '16px', height: '16px' }} />}
                   label="Quiet Hours"
                   description="Pause notifications during specific hours"
                   enabled={preferences.quietHoursEnabled}
@@ -195,23 +297,37 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
                 />
 
                 {preferences.quietHoursEnabled && (
-                  <div className="ml-8 flex items-center gap-4 text-sm">
+                  <div style={{ marginLeft: '40px', display: 'flex', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
                     <div>
-                      <label className="text-gray-400 text-xs">From</label>
+                      <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>From</label>
                       <input
                         type="time"
                         value={preferences.quietHoursStart || '22:00'}
                         onChange={(e) => handleTogglePreference('quietHoursStart', e.target.value as any)}
-                        className="block mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        style={{
+                          padding: '6px 10px',
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)',
+                          fontSize: '13px'
+                        }}
                       />
                     </div>
                     <div>
-                      <label className="text-gray-400 text-xs">To</label>
+                      <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>To</label>
                       <input
                         type="time"
                         value={preferences.quietHoursEnd || '07:00'}
                         onChange={(e) => handleTogglePreference('quietHoursEnd', e.target.value as any)}
-                        className="block mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        style={{
+                          padding: '6px 10px',
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)',
+                          fontSize: '13px'
+                        }}
                       />
                     </div>
                   </div>
@@ -220,18 +336,32 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
             )}
 
             {/* Test Notification */}
-            <div className="pt-4 border-t border-gray-700">
+            <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '20px' }}>
               <button
                 onClick={handleSendTest}
                 disabled={testLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: testSent ? 'var(--success)' : 'var(--text-primary)',
+                  cursor: testLoading ? 'default' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: testLoading ? 0.5 : 1,
+                  transition: 'all 0.2s'
+                }}
               >
                 {testLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
                 ) : testSent ? (
-                  <Check className="w-4 h-4 text-green-400" />
+                  <Check style={{ width: '16px', height: '16px' }} />
                 ) : (
-                  <TestTube className="w-4 h-4" />
+                  <TestTube style={{ width: '16px', height: '16px' }} />
                 )}
                 {testSent ? 'Test Sent!' : 'Send Test Notification'}
               </button>
@@ -239,13 +369,119 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ user
           </>
         )}
 
+        {/* SMS Fallback Section */}
+        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.05))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <MessageSquare style={{ width: '18px', height: '18px', color: 'var(--success)' }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                SMS Text Alerts
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Get notifications via text message — works even without push enabled
+              </p>
+            </div>
+          </div>
+
+          {phoneLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px', marginLeft: '48px' }}>
+              <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} /> Loading...
+            </div>
+          ) : (
+            <div style={{ marginLeft: '48px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Smartphone style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                <input
+                  type="tel"
+                  placeholder="(555) 123-4567"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 14px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px'
+                  }}
+                />
+              </div>
+
+              <ToggleItem
+                icon={<MessageSquare style={{ width: '16px', height: '16px' }} />}
+                label="Enable SMS Alerts"
+                description="Receive storm, team, and event alerts via text"
+                enabled={smsEnabled}
+                onChange={(v) => setSmsEnabled(v)}
+                disabled={!phoneNumber}
+              />
+
+              <button
+                onClick={handleSavePhone}
+                disabled={phoneSaving}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: phoneSaved ? 'var(--success)' : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  color: 'white',
+                  cursor: phoneSaving ? 'default' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: phoneSaving ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                  alignSelf: 'flex-start'
+                }}
+              >
+                {phoneSaving ? (
+                  <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                ) : phoneSaved ? (
+                  <Check style={{ width: '16px', height: '16px' }} />
+                ) : (
+                  <Smartphone style={{ width: '16px', height: '16px' }} />
+                )}
+                {phoneSaved ? 'Saved!' : 'Save Phone Number'}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Error Display */}
         {error && (
-          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+          <div style={{
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: 'var(--error)',
+            fontSize: '13px'
+          }}>
             {error}
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
@@ -269,25 +505,50 @@ const ToggleItem: React.FC<ToggleItemProps> = ({
   disabled
 }) => {
   return (
-    <div className="flex items-center justify-between py-2">
-      <div className="flex items-center gap-3">
-        <span className="text-gray-400">{icon}</span>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '10px 12px',
+      borderRadius: '8px',
+      background: enabled ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+      transition: 'background 0.2s'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <span style={{ color: enabled ? 'var(--roof-blue)' : 'var(--text-tertiary)', display: 'flex' }}>{icon}</span>
         <div>
-          <div className="text-sm font-medium text-white">{label}</div>
-          <div className="text-xs text-gray-400">{description}</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{label}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '1px' }}>{description}</div>
         </div>
       </div>
       <button
         onClick={() => onChange(!enabled)}
         disabled={disabled}
-        className={`relative w-11 h-6 rounded-full transition-colors ${
-          enabled ? 'bg-blue-600' : 'bg-gray-600'
-        } ${disabled ? 'opacity-50' : ''}`}
+        style={{
+          position: 'relative',
+          width: '44px',
+          height: '24px',
+          borderRadius: '12px',
+          border: 'none',
+          background: enabled ? 'var(--roof-red)' : 'var(--bg-hover)',
+          cursor: disabled ? 'default' : 'pointer',
+          opacity: disabled ? 0.4 : 1,
+          transition: 'background 0.2s',
+          flexShrink: 0
+        }}
       >
         <span
-          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-            enabled ? 'left-6' : 'left-1'
-          }`}
+          style={{
+            position: 'absolute',
+            top: '3px',
+            left: enabled ? '23px' : '3px',
+            width: '18px',
+            height: '18px',
+            background: 'white',
+            borderRadius: '50%',
+            transition: 'left 0.2s',
+            boxShadow: '0 1px 3px var(--bg-hover)'
+          }}
         />
       </button>
     </div>

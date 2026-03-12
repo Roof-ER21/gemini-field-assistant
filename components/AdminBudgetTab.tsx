@@ -562,7 +562,7 @@ const AdminBudgetTab: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '60vh',
-        color: '#71717a'
+        color: 'var(--text-tertiary)'
       }}>
         <div style={{
           textAlign: 'center'
@@ -571,7 +571,7 @@ const AdminBudgetTab: React.FC = () => {
             display: 'inline-block',
             width: '48px',
             height: '48px',
-            border: '4px solid #3a3a3a',
+            border: '4px solid var(--border-default)',
             borderTop: '4px solid #991b1b',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
@@ -589,7 +589,7 @@ const AdminBudgetTab: React.FC = () => {
       padding: '0',
       paddingBottom: '40px',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: '#e4e4e7'
+      color: 'var(--text-secondary)'
     }}>
       {/* Section 1: Overview Stats Grid */}
       <div style={{
@@ -616,18 +616,18 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <DollarSign style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Company Budget</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Company Budget</div>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7', marginBottom: '8px' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
             ${(overview?.companySpend ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div style={{ fontSize: '13px', color: '#71717a', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
             of ${(overview?.companyBudget ?? 0).toLocaleString()}
           </div>
           <div style={{
             width: '100%',
             height: '8px',
-            background: '#262626',
+            background: 'var(--bg-card)',
             borderRadius: '4px',
             overflow: 'hidden'
           }}>
@@ -641,7 +641,7 @@ const AdminBudgetTab: React.FC = () => {
           </div>
           <div style={{
             fontSize: '12px',
-            color: '#a1a1aa',
+            color: 'var(--text-tertiary)',
             marginTop: '8px',
             textAlign: 'right'
           }}>
@@ -667,9 +667,9 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <TrendingUp style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Total Spend This Month</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Total Spend This Month</div>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)' }}>
             ${(overview?.totalSpendThisMonth ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
@@ -692,9 +692,9 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <DollarSign style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Avg Cost per Call</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Avg Cost per Call</div>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)' }}>
             ${(overview?.avgCostPerCall ?? 0).toFixed(3)}
           </div>
         </div>
@@ -717,9 +717,9 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <Zap style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Total API Calls</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Total API Calls</div>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)' }}>
             {(overview?.totalApiCalls ?? 0).toLocaleString()}
           </div>
         </div>
@@ -742,10 +742,10 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <Users style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Users Over Budget</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Users Over Budget</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '32px', fontWeight: 700, color: '#e4e4e7' }}>
+            <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-secondary)' }}>
               {overview?.usersOverBudget || 0}
             </div>
             {(overview?.usersOverBudget || 0) > 0 && (
@@ -782,9 +782,9 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <Zap style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#a1a1aa' }}>Most Expensive Provider</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-tertiary)' }}>Most Expensive Provider</div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#e4e4e7', marginBottom: '8px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
             {overview?.mostExpensiveProvider}
           </div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: '#991b1b' }}>
@@ -809,7 +809,7 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <AlertCircle style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#e4e4e7', margin: 0 }}>Budget Alerts</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>Budget Alerts</h2>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {(['all', 'unacknowledged', 'acknowledged'] as AlertFilter[]).map((filter) => (
@@ -849,7 +849,7 @@ const AdminBudgetTab: React.FC = () => {
           <div style={{
             textAlign: 'center',
             padding: '40px',
-            color: '#71717a'
+            color: 'var(--text-tertiary)'
           }}>
             <CheckCircle style={{ width: '48px', height: '48px', margin: '0 auto 16px', color: '#10b981' }} />
             <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No Budget Alerts</div>
@@ -860,25 +860,25 @@ const AdminBudgetTab: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>User</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Budget Limit</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Current Spend</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Usage</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Severity</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Actions</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>User</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Budget Limit</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Current Spend</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Usage</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Severity</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAlerts.map((alert) => (
                   <tr key={alert.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                       <div style={{ fontWeight: 600 }}>{alert.userName}</div>
-                      <div style={{ fontSize: '12px', color: '#71717a' }}>{alert.userEmail}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{alert.userEmail}</div>
                     </td>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                       ${alert.budgetLimit.toFixed(2)}
                     </td>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                       ${alert.currentSpend.toFixed(2)}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -980,7 +980,7 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Users style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#e4e4e7', margin: 0 }}>User Budgets</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>User Budgets</h2>
           </div>
           <input
             type="text"
@@ -989,10 +989,10 @@ const AdminBudgetTab: React.FC = () => {
             onChange={(e) => setUserSearchQuery(e.target.value)}
             style={{
               padding: '8px 16px',
-              background: '#262626',
-              border: '1px solid #3a3a3a',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               width: '300px',
               outline: 'none'
@@ -1001,7 +1001,7 @@ const AdminBudgetTab: React.FC = () => {
               e.currentTarget.style.borderColor = '#991b1b';
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#3a3a3a';
+              e.currentTarget.style.borderColor = 'var(--border-default)';
             }}
           />
         </div>
@@ -1010,22 +1010,22 @@ const AdminBudgetTab: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Email</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Budget Limit</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Current Spend</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>% Used</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Status</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Actions</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Email</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Budget Limit</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Current Spend</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>% Used</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Status</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedUsers.map((user) => (
                 <tr key={user.userId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                  <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                     <div style={{ fontWeight: 600 }}>{user.name}</div>
-                    <div style={{ fontSize: '12px', color: '#71717a' }}>{user.email}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{user.email}</div>
                   </td>
-                  <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                  <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                     {editingUserId === user.userId ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input
@@ -1035,10 +1035,10 @@ const AdminBudgetTab: React.FC = () => {
                           style={{
                             width: '100px',
                             padding: '4px 8px',
-                            background: '#262626',
+                            background: 'var(--bg-card)',
                             border: '1px solid #991b1b',
                             borderRadius: '4px',
-                            color: '#e4e4e7',
+                            color: 'var(--text-secondary)',
                             fontSize: '14px',
                             outline: 'none'
                           }}
@@ -1078,7 +1078,7 @@ const AdminBudgetTab: React.FC = () => {
                       <span>${user.budgetLimit.toFixed(2)}</span>
                     )}
                   </td>
-                  <td style={{ padding: '12px', fontSize: '14px', color: '#e4e4e7' }}>
+                  <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                     ${user.currentSpend.toFixed(2)}
                   </td>
                   <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -1181,7 +1181,7 @@ const AdminBudgetTab: React.FC = () => {
               <ChevronLeft style={{ width: '16px', height: '16px' }} />
               Previous
             </button>
-            <span style={{ fontSize: '14px', color: '#a1a1aa' }}>
+            <span style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
               Page {userPage} of {userTotalPages}
             </span>
             <button
@@ -1223,7 +1223,7 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Zap style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#e4e4e7', margin: 0 }}>API Usage Log</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>API Usage Log</h2>
           </div>
           <button
             onClick={exportUsageLog}
@@ -1265,10 +1265,10 @@ const AdminBudgetTab: React.FC = () => {
             onChange={(e) => setLogUserFilter(e.target.value)}
             style={{
               padding: '8px 12px',
-              background: '#262626',
-              border: '1px solid #3a3a3a',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               cursor: 'pointer',
               outline: 'none'
@@ -1285,10 +1285,10 @@ const AdminBudgetTab: React.FC = () => {
             onChange={(e) => setLogProviderFilter(e.target.value)}
             style={{
               padding: '8px 12px',
-              background: '#262626',
-              border: '1px solid #3a3a3a',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               cursor: 'pointer',
               outline: 'none'
@@ -1307,10 +1307,10 @@ const AdminBudgetTab: React.FC = () => {
             onChange={(e) => setLogDateFrom(e.target.value)}
             style={{
               padding: '8px 12px',
-              background: '#262626',
-              border: '1px solid #3a3a3a',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               outline: 'none'
             }}
@@ -1322,10 +1322,10 @@ const AdminBudgetTab: React.FC = () => {
             onChange={(e) => setLogDateTo(e.target.value)}
             style={{
               padding: '8px 12px',
-              background: '#262626',
-              border: '1px solid #3a3a3a',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#e4e4e7',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               outline: 'none'
             }}
@@ -1336,33 +1336,33 @@ const AdminBudgetTab: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Timestamp</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>User</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Provider</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Service</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Tokens</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Cost</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Feature</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: '#a1a1aa' }}>Status</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Timestamp</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>User</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Provider</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Service</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Tokens</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Cost</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Feature</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: 700, color: 'var(--text-tertiary)' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {paginatedLogs.map((log) => (
                 <tr key={log.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#a1a1aa' }}>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
                     {new Date(log.timestamp).toLocaleString()}
                   </td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                     <div>{log.userName}</div>
-                    <div style={{ fontSize: '11px', color: '#71717a' }}>{log.userEmail}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{log.userEmail}</div>
                   </td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{log.provider}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{log.serviceType}</td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{log.tokens.toLocaleString()}</td>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.provider}</td>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.serviceType}</td>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.tokens.toLocaleString()}</td>
                   <td style={{ padding: '12px', fontSize: '13px', color: '#991b1b', fontWeight: 600 }}>
                     ${log.cost.toFixed(2)}
                   </td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: '#e4e4e7' }}>{log.feature}</td>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.feature}</td>
                   <td style={{ padding: '12px' }}>
                     <div style={{
                       display: 'inline-flex',
@@ -1414,7 +1414,7 @@ const AdminBudgetTab: React.FC = () => {
               <ChevronLeft style={{ width: '16px', height: '16px' }} />
               Previous
             </button>
-            <span style={{ fontSize: '14px', color: '#a1a1aa' }}>
+            <span style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
               Page {logPage} of {logTotalPages}
             </span>
             <button
@@ -1455,7 +1455,7 @@ const AdminBudgetTab: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <DollarSign style={{ width: '24px', height: '24px', color: '#991b1b' }} />
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#e4e4e7', margin: 0 }}>Company Budget Settings</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>Company Budget Settings</h2>
           </div>
           <button
             onClick={() => {
@@ -1490,8 +1490,8 @@ const AdminBudgetTab: React.FC = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
           <div>
-            <div style={{ fontSize: '14px', color: '#a1a1aa', marginBottom: '8px' }}>Current Budget</div>
-            <div style={{ fontSize: '36px', fontWeight: 700, color: '#e4e4e7' }}>
+            <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Current Budget</div>
+            <div style={{ fontSize: '36px', fontWeight: 700, color: 'var(--text-secondary)' }}>
               ${(overview?.companyBudget ?? 0).toLocaleString()}
             </div>
           </div>
@@ -1499,7 +1499,7 @@ const AdminBudgetTab: React.FC = () => {
             <div style={{
               width: '100%',
               height: '12px',
-              background: '#262626',
+              background: 'var(--bg-card)',
               borderRadius: '6px',
               overflow: 'hidden',
               marginBottom: '8px'
@@ -1512,7 +1512,7 @@ const AdminBudgetTab: React.FC = () => {
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#a1a1aa' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-tertiary)' }}>
               <span>${(overview?.companySpend ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent</span>
               <span>{(overview?.companyPercentUsed ?? 0).toFixed(1)}% used</span>
             </div>
@@ -1538,7 +1538,7 @@ const AdminBudgetTab: React.FC = () => {
         }}
         onClick={() => setShowBudgetModal(false)}>
           <div style={{
-            background: '#1a1a1a',
+            background: 'var(--bg-elevated)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '16px',
             padding: '32px',
@@ -1550,11 +1550,11 @@ const AdminBudgetTab: React.FC = () => {
             boxSizing: 'border-box'
           }}
           onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '24px', fontWeight: 700, color: '#e4e4e7', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '24px' }}>
               Update Company Budget
             </h3>
             <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '14px', color: '#a1a1aa', marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>
                 New Budget Amount
               </label>
               <input
@@ -1565,10 +1565,10 @@ const AdminBudgetTab: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px 16px',
-                  background: '#262626',
-                  border: '1px solid #3a3a3a',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-default)',
                   borderRadius: '8px',
-                  color: '#e4e4e7',
+                  color: 'var(--text-secondary)',
                   fontSize: '16px',
                   outline: 'none',
                   boxSizing: 'border-box'
@@ -1577,7 +1577,7 @@ const AdminBudgetTab: React.FC = () => {
                   e.currentTarget.style.borderColor = '#991b1b';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#3a3a3a';
+                  e.currentTarget.style.borderColor = 'var(--border-default)';
                 }}
               />
             </div>
@@ -1589,7 +1589,7 @@ const AdminBudgetTab: React.FC = () => {
                   background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '8px',
-                  color: '#e4e4e7',
+                  color: 'var(--text-secondary)',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',

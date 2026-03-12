@@ -62,7 +62,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      background: 'linear-gradient(180deg, #0a0a0a 0%, #171717 50%, #0a0a0a 100%)',
+      background: 'linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-primary) 100%)',
       position: 'relative',
       overflow: 'hidden'
     }}>
@@ -119,7 +119,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               </div>
               <div style={{
                 fontSize: '11px',
-                color: '#a1a1aa',
+                color: 'var(--text-tertiary)',
                 marginTop: '2px',
                 letterSpacing: '0.05em',
                 textTransform: 'uppercase'
@@ -162,7 +162,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               <h3 style={{
                 fontSize: '28px',
                 fontWeight: '700',
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 margin: '0 0 8px 0',
                 lineHeight: '1.3'
               }}>
@@ -171,7 +171,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               {propertyAddress && (
                 <p style={{
                   fontSize: '14px',
-                  color: '#a1a1aa',
+                  color: 'var(--text-tertiary)',
                   margin: 0
                 }}>
                   {propertyAddress}
@@ -186,7 +186,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
             height: '240px',
             borderRadius: '50%',
             background: repProfile.photoUrl
-              ? '#262626'
+              ? 'var(--bg-card)'
               : 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
             display: 'flex',
             alignItems: 'center',
@@ -223,7 +223,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
           <h2 style={{
             fontSize: '42px',
             fontWeight: '800',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             margin: '0 0 8px 0',
             textAlign: 'center',
             textShadow: '0 2px 12px rgba(0,0,0,0.4)'
@@ -280,8 +280,8 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
                 <span key={i} style={{
                   padding: '8px 14px',
                   borderRadius: '20px',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   color: '#4ade80',
                   fontSize: '13px',
                   fontWeight: '500',
@@ -310,14 +310,14 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
                 alignItems: 'center',
                 gap: '12px',
                 padding: '14px 20px',
-                background: '#171717',
-                border: '1px solid #262626',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '12px'
               }}>
                 <Phone size={20} color="#dc2626" />
                 <span style={{
                   fontSize: '17px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontWeight: '500'
                 }}>
                   {repProfile.phone}
@@ -330,14 +330,14 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
                 alignItems: 'center',
                 gap: '12px',
                 padding: '14px 20px',
-                background: '#171717',
-                border: '1px solid #262626',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '12px'
               }}>
                 <Mail size={20} color="#dc2626" />
                 <span style={{
                   fontSize: '16px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontWeight: '500',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -367,7 +367,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               <h3 style={{
                 fontSize: '32px',
                 fontWeight: '700',
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 margin: '0 0 12px 0',
                 lineHeight: '1.3'
               }}>
@@ -375,7 +375,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               </h3>
               <p style={{
                 fontSize: '16px',
-                color: '#a1a1aa',
+                color: 'var(--text-tertiary)',
                 margin: 0
               }}>
                 Professional assessment and personalized recommendations
@@ -390,9 +390,9 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               flexDirection: 'column',
               alignItems: 'center',
               padding: '32px',
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRadius: '20px',
-              border: '1px solid #262626',
+              border: '1px solid var(--border-subtle)',
               boxShadow: '0 20px 60px -20px rgba(0,0,0,0.8)'
             }}>
               <div style={{
@@ -404,7 +404,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
                 <QrCode size={20} color="#dc2626" />
                 <h4 style={{
                   margin: 0,
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   fontSize: '18px',
                   fontWeight: '600'
                 }}>
@@ -431,21 +431,21 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
 
               <div style={{
                 fontSize: '13px',
-                color: '#a1a1aa',
+                color: 'var(--text-tertiary)',
                 textAlign: 'center',
                 marginBottom: '4px',
                 fontFamily: 'monospace',
-                background: '#171717',
+                background: 'var(--bg-secondary)',
                 padding: '8px 16px',
                 borderRadius: '8px',
-                border: '1px solid #262626'
+                border: '1px solid var(--border-subtle)'
               }}>
                 /profile/{repProfile.slug}
               </div>
 
               <p style={{
                 fontSize: '14px',
-                color: '#71717a',
+                color: 'var(--text-tertiary)',
                 margin: '12px 0 0 0',
                 textAlign: 'center',
                 maxWidth: '240px'
@@ -458,7 +458,7 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
           {/* Today's Date */}
           <div style={{
             fontSize: '15px',
-            color: '#52525b',
+            color: 'var(--text-disabled)',
             textAlign: 'center',
             fontWeight: '500'
           }}>

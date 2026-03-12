@@ -202,7 +202,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        color: '#a1a1aa'
+        color: 'var(--text-tertiary)'
       }}>
         <Loader style={{ width: '2rem', height: '2rem', animation: 'spin 1s linear infinite' }} />
         <span style={{ marginLeft: '0.75rem' }}>Loading profile...</span>
@@ -219,14 +219,14 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
         textAlign: 'center'
       }}>
         <div style={{
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '12px',
-          border: '1px solid #262626',
+          border: '1px solid var(--border-subtle)',
           padding: '3rem'
         }}>
           <QrCode style={{ width: '4rem', height: '4rem', color: '#dc2626', margin: '0 auto 1.5rem' }} />
-          <h2 style={{ color: '#ffffff', margin: '0 0 1rem 0' }}>No Profile Yet</h2>
-          <p style={{ color: '#a1a1aa', margin: '0 0 1.5rem 0' }}>
+          <h2 style={{ color: 'var(--text-primary)', margin: '0 0 1rem 0' }}>No Profile Yet</h2>
+          <p style={{ color: 'var(--text-tertiary)', margin: '0 0 1.5rem 0' }}>
             You don't have a QR profile linked to your account yet.
             Contact your admin to create one for you.
           </p>
@@ -256,9 +256,9 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           style={{
             padding: '0.5rem 1rem',
             background: 'transparent',
-            border: '1px solid #262626',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '8px',
-            color: '#a1a1aa',
+            color: 'var(--text-tertiary)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -273,7 +273,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
       {error && (
         <div style={{
           padding: '1rem',
-          background: '#450a0a',
+          background: 'var(--bg-error)',
           border: '1px solid #dc2626',
           borderRadius: '8px',
           color: '#fca5a5',
@@ -286,9 +286,9 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
       <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr', gap: '2rem' }}>
         {/* Left Column - Profile Info */}
         <div style={{
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '12px',
-          border: '1px solid #262626',
+          border: '1px solid var(--border-subtle)',
           padding: '1.5rem'
         }}>
           <div style={{
@@ -297,7 +297,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
             alignItems: 'center',
             marginBottom: '1.5rem'
           }}>
-            <h2 style={{ margin: 0, color: '#ffffff', fontSize: '1.125rem' }}>Profile Information</h2>
+            <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.125rem' }}>Profile Information</h2>
             {!editing ? (
               <button
                 onClick={() => setEditing(true)}
@@ -323,9 +323,9 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     padding: '0.5rem 1rem',
                     background: 'transparent',
-                    border: '1px solid #262626',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#a1a1aa',
+                    color: 'var(--text-tertiary)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -340,10 +340,10 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   disabled={saving}
                   style={{
                     padding: '0.5rem 1rem',
-                    background: saving ? '#262626' : '#dc2626',
+                    background: saving ? 'var(--bg-card)' : '#dc2626',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     cursor: saving ? 'wait' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -364,7 +364,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           {/* Profile Fields */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 <User style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.5rem' }} />
                 Name
               </label>
@@ -376,20 +376,20 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem'
                   }}
                 />
               ) : (
-                <div style={{ color: '#ffffff', fontSize: '1rem' }}>{profile.name}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.name}</div>
               )}
             </div>
 
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 Title
               </label>
               {editing ? (
@@ -401,20 +401,20 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem'
                   }}
                 />
               ) : (
-                <div style={{ color: '#ffffff', fontSize: '1rem' }}>{profile.title || '—'}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.title || '—'}</div>
               )}
             </div>
 
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 <Phone style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.5rem' }} />
                 Phone Number
               </label>
@@ -427,20 +427,20 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem'
                   }}
                 />
               ) : (
-                <div style={{ color: '#ffffff', fontSize: '1rem' }}>{profile.phone_number || '—'}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.phone_number || '—'}</div>
               )}
             </div>
 
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 <Mail style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.5rem' }} />
                 Email
               </label>
@@ -448,7 +448,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
             </div>
 
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 Bio
               </label>
               {editing ? (
@@ -460,23 +460,23 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem',
                     resize: 'vertical'
                   }}
                 />
               ) : (
-                <div style={{ color: '#ffffff', fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
                   {profile.bio || '—'}
                 </div>
               )}
             </div>
 
             <div>
-              <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                 Started Year
               </label>
               {editing ? (
@@ -490,15 +490,15 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   style={{
                     width: '120px',
                     padding: '0.75rem',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem'
                   }}
                 />
               ) : (
-                <div style={{ color: '#ffffff', fontSize: '1rem' }}>{profile.start_year || '—'}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.start_year || '—'}</div>
               )}
             </div>
           </div>
@@ -508,13 +508,13 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* QR Code Card */}
           <div style={{
-            background: '#0a0a0a',
+            background: 'var(--bg-primary)',
             borderRadius: '12px',
-            border: '1px solid #262626',
+            border: '1px solid var(--border-subtle)',
             padding: '1.5rem',
             textAlign: 'center'
           }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#ffffff', fontSize: '1rem' }}>Your QR Code</h3>
+            <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1rem' }}>Your QR Code</h3>
 
             {qrCodeUrl ? (
               <div style={{
@@ -530,20 +530,20 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
               <div style={{
                 width: '150px',
                 height: '150px',
-                background: '#171717',
+                background: 'var(--bg-secondary)',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 1rem'
               }}>
-                <QrCode style={{ width: '3rem', height: '3rem', color: '#262626' }} />
+                <QrCode style={{ width: '3rem', height: '3rem', color: 'var(--border-subtle)' }} />
               </div>
             )}
 
             <div style={{
               fontSize: '0.875rem',
-              color: '#a1a1aa',
+              color: 'var(--text-tertiary)',
               marginBottom: '1rem',
               wordBreak: 'break-all'
             }}>
@@ -555,10 +555,10 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                 onClick={copyProfileUrl}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: copied ? '#4ade80' : '#ffffff',
+                  color: copied ? '#4ade80' : 'var(--text-primary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -575,10 +575,10 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                 rel="noopener noreferrer"
                 style={{
                   padding: '0.5rem 1rem',
-                  background: '#171717',
-                  border: '1px solid #262626',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   textDecoration: 'none',
                   display: 'flex',
                   alignItems: 'center',
@@ -594,65 +594,65 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
 
           {/* Stats Card */}
           <div style={{
-            background: '#0a0a0a',
+            background: 'var(--bg-primary)',
             borderRadius: '12px',
-            border: '1px solid #262626',
+            border: '1px solid var(--border-subtle)',
             padding: '1.5rem'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
               <BarChart3 style={{ width: '1rem', height: '1rem', color: '#dc2626' }} />
-              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1rem' }}>QR Scan Analytics</h3>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>QR Scan Analytics</h3>
             </div>
 
             {stats ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div style={{
-                  background: '#171717',
+                  background: 'var(--bg-secondary)',
                   padding: '1rem',
                   borderRadius: '8px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {stats.scansToday}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Today</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Today</div>
                 </div>
                 <div style={{
-                  background: '#171717',
+                  background: 'var(--bg-secondary)',
                   padding: '1rem',
                   borderRadius: '8px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {stats.scansThisWeek}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>This Week</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>This Week</div>
                 </div>
                 <div style={{
-                  background: '#171717',
+                  background: 'var(--bg-secondary)',
                   padding: '1rem',
                   borderRadius: '8px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {stats.scansThisMonth}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>This Month</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>This Month</div>
                 </div>
                 <div style={{
-                  background: '#171717',
+                  background: 'var(--bg-secondary)',
                   padding: '1rem',
                   borderRadius: '8px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#ffffff' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                     {stats.uniqueVisitors}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Unique Visitors</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Unique Visitors</div>
                 </div>
               </div>
             ) : (
-              <div style={{ color: '#a1a1aa', fontSize: '0.875rem', textAlign: 'center', padding: '1rem' }}>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem', textAlign: 'center', padding: '1rem' }}>
                 No scan data yet
               </div>
             )}

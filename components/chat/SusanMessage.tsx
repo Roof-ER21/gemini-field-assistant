@@ -89,8 +89,8 @@ export const SusanMessageComponent: React.FC<SusanMessageProps> = ({
         <div style={{
           padding: '12px 16px',
           borderRadius: '4px 16px 16px 16px',
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
         }}>
           <S21ResponseFormatter
             content={content}

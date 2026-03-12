@@ -175,7 +175,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Presentation className="w-5 h-5 text-[#e94560]" />
+          <Presentation className="w-5 h-5 text-[#c41e3a]" />
           Presentation Builder
         </CardTitle>
         <CardDescription>
@@ -194,7 +194,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
                 type="text"
                 value={presentationTitle}
                 onChange={(e) => setPresentationTitle(e.target.value)}
-                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#e94560] focus:outline-none"
+                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#c41e3a] focus:outline-none"
                 placeholder="Roof Inspection Report"
               />
             </div>
@@ -204,7 +204,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
                 type="text"
                 value={inspectorName}
                 onChange={(e) => setInspectorName(e.target.value)}
-                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#e94560] focus:outline-none"
+                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#c41e3a] focus:outline-none"
                 placeholder="John Doe"
               />
             </div>
@@ -214,7 +214,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
                 type="text"
                 value={propertyAddress}
                 onChange={(e) => setPropertyAddress(e.target.value)}
-                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#e94560] focus:outline-none"
+                className="w-full px-3 py-2 bg-black/40 border border-white/20 rounded text-white text-sm focus:border-[#c41e3a] focus:outline-none"
                 placeholder="123 Main St, City, State ZIP"
               />
             </div>
@@ -245,7 +245,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
                 >
                   <div className="flex items-start gap-3">
                     {/* Slide Number */}
-                    <div className="flex-shrink-0 w-8 h-8 rounded bg-[#e94560]/20 text-[#e94560] flex items-center justify-center font-bold text-sm">
+                    <div className="flex-shrink-0 w-8 h-8 rounded bg-[#c41e3a]/20 text-[#c41e3a] flex items-center justify-center font-bold text-sm">
                       {index + 1}
                     </div>
 

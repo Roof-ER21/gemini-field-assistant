@@ -85,7 +85,7 @@ const ToolResultCard: React.FC<Props> = ({ toolResult }) => {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(16,24,32,0.9) 0%, rgba(8,12,16,0.95) 100%)',
+      background: 'var(--bg-card)',
       border: `1px solid ${success ? `${meta.color}33` : 'rgba(239,68,68,0.3)'}`,
       borderRadius: '12px',
       padding: '12px 16px',
@@ -107,7 +107,7 @@ const ToolResultCard: React.FC<Props> = ({ toolResult }) => {
         }}>
           <Icon style={{ width: '14px', height: '14px', color: meta.color }} />
         </div>
-        <span style={{ fontWeight: 600, color: 'white', flex: 1 }}>
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
           {meta.label}
         </span>
         {success ? (
@@ -121,7 +121,7 @@ const ToolResultCard: React.FC<Props> = ({ toolResult }) => {
       {summaryLines.length > 0 && (
         <div style={{
           marginTop: '8px',
-          color: 'rgba(255,255,255,0.7)',
+          color: 'var(--text-secondary)',
           fontSize: '12px',
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',

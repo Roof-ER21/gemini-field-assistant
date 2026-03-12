@@ -135,14 +135,14 @@ const AgentNetworkPanel: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Network style={{ width: '1.5rem', height: '1.5rem', color: '#dc2626' }} />
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#ffffff', margin: 0 }}>Agent Intel Feed</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Agent Intel Feed</h2>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             onClick={() => fetchFeed()}
             style={{
-              padding: '0.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '8px', color: '#9ca3af', cursor: 'pointer'
+              padding: '0.5rem', background: 'var(--glass-highlight)', border: '1px solid var(--border-subtle)',
+              borderRadius: '8px', color: 'var(--text-tertiary)', cursor: 'pointer'
             }}
           >
             <RefreshCw style={{ width: '1rem', height: '1rem' }} />
@@ -164,7 +164,7 @@ const AgentNetworkPanel: React.FC = () => {
       {/* Submit Form */}
       {showSubmit && (
         <div style={{
-          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
           borderRadius: '12px', padding: '1.25rem', marginBottom: '1.25rem'
         }}>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -175,8 +175,8 @@ const AgentNetworkPanel: React.FC = () => {
                 style={{
                   padding: '0.375rem 0.75rem', border: 'none', borderRadius: '999px', cursor: 'pointer',
                   fontSize: '0.75rem', fontWeight: '600',
-                  background: submitType === t.value ? t.color : 'rgba(255,255,255,0.05)',
-                  color: submitType === t.value ? '#fff' : '#9ca3af'
+                  background: submitType === t.value ? t.color : 'var(--glass-highlight)',
+                  color: submitType === t.value ? '#fff' : 'var(--text-tertiary)'
                 }}
               >
                 {t.label}
@@ -189,8 +189,8 @@ const AgentNetworkPanel: React.FC = () => {
             placeholder="Share what you learned in the field..."
             rows={3}
             style={{
-              width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '8px', padding: '0.75rem', color: '#ffffff', fontSize: '0.875rem',
+              width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)',
+              borderRadius: '8px', padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.875rem',
               resize: 'vertical', outline: 'none', boxSizing: 'border-box'
             }}
           />
@@ -200,8 +200,8 @@ const AgentNetworkPanel: React.FC = () => {
               onChange={e => setSubmitState(e.target.value.toUpperCase().slice(0, 2))}
               placeholder="State (e.g. TX)"
               style={{
-                flex: 1, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px', padding: '0.5rem 0.75rem', color: '#ffffff', fontSize: '0.8125rem', outline: 'none'
+                flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)',
+                borderRadius: '8px', padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.8125rem', outline: 'none'
               }}
             />
             <input
@@ -209,15 +209,15 @@ const AgentNetworkPanel: React.FC = () => {
               onChange={e => setSubmitInsurer(e.target.value)}
               placeholder="Insurer (optional)"
               style={{
-                flex: 2, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px', padding: '0.5rem 0.75rem', color: '#ffffff', fontSize: '0.8125rem', outline: 'none'
+                flex: 2, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)',
+                borderRadius: '8px', padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.8125rem', outline: 'none'
               }}
             />
             <button
               onClick={handleSubmit}
               disabled={submitting || !submitContent.trim()}
               style={{
-                padding: '0.5rem 1.25rem', background: submitting ? '#555' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                padding: '0.5rem 1.25rem', background: submitting ? 'var(--bg-hover)' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
                 border: 'none', borderRadius: '8px', color: '#fff', cursor: submitting ? 'default' : 'pointer',
                 fontWeight: '600', fontSize: '0.8125rem'
               }}
@@ -235,8 +235,8 @@ const AgentNetworkPanel: React.FC = () => {
           style={{
             padding: '0.25rem 0.625rem', border: 'none', borderRadius: '999px', cursor: 'pointer',
             fontSize: '0.75rem', fontWeight: '500',
-            background: !filterType ? '#dc2626' : 'rgba(255,255,255,0.05)',
-            color: !filterType ? '#fff' : '#9ca3af'
+            background: !filterType ? '#dc2626' : 'var(--glass-highlight)',
+            color: !filterType ? '#fff' : 'var(--text-tertiary)'
           }}
         >
           All
@@ -248,8 +248,8 @@ const AgentNetworkPanel: React.FC = () => {
             style={{
               padding: '0.25rem 0.625rem', border: 'none', borderRadius: '999px', cursor: 'pointer',
               fontSize: '0.75rem', fontWeight: '500',
-              background: filterType === t.value ? t.color : 'rgba(255,255,255,0.05)',
-              color: filterType === t.value ? '#fff' : '#9ca3af'
+              background: filterType === t.value ? t.color : 'var(--glass-highlight)',
+              color: filterType === t.value ? '#fff' : 'var(--text-tertiary)'
             }}
           >
             {t.label}
@@ -259,9 +259,9 @@ const AgentNetworkPanel: React.FC = () => {
 
       {/* Feed */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading intel...</div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-tertiary)' }}>Loading intel...</div>
       ) : messages.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-tertiary)' }}>
           <Network style={{ width: '3rem', height: '3rem', margin: '0 auto 1rem', opacity: 0.3 }} />
           <p style={{ margin: 0 }}>No approved intel yet. Be the first to share!</p>
         </div>
@@ -273,7 +273,7 @@ const AgentNetworkPanel: React.FC = () => {
               <div
                 key={msg.id}
                 style={{
-                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
                   borderRadius: '12px', padding: '1rem'
                 }}
               >
@@ -286,21 +286,21 @@ const AgentNetworkPanel: React.FC = () => {
                       {typeInfo.label}
                     </span>
                     {msg.state && (
-                      <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>{msg.state}</span>
+                      <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>{msg.state}</span>
                     )}
                     {msg.insurer && (
-                      <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>• {msg.insurer}</span>
+                      <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>• {msg.insurer}</span>
                     )}
                   </div>
-                  <span style={{ fontSize: '0.6875rem', color: '#4b5563' }}>{timeAgo(msg.created_at)}</span>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--text-disabled)' }}>{timeAgo(msg.created_at)}</span>
                 </div>
 
-                <p style={{ margin: '0 0 0.75rem', color: '#e5e7eb', fontSize: '0.875rem', lineHeight: '1.5' }}>
+                <p style={{ margin: '0 0 0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.5' }}>
                   {msg.content}
                 </p>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                     {msg.author_name || msg.author_email?.split('@')[0]}
                   </span>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -313,7 +313,7 @@ const AgentNetworkPanel: React.FC = () => {
                     <button
                       onClick={() => handleVote(msg.id, 'up')}
                       style={{
-                        background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280',
+                        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)',
                         display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.25rem'
                       }}
                     >
@@ -323,7 +323,7 @@ const AgentNetworkPanel: React.FC = () => {
                     <button
                       onClick={() => handleVote(msg.id, 'down')}
                       style={{
-                        background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280',
+                        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)',
                         display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.25rem'
                       }}
                     >

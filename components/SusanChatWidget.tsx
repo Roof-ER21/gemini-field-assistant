@@ -209,7 +209,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-[#e94560] to-[#ff6b88] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-50 animate-pulse-glow"
+          className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-[#c41e3a] to-[#9b1830] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-50 animate-pulse-glow"
         >
           <Bot className="w-8 h-8 text-white" />
         </button>
@@ -224,9 +224,9 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
               : 'bottom-6 right-6 w-96 h-[500px]'
           }`}
         >
-          <div className="h-full flex flex-col bg-gradient-to-br from-zinc-900 to-black border border-white/20 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)' }}>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#e94560] to-[#ff6b88] border-b border-white/10">
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#c41e3a] to-[#9b1830] border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
                   <Bot className="w-6 h-6 text-white" />
@@ -257,7 +257,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
             </div>
 
             {/* Messages */}
-            <div className="flex-grow overflow-y-auto p-4 space-y-4 bg-black/40">
+            <div className="flex-grow overflow-y-auto p-4 space-y-4" style={{ background: 'var(--bg-primary)' }}>
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -266,7 +266,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                       msg.role === 'user'
-                        ? 'bg-gradient-to-r from-[#e94560] to-[#ff6b88] text-white'
+                        ? 'bg-gradient-to-r from-[#c41e3a] to-[#9b1830] text-white'
                         : 'bg-white/10 text-white border border-white/10'
                     }`}
                   >
@@ -297,7 +297,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
 
             {/* Quick Actions */}
             {!isTyping && (
-              <div className="px-4 py-2 border-t border-white/10 bg-black/40">
+              <div className="px-4 py-2 border-t" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-subtle)' }}>
                 <div className="flex gap-2 overflow-x-auto pb-2">
                   {quickActions.map((action, idx) => (
                     <button
@@ -313,7 +313,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
             )}
 
             {/* Input */}
-            <div className="p-4 border-t border-white/10 bg-black/60">
+            <div className="p-4 border-t" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-subtle)' }}>
               <div className="flex gap-2">
                 <input
                   ref={inputRef}
@@ -322,7 +322,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="Ask Susan about this inspection..."
-                  className="flex-grow px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#e94560]"
+                  className="flex-grow px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#c41e3a]"
                   disabled={isTyping}
                 />
                 <Button
@@ -345,10 +345,10 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
       <style>{`
         @keyframes pulse-glow {
           0%, 100% {
-            box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+            box-shadow: 0 0 20px rgba(196, 30, 58, 0.5);
           }
           50% {
-            box-shadow: 0 0 30px rgba(233, 69, 96, 0.8);
+            box-shadow: 0 0 30px rgba(196, 30, 58, 0.8);
           }
         }
         .animate-pulse-glow {

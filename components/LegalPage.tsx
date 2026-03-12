@@ -28,17 +28,17 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
       <div
         className="mb-4"
         style={{
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '12px',
           overflow: 'hidden',
-          border: '1px solid #262626'
+          border: '1px solid var(--border-subtle)'
         }}
       >
         <button
           onClick={() => toggleSection(id)}
           className="w-full px-4 py-3 flex items-center justify-between text-left"
           style={{
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             background: isExpanded ? 'rgba(220, 38, 38, 0.1)' : 'transparent'
           }}
         >
@@ -48,7 +48,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
         {isExpanded && (
           <div
             className="px-4 pb-4 text-sm leading-relaxed"
-            style={{ color: '#d4d4d8' }}
+            style={{ color: 'var(--text-secondary)' }}
           >
             {children}
           </div>
@@ -59,7 +59,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
 
   const PrivacyPolicy = () => (
     <div>
-      <p className="mb-4 text-sm" style={{ color: '#a1a1aa' }}>
+      <p className="mb-4 text-sm" style={{ color: 'var(--text-tertiary)' }}>
         Last updated: January 26, 2026
       </p>
 
@@ -190,7 +190,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
 
   const TermsOfService = () => (
     <div>
-      <p className="mb-4 text-sm" style={{ color: '#a1a1aa' }}>
+      <p className="mb-4 text-sm" style={{ color: 'var(--text-tertiary)' }}>
         Last updated: January 26, 2026
       </p>
 
@@ -327,7 +327,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
     <div
       className="fixed inset-0 flex items-center justify-center px-4"
       style={{
-        background: 'rgba(0, 0, 0, 0.90)',
+        background: 'rgba(0, 0, 0, 0.85)',
         zIndex: 10000,
         animation: 'fadeIn 0.2s ease-in-out'
       }}
@@ -335,7 +335,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
       <div
         className="w-full max-w-2xl"
         style={{
-          background: 'linear-gradient(135deg, #171717 0%, #0a0a0a 100%)',
+          background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
           borderRadius: '24px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(220, 38, 38, 0.3)',
           animation: 'slideUp 0.3s ease-out',
@@ -348,8 +348,8 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
         <div
           className="px-6 py-4 flex items-center justify-between"
           style={{
-            borderBottom: '1px solid #262626',
-            background: '#000000'
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-primary)'
           }}
         >
           <div className="flex items-center gap-3">
@@ -360,7 +360,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
             )}
             <h2
               className="text-xl font-semibold"
-              style={{ color: '#ffffff', letterSpacing: '-0.02em' }}
+              style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
             >
               {activeTab === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
             </h2>
@@ -369,16 +369,16 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
             onClick={onClose}
             className="p-2 rounded-full transition-all"
             style={{
-              background: '#0a0a0a',
-              color: '#a1a1aa'
+              background: 'var(--bg-primary)',
+              color: 'var(--text-tertiary)'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(220, 38, 38, 0.2)';
               e.currentTarget.style.color = '#dc2626';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#0a0a0a';
-              e.currentTarget.style.color = '#a1a1aa';
+              e.currentTarget.style.background = 'var(--bg-primary)';
+              e.currentTarget.style.color = 'var(--text-tertiary)';
             }}
           >
             <X className="w-5 h-5" />
@@ -388,14 +388,14 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
         {/* Tabs */}
         <div
           className="flex border-b"
-          style={{ borderColor: '#262626' }}
+          style={{ borderColor: 'var(--border-subtle)' }}
         >
           <button
             onClick={() => setActiveTab('privacy')}
             className="flex-1 py-3 px-4 font-medium text-sm flex items-center justify-center gap-2 transition-all"
             style={{
               background: activeTab === 'privacy' ? 'rgba(220, 38, 38, 0.1)' : 'transparent',
-              color: activeTab === 'privacy' ? '#dc2626' : '#a1a1aa',
+              color: activeTab === 'privacy' ? '#dc2626' : 'var(--text-tertiary)',
               borderBottom: activeTab === 'privacy' ? '2px solid #dc2626' : '2px solid transparent'
             }}
           >
@@ -407,7 +407,7 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
             className="flex-1 py-3 px-4 font-medium text-sm flex items-center justify-center gap-2 transition-all"
             style={{
               background: activeTab === 'terms' ? 'rgba(220, 38, 38, 0.1)' : 'transparent',
-              color: activeTab === 'terms' ? '#dc2626' : '#a1a1aa',
+              color: activeTab === 'terms' ? '#dc2626' : 'var(--text-tertiary)',
               borderBottom: activeTab === 'terms' ? '2px solid #dc2626' : '2px solid transparent'
             }}
           >
@@ -428,9 +428,9 @@ const LegalPage: React.FC<LegalPageProps> = ({ onClose, initialTab = 'privacy' }
         <div
           className="px-6 py-4 text-center text-xs"
           style={{
-            borderTop: '1px solid #262626',
-            color: '#71717a',
-            background: '#000000'
+            borderTop: '1px solid var(--border-subtle)',
+            color: 'var(--text-tertiary)',
+            background: 'var(--bg-primary)'
           }}
         >
           Susan AI-21 by ROOFER - The Roof Docs

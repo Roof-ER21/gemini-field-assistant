@@ -185,7 +185,7 @@ const AgnesLearningContent: React.FC = () => {
       case DifficultyLevel.PRO: return '#f59e0b'; // orange
       case DifficultyLevel.VETERAN: return '#f97316'; // orange-red
       case DifficultyLevel.ELITE: return '#ef4444'; // red
-      default: return '#6b7280';
+      default: return 'var(--text-tertiary)';
     }
   };
 
@@ -322,7 +322,7 @@ Keep grinding! 🔥`;
                         padding: '0.9rem',
                         borderRadius: '14px',
                         border: isSelected ? '1px solid rgba(196,30,58,0.6)' : '1px solid var(--border-subtle)',
-                        background: isSelected ? 'rgba(196,30,58,0.12)' : 'rgba(10,10,10,0.55)',
+                        background: isSelected ? 'rgba(196,30,58,0.12)' : 'var(--bg-primary)',
                         color: 'var(--text-primary)',
                         boxShadow: isSelected ? 'var(--shadow-red)' : 'none',
                         cursor: 'pointer',
@@ -353,7 +353,7 @@ Keep grinding! 🔥`;
                       padding: '0.45rem 0.9rem',
                       borderRadius: '999px',
                       border: difficulty === option.value ? '1px solid rgba(250,204,21,0.7)' : '1px solid var(--border-subtle)',
-                      background: difficulty === option.value ? 'rgba(250,204,21,0.16)' : 'rgba(10,10,10,0.5)',
+                      background: difficulty === option.value ? 'rgba(250,204,21,0.16)' : 'var(--bg-primary)',
                       color: difficulty === option.value ? '#fde68a' : 'var(--text-tertiary)',
                       fontSize: '0.7rem',
                       fontWeight: 700,
@@ -380,7 +380,7 @@ Keep grinding! 🔥`;
                   borderRadius: '999px',
                   padding: '0.4rem 0.85rem',
                   border: useCustomScript ? '1px solid rgba(196,30,58,0.6)' : '1px solid var(--border-subtle)',
-                  background: useCustomScript ? 'rgba(196,30,58,0.18)' : 'rgba(10,10,10,0.5)',
+                  background: useCustomScript ? 'rgba(196,30,58,0.18)' : 'var(--bg-primary)',
                   color: 'var(--text-primary)',
                   fontSize: '0.7rem',
                   fontWeight: 600,
@@ -399,7 +399,7 @@ Keep grinding! 🔥`;
                 onChange={(e) => handleScriptChange(e.target.value)}
                 style={{
                   width: '100%',
-                  background: 'rgba(10,10,10,0.6)',
+                  background: 'var(--bg-primary)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '10px',
                   padding: '0.6rem 0.75rem',
@@ -434,7 +434,7 @@ Keep grinding! 🔥`;
               style={{
                 width: '100%',
                 minHeight: '280px',
-                background: 'rgba(6,6,6,0.6)',
+                background: 'var(--bg-secondary)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: '12px',
                 padding: '0.9rem',
@@ -483,7 +483,7 @@ Keep grinding! 🔥`;
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0,0,0,0.75)',
+              background: 'var(--bg-secondary)',
               backdropFilter: 'blur(8px)',
               display: 'flex',
               alignItems: 'center',
@@ -523,7 +523,7 @@ Keep grinding! 🔥`;
                   style={{
                     padding: '0.5rem',
                     borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'var(--glass-highlight)',
                     border: '1px solid var(--border-subtle)',
                     cursor: 'pointer',
                     color: 'var(--text-tertiary)'
@@ -676,7 +676,7 @@ Keep grinding! 🔥`;
                                 marginTop: '0.5rem',
                                 padding: '1rem',
                                 borderRadius: '12px',
-                                background: 'rgba(6,6,6,0.6)',
+                                background: 'var(--bg-secondary)',
                                 border: '1px solid var(--border-subtle)'
                               }}
                             >

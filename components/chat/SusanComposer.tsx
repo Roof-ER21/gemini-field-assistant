@@ -84,8 +84,8 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
   return (
     <div style={{
       padding: '12px 16px',
-      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-      background: 'rgba(0, 0, 0, 0.3)',
+      borderTop: '1px solid var(--glass-border)',
+      background: 'var(--bg-secondary)',
       ...style,
     }}>
       {/* State selector chip */}
@@ -103,7 +103,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
             borderRadius: '12px',
             background: 'rgba(220, 38, 38, 0.15)',
             border: '1px solid rgba(220, 38, 38, 0.3)',
-            color: '#fca5a5',
+            color: 'var(--text-tertiary)',
             fontSize: '12px',
             fontWeight: 500,
           }}>
@@ -114,7 +114,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#fca5a5',
+                color: 'var(--text-tertiary)',
                 cursor: 'pointer',
                 padding: '0 2px',
                 fontSize: '14px',
@@ -139,7 +139,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: '#71717a',
+            color: 'var(--text-tertiary)',
             cursor: 'pointer',
             padding: '8px',
             display: 'flex',
@@ -167,7 +167,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
             style={{
               background: selectedState ? 'rgba(220, 38, 38, 0.15)' : 'none',
               border: selectedState ? '1px solid rgba(220, 38, 38, 0.3)' : 'none',
-              color: selectedState ? '#fca5a5' : '#71717a',
+              color: selectedState ? 'var(--text-tertiary)' : 'var(--text-tertiary)',
               cursor: 'pointer',
               padding: '8px',
               display: 'flex',
@@ -187,8 +187,8 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
               bottom: '100%',
               left: 0,
               marginBottom: '4px',
-              background: '#1a1a1a',
-              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--glass-border)',
               borderRadius: '8px',
               padding: '8px',
               maxHeight: '200px',
@@ -211,7 +211,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
                     background: st === selectedState ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
                     border: 'none',
                     borderRadius: '4px',
-                    color: st === selectedState ? '#fca5a5' : '#a1a1aa',
+                    color: st === selectedState ? 'var(--text-tertiary)' : 'var(--text-tertiary)',
                     cursor: 'pointer',
                     fontSize: '12px',
                     fontWeight: st === selectedState ? 600 : 400,
@@ -235,11 +235,11 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
           disabled={isLoading}
           style={{
             flex: 1,
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'var(--glass-highlight)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             padding: '10px 14px',
-            color: 'white',
+            color: 'var(--text-primary)',
             fontSize: '14px',
             resize: 'none',
             outline: 'none',
@@ -255,7 +255,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
           style={{
             background: text.trim() && !isLoading
               ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-              : 'rgba(255, 255, 255, 0.1)',
+              : 'var(--glass-border)',
             border: 'none',
             borderRadius: '10px',
             padding: '10px',
@@ -263,7 +263,7 @@ export const SusanComposer: React.FC<SusanComposerProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'white',
+            color: text.trim() && !isLoading ? 'white' : 'var(--text-tertiary)',
           }}
           title="Send message"
         >

@@ -83,10 +83,10 @@ const PersonalitySettings: React.FC = () => {
     width: '100%',
     padding: '10px 12px',
     fontSize: '14px',
-    background: '#171717',
-    border: '1px solid #262626',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-subtle)',
     borderRadius: '8px',
-    color: '#ffffff',
+    color: 'var(--text-primary)',
     outline: 'none',
     boxSizing: 'border-box',
   };
@@ -95,7 +95,7 @@ const PersonalitySettings: React.FC = () => {
     display: 'block',
     fontSize: '12px',
     fontWeight: '600',
-    color: '#a1a1aa',
+    color: 'var(--text-tertiary)',
     marginBottom: '4px',
   };
 
@@ -103,16 +103,16 @@ const PersonalitySettings: React.FC = () => {
     padding: '6px 12px',
     fontSize: '12px',
     borderRadius: '16px',
-    border: active ? '1px solid #a78bfa' : '1px solid #262626',
-    background: active ? 'rgba(167,139,250,0.15)' : '#171717',
-    color: active ? '#c4b5fd' : '#71717a',
+    border: active ? '1px solid #a78bfa' : '1px solid var(--border-subtle)',
+    background: active ? 'rgba(167,139,250,0.15)' : 'var(--bg-secondary)',
+    color: active ? '#c4b5fd' : 'var(--text-tertiary)',
     cursor: 'pointer',
     transition: 'all 0.15s',
   });
 
   if (loading) {
     return (
-      <div style={{ padding: '12px', color: '#71717a', fontSize: '13px' }}>
+      <div style={{ padding: '12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
         Loading preferences...
       </div>
     );
@@ -144,7 +144,7 @@ const PersonalitySettings: React.FC = () => {
         }}
       >
         <Sparkles style={{ width: '16px', height: '16px', color: '#a78bfa' }} />
-        <span style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>
+        <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
           Susan Preferences
         </span>
       </div>
@@ -236,7 +236,7 @@ const PersonalitySettings: React.FC = () => {
           background: saved
             ? 'rgba(34,197,94,0.2)'
             : 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
-          color: saved ? '#4ade80' : '#ffffff',
+          color: saved ? '#4ade80' : 'var(--text-primary)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

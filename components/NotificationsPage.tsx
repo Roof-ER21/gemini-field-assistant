@@ -139,7 +139,7 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
       case 'system':
         return <AlertCircle style={{ width: '18px', height: '18px', color: '#f59e0b' }} />;
       default:
-        return <Bell style={{ width: '18px', height: '18px', color: '#6b7280' }} />;
+        return <Bell style={{ width: '18px', height: '18px', color: 'var(--text-tertiary)' }} />;
     }
   };
 
@@ -159,7 +159,7 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
       case 'direct_message': return '#3b82f6';
       case 'shared_content': return '#8b5cf6';
       case 'system': return '#f59e0b';
-      default: return '#6b7280';
+      default: return 'var(--text-tertiary)';
     }
   };
 
@@ -227,7 +227,9 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
           borderBottom: '1px solid var(--border-default)',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px'
+          gap: '12px',
+          position: 'relative',
+          zIndex: 1
         }}>
           <button
             onClick={() => setShowSettings(false)}
@@ -245,7 +247,7 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
             Back to Notifications
           </button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '24px', position: 'relative', zIndex: 1 }}>
           <NotificationSettings userEmail={userEmail || ''} onClose={() => setShowSettings(false)} />
         </div>
       </div>
@@ -257,7 +259,9 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
       {/* Header */}
       <div style={{
         padding: '20px 24px 16px',
-        borderBottom: '1px solid var(--border-default)'
+        borderBottom: '1px solid var(--border-default)',
+        position: 'relative',
+        zIndex: 1
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -438,7 +442,7 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ userEmail }) => {
       </div>
 
       {/* Notification List */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px', position: 'relative', zIndex: 1 }}>
         {loading && notifications.length === 0 ? (
           <div style={{ padding: '60px 20px', textAlign: 'center' }}>
             <RefreshCw

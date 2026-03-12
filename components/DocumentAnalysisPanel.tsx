@@ -680,8 +680,8 @@ Format your response as JSON with this structure:
               style={{
                 padding: '0.4rem 0.75rem',
                 borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.2)',
-                background: 'rgba(0,0,0,0.2)',
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-hover)',
                 color: 'var(--text-primary)',
                 cursor: 'pointer',
                 fontSize: '0.8rem'
@@ -943,8 +943,8 @@ Format your response as JSON with this structure:
                       style={{
                         padding: '0.6rem 0.9rem',
                         borderRadius: '999px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(18,18,18,0.6)',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
                         cursor: 'pointer',
                         fontSize: '0.85rem'
@@ -957,8 +957,8 @@ Format your response as JSON with this structure:
                       style={{
                         padding: '0.6rem 0.9rem',
                         borderRadius: '999px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(18,18,18,0.6)',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',
                         cursor: 'pointer',
                         fontSize: '0.85rem'

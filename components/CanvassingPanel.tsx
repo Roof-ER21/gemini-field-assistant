@@ -1029,8 +1029,8 @@ const CanvassingPanel: React.FC = () => {
         >
           <div
             style={{
-              background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
-              border: '1px solid #333',
+              background: 'linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-primary) 100%)',
+              border: '1px solid var(--border-default)',
               borderRadius: '16px',
               maxWidth: '480px',
               width: '100%',
@@ -1045,16 +1045,16 @@ const CanvassingPanel: React.FC = () => {
             {/* Modal Header */}
             <div style={{
               padding: '20px',
-              borderBottom: '1px solid #262626',
+              borderBottom: '1px solid var(--border-subtle)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               position: 'sticky',
               top: 0,
-              background: 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+              background: 'linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-primary) 100%)',
               zIndex: 1
             }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 Mark Address
               </h3>
               <button
@@ -1062,7 +1062,7 @@ const CanvassingPanel: React.FC = () => {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: 'rgba(255, 255, 255, 0.7)',
+                  color: 'var(--text-secondary)',
                   cursor: 'pointer',
                   padding: '4px'
                 }}
@@ -1075,7 +1075,7 @@ const CanvassingPanel: React.FC = () => {
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Address */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Address *
                 </label>
                 <input
@@ -1086,10 +1086,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1099,7 +1099,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Status */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Status *
                 </label>
                 <select
@@ -1108,10 +1108,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1130,7 +1130,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Homeowner Name */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Homeowner Name
                 </label>
                 <input
@@ -1141,10 +1141,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1154,7 +1154,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Phone Number */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Phone Number
                 </label>
                 <input
@@ -1165,10 +1165,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1178,7 +1178,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Email */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Email
                 </label>
                 <input
@@ -1189,10 +1189,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1202,7 +1202,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Property Type */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Property Type
                 </label>
                 <select
@@ -1211,10 +1211,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1228,7 +1228,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Roof Type */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Roof Type
                 </label>
                 <input
@@ -1239,10 +1239,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1252,7 +1252,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Roof Age */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Roof Age (Years)
                 </label>
                 <input
@@ -1264,10 +1264,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1277,7 +1277,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Best Contact Time */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Best Contact Time
                 </label>
                 <input
@@ -1288,10 +1288,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     boxSizing: 'border-box' as const
@@ -1301,7 +1301,7 @@ const CanvassingPanel: React.FC = () => {
 
               {/* Notes */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Notes
                 </label>
                 <textarea
@@ -1312,10 +1312,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     outline: 'none',
                     resize: 'vertical',
@@ -1337,7 +1337,7 @@ const CanvassingPanel: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 />
-                <label htmlFor="autoMonitor" style={{ fontSize: '14px', color: '#ffffff', cursor: 'pointer' }}>
+                <label htmlFor="autoMonitor" style={{ fontSize: '14px', color: 'var(--text-primary)', cursor: 'pointer' }}>
                   Auto-monitor for storms
                 </label>
               </div>
@@ -1349,10 +1349,10 @@ const CanvassingPanel: React.FC = () => {
                   style={{
                     flex: 1,
                     padding: '14px',
-                    background: '#171717',
-                    border: '1px solid #262626',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     fontWeight: 600,
                     cursor: 'pointer'
@@ -1368,7 +1368,7 @@ const CanvassingPanel: React.FC = () => {
                     background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     fontWeight: 700,
                     cursor: 'pointer',

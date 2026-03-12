@@ -361,13 +361,13 @@ Ask permission to address their specific concern directly: "What's the main thin
       {mode === 'coach' && (
         <div style={{
           padding: '1rem 1.5rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid var(--border-subtle)',
           background: 'rgba(220, 38, 38, 0.05)'
         }}>
           <p style={{
             margin: '0 0 0.75rem 0',
             fontSize: '0.875rem',
-            color: 'rgba(255, 255, 255, 0.7)',
+            color: 'var(--text-tertiary)',
             fontWeight: '500'
           }}>
             Common Objections:
@@ -388,7 +388,7 @@ Ask permission to address their specific concern directly: "What's the main thin
                 borderRadius: '20px',
                 padding: '0.5rem 1rem',
                 fontSize: '0.875rem',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
                 opacity: isLoading ? 0.5 : 1
@@ -421,12 +421,12 @@ Ask permission to address their specific concern directly: "What's the main thin
             <div style={{
               maxWidth: '80%',
               background: message.sender === 'user'
-                ? 'linear-gradient(135deg, #171717 0%, #262626 100%)'
+                ? 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%)'
                 : 'rgba(220, 38, 38, 0.1)',
               border: message.sender === 'agnes' ? '1px solid rgba(220, 38, 38, 0.3)' : 'none',
               borderRadius: message.sender === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
               padding: '1rem 1.25rem',
-              color: '#fff'
+              color: 'var(--text-primary)'
             }}>
               {message.sender === 'agnes' && (
                 <div style={{
@@ -456,7 +456,7 @@ Ask permission to address their specific concern directly: "What's the main thin
               </div>
               <div style={{
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.5)',
+                color: 'var(--text-disabled)',
                 marginTop: '0.5rem'
               }}>
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -470,7 +470,7 @@ Ask permission to address their specific concern directly: "What's the main thin
             alignItems: 'center',
             gap: '0.75rem',
             padding: '1rem',
-            color: 'rgba(255, 255, 255, 0.6)'
+            color: 'var(--text-tertiary)'
           }}>
             <Loader2 style={{ width: '1.25rem', height: '1.25rem', animation: 'spin 1s linear infinite' }} />
             <span style={{ fontSize: '0.875rem' }}>Agnes is thinking...</span>
@@ -482,8 +482,8 @@ Ask permission to address their specific concern directly: "What's the main thin
       {/* Input */}
       <div style={{
         padding: '1rem 1.5rem',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(0, 0, 0, 0.2)'
+        borderTop: '1px solid var(--border-subtle)',
+        background: 'var(--bg-secondary)'
       }}>
         <div style={{
           display: 'flex',
@@ -499,11 +499,11 @@ Ask permission to address their specific concern directly: "What's the main thin
             style={{
               flex: 1,
               boxSizing: 'border-box',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--glass-highlight)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '0.875rem 1rem',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '0.9375rem',
               outline: 'none'
             }}

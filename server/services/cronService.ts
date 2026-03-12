@@ -7,6 +7,14 @@ import cron, { ScheduledTask } from 'node-cron';
 import type { Pool } from 'pg';
 import { dailySummaryService } from './dailySummaryService.js';
 import { createSheetsService } from './sheetsService.js';
+import { createPushNotificationService } from './pushNotificationService.js';
+import {
+  scanForNewStorms,
+  sendCalendarReminders,
+  sendTaskReminders,
+  sendMorningBriefing,
+  sendEndOfDaySummary
+} from './notificationScheduler.js';
 
 class CronService {
   private static instance: CronService;
@@ -147,6 +155,58 @@ class CronService {
       );
       jobs.push(sheetsJob);
       console.log('📊 Google Sheets sync scheduled for 8:00 AM and 8:00 PM (America/New_York)');
+    }
+
+    // ─── Push Notification Cron Jobs ───────────────────────────────────
+    if (pool) {
+      const pushService = createPushNotificationService(pool);
+
+      // Every 15 minutes: Storm alert scanner + calendar/task reminders
+      const pushScanJob = cron.schedule('*/15 * * * *', async () => {
+        try {
+          const [storms, calendar, tasks] = await Promise.all([
+            scanForNewStorms(pool, pushService),
+            sendCalendarReminders(pool, pushService),
+            sendTaskReminders(pool, pushService)
+          ]);
+          const total = storms.alertsSent + calendar.remindersSent + tasks.remindersSent;
+          if (total > 0) {
+            console.log(`📲 [Push Scan] Storms: ${storms.alertsSent}, Calendar: ${calendar.remindersSent}, Tasks: ${tasks.remindersSent}`);
+          }
+        } catch (err) {
+          console.error('❌ [Push Scan] Error:', (err as Error).message);
+        }
+      }, { timezone: 'America/New_York' });
+      jobs.push(pushScanJob);
+
+      // Daily 7:00 AM: Morning briefing push
+      const morningBriefingJob = cron.schedule('0 7 * * *', async () => {
+        console.log('⏰ [7:00 AM] Morning briefing push...');
+        try {
+          const result = await sendMorningBriefing(pool, pushService);
+          console.log(`✅ [7:00 AM] Morning briefing sent to ${result.sent} users`);
+        } catch (err) {
+          console.error('❌ [7:00 AM] Morning briefing failed:', err);
+        }
+      }, { timezone: 'America/New_York' });
+      jobs.push(morningBriefingJob);
+
+      // Daily 6:00 PM: End-of-day summary push
+      const eodSummaryJob = cron.schedule('0 18 * * *', async () => {
+        console.log('⏰ [6:00 PM] End-of-day summary push...');
+        try {
+          const result = await sendEndOfDaySummary(pool, pushService);
+          console.log(`✅ [6:00 PM] EOD summary sent to ${result.sent} users`);
+        } catch (err) {
+          console.error('❌ [6:00 PM] EOD summary failed:', err);
+        }
+      }, { timezone: 'America/New_York' });
+      jobs.push(eodSummaryJob);
+
+      console.log('📲 Push notification cron jobs scheduled:');
+      console.log('   - Every 15 min: Storm alerts + Calendar/Task reminders');
+      console.log('   - 7:00 AM: Morning briefing');
+      console.log('   - 6:00 PM: End-of-day summary');
     }
 
     // Store jobs for later management

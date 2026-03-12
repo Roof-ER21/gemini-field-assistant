@@ -55,7 +55,7 @@ export const SusanThread: React.FC<SusanThreadProps> = ({
           justifyContent: 'center',
           flex: 1,
           gap: '12px',
-          color: '#71717a',
+          color: 'var(--text-tertiary)',
           padding: '40px',
         }}>
           <div style={{
@@ -72,10 +72,10 @@ export const SusanThread: React.FC<SusanThreadProps> = ({
           }}>
             S21
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 600, color: '#e4e4e7' }}>
+          <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>
             Susan 21
           </div>
-          <div style={{ fontSize: '13px', textAlign: 'center', maxWidth: '300px' }}>
+          <div style={{ fontSize: '13px', textAlign: 'center', maxWidth: '300px', color: 'var(--text-secondary)' }}>
             Your AI roofing assistant. Ask about insurance claims, storm damage, sales strategies, and more.
           </div>
         </div>
@@ -128,9 +128,9 @@ export const SusanThread: React.FC<SusanThreadProps> = ({
             gap: '8px',
             padding: '12px 16px',
             borderRadius: '4px 16px 16px 16px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#a1a1aa',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-tertiary)',
             fontSize: '13px',
           }}>
             <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />

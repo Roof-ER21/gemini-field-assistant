@@ -152,7 +152,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               maxWidth: 'calc(100vw - 60px)',
               height: '100vh',
               zIndex: 1100,
-              background: '#0a0a0a',
+              background: 'var(--bg-primary)',
               borderRight: '1px solid rgba(220, 38, 38, 0.3)',
               boxShadow: '4px 0 24px -4px rgba(0, 0, 0, 0.5)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -172,7 +172,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               <h2 style={{
                 fontSize: '1.125rem',
                 fontWeight: '600',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
@@ -194,7 +194,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                 onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                <X className="w-5 h-5" style={{ color: '#9ca3af' }} />
+                <X className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }} />
               </button>
             </div>
 
@@ -236,12 +236,12 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
             </div>
 
             {/* Sessions List */}
-            <div className="flex-1 overflow-y-auto" style={{ background: '#0a0a0a' }}>
+            <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-primary)' }}>
               {isLoading ? (
                 <div style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: '#9ca3af'
+                  color: 'var(--text-tertiary)'
                 }}>
                   <div style={{
                     display: 'inline-block',
@@ -262,7 +262,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                 <div style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: '#6b7280'
+                  color: 'var(--text-tertiary)'
                 }}>
                   <MessageSquare className="w-12 h-12 mx-auto mb-3" style={{ opacity: 0.3 }} />
                   <p style={{
@@ -272,7 +272,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                   }}>No conversations yet</p>
                   <p style={{
                     fontSize: '0.8125rem',
-                    color: '#4b5563'
+                    color: 'var(--text-disabled)'
                   }}>Start chatting to see history here</p>
                 </div>
               ) : (
@@ -285,8 +285,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                       <div
                         key={session.session_id}
                         style={{
-                          background: isActive ? 'rgba(220, 38, 38, 0.1)' : '#171717',
-                          border: `1px solid ${isActive ? 'rgba(220, 38, 38, 0.4)' : isHovered ? 'rgba(220, 38, 38, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isActive ? 'rgba(220, 38, 38, 0.1)' : 'var(--bg-secondary)',
+                          border: `1px solid ${isActive ? 'rgba(220, 38, 38, 0.4)' : isHovered ? 'rgba(220, 38, 38, 0.4)' : 'var(--border-subtle)'}`,
                           borderRadius: '0.5rem',
                           marginBottom: '0.25rem',
                           transition: 'all 0.2s ease'
@@ -314,7 +314,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                             <h3 style={{
                               fontWeight: '500',
                               fontSize: '0.875rem',
-                              color: '#fff',
+                              color: 'var(--text-primary)',
                               flex: 1,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -330,7 +330,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               style={{
                                 width: '1rem',
                                 height: '1rem',
-                                color: '#9ca3af',
+                                color: 'var(--text-tertiary)',
                                 flexShrink: 0,
                                 marginLeft: '0.5rem'
                               }}
@@ -338,7 +338,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                           </div>
                           <p style={{
                             fontSize: '0.8125rem',
-                            color: '#9ca3af',
+                            color: 'var(--text-tertiary)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             display: '-webkit-box',
@@ -354,7 +354,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                             alignItems: 'center',
                             gap: '0.75rem',
                             fontSize: '0.8125rem',
-                            color: '#9ca3af'
+                            color: 'var(--text-tertiary)'
                           }}>
                             <span style={{
                               display: 'flex',
@@ -397,8 +397,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === `${session.session_id}-txt` ? 'rgba(220, 38, 38, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                              color: '#9ca3af',
+                              background: hoveredButton === `${session.session_id}-txt` ? 'rgba(220, 38, 38, 0.1)' : 'var(--glass-highlight)',
+                              color: 'var(--text-tertiary)',
                               border: 'none',
                               borderRadius: '0.375rem',
                               cursor: 'pointer',
@@ -425,8 +425,8 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                               flex: 1,
                               padding: '0.375rem 0.5rem',
                               fontSize: '0.75rem',
-                              background: hoveredButton === `${session.session_id}-json` ? 'rgba(220, 38, 38, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                              color: '#9ca3af',
+                              background: hoveredButton === `${session.session_id}-json` ? 'rgba(220, 38, 38, 0.1)' : 'var(--glass-highlight)',
+                              color: 'var(--text-tertiary)',
                               border: 'none',
                               borderRadius: '0.375rem',
                               cursor: 'pointer',
@@ -485,9 +485,9 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
                       width: '100%',
                       padding: '0.5rem 1rem',
                       fontSize: '0.875rem',
-                      color: isLoadMoreHovered ? '#fff' : '#9ca3af',
-                      background: isLoadMoreHovered ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: isLoadMoreHovered ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      background: isLoadMoreHovered ? 'var(--glass-highlight)' : 'transparent',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '0.5rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
@@ -511,7 +511,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
               <p style={{
                 fontSize: '0.75rem',
                 textAlign: 'center',
-                color: '#6b7280'
+                color: 'var(--text-tertiary)'
               }}>
                 Swipe right to close
               </p>

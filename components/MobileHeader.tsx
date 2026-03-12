@@ -35,7 +35,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         className="md:hidden fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-[#262626] mobile-pt-safe"
-        style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0a 100%)' }}
+        style={{ background: 'linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-primary) 100%)' }}
       >
         <div className="flex items-center justify-between px-4 py-3">
           {/* Logo & Title */}
@@ -48,7 +48,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
             </motion.div>
             <div>
               <h1 className="text-base font-bold" style={{ fontFamily: 'Rajdhani, Orbitron, sans-serif' }}>
-                <span style={{ color: '#ffffff' }}>Susan</span>
+                <span style={{ color: 'var(--text-primary)' }}>Susan</span>
                 <span style={{ color: '#dc2626', marginLeft: '4px' }}>21</span>
               </h1>
               <p className="text-[10px] text-[#a1a1aa] font-medium tracking-wider uppercase">
@@ -116,7 +116,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="md:hidden fixed top-0 right-0 bottom-0 w-[280px] backdrop-blur-xl border-l border-[#262626] z-50 overflow-y-auto"
-              style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0a 100%)' }}
+              style={{ background: 'linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-primary) 100%)' }}
             >
               {/* Header */}
               <div className="p-6 border-b border-[#262626]">
@@ -126,7 +126,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ activePanel, setActivePanel
                   </div>
                   <div>
                     <h2 className="text-lg font-bold">
-                      <span style={{ color: '#ffffff' }}>Susan</span>
+                      <span style={{ color: 'var(--text-primary)' }}>Susan</span>
                       <span style={{ color: '#dc2626', marginLeft: '4px' }}>21</span>
                     </h2>
                     <p className="text-[10px] text-[#a1a1aa] font-medium tracking-wider">

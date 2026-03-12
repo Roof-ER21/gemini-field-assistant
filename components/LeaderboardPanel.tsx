@@ -368,10 +368,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
   const filterSelectStyle: React.CSSProperties = {
     width: '100%',
     padding: '12px 16px',
-    background: '#111',
-    border: '1px solid #333',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-default)',
     borderRadius: '8px',
-    color: '#ffffff',
+    color: 'var(--text-primary)',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -433,7 +433,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     return (
       <div className="roof-er-content-area">
         <div className="roof-er-content-scroll">
-          <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" style={{ color: '#dc2626' }} />
             Loading leaderboard...
           </div>
@@ -482,10 +482,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         <div className="roof-er-content-scroll">
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <Trophy className="w-16 h-16 mx-auto mb-4" style={{ color: '#dc2626', opacity: 0.5 }} />
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
               Leaderboard Coming Soon
             </h2>
-            <p style={{ color: '#71717a', fontSize: '14px', maxWidth: '400px', margin: '0 auto 24px' }}>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '14px', maxWidth: '400px', margin: '0 auto 24px' }}>
               We're setting up the sales leaderboard with Google Sheets integration.
               Check back soon to see rankings, tiers, and competition stats!
             </p>
@@ -494,10 +494,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               alignItems: 'center',
               gap: '8px',
               padding: '12px 20px',
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '8px',
-              color: '#71717a',
+              color: 'var(--text-tertiary)',
               fontSize: '13px'
             }}>
               <Zap className="w-4 h-4" style={{ color: '#fbbf24' }} />
@@ -522,11 +522,11 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
         {showSyncStatus && (
           <div style={{
-            background: '#121212',
+            background: 'var(--bg-secondary)',
             borderRadius: '12px',
             padding: '14px 18px',
             marginBottom: '18px',
-            border: '1px solid #2a2a2a',
+            border: '1px solid var(--border-subtle)',
             display: 'flex',
             flexWrap: 'wrap',
             gap: '12px',
@@ -535,7 +535,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <RefreshCw className="w-4 h-4" style={{ color: '#dc2626' }} />
-              <span style={{ color: '#e5e7eb', fontSize: '14px', fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 600 }}>
                 Leaderboard Sync
               </span>
               <span style={{
@@ -548,7 +548,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                 {syncStatus?.lastSyncStatus || 'unknown'}
               </span>
             </div>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#a1a1aa', fontSize: '12px' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', color: 'var(--text-tertiary)', fontSize: '12px' }}>
               <div>Last: {formatSyncTime(syncStatus?.lastSync)}</div>
               <div>Next: {syncStatus?.nextSyncLocal || formatSyncTime(syncStatus?.nextSync)}</div>
               <div>Active reps: {syncStatus?.recordCount ?? 0}</div>
@@ -651,55 +651,55 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
         {stats && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px', marginBottom: '20px' }}>
             <div style={{
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '16px'
             }}>
               <Users className="w-5 h-5 mb-2" style={{ color: '#3b82f6' }} />
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {stats.totalReps}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>Total Reps</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Total Reps</div>
             </div>
 
             <div style={{
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '16px'
             }}>
               <DollarSign className="w-5 h-5 mb-2" style={{ color: '#10b981' }} />
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {formatCurrency(stats.totalRevenue)}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>{revenueLabel}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{revenueLabel}</div>
             </div>
 
             <div style={{
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '16px'
             }}>
               <TrendingUp className="w-5 h-5 mb-2" style={{ color: '#8b5cf6' }} />
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {stats.totalSignups}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>{signupsLabel}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{signupsLabel}</div>
             </div>
 
             <div style={{
-              background: '#111',
-              border: '1px solid #1a1a1a',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--bg-elevated)',
               borderRadius: '12px',
               padding: '16px'
             }}>
               <Trophy className="w-5 h-5 mb-2" style={{ color: '#dc2626' }} />
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {stats.topPerformer?.name.split(' ')[0] || 'N/A'}
               </div>
-              <div style={{ fontSize: '12px', color: '#71717a' }}>Top Performer</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Top Performer</div>
             </div>
           </div>
         )}
@@ -711,9 +711,9 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
           gap: '12px',
           marginBottom: '20px',
           padding: '16px',
-          background: '#0a0a0a',
+          background: 'var(--bg-primary)',
           borderRadius: '12px',
-          border: '1px solid #1a1a1a'
+          border: '1px solid var(--bg-elevated)'
         }}>
           {/* Sort Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -722,10 +722,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#111',
-                border: '1px solid #333',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -736,8 +736,8 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                 textAlign: 'left'
               }}
             >
-              <span style={{ color: '#ffffff' }}>Sort: {getSortLabel(sortBy)}</span>
-              <ChevronDown className="w-4 h-4" style={{ color: '#ffffff' }} />
+              <span style={{ color: 'var(--text-primary)' }}>Sort: {getSortLabel(sortBy)}</span>
+              <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
             </button>
 
             {showSortDropdown && (
@@ -747,8 +747,8 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                   top: 'calc(100% + 4px)',
                   left: 0,
                   right: 0,
-                  background: '#0a0a0a',
-                  border: '1px solid #1a1a1a',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--bg-elevated)',
                   borderRadius: '8px',
                   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
                   zIndex: 100,
@@ -765,9 +765,9 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                     style={{
                       width: '100%',
                       padding: '12px 16px',
-                      background: sortBy === sort ? '#1a1a1a' : 'transparent',
+                      background: sortBy === sort ? 'var(--bg-elevated)' : 'transparent',
                       border: 'none',
-                      color: sortBy === sort ? '#dc2626' : '#fff',
+                      color: sortBy === sort ? '#dc2626' : 'var(--text-primary)',
                       fontSize: '14px',
                       fontWeight: sortBy === sort ? 600 : 400,
                       cursor: 'pointer',
@@ -776,7 +776,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                     }}
                     onMouseEnter={(e) => {
                       if (sortBy !== sort) {
-                        e.currentTarget.style.background = '#111';
+                        e.currentTarget.style.background = 'var(--bg-secondary)';
                       }
                     }}
                     onMouseLeave={(e) => {
@@ -890,10 +890,10 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
               width: '44px',
               height: '44px',
               padding: '10px',
-              background: '#111',
-              border: '1px solid #333',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               cursor: isRefreshing ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -904,12 +904,12 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
             }}
             title="Refresh leaderboard"
           >
-            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} style={{ color: '#ffffff' }} />
+            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} style={{ color: 'var(--text-primary)' }} />
           </button>
         </div>
 
         {/* Last Update */}
-        <div style={{ fontSize: '12px', color: '#71717a', marginBottom: '16px', textAlign: 'right' }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '16px', textAlign: 'right' }}>
           Last updated: {lastUpdate.toLocaleTimeString()}
         </div>
 
@@ -934,12 +934,12 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
         {/* Leaderboard Table */}
         <div style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: '#fff' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-primary)' }}>
             Rankings
           </h3>
 
           {entries.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#71717a' }}>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
               No leaderboard data available
             </div>
           ) : (
@@ -951,8 +951,8 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                   <div
                     key={entry.rooftrack_sales_rep_id}
                     style={{
-                      background: isCurrentUser ? '#1a1a1a' : '#111',
-                      border: isCurrentUser ? '2px solid #dc2626' : '1px solid #1a1a1a',
+                      background: isCurrentUser ? 'var(--bg-elevated)' : 'var(--bg-secondary)',
+                      border: isCurrentUser ? '2px solid #dc2626' : '1px solid var(--bg-elevated)',
                       borderRadius: '12px',
                       padding: '16px',
                       transition: 'all 0.2s'
@@ -965,13 +965,13 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                           width: '40px',
                           height: '40px',
                           borderRadius: '8px',
-                          background: entry.rank <= 3 ? '#dc2626' : '#262626',
+                          background: entry.rank <= 3 ? '#dc2626' : 'var(--bg-card)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: '18px',
                           fontWeight: 700,
-                          color: '#fff',
+                          color: 'var(--text-primary)',
                           flexShrink: 0
                         }}
                       >
@@ -984,7 +984,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
                       {/* Name & Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '4px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                           {entry.name}
                           {entry.is_team_leader && (
                             <span style={{
@@ -993,7 +993,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                               borderRadius: '4px',
                               fontSize: '10px',
                               fontWeight: 700,
-                              color: '#000',
+                              color: 'var(--bg-primary)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px'
@@ -1014,7 +1014,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#71717a', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           {entry.team_name && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <Users className="w-3 h-3" />
@@ -1065,18 +1065,18 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                       gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 80px), 1fr))',
                       gap: '12px',
                       paddingTop: '12px',
-                      borderTop: '1px solid #1a1a1a'
+                      borderTop: '1px solid var(--bg-elevated)'
                     }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
                           {signupsLabelShort}
                         </div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {entry.monthly_signups}
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
                           {revenueLabelShort}
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#10b981' }}>
@@ -1084,7 +1084,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
                           Tier
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: getTierColor(getTierName(entry)) }}>
@@ -1092,7 +1092,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#71717a', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
                           Doors (30d)
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#3b82f6' }}>
@@ -1108,7 +1108,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                       gap: '12px',
                       paddingTop: '8px',
                       fontSize: '11px',
-                      color: '#71717a'
+                      color: 'var(--text-tertiary)'
                     }}>
                       <div>
                         Level {entry.player_level}
@@ -1125,7 +1125,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
                       justifyContent: 'space-between',
                       marginTop: '8px',
                       fontSize: '11px',
-                      color: '#71717a'
+                      color: 'var(--text-tertiary)'
                     }}>
                       <span>All-Time Revenue</span>
                       <span style={{ color: '#10b981', fontWeight: 600 }}>

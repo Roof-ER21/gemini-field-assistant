@@ -120,7 +120,7 @@ function ToastContainer({ toasts }: { toasts: ToastItem[] }) {
           style={{
             background: t.type === 'success' ? '#166534' : '#7f1d1d',
             border: `1px solid ${t.type === 'success' ? '#16a34a' : '#dc2626'}`,
-            color: '#fff',
+            color: 'var(--text-primary)',
             padding: '10px 16px',
             borderRadius: 8,
             fontSize: 14,
@@ -144,8 +144,8 @@ function ToastContainer({ toasts }: { toasts: ToastItem[] }) {
 function StatCard({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
   return (
     <div style={{
-      background: '#0a0a0a',
-      border: '1px solid #262626',
+      background: 'var(--bg-primary)',
+      border: '1px solid var(--border-subtle)',
       borderRadius: 12,
       padding: '1rem 1.25rem',
       flex: 1,
@@ -154,11 +154,11 @@ function StatCard({ label, value, icon }: { label: string; value: number | strin
       flexDirection: 'column',
       gap: 6,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#71717a', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         {icon}
         {label}
       </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{value}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)' }}>{value}</div>
     </div>
   );
 }
@@ -181,8 +181,8 @@ function Modal({ title, onClose, children, maxWidth = 600 }: {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        background: '#171717',
-        border: '1px solid #262626',
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: 12,
         width: '100%',
         maxWidth,
@@ -194,12 +194,12 @@ function Modal({ title, onClose, children, maxWidth = 600 }: {
         gap: 16,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#fff' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h2>
           <button
             onClick={onClose}
             style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#71717a', padding: 4, display: 'flex', alignItems: 'center',
+              color: 'var(--text-tertiary)', padding: 4, display: 'flex', alignItems: 'center',
               minWidth: 44, minHeight: 44, justifyContent: 'center', borderRadius: 8,
             }}
           >
@@ -222,16 +222,16 @@ const fieldStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#a1a1aa',
+  color: 'var(--text-tertiary)',
   fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
   height: 44,
-  background: '#0f0f0f',
-  border: '1px solid #262626',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: 8,
-  color: '#fff',
+  color: 'var(--text-primary)',
   padding: '0 12px',
   fontSize: 14,
   outline: 'none',
@@ -240,10 +240,10 @@ const inputStyle: React.CSSProperties = {
 };
 
 const textareaStyle: React.CSSProperties = {
-  background: '#0f0f0f',
-  border: '1px solid #262626',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: 8,
-  color: '#fff',
+  color: 'var(--text-primary)',
   padding: '10px 12px',
   fontSize: 14,
   outline: 'none',
@@ -255,10 +255,10 @@ const textareaStyle: React.CSSProperties = {
 
 const selectStyle: React.CSSProperties = {
   height: 44,
-  background: '#0f0f0f',
-  border: '1px solid #262626',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: 8,
-  color: '#fff',
+  color: 'var(--text-primary)',
   padding: '0 12px',
   fontSize: 14,
   outline: 'none',
@@ -274,7 +274,7 @@ function primaryBtn(disabled = false): React.CSSProperties {
     background: disabled ? '#7f1d1d' : '#dc2626',
     border: 'none',
     borderRadius: 8,
-    color: '#fff',
+    color: 'var(--text-primary)',
     fontWeight: 600,
     fontSize: 14,
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -292,9 +292,9 @@ function secondaryBtn(): React.CSSProperties {
   return {
     height: 44,
     background: 'transparent',
-    border: '1px solid #262626',
+    border: '1px solid var(--border-subtle)',
     borderRadius: 8,
-    color: '#a1a1aa',
+    color: 'var(--text-tertiary)',
     fontWeight: 500,
     fontSize: 14,
     cursor: 'pointer',
@@ -310,9 +310,9 @@ function secondaryBtn(): React.CSSProperties {
 function iconBtn(): React.CSSProperties {
   return {
     background: 'transparent',
-    border: '1px solid #262626',
+    border: '1px solid var(--border-subtle)',
     borderRadius: 6,
-    color: '#71717a',
+    color: 'var(--text-tertiary)',
     cursor: 'pointer',
     padding: 0,
     display: 'inline-flex',
@@ -434,7 +434,7 @@ function ProfileFormFields({
           placeholder="auto-generated-from-name"
           onChange={e => onChange('slug', e.target.value)}
         />
-        <span style={{ fontSize: 11, color: '#71717a' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
           Profile URL: /profile/{data.slug || 'your-slug'}
         </span>
       </div>
@@ -593,12 +593,12 @@ function CreateEditModal({
           onDragLeave={() => setDragOver(false)}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            border: `2px dashed ${dragOver ? '#dc2626' : '#262626'}`,
+            border: `2px dashed ${dragOver ? '#dc2626' : 'var(--border-subtle)'}`,
             borderRadius: 8,
             padding: '1.5rem',
             textAlign: 'center',
             cursor: 'pointer',
-            background: dragOver ? 'rgba(220,38,38,0.05)' : '#0f0f0f',
+            background: dragOver ? 'rgba(220,38,38,0.05)' : 'var(--bg-secondary)',
             transition: 'border-color 0.2s, background 0.2s',
             display: 'flex',
             flexDirection: 'column',
@@ -613,9 +613,9 @@ function CreateEditModal({
               style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover' }}
             />
           ) : (
-            <Camera size={32} color="#71717a" />
+            <Camera size={32} color="var(--text-tertiary)" />
           )}
-          <span style={{ fontSize: 13, color: '#71717a' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
             {imagePreview ? 'Click or drag to replace photo' : 'Click or drag to upload photo'}
           </span>
           {uploadingImage && <Loader size={16} color="#dc2626" style={{ animation: 'spin 1s linear infinite' }} />}
@@ -785,22 +785,22 @@ function VideoManagementModal({
     <Modal title={`Videos — ${profile.name}`} onClose={onClose} maxWidth={680}>
       {/* Existing videos */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h3 style={{ margin: 0, fontSize: 14, color: '#a1a1aa', fontWeight: 600 }}>
+        <h3 style={{ margin: 0, fontSize: 14, color: 'var(--text-tertiary)', fontWeight: 600 }}>
           Existing Videos ({videos.length})
         </h3>
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#71717a', fontSize: 14, padding: '8px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 14, padding: '8px 0' }}>
             <Loader size={16} /> Loading...
           </div>
         ) : videos.length === 0 ? (
-          <div style={{ color: '#71717a', fontSize: 14, padding: '8px 0' }}>No videos yet.</div>
+          <div style={{ color: 'var(--text-tertiary)', fontSize: 14, padding: '8px 0' }}>No videos yet.</div>
         ) : (
           videos.map(v => (
             <div
               key={v.id}
               style={{
-                background: '#0a0a0a',
-                border: '1px solid #1a1a1a',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--bg-elevated)',
                 borderRadius: 8,
                 padding: '12px',
                 display: 'flex',
@@ -811,7 +811,7 @@ function VideoManagementModal({
               <Video size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{v.title}</span>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 14, fontWeight: 600 }}>{v.title}</span>
                   {v.is_welcome_video && (
                     <span style={{
                       background: 'rgba(220,38,38,0.15)', color: '#dc2626',
@@ -822,9 +822,9 @@ function VideoManagementModal({
                   )}
                 </div>
                 {v.description && (
-                  <div style={{ color: '#71717a', fontSize: 12, marginTop: 2 }}>{v.description}</div>
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 2 }}>{v.description}</div>
                 )}
-                <div style={{ fontSize: 11, color: '#71717a', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
                   Added {new Date(v.created_at).toLocaleDateString()}
                 </div>
               </div>
@@ -841,10 +841,10 @@ function VideoManagementModal({
       </div>
 
       {/* Divider */}
-      <div style={{ borderTop: '1px solid #1a1a1a' }} />
+      <div style={{ borderTop: '1px solid var(--bg-elevated)' }} />
 
       {/* Add video form */}
-      <h3 style={{ margin: 0, fontSize: 14, color: '#a1a1aa', fontWeight: 600 }}>Add Video</h3>
+      <h3 style={{ margin: 0, fontSize: 14, color: 'var(--text-tertiary)', fontWeight: 600 }}>Add Video</h3>
 
       <div style={fieldStyle}>
         <label style={labelStyle}>Title *</label>
@@ -865,12 +865,12 @@ function VideoManagementModal({
           onDragLeave={() => setDragOver(false)}
           onClick={() => videoInputRef.current?.click()}
           style={{
-            border: `2px dashed ${dragOver ? '#dc2626' : '#262626'}`,
+            border: `2px dashed ${dragOver ? '#dc2626' : 'var(--border-subtle)'}`,
             borderRadius: 8,
             padding: '1.25rem',
             textAlign: 'center',
             cursor: 'pointer',
-            background: dragOver ? 'rgba(220,38,38,0.05)' : '#0f0f0f',
+            background: dragOver ? 'rgba(220,38,38,0.05)' : 'var(--bg-secondary)',
             transition: 'border-color 0.2s',
             display: 'flex',
             flexDirection: 'column',
@@ -888,7 +888,7 @@ function VideoManagementModal({
 
       {/* Upload progress bar */}
       {uploading && uploadProgress > 0 && (
-        <div style={{ width: '100%', background: '#1a1a1a', borderRadius: 6, overflow: 'hidden', height: 8 }}>
+        <div style={{ width: '100%', background: 'var(--bg-elevated)', borderRadius: 6, overflow: 'hidden', height: 8 }}>
           <div style={{
             width: `${uploadProgress}%`,
             height: '100%',
@@ -896,16 +896,16 @@ function VideoManagementModal({
             transition: 'width 0.3s ease',
             borderRadius: 6,
           }} />
-          <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 4, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, textAlign: 'center' }}>
             {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Processing...'}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ flex: 1, borderTop: '1px solid #262626' }} />
-        <span style={{ fontSize: 12, color: '#71717a' }}>OR paste a URL</span>
-        <div style={{ flex: 1, borderTop: '1px solid #262626' }} />
+        <div style={{ flex: 1, borderTop: '1px solid var(--border-subtle)' }} />
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>OR paste a URL</span>
+        <div style={{ flex: 1, borderTop: '1px solid var(--border-subtle)' }} />
       </div>
 
       <div style={fieldStyle}>
@@ -1012,12 +1012,12 @@ function BulkImportModal({
 
   return (
     <Modal title="Bulk Import Profiles" onClose={onClose} maxWidth={700}>
-      <div style={{ fontSize: 13, color: '#71717a', lineHeight: 1.6 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
         Paste a JSON array or CSV below. CSV format:
         <code style={{
-          display: 'block', background: '#0a0a0a', border: '1px solid #1a1a1a',
+          display: 'block', background: 'var(--bg-primary)', border: '1px solid var(--bg-elevated)',
           borderRadius: 6, padding: '8px 10px', marginTop: 6, fontSize: 12,
-          color: '#a1a1aa', fontFamily: 'monospace', whiteSpace: 'pre-wrap',
+          color: 'var(--text-tertiary)', fontFamily: 'monospace', whiteSpace: 'pre-wrap',
         }}>
           {CSV_SAMPLE}
         </code>
@@ -1043,8 +1043,8 @@ function BulkImportModal({
 
       {preview.length > 0 && (
         <div style={{
-          background: '#0a0a0a',
-          border: '1px solid #1a1a1a',
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--bg-elevated)',
           borderRadius: 8,
           overflowX: 'auto',
           maxHeight: 260,
@@ -1055,9 +1055,9 @@ function BulkImportModal({
               <tr>
                 {Object.keys(preview[0]).map(k => (
                   <th key={k} style={{
-                    padding: '8px 12px', textAlign: 'left', color: '#71717a',
-                    fontWeight: 600, borderBottom: '1px solid #1a1a1a',
-                    whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#0a0a0a',
+                    padding: '8px 12px', textAlign: 'left', color: 'var(--text-tertiary)',
+                    fontWeight: 600, borderBottom: '1px solid var(--bg-elevated)',
+                    whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--bg-primary)',
                   }}>
                     {k}
                   </th>
@@ -1066,9 +1066,9 @@ function BulkImportModal({
             </thead>
             <tbody>
               {preview.map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #0f0f0f' }}>
+                <tr key={i} style={{ borderBottom: '1px solid var(--bg-secondary)' }}>
                   {Object.values(row).map((v, j) => (
-                    <td key={j} style={{ padding: '7px 12px', color: '#a1a1aa', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <td key={j} style={{ padding: '7px 12px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {String(v)}
                     </td>
                   ))}
@@ -1139,14 +1139,14 @@ function ProfileRow({
     <img
       src={profile.image_url}
       alt={profile.name}
-      style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #262626' }}
+      style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border-subtle)' }}
     />
   ) : (
     <div style={{
       width: 40, height: 40, borderRadius: '50%',
       background: '#dc2626',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
+      fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0,
       border: '2px solid #7f1d1d',
     }}>
       {getInitials(profile.name)}
@@ -1156,8 +1156,8 @@ function ProfileRow({
   if (isMobile) {
     return (
       <div style={{
-        background: '#0a0a0a',
-        border: '1px solid #1a1a1a',
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--bg-elevated)',
         borderRadius: 10,
         padding: '14px',
         display: 'flex',
@@ -1167,8 +1167,8 @@ function ProfileRow({
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {avatarContent}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.name}</div>
-            {profile.title && <div style={{ color: '#71717a', fontSize: 12 }}>{profile.title}</div>}
+            <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.name}</div>
+            {profile.title && <div style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{profile.title}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={badgeStyle(profile.is_active)}>{profile.is_active ? 'Active' : 'Inactive'}</span>
@@ -1176,7 +1176,7 @@ function ProfileRow({
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 12, color: '#71717a' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 12, color: 'var(--text-tertiary)' }}>
           {profile.email && <span>{profile.email}</span>}
           {profile.phone_number && <span>{profile.phone_number}</span>}
           <a href={`/profile/${profile.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1210,14 +1210,14 @@ function ProfileRow({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {avatarContent}
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.name}</div>
-            {profile.title && <div style={{ color: '#71717a', fontSize: 12 }}>{profile.title}</div>}
+            <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.name}</div>
+            {profile.title && <div style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{profile.title}</div>}
           </div>
         </div>
       </td>
       <td style={tdStyle}>
-        <div style={{ fontSize: 13, color: '#a1a1aa' }}>{profile.email || '—'}</div>
-        <div style={{ fontSize: 12, color: '#71717a' }}>{profile.phone_number || ''}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{profile.email || '—'}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{profile.phone_number || ''}</div>
       </td>
       <td style={tdStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1237,8 +1237,8 @@ function ProfileRow({
         </a>
       </td>
       <td style={{ ...tdStyle, textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', color: '#a1a1aa', fontSize: 14 }}>
-          <QrCode size={13} color="#71717a" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 14 }}>
+          <QrCode size={13} color="var(--text-tertiary)" />
           {profile.qr_scan_count}
         </div>
       </td>
@@ -1277,7 +1277,7 @@ function badgeStyle(active: boolean): React.CSSProperties {
     borderRadius: 4,
     background: active ? 'rgba(22,163,74,0.15)' : 'rgba(113,113,122,0.15)',
     color: active ? '#16a34a' : '#71717a',
-    border: `1px solid ${active ? 'rgba(22,163,74,0.3)' : '#262626'}`,
+    border: `1px solid ${active ? 'rgba(22,163,74,0.3)' : 'var(--border-subtle)'}`,
     whiteSpace: 'nowrap',
   };
 }
@@ -1285,20 +1285,20 @@ function badgeStyle(active: boolean): React.CSSProperties {
 const tdStyle: React.CSSProperties = {
   padding: '12px 14px',
   verticalAlign: 'middle',
-  color: '#a1a1aa',
+  color: 'var(--text-tertiary)',
   fontSize: 13,
 };
 
 const thStyle: React.CSSProperties = {
   padding: '10px 14px',
   textAlign: 'left',
-  color: '#71717a',
+  color: 'var(--text-tertiary)',
   fontSize: 11,
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1a1a1a',
-  background: '#0a0a0a',
+  borderBottom: '1px solid var(--bg-elevated)',
+  background: 'var(--bg-primary)',
   whiteSpace: 'nowrap',
 };
 
@@ -1361,12 +1361,12 @@ function UploadPhotoModal({
         onDragLeave={() => setDragOver(false)}
         onClick={() => fileRef.current?.click()}
         style={{
-          border: `2px dashed ${dragOver ? '#dc2626' : '#262626'}`,
+          border: `2px dashed ${dragOver ? '#dc2626' : 'var(--border-subtle)'}`,
           borderRadius: 12,
           padding: '2.5rem 1.5rem',
           textAlign: 'center',
           cursor: 'pointer',
-          background: dragOver ? 'rgba(220,38,38,0.05)' : '#0f0f0f',
+          background: dragOver ? 'rgba(220,38,38,0.05)' : 'var(--bg-secondary)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -1375,23 +1375,23 @@ function UploadPhotoModal({
         }}
       >
         {preview ? (
-          <img src={preview} alt="Preview" style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: '3px solid #262626' }} />
+          <img src={preview} alt="Preview" style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--border-subtle)' }} />
         ) : (
           <div style={{
             width: 100, height: 100, borderRadius: '50%', background: '#dc2626',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, fontWeight: 700, color: '#fff',
+            fontSize: 28, fontWeight: 700, color: 'var(--text-primary)',
           }}>
             {getInitials(profile.name)}
           </div>
         )}
         <div>
-          <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: 14, fontWeight: 500 }}>
             {file ? file.name : 'Click or drag to upload headshot'}
           </div>
-          <div style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>JPG, PNG, WEBP up to 10MB</div>
+          <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 4 }}>JPG, PNG, WEBP up to 10MB</div>
         </div>
-        <Image size={20} color="#71717a" />
+        <Image size={20} color="var(--text-tertiary)" />
       </div>
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleSelect(f); }} />
 
@@ -1506,24 +1506,24 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
 
   return (
     <div style={{
-      background: '#0f0f0f',
+      background: 'var(--bg-secondary)',
       minHeight: '100%',
       padding: isMobile ? '1rem' : '1.5rem',
       display: 'flex',
       flexDirection: 'column',
       gap: 20,
-      color: '#fff',
+      color: 'var(--text-primary)',
       fontFamily: 'system-ui, -apple-system, sans-serif',
     }}>
       <ToastContainer toasts={toasts} />
 
       {/* Header */}
       <div>
-        <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <QrCode size={22} color="#dc2626" />
           QR Profiles
         </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 14, color: '#71717a' }}>
+        <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-tertiary)' }}>
           Manage sales rep profiles linked to QR codes
         </p>
       </div>
@@ -1586,7 +1586,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
           style={{
             ...secondaryBtn(),
             color: featureEnabled ? '#16a34a' : '#71717a',
-            borderColor: featureEnabled ? 'rgba(22,163,74,0.4)' : '#262626',
+            borderColor: featureEnabled ? 'rgba(22,163,74,0.4)' : 'var(--border-subtle)',
             background: featureEnabled ? 'rgba(22,163,74,0.08)' : 'transparent',
           }}
         >
@@ -1608,7 +1608,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
           display: 'flex',
           alignItems: 'center',
         }}>
-          <Search size={15} color="#71717a" style={{ position: 'absolute', left: 12, pointerEvents: 'none' }} />
+          <Search size={15} color="var(--text-tertiary)" style={{ position: 'absolute', left: 12, pointerEvents: 'none' }} />
           <input
             style={{ ...inputStyle, paddingLeft: 36 }}
             value={search}
@@ -1620,7 +1620,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
               onClick={() => setSearch('')}
               style={{
                 position: 'absolute', right: 10, background: 'none', border: 'none',
-                cursor: 'pointer', color: '#71717a', display: 'flex', alignItems: 'center',
+                cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center',
               }}
             >
               <X size={14} />
@@ -1631,13 +1631,13 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
 
       {/* Profiles Table / Grid */}
       <div style={{
-        background: '#0a0a0a',
-        border: '1px solid #262626',
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: 12,
         overflow: 'hidden',
       }}>
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', padding: '3rem', color: '#71717a', fontSize: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', padding: '3rem', color: 'var(--text-tertiary)', fontSize: 14 }}>
             <Loader size={20} color="#dc2626" />
             Loading profiles...
           </div>
@@ -1647,7 +1647,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
           }}>
             <Users size={40} color="#262626" />
-            <div style={{ color: '#71717a', fontSize: 15 }}>
+            <div style={{ color: 'var(--text-tertiary)', fontSize: 15 }}>
               {search ? 'No profiles match your search.' : 'No profiles yet. Add your first rep.'}
             </div>
             {!search && (
@@ -1709,9 +1709,9 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
         {!loading && filteredProfiles.length > 0 && (
           <div style={{
             padding: '10px 16px',
-            borderTop: '1px solid #1a1a1a',
+            borderTop: '1px solid var(--bg-elevated)',
             fontSize: 12,
-            color: '#71717a',
+            color: 'var(--text-tertiary)',
             display: 'flex',
             alignItems: 'center',
             gap: 6,

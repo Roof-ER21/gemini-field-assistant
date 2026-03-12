@@ -39,6 +39,8 @@ const ProfileContactForm: React.FC<ProfileContactFormProps> = ({ profile }) => {
     zip: '',
     service: '',
     preferred_contact: 'phone',
+    preferred_date: '',
+    preferred_time: '',
     message: '',
   });
   const [loading, setLoading] = useState(false);
@@ -93,6 +95,8 @@ const ProfileContactForm: React.FC<ProfileContactFormProps> = ({ profile }) => {
           homeownerPhone: formData.homeowner_phone.trim() || null,
           address: fullAddress,
           serviceType: formData.service || null,
+          preferredDate: formData.preferred_date || null,
+          preferredTime: formData.preferred_time || null,
           message: enrichedMessage || null,
         })
       });
@@ -148,6 +152,8 @@ const ProfileContactForm: React.FC<ProfileContactFormProps> = ({ profile }) => {
                   zip: '',
                   service: '',
                   preferred_contact: 'phone',
+                  preferred_date: '',
+                  preferred_time: '',
                   message: '',
                 });
               }}
@@ -305,6 +311,46 @@ const ProfileContactForm: React.FC<ProfileContactFormProps> = ({ profile }) => {
                     className="w-full h-12 px-4 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-gray-500 focus:border-red-600 focus:outline-none"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Preferred Date & Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="preferred_date" className="block text-sm font-medium text-gray-300 mb-1">
+                  Preferred Date
+                </label>
+                <input
+                  id="preferred_date"
+                  type="date"
+                  value={formData.preferred_date}
+                  onChange={(e) => setFormData({...formData, preferred_date: e.target.value})}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full h-12 px-4 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:border-red-600 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="preferred_time" className="block text-sm font-medium text-gray-300 mb-1">
+                  Preferred Time
+                </label>
+                <select
+                  id="preferred_time"
+                  value={formData.preferred_time}
+                  onChange={(e) => setFormData({...formData, preferred_time: e.target.value})}
+                  className="w-full h-12 px-4 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:border-red-600 focus:outline-none appearance-none cursor-pointer"
+                >
+                  <option value="">Select a time...</option>
+                  <option value="08:00">8:00 AM</option>
+                  <option value="09:00">9:00 AM</option>
+                  <option value="10:00">10:00 AM</option>
+                  <option value="11:00">11:00 AM</option>
+                  <option value="12:00">12:00 PM</option>
+                  <option value="13:00">1:00 PM</option>
+                  <option value="14:00">2:00 PM</option>
+                  <option value="15:00">3:00 PM</option>
+                  <option value="16:00">4:00 PM</option>
+                  <option value="17:00">5:00 PM</option>
+                </select>
               </div>
             </div>
 

@@ -17,6 +17,8 @@
 import pg from 'pg';
 import { Type, type FunctionDeclaration } from '@google/genai';
 import { hailMapsService } from './hailMapsService.js';
+import { createCalendarEvent, checkAvailability, listCalendarEvents } from './googleCalendarService.js';
+import { sendGmailEmail } from './googleGmailService.js';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -67,6 +69,10 @@ const scheduleFollowupDeclaration: FunctionDeclaration = {
       priority: {
         type: Type.STRING,
         description: 'Priority level: "low", "medium", or "high". Defaults to "medium".'
+      },
+      create_calendar_event: {
+        type: Type.BOOLEAN,
+        description: 'If true, also create a Google Calendar event for this follow-up (requires connected Google account). Default false.'
       }
     },
     required: ['contact_name', 'note']
@@ -77,12 +83,13 @@ async function executeScheduleFollowup(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<Record<string, unknown>> {
-  const { contact_name, contact_phone, due_date, note, priority = 'medium' } = args as {
+  const { contact_name, contact_phone, due_date, note, priority = 'medium', create_calendar_event: syncCal } = args as {
     contact_name: string;
     contact_phone?: string;
     due_date?: string;
     note: string;
     priority?: string;
+    create_calendar_event?: boolean;
   };
 
   // Parse due_date or default to tomorrow 9 AM
@@ -120,15 +127,34 @@ async function executeScheduleFollowup(
     const task = result.rows[0];
     console.log(`[SusanTool:schedule_followup] Created task ${task.id} for user ${ctx.userId}`);
 
+    // Optionally sync to Google Calendar
+    let calendarLink: string | null = null;
+    if (syncCal) {
+      try {
+        const calResult = await createCalendarEvent(ctx.pool, ctx.userId, {
+          summary: title,
+          startTime: dueAt.toISOString(),
+          description: description || note,
+        });
+        if (calResult.success) {
+          calendarLink = calResult.htmlLink || null;
+        }
+      } catch (calErr) {
+        console.warn('[SusanTool:schedule_followup] Calendar sync failed:', (calErr as Error).message);
+      }
+    }
+
     return {
       success: true,
-      message: `Follow-up scheduled: "${title}" due ${dueAt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
+      message: `Follow-up scheduled: "${title}" due ${dueAt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` +
+        (calendarLink ? ` (also added to Google Calendar)` : ''),
       task: {
         id: task.id,
         title: task.title,
         due_at: task.due_at,
         priority: task.priority,
       },
+      ...(calendarLink ? { calendar_event_link: calendarLink } : {}),
     };
   } catch (err) {
     // Table may not exist yet (pre-migration) — fall back to stub
@@ -368,6 +394,10 @@ const draftEmailDeclaration: FunctionDeclaration = {
       insurer: {
         type: Type.STRING,
         description: 'Name of the insurance company, if relevant.'
+      },
+      send_immediately: {
+        type: Type.BOOLEAN,
+        description: 'If true AND the rep has connected Gmail, send the email right away instead of just drafting it. Default false.'
       }
     },
     required: ['recipient_type', 'subject', 'key_points']
@@ -386,7 +416,8 @@ async function executeDraftEmail(
     subject,
     key_points,
     state,
-    insurer
+    insurer,
+    send_immediately
   } = args as {
     recipient_type: string;
     recipient_name?: string;
@@ -396,18 +427,42 @@ async function executeDraftEmail(
     key_points: string[];
     state?: string;
     insurer?: string;
+    send_immediately?: boolean;
   };
 
   console.log(
     `[SusanTool:draft_email] user=${ctx.userEmail} recipient_type=${recipient_type} subject="${subject}"`
   );
 
+  // If send_immediately AND we have a recipient email, try Gmail
+  if (send_immediately && recipient_email) {
+    const gmailResult = await sendGmailEmail(ctx.pool, ctx.userId, {
+      to: recipient_email,
+      subject,
+      body: `<p>${(Array.isArray(key_points) ? key_points : [key_points]).join('</p><p>')}</p>`,
+    });
+    if (gmailResult.success) {
+      return {
+        success: true,
+        state: 'sent_via_gmail',
+        message: `Email sent to ${recipient_email} via Gmail.`,
+        messageId: gmailResult.messageId,
+        metadata: { recipient_type, recipient_email, subject, tone }
+      };
+    }
+    // If Gmail not connected, fall through to metadata-only
+    if (gmailResult.error?.includes('not connected')) {
+      console.log('[SusanTool:draft_email] Gmail not connected, falling back to metadata-only');
+    }
+  }
+
   // Return structured metadata; Susan's LLM response will contain the actual email body
   return {
     success: true,
     state: 'metadata_ready',
     instruction:
-      'Email metadata captured. Write the full email body in your response text using the key_points as the outline.',
+      'Email metadata captured. Write the full email body in your response text using the key_points as the outline.' +
+      (send_immediately ? ' Note: To send emails directly, the rep needs to connect their Google account in Profile settings.' : ''),
     metadata: {
       recipient_type,
       recipient_name: recipient_name ?? null,
@@ -721,6 +776,391 @@ async function executeSearchKnowledgeBase(
 }
 
 // ---------------------------------------------------------------------------
+// Tool 8: send_email (via Gmail)
+// ---------------------------------------------------------------------------
+
+const sendEmailDeclaration: FunctionDeclaration = {
+  name: 'send_email',
+  description:
+    "Send an email via the rep's connected Gmail account. Use when the rep asks to send, email, or forward something to someone. If the rep has not connected their Google account, return instructions to do so.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      to: { type: Type.STRING, description: 'Recipient email address.' },
+      subject: { type: Type.STRING, description: 'Email subject line.' },
+      body: { type: Type.STRING, description: 'Full HTML email body content. Write the complete email.' },
+      cc: { type: Type.STRING, description: 'CC email address (optional).' }
+    },
+    required: ['to', 'subject', 'body']
+  }
+};
+
+async function executeSendEmail(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const { to, subject, body, cc } = args as {
+    to: string; subject: string; body: string; cc?: string;
+  };
+
+  const result = await sendGmailEmail(ctx.pool, ctx.userId, { to, subject, body, cc });
+
+  if (!result.success && result.error?.includes('not connected')) {
+    return {
+      success: false,
+      google_not_connected: true,
+      message: 'To send emails directly, connect your Google account in Profile settings. Here is the email draft for you to copy:',
+      draft: { to, subject, body, cc }
+    };
+  }
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  console.log(`[SusanTool:send_email] Sent to=${to} msgId=${result.messageId} user=${ctx.userEmail}`);
+  return {
+    success: true,
+    message: `Email sent to ${to} via Gmail.`,
+    messageId: result.messageId,
+    threadId: result.threadId
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tool 9: create_calendar_event
+// ---------------------------------------------------------------------------
+
+const createCalendarEventDeclaration: FunctionDeclaration = {
+  name: 'create_calendar_event',
+  description:
+    "Create a Google Calendar event on the rep's calendar. Use when the rep says to schedule a meeting, appointment, or event. Requires connected Google account.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      summary: { type: Type.STRING, description: 'Event title/summary, e.g. "Meeting with Mrs. Johnson".' },
+      start_time: { type: Type.STRING, description: 'Start time as ISO 8601 string, e.g. "2026-02-26T14:00:00".' },
+      end_time: { type: Type.STRING, description: 'End time as ISO 8601 (optional, defaults to +1 hour).' },
+      description: { type: Type.STRING, description: 'Event description or notes (optional).' },
+      location: { type: Type.STRING, description: 'Event location, e.g. "123 Main St, Roanoke VA" (optional).' },
+      attendee_emails: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: 'Email addresses to invite (optional).'
+      }
+    },
+    required: ['summary', 'start_time']
+  }
+};
+
+async function executeCreateCalendarEvent(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const { summary, start_time, end_time, description, location, attendee_emails } = args as {
+    summary: string; start_time: string; end_time?: string; description?: string;
+    location?: string; attendee_emails?: string[];
+  };
+
+  const result = await createCalendarEvent(ctx.pool, ctx.userId, {
+    summary,
+    startTime: start_time,
+    endTime: end_time,
+    description,
+    location,
+    attendeeEmails: attendee_emails,
+  });
+
+  if (!result.success && result.error?.includes('not connected')) {
+    // Fallback: create an agent_task instead
+    try {
+      const dueAt = new Date(start_time);
+      await ctx.pool.query(
+        `INSERT INTO agent_tasks (user_id, title, description, task_type, due_at, priority)
+         VALUES ($1, $2, $3, 'event', $4, 'medium')`,
+        [ctx.userId, summary, description || location || null, dueAt.toISOString()]
+      );
+    } catch { /* best-effort fallback */ }
+
+    return {
+      success: false,
+      google_not_connected: true,
+      message: `To create real calendar events, connect your Google account in Profile settings. I've saved "${summary}" as a task/reminder instead.`
+    };
+  }
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  console.log(`[SusanTool:create_calendar_event] Created event="${summary}" for user=${ctx.userEmail}`);
+  return {
+    success: true,
+    message: `Calendar event created: "${summary}"`,
+    eventId: result.eventId,
+    eventLink: result.htmlLink
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tool 10: check_availability
+// ---------------------------------------------------------------------------
+
+const checkAvailabilityDeclaration: FunctionDeclaration = {
+  name: 'check_availability',
+  description:
+    "Check the rep's Google Calendar for availability during a time range. Use when the rep asks if they are free at a certain time or wants to find an open slot.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      start_time: { type: Type.STRING, description: 'Start of time range (ISO 8601).' },
+      end_time: { type: Type.STRING, description: 'End of time range (ISO 8601).' }
+    },
+    required: ['start_time', 'end_time']
+  }
+};
+
+async function executeCheckAvailability(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const { start_time, end_time } = args as { start_time: string; end_time: string };
+
+  const result = await checkAvailability(ctx.pool, ctx.userId, {
+    startTime: start_time,
+    endTime: end_time,
+  });
+
+  if (!result.success && result.error?.includes('not connected')) {
+    return {
+      success: false,
+      google_not_connected: true,
+      message: "I can't check your calendar without a connected Google account. Connect in Profile settings."
+    };
+  }
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  return {
+    success: true,
+    busy: result.busy,
+    busySlots: result.busySlots,
+    message: result.busy
+      ? `You have ${result.busySlots?.length} event(s) during that time.`
+      : 'You are free during that time range.'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tool 11: fetch_calendar_events
+// ---------------------------------------------------------------------------
+
+const fetchCalendarEventsDeclaration: FunctionDeclaration = {
+  name: 'fetch_calendar_events',
+  description:
+    "Fetch the rep's upcoming calendar events. Use when the rep asks what they have scheduled, " +
+    "what's on their calendar, or what appointments are coming up.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      start_date: {
+        type: Type.STRING,
+        description: 'Start date for event search (ISO 8601). Defaults to now.'
+      },
+      end_date: {
+        type: Type.STRING,
+        description: 'End date for event search (ISO 8601). Defaults to 7 days from start.'
+      },
+    },
+    required: []
+  }
+};
+
+async function executeFetchCalendarEvents(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const startDate = (args.start_date as string) || new Date().toISOString();
+  const endDate = (args.end_date as string) || new Date(Date.now() + 7 * 86400000).toISOString();
+  const events: Array<Record<string, unknown>> = [];
+
+  // Try Google Calendar first
+  const googleResult = await listCalendarEvents(ctx.pool, ctx.userId, {
+    timeMin: startDate,
+    timeMax: endDate,
+    maxResults: 20,
+  });
+  if (googleResult.success && googleResult.events) {
+    events.push(...googleResult.events.map(e => ({
+      summary: e.summary,
+      start: e.start_time,
+      end: e.end_time,
+      location: e.location || null,
+      source: 'google',
+    })));
+  }
+
+  // Also fetch local events
+  try {
+    const localResult = await ctx.pool.query(
+      `SELECT summary, start_time, end_time, location, event_type
+       FROM calendar_events
+       WHERE user_id = $1 AND status = 'active'
+         AND start_time >= $2 AND start_time <= $3
+       ORDER BY start_time LIMIT 20`,
+      [ctx.userId, startDate, endDate]
+    );
+    for (const row of localResult.rows) {
+      events.push({
+        summary: row.summary,
+        start: row.start_time,
+        end: row.end_time,
+        location: row.location,
+        event_type: row.event_type,
+        source: 'local',
+      });
+    }
+  } catch { /* table may not exist yet */ }
+
+  events.sort((a, b) => new Date(a.start as string).getTime() - new Date(b.start as string).getTime());
+
+  if (events.length === 0) {
+    return {
+      success: true,
+      events: [],
+      message: googleResult.success
+        ? 'No events found in that date range.'
+        : 'No local events found. Connect Google in Profile settings to see your full calendar.'
+    };
+  }
+
+  return { success: true, event_count: events.length, events };
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Tool 12: send_notification
+// ---------------------------------------------------------------------------
+
+const sendNotificationDeclaration: FunctionDeclaration = {
+  name: 'send_notification',
+  description:
+    'Send a push notification to the current user, a specific team member by email, or the entire team. Use for reminders, alerts, or important updates that need immediate attention on their phone.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      recipient: {
+        type: Type.STRING,
+        description:
+          'Who to notify: "self" for current user, "team" for all team members, or an email address for a specific person.'
+      },
+      title: {
+        type: Type.STRING,
+        description: 'Notification title (short, under 50 chars).'
+      },
+      body: {
+        type: Type.STRING,
+        description: 'Notification body message (1-2 sentences).'
+      },
+      notification_type: {
+        type: Type.STRING,
+        description:
+          'Type of notification: "reminder", "alert", "update", or "storm_alert". Defaults to "alert".'
+      }
+    },
+    required: ['title', 'body']
+  }
+};
+
+async function executeSendNotification(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const { pool } = ctx;
+  const title = String(args.title || 'Notification');
+  const body = String(args.body || '');
+  const recipient = String(args.recipient || 'self').toLowerCase().trim();
+  const notificationType = String(args.notification_type || 'alert');
+
+  // Import push service
+  const { createPushNotificationService } = await import('./pushNotificationService.js');
+  const pushService = createPushNotificationService(pool);
+
+  const results: Array<{ userId: string; success: boolean; error?: string }> = [];
+
+  if (recipient === 'self') {
+    // Send to current user
+    const pushResults = await pushService.sendToUser(ctx.userId, {
+      title,
+      body,
+      data: { type: notificationType, source: 'susan' }
+    }, notificationType);
+
+    results.push({
+      userId: ctx.userId,
+      success: pushResults.some(r => r.success),
+      error: pushResults.every(r => !r.success) ? pushResults[0]?.error : undefined
+    });
+  } else if (recipient === 'team') {
+    // Send to all active team members
+    const teamMembers = await pool.query(
+      `SELECT id FROM users WHERE is_active = TRUE`
+    );
+
+    for (const member of teamMembers.rows) {
+      const pushResults = await pushService.sendToUser(member.id, {
+        title,
+        body,
+        data: { type: notificationType, source: 'susan', senderName: ctx.userName }
+      }, notificationType);
+
+      results.push({
+        userId: member.id,
+        success: pushResults.some(r => r.success),
+        error: pushResults.every(r => !r.success) ? pushResults[0]?.error : undefined
+      });
+    }
+  } else {
+    // Send to specific user by email
+    const targetUser = await pool.query(
+      `SELECT id FROM users WHERE LOWER(email) = LOWER($1)`,
+      [recipient]
+    );
+
+    if (targetUser.rows.length === 0) {
+      return { success: false, error: `No user found with email "${recipient}"` };
+    }
+
+    const pushResults = await pushService.sendToUser(targetUser.rows[0].id, {
+      title,
+      body,
+      data: { type: notificationType, source: 'susan', senderName: ctx.userName }
+    }, notificationType);
+
+    results.push({
+      userId: targetUser.rows[0].id,
+      success: pushResults.some(r => r.success),
+      error: pushResults.every(r => !r.success) ? pushResults[0]?.error : undefined
+    });
+  }
+
+  const totalSent = results.filter(r => r.success).length;
+  const totalFailed = results.filter(r => !r.success).length;
+
+  console.log(`[SusanTool:send_notification] recipient=${recipient} sent=${totalSent} failed=${totalFailed}`);
+
+  return {
+    success: totalSent > 0,
+    sent: totalSent,
+    failed: totalFailed,
+    message: totalSent > 0
+      ? `Notification sent to ${totalSent} user${totalSent > 1 ? 's' : ''}.`
+      : `Could not deliver notification. ${results[0]?.error || 'Users may not have push notifications enabled.'}`
+  };
+}
+
 // Public API: SUSAN_TOOLS array + executeTool dispatcher
 // ---------------------------------------------------------------------------
 
@@ -732,7 +1172,12 @@ export const SUSAN_TOOLS: FunctionDeclaration[] = [
   draftEmailDeclaration,
   shareTeamIntelDeclaration,
   getJobDetailsDeclaration,
-  searchKnowledgeBaseDeclaration
+  searchKnowledgeBaseDeclaration,
+  sendEmailDeclaration,
+  createCalendarEventDeclaration,
+  checkAvailabilityDeclaration,
+  fetchCalendarEventsDeclaration,
+  sendNotificationDeclaration
 ];
 
 /** Map from tool name to executor for O(1) dispatch */
@@ -746,7 +1191,12 @@ const TOOL_EXECUTORS: Record<
   draft_email: executeDraftEmail,
   share_team_intel: executeShareTeamIntel,
   get_job_details: executeGetJobDetails,
-  search_knowledge_base: executeSearchKnowledgeBase
+  search_knowledge_base: executeSearchKnowledgeBase,
+  send_email: executeSendEmail,
+  create_calendar_event: executeCreateCalendarEvent,
+  check_availability: executeCheckAvailability,
+  fetch_calendar_events: executeFetchCalendarEvents,
+  send_notification: executeSendNotification
 };
 
 /**

@@ -533,10 +533,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       if (match && match[1]) {
         // Clean up the address
         let address = match[1].trim();
-        // Remove trailing phrases like "in the past 2 years", "recently", "last year", etc.
-        address = address.replace(/\s+(?:in\s+the\s+(?:past|last)\s+\d+\s+(?:years?|months?)|recently|last\s+(?:year|month)|this\s+(?:year|month)).*$/i, '').trim();
+        // Remove "address"/"adress" prefix (common typo)
+        address = address.replace(/^(?:adress|address)\s+/i, '').trim();
+        // Remove trailing phrases like "for the last year", "in the past 2 years", etc.
+        address = address.replace(/\s+(?:for\s+the\s+(?:past|last)\s+\d*\s*(?:years?|months?)|for\s+the\s+last\s+(?:year|month)|in\s+the\s+(?:past|last)\s+\d+\s+(?:years?|months?)|recently|last\s+(?:year|month)|this\s+(?:year|month)|and\s+.+).*$/i, '').trim();
         // Remove trailing punctuation
         address = address.replace(/[?.!]+$/, '').trim();
+        // Remove trailing prepositions left after cleanup ("for the", "and")
+        address = address.replace(/\s+(?:for|and|to|in)\s*$/i, '').trim();
         return { isHailRequest: true, address };
       }
     }
@@ -971,8 +975,15 @@ Generate ONLY the email body text, no subject line or metadata.`;
     if (e) e.preventDefault();
     if (!userInput.trim() || isLoading) return;
 
-    // Check if this is an email generation request
-    if (detectEmailRequest(userInput)) {
+    // Detect if this is a complex multi-step request (email + hail combined)
+    // These should go straight to Susan/Gemini who has tools for both
+    const hasEmailIntent = /\b(?:send|email|write\s+to|forward)\b/i.test(userInput) && /\b(?:email|@)\b/i.test(userInput);
+    const hasHailKeywords = /\b(?:hail|storm)\b/i.test(userInput);
+    const isComplexRequest = hasEmailIntent && hasHailKeywords;
+
+    // Check if this is an email generation request (only for explicit "generate/draft/compose" commands)
+    // "Send an email" goes to Susan so she can use send_email tool directly
+    if (!isComplexRequest && detectEmailRequest(userInput)) {
       setShowEmailDialog(true);
       // Extract any key points from the message
       const keyPointsMatch = userInput.match(/(?:about|for|regarding)\s+(.+)$/i);
@@ -982,8 +993,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
       return;
     }
 
-    // Check if this is a hail/storm lookup request
-    const hailRequest = detectHailLookupRequest(userInput);
+    // Check if this is a hail/storm lookup request (skip if complex multi-step request)
+    const hailRequest = !isComplexRequest ? detectHailLookupRequest(userInput) : { isHailRequest: false, address: null };
     if (hailRequest.isHailRequest && hailRequest.address) {
       // Add user message first
       setMessages(prev => [...prev, {
@@ -1402,7 +1413,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
         sender: 'bot',
         content: responseText,
         state: selectedState || undefined,
-        provider: response.provider,
+        provider: responseProvider,
         sources: sources.length > 0 ? sources : undefined,
         session_id: currentSessionId,
       });
@@ -1860,8 +1871,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
             {/* Susan Learning Panel */}
             <div
               style={{
-                background: 'linear-gradient(135deg, rgba(24,24,24,0.85), rgba(12,12,12,0.75))',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'linear-gradient(135deg, var(--bg-secondary), var(--bg-primary))',
+                border: '1px solid var(--glass-border)',
                 borderRadius: '14px',
                 padding: '12px 14px',
                 marginBottom: '14px',
@@ -1875,8 +1886,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 <button
                   onClick={() => setShowLearningPanel(prev => !prev)}
                   style={{
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    background: showLearningPanel ? 'rgba(220,38,38,0.18)' : 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--glass-border)',
+                    background: showLearningPanel ? 'rgba(220,38,38,0.18)' : 'var(--glass-highlight)',
                     color: 'var(--text-primary)',
                     borderRadius: '999px',
                     padding: '4px 10px',
@@ -1936,9 +1947,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
                       </div>
                       {(learningSummary.recent_wins?.length || learningSummary.recent_issues?.length) && (
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          <span style={{ color: '#e5e7eb' }}>Recent wins:</span>{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>Recent wins:</span>{' '}
                           {(learningSummary.recent_wins || []).map((w: any) => w.comment).filter(Boolean).slice(0, 2).join(' • ') || 'N/A'}
-                          <span style={{ color: '#e5e7eb' }}>  |  Recent issues:</span>{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>  |  Recent issues:</span>{' '}
                           {(learningSummary.recent_issues || []).map((w: any) => w.comment).filter(Boolean).slice(0, 2).join(' • ') || 'N/A'}
                         </div>
                       )}
@@ -1994,14 +2005,14 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
                           return (
                             <div style={{
-                              background: 'linear-gradient(135deg, rgba(16,24,32,0.95) 0%, rgba(8,12,16,0.98) 100%)',
+                              background: 'var(--bg-card)',
                               border: '1px solid rgba(34,197,94,0.3)',
                               borderRadius: '16px',
                               padding: '20px',
                               marginTop: '8px'
                             }}>
                               {/* Header */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
                                 <div style={{
                                   width: '40px',
                                   height: '40px',
@@ -2011,13 +2022,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}>
-                                  <Cloud style={{ width: '20px', height: '20px', color: 'white' }} />
+                                  <Cloud style={{ width: '20px', height: '20px', color: 'var(--text-primary)' }} />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 700, fontSize: '16px', color: 'white' }}>
+                                  <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>
                                     Storm History Report
                                   </div>
-                                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginTop: '2px' }}>
+                                  <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                                     {address}
                                   </div>
                                 </div>
@@ -2069,7 +2080,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                       }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                           <Calendar style={{ width: '14px', height: '14px', color: '#60a5fa' }} />
-                                          <span style={{ color: 'white', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
+                                          <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
                                         </div>
                                         <span style={{
                                           color: '#fbbf24',
@@ -2083,7 +2094,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                       </div>
                                     ))}
                                     {ihmEvents.length > 5 && (
-                                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
+                                      <div style={{ color: 'var(--text-disabled)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
                                         + {ihmEvents.length - 5} more events
                                       </div>
                                     )}
@@ -2135,7 +2146,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: e.narrative ? '6px' : 0 }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                             <Calendar style={{ width: '14px', height: '14px', color: '#86efac' }} />
-                                            <span style={{ color: 'white', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
+                                            <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: 500 }}>{e.date}</span>
                                           </div>
                                           <span style={{
                                             color: e.type === 'hail' ? '#fbbf24' : e.type === 'tornado' ? '#f87171' : '#60a5fa',
@@ -2151,7 +2162,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                         {e.narrative && (
                                           <div style={{
                                             fontSize: '12px',
-                                            color: 'rgba(255,255,255,0.5)',
+                                            color: 'var(--text-disabled)',
                                             lineHeight: '1.4',
                                             marginTop: '4px'
                                           }}>
@@ -2161,7 +2172,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                       </div>
                                     ))}
                                     {noaaEvents.length > 10 && (
-                                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
+                                      <div style={{ color: 'var(--text-disabled)', fontSize: '12px', textAlign: 'center', padding: '4px' }}>
                                         + {noaaEvents.length - 10} more events
                                       </div>
                                     )}
@@ -2173,12 +2184,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
                               <div style={{
                                 marginTop: '12px',
                                 padding: '10px 14px',
-                                background: 'rgba(255,255,255,0.03)',
+                                background: 'var(--glass-highlight)',
                                 borderRadius: '8px',
                                 fontSize: '11px',
-                                color: 'rgba(255,255,255,0.4)'
+                                color: 'var(--text-disabled)'
                               }}>
-                                <strong style={{ color: 'rgba(255,255,255,0.6)' }}>Data Sources:</strong> NOAA Storm Events Database (ncei.noaa.gov/stormevents) • Interactive Hail Maps
+                                <strong style={{ color: 'var(--text-tertiary)' }}>Data Sources:</strong> NOAA Storm Events Database (ncei.noaa.gov/stormevents) • Interactive Hail Maps
                               </div>
 
                               {/* Action Buttons */}
@@ -2201,7 +2212,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                     background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                                     border: 'none',
                                     borderRadius: '8px',
-                                    color: 'white',
+                                    color: 'var(--text-primary)',
                                     fontSize: '13px',
                                     fontWeight: 600,
                                     cursor: 'pointer',
@@ -2217,10 +2228,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                   onClick={() => setUserInput('Look up another address')}
                                   style={{
                                     padding: '10px 16px',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    background: 'var(--glass-highlight)',
+                                    border: '1px solid var(--glass-border)',
                                     borderRadius: '8px',
-                                    color: 'rgba(255,255,255,0.8)',
+                                    color: 'var(--text-secondary)',
                                     fontSize: '13px',
                                     fontWeight: 500,
                                     cursor: 'pointer'
@@ -2307,7 +2318,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
                             {/* Email Body */}
                             <div style={{
-                              background: 'white',
+                              background: 'var(--bg-elevated)',
                               padding: '16px',
                               borderRadius: '8px',
                               border: '1px solid var(--border-color)',
@@ -2432,7 +2443,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   )}
                   {msg.sender === 'bot' && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                      {responseHasEmailContent(msg.text) && onStartEmail && (
+                      {responseHasEmailContent(msg.text) && onStartEmail && !msg.text.startsWith('EMAIL_GENERATED:') && (
                         <button
                           onClick={() => {
                             const emailContent = extractEmailContent(msg.text);
@@ -2868,8 +2879,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   position: 'fixed',
                   bottom: '100px',
                   right: '20px',
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--glass-border)',
                   borderRadius: '12px',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
                   padding: '12px',
@@ -2877,7 +2888,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   zIndex: 999999
                 }}
               >
-                <div style={{ fontSize: '11px', color: '#888', padding: '4px 8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', padding: '4px 8px', marginBottom: '4px' }}>
                   Quick Actions:
                 </div>
 
@@ -2893,7 +2904,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     background: 'transparent',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -2902,7 +2913,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     gap: '12px',
                     marginBottom: '4px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--glass-border)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   <Mail className="w-5 h-5" style={{ color: '#dc2626' }} />
@@ -2921,7 +2932,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     background: selectedState ? stateOptions.find(s => s.code === selectedState)?.color : 'transparent',
                     border: 'none',
                     borderRadius: '8px',
-                    color: selectedState ? 'white' : '#fff',
+                    color: selectedState ? 'white' : 'var(--text-primary)',
                     fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -2931,7 +2942,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     marginBottom: '4px'
                   }}
                   onMouseEnter={(e) => {
-                    if (!selectedState) e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                    if (!selectedState) e.currentTarget.style.background = 'var(--glass-border)';
                   }}
                   onMouseLeave={(e) => {
                     if (!selectedState) e.currentTarget.style.background = 'transparent';
@@ -2953,7 +2964,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     background: 'transparent',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -2961,7 +2972,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     alignItems: 'center',
                     gap: '12px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--glass-border)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   <FileText className="w-5 h-5" />
@@ -2981,7 +2992,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     background: 'transparent',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -2990,7 +3001,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     gap: '12px',
                     opacity: isAnalyzingImage ? 0.5 : 1
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--glass-border)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   <ImageIcon className="w-5 h-5" style={{ color: '#22c55e' }} />
@@ -3008,8 +3019,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   position: 'fixed',
                   bottom: '100px',
                   right: '20px',
-                  background: '#1a1a1a',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--glass-border)',
                   borderRadius: '12px',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
                   padding: '12px',
@@ -3017,7 +3028,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   zIndex: 999999
                 }}
               >
-                <div style={{ fontSize: '11px', color: '#888', padding: '4px 8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', padding: '4px 8px', marginBottom: '4px' }}>
                   Select State:
                 </div>
                 {stateOptions.map((state) => (
@@ -3039,7 +3050,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                       background: selectedState === state.code ? state.color : 'transparent',
                       border: 'none',
                       borderRadius: '8px',
-                      color: selectedState === state.code ? 'white' : '#fff',
+                      color: selectedState === state.code ? 'white' : 'var(--text-primary)',
                       fontSize: '14px',
                       fontWeight: selectedState === state.code ? 600 : 400,
                       cursor: 'pointer',
@@ -3049,7 +3060,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     }}
                     onMouseEnter={(e) => {
                       if (selectedState !== state.code) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                        e.currentTarget.style.background = 'var(--glass-border)';
                       }
                     }}
                     onMouseLeave={(e) => {
@@ -3073,9 +3084,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
                       width: '100%',
                       padding: '8px 14px',
                       background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.2)',
+                      border: '1px solid var(--border-default)',
                       borderRadius: '8px',
-                      color: '#888',
+                      color: 'var(--text-tertiary)',
                       fontSize: '13px',
                       cursor: 'pointer',
                       marginTop: '4px'

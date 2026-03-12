@@ -70,7 +70,8 @@ export function getApiBaseUrl(): string {
                       window.location.hostname === '127.0.0.1';
 
   if (isLocalhost) {
-    const url = 'http://localhost:3001/api';
+    // Use relative URL so Vite proxy can forward to the backend
+    const url = '/api';
     console.log('[Config] 🔧 Development mode detected');
     console.log('[Config] API URL:', url);
     return url;

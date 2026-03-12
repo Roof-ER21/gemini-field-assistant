@@ -88,7 +88,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
         padding: '16px'
       }}>
         <div style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'var(--bg-elevated)',
           borderRadius: '16px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
           maxWidth: '400px',
@@ -125,10 +125,10 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
           {/* Content */}
           <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-              <p style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>
-                I'm <span style={{ fontWeight: 'bold', color: '#dc2626' }}>Susan 21</span>, your AI assistant.
+              <p style={{ color: 'var(--text-secondary)', fontSize: '18px', marginBottom: '8px' }}>
+                I'm <span style={{ fontWeight: 'bold', color: '#c41e3a' }}>Susan 21</span>, your AI assistant.
               </p>
-              <p style={{ color: '#6b7280' }}>
+              <p style={{ color: 'var(--text-tertiary)' }}>
                 What would you like me to call you?
               </p>
             </div>
@@ -146,15 +146,16 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    border: '2px solid #e5e7eb',
+                    border: '2px solid var(--border-default)',
                     borderRadius: '8px',
                     fontSize: '16px',
                     outline: 'none',
                     boxSizing: 'border-box',
-                    color: '#111827'
+                    color: 'var(--text-primary)',
+                    background: 'var(--bg-secondary)'
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#dc2626'}
-                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
                 />
               </div>
 
@@ -164,8 +165,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
                 style={{
                   width: '100%',
                   padding: '14px',
-                  backgroundColor: (!nickname.trim() || isSubmitting) ? '#d1d5db' : '#dc2626',
-                  color: '#ffffff',
+                  backgroundColor: (!nickname.trim() || isSubmitting) ? 'var(--text-disabled)' : '#dc2626',
+                  color: 'var(--text-primary)',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '16px',
@@ -188,7 +189,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
       <div className="fixed top-0 left-0 right-0 z-50 p-4 pointer-events-none">
         <div className="max-w-2xl mx-auto pointer-events-auto">
           <div
-            className="bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg shadow-2xl p-4 flex items-center justify-between animate-slide-down cursor-pointer"
+            className="text-white rounded-lg shadow-2xl p-4 flex items-center justify-between animate-slide-down cursor-pointer"
+            style={{ background: 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)' }}
             onClick={onComplete}
           >
             <div className="flex items-center gap-4 flex-1">

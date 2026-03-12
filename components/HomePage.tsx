@@ -130,8 +130,8 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
     }}>
       {/* Hero Section */}
       <div style={{
-        background: 'linear-gradient(135deg, #0a0a0a 0%, #000000 100%)',
-        borderBottom: '1px solid #262626',
+        background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-primary) 100%)',
+        borderBottom: '1px solid var(--border-subtle)',
         padding: '1.5rem 1rem',
         textAlign: 'center',
         boxSizing: 'border-box'
@@ -156,7 +156,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           }} />
           <span style={{
             fontSize: '0.875rem',
-            color: '#d4d4d8',
+            color: 'var(--text-secondary)',
             fontWeight: '500'
           }}>
             4 AI Systems Active
@@ -166,18 +166,18 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
         <h1 style={{
           fontSize: 'clamp(1.5rem, 5vw, 2rem)',
           fontWeight: '700',
-          color: '#ffffff',
+          color: 'var(--text-primary)',
           marginBottom: '0.5rem',
           lineHeight: '1.3',
           wordWrap: 'break-word',
           padding: '0 0.5rem'
         }}>
-          Welcome to <span style={{ color: '#ffffff' }}>Susan</span> <span style={{ color: '#dc2626' }}>21</span>
+          Welcome to <span style={{ color: 'var(--text-primary)' }}>Susan</span> <span style={{ color: '#dc2626' }}>21</span>
         </h1>
 
         <p style={{
           fontSize: 'clamp(0.875rem, 3vw, 1rem)',
-          color: '#a1a1aa',
+          color: 'var(--text-tertiary)',
           maxWidth: '100%',
           margin: '0 auto 1.5rem',
           lineHeight: '1.5',
@@ -201,11 +201,11 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
             const Icon = stat.icon;
             return (
               <div key={index} style={{
-                background: '#0a0a0a',
+                background: 'var(--bg-primary)',
                 backdropFilter: 'blur(10px)',
                 padding: '1rem',
                 borderRadius: '12px',
-                border: '1px solid #1a1a1a',
+                border: '1px solid var(--bg-elevated)',
                 textAlign: 'center'
               }}>
                 <Icon style={{
@@ -217,14 +217,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                 <div style={{
                   fontSize: '1.5rem',
                   fontWeight: '700',
-                  color: '#ffffff',
+                  color: 'var(--text-primary)',
                   marginBottom: '0.25rem'
                 }}>
                   {stat.value}
                 </div>
                 <div style={{
                   fontSize: '0.75rem',
-                  color: '#71717a'
+                  color: 'var(--text-tertiary)'
                 }}>
                   {stat.label}
                 </div>
@@ -240,7 +240,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -336,7 +336,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -358,21 +358,21 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   key={feature.id}
                   onClick={() => setActivePanel(feature.id as PanelType)}
                   style={{
-                    background: '#0a0a0a',
-                    border: '1px solid #1a1a1a',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--bg-elevated)',
                     borderRadius: '12px',
                     padding: '1.25rem',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#171717';
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
                     e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.5)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#0a0a0a';
-                    e.currentTarget.style.borderColor = '#1a1a1a';
+                    e.currentTarget.style.background = 'var(--bg-primary)';
+                    e.currentTarget.style.borderColor = 'var(--bg-elevated)';
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
@@ -398,7 +398,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                       <div style={{
                         fontSize: '1rem',
                         fontWeight: '600',
-                        color: '#ffffff',
+                        color: 'var(--text-primary)',
                         marginBottom: '0.25rem'
                       }}>
                         {feature.title}
@@ -414,7 +414,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                   </div>
                   <p style={{
                     fontSize: '0.875rem',
-                    color: '#71717a',
+                    color: 'var(--text-tertiary)',
                     lineHeight: '1.5',
                     margin: 0
                   }}>
@@ -431,7 +431,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
           <h2 style={{
             fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
             fontWeight: '600',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -502,14 +502,14 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
                     <div style={{
                       fontSize: '1rem',
                       fontWeight: '600',
-                      color: '#fff'
+                      color: 'var(--text-primary)'
                     }}>
                       {item.title}
                     </div>
                   </div>
                   <p style={{
                     fontSize: '0.875rem',
-                    color: '#71717a',
+                    color: 'var(--text-tertiary)',
                     lineHeight: '1.5',
                     margin: 0
                   }}>
@@ -532,7 +532,7 @@ const HomePage: React.FC<HomePageProps> = ({ setActivePanel }) => {
         }}>
           <p style={{
             fontSize: '0.875rem',
-            color: '#d4d4d8',
+            color: 'var(--text-secondary)',
             margin: 0,
             lineHeight: '1.5'
           }}>

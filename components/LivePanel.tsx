@@ -364,7 +364,7 @@ Respond in JSON format:
 
       // Use the correct API: client.models.generateContent()
       const result = await genAI.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.0-flash',
         contents: {
           parts: [
             { text: prompt },
@@ -900,7 +900,7 @@ Respond in JSON format:
       {connectionStatus.error && (
         <div style={{
           padding: '12px 20px',
-          background: '#dc262620',
+          background: 'rgba(220, 38, 38, 0.08)',
           borderTop: '2px solid #dc2626',
           color: '#dc2626',
           fontSize: '13px',

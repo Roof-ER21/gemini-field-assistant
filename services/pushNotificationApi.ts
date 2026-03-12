@@ -42,6 +42,22 @@ interface PushNotificationData {
 let notificationListeners: Array<(notification: any) => void> = [];
 
 /**
+ * Convert VAPID public key from base64url to Uint8Array
+ */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
  * Check if push notifications are supported
  */
 export const isPushSupported = (): boolean => {
@@ -159,9 +175,38 @@ export const registerForPush = async (userEmail: string): Promise<string | null>
         });
       });
     } else {
-      // Web push - would need a service worker and VAPID keys
-      console.log('Web push notifications not yet implemented');
-      return null;
+      // Web push via VAPID + Service Worker
+      try {
+        // 1. Get VAPID public key from server
+        const keyRes = await fetch(`${API_URL}/api/push/vapid-key`);
+        if (!keyRes.ok) {
+          console.warn('Web push not configured on server');
+          return null;
+        }
+        const { publicKey } = await keyRes.json();
+
+        // 2. Get service worker registration
+        const registration = await navigator.serviceWorker.ready;
+
+        // 3. Subscribe to push manager
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+
+        // 4. Send subscription to backend as device token (JSON string)
+        const savedToken = await saveTokenToBackend(
+          userEmail,
+          JSON.stringify(subscription),
+          'web'
+        );
+
+        console.log('Web push registration success');
+        return savedToken ? JSON.stringify(subscription) : null;
+      } catch (webErr) {
+        console.error('Web push registration failed:', webErr);
+        return null;
+      }
     }
   } catch (error) {
     console.error('Error registering for push:', error);

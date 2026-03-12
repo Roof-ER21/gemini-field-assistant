@@ -72,7 +72,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: index * 0.05 + 0.1 }}
-          className="flex-shrink-0 h-9 w-9 md:h-10 md:w-10 rounded-xl bg-[#171717] border border-[#262626] flex items-center justify-center shadow-md touch-target"
+          className="flex-shrink-0 h-9 w-9 md:h-10 md:w-10 rounded-xl flex items-center justify-center shadow-md touch-target"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)' }}
         >
           <div className="relative">
             <Bot className="h-4 w-4 md:h-5 md:w-5 text-red-500" strokeWidth={2} />
@@ -105,8 +106,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
             "relative rounded-2xl px-4 py-3 md:px-5 md:py-3.5 shadow-lg transition-all duration-300 tap-feedback touch-target",
             isUser
               ? 'bg-gradient-to-br from-[#dc2626] via-[#dc2626] to-[#b91c1c] text-white shadow-[rgba(220,38,38,0.2)] border border-red-600/20'
-              : 'bg-[#171717] text-white border border-[#262626]'
+              : 'border'
           )}
+          style={!isUser ? {
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-subtle)',
+          } : undefined}
         >
           {/* Accent underline for bot messages */}
           {!isUser && (
@@ -159,7 +165,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ id, text, sender, timesta
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: index * 0.05 + 0.2 }}
-            className="text-[10px] text-[#71717a] mt-1.5 px-2 font-medium"
+            className="text-[10px] mt-1.5 px-2 font-medium"
+            style={{ color: 'var(--text-tertiary)' }}
           >
             {formatTime(timestamp)}
           </motion.span>

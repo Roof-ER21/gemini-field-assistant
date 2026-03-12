@@ -341,6 +341,23 @@ export function createContestRoutes(pool: Pool): Router {
       // Refresh standings
       await pool.query('SELECT refresh_contest_standings($1)', [contest.id]);
 
+      // Push notification to all participants about new contest
+      const pushService = req.app.get('pushNotificationService');
+      if (pushService) {
+        const participantUsers = await pool.query(
+          `SELECT DISTINCT u.id FROM users u
+           JOIN sales_reps sr ON sr.user_id = u.id
+           WHERE u.is_active = TRUE`
+        );
+        for (const p of participantUsers.rows) {
+          pushService.sendToUser(p.id, {
+            title: `🏆 New Contest: ${name}`,
+            body: `${description || contest_type} contest starts ${new Date(start_date).toLocaleDateString()}!${prize_description ? ` Prize: ${prize_description}` : ''}`,
+            data: { type: 'contest_alert', contestId: contest.id }
+          }, 'contest_alert').catch((e: any) => console.error('Contest push error:', e.message));
+        }
+      }
+
       res.status(201).json({
         success: true,
         contest
