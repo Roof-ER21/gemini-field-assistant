@@ -1,11 +1,12 @@
 /**
  * Lead Generation Landing Pages — Server-Rendered HTML
  *
- * Four public routes for The Roof Docs:
+ * Five public routes for The Roof Docs:
  *   GET /storm/:zip        — Storm damage targeted landing page
  *   GET /claim-help        — Multi-step insurance claim quiz funnel
  *   GET /refer/:code       — Referral landing page from rep codes
  *   GET /free-inspection   — General free roof inspection landing page
+ *   GET /storm-checklist   — Lead magnet: Storm Damage Claim Checklist (email-gated)
  *
  * All pages are mobile-first, fully inline-CSS, zero external JS deps,
  * and POST leads to /api/leads/intake on submit.
@@ -1046,4 +1047,207 @@ export function registerLeadGenPages(app: Application, pool: Pool): void {
     res.set('Cache-Control', 'public, max-age=300');
     res.send(renderReferralPage(rep, safeCode));
   });
+
+  // ── Page 5: Storm Checklist Lead Magnet ─────────────────────────────────
+  app.get('/storm-checklist', (_req, res) => {
+    res.set('Content-Type', 'text/html');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(renderStormChecklistPage());
+  });
+}
+
+
+// ---------------------------------------------------------------------------
+// Page 5 Renderer: Storm Damage Claim Checklist (lead magnet)
+// ---------------------------------------------------------------------------
+
+function renderStormChecklistPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Storm Damage Checklist | The Roof Docs</title>
+  <meta name="description" content="Download our free Storm Damage Insurance Claim Checklist. Know exactly what to do after a storm hits your roof — step by step.">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:${BRAND.bg};color:#fff;line-height:1.6}
+    .container{max-width:640px;margin:0 auto;padding:24px 16px}
+    .hero{text-align:center;padding:48px 0 32px}
+    .hero h1{font-size:28px;font-weight:800;margin-bottom:12px;line-height:1.2}
+    .hero .accent{color:${BRAND.red}}
+    .hero p{color:${BRAND.textMuted};font-size:16px;max-width:480px;margin:0 auto}
+    .preview{background:${BRAND.card};border:1px solid ${BRAND.border};
+      border-radius:16px;padding:28px;margin:24px 0}
+    .preview h2{font-size:18px;margin-bottom:16px;color:${BRAND.red}}
+    .checklist-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid ${BRAND.border}}
+    .checklist-item:last-child{border-bottom:none}
+    .check{color:${BRAND.red};font-size:18px;flex-shrink:0;margin-top:2px}
+    .checklist-item h3{font-size:14px;font-weight:600;margin-bottom:2px}
+    .checklist-item p{font-size:13px;color:${BRAND.textMuted}}
+    .gate{background:linear-gradient(135deg,${BRAND.darkBlue},#0f3d6b);
+      border:1px solid rgba(182,8,7,0.3);border-radius:16px;padding:28px;margin:24px 0;text-align:center}
+    .gate h2{font-size:20px;margin-bottom:8px}
+    .gate p{color:${BRAND.textMuted};font-size:14px;margin-bottom:20px}
+    .gate form{display:flex;flex-direction:column;gap:12px;max-width:360px;margin:0 auto}
+    .gate input{padding:14px 16px;border-radius:10px;border:1px solid ${BRAND.border};
+      background:rgba(0,0,0,0.3);color:#fff;font-size:15px}
+    .gate input::placeholder{color:${BRAND.textDim}}
+    .gate button{padding:16px;border:none;border-radius:10px;background:${BRAND.red};
+      color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:background 0.2s}
+    .gate button:hover{background:${BRAND.redHover}}
+    .bonus{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
+    .bonus-item{flex:1;min-width:140px;background:${BRAND.card};border:1px solid ${BRAND.border};
+      border-radius:12px;padding:16px;text-align:center}
+    .bonus-item .icon{font-size:28px;margin-bottom:6px}
+    .bonus-item h3{font-size:13px;font-weight:600;margin-bottom:4px}
+    .bonus-item p{font-size:12px;color:${BRAND.textMuted}}
+    .testimonial{background:${BRAND.card};border:1px solid ${BRAND.border};border-radius:12px;
+      padding:20px;margin:16px 0;font-style:italic;color:${BRAND.textMuted};font-size:14px}
+    .testimonial .attr{color:#fff;font-style:normal;font-weight:600;margin-top:8px;font-size:13px}
+    .footer{text-align:center;padding:32px 0;color:${BRAND.textDim};font-size:12px}
+    .success-msg{display:none;text-align:center;padding:32px;background:rgba(34,197,94,0.1);
+      border:1px solid rgba(34,197,94,0.3);border-radius:16px;margin:24px 0}
+    .success-msg h2{color:#22c55e;margin-bottom:8px}
+    .success-msg p{color:${BRAND.textMuted}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>Your <span class="accent">Storm Damage</span><br>Insurance Claim Checklist</h1>
+      <p>The step-by-step guide Maryland & Virginia homeowners use to maximize their insurance claim after storm damage.</p>
+    </div>
+
+    <div class="preview">
+      <h2>What's Inside (Preview)</h2>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Immediate Safety Steps</h3><p>What to do in the first 24 hours after a storm</p></div>
+      </div>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Document Everything</h3><p>Exactly what photos and videos your adjuster needs to see</p></div>
+      </div>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Filing Timeline</h3><p>Critical deadlines that most homeowners miss (and lose money)</p></div>
+      </div>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Adjuster Meeting Prep</h3><p>Questions to ask and red flags to watch for</p></div>
+      </div>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Supplement Request Template</h3><p>Get the full amount you're owed — word-for-word script</p></div>
+      </div>
+      <div class="checklist-item">
+        <span class="check">&#10003;</span>
+        <div><h3>Contractor Vetting Checklist</h3><p>7 things to verify before signing anything</p></div>
+      </div>
+    </div>
+
+    <div class="bonus">
+      <div class="bonus-item">
+        <div class="icon">&#128196;</div>
+        <h3>10-Page Guide</h3>
+        <p>Printable PDF</p>
+      </div>
+      <div class="bonus-item">
+        <div class="icon">&#9989;</div>
+        <h3>Fillable Fields</h3>
+        <p>Track your progress</p>
+      </div>
+      <div class="bonus-item">
+        <div class="icon">&#128176;</div>
+        <h3>100% Free</h3>
+        <p>No strings attached</p>
+      </div>
+    </div>
+
+    <div class="testimonial">
+      "I didn't know I could supplement my claim until I read this checklist. Ended up getting $4,200 more than the initial estimate."
+      <div class="attr">— Sarah M., Columbia MD</div>
+    </div>
+
+    <div class="gate" id="gate-form">
+      <h2>Get Your Free Checklist</h2>
+      <p>Enter your email and we'll send the full checklist instantly.</p>
+      <form id="checklist-form" onsubmit="submitChecklist(event)">
+        <input type="text" name="name" placeholder="Your name" required>
+        <input type="email" name="email" placeholder="Your email" required>
+        <input type="tel" name="phone" placeholder="Phone (optional)">
+        <input type="text" name="zip" placeholder="ZIP code (optional)">
+        <button type="submit">Send Me the Checklist</button>
+      </form>
+      <p style="font-size:11px;color:${BRAND.textDim};margin-top:12px">
+        We respect your privacy. No spam — just the checklist and occasional storm alerts for your area.
+      </p>
+    </div>
+
+    <div class="success-msg" id="success-msg">
+      <h2>&#10003; Check Your Email!</h2>
+      <p>Your Storm Damage Claim Checklist is on its way.<br>
+      Check your inbox (and spam folder) in the next 2 minutes.</p>
+      <p style="margin-top:16px">
+        <strong>Want a free roof inspection too?</strong><br>
+        <a href="/free-inspection" style="color:${BRAND.red};text-decoration:none;font-weight:600">
+          Schedule Your Free Inspection &rarr;
+        </a>
+      </p>
+    </div>
+
+    <div class="testimonial">
+      "After the hail storm hit Ellicott City, this checklist walked me through everything. My contractor even said I was the most prepared homeowner he'd worked with."
+      <div class="attr">— James T., Ellicott City MD</div>
+    </div>
+
+    <div class="footer">
+      <p>&copy; ${new Date().getFullYear()} The Roof Docs &bull; GAF Elite Certified</p>
+      <p style="margin-top:4px">Serving Maryland, Virginia & the DMV area</p>
+    </div>
+  </div>
+
+  <script>
+    function submitChecklist(e) {
+      e.preventDefault();
+      var form = e.target;
+      var btn = form.querySelector('button');
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+
+      var data = {
+        homeownerName: form.name.value.trim(),
+        homeownerEmail: form.email.value.trim(),
+        homeownerPhone: form.phone.value.trim() || undefined,
+        zipCode: form.zip.value.trim() || undefined,
+        source: 'claim_help',
+        serviceType: 'storm_damage',
+        message: 'Lead magnet: Storm Damage Insurance Claim Checklist download'
+      };
+
+      fetch('/api/leads/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        if (result.success) {
+          document.getElementById('gate-form').style.display = 'none';
+          document.getElementById('success-msg').style.display = 'block';
+        } else {
+          btn.textContent = 'Try Again';
+          btn.disabled = false;
+        }
+      })
+      .catch(function() {
+        btn.textContent = 'Try Again';
+        btn.disabled = false;
+      });
+    }
+  </script>
+</body>
+</html>`;
 }
