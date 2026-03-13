@@ -8276,6 +8276,24 @@ runStartupMigrations().then(() => {
         // Process feedback follow-up reminders hourly
         processFeedbackFollowups();
         setInterval(processFeedbackFollowups, 60 * 60 * 1000);
+        // Process pending SMS follow-ups every 15 minutes (Day 3/Day 7 texts)
+        import('./services/leadSmsService.js').then(({ LeadSmsService }) => {
+            const leadSmsService = new LeadSmsService(pool);
+            const processSmsFollowups = async () => {
+                try {
+                    const stats = await leadSmsService.processPendingFollowups();
+                    if (stats.processed > 0) {
+                        console.log(`[SMS Cron] Processed ${stats.processed}: ${stats.sent} sent, ${stats.failed} failed, ${stats.skipped} skipped`);
+                    }
+                }
+                catch (err) {
+                    console.error('[SMS Cron] Error:', err);
+                }
+            };
+            setTimeout(processSmsFollowups, 10000);
+            setInterval(processSmsFollowups, 15 * 60 * 1000);
+            console.log('✅ SMS follow-up processor started (every 15 min)');
+        }).catch(err => console.error('⚠️  SMS service init failed:', err));
     });
 });
 export default app;
