@@ -1211,6 +1211,9 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         customerPhone: homeownerInfo?.phone || '',
         customerEmail: homeownerInfo?.email || ''
       }}
+      useDocuSeal={true}
+      docuSealTemplateId={1}
+      agentName={userProfile?.name}
       onComplete={handleClaimAuthComplete}
       onSkip={nextSlide}
     />
@@ -1226,6 +1229,8 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         insuranceCompany: claimAuthData?.insuranceCompany || '',
         claimNumber: claimAuthData?.claimNumber || ''
       }}
+      useDocuSeal={true}
+      docuSealTemplateId={2}
       agentName={userProfile?.name}
       onComplete={handleContingencyComplete}
       onBack={prevSlide}
