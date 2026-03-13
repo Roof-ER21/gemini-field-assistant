@@ -15,12 +15,14 @@ import {
   ChevronRight,
   Bell,
   Home,
-  Activity
+  Activity,
+  Video
 } from 'lucide-react';
 import { messagingService, TeamMember, Conversation } from '../services/messagingService';
 import { authService } from '../services/authService';
 import RoofFeed from './RoofFeed';
 import CheckInSection from './CheckInSection';
+import LiveSessionsTab from './LiveSessionsTab';
 import { formatDisplayName } from '../utils/formatDisplayName';
 
 interface TeamPanelProps {
@@ -33,7 +35,8 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof' | 'checkin'>('messages');
+  const [activeTab, setActiveTab] = useState<'team' | 'messages' | 'roof' | 'checkin' | 'live'>('messages');
+  const [liveSessionCount, setLiveSessionCount] = useState(0);
   const [totalUnread, setTotalUnread] = useState(0);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -91,9 +94,20 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       });
     });
 
+    // Poll for active live sessions count (for badge)
+    const pollLiveSessions = () => {
+      fetch('/api/livekit/sessions')
+        .then(r => r.json())
+        .then(data => setLiveSessionCount(data.sessions?.length || 0))
+        .catch(() => {});
+    };
+    pollLiveSessions();
+    const liveInterval = setInterval(pollLiveSessions, 15000);
+
     return () => {
       unsubPresence();
       unsubMessage();
+      clearInterval(liveInterval);
     };
   }, [fetchData]);
 
@@ -411,11 +425,47 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
             <Home style={{ width: '16px', height: '16px' }} />
             <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Roof</span>
           </button>
+          <button
+            onClick={() => setActiveTab('live')}
+            style={{
+              flex: 1,
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'live' ? 'var(--roof-red)' : 'var(--bg-secondary)',
+              color: activeTab === 'live' ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              minHeight: '44px',
+              position: 'relative'
+            }}
+          >
+            <Video style={{ width: '16px', height: '16px' }} />
+            <span style={{ display: window.innerWidth > 768 ? 'inline' : 'none' }}>Live</span>
+            {liveSessionCount > 0 && activeTab !== 'live' && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '4px',
+                  right: '8px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  animation: 'pulse 1.5s ease-in-out infinite'
+                }}
+              />
+            )}
+          </button>
         </div>
       </div>
 
       {/* Search - hidden for roof and checkin tabs */}
-      {activeTab !== 'roof' && activeTab !== 'checkin' && (
+      {activeTab !== 'roof' && activeTab !== 'checkin' && activeTab !== 'live' && (
         <div style={{ padding: '0.75rem 1rem' }}>
           <div
             style={{
@@ -483,8 +533,10 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: (activeTab === 'roof' || activeTab === 'checkin') ? 0 : '0 0.5rem 1rem' }}>
-        {activeTab === 'roof' ? (
+      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: (activeTab === 'roof' || activeTab === 'checkin' || activeTab === 'live') ? 0 : '0 0.5rem 1rem' }}>
+        {activeTab === 'live' ? (
+          <LiveSessionsTab />
+        ) : activeTab === 'roof' ? (
           <RoofFeed />
         ) : activeTab === 'checkin' ? (
           <CheckInSection />

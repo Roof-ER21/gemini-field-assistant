@@ -51,6 +51,7 @@ import { createDocuSealRoutes } from './routes/docusealRoutes.js';
 import { createDocumentRoutes } from './routes/documentRoutes.js';
 import { registerLeadGenPages } from './routes/leadGenPages.js';
 import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
+import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
@@ -7465,6 +7466,8 @@ app.use('/api/docuseal', createDocuSealRoutes(pool));
 app.use('/api/documents', createDocumentRoutes());
 // Register deaf communication mode routes
 app.use('/api/deaf-mode', deafModeRoutes);
+// LiveKit video room routes
+app.use(createLiveKitRoutes(pool));
 // ============================================================================
 // PUBLIC LEAD-GEN PAGES (before SPA fallback)
 // /storm/:zip  |  /claim-help  |  /refer/:code
