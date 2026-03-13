@@ -160,9 +160,19 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
   // Connect to room
   useEffect(() => {
     const room = new Room({
-      adaptiveStream: true,
+      adaptiveStream: { pixelDensity: 'high' },
       dynacast: true,
-      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h1080.resolution,
+        facingMode: 'environment',
+      },
+      publishDefaults: {
+        simulcast: true,
+        videoEncoding: {
+          maxBitrate: 3_000_000,
+          maxFramerate: 30,
+        },
+      },
     });
     roomRef.current = room;
 
@@ -695,8 +705,10 @@ const VideoTile: React.FC<{ participant: ParticipantInfo }> = ({ participant }) 
           playsInline
           muted={participant.isLocal}
           style={{
-            width: '100%', height: '100%', objectFit: 'cover',
+            width: '100%', height: '100%',
+            objectFit: participant.isScreenShare ? 'contain' : 'cover',
             transform: participant.isLocal && !participant.isScreenShare ? 'scaleX(-1)' : 'none',
+            imageRendering: 'auto',
           }}
         />
       ) : (
