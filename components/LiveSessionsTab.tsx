@@ -3,12 +3,53 @@
  * Rendered inside TeamPanel as the 5th tab
  */
 
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Component, ErrorInfo } from 'react';
 import { Video, Users, Clock, Radio, Plus, ArrowRight, Wifi } from 'lucide-react';
 import { authService } from '../services/authService';
 import { formatDisplayName } from '../utils/formatDisplayName';
+import LiveRoomView from './LiveRoomView';
 
-const LiveRoomView = lazy(() => import('./LiveRoomView'));
+// Error boundary to catch LiveKit render crashes
+class LiveRoomErrorBoundary extends Component<
+  { children: React.ReactNode; onError: () => void },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[LiveRoom] Render crash:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: '#111',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: 'white', padding: '24px',
+        }}>
+          <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', color: '#ef4444' }}>
+            Video Room Error
+          </div>
+          <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', textAlign: 'center' }}>
+            {this.state.error}
+          </div>
+          <button onClick={this.props.onError} style={{
+            padding: '12px 24px', background: '#dc2626', border: 'none', borderRadius: '10px',
+            color: 'white', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+          }}>
+            Go Back
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface LiveSession {
   id: string;
@@ -207,13 +248,9 @@ const LiveSessionsTab: React.FC = () => {
   // Full-screen video room
   if (activeRoom) {
     return (
-      <Suspense fallback={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-          Connecting...
-        </div>
-      }>
+      <LiveRoomErrorBoundary onError={handleLeaveRoom}>
         <LiveRoomView {...activeRoom} onLeave={handleLeaveRoom} />
-      </Suspense>
+      </LiveRoomErrorBoundary>
     );
   }
 
