@@ -8,11 +8,13 @@
  */
 import { Router } from 'express';
 import { emailService } from '../services/emailService.js';
+import { LeadSmsService } from '../services/leadSmsService.js';
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 export function createLeadGenRoutes(pool) {
     const router = Router();
+    const leadSmsService = new LeadSmsService(pool);
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -235,6 +237,18 @@ export function createLeadGenRoutes(pool) {
                 referralCode,
                 score,
             });
+            // --- SMS follow-up sequence (fire-and-forget) -------------------------
+            if (homeownerPhone) {
+                leadSmsService.enqueueSequence({
+                    leadId,
+                    homeownerName: homeownerName.trim(),
+                    homeownerPhone,
+                    serviceType: serviceType || undefined,
+                    zipCode: zipCode || undefined,
+                }).catch((err) => {
+                    console.error('❌ SMS sequence enqueue failed:', err);
+                });
+            }
             return res.status(201).json({ success: true, leadId, score });
         }
         catch (error) {
@@ -859,6 +873,74 @@ export function createLeadGenRoutes(pool) {
             console.error('❌ ElevenLabs webhook error:', error);
             // Always return 200 so ElevenLabs doesn't retry
             res.status(200).json({ success: false, error: 'Processing failed' });
+        }
+    });
+    // =========================================================================
+    // SMS FOLLOW-UP ENDPOINTS
+    // =========================================================================
+    /**
+     * POST /api/leads/sms-followups/process
+     * Cron endpoint — process pending Day 3/Day 7 follow-ups.
+     * Should be called every 15 minutes by a cron job or Railway cron.
+     */
+    router.post('/sms-followups/process', async (req, res) => {
+        try {
+            const userEmail = req.headers['x-user-email'];
+            // Allow unauthenticated calls from cron (internal) or admin
+            const isCron = req.headers['x-cron-secret'] === process.env.CRON_SECRET;
+            if (!isCron && !(userEmail && await isAdminUser(userEmail))) {
+                return res.status(403).json({ success: false, error: 'Admin or cron access required' });
+            }
+            const stats = await leadSmsService.processPendingFollowups();
+            return res.json({ success: true, ...stats });
+        }
+        catch (error) {
+            console.error('❌ SMS follow-up processing error:', error);
+            return res.status(500).json({ success: false, error: 'Processing failed' });
+        }
+    });
+    /**
+     * POST /api/leads/sms-followups/opt-out
+     * Twilio webhook for incoming STOP messages.
+     * Configure this URL in Twilio console → Phone Number → Messaging → Webhook.
+     */
+    router.post('/sms-followups/opt-out', async (req, res) => {
+        try {
+            const { From, Body } = req.body;
+            if (!From) {
+                return res.status(400).send('<Response></Response>');
+            }
+            const bodyLower = (Body || '').toLowerCase().trim();
+            if (['stop', 'unsubscribe', 'cancel', 'quit', 'end'].includes(bodyLower)) {
+                await leadSmsService.handleOptOut(From);
+                console.log(`[SMS] Opt-out processed for ${From}`);
+            }
+            // Return TwiML empty response
+            res.type('text/xml');
+            return res.send('<Response></Response>');
+        }
+        catch (error) {
+            console.error('❌ SMS opt-out webhook error:', error);
+            res.type('text/xml');
+            return res.send('<Response></Response>');
+        }
+    });
+    /**
+     * GET /api/leads/sms-followups/stats
+     * Admin endpoint — SMS follow-up stats for dashboard.
+     */
+    router.get('/sms-followups/stats', async (req, res) => {
+        try {
+            const userEmail = req.headers['x-user-email'];
+            if (!userEmail || !(await isAdminUser(userEmail))) {
+                return res.status(403).json({ success: false, error: 'Admin access required' });
+            }
+            const stats = await leadSmsService.getStats();
+            return res.json({ success: true, ...stats });
+        }
+        catch (error) {
+            console.error('❌ SMS stats error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch stats' });
         }
     });
     return router;
