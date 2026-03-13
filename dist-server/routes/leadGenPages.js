@@ -25,7 +25,6 @@ const BRAND = {
     textMuted: '#9ca3af',
     textDim: '#6b7280',
     green: '#22c55e',
-    // Real branding from theroofdocs.com
     logo: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Main_Logo-1.png',
     logoFooter: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png',
     phone: '(571) 520-8507',
@@ -42,6 +41,103 @@ const BRAND = {
     badgeSolar: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Certified-Solar-Installer_RGB-1-1-1024x1024.png',
     badgeBestPros: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Roof-ER-Logo-Alt-Colors-4.png',
 };
+// ---------------------------------------------------------------------------
+// Floating Chat Widget (Susan AI)
+// ---------------------------------------------------------------------------
+/**
+ * Returns HTML/CSS/JS for a floating chat bubble on landing pages.
+ * Uses the /api/susan/chat endpoint for Gemini-powered responses.
+ * Insert before </body> in any landing page template.
+ */
+function renderChatWidget() {
+    return `
+<style>
+  .chat-fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;
+    border-radius:50%;background:${BRAND.red};border:none;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);z-index:9999;display:flex;
+    align-items:center;justify-content:center;transition:transform 0.2s}
+  .chat-fab:hover{transform:scale(1.1)}
+  .chat-fab svg{width:28px;height:28px;fill:#fff}
+  .chat-panel{position:fixed;bottom:84px;right:20px;width:340px;max-height:440px;
+    background:${BRAND.card};border:1px solid ${BRAND.border};border-radius:16px;
+    z-index:9999;display:none;flex-direction:column;overflow:hidden;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+  .chat-panel.open{display:flex}
+  .chat-header{padding:14px 16px;background:${BRAND.darkBlue};
+    border-bottom:1px solid ${BRAND.border};display:flex;align-items:center;gap:10px}
+  .chat-header .dot{width:8px;height:8px;border-radius:50%;background:${BRAND.green}}
+  .chat-header span{font-size:14px;font-weight:600;color:#fff}
+  .chat-header .close-btn{margin-left:auto;background:none;border:none;
+    color:${BRAND.textMuted};cursor:pointer;font-size:18px}
+  .chat-messages{flex:1;overflow-y:auto;padding:12px;min-height:200px;max-height:300px}
+  .chat-msg{margin-bottom:10px;max-width:85%;padding:10px 14px;border-radius:12px;
+    font-size:13px;line-height:1.5}
+  .chat-msg.bot{background:rgba(255,255,255,0.06);margin-right:auto;color:${BRAND.textMuted}}
+  .chat-msg.user{background:${BRAND.red};margin-left:auto;color:#fff;text-align:right}
+  .chat-input-row{display:flex;padding:10px;border-top:1px solid ${BRAND.border};gap:8px}
+  .chat-input-row input{flex:1;padding:10px 14px;border-radius:10px;border:1px solid ${BRAND.border};
+    background:rgba(0,0,0,0.3);color:#fff;font-size:14px;outline:none}
+  .chat-input-row input::placeholder{color:${BRAND.textDim}}
+  .chat-input-row button{padding:10px 14px;border:none;border-radius:10px;
+    background:${BRAND.red};color:#fff;font-weight:600;cursor:pointer;font-size:14px}
+  @media(max-width:400px){.chat-panel{width:calc(100vw - 32px);right:16px;bottom:80px}}
+</style>
+
+<button class="chat-fab" onclick="toggleChat()" aria-label="Chat with us">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+</button>
+
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="dot"></div>
+    <span>Susan AI — Roofing Expert</span>
+    <button class="close-btn" onclick="toggleChat()">&times;</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg bot">Hi! I'm Susan, your AI roofing assistant. Ask me anything about roof damage, insurance claims, or scheduling an inspection.</div>
+  </div>
+  <div class="chat-input-row">
+    <input id="chatInput" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<script>
+function toggleChat(){
+  document.getElementById('chatPanel').classList.toggle('open');
+  if(document.getElementById('chatPanel').classList.contains('open')){
+    document.getElementById('chatInput').focus();
+  }
+}
+function sendChat(){
+  var input=document.getElementById('chatInput');
+  var msg=input.value.trim();
+  if(!msg)return;
+  input.value='';
+  var msgs=document.getElementById('chatMessages');
+  msgs.innerHTML+='<div class="chat-msg user">'+msg.replace(/</g,'&lt;')+'</div>';
+  msgs.scrollTop=msgs.scrollHeight;
+  msgs.innerHTML+='<div class="chat-msg bot" id="typing">Thinking...</div>';
+  msgs.scrollTop=msgs.scrollHeight;
+  fetch('/api/susan/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({message:msg})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var el=document.getElementById('typing');
+    if(el)el.remove();
+    var reply=d.success?d.response:'Sorry, I\\'m having trouble right now. Call us at ${BRAND.phone}!';
+    msgs.innerHTML+='<div class="chat-msg bot">'+reply.replace(/</g,'&lt;').replace(/\\n/g,'<br>')+'</div>';
+    msgs.scrollTop=msgs.scrollHeight;
+  })
+  .catch(function(){
+    var el=document.getElementById('typing');
+    if(el)el.remove();
+    msgs.innerHTML+='<div class="chat-msg bot">Oops, connection issue. Call us at ${BRAND.phone}!</div>';
+    msgs.scrollTop=msgs.scrollHeight;
+  });
+}
+</script>`;
+}
 // ---------------------------------------------------------------------------
 // Shared HTML partials
 // ---------------------------------------------------------------------------
@@ -407,6 +503,7 @@ ${navBar()}
 ${footer()}
 ${formScript('Get My Free Inspection →')}
 ${faqScript()}
+${renderChatWidget()}
 </body>
 </html>`;
 }
@@ -760,6 +857,7 @@ ${navBar(repPhone || undefined)}
 
 ${footer()}
 ${formScript('Request Free Inspection →')}
+${renderChatWidget()}
 </body>
 </html>`;
 }
@@ -1187,6 +1285,7 @@ function renderStormChecklistPage() {
       });
     }
   </script>
+${renderChatWidget()}
 </body>
 </html>`;
 }
