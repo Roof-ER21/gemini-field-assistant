@@ -289,6 +289,37 @@ export function createLiveKitRoutes(pool: Pool) {
   });
 
   /**
+   * POST /api/livekit/sessions/force-end
+   * Force-end all active sessions for a user (cleanup for stuck sessions)
+   */
+  router.post('/api/livekit/sessions/force-end', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+      const result = await pool.query(
+        `UPDATE live_sessions SET status = 'ended', ended_at = NOW()
+         WHERE host_user_id = $1 AND status = 'active'
+         RETURNING id`,
+        [userId]
+      );
+
+      // Also mark participant records
+      for (const row of result.rows) {
+        await pool.query(
+          `UPDATE live_session_participants SET left_at = NOW() WHERE session_id = $1 AND left_at IS NULL`,
+          [row.id]
+        );
+      }
+
+      res.json({ success: true, ended: result.rows.length });
+    } catch (error) {
+      console.error('[LiveKit] Force-end error:', error);
+      res.status(500).json({ error: 'Failed to force-end sessions' });
+    }
+  });
+
+  /**
    * GET /api/livekit/status
    * Check if LiveKit is configured
    */

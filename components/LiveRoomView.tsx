@@ -8,16 +8,10 @@ import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
-  ControlBar,
-  useTracks,
-  GridLayout,
-  ParticipantTile,
   Chat,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
-import { Track } from 'livekit-client';
-import { ArrowLeft, Users, MessageCircle, Video, X } from 'lucide-react';
-import { authService } from '../services/authService';
+import { ArrowLeft, MessageCircle, X, PhoneOff } from 'lucide-react';
 
 interface LiveRoomViewProps {
   token: string;
@@ -33,36 +27,84 @@ interface LiveRoomViewProps {
 const LiveRoomView: React.FC<LiveRoomViewProps> = ({
   token,
   serverUrl,
-  roomName,
   sessionTitle,
   hostName,
   isHost,
   onLeave,
 }) => {
   const [showChat, setShowChat] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDisconnect = useCallback(() => {
     onLeave();
   }, [onLeave]);
 
+  const handleError = useCallback((err: Error) => {
+    console.error('[LiveKit] Room error:', err);
+    setError(err.message);
+  }, []);
+
+  if (error) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: '#111',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        padding: '24px',
+      }}>
+        <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', color: '#ef4444' }}>
+          Connection Failed
+        </div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', textAlign: 'center', maxWidth: '400px' }}>
+          {error}
+        </div>
+        <button
+          onClick={onLeave}
+          style={{
+            padding: '12px 24px',
+            background: '#dc2626',
+            border: 'none',
+            borderRadius: '10px',
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 9999,
-      background: '#111',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Header */}
+    <div
+      data-lk-theme="default"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        height: '100vh',
+        width: '100vw',
+        background: '#111',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Our custom header - always visible regardless of LiveKit state */}
       <div style={{
         padding: '8px 16px',
-        background: 'rgba(0,0,0,0.8)',
-        backdropFilter: 'blur(10px)',
+        background: 'rgba(0,0,0,0.9)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: '1px solid rgba(255,255,255,0.15)',
         zIndex: 10,
         flexShrink: 0,
       }}>
@@ -95,7 +137,7 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
           <button
             onClick={() => setShowChat(!showChat)}
             style={{
-              background: showChat ? 'var(--roof-red, #dc2626)' : 'rgba(255,255,255,0.1)',
+              background: showChat ? '#dc2626' : 'rgba(255,255,255,0.1)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px',
@@ -106,28 +148,30 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
           >
             <MessageCircle className="w-5 h-5" style={{ color: 'white' }} />
           </button>
-          {isHost && (
-            <button
-              onClick={onLeave}
-              style={{
-                background: '#dc2626',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                cursor: 'pointer',
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: 600,
-              }}
-            >
-              End Session
-            </button>
-          )}
+          <button
+            onClick={onLeave}
+            style={{
+              background: '#dc2626',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <PhoneOff className="w-4 h-4" />
+            {isHost ? 'End' : 'Leave'}
+          </button>
         </div>
       </div>
 
-      {/* LiveKit Room */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* LiveKit Room - takes remaining height */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         <LiveKitRoom
           token={token}
           serverUrl={serverUrl}
@@ -135,23 +179,29 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
           audio={true}
           video={true}
           onDisconnected={handleDisconnect}
-          style={{ flex: 1 }}
-          data-lk-theme="default"
+          onError={handleError}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+          }}
         >
-          <div style={{ display: 'flex', flex: 1, height: '100%' }}>
+          <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden' }}>
             {/* Video area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, height: '100%' }}>
               <VideoConference />
             </div>
 
             {/* Chat sidebar */}
             {showChat && (
               <div style={{
-                width: '320px',
+                width: '300px',
                 borderLeft: '1px solid rgba(255,255,255,0.1)',
                 display: 'flex',
                 flexDirection: 'column',
                 background: 'rgba(0,0,0,0.6)',
+                flexShrink: 0,
               }}>
                 <div style={{
                   padding: '12px 16px',

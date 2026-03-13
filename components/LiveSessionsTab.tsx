@@ -80,10 +80,22 @@ const LiveSessionsTab: React.FC = () => {
     return res.json();
   };
 
+  const forceEndMySessions = async () => {
+    if (!currentUser) return;
+    await fetch('/api/livekit/sessions/force-end', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id }),
+    }).catch(() => {});
+  };
+
   const handleGoLive = async () => {
     if (!currentUser) return;
     setCreating(true);
     try {
+      // Clean up any stuck sessions first
+      await forceEndMySessions();
+
       const title = sessionTitle.trim() || `${formatDisplayName(currentUser.name, currentUser.email)}'s Live`;
       const res = await fetch('/api/livekit/sessions', {
         method: 'POST',
@@ -163,17 +175,21 @@ const LiveSessionsTab: React.FC = () => {
   };
 
   const handleLeaveRoom = async () => {
-    if (!activeRoom || !currentUser) return;
+    if (!currentUser) return;
     try {
-      const endpoint = activeRoom.isHost
-        ? `/api/livekit/sessions/${activeRoom.sessionId}/end`
-        : `/api/livekit/sessions/${activeRoom.sessionId}/leave`;
+      if (activeRoom) {
+        const endpoint = activeRoom.isHost
+          ? `/api/livekit/sessions/${activeRoom.sessionId}/end`
+          : `/api/livekit/sessions/${activeRoom.sessionId}/leave`;
 
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id }),
-      });
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+      }
+      // Also force-end any stuck sessions as safety net
+      await forceEndMySessions();
     } catch (err) {
       console.error('Leave error:', err);
     }
