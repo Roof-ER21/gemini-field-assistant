@@ -1219,23 +1219,31 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
     />
   );
 
-  const renderContingencySlide = () => (
-    <ContingencyAgreementSlide
-      initialData={{
-        customerName: claimAuthData?.customerName || homeownerInfo?.name || homeownerName || '',
-        customerAddress: claimAuthData?.customerAddress || homeownerInfo?.address || propertyAddress || '',
-        customerPhone: claimAuthData?.customerPhone || homeownerInfo?.phone || '',
-        customerEmail: claimAuthData?.customerEmail || homeownerInfo?.email || '',
-        insuranceCompany: claimAuthData?.insuranceCompany || '',
-        claimNumber: claimAuthData?.claimNumber || ''
-      }}
-      useDocuSeal={true}
-      docuSealTemplateId={2}
-      agentName={userProfile?.name}
-      onComplete={handleContingencyComplete}
-      onBack={prevSlide}
-    />
-  );
+  const renderContingencySlide = () => {
+    // Auto-select contingency template based on property state
+    // Template 2 = DMV (VA/MD/DC), Template 3 = PA
+    const addr = (claimAuthData?.customerAddress || homeownerInfo?.address || propertyAddress || '').toUpperCase();
+    const isPennsylvania = /\bPA\b/.test(addr) || /PENNSYLVANIA/i.test(addr);
+    const contingencyTemplateId = isPennsylvania ? 3 : 2;
+
+    return (
+      <ContingencyAgreementSlide
+        initialData={{
+          customerName: claimAuthData?.customerName || homeownerInfo?.name || homeownerName || '',
+          customerAddress: claimAuthData?.customerAddress || homeownerInfo?.address || propertyAddress || '',
+          customerPhone: claimAuthData?.customerPhone || homeownerInfo?.phone || '',
+          customerEmail: claimAuthData?.customerEmail || homeownerInfo?.email || '',
+          insuranceCompany: claimAuthData?.insuranceCompany || '',
+          claimNumber: claimAuthData?.claimNumber || ''
+        }}
+        useDocuSeal={true}
+        docuSealTemplateId={contingencyTemplateId}
+        agentName={userProfile?.name}
+        onComplete={handleContingencyComplete}
+        onBack={prevSlide}
+      />
+    );
+  };
 
   const renderThankYouSlide = () => (
     <div style={{
