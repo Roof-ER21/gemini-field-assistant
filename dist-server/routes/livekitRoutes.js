@@ -75,7 +75,7 @@ export function createLiveKitRoutes(pool) {
             await pool.query(`INSERT INTO live_session_participants (session_id, user_id, role)
          VALUES ($1, $2, 'host')`, [result.rows[0].id, userId]);
             // Get host info for the response
-            const hostInfo = await pool.query(`SELECT id, first_name, last_name, email, avatar_url FROM users WHERE id = $1`, [userId]);
+            const hostInfo = await pool.query(`SELECT id, name, email FROM users WHERE id = $1`, [userId]);
             const session = {
                 ...result.rows[0],
                 host: hostInfo.rows[0] || null,
@@ -97,10 +97,8 @@ export function createLiveKitRoutes(pool) {
             const result = await pool.query(`
         SELECT
           ls.*,
-          u.first_name AS host_first_name,
-          u.last_name AS host_last_name,
-          u.email AS host_email,
-          u.avatar_url AS host_avatar_url
+          u.name AS host_name,
+          u.email AS host_email
         FROM live_sessions ls
         JOIN users u ON ls.host_user_id = u.id
         WHERE ls.status = 'active'
@@ -109,7 +107,7 @@ export function createLiveKitRoutes(pool) {
             // Get participant counts
             const sessions = await Promise.all(result.rows.map(async (session) => {
                 const participants = await pool.query(`
-          SELECT lsp.*, u.first_name, u.last_name, u.email
+          SELECT lsp.*, u.name, u.email
           FROM live_session_participants lsp
           JOIN users u ON lsp.user_id = u.id
           WHERE lsp.session_id = $1 AND lsp.left_at IS NULL
@@ -118,15 +116,12 @@ export function createLiveKitRoutes(pool) {
                     ...session,
                     host: {
                         id: session.host_user_id,
-                        firstName: session.host_first_name,
-                        lastName: session.host_last_name,
+                        name: session.host_name,
                         email: session.host_email,
-                        avatarUrl: session.host_avatar_url,
                     },
                     participants: participants.rows.map(p => ({
                         userId: p.user_id,
-                        firstName: p.first_name,
-                        lastName: p.last_name,
+                        name: p.name,
                         role: p.role,
                         joinedAt: p.joined_at,
                     })),

@@ -16,15 +16,12 @@ interface LiveSession {
   title: string;
   host: {
     id: string;
-    firstName: string;
-    lastName: string;
+    name: string;
     email: string;
-    avatarUrl?: string;
   };
   participants: Array<{
     userId: string;
-    firstName: string;
-    lastName: string;
+    name: string;
     role: string;
     joinedAt: string;
   }>;
@@ -152,7 +149,7 @@ const LiveSessionsTab: React.FC = () => {
         sessionId: session.id,
         sessionTitle: session.title,
         hostName: formatDisplayName(
-          `${session.host.firstName} ${session.host.lastName}`,
+          session.host.name,
           session.host.email
         ),
         isHost: false,
@@ -291,7 +288,7 @@ const LiveSessionsTab: React.FC = () => {
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                         Hosted by {formatDisplayName(
-                          `${session.host.firstName} ${session.host.lastName}`,
+                          session.host.name,
                           session.host.email
                         )}
                         {isMySession && ' (You)'}
@@ -356,9 +353,9 @@ const LiveSessionsTab: React.FC = () => {
                             marginLeft: i > 0 ? '-6px' : '0',
                             zIndex: 10 - i,
                           }}
-                          title={`${p.firstName} ${p.lastName}`}
+                          title={p.name}
                         >
-                          {(p.firstName?.[0] || '').toUpperCase()}
+                          {(p.name?.[0] || '').toUpperCase()}
                         </div>
                       ))}
                       {session.participants.length > 6 && (
