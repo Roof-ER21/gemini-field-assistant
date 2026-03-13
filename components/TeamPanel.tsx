@@ -535,7 +535,12 @@ const TeamPanel: React.FC<TeamPanelProps> = ({ onClose, onOpenConversation }) =>
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', padding: (activeTab === 'roof' || activeTab === 'checkin' || activeTab === 'live') ? 0 : '0 0.5rem 1rem' }}>
         {activeTab === 'live' ? (
-          <LiveSessionsTab />
+          <LiveSessionsTab teamMembers={teamMembers.map(m => ({
+            id: m.userId,
+            name: m.name,
+            email: m.email,
+            is_online: m.status === 'online',
+          }))} />
         ) : activeTab === 'roof' ? (
           <RoofFeed />
         ) : activeTab === 'checkin' ? (

@@ -18,6 +18,7 @@ import NotificationBell from './components/NotificationBell';
 import ThemeToggle from './components/ThemeToggle';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
+import IncomingCallModal from './components/IncomingCallModal';
 import { SettingsProvider } from './contexts/SettingsContext';
 
 // Lazy load heavy panels for better performance
@@ -523,6 +524,14 @@ const App: React.FC = () => {
           onComplete={() => setShowWelcome(false)}
         />
       )}
+
+      {/* Incoming Call Modal (global overlay, polls for 1:1 calls) */}
+      <IncomingCallModal
+        onAccept={(call) => {
+          setActivePanel('team');
+          window.dispatchEvent(new CustomEvent('livekit-call-accepted', { detail: call }));
+        }}
+      />
 
       {/* Main Content */}
       <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0, maxHeight: '100%' }}>

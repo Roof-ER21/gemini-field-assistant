@@ -1,5 +1,5 @@
 /**
- * LiveRoomView - Full-screen LiveKit video room
+ * LiveRoomView - Full-screen LiveKit video room with in-room chat
  * Uses livekit-client directly (no pre-built components) for reliability
  */
 
@@ -8,14 +8,15 @@ import {
   Room,
   RoomEvent,
   Track,
-  LocalParticipant,
-  RemoteParticipant,
-  RemoteTrackPublication,
-  LocalTrackPublication,
   VideoPresets,
   ConnectionState,
+  DataPacket_Kind,
 } from 'livekit-client';
-import { ArrowLeft, Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, MessageCircle, Users } from 'lucide-react';
+import {
+  ArrowLeft, Mic, MicOff, Video, VideoOff, PhoneOff,
+  Monitor, MessageCircle, Users, Send, Circle, X,
+} from 'lucide-react';
+import { authService } from '../services/authService';
 
 interface LiveRoomViewProps {
   token: string;
@@ -40,11 +41,20 @@ interface ParticipantInfo {
   isScreenShare: boolean;
 }
 
+interface ChatMessage {
+  id: string;
+  userId: string;
+  senderName: string;
+  message: string;
+  createdAt: string;
+  isLocal?: boolean;
+}
+
 const LiveRoomView: React.FC<LiveRoomViewProps> = ({
   token,
   serverUrl,
+  sessionId,
   sessionTitle,
-  hostName,
   isHost,
   onLeave,
 }) => {
@@ -55,13 +65,25 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStarting, setRecordingStarting] = useState(false);
+
+  // Chat state
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastMessageTimeRef = useRef<string | null>(null);
+
   const roomRef = useRef<Room | null>(null);
+  const currentUser = authService.getCurrentUser();
 
   // Build participants list from room state
   const updateParticipants = useCallback((room: Room) => {
     const parts: ParticipantInfo[] = [];
 
-    // Local participant
     const local = room.localParticipant;
     const localVideo = local.getTrackPublication(Track.Source.Camera);
     const localAudio = local.getTrackPublication(Track.Source.Microphone);
@@ -69,7 +91,7 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
       identity: local.identity,
       name: local.name || local.identity,
       videoTrack: localVideo?.track?.mediaStreamTrack || null,
-      audioTrack: null, // Don't play own audio
+      audioTrack: null,
       isSpeaking: local.isSpeaking,
       isMuted: localAudio?.isMuted ?? true,
       isVideoMuted: localVideo?.isMuted ?? true,
@@ -77,7 +99,6 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
       isScreenShare: false,
     });
 
-    // Remote participants
     room.remoteParticipants.forEach((remote) => {
       const remoteVideo = remote.getTrackPublication(Track.Source.Camera);
       const remoteAudio = remote.getTrackPublication(Track.Source.Microphone);
@@ -86,8 +107,8 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
       parts.push({
         identity: remote.identity,
         name: remote.name || remote.identity,
-        videoTrack: (remoteVideo?.track?.mediaStreamTrack) || null,
-        audioTrack: (remoteAudio?.track?.mediaStreamTrack) || null,
+        videoTrack: remoteVideo?.track?.mediaStreamTrack || null,
+        audioTrack: remoteAudio?.track?.mediaStreamTrack || null,
         isSpeaking: remote.isSpeaking,
         isMuted: remoteAudio?.isMuted ?? true,
         isVideoMuted: remoteVideo?.isMuted ?? true,
@@ -95,7 +116,6 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
         isScreenShare: false,
       });
 
-      // Screen share as separate tile
       if (remoteScreen?.track?.mediaStreamTrack) {
         parts.push({
           identity: remote.identity + '-screen',
@@ -115,14 +135,34 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
     setParticipantCount(1 + room.remoteParticipants.size);
   }, []);
 
+  // Handle incoming DataChannel messages (real-time chat)
+  const handleDataReceived = useCallback((payload: Uint8Array, participant: any) => {
+    try {
+      const text = new TextDecoder().decode(payload);
+      const data = JSON.parse(text);
+      if (data.type === 'chat') {
+        const msg: ChatMessage = {
+          id: `dc-${Date.now()}-${Math.random()}`,
+          userId: participant?.identity || 'unknown',
+          senderName: data.senderName || participant?.name || 'Unknown',
+          message: data.message,
+          createdAt: new Date().toISOString(),
+          isLocal: false,
+        };
+        setChatMessages(prev => [...prev, msg]);
+        if (!showChat) {
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+    } catch {}
+  }, [showChat]);
+
   // Connect to room
   useEffect(() => {
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
-      videoCaptureDefaults: {
-        resolution: VideoPresets.h720.resolution,
-      },
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
     });
     roomRef.current = room;
 
@@ -145,19 +185,12 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
     room.on(RoomEvent.ActiveSpeakersChanged, onParticipantChange);
     room.on(RoomEvent.LocalTrackPublished, onParticipantChange);
     room.on(RoomEvent.LocalTrackUnpublished, onParticipantChange);
-    room.on(RoomEvent.Disconnected, () => {
-      setConnectionState('disconnected');
-    });
+    room.on(RoomEvent.DataReceived, handleDataReceived);
+    room.on(RoomEvent.Disconnected, () => setConnectionState('disconnected'));
 
-    // Connect
     room.connect(serverUrl, token)
-      .then(() => {
-        // Enable camera and mic
-        return room.localParticipant.enableCameraAndMicrophone();
-      })
-      .then(() => {
-        updateParticipants(room);
-      })
+      .then(() => room.localParticipant.enableCameraAndMicrophone())
+      .then(() => updateParticipants(room))
       .catch((err) => {
         console.error('[LiveKit] Connection error:', err);
         setError(err.message || 'Failed to connect to video room');
@@ -167,7 +200,117 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
       room.disconnect();
       roomRef.current = null;
     };
-  }, [token, serverUrl, updateParticipants]);
+  }, [token, serverUrl, updateParticipants, handleDataReceived]);
+
+  // Poll for chat messages from server (backup for DataChannel + persistence)
+  useEffect(() => {
+    const pollMessages = async () => {
+      try {
+        let url = `/api/livekit/sessions/${sessionId}/messages`;
+        if (lastMessageTimeRef.current) {
+          url += `?since=${encodeURIComponent(lastMessageTimeRef.current)}`;
+        }
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.messages?.length > 0) {
+          const newMsgs: ChatMessage[] = data.messages
+            .filter((m: any) => m.user_id !== currentUser?.id) // skip own messages (already added locally)
+            .map((m: any) => ({
+              id: m.id,
+              userId: m.user_id,
+              senderName: m.sender_name || m.sender_email || 'Unknown',
+              message: m.message,
+              createdAt: m.created_at,
+              isLocal: false,
+            }));
+
+          if (newMsgs.length > 0) {
+            setChatMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.id));
+              const unique = newMsgs.filter((m: ChatMessage) => !existingIds.has(m.id));
+              return unique.length > 0 ? [...prev, ...unique] : prev;
+            });
+          }
+
+          lastMessageTimeRef.current = data.messages[data.messages.length - 1].created_at;
+        }
+      } catch {}
+    };
+
+    // Initial fetch of all messages
+    const fetchAll = async () => {
+      try {
+        const res = await fetch(`/api/livekit/sessions/${sessionId}/messages`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.messages?.length > 0) {
+          const msgs: ChatMessage[] = data.messages.map((m: any) => ({
+            id: m.id,
+            userId: m.user_id,
+            senderName: m.sender_name || m.sender_email || 'Unknown',
+            message: m.message,
+            createdAt: m.created_at,
+            isLocal: m.user_id === currentUser?.id,
+          }));
+          setChatMessages(msgs);
+          lastMessageTimeRef.current = data.messages[data.messages.length - 1].created_at;
+        }
+      } catch {}
+    };
+    fetchAll();
+
+    chatPollRef.current = setInterval(pollMessages, 5000);
+    return () => {
+      if (chatPollRef.current) clearInterval(chatPollRef.current);
+    };
+  }, [sessionId, currentUser?.id]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Clear unread when opening chat
+  useEffect(() => {
+    if (showChat) setUnreadCount(0);
+  }, [showChat]);
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !currentUser) return;
+    const msg = chatInput.trim();
+    setChatInput('');
+
+    const localMsg: ChatMessage = {
+      id: `local-${Date.now()}`,
+      userId: currentUser.id,
+      senderName: 'You',
+      message: msg,
+      createdAt: new Date().toISOString(),
+      isLocal: true,
+    };
+    setChatMessages(prev => [...prev, localMsg]);
+
+    // Send via DataChannel for real-time delivery
+    const room = roomRef.current;
+    if (room?.localParticipant) {
+      try {
+        const payload = new TextEncoder().encode(JSON.stringify({
+          type: 'chat',
+          message: msg,
+          senderName: currentUser.name || currentUser.email || 'Unknown',
+        }));
+        await room.localParticipant.publishData(payload, { reliable: true });
+      } catch {}
+    }
+
+    // Also persist to server
+    fetch(`/api/livekit/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, message: msg }),
+    }).catch(() => {});
+  };
 
   const toggleMute = async () => {
     const room = roomRef.current;
@@ -197,11 +340,44 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
     }
   };
 
+  const toggleRecording = async () => {
+    if (!currentUser) return;
+    if (isRecording) {
+      // Stop
+      try {
+        await fetch(`/api/livekit/sessions/${sessionId}/record/stop`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+        setIsRecording(false);
+      } catch {}
+    } else {
+      // Start
+      setRecordingStarting(true);
+      try {
+        const res = await fetch(`/api/livekit/sessions/${sessionId}/record/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+        if (res.ok) {
+          setIsRecording(true);
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Failed to start recording');
+        }
+      } catch {
+        alert('Failed to start recording');
+      } finally {
+        setRecordingStarting(false);
+      }
+    }
+  };
+
   const handleLeave = () => {
     const room = roomRef.current;
-    if (room) {
-      room.disconnect();
-    }
+    if (room) room.disconnect();
     onLeave();
   };
 
@@ -249,8 +425,17 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
             <ArrowLeft style={{ width: 20, height: 20, color: 'white' }} />
           </button>
           <div>
-            <div style={{ color: 'white', fontSize: '15px', fontWeight: 600 }}>
+            <div style={{ color: 'white', fontSize: '15px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
               {sessionTitle}
+              {isRecording && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  background: '#dc2626', borderRadius: '4px', padding: '2px 6px',
+                  fontSize: '11px', fontWeight: 700, animation: 'pulse 1.5s ease-in-out infinite',
+                }}>
+                  <Circle style={{ width: 6, height: 6, fill: 'white' }} /> REC
+                </span>
+              )}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               {connectionState === 'connected' ? (
@@ -275,38 +460,128 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
         </button>
       </div>
 
-      {/* Video Grid */}
-      <div style={{
-        flex: 1, display: 'grid', gap: '4px', padding: '4px', overflow: 'hidden',
-        gridTemplateColumns: participants.length <= 1 ? '1fr' :
-          participants.length <= 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-        gridAutoRows: '1fr',
-      }}>
-        {connectionState !== 'connected' ? (
+      {/* Main content area */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Video Grid */}
+        <div style={{
+          flex: 1, display: 'grid', gap: '4px', padding: '4px', overflow: 'hidden',
+          gridTemplateColumns: participants.length <= 1 ? '1fr' :
+            participants.length <= 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          gridAutoRows: '1fr',
+        }}>
+          {connectionState !== 'connected' ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'rgba(255,255,255,0.6)', fontSize: '16px',
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: 40, height: 40, border: '3px solid rgba(255,255,255,0.3)',
+                  borderTopColor: 'white', borderRadius: '50%',
+                  animation: 'spin 1s linear infinite', margin: '0 auto 16px',
+                }} />
+                Connecting to room...
+              </div>
+            </div>
+          ) : participants.length === 0 ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'rgba(255,255,255,0.6)',
+            }}>
+              Waiting for camera...
+            </div>
+          ) : (
+            participants.map((p) => (
+              <VideoTile key={p.identity} participant={p} />
+            ))
+          )}
+        </div>
+
+        {/* Chat Panel (slide-out) */}
+        {showChat && (
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(255,255,255,0.6)', fontSize: '16px',
+            width: '320px', background: '#1a1a1a', display: 'flex', flexDirection: 'column',
+            borderLeft: '1px solid rgba(255,255,255,0.15)', flexShrink: 0,
           }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: 40, height: 40, border: '3px solid rgba(255,255,255,0.3)',
-                borderTopColor: 'white', borderRadius: '50%',
-                animation: 'spin 1s linear infinite', margin: '0 auto 16px',
-              }} />
-              Connecting to room...
+            {/* Chat header */}
+            <div style={{
+              padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>Chat</span>
+              <button onClick={() => setShowChat(false)} style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+              }}>
+                <X style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.5)' }} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div style={{
+              flex: 1, overflowY: 'auto', padding: '12px',
+              display: 'flex', flexDirection: 'column', gap: '8px',
+            }}>
+              {chatMessages.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '13px', marginTop: '2rem' }}>
+                  No messages yet. Say something!
+                </div>
+              ) : (
+                chatMessages.map((msg) => (
+                  <div key={msg.id} style={{
+                    alignSelf: msg.isLocal ? 'flex-end' : 'flex-start',
+                    maxWidth: '85%',
+                  }}>
+                    {!msg.isLocal && (
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px', paddingLeft: '4px' }}>
+                        {msg.senderName}
+                      </div>
+                    )}
+                    <div style={{
+                      padding: '8px 12px', borderRadius: '12px',
+                      background: msg.isLocal ? '#dc2626' : 'rgba(255,255,255,0.1)',
+                      color: 'white', fontSize: '13px', lineHeight: 1.4,
+                      wordBreak: 'break-word',
+                    }}>
+                      {msg.message}
+                    </div>
+                    <div style={{
+                      fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '2px',
+                      textAlign: msg.isLocal ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px',
+                    }}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat input */}
+            <div style={{
+              padding: '12px', borderTop: '1px solid rgba(255,255,255,0.1)',
+              display: 'flex', gap: '8px',
+            }}>
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Type a message..."
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)',
+                  color: 'white', fontSize: '13px', outline: 'none',
+                }}
+              />
+              <button onClick={sendChatMessage} style={{
+                width: '40px', height: '40px', borderRadius: '10px',
+                background: chatInput.trim() ? '#dc2626' : 'rgba(255,255,255,0.08)',
+                border: 'none', cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Send style={{ width: 16, height: 16, color: chatInput.trim() ? 'white' : 'rgba(255,255,255,0.3)' }} />
+              </button>
             </div>
           </div>
-        ) : participants.length === 0 ? (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(255,255,255,0.6)',
-          }}>
-            Waiting for camera...
-          </div>
-        ) : (
-          participants.map((p) => (
-            <VideoTile key={p.identity} participant={p} />
-          ))
         )}
       </div>
 
@@ -314,7 +589,8 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
       <div style={{
         padding: '12px 16px', background: '#000',
         borderTop: '1px solid rgba(255,255,255,0.15)',
-        display: 'flex', justifyContent: 'center', gap: '12px', flexShrink: 0,
+        display: 'flex', justifyContent: 'center', gap: '10px', flexShrink: 0,
+        flexWrap: 'wrap',
       }}>
         <ControlButton
           icon={isMuted ? <MicOff style={{ width: 22, height: 22 }} /> : <Mic style={{ width: 22, height: 22 }} />}
@@ -336,6 +612,36 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
           active={isScreenSharing}
           onClick={toggleScreenShare}
         />
+        {/* Chat toggle */}
+        <div style={{ position: 'relative' }}>
+          <ControlButton
+            icon={<MessageCircle style={{ width: 22, height: 22 }} />}
+            label="Chat"
+            active={showChat}
+            onClick={() => setShowChat(!showChat)}
+          />
+          {unreadCount > 0 && !showChat && (
+            <div style={{
+              position: 'absolute', top: '-2px', right: '-2px',
+              background: '#dc2626', color: 'white', borderRadius: '50%',
+              width: '18px', height: '18px', fontSize: '10px', fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </div>
+          )}
+        </div>
+        {/* Record (host only) */}
+        {isHost && (
+          <ControlButton
+            icon={<Circle style={{ width: 22, height: 22, fill: isRecording ? '#ef4444' : 'none' }} />}
+            label={isRecording ? 'Stop Recording' : (recordingStarting ? 'Starting...' : 'Record')}
+            active={isRecording}
+            danger={isRecording}
+            onClick={toggleRecording}
+            disabled={recordingStarting}
+          />
+        )}
         <ControlButton
           icon={<PhoneOff style={{ width: 22, height: 22 }} />}
           label={isHost ? 'End' : 'Leave'}
@@ -346,6 +652,7 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
     </div>
   );
@@ -422,7 +729,6 @@ const VideoTile: React.FC<{ participant: ParticipantInfo }> = ({ participant }) 
         {participant.isLocal ? 'You' : participant.name}
       </div>
 
-      {/* Audio element for remote participants */}
       {participant.audioTrack && !participant.isLocal && (
         <audio ref={audioRef} autoPlay />
       )}
@@ -436,18 +742,21 @@ const ControlButton: React.FC<{
   label: string;
   active?: boolean;
   danger?: boolean;
+  disabled?: boolean;
   onClick: () => void;
-}> = ({ icon, label, active, danger, onClick }) => (
+}> = ({ icon, label, active, danger, disabled, onClick }) => (
   <button
     onClick={onClick}
     title={label}
+    disabled={disabled}
     style={{
       width: 52, height: 52, borderRadius: '50%',
-      border: 'none', cursor: 'pointer',
+      border: 'none', cursor: disabled ? 'wait' : 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: danger ? '#dc2626' : active ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)',
       color: danger ? 'white' : active ? 'white' : 'rgba(255,255,255,0.5)',
       transition: 'all 0.2s',
+      opacity: disabled ? 0.5 : 1,
     }}
   >
     {icon}
