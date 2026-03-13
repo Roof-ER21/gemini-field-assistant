@@ -52,6 +52,7 @@ import { createDocumentRoutes } from './routes/documentRoutes.js';
 import { registerLeadGenPages } from './routes/leadGenPages.js';
 import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
 import { createLiveKitRoutes } from './routes/livekitRoutes.js';
+import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
 import { hailtraceImportService } from './services/hailtraceImportService.js';
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
@@ -7468,6 +7469,8 @@ app.use('/api/documents', createDocumentRoutes());
 app.use('/api/deaf-mode', deafModeRoutes);
 // LiveKit video room routes
 app.use(createLiveKitRoutes(pool));
+// Lead Machine routes (storm blast, door knocking, GBP, Craigslist, HOA)
+app.use('/api/lead-machine', createLeadMachineRoutes(pool));
 // ============================================================================
 // PUBLIC LEAD-GEN PAGES (before SPA fallback)
 // /storm/:zip  |  /claim-help  |  /refer/:code
