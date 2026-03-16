@@ -2,9 +2,12 @@
  * NEXRAD Radar Image Service
  *
  * Fetches historical NEXRAD radar imagery from Iowa Environmental Mesonet (IEM) WMS-T.
+ * Composites radar data over a dark basemap for professional appearance.
  * Free public service, no API key required.
  * Returns PNG buffers suitable for embedding in PDFKit reports.
  */
+
+import sharp from 'sharp';
 
 interface NexradImageParams {
   lat: number;
@@ -86,21 +89,50 @@ export async function fetchNexradImage(params: NexradImageParams): Promise<Nexra
 
     console.log(`🛰️ Fetching NEXRAD radar for ${lat.toFixed(3)},${lng.toFixed(3)} at ${timeStr}`);
 
-    const response = await fetch(wmsUrl.toString(), {
-      headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' }
-    });
+    // Fetch dark basemap + NEXRAD radar layer in parallel
+    const [radarResponse, basemapBuffer] = await Promise.all([
+      fetch(wmsUrl.toString(), {
+        headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' },
+        signal: AbortSignal.timeout(15000)
+      }),
+      fetchDarkBasemap(bbox, width, height)
+    ]);
 
-    if (!response.ok) {
-      console.error(`NEXRAD WMS error: ${response.status} ${response.statusText}`);
+    if (!radarResponse.ok) {
+      console.error(`NEXRAD WMS error: ${radarResponse.status} ${radarResponse.statusText}`);
       return null;
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const imageBuffer = Buffer.from(arrayBuffer);
+    const radarArrayBuffer = await radarResponse.arrayBuffer();
+    const radarBuffer = Buffer.from(radarArrayBuffer);
 
     // Validate we got an actual image (not an error XML)
-    if (imageBuffer.length < 500) {
+    if (radarBuffer.length < 500) {
       console.warn('NEXRAD image too small, may be empty or error response');
+    }
+
+    // Composite: dark basemap + radar overlay
+    let imageBuffer: Buffer;
+    if (basemapBuffer && radarBuffer.length >= 500) {
+      try {
+        imageBuffer = await sharp(basemapBuffer)
+          .resize(width, height)
+          .composite([{
+            input: await sharp(radarBuffer).resize(width, height).png().toBuffer(),
+            blend: 'over'
+          }])
+          .png()
+          .toBuffer();
+        console.log(`✅ Composited NEXRAD over basemap: ${imageBuffer.length} bytes`);
+      } catch (compErr) {
+        console.warn('Composite failed, using radar only:', compErr);
+        imageBuffer = radarBuffer;
+      }
+    } else if (basemapBuffer && radarBuffer.length < 500) {
+      // No radar data for this time — use basemap with a dark tint
+      imageBuffer = basemapBuffer;
+    } else {
+      imageBuffer = radarBuffer;
     }
 
     const result: NexradResult = {
@@ -124,6 +156,94 @@ export async function fetchNexradImage(params: NexradImageParams): Promise<Nexra
     return result;
   } catch (error) {
     console.error('Failed to fetch NEXRAD image:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch a dark-themed basemap for the given bounding box.
+ * Uses CartoDB dark_all tiles (free, no key required).
+ * Composites a 3x3 tile grid for the approximate bbox area.
+ */
+async function fetchDarkBasemap(
+  bbox: [number, number, number, number],
+  width: number,
+  height: number
+): Promise<Buffer | null> {
+  try {
+    const [minLng, minLat, maxLng, maxLat] = bbox;
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    const spanLng = maxLng - minLng;
+
+    // Calculate zoom level from bbox span
+    const zoom = Math.max(5, Math.min(12, Math.floor(Math.log2(360 / spanLng))));
+
+    // Convert center to tile coords
+    const n = Math.pow(2, zoom);
+    const centerTileX = ((centerLng + 180) / 360) * n;
+    const latRad = (centerLat * Math.PI) / 180;
+    const centerTileY = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+
+    // Fetch a 3x3 grid of tiles around center
+    const tileSize = 256;
+    const gridSize = 3;
+    const startX = Math.floor(centerTileX) - 1;
+    const startY = Math.floor(centerTileY) - 1;
+
+    const tilePromises: Promise<{ x: number; y: number; buffer: Buffer | null }>[] = [];
+
+    for (let dy = 0; dy < gridSize; dy++) {
+      for (let dx = 0; dx < gridSize; dx++) {
+        const tx = startX + dx;
+        const ty = startY + dy;
+        tilePromises.push(
+          fetch(`https://basemaps.cartocdn.com/dark_all/${zoom}/${tx}/${ty}.png`, {
+            headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' },
+            signal: AbortSignal.timeout(10000)
+          })
+            .then(async (res) => ({
+              x: dx, y: dy,
+              buffer: res.ok ? Buffer.from(await res.arrayBuffer()) : null
+            }))
+            .catch(() => ({ x: dx, y: dy, buffer: null }))
+        );
+      }
+    }
+
+    const tiles = await Promise.all(tilePromises);
+
+    // Composite tiles into a single image
+    const compositeWidth = gridSize * tileSize;
+    const compositeHeight = gridSize * tileSize;
+
+    const composites = tiles
+      .filter(t => t.buffer)
+      .map(t => ({
+        input: t.buffer!,
+        left: t.x * tileSize,
+        top: t.y * tileSize
+      }));
+
+    if (composites.length === 0) return null;
+
+    const basemap = await sharp({
+      create: {
+        width: compositeWidth,
+        height: compositeHeight,
+        channels: 4,
+        background: { r: 30, g: 30, b: 30, alpha: 1 }
+      }
+    })
+      .composite(composites)
+      .resize(width, height, { fit: 'cover' })
+      .png()
+      .toBuffer();
+
+    console.log(`✅ Dark basemap: ${basemap.length} bytes (zoom ${zoom}, ${composites.length} tiles)`);
+    return basemap;
+  } catch (error) {
+    console.warn('Dark basemap fetch failed:', error);
     return null;
   }
 }

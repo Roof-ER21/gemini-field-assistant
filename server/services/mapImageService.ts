@@ -90,7 +90,7 @@ async function fetchGoogleStaticMap(params: MapImageParams, apiKey: string): Pro
 
     console.log(`🗺️ Fetching Google Static Map for ${lat.toFixed(4)},${lng.toFixed(4)}`);
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
     if (!response.ok) {
       console.error(`Google Maps error: ${response.status}`);
       return null;
@@ -146,7 +146,8 @@ async function fetchOSMStaticMap(params: MapImageParams): Promise<Buffer | null>
     console.log(`🗺️ Fetching OSM tile for ${lat.toFixed(4)},${lng.toFixed(4)}`);
 
     const response = await fetch(tileUrl, {
-      headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' }
+      headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' },
+      signal: AbortSignal.timeout(10000)
     });
 
     if (!response.ok) {

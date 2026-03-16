@@ -41,7 +41,8 @@ async function getGridPoint(lat: number, lng: number): Promise<{ gridId: string;
       headers: {
         'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
         'Accept': 'application/geo+json'
-      }
+      },
+      signal: AbortSignal.timeout(15000)
     });
 
     if (!response.ok) {
@@ -103,7 +104,8 @@ export async function fetchNWSAlerts(params: AlertSearchParams): Promise<NWSAler
       headers: {
         'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
         'Accept': 'application/geo+json'
-      }
+      },
+      signal: AbortSignal.timeout(15000)
     });
 
     if (!response.ok) {
