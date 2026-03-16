@@ -93,6 +93,8 @@ class NOAAStormService {
             });
             parser.on('end', () => resolve(events));
             parser.on('error', reject);
+            gunzip.on('error', reject);
+            readable.on('error', reject);
             readable.pipe(gunzip).pipe(parser);
         });
     }

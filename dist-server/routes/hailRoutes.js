@@ -555,11 +555,8 @@ router.post('/generate-report', async (req, res) => {
         ].filter(Boolean).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
         const primaryStormDate = allDates.length > 0 ? allDates[0] : new Date().toISOString();
         const earliestDate = allDates.length > 0 ? allDates[allDates.length - 1] : primaryStormDate;
-        // Fetch supplemental data in parallel (non-blocking)
-        const [nexradResult, nwsAlerts, mapImage] = await Promise.all([
-            includeNexrad
-                ? fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: primaryStormDate }).catch(e => { console.warn('NEXRAD fetch failed:', e.message); return null; })
-                : Promise.resolve(null),
+        // Step 1: Fetch NWS alerts + map image in parallel
+        const [nwsAlerts, mapImage] = await Promise.all([
             includeWarnings
                 ? fetchNWSAlerts({ lat: parsedLat, lng: parsedLng, startDate: earliestDate, endDate: primaryStormDate }).catch(e => { console.warn('NWS alerts fetch failed:', e.message); return []; })
                 : Promise.resolve([]),
@@ -567,7 +564,55 @@ router.post('/generate-report', async (req, res) => {
                 ? fetchMapImage({ lat: parsedLat, lng: parsedLng, zoom: 15 }).catch(e => { console.warn('Map image fetch failed:', e.message); return null; })
                 : Promise.resolve(null)
         ]);
-        console.log(`📊 Supplemental data: NEXRAD=${nexradResult ? 'yes' : 'no'}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
+        // Step 2: Fetch per-alert NEXRAD radar images in parallel (up to 5 alerts)
+        // If NWS returned real alerts, use those. Otherwise, synthesize from event dates
+        // so we still get per-event radar snapshots in the IHM layout.
+        const realAlerts = (nwsAlerts || []).slice(0, 5);
+        // Build synthetic alerts from event data when NWS has no historical results
+        const syntheticAlerts = realAlerts.length === 0
+            ? [...new Set([...(events || []), ...(noaaEvents || [])].map((e) => e.date))]
+                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+                .slice(0, 5)
+                .map((date, idx) => {
+                const matchingEvent = [...(events || []), ...(noaaEvents || [])].find((e) => e.date === date);
+                const isHail = matchingEvent && ('hailSize' in matchingEvent || matchingEvent.eventType === 'hail');
+                const isWind = matchingEvent && matchingEvent.eventType === 'wind';
+                return {
+                    id: `synthetic-${idx}`,
+                    headline: `Severe weather activity detected near ${address}`,
+                    description: matchingEvent?.comments || `Storm event recorded at ${new Date(date).toLocaleString('en-US', { timeZone: 'America/New_York' })}. ${isHail ? `Hail size: ${matchingEvent.hailSize || matchingEvent.magnitude || 'unknown'} inches.` : ''} ${isWind ? `Wind: ${matchingEvent.magnitude || 'unknown'} kts.` : ''}`,
+                    severity: (matchingEvent?.severity === 'severe' || (matchingEvent?.magnitude || 0) > 1.5) ? 'Severe' : 'Moderate',
+                    certainty: 'Observed',
+                    event: isWind ? 'Severe Thunderstorm Warning' : 'Severe Thunderstorm Warning',
+                    onset: date,
+                    expires: new Date(new Date(date).getTime() + 30 * 60 * 1000).toISOString(),
+                    senderName: 'NOAA Storm Events Database',
+                    areaDesc: `${city || ''} ${state || ''}`.trim() || 'Local area'
+                };
+            })
+            : [];
+        const alertsToProcess = realAlerts.length > 0 ? realAlerts : syntheticAlerts;
+        let nwsAlertImages = [];
+        let nexradResult = null;
+        if (includeNexrad && alertsToProcess.length > 0) {
+            nwsAlertImages = await Promise.all(alertsToProcess.map(async (alert) => {
+                const radarTs = alert.onset || primaryStormDate;
+                const result = await fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: radarTs })
+                    .catch(e => { console.warn(`NEXRAD fetch failed for alert ${alert.event}:`, e.message); return null; });
+                return {
+                    alert,
+                    radarImage: result?.imageBuffer || null,
+                    radarTimestamp: radarTs
+                };
+            }));
+            console.log(`📡 Fetched ${nwsAlertImages.filter(a => a.radarImage).length}/${alertsToProcess.length} per-alert NEXRAD images (${realAlerts.length > 0 ? 'real NWS' : 'synthetic from events'})`);
+        }
+        else if (includeNexrad) {
+            // No alerts and no events — fetch single NEXRAD for the primary storm date
+            nexradResult = await fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: primaryStormDate })
+                .catch(e => { console.warn('NEXRAD fetch failed:', e.message); return null; });
+        }
+        console.log(`📊 Supplemental data: NEXRAD=${nwsAlertImages.length > 0 ? `${nwsAlertImages.length} per-alert` : (nexradResult ? 'single' : 'no')}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
         // Generate PDF stream
         const pdfStream = pdfReportService.generateReport({
             address,
@@ -588,6 +633,7 @@ router.post('/generate-report', async (req, res) => {
             nexradImage: nexradResult?.imageBuffer || undefined,
             nexradTimestamp: nexradResult?.timestamp || undefined,
             nwsAlerts: nwsAlerts || undefined,
+            nwsAlertImages: nwsAlertImages.length > 0 ? nwsAlertImages : undefined,
             includeNexrad,
             includeMap,
             includeWarnings,

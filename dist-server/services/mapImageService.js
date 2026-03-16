@@ -61,7 +61,7 @@ async function fetchGoogleStaticMap(params, apiKey) {
             url.searchParams.append('markers', `color:${m.color || 'blue'}|label:${m.label || ''}|${m.lat},${m.lng}`);
         });
         console.log(`🗺️ Fetching Google Static Map for ${lat.toFixed(4)},${lng.toFixed(4)}`);
-        const response = await fetch(url.toString());
+        const response = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
         if (!response.ok) {
             console.error(`Google Maps error: ${response.status}`);
             return null;
@@ -111,7 +111,8 @@ async function fetchOSMStaticMap(params) {
         const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
         console.log(`🗺️ Fetching OSM tile for ${lat.toFixed(4)},${lng.toFixed(4)}`);
         const response = await fetch(tileUrl, {
-            headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' }
+            headers: { 'User-Agent': 'RoofER-StormIntelligence/1.0' },
+            signal: AbortSignal.timeout(10000)
         });
         if (!response.ok) {
             console.error(`OSM tile error: ${response.status}`);

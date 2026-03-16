@@ -18,7 +18,8 @@ async function getGridPoint(lat, lng) {
             headers: {
                 'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
                 'Accept': 'application/geo+json'
-            }
+            },
+            signal: AbortSignal.timeout(15000)
         });
         if (!response.ok) {
             console.error(`NWS points API error: ${response.status}`);
@@ -72,7 +73,8 @@ export async function fetchNWSAlerts(params) {
             headers: {
                 'User-Agent': 'RoofER-StormIntelligence/1.0 (marketing@theroofdocs.com)',
                 'Accept': 'application/geo+json'
-            }
+            },
+            signal: AbortSignal.timeout(15000)
         });
         if (!response.ok) {
             // NWS sometimes returns 404 for areas with no alerts
