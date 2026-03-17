@@ -69,24 +69,22 @@ const geocodeForHailSearch = async (params: { address?: string; city?: string; s
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
   const ihmConfigured = hailMapsService.isConfigured();
-  const hasIhmKey = !!process.env.IHM_API_KEY;
-  const hasIhmSecret = !!process.env.IHM_API_SECRET;
+  const vcConfigured = weatherService.isConfigured();
 
-  console.log(`[Hail Status] IHM_API_KEY present: ${hasIhmKey}, IHM_API_SECRET present: ${hasIhmSecret}`);
+  const sources = ['NOAA Storm Events Database', 'NWS Alerts', 'NEXRAD Radar'];
+  if (ihmConfigured) sources.push('Interactive Hail Maps (legacy)');
+  if (vcConfigured) sources.push('Visual Crossing Weather');
 
   res.json({
-    ihmConfigured,
     noaaAvailable: true,
-    debug: {
-      hasIhmKey,
-      hasIhmSecret,
-      ihmKeyLength: process.env.IHM_API_KEY?.length || 0,
-      ihmSecretLength: process.env.IHM_API_SECRET?.length || 0
-    },
-    message: ihmConfigured
-      ? 'IHM and NOAA data available'
-      : `NOAA data available (IHM: key=${hasIhmKey}, secret=${hasIhmSecret})`,
-    provider: ihmConfigured ? 'Interactive Hail Maps + NOAA' : 'NOAA Storm Events Database'
+    nwsAvailable: true,
+    nexradAvailable: true,
+    ihmConfigured,
+    visualCrossingConfigured: vcConfigured,
+    primarySource: 'NOAA Storm Events Database',
+    activeSources: sources,
+    message: `${sources.length} data sources active`,
+    provider: sources.join(' + ')
   });
 });
 
@@ -210,7 +208,7 @@ router.get('/search', async (req, res) => {
           radiusMiles: radiusNum
         },
         dataSource: dataSources,
-        message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+        message: `NOAA Storm Events Database${ihmConfigured ? ' + IHM' : ''}${weatherData.length > 0 ? ' + Visual Crossing' : ''}`
       });
     }
 
@@ -251,7 +249,7 @@ router.get('/search', async (req, res) => {
           radiusMiles: radiusNum
         },
         dataSource: dataSources,
-        message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+        message: `NOAA Storm Events Database${ihmConfigured ? ' + IHM' : ''}${weatherData.length > 0 ? ' + Visual Crossing' : ''}`
       });
     }
 
@@ -379,7 +377,7 @@ router.post('/search-advanced', async (req: Request, res: Response) => {
           radius
         },
         dataSource: dataSources,
-        message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+        message: dataSources.join(" + ") || "NOAA Storm Events Database"
       });
     }
 
@@ -458,7 +456,7 @@ router.post('/search-advanced', async (req: Request, res: Response) => {
           radius
         },
         dataSource: dataSources,
-        message: ihmConfigured ? 'IHM and NOAA data' : 'NOAA data only (IHM not configured)'
+        message: dataSources.join(" + ") || "NOAA Storm Events Database"
       });
     }
 

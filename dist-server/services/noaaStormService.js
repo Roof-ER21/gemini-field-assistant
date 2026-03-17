@@ -92,6 +92,7 @@ class NOAAStormService {
                     damageCrops: this.parseDamageValue(row.DAMAGE_CROPS),
                     injuries: parseInt(row.INJURIES_DIRECT || '0', 10) + parseInt(row.INJURIES_INDIRECT || '0', 10),
                     deaths: parseInt(row.DEATHS_DIRECT || '0', 10) + parseInt(row.DEATHS_INDIRECT || '0', 10),
+                    distanceMiles: null,
                     dataSource: 'NOAA Storm Events Database',
                     certified: true
                 });
@@ -146,10 +147,13 @@ class NOAAStormService {
         }
     }
     filterByLocation(events, lat, lng, radiusMiles) {
-        return events.filter(event => {
+        return events
+            .map(event => {
             const distance = this.haversineDistance(lat, lng, event.latitude, event.longitude);
-            return distance <= radiusMiles;
-        });
+            return { ...event, distanceMiles: Math.round(distance * 100) / 100 };
+        })
+            .filter(event => event.distanceMiles <= radiusMiles)
+            .sort((a, b) => (a.distanceMiles || 0) - (b.distanceMiles || 0));
     }
     haversineDistance(lat1, lon1, lat2, lon2) {
         const R = 3959; // Earth's radius in miles

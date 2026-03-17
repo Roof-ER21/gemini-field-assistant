@@ -152,14 +152,10 @@ pushNotificationService.initializeFirebase().then((initialized) => {
   console.log('⚠️ Push notifications unavailable:', err.message);
 });
 
-// Initialize HailTrace import service with auto-watching
+// Initialize HailTrace import service (watching disabled — NOAA is primary source)
+// HailTrace data already in DB is preserved. Manual imports still available via API.
 hailtraceImportService.initialize(pool);
-try {
-  hailtraceImportService.startWatching(60000);
-  console.log('✅ HailTrace import service initialized (watching every 60s)');
-} catch {
-  console.log('✅ HailTrace import service initialized (watching disabled - export dir not found)');
-}
+console.log('✅ HailTrace import service initialized (auto-watch disabled, NOAA primary)');
 
 // ============================================================================
 // MIDDLEWARE

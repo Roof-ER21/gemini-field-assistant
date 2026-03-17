@@ -39,6 +39,11 @@ interface NOAAEvent {
   magnitude: number | null;
   eventType: 'hail' | 'wind' | 'tornado';
   location: string;
+  narrative?: string;
+  damageProperty?: string | null;
+  source?: string;
+  episodeId?: string;
+  distanceMiles?: number | null;
 }
 
 interface StormPath {
@@ -1872,7 +1877,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                 Storm Map
               </h1>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                HailRecon + HailTrace + IHM + NOAA Data
+                NOAA + NWS + NEXRAD Storm Intelligence
               </p>
             </div>
           </div>
@@ -2718,30 +2723,30 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                       // Single event
                       <div>
                         {firstItem.type === 'noaa' ? (
-                          <>
-                            <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
-                              {formatDate(firstItem.event.date)}
-                            </div>
-                            <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
-                              <div><strong>Type:</strong> {(firstItem.event as NOAAEvent).eventType}</div>
-                              {(firstItem.event as NOAAEvent).magnitude && (
-                                <div><strong>Magnitude:</strong> {(firstItem.event as NOAAEvent).magnitude}</div>
-                              )}
-                              <div><strong>Location:</strong> {(firstItem.event as NOAAEvent).location}</div>
-                              <div style={{ marginTop: '4px', fontSize: '11px', color: '#8b5cf6' }}>Source: NOAA</div>
-                            </div>
-                          </>
+                          (() => {
+                            const ne = firstItem.event as NOAAEvent;
+                            const isWind = ne.eventType === 'wind';
+                            return (<>
+                              <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>{formatDate(ne.date)}</div>
+                              <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                                <div><strong>Type:</strong> <span style={{ color: isWind ? '#8b5cf6' : ne.eventType === 'tornado' ? '#ef4444' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}</span></div>
+                                {ne.magnitude != null && <div><strong>{isWind ? 'Wind' : 'Hail'}:</strong> {ne.magnitude}{isWind ? ` kts (${Math.round(ne.magnitude * 1.15)} mph)` : '"'}</div>}
+                                {ne.distanceMiles != null && <div><strong>Distance:</strong> {ne.distanceMiles} mi from property</div>}
+                                <div><strong>Location:</strong> {ne.location}</div>
+                                {ne.damageProperty && <div><strong>Damage:</strong> <span style={{ color: '#dc2626' }}>{ne.damageProperty}</span></div>}
+                                {ne.source && <div style={{ fontSize: '11px', color: '#888' }}>Reported by: {ne.source}</div>}
+                                {ne.narrative && <div style={{ marginTop: '4px', fontSize: '10px', color: '#666', borderTop: '1px solid #eee', paddingTop: '4px' }}>{ne.narrative.length > 150 ? ne.narrative.slice(0, 150) + '...' : ne.narrative}</div>}
+                                <div style={{ marginTop: '4px', fontSize: '10px', color: '#3b82f6' }}>NOAA Storm Events Database</div>
+                              </div>
+                            </>);
+                          })()
                         ) : (
                           <>
-                            <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
-                              {formatDate(firstItem.event.date)}
-                            </div>
+                            <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>{formatDate(firstItem.event.date)}</div>
                             <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
                               <div><strong>Hail Size:</strong> {(firstItem.event as HailEvent).hailSize}"</div>
                               <div><strong>Severity:</strong> {(firstItem.event as HailEvent).severity}</div>
-                              <div style={{ marginTop: '4px', fontSize: '11px', color: firstItem.type === 'hailtrace' ? '#10b981' : '#3b82f6' }}>
-                                Source: {firstItem.type === 'hailtrace' ? 'HailTrace' : 'IHM'}
-                              </div>
+                              <div style={{ marginTop: '4px', fontSize: '11px', color: '#3b82f6' }}>Source: Storm Database</div>
                             </div>
                           </>
                         )}
@@ -2764,20 +2769,21 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                               </div>
                               <div style={{ fontSize: '11px', lineHeight: '1.5' }}>
                                 {item.type === 'noaa' ? (
-                                  <>
-                                    <div>Type: {(item.event as NOAAEvent).eventType}</div>
-                                    {(item.event as NOAAEvent).magnitude && (
-                                      <div>Magnitude: {(item.event as NOAAEvent).magnitude}</div>
-                                    )}
-                                    <div style={{ fontSize: '10px', color: '#8b5cf6' }}>NOAA</div>
-                                  </>
+                                  (() => {
+                                    const ne = item.event as NOAAEvent;
+                                    const isW = ne.eventType === 'wind';
+                                    return (<>
+                                      <div style={{ color: isW ? '#8b5cf6' : ne.eventType === 'tornado' ? '#ef4444' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}: {ne.magnitude != null ? `${ne.magnitude}${isW ? ' kts' : '"'}` : '---'}</div>
+                                      {ne.distanceMiles != null && <div style={{ fontSize: '10px' }}>{ne.distanceMiles} mi away</div>}
+                                      {ne.damageProperty && <div style={{ color: '#dc2626', fontSize: '10px' }}>Damage: {ne.damageProperty}</div>}
+                                      <div style={{ fontSize: '10px', color: '#3b82f6' }}>NOAA</div>
+                                    </>);
+                                  })()
                                 ) : (
                                   <>
                                     <div>Hail: {(item.event as HailEvent).hailSize}"</div>
                                     <div>Severity: {(item.event as HailEvent).severity}</div>
-                                    <div style={{ fontSize: '10px', color: item.type === 'hailtrace' ? '#10b981' : '#3b82f6' }}>
-                                      {item.type === 'hailtrace' ? 'HailTrace' : 'IHM'}
-                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#3b82f6' }}>Storm DB</div>
                                   </>
                                 )}
                               </div>

@@ -19,6 +19,7 @@ export interface NOAAStormEvent {
   damageCrops: string | null;
   injuries: number;
   deaths: number;
+  distanceMiles: number | null;
   dataSource: 'NOAA Storm Events Database';
   certified: true;
 }
@@ -137,6 +138,7 @@ class NOAAStormService {
           damageCrops: this.parseDamageValue(row.DAMAGE_CROPS),
           injuries: parseInt(row.INJURIES_DIRECT || '0', 10) + parseInt(row.INJURIES_INDIRECT || '0', 10),
           deaths: parseInt(row.DEATHS_DIRECT || '0', 10) + parseInt(row.DEATHS_INDIRECT || '0', 10),
+          distanceMiles: null,
           dataSource: 'NOAA Storm Events Database',
           certified: true
         });
@@ -195,10 +197,13 @@ class NOAAStormService {
     lng: number,
     radiusMiles: number
   ): NOAAStormEvent[] {
-    return events.filter(event => {
-      const distance = this.haversineDistance(lat, lng, event.latitude, event.longitude);
-      return distance <= radiusMiles;
-    });
+    return events
+      .map(event => {
+        const distance = this.haversineDistance(lat, lng, event.latitude, event.longitude);
+        return { ...event, distanceMiles: Math.round(distance * 100) / 100 };
+      })
+      .filter(event => event.distanceMiles! <= radiusMiles)
+      .sort((a, b) => (a.distanceMiles || 0) - (b.distanceMiles || 0));
   }
 
   private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
