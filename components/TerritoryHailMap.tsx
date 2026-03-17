@@ -291,6 +291,24 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   // Last updated timestamp
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Map style: street or satellite
+  const [mapStyle, setMapStyle] = useState<'street' | 'satellite'>('street');
+
+  // 3D property view
+  const [show3DView, setShow3DView] = useState(false);
+
+  // Historical radar overlay
+  const [showHistoricalRadar, setShowHistoricalRadar] = useState(false);
+
+  // Property focus mode (triggered by street address search)
+  const [propertyFocusMode, setPropertyFocusMode] = useState(false);
+  // Property risk data (roof age, vulnerability)
+  const [propertyRisk, setPropertyRisk] = useState<{
+    riskMultiplier: number;
+    factors: { estimatedRoofAge: number | null; medianYearBuilt: number | null; roofVulnerability: string; housingUnits: number | null; };
+    summary: string;
+  } | null>(null);
+
   // Filtered events based on event type and source filters
   const filteredHailEvents = useMemo(() => {
     // IHM events are always hail type
@@ -572,11 +590,39 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
         // Auto-zoom to search location
         if (data.searchCriteria?.latitude && data.searchCriteria?.longitude) {
-          setSearchLocation({
-            lat: data.searchCriteria.latitude,
-            lng: data.searchCriteria.longitude,
-            zoom: 13
-          });
+          // Detect property search: street address + city means a specific property
+          const isPropertySearch = !!(searchCriteria.address?.trim() && searchCriteria.city?.trim());
+
+          if (isPropertySearch) {
+            // Property Focus Mode: satellite view, street-level zoom, tight radius
+            setPropertyFocusMode(true);
+            setMapStyle('satellite');
+            setSearchLocation({
+              lat: data.searchCriteria.latitude,
+              lng: data.searchCriteria.longitude,
+              zoom: 18
+            });
+            // Fetch property risk data (roof age, vulnerability)
+            const zipCode = searchCriteria.zip || data.searchCriteria.zip || '';
+            if (zipCode) {
+              fetch(`${getApiBaseUrl()}/hail/property-risk?zip=${zipCode}&lat=${data.searchCriteria.latitude}&lng=${data.searchCriteria.longitude}`)
+                .then(r => r.json()).then(risk => setPropertyRisk(risk)).catch(() => setPropertyRisk(null));
+            }
+            // Open 3D view after map animates
+            setTimeout(() => setShow3DView(true), 1800);
+            // Collapse search panel
+            setSearchCollapsed(true);
+          } else {
+            // Standard city/state search
+            setPropertyFocusMode(false);
+            setMapStyle('street');
+            setSearchLocation({
+              lat: data.searchCriteria.latitude,
+              lng: data.searchCriteria.longitude,
+              zoom: 13
+            });
+          }
+
           // Show hail dates panel after successful search
           setShowHailDates(true);
 
@@ -585,7 +631,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             fetchHotZonesForLocation(
               data.searchCriteria.latitude,
               data.searchCriteria.longitude,
-              data.searchCriteria.radius || 50
+              isPropertySearch ? 5 : (data.searchCriteria.radius || 50)
             );
           }
         }
@@ -1087,6 +1133,728 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     }
   };
 
+  // Render the compact property card for Property Focus Mode
+  const renderPropertyCard = () => {
+    const address = currentSearch?.address ||
+      `${currentSearch?.city || ''}${currentSearch?.city && currentSearch?.state ? ', ' : ''}${currentSearch?.state || ''}`;
+
+    const totalEvents = (filteredHailEvents.length + filteredNoaaEvents.length);
+    const maxHail = searchStats?.maxHailSize;
+    const windCount = filteredNoaaEvents.filter(e => e.eventType === 'wind').length;
+
+    // Compute NOAA damage total (magnitude sum as proxy)
+    const noaaDamageTotal = filteredNoaaEvents.reduce((sum, e) => sum + (e.magnitude || 0), 0);
+
+    // Top 5 nearest events by most recent date
+    const allSorted = [
+      ...filteredHailEvents.map(e => ({ type: 'ihm' as const, event: e, date: e.date })),
+      ...filteredNoaaEvents.map(e => ({ type: 'noaa' as const, event: e, date: e.date }))
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+    const scoreValue = damageScore?.score || 0;
+    const scoreColor = damageScore?.color || '#6b7280';
+    const riskLevel = damageScore?.riskLevel || 'Low';
+
+    // Circular progress ring params
+    const radius = 28;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (scoreValue / 100) * circumference;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Property Card Header */}
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--bg-elevated)',
+          borderBottom: '1px solid var(--border-default)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Home className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                Property Report
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {address}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowHailDates(false)}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+          {/* Circular damage score */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', padding: '12px', background: `linear-gradient(135deg, ${scoreColor}15, ${scoreColor}05)`, borderRadius: '12px', border: `1px solid ${scoreColor}40` }}>
+            <div style={{ flexShrink: 0 }}>
+              {loadingDamageScore ? (
+                <RefreshCw className="w-10 h-10 animate-spin" style={{ color: 'var(--roof-red)' }} />
+              ) : (
+                <svg width="70" height="70" viewBox="0 0 70 70">
+                  <circle cx="35" cy="35" r={radius} fill="none" stroke="var(--border-default)" strokeWidth="6" />
+                  <circle
+                    cx="35" cy="35" r={radius}
+                    fill="none"
+                    stroke={scoreColor}
+                    strokeWidth="6"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    transform="rotate(-90 35 35)"
+                  />
+                  <text x="35" y="38" textAnchor="middle" fontSize="14" fontWeight="800" fill={scoreColor}>{scoreValue}</text>
+                </svg>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Damage Risk Score
+              </div>
+              <div style={{ display: 'inline-block', padding: '4px 10px', background: scoreColor, color: 'white', borderRadius: '20px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                {riskLevel} Risk
+              </div>
+              {damageScore?.summary && (
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.4' }}>
+                  {damageScore.summary}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4-stat grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+            <div style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--roof-red)' }}>{totalEvents}</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Total Events</div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {maxHail ? `${maxHail.toFixed(1)}"` : '—'}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Max Hail</div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#8b5cf6' }}>{windCount}</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Wind Events</div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#f97316' }}>
+                {noaaDamageTotal > 0 ? noaaDamageTotal.toFixed(1) : '—'}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>NOAA Damage</div>
+            </div>
+          </div>
+
+          {/* Top 5 recent events */}
+          {allSorted.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                {/* Property Risk Assessment */}
+                {propertyRisk && propertyRisk.factors.estimatedRoofAge !== null && (
+                  <div style={{
+                    marginBottom: '12px', padding: '10px 12px', borderRadius: '8px',
+                    background: propertyRisk.factors.roofVulnerability === 'critical' ? 'rgba(220,38,38,0.1)' :
+                      propertyRisk.factors.roofVulnerability === 'high' ? 'rgba(249,115,22,0.1)' : 'rgba(34,197,94,0.1)',
+                    border: `1px solid ${propertyRisk.factors.roofVulnerability === 'critical' ? '#dc2626' :
+                      propertyRisk.factors.roofVulnerability === 'high' ? '#f97316' : '#22c55e'}40`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Roof Age Estimate</span>
+                      <span style={{
+                        fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px',
+                        background: propertyRisk.factors.roofVulnerability === 'critical' ? '#dc2626' :
+                          propertyRisk.factors.roofVulnerability === 'high' ? '#f97316' :
+                          propertyRisk.factors.roofVulnerability === 'moderate' ? '#eab308' : '#22c55e',
+                        color: 'white', textTransform: 'uppercase'
+                      }}>{propertyRisk.factors.roofVulnerability}</span>
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      ~{propertyRisk.factors.estimatedRoofAge} years
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      Median built ~{propertyRisk.factors.medianYearBuilt} (ZIP {currentSearch?.zip || ''})
+                    </div>
+                  </div>
+                )}
+
+                Recent Storm Events
+              </div>
+              {allSorted.map((item, i) => {
+                const isHail = item.type === 'ihm';
+                const hailEvt = isHail ? (item.event as HailEvent) : null;
+                const noaaEvt = !isHail ? (item.event as NOAAEvent) : null;
+                const accentColor = isHail ? getSeverityColor((hailEvt as HailEvent).severity) : getEventTypeColor((noaaEvt as NOAAEvent).eventType);
+                return (
+                  <div
+                    key={i}
+                    onClick={() => setSearchLocation({ lat: item.event.latitude, lng: item.event.longitude, zoom: 16 })}
+                    style={{
+                      padding: '8px 10px',
+                      marginBottom: '4px',
+                      background: 'var(--bg-elevated)',
+                      borderRadius: '6px',
+                      borderLeft: `3px solid ${accentColor}`,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {formatDate(item.date)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        {isHail
+                          ? `Hail ${hailEvt?.hailSize ? `${hailEvt.hailSize}"` : ''} · ${hailEvt?.severity}`
+                          : `${noaaEvt?.eventType} · ${noaaEvt?.location || ''}`
+                        }
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: accentColor, textTransform: 'uppercase' }}>
+                      {isHail ? 'IHM' : 'NOAA'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* View all events button */}
+          <button
+            onClick={() => setPropertyFocusMode(false)}
+            style={{
+              width: '100%',
+              padding: '8px',
+              marginBottom: '12px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            View all {totalEvents} events
+          </button>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShow3DView(true)}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: 'var(--roof-red)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              <Home className="w-4 h-4" />
+              3D View
+            </button>
+            {isAdmin && (
+              <button
+                onClick={handleGeneratePDF}
+                disabled={generatingPdf}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--bg-elevated)',
+                  color: generatingPdf ? 'var(--text-secondary)' : 'var(--text-primary)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: generatingPdf ? 0.6 : 1
+                }}
+              >
+                {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                {generatingPdf ? 'Generating...' : 'Report'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render the standard full event list sidebar
+  const renderStandardSidebar = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Sidebar Header */}
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--bg-elevated)',
+          borderBottom: '1px solid var(--border-default)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Storm Events
+            </span>
+          </div>
+          <button
+            onClick={() => setShowHailDates(false)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Scrollable content: stats + events list */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {/* Stats Summary with Damage Score */}
+          {searchStats && (
+            <div style={{
+              padding: '12px 16px',
+              background: 'var(--bg-primary)',
+              borderBottom: '1px solid var(--border-default)',
+              fontSize: '12px'
+            }}>
+              {/* Damage Score Display */}
+              {damageScore && (
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '16px',
+                  background: `linear-gradient(135deg, ${damageScore.color}15, ${damageScore.color}05)`,
+                  borderRadius: '12px',
+                  border: `2px solid ${damageScore.color}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '8px'
+                  }}>
+                    Damage Risk Score
+                  </div>
+                  <div style={{
+                    fontSize: '48px',
+                    fontWeight: 800,
+                    color: damageScore.color,
+                    lineHeight: 1,
+                    marginBottom: '8px'
+                  }}>
+                    {damageScore.score}
+                  </div>
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '6px 12px',
+                    background: damageScore.color,
+                    color: 'white',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '12px'
+                  }}>
+                    {damageScore.riskLevel} Risk
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    lineHeight: '1.5',
+                    marginTop: '8px'
+                  }}>
+                    {damageScore.summary}
+                  </div>
+                </div>
+              )}
+
+              {loadingDamageScore && (
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '16px',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '12px',
+                  textAlign: 'center'
+                }}>
+                  <RefreshCw className="w-6 h-6 animate-spin" style={{ color: 'var(--roof-red)', margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    Calculating damage score...
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
+                    {searchStats.totalEvents}
+                  </div>
+                </div>
+                {searchStats.maxHailSize && (
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Max Size</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {searchStats.maxHailSize.toFixed(1)}"
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Last Updated Timestamp */}
+              {lastUpdated && (
+                <div style={{
+                  fontSize: '10px',
+                  color: 'var(--text-secondary)',
+                  marginTop: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid var(--border-default)',
+                  fontStyle: 'italic'
+                }}>
+                  Last updated: {formatTimestamp(lastUpdated)}
+                </div>
+              )}
+
+              {/* PDF Report Section - Admin only */}
+              {isAdmin && (
+                <>
+                  {/* PDF Report Filter Dropdown */}
+                  <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                    <label style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      display: 'block',
+                      marginBottom: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Report Filter
+                    </label>
+                    <select
+                      value={pdfReportFilter}
+                      onChange={(e) => setPdfReportFilter(e.target.value as any)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="all">All Events</option>
+                      <option value="hail-only">Hail Only</option>
+                      <option value="hail-wind">Hail + Wind</option>
+                      <option value="ihm-only">IHM Only</option>
+                      <option value="noaa-only">NOAA Only</option>
+                    </select>
+                  </div>
+
+                  {/* Download PDF Buttons */}
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button
+                      onClick={handleGeneratePDF}
+                      disabled={generatingPdf}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--roof-red)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease',
+                        opacity: generatingPdf ? 0.6 : 1
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!generatingPdf) {
+                          e.currentTarget.style.background = '#b91c1c';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!generatingPdf) {
+                          e.currentTarget.style.background = 'var(--roof-red)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }
+                      }}
+                    >
+                      {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                      {generatingPdf ? 'Generating...' : 'Download Report'}
+                    </button>
+                    <button
+                      onClick={() => setShowPdfOptions(true)}
+                      disabled={generatingPdf}
+                      style={{
+                        padding: '10px 12px',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '8px',
+                        cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                        opacity: generatingPdf ? 0.6 : 1
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!generatingPdf) {
+                          e.currentTarget.style.background = 'var(--bg-tertiary)';
+                          e.currentTarget.style.borderColor = 'var(--roof-red)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!generatingPdf) {
+                          e.currentTarget.style.background = 'var(--bg-elevated)';
+                          e.currentTarget.style.borderColor = 'var(--border-default)';
+                        }
+                      }}
+                      title="PDF Options"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Events List */}
+          <div style={{ padding: '8px' }}>
+            {/* IHM Events */}
+            {filteredHailEvents.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  padding: '8px 8px 4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  IHM Hail Events ({filteredHailEvents.length})
+                </div>
+                {filteredHailEvents
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((event, idx) => {
+                    const eventId = `ihm-${event.id}`;
+                    const isSelected = selectedEventId === eventId;
+                    const sourceType = getEventSourceType(event);
+                    const isHailTrace = sourceType === 'hailtrace';
+
+                    return (
+                    <div
+                      key={`ihm-${event.id || idx}`}
+                      onClick={() => {
+                        setSelectedEventId(eventId);
+                        setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
+                      }}
+                      style={{
+                        padding: '12px',
+                        margin: '4px 0',
+                        background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getSeverityColor(event.severity)}20`,
+                        borderLeft: `4px solid ${isHailTrace ? '#10b981' : getSeverityColor(event.severity)}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                    >
+                      {isHailTrace && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          padding: '2px 6px',
+                          background: '#10b981',
+                          color: 'white',
+                          borderRadius: '4px',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          HailTrace
+                        </div>
+                      )}
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <Calendar className="w-4 h-4" style={{ color: isHailTrace ? '#10b981' : getSeverityColor(event.severity) }} />
+                        {formatDate(event.date)}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <span>Hail Size:</span>
+                          <strong style={{ color: 'var(--text-primary)' }}>
+                            {event.hailSize ? `${event.hailSize}"` : 'Unknown'}
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Severity:</span>
+                          <strong style={{
+                            color: getSeverityColor(event.severity),
+                            textTransform: 'capitalize'
+                          }}>
+                            {event.severity}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )})}
+              </div>
+            )}
+
+            {/* NOAA Events */}
+            {filteredNoaaEvents.length > 0 && (
+              <div>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  padding: '8px 8px 4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  NOAA Events ({filteredNoaaEvents.length})
+                </div>
+                {filteredNoaaEvents
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((event, idx) => {
+                    const eventId = `noaa-${event.id}`;
+                    const isSelected = selectedEventId === eventId;
+                    return (
+                    <div
+                      key={`noaa-${event.id || idx}`}
+                      onClick={() => {
+                        setSelectedEventId(eventId);
+                        setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
+                      }}
+                      style={{
+                        padding: '12px',
+                        margin: '4px 0',
+                        background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getEventTypeColor(event.eventType)}20`,
+                        borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <Calendar className="w-4 h-4" style={{ color: getEventTypeColor(event.eventType) }} />
+                        {formatDate(event.date)}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <span>Type:</span>
+                          <strong style={{
+                            color: getEventTypeColor(event.eventType),
+                            textTransform: 'capitalize'
+                          }}>
+                            {event.eventType}
+                          </strong>
+                        </div>
+                        {event.magnitude && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                            <span>Magnitude:</span>
+                            <strong style={{ color: 'var(--text-primary)' }}>
+                              {event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}
+                            </strong>
+                          </div>
+                        )}
+                        <div style={{
+                          fontSize: '11px',
+                          color: 'var(--text-secondary)',
+                          marginTop: '4px',
+                          fontStyle: 'italic'
+                        }}>
+                          {event.location}
+                        </div>
+                      </div>
+                    </div>
+                  )})}
+              </div>
+            )}
+
+            {filteredHailEvents.length === 0 && filteredNoaaEvents.length === 0 && (
+              <div style={{
+                padding: '32px 16px',
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                fontSize: '13px'
+              }}>
+                No events match the current filter
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Default center: Mid-Atlantic region
   const defaultCenter: [number, number] = [39.5, -77.5];
   const defaultZoom = 6;
@@ -1455,6 +2223,46 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                 }}
               />
             </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={searchCriteria.startDate || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, startDate: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={searchCriteria.endDate || ''}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, endDate: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
           </div>
 
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -1500,7 +2308,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
       {/* Main Content Area */}
       <div style={{ position: 'relative', height: 'calc(100vh - 200px)' }}>
-        {/* Left Sidebar - Events List */}
+        {/* Left Sidebar - Property Card or Standard Events List */}
         {showHailDates && (
           <div style={{
             position: 'absolute',
@@ -1515,452 +2323,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
-            {/* Sidebar Header */}
-            <div style={{
-              padding: '12px 16px',
-              background: 'var(--bg-elevated)',
-              borderBottom: '1px solid var(--border-default)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Calendar className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Storm Events
-                </span>
-              </div>
-              <button
-                onClick={() => setShowHailDates(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Scrollable content: stats + events list */}
-            <div style={{ flex: 1, overflow: 'auto' }}>
-            {/* Stats Summary with Damage Score */}
-            {searchStats && (
-              <div style={{
-                padding: '12px 16px',
-                background: 'var(--bg-primary)',
-                borderBottom: '1px solid var(--border-default)',
-                fontSize: '12px'
-              }}>
-                {/* Damage Score Display */}
-                {damageScore && (
-                  <div style={{
-                    marginBottom: '16px',
-                    padding: '16px',
-                    background: `linear-gradient(135deg, ${damageScore.color}15, ${damageScore.color}05)`,
-                    borderRadius: '12px',
-                    border: `2px solid ${damageScore.color}`,
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: 'var(--text-secondary)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      marginBottom: '8px'
-                    }}>
-                      Damage Risk Score
-                    </div>
-                    <div style={{
-                      fontSize: '48px',
-                      fontWeight: 800,
-                      color: damageScore.color,
-                      lineHeight: 1,
-                      marginBottom: '8px'
-                    }}>
-                      {damageScore.score}
-                    </div>
-                    <div style={{
-                      display: 'inline-block',
-                      padding: '6px 12px',
-                      background: damageScore.color,
-                      color: 'white',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      marginBottom: '12px'
-                    }}>
-                      {damageScore.riskLevel} Risk
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: 'var(--text-secondary)',
-                      lineHeight: '1.5',
-                      marginTop: '8px'
-                    }}>
-                      {damageScore.summary}
-                    </div>
-                  </div>
-                )}
-
-                {loadingDamageScore && (
-                  <div style={{
-                    marginBottom: '16px',
-                    padding: '16px',
-                    background: 'var(--bg-elevated)',
-                    borderRadius: '12px',
-                    textAlign: 'center'
-                  }}>
-                    <RefreshCw className="w-6 h-6 animate-spin" style={{ color: 'var(--roof-red)', margin: '0 auto 8px' }} />
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      Calculating damage score...
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                  <div>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Total Events</div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--roof-red)' }}>
-                      {searchStats.totalEvents}
-                    </div>
-                  </div>
-                  {searchStats.maxHailSize && (
-                    <div>
-                      <div style={{ color: 'var(--text-secondary)', marginBottom: '2px' }}>Max Size</div>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {searchStats.maxHailSize.toFixed(1)}"
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Last Updated Timestamp */}
-                {lastUpdated && (
-                  <div style={{
-                    fontSize: '10px',
-                    color: 'var(--text-secondary)',
-                    marginTop: '8px',
-                    paddingTop: '8px',
-                    borderTop: '1px solid var(--border-default)',
-                    fontStyle: 'italic'
-                  }}>
-                    Last updated: {formatTimestamp(lastUpdated)}
-                  </div>
-                )}
-
-                {/* PDF Report Section - Admin only */}
-                {isAdmin && (
-                  <>
-                    {/* PDF Report Filter Dropdown */}
-                    <div style={{ marginTop: '12px', marginBottom: '8px' }}>
-                      <label style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'var(--text-secondary)',
-                        display: 'block',
-                        marginBottom: '4px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                      }}>
-                        Report Filter
-                      </label>
-                      <select
-                        value={pdfReportFilter}
-                        onChange={(e) => setPdfReportFilter(e.target.value as any)}
-                        style={{
-                          width: '100%',
-                          padding: '6px 8px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-default)',
-                          background: 'var(--bg-elevated)',
-                          color: 'var(--text-primary)',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="all">All Events</option>
-                        <option value="hail-only">Hail Only</option>
-                        <option value="hail-wind">Hail + Wind</option>
-                        <option value="ihm-only">IHM Only</option>
-                        <option value="noaa-only">NOAA Only</option>
-                      </select>
-                    </div>
-
-                    {/* Download PDF Buttons */}
-                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                      <button
-                        onClick={handleGeneratePDF}
-                        disabled={generatingPdf}
-                        style={{
-                          flex: 1,
-                          padding: '10px 16px',
-                          background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--roof-red)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          transition: 'all 0.2s ease',
-                          opacity: generatingPdf ? 0.6 : 1
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!generatingPdf) {
-                            e.currentTarget.style.background = '#b91c1c';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!generatingPdf) {
-                            e.currentTarget.style.background = 'var(--roof-red)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }
-                        }}
-                      >
-                        {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                        {generatingPdf ? 'Generating...' : 'Download Report'}
-                      </button>
-                      <button
-                        onClick={() => setShowPdfOptions(true)}
-                        disabled={generatingPdf}
-                        style={{
-                          padding: '10px 12px',
-                          background: 'var(--bg-elevated)',
-                          color: 'var(--text-primary)',
-                          border: '1px solid var(--border-default)',
-                          borderRadius: '8px',
-                          cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'all 0.2s ease',
-                          opacity: generatingPdf ? 0.6 : 1
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!generatingPdf) {
-                            e.currentTarget.style.background = 'var(--bg-tertiary)';
-                            e.currentTarget.style.borderColor = 'var(--roof-red)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!generatingPdf) {
-                            e.currentTarget.style.background = 'var(--bg-elevated)';
-                            e.currentTarget.style.borderColor = 'var(--border-default)';
-                          }
-                        }}
-                        title="PDF Options"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Events List */}
-            <div style={{ padding: '8px' }}>
-              {/* IHM Events */}
-              {filteredHailEvents.length > 0 && (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    padding: '8px 8px 4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    IHM Hail Events ({filteredHailEvents.length})
-                  </div>
-                  {filteredHailEvents
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((event, idx) => {
-                      const eventId = `ihm-${event.id}`;
-                      const isSelected = selectedEventId === eventId;
-                      const sourceType = getEventSourceType(event);
-                      const isHailTrace = sourceType === 'hailtrace';
-
-                      return (
-                      <div
-                        key={`ihm-${event.id || idx}`}
-                        onClick={() => {
-                          setSelectedEventId(eventId);
-                          setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
-                        }}
-                        style={{
-                          padding: '12px',
-                          margin: '4px 0',
-                          background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
-                          borderRadius: '8px',
-                          border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getSeverityColor(event.severity)}20`,
-                          borderLeft: `4px solid ${isHailTrace ? '#10b981' : getSeverityColor(event.severity)}`,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          position: 'relative'
-                        }}
-                      >
-                        {isHailTrace && (
-                          <div style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            padding: '2px 6px',
-                            background: '#10b981',
-                            color: 'white',
-                            borderRadius: '4px',
-                            fontSize: '9px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            HailTrace
-                          </div>
-                        )}
-                        <div style={{
-                          fontSize: '14px',
-                          fontWeight: 700,
-                          color: 'var(--text-primary)',
-                          marginBottom: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}>
-                          <Calendar className="w-4 h-4" style={{ color: isHailTrace ? '#10b981' : getSeverityColor(event.severity) }} />
-                          {formatDate(event.date)}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <span>Hail Size:</span>
-                            <strong style={{ color: 'var(--text-primary)' }}>
-                              {event.hailSize ? `${event.hailSize}"` : 'Unknown'}
-                            </strong>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Severity:</span>
-                            <strong style={{
-                              color: getSeverityColor(event.severity),
-                              textTransform: 'capitalize'
-                            }}>
-                              {event.severity}
-                            </strong>
-                          </div>
-                        </div>
-                      </div>
-                    )})}
-                </div>
-              )}
-
-              {/* NOAA Events */}
-              {filteredNoaaEvents.length > 0 && (
-                <div>
-                  <div style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    padding: '8px 8px 4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    NOAA Events ({filteredNoaaEvents.length})
-                  </div>
-                  {filteredNoaaEvents
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((event, idx) => {
-                      const eventId = `noaa-${event.id}`;
-                      const isSelected = selectedEventId === eventId;
-                      return (
-                      <div
-                        key={`noaa-${event.id || idx}`}
-                        onClick={() => {
-                          setSelectedEventId(eventId);
-                          setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
-                        }}
-                        style={{
-                          padding: '12px',
-                          margin: '4px 0',
-                          background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
-                          borderRadius: '8px',
-                          border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getEventTypeColor(event.eventType)}20`,
-                          borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <div style={{
-                          fontSize: '14px',
-                          fontWeight: 700,
-                          color: 'var(--text-primary)',
-                          marginBottom: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}>
-                          <Calendar className="w-4 h-4" style={{ color: getEventTypeColor(event.eventType) }} />
-                          {formatDate(event.date)}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <span>Type:</span>
-                            <strong style={{
-                              color: getEventTypeColor(event.eventType),
-                              textTransform: 'capitalize'
-                            }}>
-                              {event.eventType}
-                            </strong>
-                          </div>
-                          {event.magnitude && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                              <span>Magnitude:</span>
-                              <strong style={{ color: 'var(--text-primary)' }}>
-                                {event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}
-                              </strong>
-                            </div>
-                          )}
-                          <div style={{
-                            fontSize: '11px',
-                            color: 'var(--text-secondary)',
-                            marginTop: '4px',
-                            fontStyle: 'italic'
-                          }}>
-                            {event.location}
-                          </div>
-                        </div>
-                      </div>
-                    )})}
-                </div>
-              )}
-
-              {filteredHailEvents.length === 0 && filteredNoaaEvents.length === 0 && (
-                <div style={{
-                  padding: '32px 16px',
-                  textAlign: 'center',
-                  color: 'var(--text-secondary)',
-                  fontSize: '13px'
-                }}>
-                  No events match the current filter
-                </div>
-              )}
-            </div>
-            </div>{/* end scrollable content wrapper */}
+            {propertyFocusMode ? renderPropertyCard() : renderStandardSidebar()}
           </div>
         )}
 
@@ -2142,10 +2505,17 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           zoom={defaultZoom}
           style={{ height: '100%', width: '100%' }}
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          {mapStyle === 'satellite' ? (
+            <TileLayer
+              attribution='Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          ) : (
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          )}
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 

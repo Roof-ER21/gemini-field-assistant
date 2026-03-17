@@ -4,10 +4,13 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
+import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
 import { hailtraceImportService } from '../services/hailtraceImportService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
+import { weatherService } from '../services/weatherService.js';
+import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -117,7 +120,20 @@ router.get('/search', async (req, res) => {
     const ihmConfigured = hailMapsService.isConfigured();
     let ihmData: any = null;
     let noaaData: any[] = [];
+    let weatherData: any[] = [];
     const dataSources: string[] = [];
+
+    // Helper: fetch Visual Crossing weather data (wind/thunderstorm events)
+    const fetchWeatherData = async (sLat: number, sLng: number) => {
+      if (weatherService.isConfigured()) {
+        try {
+          weatherData = await weatherService.getStormEvents(sLat, sLng, monthsNum);
+          if (weatherData.length > 0) dataSources.push('VisualCrossing');
+        } catch (error) {
+          console.error('Visual Crossing error:', error);
+        }
+      }
+    };
 
     // Extract coordinates from request
     let searchLat: number | null = lat ? parseFloat(lat as string) : null;
@@ -175,19 +191,20 @@ router.get('/search', async (req, res) => {
         }
       }
 
-      // Always fetch NOAA data if we have coordinates
+      // Fetch NOAA + Visual Crossing in parallel
       if (searchLat && searchLng) {
-        try {
-          noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
-          dataSources.push('NOAA');
-        } catch (error) {
-          console.error('NOAA search error:', error);
-        }
+        await Promise.all([
+          noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum)
+            .then(d => { noaaData = d; dataSources.push('NOAA'); })
+            .catch(e => console.error('NOAA search error:', e)),
+          fetchWeatherData(searchLat, searchLng)
+        ]);
       }
 
       return res.json({
         events: ihmData?.events || [],
         noaaEvents: noaaData,
+        weatherEvents: weatherData,
         searchArea: ihmData?.searchArea || {
           center: { lat: searchLat, lng: searchLng },
           radiusMiles: radiusNum
@@ -217,17 +234,18 @@ router.get('/search', async (req, res) => {
         }
       }
 
-      // Always fetch NOAA data
-      try {
-        noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
-        dataSources.push('NOAA');
-      } catch (error) {
-        console.error('NOAA search error:', error);
-      }
+      // Fetch NOAA + Visual Crossing in parallel
+      await Promise.all([
+        noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum)
+          .then(d => { noaaData = d; dataSources.push('NOAA'); })
+          .catch(e => console.error('NOAA search error:', e)),
+        fetchWeatherData(searchLat, searchLng)
+      ]);
 
       return res.json({
         events: ihmData?.events || [],
         noaaEvents: noaaData,
+        weatherEvents: weatherData,
         searchArea: ihmData?.searchArea || {
           center: { lat: searchLat, lng: searchLng },
           radiusMiles: radiusNum
@@ -580,6 +598,29 @@ router.post('/damage-score', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/hail/property-risk - Assess property-level risk factors (roof age, vulnerability)
+router.get('/property-risk', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, zip, address } = req.query;
+
+    if (!zip && (!lat || !lng)) {
+      return res.status(400).json({ error: 'zip or lat/lng required' });
+    }
+
+    const result = await assessPropertyRisk({
+      lat: lat ? parseFloat(lat as string) : 0,
+      lng: lng ? parseFloat(lng as string) : 0,
+      zip: zip as string,
+      address: address as string
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Property risk error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // GET /api/hail/hot-zones - Get hot zones for canvassing
 router.get('/hot-zones', async (req: Request, res: Response) => {
   try {
@@ -659,7 +700,8 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       includeNexrad = true,
       includeMap = true,
       includeWarnings = true,
-      customerName
+      customerName,
+      template = 'standard'
     } = req.body;
 
     // Validate required fields
@@ -751,8 +793,14 @@ router.post('/generate-report', async (req: Request, res: Response) => {
 
     console.log(`📊 Supplemental data: NEXRAD=${nwsAlertImages.length > 0 ? `${nwsAlertImages.length} per-alert` : (nexradResult ? 'single' : 'no')}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
 
+    // Select template: 'standard' (IHM-style) or 'noaa-forward' (federal data emphasis)
+    const useV2 = template === 'noaa-forward' || template === 'v2';
+    const reportService = useV2 ? pdfReportServiceV2 : pdfReportService;
+
+    console.log(`📄 Using ${useV2 ? 'NOAA-Forward (V2)' : 'Standard (IHM)'} template`);
+
     // Generate PDF stream
-    const pdfStream = pdfReportService.generateReport({
+    const pdfStream = reportService.generateReport({
       address,
       city,
       state,
@@ -827,6 +875,74 @@ router.get('/nws-warnings', async (req: Request, res: Response) => {
     res.json({ alerts, count: alerts.length });
   } catch (error) {
     console.error('NWS warnings error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/nexrad-image - Serve historical NEXRAD radar image for map overlay
+router.get('/nexrad-image', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, datetime, zoom } = req.query;
+
+    if (!lat || !lng || !datetime) {
+      return res.status(400).json({ error: 'lat, lng, and datetime are required' });
+    }
+
+    const result = await fetchNexradImage({
+      lat: parseFloat(lat as string),
+      lng: parseFloat(lng as string),
+      datetime: datetime as string,
+      zoomMiles: zoom ? parseFloat(zoom as string) : 50,
+      width: 800,
+      height: 600
+    });
+
+    if (!result) {
+      return res.status(404).json({ error: 'No radar data available for this time/location' });
+    }
+
+    // Return image as PNG with bbox metadata in headers
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('X-Radar-Bbox', JSON.stringify(result.bbox));
+    res.setHeader('X-Radar-Timestamp', result.timestamp);
+    res.setHeader('Access-Control-Expose-Headers', 'X-Radar-Bbox, X-Radar-Timestamp');
+    res.send(result.imageBuffer);
+  } catch (error) {
+    console.error('NEXRAD image error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/nexrad-meta - Get NEXRAD image as base64 with bbox (for Leaflet ImageOverlay)
+router.get('/nexrad-meta', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, datetime, zoom } = req.query;
+
+    if (!lat || !lng || !datetime) {
+      return res.status(400).json({ error: 'lat, lng, and datetime are required' });
+    }
+
+    const result = await fetchNexradImage({
+      lat: parseFloat(lat as string),
+      lng: parseFloat(lng as string),
+      datetime: datetime as string,
+      zoomMiles: zoom ? parseFloat(zoom as string) : 50,
+      width: 800,
+      height: 600
+    });
+
+    if (!result) {
+      return res.json({ available: false });
+    }
+
+    res.json({
+      available: true,
+      imageBase64: `data:image/png;base64,${result.imageBuffer.toString('base64')}`,
+      bbox: result.bbox, // [minLng, minLat, maxLng, maxLat]
+      timestamp: result.timestamp
+    });
+  } catch (error) {
+    console.error('NEXRAD meta error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

@@ -87,6 +87,11 @@ class NOAAStormService {
                     magnitudeUnit: eventType === 'hail' ? 'inches' : 'knots',
                     source: row.SOURCE || 'NWS',
                     narrative: row.EVENT_NARRATIVE || row.EPISODE_NARRATIVE || '',
+                    episodeId: row.EPISODE_ID || '',
+                    damageProperty: this.parseDamageValue(row.DAMAGE_PROPERTY),
+                    damageCrops: this.parseDamageValue(row.DAMAGE_CROPS),
+                    injuries: parseInt(row.INJURIES_DIRECT || '0', 10) + parseInt(row.INJURIES_INDIRECT || '0', 10),
+                    deaths: parseInt(row.DEATHS_DIRECT || '0', 10) + parseInt(row.DEATHS_INDIRECT || '0', 10),
                     dataSource: 'NOAA Storm Events Database',
                     certified: true
                 });
@@ -97,6 +102,20 @@ class NOAAStormService {
             readable.on('error', reject);
             readable.pipe(gunzip).pipe(parser);
         });
+    }
+    /** Parse NOAA damage shorthand: "25K" → "$25,000", "1.50M" → "$1,500,000", "0.00K" → null */
+    parseDamageValue(raw) {
+        if (!raw || raw === '0' || raw === '0.00K' || raw === '0K')
+            return null;
+        const match = (raw || '').trim().match(/^([\d.]+)([KMB]?)$/i);
+        if (!match)
+            return raw || null;
+        const num = parseFloat(match[1]);
+        if (num === 0)
+            return null;
+        const multiplier = { K: 1_000, M: 1_000_000, B: 1_000_000_000 }[match[2].toUpperCase()] || 1;
+        const total = num * multiplier;
+        return `$${total.toLocaleString('en-US')}`;
     }
     classifyEventType(type) {
         const t = (type || '').toLowerCase();

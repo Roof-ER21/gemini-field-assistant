@@ -79,6 +79,7 @@ const testData = {
         riskLevel: 'High',
         factors: {
             eventCount: 6,
+            stormSystemCount: 4,
             maxHailSize: 2.0,
             recentActivity: 3,
             cumulativeExposure: 8.5,
@@ -87,7 +88,9 @@ const testData = {
                 moderate: 2,
                 minor: 1
             },
-            recencyScore: 18.5
+            recencyScore: 18.5,
+            documentedDamage: 25000,
+            windEvents: 2
         },
         summary: 'High risk area with 6 recorded hail events. Maximum hail size of 2.0" indicates significant damage potential. 3 events occurred in the past 12 months, indicating active storm activity. 3 severe events (1.5"+) recorded.',
         color: '#f97316'

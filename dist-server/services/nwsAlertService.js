@@ -5,6 +5,37 @@
  * Free public API, no key required.
  * https://api.weather.gov/
  */
+/** Extract hail size from NWS warning text. Returns e.g. '1.75"' or null. */
+export function extractHailSizeFromText(text) {
+    if (!text)
+        return null;
+    const lower = text.toLowerCase();
+    const inchMatch = lower.match(/(\d+\.?\d*)\s*inch/);
+    if (inchMatch)
+        return `${inchMatch[1]}"`;
+    const namedSizes = {
+        'softball': '4.50', 'baseball': '2.75', 'tennis ball': '2.50',
+        'golf ball': '1.75', 'ping pong': '1.50', 'half dollar': '1.25',
+        'quarter': '1.00', 'nickel': '0.88', 'dime': '0.75',
+    };
+    for (const [name, size] of Object.entries(namedSizes)) {
+        if (lower.includes(name))
+            return `${size}"`;
+    }
+    return null;
+}
+/** Extract wind speed from NWS warning text. Returns e.g. '60 mph' or null. */
+export function extractWindSpeedFromText(text) {
+    if (!text)
+        return null;
+    const mphMatch = text.match(/(\d+)\s*(?:to\s*\d+\s*)?mph/i);
+    if (mphMatch)
+        return `${mphMatch[1]} mph`;
+    const windMatch = text.match(/winds?\s+(?:up\s+to\s+)?(\d+)/i);
+    if (windMatch)
+        return `${windMatch[1]} mph`;
+    return null;
+}
 // Simple cache (1h TTL)
 const cache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -89,17 +120,20 @@ export async function fetchNWSAlerts(params) {
         const features = data.features || [];
         const alerts = features.map((feature) => {
             const props = feature.properties;
+            const desc = props.description || '';
             return {
                 id: feature.id || props.id,
                 headline: props.headline || '',
-                description: props.description || '',
+                description: desc,
                 severity: props.severity || 'Unknown',
                 certainty: props.certainty || 'Unknown',
                 event: props.event || 'Unknown Event',
                 onset: props.onset || props.effective || '',
                 expires: props.expires || props.ends || '',
                 senderName: props.senderName || 'NWS',
-                areaDesc: props.areaDesc || ''
+                areaDesc: props.areaDesc || '',
+                hailSize: extractHailSizeFromText(desc),
+                windSpeed: extractWindSpeedFromText(desc)
             };
         });
         // Filter to storm-damage relevant events
