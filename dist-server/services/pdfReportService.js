@@ -276,7 +276,11 @@ export class PDFReportService {
         const primaryEvent = hailEvents.length > 0 ? hailEvents[0] : null;
         const primaryStormDate = primaryEvent?.date ||
             (input.noaaEvents.length > 0 ? input.noaaEvents[0].date : new Date().toISOString());
-        const nearbyCount = hailEvents.filter(e => (e.distance || 99) < 10).length;
+        const allNearbyEvents = [
+            ...hailEvents.filter(e => (e.distance || 99) < 10),
+            ...windEvents.filter(e => (e.distanceMiles || 99) < 10)
+        ];
+        const nearbyCount = allNearbyEvents.length;
         // Apply filter
         const filter = input.filter || 'all';
         let filteredIhm = input.events;
@@ -426,7 +430,7 @@ export class PDFReportService {
             drawDetailRow('Time of Hail Impact:', this.fmtTimeET(primaryStormDate), 0, 1);
             drawDetailRow('Size of Hail Detected:', primaryEvent?.size ? `${primaryEvent.size.toFixed(2)}"` : '---', 1, 1);
             drawDetailRow('Storm Direction:', primaryEvent?.direction || 'N', 0, 2);
-            drawDetailRow('Nearby Hail Reported:', `${nearbyCount} reports`, 1, 2);
+            drawDetailRow('Nearby Storm Reports:', `${nearbyCount} reports`, 1, 2);
             drawDetailRow('Storm Speed:', primaryEvent?.speed ? `${primaryEvent.speed.toFixed(1)} mph` : '---', 0, 3);
             drawDetailRow('Max Hail Size Reported:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : '---', 1, 3);
             // Thin divider lines between rows
@@ -705,19 +709,24 @@ export class PDFReportService {
         this.drawSectionBanner(doc, 'Historical Storm Activity');
         const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'Duration', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
         const histWidths = [62, 70, 48, 38, 44, 58, 54, 54, 54];
-        // Build historical rows from all events
+        // Build historical rows from all events (hail + wind + tornado)
         const allEvents = [
             ...filteredIhm.map(e => ({
                 date: e.date, direction: e.stormDirection || 'N', speed: e.stormSpeed,
-                duration: e.duration, size: e.hailSize, distance: e.distanceMiles, source: 'NEXRAD'
+                duration: e.duration, size: e.hailSize, distance: e.distanceMiles,
+                eventType: 'hail', source: 'NEXRAD'
             })),
-            ...filteredNoaa.filter(e => e.eventType === 'hail').map(e => ({
+            ...filteredNoaa.map(e => ({
                 date: e.date, direction: 'N', speed: undefined,
-                duration: undefined, size: e.magnitude, distance: e.distanceMiles, source: 'NOAA'
+                duration: undefined,
+                size: e.eventType === 'hail' ? e.magnitude : null,
+                distance: e.distanceMiles,
+                eventType: e.eventType, source: 'NOAA'
             }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         const histRows = allEvents.map(e => {
-            const sizeStr = e.size ? `${e.size.toFixed(2)}"` : '---';
+            const isWind = e.eventType === 'wind';
+            const sizeStr = e.size ? `${e.size.toFixed(2)}"` : (isWind ? 'wind' : '---');
             const dist = e.distance || 99;
             return [
                 this.fmtDateET(e.date),

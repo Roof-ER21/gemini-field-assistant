@@ -94,6 +94,12 @@ interface ReportInput {
   includeMap?: boolean;
   includeWarnings?: boolean;
   customerName?: string;
+  propertyRisk?: {
+    estimatedRoofAge: number | null;
+    medianYearBuilt: number | null;
+    roofVulnerability: string;
+    riskMultiplier: number;
+  } | null;
 }
 
 // ========== SERVICE CLASS ==========
@@ -324,7 +330,12 @@ export class PDFReportServiceV2 {
     const primaryEvent = hailEvents.length > 0 ? hailEvents[0] : null;
     const primaryStormDate = primaryEvent?.date ||
       (input.noaaEvents.length > 0 ? input.noaaEvents[0].date : new Date().toISOString());
-    const nearbyCount = hailEvents.filter(e => (e.distance || 99) < 10).length;
+    // Count ALL nearby events (hail + wind + tornado), not just hail
+    const allNearbyEvents = [
+      ...hailEvents.filter(e => (e.distance || 99) < 10),
+      ...windEvents.filter(e => (e.distanceMiles || 99) < 10)
+    ];
+    const nearbyCount = allNearbyEvents.length;
 
     // Apply filter
     const filter = input.filter || 'all';
@@ -465,6 +476,19 @@ export class PDFReportServiceV2 {
          .text('Property Owner:', textX, doc.y);
       doc.fontSize(10).fillColor(this.C.text).font('Helvetica')
          .text(input.customerName, textX, doc.y);
+    }
+
+    // Roof age estimate from Census data
+    if (input.propertyRisk?.estimatedRoofAge) {
+      doc.moveDown(0.3);
+      const vulnColor = input.propertyRisk.roofVulnerability === 'critical' ? '#dc2626' :
+        input.propertyRisk.roofVulnerability === 'high' ? '#f97316' : this.C.sourceGreen;
+      doc.fontSize(9).fillColor(this.C.accent).font('Helvetica-Bold')
+         .text('Estimated Roof Age:', textX, doc.y);
+      doc.fontSize(9).fillColor(vulnColor).font('Helvetica-Bold')
+         .text(`~${input.propertyRisk.estimatedRoofAge} years (built ~${input.propertyRisk.medianYearBuilt})`, textX, doc.y, { continued: true });
+      doc.fillColor(this.C.lightText).font('Helvetica')
+         .text(` — ${input.propertyRisk.roofVulnerability} vulnerability`);
     }
 
     doc.y = Math.max(doc.y, propY + 130);
@@ -794,16 +818,21 @@ export class PDFReportServiceV2 {
     const allEvents = [
       ...filteredIhm.map(e => ({
         date: e.date, direction: e.stormDirection || 'N', speed: e.stormSpeed,
-        duration: e.duration, size: e.hailSize, distance: e.distanceMiles, source: 'NEXRAD'
+        duration: e.duration, size: e.hailSize, distance: e.distanceMiles,
+        eventType: 'hail' as const, source: 'NEXRAD'
       })),
-      ...filteredNoaa.filter(e => e.eventType === 'hail').map(e => ({
+      ...filteredNoaa.map(e => ({
         date: e.date, direction: 'N', speed: undefined as number | undefined,
-        duration: undefined as number | undefined, size: e.magnitude, distance: e.distanceMiles, source: 'NOAA'
+        duration: undefined as number | undefined,
+        size: e.eventType === 'hail' ? e.magnitude : null,
+        distance: e.distanceMiles,
+        eventType: e.eventType, source: 'NOAA'
       }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     const histRows: string[][] = allEvents.map(e => {
-      const sizeStr = e.size ? `${e.size.toFixed(2)}"` : '---';
+      const isWind = e.eventType === 'wind';
+      const sizeStr = e.size ? `${e.size.toFixed(2)}"` : (isWind ? 'wind' : '---');
       const dist = e.distance || 99;
       return [
         this.fmtDateET(e.date), this.fmtFullDateTimeET(e.date),

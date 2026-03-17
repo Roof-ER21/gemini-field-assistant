@@ -592,13 +592,18 @@ router.post('/generate-report', async (req, res) => {
         ].filter(Boolean).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
         const primaryStormDate = allDates.length > 0 ? allDates[0] : new Date().toISOString();
         const earliestDate = allDates.length > 0 ? allDates[allDates.length - 1] : primaryStormDate;
-        // Step 1: Fetch NWS alerts + map image in parallel
-        const [nwsAlerts, mapImage] = await Promise.all([
+        // Step 1: Fetch NWS alerts + map image + property risk in parallel
+        // Extract zip from request body for Census lookup
+        const { zip } = req.body;
+        const [nwsAlerts, mapImage, propertyRiskData] = await Promise.all([
             includeWarnings
                 ? fetchNWSAlerts({ lat: parsedLat, lng: parsedLng, startDate: earliestDate, endDate: primaryStormDate }).catch(e => { console.warn('NWS alerts fetch failed:', e.message); return []; })
                 : Promise.resolve([]),
             includeMap
                 ? fetchMapImage({ lat: parsedLat, lng: parsedLng, zoom: 15 }).catch(e => { console.warn('Map image fetch failed:', e.message); return null; })
+                : Promise.resolve(null),
+            zip
+                ? assessPropertyRisk({ lat: parsedLat, lng: parsedLng, zip }).catch(() => null)
                 : Promise.resolve(null)
         ]);
         // Step 2: Fetch per-alert NEXRAD radar images in parallel (up to 5 alerts)
@@ -614,17 +619,36 @@ router.post('/generate-report', async (req, res) => {
                 const matchingEvent = [...(events || []), ...(noaaEvents || [])].find((e) => e.date === date);
                 const isHail = matchingEvent && ('hailSize' in matchingEvent || matchingEvent.eventType === 'hail');
                 const isWind = matchingEvent && matchingEvent.eventType === 'wind';
+                const isTornado = matchingEvent && matchingEvent.eventType === 'tornado';
+                const mag = matchingEvent?.magnitude || matchingEvent?.hailSize;
+                // Build event-type-specific description
+                let desc = matchingEvent?.comments || '';
+                if (!desc) {
+                    const timeStr = new Date(date).toLocaleString('en-US', { timeZone: 'America/New_York' });
+                    desc = `Storm event recorded at ${timeStr}.`;
+                    if (isHail && mag)
+                        desc += ` Hail size: ${mag} inches.`;
+                    else if (isWind && mag)
+                        desc += ` Wind gust: ${mag} knots (${Math.round(mag * 1.15)} mph).`;
+                    else if (isTornado)
+                        desc += ` Tornado reported.`;
+                }
+                // Event-specific hailSize and windSpeed for the alert
+                const alertHailSize = isHail && mag ? `${mag}"` : null;
+                const alertWindSpeed = isWind && mag ? `${Math.round(mag * 1.15)} mph` : null;
                 return {
                     id: `synthetic-${idx}`,
-                    headline: `Severe weather activity detected near ${address}`,
-                    description: matchingEvent?.comments || `Storm event recorded at ${new Date(date).toLocaleString('en-US', { timeZone: 'America/New_York' })}. ${isHail ? `Hail size: ${matchingEvent.hailSize || matchingEvent.magnitude || 'unknown'} inches.` : ''} ${isWind ? `Wind: ${matchingEvent.magnitude || 'unknown'} kts.` : ''}`,
-                    severity: (matchingEvent?.severity === 'severe' || (matchingEvent?.magnitude || 0) > 1.5) ? 'Severe' : 'Moderate',
+                    headline: `${isWind ? 'Damaging wind' : isTornado ? 'Tornado' : 'Severe hail'} activity near ${address}`,
+                    description: desc,
+                    severity: (isTornado || (isHail && mag > 1.5) || (isWind && mag > 65)) ? 'Severe' : 'Moderate',
                     certainty: 'Observed',
-                    event: isWind ? 'Severe Thunderstorm Warning' : 'Severe Thunderstorm Warning',
+                    event: isTornado ? 'Tornado Warning' : 'Severe Thunderstorm Warning',
                     onset: date,
                     expires: new Date(new Date(date).getTime() + 30 * 60 * 1000).toISOString(),
                     senderName: 'NOAA Storm Events Database',
-                    areaDesc: `${city || ''} ${state || ''}`.trim() || 'Local area'
+                    areaDesc: `${city || ''} ${state || ''}`.trim() || 'Local area',
+                    hailSize: alertHailSize,
+                    windSpeed: alertWindSpeed
                 };
             })
             : [];
@@ -678,7 +702,13 @@ router.post('/generate-report', async (req, res) => {
             includeNexrad,
             includeMap,
             includeWarnings,
-            customerName
+            customerName,
+            propertyRisk: propertyRiskData ? {
+                estimatedRoofAge: propertyRiskData.factors.estimatedRoofAge,
+                medianYearBuilt: propertyRiskData.factors.medianYearBuilt,
+                roofVulnerability: propertyRiskData.factors.roofVulnerability,
+                riskMultiplier: propertyRiskData.riskMultiplier
+            } : undefined
         });
         // Set response headers for PDF download
         const filename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
