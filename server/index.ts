@@ -655,6 +655,31 @@ app.post('/api/ai/generate', async (req, res) => {
 // Register hail history routes early to avoid proxy ordering issues
 app.use('/api/hail', hailRoutes);
 
+// MRMS MESH tile proxy — forwards requests to Oracle Cloud tile server
+// This avoids mixed-content (https→http) blocking in browsers
+app.get('/api/mrms/:file', async (req, res) => {
+  try {
+    const file = req.params.file;
+    // Only allow specific file patterns
+    if (!/^(mesh60|mesh1440)\.(png|json)$/.test(file)) {
+      return res.status(400).send('Invalid file');
+    }
+    const upstream = `http://129.159.190.3:8090/overlays/${file}`;
+    const response = await fetch(upstream, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) {
+      return res.status(response.status).send('MRMS data unavailable');
+    }
+    const contentType = file.endsWith('.json') ? 'application/json' : 'image/png';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=120'); // 2-min cache
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    res.status(502).send('MRMS tile server unreachable');
+  }
+});
+
 // One-time migration runner for analytics tables (admin only)
 app.post('/api/admin/run-analytics-migration', async (req, res) => {
   try {

@@ -7,6 +7,7 @@ import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save
 import NexradRadarLayer from './NexradRadarLayer';
 import HailSwathLayer from './HailSwathLayer';
 import RainViewerRadarLayer from './RainViewerRadarLayer';
+import MRMSHailOverlay from './MRMSHailOverlay';
 import { downloadBlob } from '../services/pdfService';
 
 interface Territory {
@@ -302,6 +303,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [nexradStormLocation, setNexradStormLocation] = useState<{ lat: number; lng: number } | null>(null);
   // RainViewer live radar visibility
   const [showRainViewer, setShowRainViewer] = useState(false);
+
+  // MRMS MESH hail swath overlay visibility and product selection
+  const [showMRMS, setShowMRMS] = useState(false);
+  const [mrmsProduct, setMrmsProduct] = useState<'mesh60' | 'mesh1440'>('mesh60');
 
   // Last updated timestamp
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -2742,6 +2747,13 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           <RainViewerRadarLayer
             visible={showRainViewer}
             onToggle={() => setShowRainViewer(!showRainViewer)}
+          />
+
+          {/* MRMS MESH Hail Swath Overlay */}
+          <MRMSHailOverlay
+            visible={showMRMS}
+            product={mrmsProduct}
+            onToggle={() => setShowMRMS(!showMRMS)}
           />
 
           {/* Territory Rectangles */}
