@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygo
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
-import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2 } from 'lucide-react';
+import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2, Radio } from 'lucide-react';
 import NexradRadarLayer from './NexradRadarLayer';
 import RainViewerRadarLayer from './RainViewerRadarLayer';
 import { downloadBlob } from '../services/pdfService';
@@ -291,6 +291,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   // NEXRAD radar visibility
   const [showNexrad, setShowNexrad] = useState(false);
+  // NEXRAD storm date — set when user clicks a specific event marker
+  const [nexradStormDate, setNexradStormDate] = useState<string | null>(null);
   // RainViewer live radar visibility
   const [showRainViewer, setShowRainViewer] = useState(false);
 
@@ -2577,9 +2579,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             visible={showNexrad}
             onToggle={() => setShowNexrad(!showNexrad)}
             stormDate={
-              hailEvents.length > 0 ? hailEvents[0].date :
+              nexradStormDate ||
+              (hailEvents.length > 0 ? hailEvents[0].date :
               noaaEvents.length > 0 ? noaaEvents[0].date :
-              undefined
+              undefined)
             }
           />
 
@@ -2785,6 +2788,12 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                                 {ne.source && <div style={{ fontSize: '11px', color: '#888' }}>Reported by: {ne.source}</div>}
                                 {ne.narrative && <div style={{ marginTop: '4px', fontSize: '10px', color: '#666', borderTop: '1px solid #eee', paddingTop: '4px' }}>{ne.narrative.length > 150 ? ne.narrative.slice(0, 150) + '...' : ne.narrative}</div>}
                                 <div style={{ marginTop: '4px', fontSize: '10px', color: '#3b82f6' }}>NOAA Storm Events Database</div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setNexradStormDate(ne.date); setShowNexrad(true); }}
+                                  style={{ marginTop: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 600, background: '#c53030', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <Radio className="w-3 h-3" /> View Radar
+                                </button>
                               </div>
                             </>);
                           })()
@@ -2795,6 +2804,12 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                               <div><strong>Hail Size:</strong> {(firstItem.event as HailEvent).hailSize}"</div>
                               <div><strong>Severity:</strong> {(firstItem.event as HailEvent).severity}</div>
                               <div style={{ marginTop: '4px', fontSize: '11px', color: '#3b82f6' }}>Source: Storm Database</div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setNexradStormDate(firstItem.event.date); setShowNexrad(true); }}
+                                style={{ marginTop: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 600, background: '#c53030', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Radio className="w-3 h-3" /> View Radar
+                              </button>
                             </div>
                           </>
                         )}
@@ -2824,14 +2839,30 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                                       <div style={{ color: isW ? '#8b5cf6' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}: {ne.magnitude != null ? `${ne.magnitude}${isW ? ' kts' : '"'}` : '---'}</div>
                                       {ne.distanceMiles != null && <div style={{ fontSize: '10px' }}>{ne.distanceMiles} mi away</div>}
                                       {ne.damageProperty && <div style={{ color: '#dc2626', fontSize: '10px' }}>Damage: {ne.damageProperty}</div>}
-                                      <div style={{ fontSize: '10px', color: '#3b82f6' }}>NOAA</div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                        <span style={{ fontSize: '10px', color: '#3b82f6' }}>NOAA</span>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setNexradStormDate(ne.date); setShowNexrad(true); }}
+                                          style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 600, background: '#c53030', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                                        >
+                                          Radar
+                                        </button>
+                                      </div>
                                     </>);
                                   })()
                                 ) : (
                                   <>
                                     <div>Hail: {(item.event as HailEvent).hailSize}"</div>
                                     <div>Severity: {(item.event as HailEvent).severity}</div>
-                                    <div style={{ fontSize: '10px', color: '#3b82f6' }}>Storm DB</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                      <span style={{ fontSize: '10px', color: '#3b82f6' }}>Storm DB</span>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setNexradStormDate(item.event.date); setShowNexrad(true); }}
+                                        style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 600, background: '#c53030', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                                      >
+                                        Radar
+                                      </button>
+                                    </div>
                                   </>
                                 )}
                               </div>
