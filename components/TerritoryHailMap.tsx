@@ -2717,14 +2717,17 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         >
           {mapStyle === 'satellite' ? (
             <TileLayer
-              attribution='Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution='&copy; Google'
+              url="https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              subdomains="0123"
+              maxZoom={21}
             />
           ) : (
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
+              attribution='&copy; Google'
+              url="https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+              subdomains="0123"
+              maxZoom={21}
             />
           )}
 

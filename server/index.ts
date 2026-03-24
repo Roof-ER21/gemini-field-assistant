@@ -664,7 +664,7 @@ app.get('/api/mrms/:file', async (req, res) => {
     if (!/^(mesh60|mesh1440)\.(png|json)$/.test(file)) {
       return res.status(400).send('Invalid file');
     }
-    const upstream = `http://129.159.190.3:8090/overlays/${file}`;
+    const upstream = `http://129.159.190.3:8080/overlays/${file}`;
     const response = await fetch(upstream, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) {
       return res.status(response.status).send('MRMS data unavailable');
