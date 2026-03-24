@@ -318,10 +318,30 @@ const DocumentAnalysisPanel: React.FC = () => {
 
       const susanContextBlock = susanContext ? `\n${susanContext}\n` : '';
 
-      const supplementPrompt = `You are Susan, S21's expert insurance supplement specialist. A sales rep has uploaded an adjuster's estimate for supplement review.
+      const supplementPrompt = `You are Susan, S21's expert insurance supplement specialist. A sales rep has uploaded documents for supplement review. When BOTH an adjuster's estimate AND a Hover measurement report are provided, you MUST cross-reference every measurement.
 
-${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Estimate/Documents:
+${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
+
+**CRITICAL — HOVER REPORT CROSS-REFERENCE:**
+If a Hover measurement report is included, compare EVERY measurement against the estimate:
+- Roof total area (Hover SF vs estimate SQ — convert: 1 SQ = 100 SF)
+- Ridge/hip lengths (Hover vs estimate ridge cap line item)
+- Valley lengths (Hover vs estimate valley lining)
+- Rake lengths (Hover vs estimate drip edge at rakes)
+- Eave lengths (Hover vs estimate drip edge at eaves / starter strip)
+- Step flashing counts and lengths (Hover vs estimate)
+- Flashing counts (Hover vs estimate pipe jacks/flashing)
+- Drip edge perimeter (Hover vs estimate drip edge LF)
+- Roof pitch breakdown (Hover shows exact pitches — check if steep slope charges are correct)
+- Number of stories (Hover shows — verify high roof charges)
+- Waste factor (Hover provides waste calculations — compare to estimate waste %)
+
+For EACH discrepancy found, calculate the DOLLAR DIFFERENCE:
+- Show the Hover measurement vs the estimate measurement
+- Calculate the additional square footage or linear footage missed
+- Apply the per-unit price from the estimate to get the supplement dollar amount
+- Total all supplement items at the end
 
 ${susanContextBlock}
 
