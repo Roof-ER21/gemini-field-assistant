@@ -78,6 +78,7 @@ const DocumentAnalysisPanel: React.FC = () => {
   const [claimDate, setClaimDate] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [analysisMode, setAnalysisMode] = useState<'general' | 'supplement'>('general');
   const [showChatWithSusan, setShowChatWithSusan] = useState(false);
   const [susanContext, setSusanContext] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -316,7 +317,94 @@ const DocumentAnalysisPanel: React.FC = () => {
       ].filter(Boolean).join('\n');
 
       const susanContextBlock = susanContext ? `\n${susanContext}\n` : '';
-      const analysisPrompt = `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
+
+      const supplementPrompt = `You are Susan, S21's expert insurance supplement specialist. A sales rep has uploaded an adjuster's estimate for supplement review.
+
+${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Estimate/Documents:
+${combinedText}
+
+${susanContextBlock}
+
+YOUR MISSION: Find EVERY item the adjuster missed, undervalued, or incorrectly calculated that can be supplemented.
+
+**SUPPLEMENT ANALYSIS CHECKLIST — review the estimate for ALL of these:**
+
+1. **Missing Line Items** (things adjusters commonly leave out):
+   - Drip edge replacement (required by IRC R905.2.8.5 when re-roofing)
+   - Ice & water shield (required in ice dam areas per IRC R905.1.2)
+   - Starter strip shingles
+   - Ridge cap / hip cap shingles (often under-counted)
+   - Pipe boot/jack replacements
+   - Step flashing at walls and chimneys
+   - Counter flashing
+   - Valley metal or valley lining
+   - Roof-to-wall flashing
+   - Chimney cricket/saddle (required for chimneys >30" wide per IRC R903.2.2)
+   - Satellite dish / antenna removal and reset
+   - Gutter apron / drip edge at eaves
+   - Re-felt / synthetic underlayment (full deck vs partial)
+   - Plywood/OSB decking replacement (check for soft/rotted areas)
+   - Ridge vent or exhaust vent replacement
+   - Skylight flashing kit
+   - Paint touch-up at flashings
+   - Detach & reset gutters during roof replacement
+   - Code upgrade: ventilation requirements (1:150 or 1:300 ratio per IRC R806)
+   - Permit fees
+   - Waste factor (typically 10-15% for regular, 15-20% for hip roofs)
+
+2. **Undervalued Items**:
+   - Square footage measurement discrepancy (compare to actual roof measurement)
+   - Labor rates below market for your region
+   - Material pricing below current costs
+   - Overhead & Profit (O&P) not included or incorrectly calculated (standard is 10% + 10%)
+   - Steep slope charge missing (7/12 pitch and above)
+   - High roof charge (2+ stories)
+   - Limited access charge
+   - Tear-off of multiple layers
+
+3. **Code Compliance Issues**:
+   - Does the estimate meet current IRC/IBC requirements?
+   - Ventilation calculations (IRC R806)
+   - Underlayment requirements (IRC R905.1.1)
+   - Flashing requirements (IRC R903.2)
+   - If local codes are stricter than IRC, note that
+
+4. **Depreciation Review**:
+   - Is depreciation calculated correctly?
+   - Are non-depreciable items being depreciated (labor, O&P, code upgrades)?
+   - Is recoverable vs non-recoverable properly categorized?
+
+5. **Manufacturer Requirements**:
+   - Does the scope meet GAF/CertainTeed/Owens Corning warranty installation requirements?
+   - Are required accessories included for warranty compliance?
+
+Respond in JSON:
+{
+  "approvalStatus": "partial",
+  "insuranceData": {
+    "claimNumber": "string or null",
+    "policyNumber": "string or null",
+    "insuranceCompany": "string or null",
+    "adjusterName": "string or null",
+    "adjusterPhone": "string or null",
+    "adjusterEmail": "string or null",
+    "dateOfLoss": "string or null",
+    "propertyAddress": "string or null",
+    "rcv": "string or null",
+    "acv": "string or null",
+    "recoverableDepreciation": "string or null",
+    "nonRecoverableDepreciation": "string or null",
+    "deductible": "string or null",
+    "claimStatus": "string or null"
+  },
+  "summary": "Brief overview of the estimate and its completeness",
+  "keyFindings": ["CRITICAL items: each finding should be a specific missed/undervalued item with the code reference or reason"],
+  "damageDescriptions": ["All damage items found in the estimate"],
+  "recommendations": ["Specific supplement items to submit, with estimated dollar amounts where possible and code references"],
+  "nextSteps": ["Step-by-step action plan to write and submit the supplement"]
+}`;
+
+      const analysisPrompt = analysisMode === 'supplement' ? supplementPrompt : `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
 
 ${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
@@ -652,6 +740,65 @@ Format your response as JSON with this structure:
             Powered by <span style={{ fontWeight: 600, color: 'var(--roof-red)' }}>Susan AI</span>
           </p>
         </div>
+
+        {/* Analysis Mode Toggle */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+          <button
+            onClick={() => setAnalysisMode('general')}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: analysisMode === 'general' ? '2px solid var(--roof-red)' : '2px solid var(--border-default)',
+              background: analysisMode === 'general' ? 'var(--roof-red)' : 'var(--bg-elevated)',
+              color: analysisMode === 'general' ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <FileText className="w-4 h-4" />
+            General Analysis
+          </button>
+          <button
+            onClick={() => setAnalysisMode('supplement')}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: analysisMode === 'supplement' ? '2px solid #f97316' : '2px solid var(--border-default)',
+              background: analysisMode === 'supplement' ? '#f97316' : 'var(--bg-elevated)',
+              color: analysisMode === 'supplement' ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <AlertCircle className="w-4 h-4" />
+            Supplement Finder
+          </button>
+        </div>
+
+        {analysisMode === 'supplement' && (
+          <div style={{
+            marginBottom: '1.5rem',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            border: '1px solid rgba(249, 115, 22, 0.3)',
+            background: 'rgba(249, 115, 22, 0.08)',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5
+          }}>
+            <strong style={{ color: '#f97316' }}>Supplement Mode:</strong> Upload the adjuster's estimate and Susan will identify missed line items, undervalued repairs, code-required upgrades, and items that should be supplemented. She'll reference IRC/IBC building codes and manufacturer specs.
+          </div>
+        )}
 
         {isAnalyzing && (
           <div
