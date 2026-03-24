@@ -305,7 +305,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [showRainViewer, setShowRainViewer] = useState(false);
 
   // MRMS MESH hail swath overlay visibility and product selection
-  const [showMRMS, setShowMRMS] = useState(false);
+  const [showMRMS, setShowMRMS] = useState(true);
   const [mrmsProduct, setMrmsProduct] = useState<'mesh60' | 'mesh1440'>('mesh60');
 
   // Last updated timestamp
