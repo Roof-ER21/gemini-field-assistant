@@ -221,7 +221,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [hailEvents, setHailEvents] = useState<HailEvent[]>([]);
   const [noaaEvents, setNoaaEvents] = useState<NOAAEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [months, setMonths] = useState(24);
+  const [months, setMonths] = useState(12);
+  const [customDateRange, setCustomDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [error, setError] = useState<string | null>(null);
 
   // Search panel state
@@ -268,7 +269,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [hoveredStorm, setHoveredStorm] = useState<StormPath | null>(null);
 
   // Filter state
-  const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind' | 'tornado'>('all');
+  const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ihm' | 'noaa'>('all');
 
   // Hot Zones state
@@ -326,10 +327,12 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   const filteredNoaaEvents = useMemo(() => {
     if (sourceFilter === 'ihm') return [];
+    // Only show hail and wind events (tornado excluded from UI)
+    const relevantEvents = noaaEvents.filter(e => e.eventType === 'hail' || e.eventType === 'wind');
     if (eventTypeFilter === 'all') {
-      return noaaEvents;
+      return relevantEvents;
     }
-    return noaaEvents.filter(e => e.eventType === eventTypeFilter);
+    return relevantEvents.filter(e => e.eventType === eventTypeFilter);
   }, [noaaEvents, eventTypeFilter, sourceFilter]);
 
   // Get filtered events for PDF based on report filter
@@ -402,9 +405,23 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${getApiBaseUrl()}/hail/search?lat=${territory.centerLat}&lng=${territory.centerLng}&months=${months}&radius=50`
-      );
+      const params = new URLSearchParams({
+        lat: territory.centerLat.toString(),
+        lng: territory.centerLng.toString(),
+        radius: '50'
+      });
+      if (months === -1 && customDateRange.start && customDateRange.end) {
+        // Custom range: calculate months from date span
+        const start = new Date(customDateRange.start);
+        const end = new Date(customDateRange.end);
+        const diffMonths = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000)));
+        params.set('months', diffMonths.toString());
+        params.set('startDate', customDateRange.start);
+        params.set('endDate', customDateRange.end);
+      } else {
+        params.set('months', (months === -1 ? 12 : months).toString());
+      }
+      const res = await fetch(`${getApiBaseUrl()}/hail/search?${params}`);
       if (res.ok) {
         const data = await res.json();
         setHailEvents(data.events || []);
@@ -419,7 +436,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     } finally {
       setLoading(false);
     }
-  }, [months]);
+  }, [months, customDateRange]);
 
   const handleTerritoryClick = (territory: Territory) => {
     setSelectedTerritory(territory);
@@ -798,7 +815,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     switch (type) {
       case 'hail': return '#3b82f6'; // blue
       case 'wind': return '#8b5cf6'; // purple
-      case 'tornado': return '#ef4444'; // red
       default: return '#6b7280';
     }
   };
@@ -1963,74 +1979,105 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
         {/* Event Type Filter */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {(['all', 'hail', 'wind', 'tornado'] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setEventTypeFilter(type)}
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: eventTypeFilter === type ? '2px solid var(--roof-red)' : '2px solid transparent',
-                background: eventTypeFilter === type ? 'var(--roof-red)' : 'var(--bg-elevated)',
-                color: eventTypeFilter === type ? 'white' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                boxShadow: eventTypeFilter === type ? '0 0 8px rgba(196, 30, 58, 0.3)' : 'none'
-              }}
-            >
-              {type === 'wind' && <Wind className="w-3 h-3" />}
-              {type.charAt(0).toUpperCase() + type.slice(1)}
-            </button>
-          ))}
+          {(['all', 'hail', 'wind'] as const).map(type => {
+            const isActive = eventTypeFilter === type;
+            const label = type === 'all' ? 'All' : type === 'hail' ? 'Hail' : 'Wind';
+            return (
+              <button
+                key={type}
+                onClick={() => setEventTypeFilter(type)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: isActive ? '2px solid var(--roof-red)' : '2px solid transparent',
+                  background: isActive ? 'var(--roof-red)' : 'var(--bg-elevated)',
+                  color: isActive ? 'white' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: isActive ? '0 0 8px rgba(196, 30, 58, 0.3)' : 'none'
+                }}
+              >
+                {type === 'wind' && <Wind className="w-3 h-3" />}
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Month Filter */}
+        {/* Time Range + Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={() => setSearchCollapsed(!searchCollapsed)}
-            title={searchCollapsed ? "Expand search" : "Collapse search"}
-            style={{
-              background: searchCollapsed ? 'var(--bg-elevated)' : 'var(--roof-red)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '6px',
-              padding: '6px 8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Filter className="w-4 h-4" style={{ color: searchCollapsed ? 'var(--text-secondary)' : 'white' }} />
-            <span style={{ fontSize: '12px', color: searchCollapsed ? 'var(--text-secondary)' : 'white' }}>
-              Search
-            </span>
-          </button>
+          {/* Time Range Buttons */}
+          <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+            {([
+              { value: 6, label: '6mo' },
+              { value: 12, label: '1yr' },
+              { value: 24, label: '2yr' },
+              { value: -1, label: 'Custom' }
+            ] as const).map(opt => {
+              const isActive = months === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setMonths(opt.value);
+                    if (opt.value !== -1) setCustomDateRange({ start: '', end: '' });
+                  }}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    border: isActive ? '2px solid var(--roof-red)' : '2px solid transparent',
+                    background: isActive ? 'var(--roof-red)' : 'var(--bg-elevated)',
+                    color: isActive ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s',
+                    boxShadow: isActive ? '0 0 8px rgba(196, 30, 58, 0.3)' : 'none'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
 
-          <select
-            value={months}
-            onChange={(e) => setMonths(Number(e.target.value))}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-elevated)',
-              color: 'var(--text-primary)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <option value={6}>6 months</option>
-            <option value={12}>12 months</option>
-            <option value={24}>24 months</option>
-            <option value={36}>36 months</option>
-          </select>
+          {/* Custom date range inputs */}
+          {months === -1 && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                type="date"
+                value={customDateRange.start}
+                onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                style={{
+                  padding: '4px 6px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '11px'
+                }}
+              />
+              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>to</span>
+              <input
+                type="date"
+                value={customDateRange.end}
+                onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                style={{
+                  padding: '4px 6px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '11px'
+                }}
+              />
+            </div>
+          )}
 
           {/* Hot Zones Toggle */}
           <button
@@ -2071,6 +2118,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             )}
           </button>
 
+          {/* Single Search Button */}
           <button
             onClick={() => setSearchCollapsed(!searchCollapsed)}
             style={{
@@ -2089,7 +2137,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             }}
           >
             <Search className="w-4 h-4" />
-            Advanced Search
+            Search
           </button>
         </div>
       </div>
@@ -2729,7 +2777,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                             return (<>
                               <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>{formatDate(ne.date)}</div>
                               <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
-                                <div><strong>Type:</strong> <span style={{ color: isWind ? '#8b5cf6' : ne.eventType === 'tornado' ? '#ef4444' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}</span></div>
+                                <div><strong>Type:</strong> <span style={{ color: isWind ? '#8b5cf6' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}</span></div>
                                 {ne.magnitude != null && <div><strong>{isWind ? 'Wind' : 'Hail'}:</strong> {ne.magnitude}{isWind ? ` kts (${Math.round(ne.magnitude * 1.15)} mph)` : '"'}</div>}
                                 {ne.distanceMiles != null && <div><strong>Distance:</strong> {ne.distanceMiles} mi from property</div>}
                                 <div><strong>Location:</strong> {ne.location}</div>
@@ -2773,7 +2821,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                                     const ne = item.event as NOAAEvent;
                                     const isW = ne.eventType === 'wind';
                                     return (<>
-                                      <div style={{ color: isW ? '#8b5cf6' : ne.eventType === 'tornado' ? '#ef4444' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}: {ne.magnitude != null ? `${ne.magnitude}${isW ? ' kts' : '"'}` : '---'}</div>
+                                      <div style={{ color: isW ? '#8b5cf6' : '#3b82f6', textTransform: 'capitalize' }}>{ne.eventType}: {ne.magnitude != null ? `${ne.magnitude}${isW ? ' kts' : '"'}` : '---'}</div>
                                       {ne.distanceMiles != null && <div style={{ fontSize: '10px' }}>{ne.distanceMiles} mi away</div>}
                                       {ne.damageProperty && <div style={{ color: '#dc2626', fontSize: '10px' }}>Damage: {ne.damageProperty}</div>}
                                       <div style={{ fontSize: '10px', color: '#3b82f6' }}>NOAA</div>
