@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { WMSTileLayer, useMap } from 'react-leaflet';
-import { Radio, Clock, Minus, Plus } from 'lucide-react';
+import { Radio, Clock, Minus, Plus, Calendar } from 'lucide-react';
 
 interface NexradRadarLayerProps {
   /** Whether the radar layer is visible */
@@ -71,21 +71,33 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
   const [currentTime, setCurrentTime] = useState(stormDate || new Date().toISOString());
   const [timeOffset, setTimeOffset] = useState(0); // minutes offset from storm date
   const [showControls, setShowControls] = useState(false);
+  // Manual date/time entry
+  const [manualDate, setManualDate] = useState('');
+  const [manualTime, setManualTime] = useState('12:00');
+  const [useManualDate, setUseManualDate] = useState(false);
 
-  // Update time when storm date changes
+  // Get the effective base date (manual or storm-based)
+  const getBaseDate = useCallback((): string => {
+    if (useManualDate && manualDate) {
+      return new Date(`${manualDate}T${manualTime || '12:00'}:00`).toISOString();
+    }
+    return stormDate || new Date().toISOString();
+  }, [useManualDate, manualDate, manualTime, stormDate]);
+
+  // Update time when storm date changes (only if not using manual)
   useEffect(() => {
-    if (stormDate) {
+    if (stormDate && !useManualDate) {
       setCurrentTime(stormDate);
       setTimeOffset(0);
     }
-  }, [stormDate]);
+  }, [stormDate, useManualDate]);
 
-  // Apply time offset
+  // Apply time offset from base date
   useEffect(() => {
-    const base = new Date(stormDate || new Date().toISOString());
+    const base = new Date(getBaseDate());
     base.setMinutes(base.getMinutes() + timeOffset);
     setCurrentTime(base.toISOString());
-  }, [timeOffset, stormDate]);
+  }, [timeOffset, getBaseDate]);
 
   const formatTimeDisplay = useCallback((isoStr: string): string => {
     try {
@@ -182,6 +194,73 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
           {/* Current time display */}
           <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '8px' }}>
             {formatTimeDisplay(currentTime)}
+          </div>
+
+          {/* Date picker */}
+          <div style={{ marginBottom: '8px', padding: '8px', background: '#f7fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+            <label style={{ fontSize: '10px', color: '#718096', display: 'block', marginBottom: '4px' }}>
+              <Calendar className="w-3 h-3" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+              Look up date
+            </label>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                type="date"
+                value={manualDate}
+                onChange={(e) => {
+                  setManualDate(e.target.value);
+                  if (e.target.value) {
+                    setUseManualDate(true);
+                    setTimeOffset(0);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '4px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '11px',
+                  color: '#1a202c',
+                  background: 'white'
+                }}
+              />
+              <input
+                type="time"
+                value={manualTime}
+                onChange={(e) => {
+                  setManualTime(e.target.value);
+                  if (manualDate) {
+                    setUseManualDate(true);
+                    setTimeOffset(0);
+                  }
+                }}
+                style={{
+                  width: '80px',
+                  padding: '4px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '11px',
+                  color: '#1a202c',
+                  background: 'white'
+                }}
+              />
+            </div>
+            {useManualDate && (
+              <button
+                onClick={() => { setUseManualDate(false); setManualDate(''); setTimeOffset(0); }}
+                style={{
+                  marginTop: '4px',
+                  padding: '2px 8px',
+                  fontSize: '9px',
+                  color: '#c53030',
+                  background: 'none',
+                  border: '1px solid #c53030',
+                  borderRadius: '3px',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear — back to storm events
+              </button>
+            )}
           </div>
 
           {/* Time slider */}
