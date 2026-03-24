@@ -228,6 +228,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   // Search panel state
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>({});
   const [currentSearch, setCurrentSearch] = useState<SearchCriteria | null>(null);
+  // Quick search from sidebar
+  const [quickSearchInput, setQuickSearchInput] = useState('');
 
   // Saved reports state
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -448,7 +450,9 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     setSearchStats(null);
     setDamageScore(null);
     setSearchLocation(null);
-    setShowHailDates(false);
+    setShowHailDates(true);
+    setPropertyFocusMode(false);
+    setSelectedStormDate(null);
     fetchHailData(territory);
 
     // Fetch hot zones if enabled
@@ -563,6 +567,61 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
       console.error('Failed to calculate damage score:', err);
     } finally {
       setLoadingDamageScore(false);
+    }
+  };
+
+  // Handle quick search from sidebar (address or zip)
+  const handleQuickSearch = async () => {
+    if (!quickSearchInput.trim()) return;
+    const input = quickSearchInput.trim();
+    // Detect if it's a zip code
+    const isZip = /^\d{5}$/.test(input);
+    const criteria: SearchCriteria = isZip
+      ? { zip: input, radius: 25 }
+      : { address: input, radius: 25 };
+    setSearchCriteria(criteria);
+    // Trigger the advanced search with these criteria
+    setLoading(true);
+    setError(null);
+    setSelectedTerritory(null);
+    setDamageScore(null);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/hail/search-advanced`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(criteria)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHailEvents(data.events || []);
+        setNoaaEvents(data.noaaEvents || []);
+        setCurrentSearch(data.searchCriteria);
+        setLastUpdated(new Date());
+        const allHailSizes = data.events
+          .map((e: HailEvent) => e.hailSize)
+          .filter((size: number | null) => size !== null) as number[];
+        setSearchStats({
+          totalEvents: (data.events?.length || 0) + (data.noaaEvents?.length || 0),
+          maxHailSize: allHailSizes.length > 0 ? Math.max(...allHailSizes) : null,
+          avgHailSize: allHailSizes.length > 0 ? allHailSizes.reduce((a: number, b: number) => a + b, 0) / allHailSizes.length : null
+        });
+        setShowHailDates(true);
+        setSelectedStormDate(null);
+        // Auto-zoom if we have coordinates
+        if (data.searchCriteria?.latitude && data.searchCriteria?.longitude) {
+          setSearchLocation({ lat: data.searchCriteria.latitude, lng: data.searchCriteria.longitude, zoom: 12 });
+          if (data.searchCriteria.latitude && data.searchCriteria.longitude) {
+            fetchDamageScore(data.searchCriteria.latitude, data.searchCriteria.longitude, data.events || [], data.noaaEvents || [], data.searchCriteria.zip);
+          }
+        }
+      } else {
+        setError('Search failed');
+      }
+    } catch (err) {
+      console.error('Quick search error:', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1485,38 +1544,110 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   // Render the standard full event list sidebar
   const renderStandardSidebar = () => {
+    // Sort groups by impact (max hail size descending) for Impact tab
+    const impactSorted = [...stormDateGroups].sort((a, b) => b.maxHail - a.maxHail || b.eventCount - a.eventCount);
+    const displayGroups = activeTab === 'impact' ? impactSorted : stormDateGroups;
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Sidebar Header */}
         <div style={{
           padding: '12px 16px',
           background: 'var(--bg-elevated)',
-          borderBottom: '1px solid var(--border-default)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
+          borderBottom: '1px solid var(--border-default)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
-            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Storm Events
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cloud className="w-5 h-5" style={{ color: 'var(--roof-red)' }} />
+              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Storm Events
+              </span>
+            </div>
+            <button
+              onClick={() => setShowHailDates(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={() => setShowHailDates(false)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
+
+          {/* Quick Search Bar */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleQuickSearch(); }}
+            style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}
           >
-            <X className="w-4 h-4" />
-          </button>
+            <input
+              type="text"
+              placeholder="Address, city, or ZIP..."
+              value={quickSearchInput}
+              onChange={(e) => setQuickSearchInput(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: '12px'
+              }}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'var(--roof-red)',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: loading ? 0.6 : 1
+              }}
+            >
+              <Search className="w-3 h-3" />
+            </button>
+          </form>
+
+          {/* Tabs: Recent / Impact */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {(['recent', 'impact'] as const).map(tab => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: isActive ? '2px solid var(--roof-red)' : '2px solid transparent',
+                    background: isActive ? 'var(--roof-red)' : 'var(--bg-primary)',
+                    color: isActive ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {tab === 'recent' ? 'Recent' : 'Impact'}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Scrollable content: stats + events list */}
@@ -1758,10 +1889,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               textTransform: 'uppercase',
               letterSpacing: '0.5px'
             }}>
-              Recent Storm Events ({stormDateGroups.reduce((sum, g) => sum + g.eventCount, 0)})
+              {activeTab === 'recent' ? 'Recent' : 'By Impact'} ({displayGroups.reduce((sum, g) => sum + g.eventCount, 0)} events)
             </div>
 
-            {stormDateGroups.map(group => {
+            {displayGroups.map(group => {
               const isActive = selectedStormDate === group.dateKey;
               const severityColor = group.severity === 'severe' ? '#ef4444' : group.severity === 'moderate' ? '#f97316' : '#eab308';
               const hailCount = group.events.filter(e => e.type === 'ihm' || (e.type === 'noaa' && (e.event as NOAAEvent).eventType === 'hail')).length;
@@ -1883,7 +2014,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               );
             })}
 
-            {stormDateGroups.length === 0 && (
+            {displayGroups.length === 0 && (
               <div style={{
                 padding: '32px 16px',
                 textAlign: 'center',
@@ -2382,19 +2513,15 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div style={{ position: 'relative', height: 'calc(100vh - 200px)' }}>
-        {/* Left Sidebar - Property Card or Standard Events List */}
+      {/* Main Content Area — flex layout: sidebar + map */}
+      <div style={{ display: 'flex', height: 'calc(100vh - 200px)', position: 'relative' }}>
+        {/* Left Sidebar — always visible when events loaded */}
         {showHailDates && (
           <div style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
             width: '320px',
+            minWidth: '320px',
             background: 'var(--bg-primary)',
             borderRight: '1px solid var(--border-default)',
-            zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
@@ -2576,6 +2703,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           </div>
         )}
 
+        {/* Map area — fills remaining space */}
+        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
         <MapContainer
           center={defaultCenter}
           zoom={defaultZoom}
@@ -2917,6 +3046,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             );
           })}
         </MapContainer>
+        </div>
       </div>
       </div>
     </div>
