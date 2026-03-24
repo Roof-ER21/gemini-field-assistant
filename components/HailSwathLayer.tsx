@@ -204,24 +204,37 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
 
       {filteredSwaths.map(swath => {
         const color = getSeverityColor(swath.severity);
-        const weight = getSeverityWeight(swath.severity);
-        const isHighlighted = selectedDate && swath.startDate.split('T')[0] === selectedDate;
+        // Base width 12-24px depending on severity, looks like filled swath
+        const baseWeight = swath.severity === 'extreme' ? 24 : swath.severity === 'severe' ? 18 : swath.severity === 'moderate' ? 14 : 10;
 
         return (
-          <Polyline
-            key={swath.id}
-            positions={swath.coordinates}
-            pathOptions={{
-              color,
-              weight: isHighlighted ? weight + 2 : weight,
-              opacity: selectedDate ? (isHighlighted ? 0.9 : 0.2) : 0.7,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }}
-            eventHandlers={{
-              click: () => onSwathClick?.(swath)
-            }}
-          >
+          <React.Fragment key={swath.id}>
+            {/* Outer glow/border for depth */}
+            <Polyline
+              positions={swath.coordinates}
+              pathOptions={{
+                color: color,
+                weight: baseWeight + 4,
+                opacity: 0.15,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }}
+              interactive={false}
+            />
+            {/* Main swath body */}
+            <Polyline
+              positions={swath.coordinates}
+              pathOptions={{
+                color: color,
+                weight: baseWeight,
+                opacity: 0.5,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }}
+              eventHandlers={{
+                click: () => onSwathClick?.(swath)
+              }}
+            >
             <Popup maxWidth={280} maxHeight={200} autoPan={true} autoPanPadding={[40, 40]}>
               <div style={{ padding: '6px', fontFamily: 'system-ui' }}>
                 <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '6px' }}>
@@ -249,6 +262,7 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
               </div>
             </Popup>
           </Polyline>
+          </React.Fragment>
         );
       })}
     </>

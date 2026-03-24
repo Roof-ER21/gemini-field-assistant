@@ -401,7 +401,12 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
       if (res.ok) {
         const data = await res.json();
-        setTerritories(data.territories || []);
+        const terrs = data.territories || [];
+        setTerritories(terrs);
+        // Auto-select first territory on page load
+        if (terrs.length > 0 && !selectedTerritory) {
+          handleTerritoryClick(terrs[0]);
+        }
       } else {
         console.error('Failed to fetch territories:', res.status, res.statusText);
       }
@@ -2208,27 +2213,14 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             })}
           </div>
 
-          {/* Custom date range inputs */}
+          {/* Custom "since" date input */}
           {months === -1 && (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Since</span>
               <input
                 type="date"
                 value={customDateRange.start}
-                onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                style={{
-                  padding: '4px 6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  fontSize: '11px'
-                }}
-              />
-              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>to</span>
-              <input
-                type="date"
-                value={customDateRange.end}
-                onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                onChange={(e) => setCustomDateRange({ start: e.target.value, end: new Date().toISOString().split('T')[0] })}
                 style={{
                   padding: '4px 6px',
                   borderRadius: '6px',
@@ -2919,13 +2911,14 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           ]).map((group, idx) => {
             const firstItem = group.events[0];
             const eventDate = firstItem.event.date.split('T')[0];
-            const isDateSelected = selectedStormDate === eventDate;
             const hasDateFilter = selectedStormDate !== null;
 
-            // Severity-based color when a date is selected
+            // When a date is selected, ONLY show markers for that date
+            if (hasDateFilter && selectedStormDate !== eventDate) return null;
+
+            // Severity-based colors
             let markerColor = getMarkerColorBySource(firstItem.type);
-            if (isDateSelected) {
-              // Color by severity for highlighted events
+            if (hasDateFilter) {
               if (firstItem.type === 'noaa') {
                 const noaaEvt = firstItem.event as NOAAEvent;
                 if (noaaEvt.eventType === 'hail' && noaaEvt.magnitude && noaaEvt.magnitude >= 2) markerColor = '#ef4444';
@@ -2943,13 +2936,13 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               <CircleMarker
                 key={`marker-${idx}`}
                 center={[group.lat, group.lng]}
-                radius={isDateSelected ? 12 : hasDateFilter ? 5 : 8}
+                radius={hasDateFilter ? 10 : 7}
                 pathOptions={{
                   fillColor: markerColor,
-                  color: isDateSelected ? '#fff' : hasDateFilter ? '#999' : '#fff',
-                  weight: isDateSelected ? 3 : 2,
-                  opacity: hasDateFilter && !isDateSelected ? 0.3 : 1,
-                  fillOpacity: isDateSelected ? 0.95 : hasDateFilter ? 0.15 : 0.8
+                  color: '#fff',
+                  weight: 2,
+                  opacity: 0.9,
+                  fillOpacity: hasDateFilter ? 0.9 : 0.7
                 }}
               >
                 <Popup maxWidth={300} maxHeight={250} autoPan={true} autoPanPadding={[40, 40]}>
