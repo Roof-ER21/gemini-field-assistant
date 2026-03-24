@@ -10,11 +10,19 @@
  * - Time slider for historical dates
  * - Opacity control
  * - Auto-loads radar for the most recent storm date
+ * - Auto-zooms map to storm location when activated
+ * - Bounds-restricted WMS tiles to avoid loading the whole USA
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { WMSTileLayer, useMap } from 'react-leaflet';
+import { LatLngBounds } from 'leaflet';
 import { Radio, Clock, Minus, Plus, Calendar } from 'lucide-react';
+
+interface StormLocation {
+  lat: number;
+  lng: number;
+}
 
 interface NexradRadarLayerProps {
   /** Whether the radar layer is visible */
@@ -23,16 +31,52 @@ interface NexradRadarLayerProps {
   onToggle: () => void;
   /** Optional: date to show radar for (ISO string) */
   stormDate?: string;
+  /** Optional: lat/lng of the storm — used to auto-zoom and restrict WMS tile area */
+  stormLocation?: StormLocation;
   /** Optional: opacity 0-1 */
   opacity?: number;
 }
 
+// Half-width in degrees for the WMS bounds box around the storm location.
+// ~1.5° ≈ 100 miles at mid-latitudes; large enough to show radar context
+// while keeping tile requests focused on the area of interest.
+const BOUNDS_HALF_DEG = 1.5;
+
 /**
- * WMS tile layer for NEXRAD radar overlay
+ * Sits inside the MapContainer context and flies the map to the storm
+ * location whenever the radar is activated or the location changes.
  */
-const NexradTileLayer: React.FC<{ datetime: string; opacity: number }> = ({ datetime, opacity }) => {
+const MapFlyController: React.FC<{
+  visible: boolean;
+  stormLocation: StormLocation | undefined;
+}> = ({ visible, stormLocation }) => {
   const map = useMap();
 
+  useEffect(() => {
+    if (!visible || !stormLocation) return;
+    const { lat, lng } = stormLocation;
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+
+    // Only fly if the current zoom is wide (< 9). If the user is already
+    // zoomed into the area, don't disturb their view.
+    const currentZoom = map.getZoom();
+    const targetZoom = Math.max(currentZoom, 9);
+    map.flyTo([lat, lng], targetZoom, { duration: 1.2, easeLinearity: 0.25 });
+  }, [visible, stormLocation, map]);
+
+  return null;
+};
+
+/**
+ * WMS tile layer for NEXRAD radar overlay.
+ * When a stormLocation is provided the tiles are bounded to a box around
+ * that location so Leaflet only requests radar tiles for that region.
+ */
+const NexradTileLayer: React.FC<{
+  datetime: string;
+  opacity: number;
+  stormLocation?: StormLocation;
+}> = ({ datetime, opacity, stormLocation }) => {
   // Round datetime to nearest 5 minutes for WMS-T
   const getWmsTime = (dt: string): string => {
     const date = new Date(dt);
@@ -41,6 +85,16 @@ const NexradTileLayer: React.FC<{ datetime: string; opacity: number }> = ({ date
   };
 
   const wmsTime = getWmsTime(datetime);
+
+  // Build a LatLngBounds box around the storm location if one is available.
+  // This is passed to WMSTileLayer so Leaflet will only request tiles that
+  // intersect that bounding box, avoiding full-USA tile loads.
+  const tileBounds: LatLngBounds | undefined = stormLocation
+    ? new LatLngBounds(
+        [stormLocation.lat - BOUNDS_HALF_DEG, stormLocation.lng - BOUNDS_HALF_DEG],
+        [stormLocation.lat + BOUNDS_HALF_DEG, stormLocation.lng + BOUNDS_HALF_DEG]
+      )
+    : undefined;
 
   return (
     <WMSTileLayer
@@ -52,6 +106,7 @@ const NexradTileLayer: React.FC<{ datetime: string; opacity: number }> = ({ date
       attribution='NEXRAD Radar: <a href="https://mesonet.agron.iastate.edu/">IEM</a>'
       maxZoom={19}
       zIndex={500}
+      bounds={tileBounds}
       // @ts-ignore - WMS-T time parameter
       time={wmsTime}
     />
@@ -65,6 +120,7 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
   visible,
   onToggle,
   stormDate,
+  stormLocation,
   opacity: initialOpacity = 0.6
 }) => {
   const [opacity, setOpacity] = useState(initialOpacity);
@@ -117,6 +173,9 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
 
   return (
     <>
+      {/* Auto-zoom map to storm location when radar activates */}
+      <MapFlyController visible={visible} stormLocation={stormLocation} />
+
       {/* Radar toggle button */}
       <div
         style={{
@@ -195,6 +254,21 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
           <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '8px' }}>
             {formatTimeDisplay(currentTime)}
           </div>
+
+          {/* Storm location indicator */}
+          {stormLocation && (
+            <div style={{
+              fontSize: '10px',
+              color: '#2f855a',
+              background: '#f0fff4',
+              border: '1px solid #9ae6b4',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              marginBottom: '8px'
+            }}>
+              Radar focused: {stormLocation.lat.toFixed(3)}, {stormLocation.lng.toFixed(3)}
+            </div>
+          )}
 
           {/* Date picker */}
           <div style={{ marginBottom: '8px', padding: '8px', background: '#f7fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
@@ -341,7 +415,13 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
       )}
 
       {/* The actual radar tile layer */}
-      {visible && <NexradTileLayer datetime={currentTime} opacity={opacity} />}
+      {visible && (
+        <NexradTileLayer
+          datetime={currentTime}
+          opacity={opacity}
+          stormLocation={stormLocation}
+        />
+      )}
     </>
   );
 };
