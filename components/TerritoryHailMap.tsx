@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon, Circle, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon, Circle } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
 import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2, Radio } from 'lucide-react';
-import * as turf from '@turf/turf';
 import NexradRadarLayer from './NexradRadarLayer';
+import HailSwathLayer from './HailSwathLayer';
 import RainViewerRadarLayer from './RainViewerRadarLayer';
 import { downloadBlob } from '../services/pdfService';
 
@@ -211,126 +211,6 @@ const groupEventsByLocation = (events: Array<{ event: HailEvent | NOAAEvent; typ
 
   return groups;
 };
-
-/**
- * Generate storm swath polygons from point data using turf.js.
- * Groups events by date + proximity, creates bezier-smoothed buffered paths.
- * Returns GeoJSON FeatureCollection with severity-colored swaths.
- */
-function generateStormSwaths(
-  hailEvents: HailEvent[],
-  noaaEvents: NOAAEvent[]
-): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = [];
-
-  // Combine all events with coordinates
-  const allEvents = [
-    ...hailEvents.map(e => ({
-      lat: e.latitude, lng: e.longitude, date: e.date,
-      magnitude: e.hailSize || 0.75, type: 'hail' as const,
-      severity: e.severity
-    })),
-    ...noaaEvents.filter(e => e.eventType === 'hail').map(e => ({
-      lat: e.latitude, lng: e.longitude, date: e.date,
-      magnitude: e.magnitude || 0.75, type: 'hail' as const,
-      severity: (e.magnitude && e.magnitude >= 2 ? 'severe' : e.magnitude && e.magnitude >= 1 ? 'moderate' : 'minor') as 'severe' | 'moderate' | 'minor'
-    })),
-    ...noaaEvents.filter(e => e.eventType === 'wind').map(e => ({
-      lat: e.latitude, lng: e.longitude, date: e.date,
-      magnitude: e.magnitude || 50, type: 'wind' as const,
-      severity: (e.magnitude && e.magnitude >= 70 ? 'severe' : e.magnitude && e.magnitude >= 50 ? 'moderate' : 'minor') as 'severe' | 'moderate' | 'minor'
-    }))
-  ].filter(e => e.lat && e.lng && !isNaN(e.lat) && !isNaN(e.lng));
-
-  // Group by date
-  const byDate: Record<string, typeof allEvents> = {};
-  allEvents.forEach(e => {
-    const dateKey = e.date.split('T')[0];
-    if (!byDate[dateKey]) byDate[dateKey] = [];
-    byDate[dateKey].push(e);
-  });
-
-  Object.entries(byDate).forEach(([dateKey, events]) => {
-    if (events.length < 2) {
-      // Single event: create a small circle-like polygon
-      const e = events[0];
-      const radiusKm = Math.max(3, e.magnitude * 2);
-      try {
-        const circle = turf.circle([e.lng, e.lat], radiusKm, { units: 'kilometers', steps: 32 });
-        circle.properties = {
-          dateKey, severity: e.severity, type: e.type,
-          magnitude: e.magnitude, eventCount: 1
-        };
-        features.push(circle);
-      } catch { /* skip invalid */ }
-      return;
-    }
-
-    // Cluster nearby events (within ~50km) into storm tracks
-    const clusters: typeof events[] = [];
-    const used = new Set<number>();
-
-    events.forEach((e, i) => {
-      if (used.has(i)) return;
-      const cluster = [e];
-      used.add(i);
-      events.forEach((e2, j) => {
-        if (used.has(j)) return;
-        const dist = turf.distance([e.lng, e.lat], [e2.lng, e2.lat], { units: 'kilometers' });
-        if (dist < 80) {
-          cluster.push(e2);
-          used.add(j);
-        }
-      });
-      clusters.push(cluster);
-    });
-
-    clusters.forEach(cluster => {
-      if (cluster.length === 1) {
-        const e = cluster[0];
-        const radiusKm = Math.max(3, e.magnitude * 2);
-        try {
-          const circle = turf.circle([e.lng, e.lat], radiusKm, { units: 'kilometers', steps: 32 });
-          circle.properties = {
-            dateKey, severity: e.severity, type: e.type,
-            magnitude: e.magnitude, eventCount: 1
-          };
-          features.push(circle);
-        } catch { /* skip */ }
-        return;
-      }
-
-      // Sort by longitude (west to east) to approximate storm direction
-      const sorted = [...cluster].sort((a, b) => a.lng - b.lng);
-      const coords = sorted.map(e => [e.lng, e.lat] as [number, number]);
-      const maxMag = Math.max(...sorted.map(e => e.magnitude));
-      const worstSeverity = sorted.some(e => e.severity === 'severe') ? 'severe'
-        : sorted.some(e => e.severity === 'moderate') ? 'moderate' : 'minor';
-
-      try {
-        let line: GeoJSON.Feature<GeoJSON.LineString>;
-        if (coords.length >= 3) {
-          // Smooth with bezier spline for natural storm path
-          line = turf.bezierSpline(turf.lineString(coords), { sharpness: 0.85 });
-        } else {
-          line = turf.lineString(coords);
-        }
-        // Buffer width based on magnitude (hail size or wind speed proxy)
-        const bufferKm = Math.max(4, Math.min(15, maxMag * 3));
-        const swath = turf.buffer(line, bufferKm, { units: 'kilometers' });
-        if (swath) {
-          swath.properties = {
-            dateKey, severity: worstSeverity, type: sorted[0].type,
-            magnitude: maxMag, eventCount: cluster.length
-          };
-          features.push(swath);
-        }
-      } catch { /* skip invalid geometries */ }
-    });
-  });
-
-  return { type: 'FeatureCollection', features };
-}
 
 interface TerritoryHailMapProps {
   isAdmin?: boolean;
@@ -1608,10 +1488,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     );
   };
 
-  // Generate storm swath polygons for map visualization
-  const stormSwaths = useMemo(() => {
-    return generateStormSwaths(filteredHailEvents, filteredNoaaEvents);
-  }, [filteredHailEvents, filteredNoaaEvents]);
+  // Hail swath layer visibility
+  const [showHailSwaths, setShowHailSwaths] = useState(true);
 
   // Group all events by date for IHM-style sidebar
   const stormDateGroups = useMemo(() => {
@@ -2933,56 +2811,11 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             </Polygon>
           ))}
 
-          {/* Storm Swaths — turf.js generated from event data */}
-          {stormSwaths.features.length > 0 && (
-            <GeoJSON
-              key={`swaths-${filteredHailEvents.length}-${filteredNoaaEvents.length}-${selectedStormDate || 'all'}`}
-              data={stormSwaths}
-              style={(feature) => {
-                if (!feature || !feature.properties) return {};
-                const { severity, dateKey } = feature.properties;
-                const isDateSelected = selectedStormDate === dateKey;
-                const hasDateFilter = selectedStormDate !== null;
-
-                // Severity color palette (matches IHM style)
-                let fillColor = '#eab308'; // yellow - minor
-                if (severity === 'severe') fillColor = '#ef4444'; // red
-                else if (severity === 'moderate') fillColor = '#f97316'; // orange
-
-                return {
-                  fillColor,
-                  color: isDateSelected ? '#fff' : fillColor,
-                  weight: isDateSelected ? 2 : 1,
-                  fillOpacity: isDateSelected ? 0.45 : hasDateFilter ? 0.05 : 0.25,
-                  opacity: isDateSelected ? 0.9 : hasDateFilter ? 0.1 : 0.6
-                };
-              }}
-              onEachFeature={(feature, layer) => {
-                if (feature.properties) {
-                  const { dateKey, severity, magnitude, eventCount, type } = feature.properties;
-                  const dateStr = new Date(dateKey + 'T12:00:00').toLocaleDateString('en-US', {
-                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-                  });
-                  layer.bindPopup(
-                    `<div style="padding:6px;font-family:system-ui">
-                      <div style="font-weight:700;font-size:13px;margin-bottom:4px">${dateStr}</div>
-                      <div style="font-size:12px">
-                        <span style="color:${severity === 'severe' ? '#ef4444' : severity === 'moderate' ? '#f97316' : '#eab308'};font-weight:600;text-transform:uppercase">${severity}</span>
-                        &middot; ${eventCount} event${eventCount !== 1 ? 's' : ''}
-                      </div>
-                      <div style="font-size:12px;margin-top:2px">
-                        ${type === 'hail' ? `Max hail: ${magnitude}"` : `Max wind: ${magnitude} kts`}
-                      </div>
-                    </div>`,
-                    { maxWidth: 250, maxHeight: 200 }
-                  );
-                  layer.on('click', () => {
-                    handleStormDateClick(dateKey, feature.properties!.dateKey + 'T12:00:00');
-                  });
-                }
-              }}
-            />
-          )}
+          {/* Real MESH Hail Swaths from National Hail Project */}
+          <HailSwathLayer
+            visible={showHailSwaths}
+            selectedDate={selectedStormDate}
+          />
 
           {/* Hot Zones - Best Canvassing Areas */}
           {showHotZones && hotZones.map((zone) => {
