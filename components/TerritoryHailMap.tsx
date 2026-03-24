@@ -260,6 +260,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   // Selected event for highlighting
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  // Selected storm date — highlights all events from that day
+  const [selectedStormDate, setSelectedStormDate] = useState<string | null>(null);
 
   // Search panel collapsed state
   const [searchCollapsed, setSearchCollapsed] = useState(true);
@@ -1424,6 +1426,63 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     );
   };
 
+  // Group all events by date for IHM-style sidebar
+  const stormDateGroups = useMemo(() => {
+    const groups: Record<string, {
+      date: string;
+      dateKey: string;
+      events: Array<{ type: 'ihm' | 'noaa'; event: HailEvent | NOAAEvent }>;
+      maxHail: number;
+      maxWind: number;
+      eventCount: number;
+      severity: 'severe' | 'moderate' | 'minor';
+    }> = {};
+
+    filteredHailEvents.forEach(e => {
+      const dateKey = e.date.split('T')[0];
+      if (!groups[dateKey]) groups[dateKey] = { date: e.date, dateKey, events: [], maxHail: 0, maxWind: 0, eventCount: 0, severity: 'minor' };
+      groups[dateKey].events.push({ type: 'ihm', event: e });
+      groups[dateKey].eventCount++;
+      if (e.hailSize && e.hailSize > groups[dateKey].maxHail) groups[dateKey].maxHail = e.hailSize;
+      if (e.severity === 'severe') groups[dateKey].severity = 'severe';
+      else if (e.severity === 'moderate' && groups[dateKey].severity !== 'severe') groups[dateKey].severity = 'moderate';
+    });
+
+    filteredNoaaEvents.forEach(e => {
+      const dateKey = e.date.split('T')[0];
+      if (!groups[dateKey]) groups[dateKey] = { date: e.date, dateKey, events: [], maxHail: 0, maxWind: 0, eventCount: 0, severity: 'minor' };
+      groups[dateKey].events.push({ type: 'noaa', event: e });
+      groups[dateKey].eventCount++;
+      if (e.eventType === 'hail' && e.magnitude && e.magnitude > groups[dateKey].maxHail) groups[dateKey].maxHail = e.magnitude;
+      if (e.eventType === 'wind' && e.magnitude && e.magnitude > groups[dateKey].maxWind) groups[dateKey].maxWind = e.magnitude;
+      // Escalate severity based on magnitude
+      if (e.eventType === 'hail' && e.magnitude && e.magnitude >= 2) groups[dateKey].severity = 'severe';
+      else if (e.eventType === 'hail' && e.magnitude && e.magnitude >= 1 && groups[dateKey].severity !== 'severe') groups[dateKey].severity = 'moderate';
+      else if (e.eventType === 'wind' && e.magnitude && e.magnitude >= 70) groups[dateKey].severity = 'severe';
+      else if (e.eventType === 'wind' && e.magnitude && e.magnitude >= 50 && groups[dateKey].severity !== 'severe') groups[dateKey].severity = 'moderate';
+    });
+
+    return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filteredHailEvents, filteredNoaaEvents]);
+
+  // Handle storm date selection — highlight on map + load NEXRAD
+  const handleStormDateClick = (dateKey: string, date: string) => {
+    if (selectedStormDate === dateKey) {
+      setSelectedStormDate(null); // deselect
+      setNexradStormDate(null);
+    } else {
+      setSelectedStormDate(dateKey);
+      setNexradStormDate(date);
+      setShowNexrad(true);
+      // Zoom to the first event of that date
+      const group = stormDateGroups.find(g => g.dateKey === dateKey);
+      if (group && group.events.length > 0) {
+        const firstEvt = group.events[0].event;
+        setSearchLocation({ lat: firstEvt.latitude, lng: firstEvt.longitude, zoom: 10 });
+      }
+    }
+  };
+
   // Render the standard full event list sidebar
   const renderStandardSidebar = () => {
     return (
@@ -1689,180 +1748,142 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             </div>
           )}
 
-          {/* Events List */}
+          {/* Storm Dates List — grouped by date like IHM */}
           <div style={{ padding: '8px' }}>
-            {/* IHM Events */}
-            {filteredHailEvents.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  padding: '8px 8px 4px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  IHM Hail Events ({filteredHailEvents.length})
-                </div>
-                {filteredHailEvents
-                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                  .map((event, idx) => {
-                    const eventId = `ihm-${event.id}`;
-                    const isSelected = selectedEventId === eventId;
-                    const sourceType = getEventSourceType(event);
-                    const isHailTrace = sourceType === 'hailtrace';
+            <div style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--text-secondary)',
+              padding: '8px 8px 4px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Recent Storm Events ({stormDateGroups.reduce((sum, g) => sum + g.eventCount, 0)})
+            </div>
 
-                    return (
-                    <div
-                      key={`ihm-${event.id || idx}`}
-                      onClick={() => {
-                        setSelectedEventId(eventId);
-                        setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
-                      }}
-                      style={{
-                        padding: '12px',
-                        margin: '4px 0',
-                        background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
-                        borderRadius: '8px',
-                        border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getSeverityColor(event.severity)}20`,
-                        borderLeft: `4px solid ${isHailTrace ? '#10b981' : getSeverityColor(event.severity)}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative'
-                      }}
-                    >
-                      {isHailTrace && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '8px',
-                          right: '8px',
-                          padding: '2px 6px',
-                          background: '#10b981',
-                          color: 'white',
-                          borderRadius: '4px',
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px'
-                        }}>
-                          HailTrace
-                        </div>
-                      )}
-                      <div style={{
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        marginBottom: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <Calendar className="w-4 h-4" style={{ color: isHailTrace ? '#10b981' : getSeverityColor(event.severity) }} />
-                        {formatDate(event.date)}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                          <span>Hail Size:</span>
-                          <strong style={{ color: 'var(--text-primary)' }}>
-                            {event.hailSize ? `${event.hailSize}"` : 'Unknown'}
-                          </strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Severity:</span>
-                          <strong style={{
-                            color: getSeverityColor(event.severity),
-                            textTransform: 'capitalize'
-                          }}>
-                            {event.severity}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  )})}
-              </div>
-            )}
+            {stormDateGroups.map(group => {
+              const isActive = selectedStormDate === group.dateKey;
+              const severityColor = group.severity === 'severe' ? '#ef4444' : group.severity === 'moderate' ? '#f97316' : '#eab308';
+              const hailCount = group.events.filter(e => e.type === 'ihm' || (e.type === 'noaa' && (e.event as NOAAEvent).eventType === 'hail')).length;
+              const windCount = group.events.filter(e => e.type === 'noaa' && (e.event as NOAAEvent).eventType === 'wind').length;
 
-            {/* NOAA Events */}
-            {filteredNoaaEvents.length > 0 && (
-              <div>
-                <div style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  padding: '8px 8px 4px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  NOAA Events ({filteredNoaaEvents.length})
-                </div>
-                {filteredNoaaEvents
-                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                  .map((event, idx) => {
-                    const eventId = `noaa-${event.id}`;
-                    const isSelected = selectedEventId === eventId;
-                    return (
-                    <div
-                      key={`noaa-${event.id || idx}`}
-                      onClick={() => {
-                        setSelectedEventId(eventId);
-                        setSearchLocation({ lat: event.latitude, lng: event.longitude, zoom: 14 });
-                      }}
-                      style={{
-                        padding: '12px',
-                        margin: '4px 0',
-                        background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-primary)',
+              return (
+                <div
+                  key={group.dateKey}
+                  onClick={() => handleStormDateClick(group.dateKey, group.date)}
+                  style={{
+                    padding: '12px',
+                    margin: '4px 0',
+                    background: isActive ? `${severityColor}15` : 'var(--bg-primary)',
+                    borderRadius: '8px',
+                    border: isActive ? `2px solid ${severityColor}` : '1px solid var(--border-default)',
+                    borderLeft: `4px solid ${severityColor}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {/* Date header */}
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    marginBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <Calendar className="w-4 h-4" style={{ color: severityColor }} />
+                    {new Date(group.dateKey + 'T12:00:00').toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </div>
+
+                  {/* Severity badge + event counts */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      background: severityColor,
+                      color: 'white',
+                      textTransform: 'uppercase'
+                    }}>
+                      {group.severity}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {group.eventCount} event{group.eventCount !== 1 ? 's' : ''}
+                    </span>
+                    {group.maxHail > 0 && (
+                      <span style={{
+                        padding: '2px 6px',
                         borderRadius: '8px',
-                        border: isSelected ? '2px solid var(--roof-red)' : `1px solid ${getEventTypeColor(event.eventType)}20`,
-                        borderLeft: `4px solid ${getEventTypeColor(event.eventType)}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div style={{
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        marginBottom: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        background: '#3b82f620',
+                        color: '#3b82f6'
                       }}>
-                        <Calendar className="w-4 h-4" style={{ color: getEventTypeColor(event.eventType) }} />
-                        {formatDate(event.date)}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                          <span>Type:</span>
-                          <strong style={{
-                            color: getEventTypeColor(event.eventType),
-                            textTransform: 'capitalize'
+                        Hail {group.maxHail}"
+                      </span>
+                    )}
+                    {group.maxWind > 0 && (
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        background: '#8b5cf620',
+                        color: '#8b5cf6'
+                      }}>
+                        Wind {group.maxWind} kts
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Expanded detail when selected */}
+                  {isActive && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-default)' }}>
+                      {group.events.map((item, i) => {
+                        const evt = item.event;
+                        const isNoaa = item.type === 'noaa';
+                        const noaaEvt = isNoaa ? (evt as NOAAEvent) : null;
+                        const hailEvt = !isNoaa ? (evt as HailEvent) : null;
+                        return (
+                          <div key={i} style={{
+                            fontSize: '11px',
+                            padding: '4px 0',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            color: 'var(--text-secondary)'
                           }}>
-                            {event.eventType}
-                          </strong>
-                        </div>
-                        {event.magnitude && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <span>Magnitude:</span>
-                            <strong style={{ color: 'var(--text-primary)' }}>
-                              {event.magnitude}{event.eventType === 'hail' ? '"' : ' knots'}
-                            </strong>
+                            <span>
+                              {isNoaa
+                                ? `${noaaEvt!.eventType === 'wind' ? 'Wind' : 'Hail'}: ${noaaEvt!.magnitude != null ? `${noaaEvt!.magnitude}${noaaEvt!.eventType === 'wind' ? ' kts' : '"'}` : '---'}`
+                                : `Hail: ${hailEvt!.hailSize ? `${hailEvt!.hailSize}"` : '---'}`
+                              }
+                              {noaaEvt?.location ? ` - ${noaaEvt.location}` : ''}
+                            </span>
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: 600,
+                              color: isNoaa ? '#8b5cf6' : '#3b82f6'
+                            }}>
+                              {isNoaa ? 'NOAA' : 'IHM'}
+                            </span>
                           </div>
-                        )}
-                        <div style={{
-                          fontSize: '11px',
-                          color: 'var(--text-secondary)',
-                          marginTop: '4px',
-                          fontStyle: 'italic'
-                        }}>
-                          {event.location}
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
-                  )})}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
 
-            {filteredHailEvents.length === 0 && filteredNoaaEvents.length === 0 && (
+            {stormDateGroups.length === 0 && (
               <div style={{
                 padding: '32px 16px',
                 textAlign: 'center',
@@ -2747,26 +2768,44 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             );
           })}
 
-          {/* Event Markers with source-specific colors */}
+          {/* Event Markers with severity colors + date highlight */}
           {groupEventsByLocation([
             ...filteredHailEvents.map(e => ({ event: e, type: getEventSourceType(e) as 'ihm' | 'hailtrace' })),
             ...filteredNoaaEvents.map(e => ({ event: e, type: 'noaa' as const }))
           ]).map((group, idx) => {
-            // Use the first event for color determination
             const firstItem = group.events[0];
-            const markerColor = getMarkerColorBySource(firstItem.type);
+            const eventDate = firstItem.event.date.split('T')[0];
+            const isDateSelected = selectedStormDate === eventDate;
+            const hasDateFilter = selectedStormDate !== null;
+
+            // Severity-based color when a date is selected
+            let markerColor = getMarkerColorBySource(firstItem.type);
+            if (isDateSelected) {
+              // Color by severity for highlighted events
+              if (firstItem.type === 'noaa') {
+                const noaaEvt = firstItem.event as NOAAEvent;
+                if (noaaEvt.eventType === 'hail' && noaaEvt.magnitude && noaaEvt.magnitude >= 2) markerColor = '#ef4444';
+                else if (noaaEvt.eventType === 'hail' && noaaEvt.magnitude && noaaEvt.magnitude >= 1) markerColor = '#f97316';
+                else if (noaaEvt.eventType === 'wind' && noaaEvt.magnitude && noaaEvt.magnitude >= 70) markerColor = '#ef4444';
+                else if (noaaEvt.eventType === 'wind' && noaaEvt.magnitude && noaaEvt.magnitude >= 50) markerColor = '#f97316';
+                else markerColor = '#eab308';
+              } else {
+                const hailEvt = firstItem.event as HailEvent;
+                markerColor = getSeverityColor(hailEvt.severity);
+              }
+            }
 
             return (
               <CircleMarker
                 key={`marker-${idx}`}
                 center={[group.lat, group.lng]}
-                radius={8}
+                radius={isDateSelected ? 12 : hasDateFilter ? 5 : 8}
                 pathOptions={{
                   fillColor: markerColor,
-                  color: '#fff',
-                  weight: 2,
-                  opacity: 1,
-                  fillOpacity: 0.8
+                  color: isDateSelected ? '#fff' : hasDateFilter ? '#999' : '#fff',
+                  weight: isDateSelected ? 3 : 2,
+                  opacity: hasDateFilter && !isDateSelected ? 0.3 : 1,
+                  fillOpacity: isDateSelected ? 0.95 : hasDateFilter ? 0.15 : 0.8
                 }}
               >
                 <Popup>
