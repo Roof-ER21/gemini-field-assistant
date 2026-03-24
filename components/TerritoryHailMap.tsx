@@ -888,7 +888,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         `${currentSearch.latitude?.toFixed(6)}, ${currentSearch.longitude?.toFixed(6)}`;
 
       // Use server-side Curran-style PDF generation
-      const response = await fetch(`${getApiBaseUrl()}/api/hail/generate-report`, {
+      const response = await fetch(`${getApiBaseUrl()}/hail/generate-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
