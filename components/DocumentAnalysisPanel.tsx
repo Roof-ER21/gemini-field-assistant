@@ -324,24 +324,33 @@ ${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
 
 **CRITICAL — HOVER REPORT CROSS-REFERENCE:**
-If a Hover measurement report is included, compare EVERY measurement against the estimate:
-- Roof total area (Hover SF vs estimate SQ — convert: 1 SQ = 100 SF)
-- Ridge/hip lengths (Hover vs estimate ridge cap line item)
-- Valley lengths (Hover vs estimate valley lining)
-- Rake lengths (Hover vs estimate drip edge at rakes)
-- Eave lengths (Hover vs estimate drip edge at eaves / starter strip)
-- Step flashing counts and lengths (Hover vs estimate)
-- Flashing counts (Hover vs estimate pipe jacks/flashing)
-- Drip edge perimeter (Hover vs estimate drip edge LF)
-- Roof pitch breakdown (Hover shows exact pitches — check if steep slope charges are correct)
-- Number of stories (Hover shows — verify high roof charges)
-- Waste factor (Hover provides waste calculations — compare to estimate waste %)
 
-For EACH discrepancy found, calculate the DOLLAR DIFFERENCE:
-- Show the Hover measurement vs the estimate measurement
-- Calculate the additional square footage or linear footage missed
-- Apply the per-unit price from the estimate to get the supplement dollar amount
-- Total all supplement items at the end
+⚠️ UNIT CONVERSION RULE — READ CAREFULLY:
+- 1 ROOFING SQUARE (SQ) = 100 SQUARE FEET (SF)
+- Hover reports roof area in SQUARE FEET (SF)
+- Xactimate estimates use SQUARES (SQ) for shingles, tear-off, felt, steep/high charges
+- To convert: Hover SF ÷ 100 = SQ
+- Example: Hover says 2,951 SF = 29.51 SQ. Estimate says 29.26 SQ. Difference = 0.25 SQ (NOT 25 SQ!)
+- NEVER subtract SF from SQ or treat them as the same unit
+- The quantity correction difference should be in SQ (for per-SQ items) or SF (for per-SF items like ice & water shield)
+- If the difference is less than 1 SQ, it may not be worth supplementing — note this
+
+Compare EVERY measurement:
+- Roof total area: Convert Hover SF to SQ, then compare to estimate SQ. Show both units clearly.
+- Ridge/hip lengths (LF): Hover ridge/hip total vs estimate ridge cap LF
+- Valley lengths (LF): Hover valley total vs estimate valley metal LF — if estimate has NO valley line item, supplement it
+- Drip edge (LF): Hover perimeter vs estimate drip edge LF
+- Eave/rake lengths: For starter strip calculation
+- Step flashing (LF): Hover step flashing total vs estimate step flashing LF
+- Pipe jacks (EA): Hover flashing count vs estimate pipe jack count
+- Roof pitch: Hover pitch breakdown — verify steep charges applied to correct area
+- Stories: Hover story count — verify high roof charges
+
+For EACH discrepancy, calculate the DOLLAR DIFFERENCE using CORRECT UNITS:
+- Per-SQ items: difference in SQ × $/SQ
+- Per-LF items: difference in LF × $/LF
+- Per-SF items: difference in SF × $/SF
+- Per-EA items: difference in EA × $/EA
 
 ${susanContextBlock}
 
@@ -461,8 +470,15 @@ RULE 6 — PITCH / STEEP CHARGES:
 | GNL DMPST | Dumpster load | EA | $375-650 |
 | O&P | Overhead (10%) & Profit (10%) | % | 20% of RCV |
 
-Format each supplement item as:
+EVERY supplement item MUST include the Xactimate code. Format:
 "[Xactimate Code] — [Description]: [quantity] [unit] × $[price]/[unit] = $[total]. [Reason/Code ref]"
+
+Example: "RFG DRIP — Drip edge: 91.74 LF × $3.33/LF = $305.49. IRC R905.2.8.5"
+Example: "RFG VMTL — Valley metal: 28.08 LF × $12.00/LF = $336.96. Missing from estimate, Hover shows 2 valleys"
+Example: "RFG STEP — Step flashing: Estimate has 90 LF, Hover shows 65 LF. No supplement needed (estimate exceeds Hover)."
+
+If an item in the estimate EXCEEDS Hover measurements, note it but do NOT supplement it.
+If Hover shows items the estimate doesn't have at all (like valleys), ADD them as new line items.
    - Flashing requirements (IRC R903.2)
    - If local codes are stricter than IRC, note that
 
