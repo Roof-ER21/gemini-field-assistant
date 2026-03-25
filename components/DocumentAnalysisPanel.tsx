@@ -422,6 +422,47 @@ RULE 6 — PITCH / STEEP CHARGES:
 4. **Code Compliance**:
    - Ventilation requirements (IRC R806)
    - Underlayment requirements (IRC R905.1.1)
+
+5. **DMO vs RFG Labor Rate Check** (IMPORTANT):
+   - Xactimate defaults tear-off to DMO (Demolition) labor at ~$45/SQ
+   - Roofing contractors use RFG (Roofing) skilled labor at ~$108/SQ
+   - If tear-off uses DMO rates, supplement to RFG rates — can recover $2,500+ on a 40 SQ roof
+
+**USE THESE XACTIMATE CODES in your output. For EVERY supplement item, include the Xactimate code:**
+
+| Code | Description | Unit | Avg Price |
+|------|-------------|------|-----------|
+| RFG ARMV | Tear off comp shingles - 1 layer | SQ | $75-135 |
+| RFG ARMV> | Tear off comp shingles - addl layer | SQ | $35-60 |
+| RFG 300 | Laminated 30yr comp shingles (incl felt) | SQ | $275-375 |
+| RFG 300S | Laminated 30yr comp shingles (w/o felt) | SQ | $250-340 |
+| RFG 500 | Lifetime comp shingles (incl felt) | SQ | $310-425 |
+| RFG FELT15 | Roofing felt - 15 lb | SQ | $35-55 |
+| RFG FELT30 | Roofing felt - 30 lb | SQ | $45-70 |
+| RFG IWS | Ice & water shield | SF | $1.75-3.50 |
+| RFG SYNT | Synthetic underlayment | SQ | $55-85 |
+| RFG DRIP | Aluminum drip edge | LF | $2.50-5.00 |
+| RFG DRIPC | Drip edge - color matched | LF | $3.50-6.50 |
+| RFG ASTR | Starter strip shingles | LF | $1.25-2.50 |
+| RFG RIDGC | Ridge cap shingles | LF | $4.50-8.00 |
+| RFG STEP | Step flashing | LF | $4.00-8.00 |
+| RFG FLCNTR | Counter flashing | LF | $8.00-15.00 |
+| RFG FLWL | Roof-to-wall flashing | LF | $6.00-12.00 |
+| RFG FLPIPE | Pipe jack/flashing | EA | $45-95 |
+| RFG VMTL | Valley metal | LF | $6.00-12.00 |
+| RFG STEEP | Additional charge - steep (7/12-9/12) | SQ | $25-75 |
+| RFG STEEP> | Additional charge - steep (10/12-12/12) | SQ | $50-125 |
+| RFG HIGH | Additional charge - high roof (2+ story) | SQ | $15-50 |
+| RFG VENTA | Roof vent - aluminum | EA | $45-85 |
+| RFG VENTR | Ridge vent | LF | $4.50-9.00 |
+| RFG SH1/2 | Plywood/OSB sheathing - 1/2" | SF | $2.50-5.00 |
+| SFG GUTA5 | Aluminum gutter - 5" | LF | $7.00-14.00 |
+| SFG DSPAT | Downspout - aluminum | LF | $5.00-10.00 |
+| GNL DMPST | Dumpster load | EA | $375-650 |
+| O&P | Overhead (10%) & Profit (10%) | % | 20% of RCV |
+
+Format each supplement item as:
+"[Xactimate Code] — [Description]: [quantity] [unit] × $[price]/[unit] = $[total]. [Reason/Code ref]"
    - Flashing requirements (IRC R903.2)
    - If local codes are stricter than IRC, note that
 
