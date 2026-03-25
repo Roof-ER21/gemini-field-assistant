@@ -1093,7 +1093,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   };
 
   // Generate PDF Report with options
-  const handleGeneratePDF = async () => {
+  const handleGeneratePDF = async (dateOfLoss?: string) => {
     if (!currentSearch || !searchStats) {
       alert('No search data available to generate report');
       return;
@@ -1128,6 +1128,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           includeNexrad: true,
           includeMap: true,
           includeWarnings: true,
+          dateOfLoss: dateOfLoss || selectedDateOfLoss || undefined,
           ...pdfOptions
         })
       });
@@ -1147,6 +1148,18 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     } finally {
       setGeneratingPdf(false);
     }
+  };
+
+  // Open the Date of Loss modal before generating the PDF
+  const handleOpenDateOfLossModal = () => {
+    if (!currentSearch || !searchStats) {
+      alert('No search data available to generate report');
+      return;
+    }
+    // Pre-select the most recent storm date (stormDateGroups is already sorted newest-first)
+    const defaultDate = stormDateGroups.length > 0 ? stormDateGroups[0].dateKey : '';
+    setSelectedDateOfLoss(defaultDate);
+    setShowDateOfLossModal(true);
   };
 
   const handleEventCardClick = (event: HailEvent | NOAAEvent, lat: number, lng: number) => {
@@ -1572,7 +1585,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             </button>
             {isAdmin && (
               <button
-                onClick={handleGeneratePDF}
+                onClick={handleOpenDateOfLossModal}
                 disabled={generatingPdf}
                 style={{
                   flex: 1,
@@ -1607,6 +1620,85 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   // GPS blue dot — live user position
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const gpsInitialCenterDone = useRef(false);
+
+  // ── Canvassing Zone Alert ─────────────────────────────────────────────────
+  const [canvassingAlert, setCanvassingAlert] = useState<{
+    message: string;
+    hailSize: number | null;
+    bgColor: string;
+  } | null>(null);
+  const lastAlertIdRef = useRef<string | null>(null);
+  const lastAlertTimeRef = useRef<number>(0);
+  const canvassingAlertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Date of Loss Modal ────────────────────────────────────────────────────
+  const [showDateOfLossModal, setShowDateOfLossModal] = useState(false);
+  const [selectedDateOfLoss, setSelectedDateOfLoss] = useState<string>('');
+
+  // ── Canvassing Zone Alert — fire when user drives into a hail zone ────────
+  useEffect(() => {
+    if (!userLocation) return;
+
+    const RADIUS_MI = 0.5;
+    const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+    // Only check hail events (no wind)
+    const hailCandidates: Array<{ id: string; lat: number; lng: number; hailSize: number | null; date: string }> = [
+      ...filteredHailEvents.map(ev => ({
+        id: `ihm-${ev.id}`,
+        lat: ev.latitude,
+        lng: ev.longitude,
+        hailSize: ev.hailSize,
+        date: ev.date
+      })),
+      ...filteredNoaaEvents
+        .filter(ev => ev.eventType === 'hail')
+        .map(ev => ({
+          id: `noaa-${ev.id}`,
+          lat: ev.latitude,
+          lng: ev.longitude,
+          hailSize: ev.magnitude,
+          date: ev.date
+        }))
+    ];
+
+    let nearest: typeof hailCandidates[0] | null = null;
+    let nearestDist = Infinity;
+
+    for (const c of hailCandidates) {
+      const d = haversineMi(userLocation.lat, userLocation.lng, c.lat, c.lng);
+      if (d < RADIUS_MI && d < nearestDist) {
+        nearest = c;
+        nearestDist = d;
+      }
+    }
+
+    if (!nearest) return;
+
+    const now = Date.now();
+    // Skip if same event was alerted within the cooldown window
+    if (nearest.id === lastAlertIdRef.current && now - lastAlertTimeRef.current < COOLDOWN_MS) return;
+
+    lastAlertIdRef.current = nearest.id;
+    lastAlertTimeRef.current = now;
+
+    const sizeStr = nearest.hailSize ? `${nearest.hailSize}"` : 'reported';
+    const dateStr = formatDate(nearest.date);
+    // Green for small hail (<1"), amber for 1"+ hail
+    const bgColor = nearest.hailSize && nearest.hailSize >= 1.0 ? '#d97706' : '#16a34a';
+
+    setCanvassingAlert({
+      message: `You're in a zone hit by ${sizeStr} hail on ${dateStr} — knock here!`,
+      hailSize: nearest.hailSize,
+      bgColor
+    });
+
+    // Clear any existing dismiss timer
+    if (canvassingAlertTimerRef.current) clearTimeout(canvassingAlertTimerRef.current);
+    canvassingAlertTimerRef.current = setTimeout(() => {
+      setCanvassingAlert(null);
+    }, 8000);
+  }, [userLocation, filteredHailEvents, filteredNoaaEvents]);
 
   // Map click — nearest hail popup
   const [mapClickPopup, setMapClickPopup] = useState<{
@@ -1937,7 +2029,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                   {/* Download PDF Buttons */}
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <button
-                      onClick={handleGeneratePDF}
+                      onClick={handleOpenDateOfLossModal}
                       disabled={generatingPdf}
                       style={{
                         flex: 1,
@@ -2180,6 +2272,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         }
         .gps-pulse-ring {
           animation: gpsPulse 2s ease-out infinite;
+        }
+        @keyframes slideDownFade {
+          from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
       <div className="roof-er-content-scroll">
@@ -2769,8 +2865,192 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           </div>
         )}
 
+        {/* Date of Loss Modal */}
+        {showDateOfLossModal && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: 2100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <div style={{
+              background: 'var(--bg-elevated)',
+              padding: '24px',
+              borderRadius: '12px',
+              maxWidth: '420px',
+              width: '90%',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.45)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  Select Date of Loss
+                </h3>
+                <button
+                  onClick={() => setShowDateOfLossModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px' }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Choose the storm date to include as the Date of Loss in the PDF report.
+              </p>
+
+              {stormDateGroups.length > 0 ? (
+                <div style={{
+                  maxHeight: '240px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                  marginBottom: '16px'
+                }}>
+                  {stormDateGroups.map((group, idx) => {
+                    const isSelected = selectedDateOfLoss === group.dateKey;
+                    const severityColor = group.severity === 'severe' ? '#ef4444' : group.severity === 'moderate' ? '#f97316' : '#eab308';
+                    return (
+                      <div
+                        key={group.dateKey}
+                        onClick={() => setSelectedDateOfLoss(group.dateKey)}
+                        style={{
+                          padding: '10px 14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          background: isSelected ? 'rgba(220,38,38,0.08)' : 'transparent',
+                          borderBottom: idx < stormDateGroups.length - 1 ? '1px solid var(--border-default)' : 'none',
+                          transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: severityColor, flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {formatDate(group.date)}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              {group.eventCount} event{group.eventCount !== 1 ? 's' : ''}
+                              {group.maxHail > 0 ? ` · ${group.maxHail.toFixed(2)}" hail` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--roof-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                              <polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+                  No storm dates available
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowDateOfLossModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-default)',
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDateOfLossModal(false);
+                    handleGeneratePDF(selectedDateOfLoss || undefined);
+                  }}
+                  disabled={generatingPdf}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: 'var(--roof-red)',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    opacity: generatingPdf ? 0.6 : 1
+                  }}
+                >
+                  <FileDown className="w-4 h-4" />
+                  Generate Report
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Map area — fills remaining space */}
         <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+
+          {/* Canvassing Zone Alert Banner */}
+          {canvassingAlert && (
+            <div style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1500,
+              background: canvassingAlert.bgColor,
+              color: 'white',
+              padding: '12px 20px',
+              borderRadius: '10px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              maxWidth: '90%',
+              fontSize: '14px',
+              fontWeight: 600,
+              animation: 'slideDownFade 0.3s ease-out'
+            }}>
+              <AlertTriangle className="w-5 h-5" style={{ flexShrink: 0 }} />
+              <span>{canvassingAlert.message}</span>
+              <button
+                onClick={() => setCanvassingAlert(null)}
+                style={{
+                  marginLeft: '8px',
+                  background: 'rgba(255,255,255,0.25)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  flexShrink: 0
+                }}
+              >
+                X
+              </button>
+            </div>
+          )}
+
         <MapContainer
           center={defaultCenter}
           zoom={defaultZoom}
