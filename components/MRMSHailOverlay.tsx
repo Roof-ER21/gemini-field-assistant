@@ -152,126 +152,14 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
           <Layers className="w-4 h-4" />
         </button>
 
-        {visible && (
-          <button
-            onClick={() => setShowControls(!showControls)}
-            title="MRMS settings"
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '4px',
-              border: '2px solid rgba(0,0,0,0.2)',
-              background: showControls ? '#2d3748' : 'white',
-              color: showControls ? 'white' : '#333',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
-            }}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Controls panel (appears to the left of the buttons)                */}
-      {/* ------------------------------------------------------------------ */}
-      {visible && showControls && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '240px',
-            right: '52px',
-            zIndex: 1000,
-            background: 'white',
-            borderRadius: '8px',
-            padding: '12px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            minWidth: '220px',
-          }}
-        >
-          <div
-            style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              marginBottom: '8px',
-              color: '#1a202c',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Layers className="w-3.5 h-3.5" style={{ color: '#7c3aed' }} />
-            MRMS MESH Hail Swath
-          </div>
-
-          {/* Product selector */}
-          <div style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '10px', color: '#718096', marginBottom: '4px' }}>Product</div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {(['mesh60', 'mesh1440'] as MRMSProduct[]).map((p) => {
-                const isActive = product === p;
-                return (
-                  <div
-                    key={p}
-                    style={{
-                      flex: 1,
-                      padding: '5px 4px',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      textAlign: 'center',
-                      borderRadius: '4px',
-                      border: `1px solid ${isActive ? '#7c3aed' : '#e2e8f0'}`,
-                      background: isActive ? '#7c3aed' : '#f7fafc',
-                      color: isActive ? 'white' : '#4a5568',
-                      cursor: 'default',
-                      userSelect: 'none',
-                    }}
-                    title={p === 'mesh60' ? '60-minute MESH accumulation' : '24-hour MESH accumulation'}
-                  >
-                    {p === 'mesh60' ? '60 min' : '24 hr'}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: '9px', color: '#a0aec0', marginTop: '4px' }}>
-              Toggle via the parent panel controls
-            </div>
-          </div>
-
-          {/* Opacity slider */}
-          <div style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '10px', color: '#718096', marginBottom: '4px' }}>
-              Opacity: {Math.round(opacity * 100)}%
-            </div>
-            <input
-              type="range"
-              min={10}
-              max={100}
-              step={5}
-              value={Math.round(opacity * 100)}
-              onChange={(e) => setOpacity(parseInt(e.target.value, 10) / 100)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* Manual refresh */}
+      {/* Controls panel removed — just toggle on/off */}
+      {false && (
+        <div style={{ display: 'none' }}>
           <button
             onClick={triggerRefresh}
             style={{
-              width: '100%',
-              padding: '5px',
-              fontSize: '10px',
-              borderRadius: '4px',
-              border: '1px solid #e2e8f0',
-              background: '#f7fafc',
-              color: '#4a5568',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               gap: '4px',
             }}
           >
