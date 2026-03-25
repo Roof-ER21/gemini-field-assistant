@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap, Polygon, Circle } from 'react-leaflet';
-import { LatLngBounds } from 'leaflet';
+import L, { LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getApiBaseUrl } from '../services/config';
 import { Cloud, Calendar, MapPin, AlertTriangle, Filter, RefreshCw, Search, Save, ChevronLeft, ChevronRight, Trash2, BarChart3, X, Star, ChevronDown, Wind, Home, FileDown, Settings, User, Phone, Mail, Building2, Radio } from 'lucide-react';
@@ -147,6 +147,156 @@ function MapController({ selectedTerritory, searchLocation }: MapControllerProps
       map.fitBounds(bounds, { padding: [20, 20] });
     }
   }, [selectedTerritory, searchLocation, map]);
+
+  return null;
+}
+
+// ── GPS Tracker sub-component ────────────────────────────────────────────────
+// Lives inside MapContainer so it can call useMap().
+interface GpsTrackerProps {
+  onPositionUpdate: (pos: { lat: number; lng: number }) => void;
+  initialCenterDone: React.MutableRefObject<boolean>;
+}
+
+function GpsTracker({ onPositionUpdate, initialCenterDone }: GpsTrackerProps) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        onPositionUpdate({ lat, lng });
+        // Auto-center on first successful fix only
+        if (!initialCenterDone.current) {
+          initialCenterDone.current = true;
+          map.flyTo([lat, lng], Math.max(map.getZoom(), 12), {
+            duration: 1.5,
+            easeLinearity: 0.25
+          });
+        }
+      },
+      (err) => {
+        console.warn('GPS watch error:', err.message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [map, onPositionUpdate, initialCenterDone]);
+
+  return null;
+}
+
+// ── Map Click → nearest hail event ──────────────────────────────────────────
+interface MapClickHandlerProps {
+  hailEvents: HailEvent[];
+  noaaEvents: NOAAEvent[];
+  onResult: (result: {
+    lat: number;
+    lng: number;
+    date: string;
+    hailSize: number | null;
+    distanceMi: number;
+    dateKey: string;
+  } | null) => void;
+  onSelectDate: (dateKey: string) => void;
+}
+
+// Haversine distance in miles
+function haversineMi(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function MapClickHandler({ hailEvents, noaaEvents, onResult, onSelectDate }: MapClickHandlerProps) {
+  const map = useMap();
+
+  useEffect(() => {
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      const { lat, lng } = e.latlng;
+
+      // Build candidates: prefer hail events, fall back to noaa hail events
+      interface Candidate {
+        lat: number;
+        lng: number;
+        date: string;
+        dateKey: string;
+        hailSize: number | null;
+      }
+
+      const candidates: Candidate[] = [
+        ...hailEvents.map(ev => ({
+          lat: ev.latitude,
+          lng: ev.longitude,
+          date: ev.date,
+          dateKey: ev.date.split('T')[0],
+          hailSize: ev.hailSize
+        })),
+        ...noaaEvents
+          .filter(ev => ev.eventType === 'hail')
+          .map(ev => ({
+            lat: ev.latitude,
+            lng: ev.longitude,
+            date: ev.date,
+            dateKey: ev.date.split('T')[0],
+            hailSize: ev.magnitude
+          }))
+      ];
+
+      if (candidates.length === 0) {
+        onResult(null);
+        return;
+      }
+
+      // Find nearest by distance, then among ties pick most recent date
+      let best = candidates[0];
+      let bestDist = haversineMi(lat, lng, best.lat, best.lng);
+
+      for (let i = 1; i < candidates.length; i++) {
+        const dist = haversineMi(lat, lng, candidates[i].lat, candidates[i].lng);
+        if (dist < bestDist - 0.001) {
+          best = candidates[i];
+          bestDist = dist;
+        } else if (Math.abs(dist - bestDist) <= 0.001) {
+          // Same distance — prefer more recent date
+          if (new Date(candidates[i].date) > new Date(best.date)) {
+            best = candidates[i];
+            bestDist = dist;
+          }
+        }
+      }
+
+      onResult({
+        lat,
+        lng,
+        date: best.date,
+        hailSize: best.hailSize,
+        distanceMi: Math.round(bestDist * 10) / 10,
+        dateKey: best.dateKey
+      });
+      onSelectDate(best.dateKey);
+    };
+
+    map.on('click', handleClick);
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [map, hailEvents, noaaEvents, onResult, onSelectDate]);
 
   return null;
 }
@@ -692,9 +842,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
           const isPropertySearch = !!(searchCriteria.address?.trim() && searchCriteria.city?.trim());
 
           if (isPropertySearch) {
-            // Property Focus Mode: satellite view, street-level zoom, tight radius
+            // Property Focus Mode: street-level zoom, tight radius (keep user's current map style)
             setPropertyFocusMode(true);
-            setMapStyle('satellite');
             setSearchLocation({
               lat: data.searchCriteria.latitude,
               lng: data.searchCriteria.longitude,
@@ -1248,15 +1397,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
       ...filteredNoaaEvents.map(e => ({ type: 'noaa' as const, event: e, date: e.date }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
-    const scoreValue = damageScore?.score || 0;
-    const scoreColor = damageScore?.color || '#6b7280';
-    const riskLevel = damageScore?.riskLevel || 'Low';
-
-    // Circular progress ring params
-    const radius = 28;
-    const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (scoreValue / 100) * circumference;
-
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Property Card Header */}
@@ -1289,43 +1429,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
-          {/* Circular damage score */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', padding: '12px', background: `linear-gradient(135deg, ${scoreColor}15, ${scoreColor}05)`, borderRadius: '12px', border: `1px solid ${scoreColor}40` }}>
-            <div style={{ flexShrink: 0 }}>
-              {loadingDamageScore ? (
-                <RefreshCw className="w-10 h-10 animate-spin" style={{ color: 'var(--roof-red)' }} />
-              ) : (
-                <svg width="70" height="70" viewBox="0 0 70 70">
-                  <circle cx="35" cy="35" r={radius} fill="none" stroke="var(--border-default)" strokeWidth="6" />
-                  <circle
-                    cx="35" cy="35" r={radius}
-                    fill="none"
-                    stroke={scoreColor}
-                    strokeWidth="6"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                    transform="rotate(-90 35 35)"
-                  />
-                  <text x="35" y="38" textAnchor="middle" fontSize="14" fontWeight="800" fill={scoreColor}>{scoreValue}</text>
-                </svg>
-              )}
-            </div>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                Damage Risk Score
-              </div>
-              <div style={{ display: 'inline-block', padding: '4px 10px', background: scoreColor, color: 'white', borderRadius: '20px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                {riskLevel} Risk
-              </div>
-              {damageScore?.summary && (
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.4' }}>
-                  {damageScore.summary}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* 4-stat grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
             <div style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', textAlign: 'center' }}>
@@ -1501,6 +1604,20 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   // Hail swath layer visibility
   const [showHailSwaths, setShowHailSwaths] = useState(true);
 
+  // GPS blue dot — live user position
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const gpsInitialCenterDone = useRef(false);
+
+  // Map click — nearest hail popup
+  const [mapClickPopup, setMapClickPopup] = useState<{
+    lat: number;
+    lng: number;
+    date: string;
+    hailSize: number | null;
+    distanceMi: number;
+    dateKey: string;
+  } | null>(null);
+
   // Group all events by date for IHM-style sidebar
   const stormDateGroups = useMemo(() => {
     const groups: Record<string, {
@@ -1670,7 +1787,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
         {/* Scrollable content: stats + events list */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {/* Stats Summary with Damage Score */}
+          {/* Stats Summary */}
           {searchStats && (
             <div style={{
               padding: '12px 16px',
@@ -1678,8 +1795,8 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               borderBottom: '1px solid var(--border-default)',
               fontSize: '12px'
             }}>
-              {/* Damage Score Display */}
-              {damageScore && (
+              {/* Damage Score Display — removed from UI (still computed for PDF reports) */}
+              {false && damageScore && (
                 <div style={{
                   marginBottom: '16px',
                   padding: '16px',
@@ -1732,7 +1849,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                 </div>
               )}
 
-              {loadingDamageScore && (
+              {false && loadingDamageScore && (
                 <div style={{
                   marginBottom: '16px',
                   padding: '16px',
@@ -2054,6 +2171,17 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
   return (
     <div className="roof-er-content-area">
+      {/* GPS pulse animation */}
+      <style>{`
+        @keyframes gpsPulse {
+          0%   { transform: scale(1);   opacity: 0.7; }
+          50%  { transform: scale(2.5); opacity: 0; }
+          100% { transform: scale(1);   opacity: 0; }
+        }
+        .gps-pulse-ring {
+          animation: gpsPulse 2s ease-out infinite;
+        }
+      `}</style>
       <div className="roof-er-content-scroll">
       {/* Header */}
       <div className="roof-er-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)' }}>
@@ -2119,34 +2247,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               {t.name}
             </button>
           ))}
-        </div>
-
-        {/* Source Filter (IHM vs NOAA) */}
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: 'auto' }}>
-          {(['all', 'ihm', 'noaa'] as const).map(source => {
-            const isActive = sourceFilter === source;
-            const activeColor = source === 'ihm' ? 'var(--roof-blue)' : source === 'noaa' ? 'var(--roof-orange)' : 'var(--roof-red)';
-            return (
-              <button
-                key={source}
-                onClick={() => setSourceFilter(source)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: isActive ? `2px solid ${activeColor}` : '2px solid transparent',
-                  background: isActive ? activeColor : 'var(--bg-elevated)',
-                  color: isActive ? 'white' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  boxShadow: isActive ? `0 0 8px ${activeColor}40` : 'none'
-                }}
-              >
-                {source === 'all' ? 'All Sources' : source.toUpperCase()}
-              </button>
-            );
-          })}
         </div>
 
         {/* Event Type Filter */}
@@ -2237,45 +2337,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               />
             </div>
           )}
-
-          {/* Hot Zones Toggle */}
-          <button
-            onClick={toggleHotZones}
-            disabled={loadingHotZones}
-            title="Show best canvassing areas based on storm activity"
-            style={{
-              background: showHotZones ? 'var(--roof-orange)' : 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              cursor: loadingHotZones ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s',
-              opacity: loadingHotZones ? 0.6 : 1
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>🔥</span>
-            <span style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              color: showHotZones ? 'white' : 'var(--text-primary)'
-            }}>
-              Hot Zones
-            </span>
-            {showHotZones && hotZones.length > 0 && (
-              <span style={{
-                fontSize: '11px',
-                background: 'rgba(255,255,255,0.2)',
-                padding: '2px 6px',
-                borderRadius: '10px',
-                fontWeight: 700
-              }}>
-                {hotZones.length}
-              </span>
-            )}
-          </button>
 
           {/* Single Search Button */}
           <button
@@ -2733,6 +2794,23 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
           <MapController selectedTerritory={selectedTerritory} searchLocation={searchLocation} />
 
+          {/* GPS live position tracker */}
+          <GpsTracker
+            onPositionUpdate={setUserLocation}
+            initialCenterDone={gpsInitialCenterDone}
+          />
+
+          {/* Map click — find nearest hail event */}
+          <MapClickHandler
+            hailEvents={filteredHailEvents}
+            noaaEvents={filteredNoaaEvents}
+            onResult={setMapClickPopup}
+            onSelectDate={(dateKey) => {
+              const group = stormDateGroups.find(g => g.dateKey === dateKey);
+              if (group) handleStormDateClick(dateKey, group.date);
+            }}
+          />
+
           {/* NEXRAD Radar Overlay */}
           <NexradRadarLayer
             visible={showNexrad}
@@ -2823,101 +2901,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             visible={showHailSwaths}
             selectedDate={selectedStormDate}
           />
-
-          {/* Hot Zones - Best Canvassing Areas */}
-          {showHotZones && hotZones.map((zone) => {
-            // Determine color based on intensity/score
-            let fillColor: string;
-            let strokeColor: string;
-            const score = zone.score || zone.intensity;
-
-            if (score >= 80) {
-              fillColor = 'rgba(220, 38, 38, 0.3)'; // red
-              strokeColor = '#dc2626';
-            } else if (score >= 60) {
-              fillColor = 'rgba(249, 115, 22, 0.3)'; // orange
-              strokeColor = '#f97316';
-            } else if (score >= 40) {
-              fillColor = 'rgba(234, 179, 8, 0.3)'; // yellow
-              strokeColor = '#eab308';
-            } else {
-              fillColor = 'rgba(34, 197, 94, 0.3)'; // green
-              strokeColor = '#22c55e';
-            }
-
-            return (
-              <Circle
-                key={zone.id}
-                center={[zone.centerLat, zone.centerLng]}
-                radius={zone.radius * 1609.34} // Convert miles to meters
-                pathOptions={{
-                  fillColor,
-                  color: strokeColor,
-                  weight: 2,
-                  opacity: 0.8,
-                  fillOpacity: 0.3
-                }}
-              >
-                <Popup maxWidth={300} maxHeight={250} autoPan={true} autoPanPadding={[40, 40]}>
-                  <div style={{ padding: '12px', minWidth: '250px', maxHeight: '220px', overflow: 'auto', wordBreak: 'break-word' }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginBottom: '12px',
-                      fontSize: '16px',
-                      fontWeight: 700
-                    }}>
-                      <span style={{ fontSize: '20px' }}>🔥</span>
-                      Hot Zone
-                      <span style={{
-                        fontSize: '12px',
-                        padding: '4px 8px',
-                        background: strokeColor,
-                        color: 'white',
-                        borderRadius: '12px',
-                        fontWeight: 700
-                      }}>
-                        Score: {score}
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize: '12px', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '6px' }}>
-                        <strong>Events:</strong> {zone.eventCount}
-                      </div>
-                      {zone.maxHailSize && (
-                        <div style={{ marginBottom: '6px' }}>
-                          <strong>Max Hail:</strong> {zone.maxHailSize}"
-                        </div>
-                      )}
-                      {zone.avgHailSize && (
-                        <div style={{ marginBottom: '6px' }}>
-                          <strong>Avg Hail:</strong> {zone.avgHailSize.toFixed(2)}"
-                        </div>
-                      )}
-                      <div style={{ marginBottom: '6px' }}>
-                        <strong>Last Event:</strong> {formatDate(zone.lastEventDate)}
-                      </div>
-                    </div>
-
-                    <div style={{
-                      padding: '10px',
-                      background: 'rgba(220, 38, 38, 0.1)',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      lineHeight: '1.5',
-                      color: '#dc2626',
-                      fontWeight: 600
-                    }}>
-                      <strong>Recommendation:</strong><br />
-                      {zone.recommendation}
-                    </div>
-                  </div>
-                </Popup>
-              </Circle>
-            );
-          })}
 
           {/* Event Markers with severity colors + date highlight */}
           {groupEventsByLocation([
@@ -3068,7 +3051,138 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
               </CircleMarker>
             );
           })}
+
+          {/* GPS blue pulsing dot */}
+          {userLocation && (
+            <>
+              {/* Pulse ring */}
+              <CircleMarker
+                center={[userLocation.lat, userLocation.lng]}
+                radius={18}
+                pathOptions={{
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.15,
+                  color: '#3b82f6',
+                  weight: 0,
+                  opacity: 0
+                }}
+                className="gps-pulse-ring"
+                interactive={false}
+              />
+              {/* Solid blue dot */}
+              <CircleMarker
+                center={[userLocation.lat, userLocation.lng]}
+                radius={8}
+                pathOptions={{
+                  fillColor: '#3b82f6',
+                  fillOpacity: 1,
+                  color: '#ffffff',
+                  weight: 2,
+                  opacity: 1
+                }}
+              >
+                <Popup maxWidth={160} autoPan={false}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, padding: '4px 0' }}>
+                    Your location
+                  </div>
+                </Popup>
+              </CircleMarker>
+            </>
+          )}
+
+          {/* Map-click nearest hail popup marker */}
+          {mapClickPopup && (
+            <CircleMarker
+              center={[mapClickPopup.lat, mapClickPopup.lng]}
+              radius={6}
+              pathOptions={{
+                fillColor: '#f59e0b',
+                fillOpacity: 0.9,
+                color: '#ffffff',
+                weight: 2,
+                opacity: 1
+              }}
+            >
+              <Popup
+                maxWidth={240}
+                autoPan={true}
+                autoPanPadding={[40, 40]}
+                eventHandlers={{ remove: () => setMapClickPopup(null) }}
+              >
+                <div style={{ padding: '8px', fontFamily: 'system-ui', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '6px', color: '#1f2937' }}>
+                    Nearest Hail Event
+                  </div>
+                  <div style={{ lineHeight: 1.7 }}>
+                    <div>
+                      <strong>Date:</strong>{' '}
+                      {new Date(mapClickPopup.dateKey + 'T12:00:00').toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric'
+                      })}
+                    </div>
+                    {mapClickPopup.hailSize != null && (
+                      <div><strong>Hail Size:</strong> {mapClickPopup.hailSize}"</div>
+                    )}
+                    <div><strong>Distance:</strong> {mapClickPopup.distanceMi} mi away</div>
+                  </div>
+                  <button
+                    onClick={() => setMapClickPopup(null)}
+                    style={{
+                      marginTop: '8px',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: '#ef4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </Popup>
+            </CircleMarker>
+          )}
         </MapContainer>
+
+        {/* "Center on me" button — floats bottom-right of map area */}
+        {userLocation && (
+          <button
+            title="Center map on my location"
+            onClick={() => {
+              setSearchLocation({ lat: userLocation.lat, lng: userLocation.lng, zoom: 14 });
+            }}
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              right: '16px',
+              zIndex: 1000,
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: '#ffffff',
+              border: '2px solid #3b82f6',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'transform 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="2" x2="12" y2="6" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="6" y2="12" />
+              <line x1="18" y1="12" x2="22" y2="12" />
+            </svg>
+          </button>
+        )}
         </div>
       </div>
       </div>

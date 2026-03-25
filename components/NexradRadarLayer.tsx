@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { WMSTileLayer, useMap } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
-import { Radio, Clock, Minus, Plus, Calendar } from 'lucide-react';
+import { Radio, Clock, Calendar } from 'lucide-react';
 
 interface StormLocation {
   lat: number;
@@ -124,36 +124,16 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
   opacity: initialOpacity = 0.6
 }) => {
   const [opacity, setOpacity] = useState(initialOpacity);
-  const [currentTime, setCurrentTime] = useState(stormDate || new Date().toISOString());
-  const [timeOffset, setTimeOffset] = useState(0); // minutes offset from storm date
   const [showControls, setShowControls] = useState(false);
   // Manual date/time entry
   const [manualDate, setManualDate] = useState('');
   const [manualTime, setManualTime] = useState('12:00');
   const [useManualDate, setUseManualDate] = useState(false);
 
-  // Get the effective base date (manual or storm-based)
-  const getBaseDate = useCallback((): string => {
-    if (useManualDate && manualDate) {
-      return new Date(`${manualDate}T${manualTime || '12:00'}:00`).toISOString();
-    }
-    return stormDate || new Date().toISOString();
-  }, [useManualDate, manualDate, manualTime, stormDate]);
-
-  // Update time when storm date changes (only if not using manual)
-  useEffect(() => {
-    if (stormDate && !useManualDate) {
-      setCurrentTime(stormDate);
-      setTimeOffset(0);
-    }
-  }, [stormDate, useManualDate]);
-
-  // Apply time offset from base date
-  useEffect(() => {
-    const base = new Date(getBaseDate());
-    base.setMinutes(base.getMinutes() + timeOffset);
-    setCurrentTime(base.toISOString());
-  }, [timeOffset, getBaseDate]);
+  // Compute the effective radar datetime
+  const currentTime = useManualDate && manualDate
+    ? new Date(`${manualDate}T${manualTime || '12:00'}:00`).toISOString()
+    : stormDate || new Date().toISOString();
 
   const formatTimeDisplay = useCallback((isoStr: string): string => {
     try {
@@ -284,7 +264,6 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
                   setManualDate(e.target.value);
                   if (e.target.value) {
                     setUseManualDate(true);
-                    setTimeOffset(0);
                   }
                 }}
                 style={{
@@ -304,7 +283,6 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
                   setManualTime(e.target.value);
                   if (manualDate) {
                     setUseManualDate(true);
-                    setTimeOffset(0);
                   }
                 }}
                 style={{
@@ -320,7 +298,7 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
             </div>
             {useManualDate && (
               <button
-                onClick={() => { setUseManualDate(false); setManualDate(''); setTimeOffset(0); }}
+                onClick={() => { setUseManualDate(false); setManualDate(''); }}
                 style={{
                   marginTop: '4px',
                   padding: '2px 8px',
@@ -337,45 +315,6 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
             )}
           </div>
 
-          {/* Time slider */}
-          <div style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '10px', color: '#718096' }}>Time Offset</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                onClick={() => setTimeOffset(prev => prev - 10)}
-                style={{
-                  width: '24px', height: '24px', borderRadius: '4px',
-                  border: '1px solid #e2e8f0', background: '#f7fafc',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Minus className="w-3 h-3" />
-              </button>
-              <input
-                type="range"
-                min={-120}
-                max={120}
-                step={5}
-                value={timeOffset}
-                onChange={(e) => setTimeOffset(parseInt(e.target.value))}
-                style={{ flex: 1 }}
-              />
-              <button
-                onClick={() => setTimeOffset(prev => prev + 10)}
-                style={{
-                  width: '24px', height: '24px', borderRadius: '4px',
-                  border: '1px solid #e2e8f0', background: '#f7fafc',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            </div>
-            <div style={{ fontSize: '10px', color: '#a0aec0', textAlign: 'center' }}>
-              {timeOffset === 0 ? 'Storm time' : `${timeOffset > 0 ? '+' : ''}${timeOffset} min`}
-            </div>
-          </div>
-
           {/* Opacity slider */}
           <div>
             <label style={{ fontSize: '10px', color: '#718096' }}>Opacity: {Math.round(opacity * 100)}%</label>
@@ -390,27 +329,6 @@ const NexradRadarLayer: React.FC<NexradRadarLayerProps> = ({
             />
           </div>
 
-          {/* Quick presets */}
-          <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-            {[-60, -30, 0, 30, 60].map(offset => (
-              <button
-                key={offset}
-                onClick={() => setTimeOffset(offset)}
-                style={{
-                  flex: 1,
-                  padding: '4px',
-                  fontSize: '9px',
-                  borderRadius: '4px',
-                  border: `1px solid ${timeOffset === offset ? '#c53030' : '#e2e8f0'}`,
-                  background: timeOffset === offset ? '#c53030' : '#f7fafc',
-                  color: timeOffset === offset ? 'white' : '#4a5568',
-                  cursor: 'pointer'
-                }}
-              >
-                {offset === 0 ? 'Now' : `${offset > 0 ? '+' : ''}${offset}m`}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

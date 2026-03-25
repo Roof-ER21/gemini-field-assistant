@@ -118,7 +118,16 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
       }
 
       const parsed: HailSwath[] = data.features
-        .filter((f: any) => f.geometry && f.geometry.coordinates)
+        .filter((f: any) => {
+          if (!f.geometry || !f.geometry.coordinates) return false;
+          // Only include features with a valid MESH value — wind-only events
+          // either have no MESH field or a zero/null value. The field name
+          // explicitly says "Hailswath", so any feature here is already
+          // hail-related, but we enforce meshMm > 0 to exclude wind reports
+          // that may occasionally appear with a null MESH attribute.
+          const meshMm = f.properties?.Max_MESH_Value_in_the_Hailswath;
+          return meshMm != null && meshMm > 0;
+        })
         .map((f: any) => {
           const props = f.properties;
           const meshMm = props.Max_MESH_Value_in_the_Hailswath || 0;
@@ -134,14 +143,31 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
             coords = f.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
           }
 
+          // Convert epoch ms timestamp to a local YYYY-MM-DD date string.
+          // Using toISOString() would give UTC midnight which shifts the date
+          // by -1 day in US timezones.  We store the raw epoch value and
+          // derive the date string on comparison instead, so we keep both.
+          const startEpoch = props.Start_Date_Time ? Number(props.Start_Date_Time) : null;
+          const endEpoch = props.End_Date_Time ? Number(props.End_Date_Time) : null;
+
+          // Local date string: format as YYYY-MM-DD in the local (browser) TZ
+          const toLocalDateStr = (epoch: number | null): string => {
+            if (!epoch) return '';
+            const d = new Date(epoch);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          };
+
           return {
             id: props.OBJECTID,
             maxMesh: meshMm,
             maxMeshInches: meshInches,
             length: props.Hailswath_Length || 0,
             maxWidth: props.Max_width_of_swath || 0,
-            startDate: props.Start_Date_Time ? new Date(props.Start_Date_Time).toISOString() : '',
-            endDate: props.End_Date_Time ? new Date(props.End_Date_Time).toISOString() : '',
+            startDate: toLocalDateStr(startEpoch),
+            endDate: toLocalDateStr(endEpoch),
             coordinates: coords,
             severity: getMeshSeverity(meshMm)
           };
@@ -171,13 +197,12 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
     };
   }, [visible, fetchSwaths, map]);
 
-  // Filter by selected date if provided
+  // Filter by selected date if provided.
+  // startDate is now stored as a plain YYYY-MM-DD local-timezone string so we
+  // can compare directly without any split or UTC conversion.
   const filteredSwaths = useMemo(() => {
     if (!selectedDate) return swaths;
-    return swaths.filter(s => {
-      if (!s.startDate) return false;
-      return s.startDate.split('T')[0] === selectedDate;
-    });
+    return swaths.filter(s => s.startDate === selectedDate);
   }, [swaths, selectedDate]);
 
   if (!visible) return null;
@@ -251,7 +276,7 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
                   {swath.length > 0 && <div><strong>Length:</strong> {(swath.length / 1000).toFixed(1)} km</div>}
                   {swath.maxWidth > 0 && <div><strong>Max Width:</strong> {(swath.maxWidth / 1000).toFixed(1)} km</div>}
                   {swath.startDate && (
-                    <div><strong>Date:</strong> {new Date(swath.startDate).toLocaleDateString('en-US', {
+                    <div><strong>Date:</strong> {new Date(swath.startDate + 'T12:00:00').toLocaleDateString('en-US', {
                       month: 'short', day: 'numeric', year: 'numeric'
                     })}</div>
                   )}
