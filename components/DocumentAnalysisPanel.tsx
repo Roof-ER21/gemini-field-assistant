@@ -475,7 +475,7 @@ Format each supplement item as:
    - Does the scope meet GAF/CertainTeed/Owens Corning warranty installation requirements?
    - Are required accessories included for warranty compliance?
 
-Respond in JSON:
+CRITICAL: Respond with ONLY a JSON object. Do NOT include any text, analysis, or explanation before or after the JSON. Start your response with { and end with }. Output ONLY valid JSON:
 {
   "approvalStatus": "partial",
   "insuranceData": {
@@ -571,7 +571,7 @@ Analyze these documents and provide:
 6. **Recommendations**: Strategic advice for the rep focused ONLY on getting full approval (what documentation to provide, which codes to reference, what evidence is needed)
 7. **Next Steps**: Specific action items aligned with the rep's workflow above (documenting damage, submitting supplements, requesting review, following up for full approval)
 
-Format your response as JSON with this structure:
+CRITICAL: Respond with ONLY a JSON object. Do NOT include any text before or after the JSON. Start with { and end with }. Output ONLY valid JSON with this structure:
 {
   "approvalStatus": "full" | "partial" | "denial" | "unknown",
   "insuranceData": {
@@ -636,6 +636,27 @@ Format your response as JSON with this structure:
       try {
         const content = (aiResponse?.content || '').trim();
 
+        // Helper: try to repair truncated JSON
+        const tryRepairJson = (json: string): any => {
+          // Try as-is first
+          try { return JSON.parse(json); } catch {}
+          // Close unclosed arrays and objects
+          let repaired = json;
+          // Count open/close brackets
+          const openBraces = (repaired.match(/\{/g) || []).length;
+          const closeBraces = (repaired.match(/\}/g) || []).length;
+          const openBrackets = (repaired.match(/\[/g) || []).length;
+          const closeBrackets = (repaired.match(/\]/g) || []).length;
+          // Remove trailing comma if any
+          repaired = repaired.replace(/,\s*$/, '');
+          // Remove incomplete string at end
+          repaired = repaired.replace(/"[^"]*$/, '""');
+          // Close arrays then objects
+          for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += ']';
+          for (let i = 0; i < openBraces - closeBraces; i++) repaired += '}';
+          return JSON.parse(repaired);
+        };
+
         // Try direct JSON parse first
         try {
           analysis = JSON.parse(content);
@@ -643,12 +664,27 @@ Format your response as JSON with this structure:
           // Look for JSON in markdown code blocks
           const codeBlockMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
           if (codeBlockMatch) {
-            analysis = JSON.parse(codeBlockMatch[1]);
+            try {
+              analysis = JSON.parse(codeBlockMatch[1]);
+            } catch {
+              analysis = tryRepairJson(codeBlockMatch[1]);
+            }
           } else {
-            // Look for any JSON object in the text
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              analysis = JSON.parse(jsonMatch[0]);
+            // Look for any JSON object starting with { in the text
+            const jsonStart = content.indexOf('{\n');
+            if (jsonStart >= 0) {
+              const jsonCandidate = content.slice(jsonStart);
+              try {
+                analysis = tryRepairJson(jsonCandidate);
+              } catch {
+                // Last resort: extract from the free-text output directly
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  analysis = tryRepairJson(jsonMatch[0]);
+                } else {
+                  throw new Error('No JSON found in AI response');
+                }
+              }
             } else {
               throw new Error('No JSON found in AI response');
             }
