@@ -345,7 +345,16 @@ For EACH discrepancy found, calculate the DOLLAR DIFFERENCE:
 
 ${susanContextBlock}
 
-YOUR MISSION: Find EVERY item the adjuster missed, undervalued, or incorrectly calculated that can be supplemented.
+YOUR MISSION: Find EVERY item the adjuster missed, undervalued, or incorrectly calculated. For EACH item you MUST provide:
+1. The EXACT quantity from the estimate (or "missing/not included")
+2. The CORRECT quantity from Hover (if available)
+3. The DIFFERENCE in units (SF, LF, SQ, EA)
+4. The DOLLAR AMOUNT to supplement (using the estimate's own unit prices when available, or market rates when not)
+5. The CODE REFERENCE or REASON it's required
+
+DO NOT give vague recommendations like "add drip edge." Instead: "Add 91.74 LF drip edge: estimate has 310.09 LF, Hover perimeter is 401'10\" (401.83 LF). At $3.33/LF = $305.49. Required per IRC R905.2.8.5."
+
+ALWAYS end with a TOTAL SUPPLEMENT DOLLAR AMOUNT summing all items.
 
 **SUPPLEMENT ANALYSIS CHECKLIST — review the estimate for ALL of these:**
 
@@ -417,11 +426,20 @@ Respond in JSON:
     "deductible": "string or null",
     "claimStatus": "string or null"
   },
-  "summary": "Brief overview of the estimate and its completeness",
-  "keyFindings": ["CRITICAL items: each finding should be a specific missed/undervalued item with the code reference or reason"],
-  "damageDescriptions": ["All damage items found in the estimate"],
-  "recommendations": ["Specific supplement items to submit, with estimated dollar amounts where possible and code references"],
-  "nextSteps": ["Step-by-step action plan to write and submit the supplement"]
+  "summary": "1-2 sentence overview of estimate completeness and total supplement potential",
+  "keyFindings": [
+    "EACH finding MUST follow this EXACT format: '[ITEM NAME]: Estimate has [X amount/LF/SQ]. Hover shows [Y amount/LF/SQ]. Difference: [Z]. At $[unit price]/[unit] = $[supplement amount]. Code: [IRC reference]. Reason: [why this is required].'",
+    "Example: 'ROOF AREA DISCREPANCY: Estimate has 25.04 SQ (2,503.59 SF). Hover measures 31.67 SQ (3,167 SF). Difference: 6.63 SQ. At $291.36/SQ (shingle line item rate) = $1,931.72 supplement. The adjuster undermeasured the roof by 26%.'",
+    "Example: 'STARTER STRIP MISSING: Estimate has 0 LF of starter strip. Hover shows 217'2\" eaves + rake edges needing starter. 217 LF at ~$1.50/LF = $325.50 supplement. Required per manufacturer warranty installation specs.'",
+    "Example: 'DRIP EDGE SHORT: Estimate has 310.09 LF. Hover perimeter is 401'10\" (401.83 LF). Difference: 91.74 LF at $3.33/LF = $305.49 supplement. IRC R905.2.8.5 requires drip edge at all eaves and rakes.'",
+    "Example: 'WASTE FACTOR: Estimate auto-calculated 15.6% waste on 25.04 SQ. With correct Hover area of 31.67 SQ, waste should be recalculated. Pre-waste area in estimate (2,503.59 SF) vs Hover zero-waste (3,167 SF) shows estimate is using wrong base measurement.'"
+  ],
+  "damageDescriptions": ["List every line item from the estimate with its quantity, unit price, and RCV"],
+  "recommendations": [
+    "EACH recommendation MUST be a specific supplement line item in this format: 'Add [ITEM]: [quantity] [unit] × $[price]/[unit] = $[total]. Reason: [code ref or measurement source]'",
+    "At the END, include: 'TOTAL SUPPLEMENT VALUE: $[sum of all items]'"
+  ],
+  "nextSteps": ["Step 1: Prepare supplement document with above line items", "Step 2: Attach Hover report as measurement evidence", "Step 3: Reference specific IRC codes for each item", "Step 4: Submit to adjuster at claimdocuments@afics.com with claim number in subject"]
 }`;
 
       const analysisPrompt = analysisMode === 'supplement' ? supplementPrompt : `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
