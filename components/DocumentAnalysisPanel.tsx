@@ -356,44 +356,71 @@ DO NOT give vague recommendations like "add drip edge." Instead: "Add 91.74 LF d
 
 ALWAYS end with a TOTAL SUPPLEMENT DOLLAR AMOUNT summing all items.
 
-**SUPPLEMENT ANALYSIS CHECKLIST — review the estimate for ALL of these:**
+**CRITICAL RULES FOR ACCURACY:**
 
-1. **Missing Line Items** (things adjusters commonly leave out):
-   - Drip edge replacement (required by IRC R905.2.8.5 when re-roofing)
-   - Ice & water shield (required in ice dam areas per IRC R905.1.2)
-   - Starter strip shingles
-   - Ridge cap / hip cap shingles (often under-counted)
+RULE 1 — QUANTITY CORRECTION vs WASTE:
+- The Hover report shows the ACTUAL roof area (zero waste). The estimate also has a base area before waste.
+- Compare the estimate's PRE-WASTE base area (surface area in the roof diagram) to the Hover zero-waste area.
+- If the estimate's pre-waste area is LESS than Hover's measurement, that is a QUANTITY CORRECTION (the adjuster measured wrong), NOT a waste issue.
+- Call this "SUPPLEMENT FOR QUANTITY CORRECTION" — NOT "roof area discrepancy."
+- Waste factor is a SEPARATE check — verify the waste % is reasonable (10-15% regular, 15-20% hip/complex).
+
+RULE 2 — QUANTITY CORRECTION CASCADES TO ALL PER-SQ LINE ITEMS:
+- When there is a quantity correction (Hover shows more SQ than estimate), the additional squares affect EVERY line item priced per SQ, not just shingles. You MUST calculate the supplement for EACH:
+  • Shingles (comp shingle line item — $/SQ)
+  • Tear-off (tear off line item — $/SQ)
+  • Underlayment/felt (roofing felt line item — $/SQ)
+  • Ice & water shield (if priced per SQ or SF — recalculate)
+  • Steep slope charges (if applicable — additional charge per SQ for steep areas)
+  • High roof charges (if applicable — additional charge per SQ for 2+ story)
+  • Any other line item priced by the square
+- Show each cascaded line item separately with its own $/SQ rate from the estimate.
+- Then total the cascaded quantity correction.
+
+RULE 3 — STARTER STRIP:
+- Note that starter strip is commonly denied by adjusters because waste is supposed to account for it.
+- Still include it as a supplement item but mark it as "COMMONLY DENIED — waste may account for this."
+- If the estimate already includes adequate waste %, note that starter may be covered by waste.
+
+RULE 4 — DRIP EDGE:
+- Compare the estimate's drip edge LF to the Hover perimeter measurement.
+- This is one of the strongest supplement items — IRC R905.2.8.5 explicitly requires it.
+
+RULE 5 — STEP FLASHING:
+- Check Hover's step flashing count and total LF against the estimate.
+- Step flashing at roof-to-wall intersections is frequently undermeasured or omitted.
+
+RULE 6 — PITCH / STEEP CHARGES:
+- Use Hover's pitch breakdown to verify steep slope charges.
+- Any pitch 7/12 or greater requires steep charges.
+- Calculate what % of the roof is steep from Hover, multiply by the additional charge per SQ.
+
+**SUPPLEMENT ANALYSIS CHECKLIST:**
+
+1. **Quantity Correction** (MOST IMPORTANT — check first):
+   - Compare estimate pre-waste area to Hover zero-waste area
+   - If different, calculate cascaded supplement across ALL per-SQ line items
+
+2. **Missing Line Items**:
+   - Drip edge (IRC R905.2.8.5) — compare LF to Hover perimeter
+   - Starter strip (note: commonly denied, waste may cover)
+   - Step flashing — compare to Hover step flashing measurements
+   - Ridge cap / hip cap — compare to Hover ridge/hip lengths
    - Pipe boot/jack replacements
-   - Step flashing at walls and chimneys
    - Counter flashing
-   - Valley metal or valley lining
-   - Roof-to-wall flashing
-   - Chimney cricket/saddle (required for chimneys >30" wide per IRC R903.2.2)
-   - Satellite dish / antenna removal and reset
-   - Gutter apron / drip edge at eaves
-   - Re-felt / synthetic underlayment (full deck vs partial)
-   - Plywood/OSB decking replacement (check for soft/rotted areas)
-   - Ridge vent or exhaust vent replacement
-   - Skylight flashing kit
-   - Paint touch-up at flashings
-   - Detach & reset gutters during roof replacement
-   - Code upgrade: ventilation requirements (1:150 or 1:300 ratio per IRC R806)
+   - Valley metal/lining — compare to Hover valley lengths
+   - Chimney cricket (IRC R903.2.2 for chimneys >30" wide)
+   - Detach & reset gutters
    - Permit fees
-   - Waste factor (typically 10-15% for regular, 15-20% for hip roofs)
 
-2. **Undervalued Items**:
-   - Square footage measurement discrepancy (compare to actual roof measurement)
-   - Labor rates below market for your region
-   - Material pricing below current costs
-   - Overhead & Profit (O&P) not included or incorrectly calculated (standard is 10% + 10%)
-   - Steep slope charge missing (7/12 pitch and above)
-   - High roof charge (2+ stories)
-   - Limited access charge
-   - Tear-off of multiple layers
+3. **Undervalued Items**:
+   - Steep slope charges (verify against Hover pitch data)
+   - High roof charges (verify against Hover story count)
+   - O&P not included (standard 10% + 10%)
+   - Waste factor accuracy
 
-3. **Code Compliance Issues**:
-   - Does the estimate meet current IRC/IBC requirements?
-   - Ventilation calculations (IRC R806)
+4. **Code Compliance**:
+   - Ventilation requirements (IRC R806)
    - Underlayment requirements (IRC R905.1.1)
    - Flashing requirements (IRC R903.2)
    - If local codes are stricter than IRC, note that
@@ -428,18 +455,22 @@ Respond in JSON:
   },
   "summary": "1-2 sentence overview of estimate completeness and total supplement potential",
   "keyFindings": [
-    "EACH finding MUST follow this EXACT format: '[ITEM NAME]: Estimate has [X amount/LF/SQ]. Hover shows [Y amount/LF/SQ]. Difference: [Z]. At $[unit price]/[unit] = $[supplement amount]. Code: [IRC reference]. Reason: [why this is required].'",
-    "Example: 'ROOF AREA DISCREPANCY: Estimate has 25.04 SQ (2,503.59 SF). Hover measures 31.67 SQ (3,167 SF). Difference: 6.63 SQ. At $291.36/SQ (shingle line item rate) = $1,931.72 supplement. The adjuster undermeasured the roof by 26%.'",
-    "Example: 'STARTER STRIP MISSING: Estimate has 0 LF of starter strip. Hover shows 217'2\" eaves + rake edges needing starter. 217 LF at ~$1.50/LF = $325.50 supplement. Required per manufacturer warranty installation specs.'",
-    "Example: 'DRIP EDGE SHORT: Estimate has 310.09 LF. Hover perimeter is 401'10\" (401.83 LF). Difference: 91.74 LF at $3.33/LF = $305.49 supplement. IRC R905.2.8.5 requires drip edge at all eaves and rakes.'",
-    "Example: 'WASTE FACTOR: Estimate auto-calculated 15.6% waste on 25.04 SQ. With correct Hover area of 31.67 SQ, waste should be recalculated. Pre-waste area in estimate (2,503.59 SF) vs Hover zero-waste (3,167 SF) shows estimate is using wrong base measurement.'"
+    "QUANTITY CORRECTION: Estimate pre-waste area is [X] SQ. Hover zero-waste area is [Y] SQ. Difference: [Z] SQ. This correction cascades to ALL per-SQ line items (see recommendations).",
+    "EACH additional finding follows: '[ITEM]: Estimate has [X]. Hover shows [Y]. Difference: [Z]. At $[price]/[unit] = $[amount]. [Code ref].'",
+    "For starter strip, note: 'COMMONLY DENIED — waste typically accounts for starter strip material.'"
   ],
-  "damageDescriptions": ["List every line item from the estimate with its quantity, unit price, and RCV"],
+  "damageDescriptions": ["List every line item from the estimate with its quantity, unit, unit price, and RCV"],
   "recommendations": [
-    "EACH recommendation MUST be a specific supplement line item in this format: 'Add [ITEM]: [quantity] [unit] × $[price]/[unit] = $[total]. Reason: [code ref or measurement source]'",
-    "At the END, include: 'TOTAL SUPPLEMENT VALUE: $[sum of all items]'"
+    "For quantity corrections, show EACH affected line item separately:",
+    "Quantity Correction — Shingles: [diff] SQ × $[rate]/SQ = $[amount]",
+    "Quantity Correction — Tear-off: [diff] SQ × $[rate]/SQ = $[amount]",
+    "Quantity Correction — Underlayment: [diff] SQ × $[rate]/SQ = $[amount]",
+    "Quantity Correction — Steep charge (if applicable): [diff] SQ × $[rate]/SQ = $[amount]",
+    "Quantity Correction — High roof charge (if applicable): [diff] SQ × $[rate]/SQ = $[amount]",
+    "Then list other supplement items: 'Add [ITEM]: [qty] [unit] × $[price]/[unit] = $[total]. [Code/reason]'",
+    "TOTAL SUPPLEMENT VALUE: $[sum of ALL items including all cascaded quantity corrections]"
   ],
-  "nextSteps": ["Step 1: Prepare supplement document with above line items", "Step 2: Attach Hover report as measurement evidence", "Step 3: Reference specific IRC codes for each item", "Step 4: Submit to adjuster at claimdocuments@afics.com with claim number in subject"]
+  "nextSteps": ["Step 1: Prepare supplement document listing each line item with Hover measurements as evidence", "Step 2: Attach Hover report PDF showing correct measurements", "Step 3: Reference IRC codes for code-required items (drip edge, ventilation, etc.)", "Step 4: Submit supplement to adjuster with claim number"]
 }`;
 
       const analysisPrompt = analysisMode === 'supplement' ? supplementPrompt : `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
