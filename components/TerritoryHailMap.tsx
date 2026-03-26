@@ -58,21 +58,6 @@ interface StormPath {
   date: string;
 }
 
-interface HotZone {
-  id: string;
-  centerLat: number;
-  centerLng: number;
-  intensity: number;
-  eventCount: number;
-  avgHailSize: number | null;
-  maxHailSize: number | null;
-  lastEventDate: string;
-  recommendation: string;
-  events: Array<HailEvent | NOAAEvent>;
-  radius: number;
-  score?: number;
-}
-
 interface SearchCriteria {
   address?: string;
   city?: string;
@@ -428,11 +413,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
   const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'hail' | 'wind'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ihm' | 'noaa'>('all');
 
-  // Hot Zones state
-  const [showHotZones, setShowHotZones] = useState(false);
-  const [hotZones, setHotZones] = useState<HotZone[]>([]);
-  const [loadingHotZones, setLoadingHotZones] = useState(false);
-
   // PDF Report Options state
   const [showPdfOptions, setShowPdfOptions] = useState(false);
   const [pdfOptions, setPdfOptions] = useState({
@@ -617,75 +597,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
     setPropertyFocusMode(false);
     setSelectedStormDate(null);
     fetchHailData(territory);
-
-    // Fetch hot zones if enabled
-    if (showHotZones) {
-      fetchHotZones(territory);
-    }
-  };
-
-  // Fetch hot zones for a territory
-  const fetchHotZones = async (territory: Territory) => {
-    setLoadingHotZones(true);
-    try {
-      const res = await fetch(
-        `${getApiBaseUrl()}/hail/hot-zones?north=${territory.northLat}&south=${territory.southLat}&east=${territory.eastLng}&west=${territory.westLng}`
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        setHotZones(data.hotZones || []);
-        console.log(`🔥 Loaded ${data.hotZones?.length || 0} hot zones`);
-      } else {
-        console.error('Failed to load hot zones:', res.status);
-        setHotZones([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch hot zones:', err);
-      setHotZones([]);
-    } finally {
-      setLoadingHotZones(false);
-    }
-  };
-
-  // Fetch hot zones for a search location
-  const fetchHotZonesForLocation = async (lat: number, lng: number, radius: number = 50) => {
-    setLoadingHotZones(true);
-    try {
-      const res = await fetch(
-        `${getApiBaseUrl()}/hail/hot-zones?lat=${lat}&lng=${lng}&radius=${radius}`
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        setHotZones(data.hotZones || []);
-        console.log(`🔥 Loaded ${data.hotZones?.length || 0} hot zones for location`);
-      } else {
-        console.error('Failed to load hot zones:', res.status);
-        setHotZones([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch hot zones:', err);
-      setHotZones([]);
-    } finally {
-      setLoadingHotZones(false);
-    }
-  };
-
-  // Toggle hot zones display
-  const toggleHotZones = () => {
-    const newState = !showHotZones;
-    setShowHotZones(newState);
-
-    if (newState) {
-      if (currentSearch?.latitude && currentSearch?.longitude) {
-        fetchHotZonesForLocation(currentSearch.latitude, currentSearch.longitude, currentSearch.radius || 50);
-      } else if (selectedTerritory) {
-        fetchHotZones(selectedTerritory);
-      }
-    } else {
-      setHotZones([]);
-    }
   };
 
   // Fetch saved reports
@@ -872,15 +783,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
 
           // Show hail dates panel after successful search
           setShowHailDates(true);
-
-          // Fetch hot zones if enabled
-          if (showHotZones) {
-            fetchHotZonesForLocation(
-              data.searchCriteria.latitude,
-              data.searchCriteria.longitude,
-              isPropertySearch ? 5 : (data.searchCriteria.radius || 50)
-            );
-          }
         }
       } else {
         setError('Failed to search hail data');
@@ -1759,11 +1661,10 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
       setSelectedStormDate(dateKey);
       setNexradStormDate(date);
       setShowNexrad(true);
-      // Zoom to the first event of that date and pass location to NEXRAD layer
+      // Pass location to NEXRAD layer without moving the map
       const group = stormDateGroups.find(g => g.dateKey === dateKey);
       if (group && group.events.length > 0) {
         const firstEvt = group.events[0].event;
-        setSearchLocation({ lat: firstEvt.latitude, lng: firstEvt.longitude, zoom: 10 });
         setNexradStormLocation({ lat: firstEvt.latitude, lng: firstEvt.longitude });
       }
     }
@@ -2322,29 +2223,6 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
         alignItems: 'center',
         flexWrap: 'wrap'
       }}>
-        {/* Territory Selector */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {territories.map(t => (
-            <button
-              key={t.id}
-              onClick={() => handleTerritoryClick(t)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                border: selectedTerritory?.id === t.id ? `2px solid ${t.color}` : '1px solid var(--border-default)',
-                background: selectedTerritory?.id === t.id ? t.color : 'var(--bg-primary)',
-                color: selectedTerritory?.id === t.id ? 'white' : 'var(--text-primary)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-
         {/* Event Type Filter */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           {(['all', 'hail', 'wind'] as const).map(type => {
