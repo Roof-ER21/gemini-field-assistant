@@ -444,7 +444,7 @@ router.get('/hot-zones', async (req, res) => {
 // POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req, res) => {
     try {
-        const { address, city, state, lat, lng, radius, events, noaaEvents, historyEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, dateOfLoss, template = 'standard' } = req.body;
+        const { address, city, state, lat, lng, radius, events, noaaEvents, historyEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, dateOfLoss, template = 'standard', evidenceItems = [], } = req.body;
         // Validate required fields
         if (!address || !lat || !lng || !radius || !damageScore) {
             return res.status(400).json({
@@ -646,6 +646,7 @@ router.post('/generate-report', async (req, res) => {
             includeMap,
             includeWarnings,
             customerName,
+            evidenceItems,
             propertyRisk: propertyRiskData ? {
                 estimatedRoofAge: propertyRiskData.factors.estimatedRoofAge,
                 medianYearBuilt: propertyRiskData.factors.medianYearBuilt,

@@ -544,7 +544,8 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       includeWarnings = true,
       customerName,
       dateOfLoss,
-      template = 'standard'
+      template = 'standard',
+      evidenceItems = [],
     } = req.body;
 
     // Validate required fields
@@ -762,6 +763,7 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       includeMap,
       includeWarnings,
       customerName,
+      evidenceItems,
       propertyRisk: propertyRiskData ? {
         estimatedRoofAge: propertyRiskData.factors.estimatedRoofAge,
         medianYearBuilt: propertyRiskData.factors.medianYearBuilt,

@@ -96,6 +96,20 @@ interface ReportInput {
   includeMap?: boolean;
   includeWarnings?: boolean;
   customerName?: string;
+  evidenceItems?: Array<{
+    id: string;
+    provider: 'upload' | 'youtube' | 'flickr';
+    mediaType: 'image' | 'video' | 'link';
+    title: string;
+    stormDate: string | null;
+    notes?: string;
+    externalUrl?: string;
+    thumbnailUrl?: string | null;
+    publishedAt?: string | null;
+    imageDataUrl?: string | null;
+    fileName?: string;
+    mimeType?: string;
+  }>;
   propertyRisk?: {
     estimatedRoofAge: number | null;
     medianYearBuilt: number | null;
@@ -203,6 +217,17 @@ export class PDFReportServiceV2 {
       hour: 'numeric', minute: '2-digit', hour12: true
     });
     return `${formatted} ${tz}`;
+  }
+
+  private decodeImageDataUrl(dataUrl?: string | null): Buffer | null {
+    if (!dataUrl) return null;
+    const match = dataUrl.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+    if (!match) return null;
+    try {
+      return Buffer.from(match[1], 'base64');
+    } catch {
+      return null;
+    }
   }
 
   private generateReportId(): string {
@@ -942,6 +967,92 @@ export class PDFReportServiceV2 {
     doc.moveDown(0.3);
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text('* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day.', this.M, doc.y);
+
+    // =========================================================
+    // SUPPORTING EVIDENCE
+    // =========================================================
+    const approvedEvidence = (input.evidenceItems || []).filter((item) => {
+      if (!item) return false;
+      if (!input.dateOfLoss) return true;
+      return item.stormDate === null || item.stormDate === input.dateOfLoss;
+    });
+
+    if (approvedEvidence.length > 0) {
+      this.drawSectionBanner(doc, 'Supporting Evidence');
+
+      doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
+         .text(
+           'Approved field uploads and linked public-media references associated with this property and date of loss.',
+           this.M, doc.y, { width: this.CW }
+         );
+      doc.moveDown(0.5);
+
+      approvedEvidence.slice(0, 6).forEach((item, idx) => {
+        this.checkPageBreak(doc, 140);
+
+        const blockY = doc.y;
+        const previewW = 120;
+        const previewH = 90;
+        const detailX = this.M + previewW + 15;
+        const detailW = this.CW - previewW - 15;
+        const imageBuffer = this.decodeImageDataUrl(item.imageDataUrl);
+
+        if (imageBuffer) {
+          try {
+            doc.image(imageBuffer, this.M, blockY, {
+              width: previewW,
+              height: previewH,
+              fit: [previewW, previewH],
+            });
+            doc.rect(this.M, blockY, previewW, previewH)
+              .strokeColor(this.C.tableBorder)
+              .lineWidth(0.5)
+              .stroke();
+          } catch (error) {
+            console.warn('Failed to embed evidence image:', error);
+          }
+        } else {
+          doc.rect(this.M, blockY, previewW, previewH).fillAndStroke('#eef1f7', this.C.tableBorder);
+          doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica-Oblique')
+             .text(
+               item.mediaType === 'video' ? 'Video reference' : 'Linked evidence',
+               this.M + 10, blockY + 34, { width: previewW - 20, align: 'center' }
+             );
+        }
+
+        doc.fontSize(9.5).fillColor(this.C.text).font('Helvetica-Bold')
+           .text(item.title || `Evidence ${idx + 1}`, detailX, blockY, {
+             width: detailW,
+           });
+        doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
+           .text(
+             `${String(item.provider).toUpperCase()} · ${item.mediaType.toUpperCase()}${item.stormDate ? ` · ${this.fmtDateET(item.stormDate)}` : ''}`,
+             detailX, doc.y, { width: detailW }
+           );
+
+        if (item.publishedAt) {
+          doc.text(`Published: ${this.fmtFullDateTimeET(item.publishedAt)}`, detailX, doc.y, {
+            width: detailW,
+          });
+        }
+
+        if (item.notes) {
+          doc.moveDown(0.2);
+          doc.text(item.notes, detailX, doc.y, { width: detailW, lineGap: 1.2 });
+        }
+
+        if (item.externalUrl) {
+          doc.moveDown(0.2);
+          doc.fillColor(this.C.link).text(item.externalUrl, detailX, doc.y, {
+            width: detailW,
+            underline: true,
+          });
+          doc.fillColor(this.C.lightText);
+        }
+
+        doc.y = Math.max(doc.y, blockY + previewH) + 10;
+      });
+    }
 
     // =========================================================
     // DISCLAIMER — Professional, cites federal authorities
