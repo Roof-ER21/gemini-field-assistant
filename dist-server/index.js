@@ -54,7 +54,7 @@ import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
 import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
-import { hailtraceImportService } from './services/hailtraceImportService.js';
+// IHM and HailTrace removed — all hail data sourced from NOAA/NWS/NEXRAD (free, federal)
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
 const { Pool } = pg;
@@ -126,10 +126,7 @@ pushNotificationService.initializeFirebase().then((initialized) => {
 }).catch((err) => {
     console.log('⚠️ Push notifications unavailable:', err.message);
 });
-// Initialize HailTrace import service (watching disabled — NOAA is primary source)
-// HailTrace data already in DB is preserved. Manual imports still available via API.
-hailtraceImportService.initialize(pool);
-console.log('✅ HailTrace import service initialized (auto-watch disabled, NOAA primary)');
+// Hail data sourced exclusively from NOAA Storm Events Database (free, federal, authoritative)
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================

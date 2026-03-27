@@ -6,7 +6,7 @@
  *
  * Tool list:
  *   1. schedule_followup      – Create a task/reminder (stub until agent_tasks exists)
- *   2. lookup_hail_data        – IHM hail history via hailMapsService
+ *   2. lookup_hail_data        – NOAA storm history (hail + wind)
  *   3. save_client_note        – UPSERT into user_memory table
  *   4. draft_email             – Return structured email metadata for Gemini to fill
  *   5. share_team_intel        – INSERT into agent_network_messages (pending admin approval)
@@ -16,7 +16,7 @@
 
 import pg from 'pg';
 import { Type, type FunctionDeclaration } from '@google/genai';
-import { hailMapsService } from './hailMapsService.js';
+import { noaaStormService } from './noaaStormService.js';
 import { createCalendarEvent, checkAvailability, listCalendarEvents } from './googleCalendarService.js';
 import { sendGmailEmail } from './googleGmailService.js';
 
@@ -175,7 +175,7 @@ async function executeScheduleFollowup(
 const lookupHailDataDeclaration: FunctionDeclaration = {
   name: 'lookup_hail_data',
   description:
-    'Search IHM (Interactive Hail Maps) hail history for a specific address. Returns hail and wind events with dates, sizes, and severity. Use when the rep or a homeowner asks about storm history at a property.',
+    'Search NOAA Storm Events Database for hail and wind history near a specific address. Returns verified storm events with dates, sizes, and severity from federal weather data. Use when the rep or a homeowner asks about storm history at a property.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -216,31 +216,57 @@ async function executeLookupHailData(
     months?: number;
   };
 
-  if (!hailMapsService.isConfigured()) {
-    return {
-      success: false,
-      error: 'IHM API credentials are not configured on this server. Cannot retrieve hail data.',
-      address: { street, city, state, zip }
-    };
-  }
-
   try {
-    const result = await hailMapsService.searchByAddress({ street, city, state, zip }, months);
+    // Geocode the address via Census Bureau
+    const params = new URLSearchParams({
+      address: `${street}, ${city}, ${state} ${zip}`,
+      benchmark: 'Public_AR_Current',
+      format: 'json'
+    });
+    const geoRes = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+    let lat: number | null = null;
+    let lng: number | null = null;
 
-    // Trim the raw field to keep the response compact for Gemini context
-    const events = (result.events ?? []).map(({ raw: _raw, ...e }) => e);
-    const noaaEvents = (result.noaaEvents ?? []).slice(0, 10);
-    const windEvents = (result.windEvents ?? []).slice(0, 10);
+    if (geoRes.ok) {
+      const geoData = await geoRes.json();
+      const matches = geoData?.result?.addressMatches;
+      if (matches?.length) {
+        lat = matches[0].coordinates.y;
+        lng = matches[0].coordinates.x;
+      }
+    }
+
+    // Fallback to Nominatim
+    if (!lat || !lng) {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${street}, ${city}, ${state} ${zip}`)}&format=json&limit=1&countrycodes=us`,
+        { headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' } }
+      );
+      const nomData = await nomRes.json();
+      if (Array.isArray(nomData) && nomData.length > 0) {
+        lat = parseFloat(nomData[0].lat);
+        lng = parseFloat(nomData[0].lon);
+      }
+    }
+
+    if (!lat || !lng) {
+      return { success: false, error: 'Could not geocode address', address: { street, city, state, zip } };
+    }
+
+    const years = Math.ceil(months / 12);
+    const noaaEvents = await noaaStormService.getStormEvents(lat, lng, 15, years);
+    const hailEvents = noaaEvents.filter(e => e.eventType === 'hail').slice(0, 20);
+    const windEvents = noaaEvents.filter(e => e.eventType === 'wind').slice(0, 10);
 
     return {
       success: true,
       address: `${street}, ${city}, ${state} ${zip}`,
       months_searched: months,
-      total_hail_events: result.totalCount,
-      hail_events: events.slice(0, 20),
+      total_hail_events: hailEvents.length,
+      hail_events: hailEvents,
       wind_events: windEvents,
-      noaa_events: noaaEvents,
-      search_area: result.searchArea
+      noaa_events: noaaEvents.slice(0, 10),
+      search_area: { center: { lat, lng }, radiusMiles: 15 }
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

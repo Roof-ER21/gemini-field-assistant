@@ -1,5 +1,7 @@
-import { hailMapsService, HailEvent } from './hailMapsService.js';
 import { noaaStormService, NOAAStormEvent } from './noaaStormService.js';
+
+// Legacy type alias for compatibility — all data now comes from NOAA
+type HailEvent = NOAAStormEvent;
 
 export interface HotZone {
   id: string;
@@ -118,32 +120,17 @@ class HotZoneService {
     lng: number,
     radiusMiles: number
   ): Promise<{ ihmEvents: HailEvent[]; noaaEvents: NOAAStormEvent[] }> {
-    const months = 24; // Last 2 years
     const years = 2;
-
-    let ihmEvents: HailEvent[] = [];
     let noaaEvents: NOAAStormEvent[] = [];
 
-    // Fetch IHM data if configured
-    if (hailMapsService.isConfigured()) {
-      try {
-        const ihmData = await hailMapsService.searchByCoordinates(lat, lng, months, radiusMiles);
-        ihmEvents = ihmData.events || [];
-      } catch (error) {
-        console.error('Failed to fetch IHM data for hot zones:', error);
-      }
-    }
-
-    // Always fetch NOAA data
     try {
       noaaEvents = await noaaStormService.getStormEvents(lat, lng, radiusMiles, years);
-      // Filter to only hail events for hot zones
       noaaEvents = noaaEvents.filter(e => e.eventType === 'hail');
     } catch (error) {
       console.error('Failed to fetch NOAA data for hot zones:', error);
     }
 
-    return { ihmEvents, noaaEvents };
+    return { ihmEvents: [], noaaEvents };
   }
 
   /**
@@ -322,10 +309,11 @@ class HotZoneService {
    * Get hail size from event
    */
   private getHailSize(event: HailEvent | NOAAStormEvent): number | null {
-    if ('hailSize' in event) {
-      return event.hailSize;
-    } else if ('magnitude' in event && event.eventType === 'hail') {
+    if ('magnitude' in event && event.eventType === 'hail') {
       return event.magnitude;
+    }
+    if ('hailSize' in event) {
+      return (event as any).hailSize as number;
     }
     return null;
   }

@@ -1,16 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { hailMapsService } from '../services/hailMapsService.js';
 import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
 import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
-import { hailtraceImportService } from '../services/hailtraceImportService.js';
 import { getHistoricalMrmsOverlay } from '../services/historicalMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
-import { weatherService } from '../services/weatherService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import type { Pool } from 'pg';
 
@@ -133,19 +130,11 @@ router.get('/reverse-geocode', async (req: Request, res: Response) => {
 
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
-  const ihmConfigured = hailMapsService.isConfigured();
-  const vcConfigured = weatherService.isConfigured();
-
   const sources = ['NOAA Storm Events Database', 'NWS Alerts', 'NEXRAD Radar'];
-  if (ihmConfigured) sources.push('Interactive Hail Maps (legacy)');
-  if (vcConfigured) sources.push('Visual Crossing Weather');
-
   res.json({
     noaaAvailable: true,
     nwsAvailable: true,
     nexradAvailable: true,
-    ihmConfigured,
-    visualCrossingConfigured: vcConfigured,
     primarySource: 'NOAA Storm Events Database',
     activeSources: sources,
     message: `${sources.length} data sources active`,
@@ -153,63 +142,19 @@ router.get('/status', (_req, res) => {
   });
 });
 
-// POST /api/hail/monitor
-router.post('/monitor', async (req, res) => {
-  try {
-    const { street, city, state, zip } = req.body as { street?: string; city?: string; state?: string; zip?: string };
-    if (!street || !city || !state || !zip) {
-      return res.status(400).json({ error: 'street, city, state, and zip are required' });
-    }
-    if (!hailMapsService.isConfigured()) {
-      return res.status(503).json({ error: 'Hail maps service not configured' });
-    }
-
-    const result = await hailMapsService.createAddressMonitor({ street, city, state, zip });
-    res.json(result);
-  } catch (error) {
-    console.error('❌ Hail monitor error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
 // GET /api/hail/search?address=...&months=24 OR lat/lng
 router.get('/search', async (req, res) => {
   try {
-    const { address, lat, lng, months = '24', radius = '50', marker_id, street, city, state, zip } = req.query;
+    const { address, lat, lng, months = '24', radius = '50', street, city, state, zip } = req.query;
     const monthsNum = parseInt(months as string, 10);
     const radiusNum = parseFloat(radius as string);
     const yearsNum = Math.ceil(monthsNum / 12);
 
-    const ihmConfigured = hailMapsService.isConfigured();
-    let ihmData: any = null;
     let noaaData: any[] = [];
-    let weatherData: any[] = [];
-    const dataSources: string[] = [];
-
-    // Helper: fetch Visual Crossing weather data (wind/thunderstorm events)
-    const fetchWeatherData = async (sLat: number, sLng: number) => {
-      if (weatherService.isConfigured()) {
-        try {
-          weatherData = await weatherService.getStormEvents(sLat, sLng, monthsNum);
-          if (weatherData.length > 0) dataSources.push('VisualCrossing');
-        } catch (error) {
-          console.error('Visual Crossing error:', error);
-        }
-      }
-    };
 
     // Extract coordinates from request
     let searchLat: number | null = lat ? parseFloat(lat as string) : null;
     let searchLng: number | null = lng ? parseFloat(lng as string) : null;
-
-    // Handle marker_id (IHM only)
-    if (marker_id) {
-      if (!ihmConfigured) {
-        return res.status(503).json({ error: 'Marker ID search requires IHM configuration' });
-      }
-      const data = await hailMapsService.searchByMarkerId(marker_id as string, monthsNum);
-      return res.json({ ...data, dataSource: ['IHM'] });
-    }
 
     // Handle address-based search
     if (street || city || state || zip) {
@@ -217,30 +162,7 @@ router.get('/search', async (req, res) => {
         return res.status(400).json({ error: 'street, city, state, and zip are required' });
       }
 
-      // Try IHM if configured
-      if (ihmConfigured) {
-        try {
-          ihmData = await hailMapsService.searchByAddress(
-            {
-              street: String(street),
-              city: String(city),
-              state: String(state),
-              zip: String(zip)
-            },
-            monthsNum
-          );
-          dataSources.push('IHM');
-          // Extract coordinates from IHM response
-          if (ihmData?.searchArea?.center) {
-            searchLat = ihmData.searchArea.center.lat;
-            searchLng = ihmData.searchArea.center.lng;
-          }
-        } catch (error) {
-          console.error('IHM search error:', error);
-        }
-      }
-
-      // If we don't have coordinates yet, geocode
+      // Geocode the address
       if (!searchLat || !searchLng) {
         const geocodeResult = await geocodeForHailSearch({
           address: String(street),
@@ -254,26 +176,24 @@ router.get('/search', async (req, res) => {
         }
       }
 
-      // Fetch NOAA + Visual Crossing in parallel
+      // Fetch NOAA data
       if (searchLat && searchLng) {
-        await Promise.all([
-          noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum)
-            .then(d => { noaaData = d; dataSources.push('NOAA'); })
-            .catch(e => console.error('NOAA search error:', e)),
-          fetchWeatherData(searchLat, searchLng)
-        ]);
+        try {
+          noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
+        } catch (e) {
+          console.error('NOAA search error:', e);
+        }
       }
 
       return res.json({
-        events: ihmData?.events || [],
+        events: [],
         noaaEvents: noaaData,
-        weatherEvents: weatherData,
-        searchArea: ihmData?.searchArea || {
+        searchArea: {
           center: { lat: searchLat, lng: searchLng },
           radiusMiles: radiusNum
         },
-        dataSource: dataSources,
-        message: `NOAA Storm Events Database${ihmConfigured ? ' + IHM' : ''}${weatherData.length > 0 ? ' + Visual Crossing' : ''}`
+        dataSource: ['NOAA'],
+        message: 'NOAA Storm Events Database'
       });
     }
 
@@ -282,39 +202,21 @@ router.get('/search', async (req, res) => {
       searchLat = parseFloat(lat as string);
       searchLng = parseFloat(lng as string);
 
-      // Try IHM if configured
-      if (ihmConfigured) {
-        try {
-          ihmData = await hailMapsService.searchByCoordinates(
-            searchLat,
-            searchLng,
-            monthsNum,
-            radiusNum
-          );
-          dataSources.push('IHM');
-        } catch (error) {
-          console.error('IHM search error:', error);
-        }
+      try {
+        noaaData = await noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum);
+      } catch (e) {
+        console.error('NOAA search error:', e);
       }
 
-      // Fetch NOAA + Visual Crossing in parallel
-      await Promise.all([
-        noaaStormService.getStormEvents(searchLat, searchLng, radiusNum, yearsNum)
-          .then(d => { noaaData = d; dataSources.push('NOAA'); })
-          .catch(e => console.error('NOAA search error:', e)),
-        fetchWeatherData(searchLat, searchLng)
-      ]);
-
       return res.json({
-        events: ihmData?.events || [],
+        events: [],
         noaaEvents: noaaData,
-        weatherEvents: weatherData,
-        searchArea: ihmData?.searchArea || {
+        searchArea: {
           center: { lat: searchLat, lng: searchLng },
           radiusMiles: radiusNum
         },
-        dataSource: dataSources,
-        message: `NOAA Storm Events Database${ihmConfigured ? ' + IHM' : ''}${weatherData.length > 0 ? ' + Visual Crossing' : ''}`
+        dataSource: ['NOAA'],
+        message: 'NOAA Storm Events Database'
       });
     }
 
@@ -322,7 +224,7 @@ router.get('/search', async (req, res) => {
       return res.status(400).json({ error: 'Use street, city, state, and zip for address search' });
     }
 
-    return res.status(400).json({ error: 'Provide street/city/state/zip, marker_id, or lat/lng' });
+    return res.status(400).json({ error: 'Provide street/city/state/zip or lat/lng' });
   } catch (error) {
     console.error('❌ Hail search error:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -357,175 +259,50 @@ router.post('/search-advanced', async (req: Request, res: Response) => {
     }
     const years = Math.ceil(months / 12);
 
-    const ihmConfigured = hailMapsService.isConfigured();
-    let ihmData: any = null;
     let noaaData: any[] = [];
-    const dataSources: string[] = [];
 
-    // If we have city, state, and zip - use address search
-    if (city && state && zip) {
-      // Try IHM if configured
-      if (ihmConfigured) {
-        try {
-          ihmData = await hailMapsService.searchByAddress(
-            {
-              street: address || '',
-              city,
-              state,
-              zip
-            },
-            months
-          );
-          dataSources.push('IHM');
-          // Extract coordinates from IHM response
-          if (ihmData?.searchArea?.center) {
-            lat = ihmData.searchArea.center.lat;
-            lng = ihmData.searchArea.center.lng;
-          }
-        } catch (error) {
-          console.error('IHM search error:', error);
-        }
-      }
-
-      // If we don't have coordinates yet, geocode
-      if (!lat || !lng) {
+    // Geocode if we have address but no coordinates
+    if (!lat && !lng) {
+      if ((address || city) && state) {
         const geocodeResult = await geocodeForHailSearch({ address, city, state, zip });
         if (geocodeResult) {
           lat = geocodeResult.lat;
           lng = geocodeResult.lng;
         }
       }
-
-      // Fetch NOAA data if we have coordinates
-      if (lat && lng) {
-        try {
-          noaaData = await noaaStormService.getStormEvents(lat, lng, parseFloat(radius as any), years);
-          dataSources.push('NOAA');
-        } catch (error) {
-          console.error('NOAA search error:', error);
-        }
-      }
-
-      // Filter by hail size if specified
-      let filteredIhmEvents = ihmData?.events || [];
-      if (minHailSize) {
-        filteredIhmEvents = filteredIhmEvents.filter(
-          (event: any) => event.hailSize && event.hailSize >= minHailSize
-        );
-      }
-
-      let filteredNoaaEvents = noaaData;
-      if (minHailSize) {
-        filteredNoaaEvents = noaaData.filter(
-          (event: any) => event.magnitude && event.magnitude >= minHailSize
-        );
-      }
-
-      return res.json({
-        events: filteredIhmEvents,
-        noaaEvents: filteredNoaaEvents,
-        resultsCount: filteredIhmEvents.length + filteredNoaaEvents.length,
-        searchArea: ihmData?.searchArea || {
-          center: { lat, lng },
-          radiusMiles: parseFloat(radius as any)
-        },
-        searchCriteria: {
-          address,
-          city,
-          state,
-          zip,
-          latitude: lat,
-          longitude: lng,
-          startDate,
-          endDate,
-          minHailSize,
-          radius
-        },
-        dataSource: dataSources,
-        message: dataSources.join(" + ") || "NOAA Storm Events Database"
-      });
     }
 
-    // If we have address/city/state but no zip, geocode first
-    if ((address || city) && state && !zip && !lat && !lng) {
-      // Use multi-provider geocoding (Census Bureau + Nominatim fallback)
-      const geocodeResult = await geocodeForHailSearch({ address, city, state });
-
-      if (!geocodeResult) {
-        return res.status(400).json({ error: 'Address not found. Try adding a ZIP code for better results.' });
-      }
-
-      lat = geocodeResult.lat;
-      lng = geocodeResult.lng;
-      console.log(`✅ Geocoded "${address}, ${city}, ${state}" to ${lat}, ${lng}`);
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Provide city/state, ZIP code, or coordinates' });
     }
 
-    // Search by coordinates
-    if (lat && lng) {
-      // Try IHM if configured
-      if (ihmConfigured) {
-        try {
-          ihmData = await hailMapsService.searchByCoordinates(
-            parseFloat(lat),
-            parseFloat(lng),
-            months,
-            parseFloat(radius as any)
-          );
-          dataSources.push('IHM');
-        } catch (error) {
-          console.error('IHM search error:', error);
-        }
-      }
-
-      // Always fetch NOAA data
-      try {
-        noaaData = await noaaStormService.getStormEvents(parseFloat(lat), parseFloat(lng), parseFloat(radius as any), years);
-        dataSources.push('NOAA');
-      } catch (error) {
-        console.error('NOAA search error:', error);
-      }
-
-      // Filter by hail size if specified
-      let filteredIhmEvents = ihmData?.events || [];
-      if (minHailSize) {
-        filteredIhmEvents = filteredIhmEvents.filter(
-          (event: any) => event.hailSize && event.hailSize >= minHailSize
-        );
-      }
-
-      let filteredNoaaEvents = noaaData;
-      if (minHailSize) {
-        filteredNoaaEvents = noaaData.filter(
-          (event: any) => event.magnitude && event.magnitude >= minHailSize
-        );
-      }
-
-      return res.json({
-        events: filteredIhmEvents,
-        noaaEvents: filteredNoaaEvents,
-        resultsCount: filteredIhmEvents.length + filteredNoaaEvents.length,
-        searchArea: ihmData?.searchArea || {
-          center: { lat: parseFloat(lat), lng: parseFloat(lng) },
-          radiusMiles: parseFloat(radius as any)
-        },
-        searchCriteria: {
-          address,
-          city,
-          state,
-          zip,
-          latitude: lat,
-          longitude: lng,
-          startDate,
-          endDate,
-          minHailSize,
-          radius
-        },
-        dataSource: dataSources,
-        message: dataSources.join(" + ") || "NOAA Storm Events Database"
-      });
+    // Fetch NOAA data
+    try {
+      noaaData = await noaaStormService.getStormEvents(parseFloat(lat), parseFloat(lng), parseFloat(radius as any), years);
+    } catch (error) {
+      console.error('NOAA search error:', error);
     }
 
-    return res.status(400).json({ error: 'Provide city and state (optionally address), ZIP code, or coordinates' });
+    // Filter by hail size if specified
+    let filteredNoaaEvents = noaaData;
+    if (minHailSize) {
+      filteredNoaaEvents = noaaData.filter(
+        (event: any) => event.magnitude && event.magnitude >= minHailSize
+      );
+    }
+
+    return res.json({
+      events: [],
+      noaaEvents: filteredNoaaEvents,
+      resultsCount: filteredNoaaEvents.length,
+      searchArea: {
+        center: { lat: parseFloat(lat), lng: parseFloat(lng) },
+        radiusMiles: parseFloat(radius as any)
+      },
+      searchCriteria: { address, city, state, zip, latitude: lat, longitude: lng, startDate, endDate, minHailSize, radius },
+      dataSource: ['NOAA'],
+      message: 'NOAA Storm Events Database'
+    });
   } catch (error) {
     console.error('❌ Advanced hail search error:', error);
     res.status(500).json({ error: (error as Error).message });
@@ -1179,139 +956,6 @@ router.get('/mrms-historical-image', async (req: Request, res: Response) => {
     res.send(result.imageBuffer);
   } catch (error) {
     console.error('Historical MRMS image error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// POST /api/hail/import-hailtrace - Manual HailTrace import trigger
-router.post('/import-hailtrace', async (req: Request, res: Response) => {
-  try {
-    const { filepath } = req.body;
-
-    if (!filepath) {
-      return res.status(400).json({ error: 'filepath is required' });
-    }
-
-    console.log(`[HailTrace API] Manual import requested for: ${filepath}`);
-
-    const result = await hailtraceImportService.importFromFile(filepath);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: 'Import completed successfully',
-        ...result
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: 'Import completed with errors',
-        ...result
-      });
-    }
-  } catch (error) {
-    console.error('❌ HailTrace import error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// GET /api/hail/hailtrace-status - HailTrace integration status
-router.get('/hailtrace-status', async (_req: Request, res: Response) => {
-  try {
-    const status = await hailtraceImportService.getStatus();
-
-    res.json({
-      success: true,
-      ...status,
-      message: status.watching
-        ? `Watching for files (${status.pendingFiles.length} pending)`
-        : 'File watching is stopped'
-    });
-  } catch (error) {
-    console.error('❌ HailTrace status error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// POST /api/hail/hailtrace-watch - Start/stop HailTrace file watching
-router.post('/hailtrace-watch', async (req: Request, res: Response) => {
-  try {
-    const { action, intervalMs } = req.body;
-
-    if (action === 'start') {
-      hailtraceImportService.startWatching(intervalMs || 60000);
-      res.json({
-        success: true,
-        message: 'HailTrace file watching started',
-        intervalMs: intervalMs || 60000
-      });
-    } else if (action === 'stop') {
-      hailtraceImportService.stopWatching();
-      res.json({
-        success: true,
-        message: 'HailTrace file watching stopped'
-      });
-    } else {
-      res.status(400).json({ error: 'action must be "start" or "stop"' });
-    }
-  } catch (error) {
-    console.error('❌ HailTrace watch control error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// POST /api/hail/hailtrace-scan - Manually trigger directory scan
-router.post('/hailtrace-scan', async (_req: Request, res: Response) => {
-  try {
-    console.log('[HailTrace API] Manual scan triggered');
-
-    const result = await hailtraceImportService.manualScan();
-
-    res.json({
-      success: true,
-      message: 'Manual scan completed',
-      ...result
-    });
-  } catch (error) {
-    console.error('❌ HailTrace scan error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// GET /api/hail/hailtrace-events - Get HailTrace events
-router.get('/hailtrace-events', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, minHailSize, limit } = req.query;
-
-    const events = await hailtraceImportService.getEvents({
-      startDate: startDate as string,
-      endDate: endDate as string,
-      minHailSize: minHailSize ? parseFloat(minHailSize as string) : undefined,
-      limit: limit ? parseInt(limit as string, 10) : 100
-    });
-
-    res.json({
-      success: true,
-      events,
-      count: events.length
-    });
-  } catch (error) {
-    console.error('❌ HailTrace events fetch error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// GET /api/hail/hailtrace-stats - Get import statistics
-router.get('/hailtrace-stats', async (_req: Request, res: Response) => {
-  try {
-    const stats = await hailtraceImportService.getImportStats();
-
-    res.json({
-      success: true,
-      stats
-    });
-  } catch (error) {
-    console.error('❌ HailTrace stats error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

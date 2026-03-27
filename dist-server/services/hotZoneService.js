@@ -1,4 +1,3 @@
-import { hailMapsService } from './hailMapsService.js';
 import { noaaStormService } from './noaaStormService.js';
 class HotZoneService {
     // Grid size in degrees (approximately 5 miles at mid-latitudes)
@@ -67,30 +66,16 @@ class HotZoneService {
      * Fetch storm data from IHM and NOAA
      */
     async fetchStormData(lat, lng, radiusMiles) {
-        const months = 24; // Last 2 years
         const years = 2;
-        let ihmEvents = [];
         let noaaEvents = [];
-        // Fetch IHM data if configured
-        if (hailMapsService.isConfigured()) {
-            try {
-                const ihmData = await hailMapsService.searchByCoordinates(lat, lng, months, radiusMiles);
-                ihmEvents = ihmData.events || [];
-            }
-            catch (error) {
-                console.error('Failed to fetch IHM data for hot zones:', error);
-            }
-        }
-        // Always fetch NOAA data
         try {
             noaaEvents = await noaaStormService.getStormEvents(lat, lng, radiusMiles, years);
-            // Filter to only hail events for hot zones
             noaaEvents = noaaEvents.filter(e => e.eventType === 'hail');
         }
         catch (error) {
             console.error('Failed to fetch NOAA data for hot zones:', error);
         }
-        return { ihmEvents, noaaEvents };
+        return { ihmEvents: [], noaaEvents };
     }
     /**
      * Filter events within geographic bounds
@@ -221,11 +206,11 @@ class HotZoneService {
      * Get hail size from event
      */
     getHailSize(event) {
+        if ('magnitude' in event && event.eventType === 'hail') {
+            return event.magnitude;
+        }
         if ('hailSize' in event) {
             return event.hailSize;
-        }
-        else if ('magnitude' in event && event.eventType === 'hail') {
-            return event.magnitude;
         }
         return null;
     }
