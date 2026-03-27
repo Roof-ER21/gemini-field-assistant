@@ -71,13 +71,13 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchLabel, setActiveSearchLabel] = useState<string | null>(null);
-  const [searchLat, setSearchLat] = useState<number | null>(null);
-  const [searchLng, setSearchLng] = useState<number | null>(null);
+  const [searchLat, setSearchLat] = useState<number | null>(DEFAULT_CENTER[0]);
+  const [searchLng, setSearchLng] = useState<number | null>(DEFAULT_CENTER[1]);
   const [searchSummary, setSearchSummary] = useState<PropertySearchSummary | null>(null);
   const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('2y');
   const [sinceDate, setSinceDate] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('recent');
-  const [eventFilters, setEventFilters] = useState<EventFilterState>({ hail: true, wind: true });
+  const [eventFilters, setEventFilters] = useState<EventFilterState>({ hail: true, wind: false });
   const [selectedDate, setSelectedDate] = useState<StormDate | null>(null);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [events, setEvents] = useState<StormEvent[]>([]);
@@ -223,6 +223,10 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Storm Maps</h1>
               <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>Property hail history for roofing reps</p>
             </div>
+            <a href="https://appealing-bravery-production-d7d6.up.railway.app" target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 11, color: '#9ca3af', background: '#1f2937', padding: '5px 10px', borderRadius: 6, textDecoration: 'none', flexShrink: 0, fontWeight: 600 }}>
+              Full Map
+            </a>
             <button onClick={toggleGps} title={gpsTracking ? 'Stop GPS' : 'Start GPS'}
               style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: gpsTracking ? '#3b82f6' : '#1f2937', color: gpsTracking ? '#fff' : '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
               {gpsTracking ? '\u25C9' : '\u25CB'}
