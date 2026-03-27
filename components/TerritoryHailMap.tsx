@@ -654,6 +654,9 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     [mapCenter, selectedStormBounds],
   );
 
+  const showHistoricalHailOverlay = Boolean(swathVisible && selectedDate && selectedStormBounds);
+  const mrmsLayerVisible = mrmsVisible || showHistoricalHailOverlay;
+
   const routeOrigin = useMemo<[number, number] | null>(() => {
     if (gpsPosition) {
       return [gpsPosition.lat, gpsPosition.lng];
@@ -1506,14 +1509,17 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             historicalTimestamps={historicalRadarTimestamps}
           />
           <MRMSHailOverlay
-            visible={mrmsVisible}
+            visible={mrmsLayerVisible}
             product="mesh1440"
             onToggle={() => setMrmsVisible((previous) => !previous)}
             selectedDate={selectedDate?.date ?? null}
             historicalBounds={selectedStormBounds}
             anchorTimestamp={selectedStormRadarTimestamp}
           />
-          <HailSwathLayer visible={swathVisible} selectedDate={selectedDate?.date || null} />
+          <HailSwathLayer
+            visible={swathVisible && !selectedDate}
+            selectedDate={selectedDate?.date || null}
+          />
         </MapContainer>
 
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1769,7 +1775,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           </div>
         )}
 
-        {!mrmsVisible && (
+        {!mrmsLayerVisible && (
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(10,10,15,0.88)', backdropFilter: 'blur(6px)', borderRadius: 8, padding: '8px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.35)', color: '#fff', fontSize: 10 }}>
             <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 6 }}>Hail Size</div>
             {HAIL_SIZE_CLASSES.map((sizeClass) => (
