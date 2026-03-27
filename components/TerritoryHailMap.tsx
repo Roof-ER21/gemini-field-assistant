@@ -810,22 +810,6 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     [],
   );
 
-  useEffect(() => {
-    if (!routeMode || !routeData || !routeOrigin || !gpsPosition) {
-      return;
-    }
-
-    const previousOrigin = routeOriginRef.current;
-    if (
-      previousOrigin &&
-      haversineDistanceMiles(previousOrigin[0], previousOrigin[1], routeOrigin[0], routeOrigin[1]) < 0.15
-    ) {
-      return;
-    }
-
-    void handleBuildRoute(routeData.destination);
-  }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
-
   const handleGenerateReport = useCallback(async () => {
     if (!selectedDol || !activeSearchLabel || searchLat === null || searchLng === null) {
       return;
@@ -904,6 +888,22 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     },
     [filteredEvents, handleBuildRoute, stormDates],
   );
+
+  useEffect(() => {
+    if (!routeMode || !routeData || !routeOrigin || !gpsPosition) {
+      return;
+    }
+
+    const previousOrigin = routeOriginRef.current;
+    if (
+      previousOrigin &&
+      haversineDistanceMiles(previousOrigin[0], previousOrigin[1], routeOrigin[0], routeOrigin[1]) < 0.15
+    ) {
+      return;
+    }
+
+    void handleBuildRoute(routeData.destination);
+  }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
 
   const mapTileUrl =
     baseMap === 'map'
