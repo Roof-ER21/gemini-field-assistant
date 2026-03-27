@@ -161,6 +161,7 @@ app.use(helmet({
                 "https://geocoding.geo.census.gov",
                 "https://api.rainviewer.com",
                 "https://tilecache.rainviewer.com",
+                "https://router.project-osrm.org",
                 "https://api.qrserver.com",
                 "https://cdnjs.cloudflare.com"
             ],
