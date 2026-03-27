@@ -874,12 +874,21 @@ router.post('/generate-report', async (req: Request, res: Response) => {
     const realAlerts = (nwsAlerts || []).slice(0, 5);
 
     // Build synthetic alerts from event data when NWS has no historical results
+    // Select up to 5 representative events by unique observation, largest hail first
+    const allSynthCandidates = [...normalizedEvents, ...normalizedNoaaEvents]
+      .sort((a: any, b: any) => ((b.magnitude || b.hailSize || 0) - (a.magnitude || a.hailSize || 0)));
+    const seenObs = new Set<string>();
+    const representativeEvents: any[] = [];
+    for (const e of allSynthCandidates) {
+      const obsKey = `${getDateKey(e.date)}-${(e.comments || '').substring(0, 40)}-${e.magnitude || e.hailSize || 0}`;
+      if (!seenObs.has(obsKey)) { representativeEvents.push(e); seenObs.add(obsKey); }
+    }
+
     const syntheticAlerts = realAlerts.length === 0
-      ? [...new Set([...normalizedEvents, ...normalizedNoaaEvents].map((e: any) => e.date))]
-          .sort((a: string, b: string) => (parseReportDate(a)?.getTime() || 0) - (parseReportDate(b)?.getTime() || 0))
+      ? representativeEvents
           .slice(0, 5)
-          .map((date: string, idx: number) => {
-            const matchingEvent = [...normalizedEvents, ...normalizedNoaaEvents].find((e: any) => e.date === date);
+          .map((matchingEvent: any, idx: number) => {
+            const date = matchingEvent.date;
             const isHail = matchingEvent && ('hailSize' in matchingEvent || (matchingEvent as any).eventType === 'hail');
             const isWind = matchingEvent && (matchingEvent as any).eventType === 'wind';
             const isTornado = matchingEvent && (matchingEvent as any).eventType === 'tornado';

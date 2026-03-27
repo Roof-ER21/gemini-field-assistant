@@ -422,12 +422,18 @@ function downloadBlob(blob: Blob, filename: string): void {
 export async function generateStormReport(address: string, lat: number, lng: number, radiusMiles: number, events: StormEvent[], dateOfLoss: string): Promise<void> {
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
-  const datedEvents = events.filter((e) => getStormDateKey(e.beginDate) === dateOfLoss);
-  const historyHailEvents = events.filter((e) => e.eventType === 'Hail');
-  if (!datedEvents.length) throw new Error('No events for the selected date of loss.');
-
-  const hailEvts = datedEvents.filter((e) => e.eventType === 'Hail');
-  const windEvts = datedEvents.filter((e) => e.eventType === 'Thunderstorm Wind');
+  // Split by source: IHM events → payload.events (NEXRAD), NOAA → payload.noaaEvents
+  const ihmAll = events.filter(e => e.id.startsWith('ihm-'));
+  const noaaAll = events.filter(e => !e.id.startsWith('ihm-'));
+  const ihmDated = ihmAll.filter(e => getStormDateKey(e.beginDate) === dateOfLoss);
+  const noaaDated = noaaAll.filter(e => getStormDateKey(e.beginDate) === dateOfLoss);
+  const ihmHail = ihmDated.filter(e => e.eventType === 'Hail');
+  const noaaHail = noaaDated.filter(e => e.eventType === 'Hail');
+  const windEvts = noaaDated.filter(e => e.eventType === 'Thunderstorm Wind');
+  const hailEvts = [...ihmHail, ...noaaHail];
+  const datedEvents = [...ihmDated, ...noaaDated];
+  const historyHailEvents = [...ihmAll, ...noaaAll].filter(e => e.eventType === 'Hail');
+  if (!hailEvts.length && !windEvts.length) throw new Error('No events for the selected date of loss.');
   let maxHailSize = 0;
   for (const e of hailEvts) if (e.magnitude > maxHailSize) maxHailSize = e.magnitude;
   const cumulative = hailEvts.reduce((s, e) => s + e.magnitude, 0);
@@ -477,8 +483,8 @@ export async function generateStormReport(address: string, lat: number, lng: num
     lat,
     lng,
     radius: radiusMiles,
-    events: hailEvts.map(toRE),
-    noaaEvents: datedEvents.map(toRE),
+    events: ihmHail.map(toRE),
+    noaaEvents: [...noaaHail, ...windEvts].map(toRE),
     historyEvents: historyHailEvents.map(toRE),
     damageScore: { score, riskLevel, summary: score >= 60 ? 'Documented storm activity supports a high-likelihood roof damage conversation.' : score >= 30 ? 'Documented storm history supports a moderate damage review.' : 'Limited storm history was found for this loss date.', color: riskColor, factors: { eventCount: datedEvents.length, stormSystemCount: 1, maxHailSize, recentActivity: datedEvents.length, cumulativeExposure: cumulative, severityDistribution: { severe: hailEvts.filter((e) => e.magnitude >= 1.75).length, moderate: hailEvts.filter((e) => e.magnitude >= 1 && e.magnitude < 1.75).length, minor: hailEvts.filter((e) => e.magnitude < 1).length }, recencyScore: 0, documentedDamage: 0, windEvents: windEvts.length } },
     filter: 'hail-wind', includeNexrad: true, includeMap: true, includeWarnings: true, dateOfLoss, template: 'noaa-forward',

@@ -731,12 +731,23 @@ router.post('/generate-report', async (req, res) => {
         // so we still get per-event radar snapshots in the IHM layout.
         const realAlerts = (nwsAlerts || []).slice(0, 5);
         // Build synthetic alerts from event data when NWS has no historical results
+        // Select up to 5 representative events by unique observation, largest hail first
+        const allSynthCandidates = [...normalizedEvents, ...normalizedNoaaEvents]
+            .sort((a, b) => ((b.magnitude || b.hailSize || 0) - (a.magnitude || a.hailSize || 0)));
+        const seenObs = new Set();
+        const representativeEvents = [];
+        for (const e of allSynthCandidates) {
+            const obsKey = `${getDateKey(e.date)}-${(e.comments || '').substring(0, 40)}-${e.magnitude || e.hailSize || 0}`;
+            if (!seenObs.has(obsKey)) {
+                representativeEvents.push(e);
+                seenObs.add(obsKey);
+            }
+        }
         const syntheticAlerts = realAlerts.length === 0
-            ? [...new Set([...normalizedEvents, ...normalizedNoaaEvents].map((e) => e.date))]
-                .sort((a, b) => (parseReportDate(a)?.getTime() || 0) - (parseReportDate(b)?.getTime() || 0))
+            ? representativeEvents
                 .slice(0, 5)
-                .map((date, idx) => {
-                const matchingEvent = [...normalizedEvents, ...normalizedNoaaEvents].find((e) => e.date === date);
+                .map((matchingEvent, idx) => {
+                const date = matchingEvent.date;
                 const isHail = matchingEvent && ('hailSize' in matchingEvent || matchingEvent.eventType === 'hail');
                 const isWind = matchingEvent && matchingEvent.eventType === 'wind';
                 const isTornado = matchingEvent && matchingEvent.eventType === 'tornado';

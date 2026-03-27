@@ -435,7 +435,7 @@ export class PDFReportServiceV2 {
             drawDetailRow('Storm Duration:', primaryEvent?.duration ? `${primaryEvent.duration.toFixed(1)} minutes` : '---', 1, 0);
             drawDetailRow('Time of Impact:', this.fmtTimeET(primaryStormDate), 0, 1);
             drawDetailRow('Hail Size Detected:', primaryEvent?.size ? `${primaryEvent.size.toFixed(2)}"` : '---', 1, 1);
-            drawDetailRow('Storm Direction:', primaryEvent?.direction || 'N', 0, 2);
+            drawDetailRow('Storm Direction:', primaryEvent?.direction || '---', 0, 2);
             drawDetailRow('Verified Reports:', `${nearbyCount} within 10 mi`, 1, 2);
             drawDetailRow('Storm Speed:', primaryEvent?.speed ? `${primaryEvent.speed.toFixed(1)} mph` : '---', 0, 3);
             drawDetailRow('Max Hail Reported:', selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '---', 1, 3);
@@ -705,27 +705,57 @@ export class PDFReportServiceV2 {
                     distanceMiles: e.distanceMiles,
                     comments: e.comments,
                 }));
+        // Build per-event list, then consolidate by date for a cleaner table
         const historicalHailEvents = historicalSeedEvents
             .map(e => ({
             date: e.date,
-            direction: e.stormDirection || 'N',
+            direction: e.stormDirection || '---',
             speed: e.stormSpeed,
             duration: e.duration,
-            size: e.hailSize,
+            size: e.hailSize || 0,
             distance: e.distanceMiles,
         }))
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
-        const histRows = historicalHailEvents.map(e => {
-            const sizeStr = e.size ? `${e.size.toFixed(2)}"` : '---';
-            const dist = e.distance || 99;
-            return [
-                this.fmtDateET(e.date), this.fmtFullDateTimeET(e.date),
-                e.direction || '---', e.speed ? e.speed.toFixed(1) : '---',
-                e.duration ? e.duration.toFixed(1) : '---',
-                dist <= 0.1 ? sizeStr : '---', dist <= 1 ? sizeStr : '---',
-                dist <= 3 ? sizeStr : '---', dist <= 10 ? sizeStr : '---',
-            ];
-        });
+        // Consolidate by date: one row per unique date, max hail per distance bucket
+        const dateGroups = new Map();
+        for (const e of historicalHailEvents) {
+            const dk = this.getDateKey(e.date) || e.date;
+            const dist = e.distance ?? 99;
+            const size = e.size;
+            if (!dateGroups.has(dk)) {
+                dateGroups.set(dk, {
+                    date: e.date, direction: e.direction !== '---' ? e.direction : '---',
+                    speed: e.speed, duration: e.duration, atLoc: 0, w1: 0, w3: 0, w10: 0,
+                });
+            }
+            const g = dateGroups.get(dk);
+            if (g.direction === '---' && e.direction !== '---')
+                g.direction = e.direction;
+            if (!g.speed && e.speed)
+                g.speed = e.speed;
+            if (!g.duration && e.duration)
+                g.duration = e.duration;
+            if (dist <= 0.1 && size > g.atLoc)
+                g.atLoc = size;
+            if (dist <= 1 && size > g.w1)
+                g.w1 = size;
+            if (dist <= 3 && size > g.w3)
+                g.w3 = size;
+            if (dist <= 10 && size > g.w10)
+                g.w10 = size;
+        }
+        const consolidatedDates = Array.from(dateGroups.values())
+            .filter(g => g.atLoc > 0 || g.w1 > 0 || g.w3 > 0 || g.w10 > 0)
+            .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
+        const histRows = consolidatedDates.map(g => [
+            this.fmtDateET(g.date), this.fmtFullDateTimeET(g.date),
+            g.direction, g.speed ? g.speed.toFixed(1) : '---',
+            g.duration ? g.duration.toFixed(1) : '---',
+            g.atLoc > 0 ? `${g.atLoc.toFixed(2)}"` : '---',
+            g.w1 > 0 ? `${g.w1.toFixed(2)}"` : '---',
+            g.w3 > 0 ? `${g.w3.toFixed(2)}"` : '---',
+            g.w10 > 0 ? `${g.w10.toFixed(2)}"` : '---',
+        ]);
         if (histRows.length > 0) {
             this.drawTable(doc, histHeaders, histRows, histWidths, { boldColumns: [0] });
         }
