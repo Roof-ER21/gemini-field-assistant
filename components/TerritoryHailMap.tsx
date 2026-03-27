@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import HailSwathLayer from './HailSwathLayer';
@@ -25,6 +25,7 @@ import {
   getFilterSummaryLabel,
   rangeToMonths,
   getEffectiveMonths,
+  haversineDistanceMiles,
   isDateInRange,
   geocodeAddress,
   fetchStormEvents,
@@ -44,6 +45,28 @@ interface FitBoundsRequest {
   id: number;
   bounds: BoundingBox;
   maxZoom: number;
+}
+
+interface MapClickInsight {
+  lat: number;
+  lng: number;
+  nearestEvent: StormEvent | null;
+  distanceMiles: number | null;
+}
+
+interface RouteSummary {
+  eventCount: number;
+  maxHailInches: number;
+  maxWindMph: number;
+  dateKeys: string[];
+}
+
+interface RouteData {
+  coordinates: [number, number][];
+  distanceMiles: number;
+  durationMinutes: number | null;
+  summary: RouteSummary;
+  destination: [number, number];
 }
 
 function MapCameraController({
@@ -121,6 +144,32 @@ function GpsBlueDot({ position }: { position: GpsPosition | null }) {
       />
     </>
   );
+}
+
+function MapInteractionHandler({
+  routeMode,
+  onMapClick,
+}: {
+  routeMode: boolean;
+  onMapClick: (lat: number, lng: number, routeMode: boolean) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    container.style.cursor = routeMode ? 'crosshair' : '';
+    return () => {
+      container.style.cursor = '';
+    };
+  }, [map, routeMode]);
+
+  useMapEvents({
+    click(event) {
+      onMapClick(event.latlng.lat, event.latlng.lng, routeMode);
+    },
+  });
+
+  return null;
 }
 
 function extendBounds(
@@ -216,6 +265,173 @@ function buildFallbackStormDayRadarTimestamps(selectedStormDate: string): string
   }
 
   return timestamps;
+}
+
+function findNearestStormEvent(
+  lat: number,
+  lng: number,
+  events: StormEvent[],
+): { nearestEvent: StormEvent | null; distanceMiles: number | null } {
+  let nearestEvent: StormEvent | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const event of events) {
+    if (!Number.isFinite(event.beginLat) || !Number.isFinite(event.beginLon)) {
+      continue;
+    }
+
+    const distance = haversineDistanceMiles(lat, lng, event.beginLat, event.beginLon);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestEvent = event;
+    }
+  }
+
+  if (!nearestEvent || !Number.isFinite(nearestDistance)) {
+    return { nearestEvent: null, distanceMiles: null };
+  }
+
+  return {
+    nearestEvent,
+    distanceMiles: nearestDistance,
+  };
+}
+
+function toPlanarMiles(point: [number, number], originLat: number): [number, number] {
+  const milesPerLat = 69;
+  const milesPerLng = Math.cos((originLat * Math.PI) / 180) * 69;
+  return [point[1] * milesPerLng, point[0] * milesPerLat];
+}
+
+function distancePointToSegmentMiles(
+  point: [number, number],
+  segmentStart: [number, number],
+  segmentEnd: [number, number],
+): number {
+  const originLat = (point[0] + segmentStart[0] + segmentEnd[0]) / 3;
+  const [px, py] = toPlanarMiles(point, originLat);
+  const [ax, ay] = toPlanarMiles(segmentStart, originLat);
+  const [bx, by] = toPlanarMiles(segmentEnd, originLat);
+  const dx = bx - ax;
+  const dy = by - ay;
+
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(px - ax, py - ay);
+  }
+
+  const projection = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+  const t = Math.max(0, Math.min(1, projection));
+  const closestX = ax + dx * t;
+  const closestY = ay + dy * t;
+  return Math.hypot(px - closestX, py - closestY);
+}
+
+function distancePointToRouteMiles(point: [number, number], routeCoordinates: [number, number][]): number {
+  if (routeCoordinates.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if (routeCoordinates.length === 1) {
+    return haversineDistanceMiles(point[0], point[1], routeCoordinates[0][0], routeCoordinates[0][1]);
+  }
+
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
+    nearest = Math.min(
+      nearest,
+      distancePointToSegmentMiles(point, routeCoordinates[index], routeCoordinates[index + 1]),
+    );
+  }
+  return nearest;
+}
+
+function summarizeRouteEvents(routeCoordinates: [number, number][], events: StormEvent[], corridorMiles = 1): RouteSummary {
+  const dateKeys = new Set<string>();
+  let eventCount = 0;
+  let maxHailInches = 0;
+  let maxWindMph = 0;
+
+  for (const event of events) {
+    if (!Number.isFinite(event.beginLat) || !Number.isFinite(event.beginLon)) {
+      continue;
+    }
+
+    const distanceToRoute = distancePointToRouteMiles(
+      [event.beginLat, event.beginLon],
+      routeCoordinates,
+    );
+
+    if (distanceToRoute > corridorMiles) {
+      continue;
+    }
+
+    eventCount += 1;
+    const dateKey = getStormDateKey(event.beginDate);
+    if (dateKey) {
+      dateKeys.add(dateKey);
+    }
+    if (event.eventType === 'Hail') {
+      maxHailInches = Math.max(maxHailInches, event.magnitude);
+    }
+    if (event.eventType === 'Thunderstorm Wind') {
+      maxWindMph = Math.max(maxWindMph, event.magnitude);
+    }
+  }
+
+  return {
+    eventCount,
+    maxHailInches,
+    maxWindMph,
+    dateKeys: Array.from(dateKeys).sort((a, b) => b.localeCompare(a)),
+  };
+}
+
+async function fetchRouteData(
+  origin: [number, number],
+  destination: [number, number],
+  events: StormEvent[],
+  signal?: AbortSignal,
+): Promise<RouteData> {
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${origin[1]},${origin[0]};${destination[1]},${destination[0]}` +
+    `?overview=full&geometries=geojson`;
+
+  try {
+    const response = await fetch(url, {
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      throw new Error(`OSRM returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const route = data?.routes?.[0];
+    if (!route?.geometry?.coordinates?.length) {
+      throw new Error('No route geometry returned');
+    }
+
+    const coordinates = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
+    );
+
+    return {
+      coordinates,
+      distanceMiles: Number(route.distance || 0) / 1609.344,
+      durationMinutes: route.duration ? Number(route.duration) / 60 : null,
+      summary: summarizeRouteEvents(coordinates, events),
+      destination,
+    };
+  } catch {
+    const fallbackCoordinates: [number, number][] = [origin, destination];
+    return {
+      coordinates: fallbackCoordinates,
+      distanceMiles: haversineDistanceMiles(origin[0], origin[1], destination[0], destination[1]),
+      durationMinutes: null,
+      summary: summarizeRouteEvents(fallbackCoordinates, events),
+      destination,
+    };
+  }
 }
 
 function getHistoricalRadarTimestamps(dateEvents: StormEvent[], selectedStormDate: string | null): string[] {
@@ -318,12 +534,19 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [radarVisible, setRadarVisible] = useState(false);
   const [mrmsVisible, setMrmsVisible] = useState(false);
   const [swathVisible, setSwathVisible] = useState(true);
+  const [routeMode, setRouteMode] = useState(false);
+  const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [showDolModal, setShowDolModal] = useState(false);
   const [selectedDol, setSelectedDol] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const gpsWatchRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const routeOriginRef = useRef<[number, number] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activeRadiusMiles = searchSummary?.radiusMiles ?? 35;
@@ -409,6 +632,16 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     () => getBoundsCenter(selectedStormBounds, mapCenter),
     [mapCenter, selectedStormBounds],
   );
+
+  const routeOrigin = useMemo<[number, number] | null>(() => {
+    if (gpsPosition) {
+      return [gpsPosition.lat, gpsPosition.lng];
+    }
+    if (searchLat !== null && searchLng !== null) {
+      return [searchLat, searchLng];
+    }
+    return mapCenter;
+  }, [gpsPosition, mapCenter, searchLat, searchLng]);
 
   const selectedStormRadarTimestamp = useMemo(() => {
     if (!selectedDate) {
@@ -577,6 +810,22 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     [],
   );
 
+  useEffect(() => {
+    if (!routeMode || !routeData || !routeOrigin || !gpsPosition) {
+      return;
+    }
+
+    const previousOrigin = routeOriginRef.current;
+    if (
+      previousOrigin &&
+      haversineDistanceMiles(previousOrigin[0], previousOrigin[1], routeOrigin[0], routeOrigin[1]) < 0.15
+    ) {
+      return;
+    }
+
+    void handleBuildRoute(routeData.destination);
+  }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
+
   const handleGenerateReport = useCallback(async () => {
     if (!selectedDol || !activeSearchLabel || searchLat === null || searchLng === null) {
       return;
@@ -597,6 +846,64 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
+
+  const handleBuildRoute = useCallback(
+    async (destination: [number, number]) => {
+      if (!routeOrigin) {
+        setRouteError('Route mode needs GPS or a searched location as the starting point.');
+        return;
+      }
+
+      routeAbortRef.current?.abort();
+      const controller = new AbortController();
+      routeAbortRef.current = controller;
+      routeOriginRef.current = routeOrigin;
+      setRouteLoading(true);
+      setRouteError(null);
+
+      try {
+        const nextRoute = await fetchRouteData(routeOrigin, destination, filteredEvents, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        setRouteData(nextRoute);
+      } catch (routeFetchError) {
+        if (!controller.signal.aborted) {
+          setRouteError(routeFetchError instanceof Error ? routeFetchError.message : 'Failed to build route');
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setRouteLoading(false);
+        }
+      }
+    },
+    [filteredEvents, routeOrigin],
+  );
+
+  const handleMapInteraction = useCallback(
+    (lat: number, lng: number, routeModeEnabled: boolean) => {
+      if (routeModeEnabled) {
+        void handleBuildRoute([lat, lng]);
+        setMapClickInsight(null);
+        return;
+      }
+
+      const { nearestEvent, distanceMiles } = findNearestStormEvent(lat, lng, filteredEvents);
+      setMapClickInsight({
+        lat,
+        lng,
+        nearestEvent,
+        distanceMiles,
+      });
+
+      const selectedDateKey = nearestEvent ? getStormDateKey(nearestEvent.beginDate) : null;
+      if (selectedDateKey) {
+        const matchingStormDate = stormDates.find((stormDate) => stormDate.date === selectedDateKey) || null;
+        setSelectedDate(matchingStormDate);
+      }
+    },
+    [filteredEvents, handleBuildRoute, stormDates],
+  );
 
   const mapTileUrl =
     baseMap === 'map'
@@ -957,6 +1264,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
       <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
         <MapContainer center={mapCenter} zoom={mapZoom} style={{ width: '100%', height: '100%' }} zoomControl={true} attributionControl={false}>
           <MapCameraController center={mapCenter} zoom={mapZoom} fitBoundsRequest={fitBoundsRequest} />
+          <MapInteractionHandler routeMode={routeMode} onMapClick={handleMapInteraction} />
           <TileLayer url={mapTileUrl} subdomains={['0', '1', '2', '3']} maxZoom={21} />
 
           {visibleEvents.map((event) => {
@@ -995,6 +1303,86 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           })}
 
           <GpsBlueDot position={gpsPosition} />
+          {routeOrigin ? (
+            <CircleMarker
+              center={routeOrigin}
+              radius={routeMode ? 6 : 5}
+              pathOptions={{
+                color: '#ffffff',
+                fillColor: '#2563eb',
+                fillOpacity: 1,
+                weight: 2,
+              }}
+            >
+              <Popup>Route origin</Popup>
+            </CircleMarker>
+          ) : null}
+          {routeData ? (
+            <>
+              <CircleMarker
+                center={routeData.destination}
+                radius={7}
+                pathOptions={{
+                  color: '#ffffff',
+                  fillColor: '#ef4444',
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+              >
+                <Popup>Route destination</Popup>
+              </CircleMarker>
+              <Polyline
+                positions={routeData.coordinates}
+                pathOptions={{
+                  color: '#2563eb',
+                  weight: 5,
+                  opacity: 0.82,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+            </>
+          ) : null}
+          {mapClickInsight ? (
+            <Popup
+              position={[mapClickInsight.lat, mapClickInsight.lng]}
+              eventHandlers={{
+                remove: () => setMapClickInsight(null),
+              }}
+            >
+              <div style={{ fontFamily: 'system-ui', padding: 4, maxWidth: 260 }}>
+                {mapClickInsight.nearestEvent ? (
+                  <>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                      Nearest storm hit
+                    </div>
+                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                      <div>
+                        <strong>
+                          {mapClickInsight.nearestEvent.eventType === 'Hail'
+                            ? `${mapClickInsight.nearestEvent.magnitude}" hail`
+                            : `${mapClickInsight.nearestEvent.magnitude} mph wind`}
+                        </strong>
+                      </div>
+                      <div>{formatDateLabel(mapClickInsight.nearestEvent.beginDate)}</div>
+                      <div>
+                        {mapClickInsight.distanceMiles !== null
+                          ? `${mapClickInsight.distanceMiles.toFixed(2)} mi away`
+                          : 'Distance unavailable'}
+                      </div>
+                      <div style={{ color: '#6b7280', marginTop: 4 }}>
+                        {mapClickInsight.nearestEvent.county
+                          ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
+                          : mapClickInsight.nearestEvent.source}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12 }}>No nearby storm events found for the current filters.</div>
+                )}
+              </div>
+            </Popup>
+          ) : null}
           <NexradRadarLayer
             visible={radarVisible}
             onToggle={() => setRadarVisible((previous) => !previous)}
@@ -1051,10 +1439,30 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               Sat
             </button>
           </div>
-          <button
-            onClick={() => setSwathVisible((previous) => !previous)}
-            title={swathVisible ? 'Hide hail swaths' : 'Show hail swaths'}
-            style={{
+            <button
+              onClick={() => {
+                setRouteMode((previous) => !previous);
+                setMapClickInsight(null);
+              }}
+              style={{
+                width: 60,
+                height: 28,
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.2)',
+                background: routeMode ? '#059669' : '#fff',
+                color: routeMode ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+              }}
+            >
+              Route
+            </button>
+            <button
+              onClick={() => setSwathVisible((previous) => !previous)}
+              title={swathVisible ? 'Hide hail swaths' : 'Show hail swaths'}
+              style={{
               width: 36,
               height: 36,
               borderRadius: 6,
@@ -1073,6 +1481,90 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             SW
           </button>
         </div>
+
+        {(routeMode || routeData || routeLoading || routeError) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 96,
+              left: 12,
+              zIndex: 1000,
+              width: 320,
+              maxWidth: 'calc(100% - 24px)',
+              background: 'rgba(10,10,15,0.9)',
+              backdropFilter: 'blur(6px)',
+              borderRadius: 12,
+              padding: 12,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+              color: '#fff',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#86efac' }}>
+                Route Mode
+              </div>
+              <button
+                onClick={() => {
+                  setRouteMode(false);
+                  setRouteData(null);
+                  setRouteError(null);
+                  routeAbortRef.current?.abort();
+                }}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 12 }}
+              >
+                Clear
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#d1d5db', lineHeight: 1.5 }}>
+              Click the map to set a destination. The app will route from your GPS location, or from the searched property if GPS is off.
+            </div>
+            {routeLoading ? (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#93c5fd' }}>Building route...</div>
+            ) : null}
+            {routeError ? (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#fca5a5' }}>{routeError}</div>
+            ) : null}
+            {routeData ? (
+              <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55 }}>
+                <div>
+                  <strong>{routeData.distanceMiles.toFixed(1)} mi route</strong>
+                  {routeData.durationMinutes !== null ? ` • ${Math.round(routeData.durationMinutes)} min` : ''}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  {routeData.summary.eventCount} storm report{routeData.summary.eventCount === 1 ? '' : 's'} within 1 mile of route
+                </div>
+                {routeData.summary.maxHailInches > 0 ? (
+                  <div>Max hail along route: {routeData.summary.maxHailInches.toFixed(2)}"</div>
+                ) : null}
+                {routeData.summary.maxWindMph > 0 ? (
+                  <div>Max wind along route: {routeData.summary.maxWindMph.toFixed(0)} mph</div>
+                ) : null}
+                {routeData.summary.dateKeys.length > 0 ? (
+                  <div style={{ marginTop: 4, color: '#93c5fd' }}>
+                    Recent dates: {routeData.summary.dateKeys.slice(0, 3).join(', ')}
+                  </div>
+                ) : null}
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${routeData.destination[0]},${routeData.destination[1]}&travelmode=driving`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 8,
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    background: '#2563eb',
+                    color: '#fff',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                  }}
+                >
+                  Open Turn-by-Turn
+                </a>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {!mrmsVisible && (
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(10,10,15,0.88)', backdropFilter: 'blur(6px)', borderRadius: 8, padding: '8px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.35)', color: '#fff', fontSize: 10 }}>
