@@ -1178,23 +1178,6 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Storm Maps</h1>
               <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>Property hail history for roofing reps</p>
             </div>
-            <a
-              href="https://appealing-bravery-production-d7d6.up.railway.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                fontSize: 11,
-                color: '#9ca3af',
-                background: '#1f2937',
-                padding: '5px 10px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                flexShrink: 0,
-                fontWeight: 600,
-              }}
-            >
-              Full Map
-            </a>
             <button
               onClick={toggleGps}
               title={gpsTracking ? 'Stop GPS' : 'Start GPS'}
