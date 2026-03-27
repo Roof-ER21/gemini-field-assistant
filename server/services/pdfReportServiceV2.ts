@@ -71,6 +71,7 @@ interface ReportInput {
   address: string;
   city?: string;
   state?: string;
+  dateOfLoss?: string;
   lat: number;
   lng: number;
   radius: number;
@@ -149,6 +150,15 @@ export class PDFReportServiceV2 {
     }
   }
 
+  private getDateKey(dateStr: string): string | null {
+    const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : null;
+  }
+
+  private isDateOnly(dateStr: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+  }
+
   private fmtDateET(dateStr: string): string {
     const d = this.parseStormDate(dateStr);
     if (!d) return dateStr;
@@ -178,6 +188,9 @@ export class PDFReportServiceV2 {
   }
 
   private fmtFullDateTimeET(dateStr: string): string {
+    if (this.isDateOnly(dateStr)) {
+      return this.fmtDateET(dateStr);
+    }
     const d = this.parseStormDate(dateStr);
     if (!d) return dateStr;
     const etFull = d.toLocaleString('en-US', {
@@ -337,10 +350,14 @@ export class PDFReportServiceV2 {
         distance: e.distanceMiles, location: e.location, comments: e.comments || '',
         direction: '', speed: undefined as number | undefined, duration: undefined as number | undefined
       }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    ].sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
-    const primaryEvent = hailEvents.length > 0 ? hailEvents[0] : null;
+    const datedHailEvents = input.dateOfLoss
+      ? hailEvents.filter(e => this.getDateKey(e.date) === input.dateOfLoss)
+      : hailEvents;
+    const primaryEvent = datedHailEvents[0] || hailEvents[0] || null;
     const primaryStormDate = primaryEvent?.date ||
+      input.dateOfLoss ||
       (input.noaaEvents.length > 0 ? input.noaaEvents[0].date : new Date().toISOString());
     // Count ALL nearby events (hail + wind + tornado), not just hail
     const allNearbyEvents = [
@@ -479,7 +496,7 @@ export class PDFReportServiceV2 {
     doc.fontSize(10).font('Helvetica')
        .text(input.address, textX, doc.y);
     if (input.city && input.state) {
-      doc.text(`${input.city}, ${input.state}${input.lat ? ` ${Math.floor(input.lat * 100) / 100}` : ''}`);
+      doc.text(`${input.city}, ${input.state}`);
     }
 
     doc.moveDown(0.4);
@@ -827,24 +844,19 @@ export class PDFReportServiceV2 {
     const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'Duration', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
     const histWidths = [62, 70, 48, 38, 44, 58, 54, 54, 54];
 
-    const allEvents = [
-      ...filteredIhm.map(e => ({
-        date: e.date, direction: e.stormDirection || 'N', speed: e.stormSpeed,
-        duration: e.duration, size: e.hailSize, distance: e.distanceMiles,
-        eventType: 'hail' as const, source: 'NEXRAD'
-      })),
-      ...filteredNoaa.map(e => ({
-        date: e.date, direction: 'N', speed: undefined as number | undefined,
-        duration: undefined as number | undefined,
-        size: e.eventType === 'hail' ? e.magnitude : null,
+    const historicalHailEvents = filteredIhm
+      .map(e => ({
+        date: e.date,
+        direction: e.stormDirection || 'N',
+        speed: e.stormSpeed,
+        duration: e.duration,
+        size: e.hailSize,
         distance: e.distanceMiles,
-        eventType: e.eventType, source: 'NOAA'
       }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
-    const histRows: string[][] = allEvents.map(e => {
-      const isWind = e.eventType === 'wind';
-      const sizeStr = e.size ? `${e.size.toFixed(2)}"` : (isWind ? 'wind' : '---');
+    const histRows: string[][] = historicalHailEvents.map(e => {
+      const sizeStr = e.size ? `${e.size.toFixed(2)}"` : '---';
       const dist = e.distance || 99;
       return [
         this.fmtDateET(e.date), this.fmtFullDateTimeET(e.date),

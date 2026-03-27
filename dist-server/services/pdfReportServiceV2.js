@@ -67,6 +67,13 @@ export class PDFReportServiceV2 {
             return null;
         }
     }
+    getDateKey(dateStr) {
+        const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : null;
+    }
+    isDateOnly(dateStr) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+    }
     fmtDateET(dateStr) {
         const d = this.parseStormDate(dateStr);
         if (!d)
@@ -96,6 +103,9 @@ export class PDFReportServiceV2 {
         return time ? `${date}\n${time}` : date;
     }
     fmtFullDateTimeET(dateStr) {
+        if (this.isDateOnly(dateStr)) {
+            return this.fmtDateET(dateStr);
+        }
         const d = this.parseStormDate(dateStr);
         if (!d)
             return dateStr;
@@ -235,9 +245,13 @@ export class PDFReportServiceV2 {
                 distance: e.distanceMiles, location: e.location, comments: e.comments || '',
                 direction: '', speed: undefined, duration: undefined
             }))
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const primaryEvent = hailEvents.length > 0 ? hailEvents[0] : null;
+        ].sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
+        const datedHailEvents = input.dateOfLoss
+            ? hailEvents.filter(e => this.getDateKey(e.date) === input.dateOfLoss)
+            : hailEvents;
+        const primaryEvent = datedHailEvents[0] || hailEvents[0] || null;
         const primaryStormDate = primaryEvent?.date ||
+            input.dateOfLoss ||
             (input.noaaEvents.length > 0 ? input.noaaEvents[0].date : new Date().toISOString());
         // Count ALL nearby events (hail + wind + tornado), not just hail
         const allNearbyEvents = [
@@ -363,7 +377,7 @@ export class PDFReportServiceV2 {
         doc.fontSize(10).font('Helvetica')
             .text(input.address, textX, doc.y);
         if (input.city && input.state) {
-            doc.text(`${input.city}, ${input.state}${input.lat ? ` ${Math.floor(input.lat * 100) / 100}` : ''}`);
+            doc.text(`${input.city}, ${input.state}`);
         }
         doc.moveDown(0.4);
         if (input.customerName) {
@@ -659,23 +673,18 @@ export class PDFReportServiceV2 {
         this.drawSectionBanner(doc, 'Historical Storm Activity');
         const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'Duration', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
         const histWidths = [62, 70, 48, 38, 44, 58, 54, 54, 54];
-        const allEvents = [
-            ...filteredIhm.map(e => ({
-                date: e.date, direction: e.stormDirection || 'N', speed: e.stormSpeed,
-                duration: e.duration, size: e.hailSize, distance: e.distanceMiles,
-                eventType: 'hail', source: 'NEXRAD'
-            })),
-            ...filteredNoaa.map(e => ({
-                date: e.date, direction: 'N', speed: undefined,
-                duration: undefined,
-                size: e.eventType === 'hail' ? e.magnitude : null,
-                distance: e.distanceMiles,
-                eventType: e.eventType, source: 'NOAA'
-            }))
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const histRows = allEvents.map(e => {
-            const isWind = e.eventType === 'wind';
-            const sizeStr = e.size ? `${e.size.toFixed(2)}"` : (isWind ? 'wind' : '---');
+        const historicalHailEvents = filteredIhm
+            .map(e => ({
+            date: e.date,
+            direction: e.stormDirection || 'N',
+            speed: e.stormSpeed,
+            duration: e.duration,
+            size: e.hailSize,
+            distance: e.distanceMiles,
+        }))
+            .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
+        const histRows = historicalHailEvents.map(e => {
+            const sizeStr = e.size ? `${e.size.toFixed(2)}"` : '---';
             const dist = e.distance || 99;
             return [
                 this.fmtDateET(e.date), this.fmtFullDateTimeET(e.date),

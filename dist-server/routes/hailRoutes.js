@@ -634,7 +634,7 @@ router.get('/hot-zones', async (req, res) => {
 // POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req, res) => {
     try {
-        const { address, city, state, lat, lng, radius, events, noaaEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, template = 'standard' } = req.body;
+        const { address, city, state, lat, lng, radius, events, noaaEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, dateOfLoss, template = 'standard' } = req.body;
         // Validate required fields
         if (!address || !lat || !lng || !radius || !damageScore) {
             return res.status(400).json({
@@ -647,13 +647,67 @@ router.post('/generate-report', async (req, res) => {
         const parsedLat = parseFloat(lat);
         const parsedLng = parseFloat(lng);
         console.log(`📄 Generating Curran-style PDF report for ${address} (filter: ${reportFilter})...`);
+        const getDateKey = (value) => {
+            if (!value)
+                return null;
+            const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+            return match ? match[1] : null;
+        };
+        const isDateOnly = (value) => {
+            return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+        };
+        const parseReportDate = (value) => {
+            if (!value)
+                return null;
+            const dateOnlyMatch = value.match(/^(\d{4}-\d{2}-\d{2})$/);
+            const parsed = dateOnlyMatch
+                ? new Date(`${dateOnlyMatch[1]}T12:00:00Z`)
+                : new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+        const combinedSourceEvents = [...(events || []), ...(noaaEvents || [])];
+        const preferredTimestampByDate = new Map();
+        for (const event of combinedSourceEvents) {
+            const eventDate = typeof event?.date === 'string' ? event.date : '';
+            const dateKey = getDateKey(eventDate);
+            const parsed = parseReportDate(eventDate);
+            if (!dateKey || !parsed || isDateOnly(eventDate))
+                continue;
+            const existing = preferredTimestampByDate.get(dateKey);
+            const existingParsed = parseReportDate(existing);
+            if (!existingParsed || parsed.getTime() > existingParsed.getTime()) {
+                preferredTimestampByDate.set(dateKey, eventDate);
+            }
+        }
+        const normalizeEventDate = (value) => {
+            const raw = typeof value === 'string' ? value : '';
+            const dateKey = getDateKey(raw);
+            if (!dateKey)
+                return raw;
+            if (!isDateOnly(raw))
+                return raw;
+            return preferredTimestampByDate.get(dateKey) || `${dateKey}T17:00:00-04:00`;
+        };
+        const normalizedEvents = (events || []).map((event) => ({
+            ...event,
+            date: normalizeEventDate(event?.date),
+        }));
+        const normalizedNoaaEvents = (noaaEvents || []).map((event) => ({
+            ...event,
+            date: normalizeEventDate(event?.date),
+        }));
         // Determine primary storm date from events for NEXRAD/NWS queries
         const allDates = [
-            ...(events || []).map((e) => e.date),
-            ...(noaaEvents || []).map((e) => e.date)
-        ].filter(Boolean).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-        const primaryStormDate = allDates.length > 0 ? allDates[0] : new Date().toISOString();
-        const earliestDate = allDates.length > 0 ? allDates[allDates.length - 1] : primaryStormDate;
+            ...normalizedEvents.map((e) => e.date),
+            ...normalizedNoaaEvents.map((e) => e.date)
+        ]
+            .filter(Boolean)
+            .sort((a, b) => (parseReportDate(b)?.getTime() || 0) - (parseReportDate(a)?.getTime() || 0));
+        const selectedLossDates = dateOfLoss
+            ? allDates.filter((value) => getDateKey(value) === dateOfLoss)
+            : [];
+        const primaryStormDate = selectedLossDates[0] || allDates[0] || normalizeEventDate(dateOfLoss) || new Date().toISOString();
+        const earliestDate = selectedLossDates[selectedLossDates.length - 1] || allDates[allDates.length - 1] || primaryStormDate;
         // Step 1: Fetch NWS alerts + map image + property risk in parallel
         // Extract zip from request body for Census lookup
         const { zip } = req.body;
@@ -674,11 +728,11 @@ router.post('/generate-report', async (req, res) => {
         const realAlerts = (nwsAlerts || []).slice(0, 5);
         // Build synthetic alerts from event data when NWS has no historical results
         const syntheticAlerts = realAlerts.length === 0
-            ? [...new Set([...(events || []), ...(noaaEvents || [])].map((e) => e.date))]
-                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+            ? [...new Set([...normalizedEvents, ...normalizedNoaaEvents].map((e) => e.date))]
+                .sort((a, b) => (parseReportDate(a)?.getTime() || 0) - (parseReportDate(b)?.getTime() || 0))
                 .slice(0, 5)
                 .map((date, idx) => {
-                const matchingEvent = [...(events || []), ...(noaaEvents || [])].find((e) => e.date === date);
+                const matchingEvent = [...normalizedEvents, ...normalizedNoaaEvents].find((e) => e.date === date);
                 const isHail = matchingEvent && ('hailSize' in matchingEvent || matchingEvent.eventType === 'hail');
                 const isWind = matchingEvent && matchingEvent.eventType === 'wind';
                 const isTornado = matchingEvent && matchingEvent.eventType === 'tornado';
@@ -748,8 +802,9 @@ router.post('/generate-report', async (req, res) => {
             lat: parsedLat,
             lng: parsedLng,
             radius: parseFloat(radius),
-            events: events || [],
-            noaaEvents: noaaEvents || [],
+            noaaEvents: normalizedNoaaEvents,
+            dateOfLoss,
+            events: normalizedEvents,
             damageScore,
             repName,
             repPhone,

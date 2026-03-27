@@ -434,10 +434,41 @@ export async function generateStormReport(address: string, lat: number, lng: num
   const riskLevel = score >= 76 ? 'Critical' : score >= 51 ? 'High' : score >= 26 ? 'Moderate' : 'Low';
   const riskColor = { Critical: '#b91c1c', High: '#ea580c', Moderate: '#ca8a04', Low: '#16a34a' }[riskLevel];
 
+  const getDistanceMiles = (e: StormEvent) => {
+    if (!Number.isFinite(e.beginLat) || !Number.isFinite(e.beginLon)) return undefined;
+    return haversineDistanceMiles(lat, lng, e.beginLat, e.beginLon);
+  };
+
   const toRE = (e: StormEvent) => {
-    const c = { id: e.id, date: e.beginDate, latitude: e.beginLat, longitude: e.beginLon };
-    if (e.eventType === 'Hail') return { ...c, hailSize: e.magnitude, severity: e.magnitude >= 1.75 ? 'severe' : e.magnitude >= 1 ? 'moderate' : 'minor', source: e.source };
-    return { ...c, magnitude: e.magnitude, eventType: 'wind', location: [e.county, e.state].filter(Boolean).join(', ') || e.source };
+    const distanceMiles = getDistanceMiles(e);
+    const location = [e.county, e.state].filter(Boolean).join(', ');
+    const comments = e.narrative || undefined;
+    const c = {
+      id: e.id,
+      date: e.beginDate,
+      latitude: e.beginLat,
+      longitude: e.beginLon,
+      distanceMiles,
+      location,
+      comments,
+      source: e.source,
+    };
+
+    if (e.eventType === 'Hail') {
+      return {
+        ...c,
+        magnitude: e.magnitude,
+        hailSize: e.magnitude,
+        eventType: 'hail',
+        severity: e.magnitude >= 1.75 ? 'severe' : e.magnitude >= 1 ? 'moderate' : 'minor',
+      };
+    }
+
+    return {
+      ...c,
+      magnitude: e.magnitude,
+      eventType: 'wind',
+    };
   };
 
   const payload = {

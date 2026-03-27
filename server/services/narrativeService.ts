@@ -26,12 +26,22 @@ interface NarrativeParams {
  */
 function formatNarrativeDate(dateStr: string): string {
   try {
-    const date = new Date(dateStr);
-    // Check if DST
-    const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
-    const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
-    const isDST = date.getTimezoneOffset() < Math.max(jan, jul);
-    const tzSuffix = isDST ? 'EDT' : 'EST';
+    const dateOnlyMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})$/);
+    const date = dateOnlyMatch
+      ? new Date(`${dateOnlyMatch[1]}T12:00:00Z`)
+      : new Date(dateStr);
+    if (Number.isNaN(date.getTime())) {
+      return dateStr;
+    }
+
+    const etFull = date.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZoneName: 'short'
+    });
+    const tzSuffix = etFull.includes('EDT') ? 'EDT' : 'EST';
 
     const formatted = date.toLocaleDateString('en-US', {
       timeZone: 'America/New_York',
