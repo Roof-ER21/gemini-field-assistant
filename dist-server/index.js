@@ -161,7 +161,7 @@ app.use(helmet({
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
-            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com"],
+            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com", "https://appealing-bravery-production-d7d6.up.railway.app"],
         },
     },
     crossOriginEmbedderPolicy: false,
