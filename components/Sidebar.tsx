@@ -38,6 +38,8 @@ type QuickActionType = 'email' | 'stormmap' | 'leaderboard';
 
 interface SidebarProps {
   activePanel: PanelType;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   setActivePanel: (panel: PanelType) => void;
   onQuickAction?: (action: QuickActionType) => void;
 }
@@ -112,7 +114,13 @@ const S21Icon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickAction }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  activePanel,
+  collapsed = false,
+  onToggleCollapse,
+  setActivePanel,
+  onQuickAction,
+}) => {
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const [unreadCount, setUnreadCount] = useState(0);
@@ -298,10 +306,56 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
   ];
 
   return (
-    <div className="roof-er-sidebar">
+    <div className={`roof-er-sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <div className="roof-er-sidebar-topbar">
+        {!collapsed ? <div className="roof-er-sidebar-title">Navigation</div> : <div className="roof-er-sidebar-title-spacer" />}
+        <button
+          type="button"
+          className="roof-er-sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(90deg)' }} />}
+        </button>
+      </div>
+
+      {collapsed ? (
+        <div className="roof-er-sidebar-collapsed-nav">
+          {navCategories.map((category) => (
+            <div key={category.id} className="roof-er-sidebar-collapsed-group">
+              {category.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activePanel === item.id;
+                const badge = item.badge;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActivePanel(item.id as PanelType)}
+                    className={`roof-er-sidebar-icon-btn ${isActive ? 'active' : ''}`}
+                    title={`${item.label} — ${item.desc}`}
+                    aria-label={item.label}
+                  >
+                    <span className="roof-er-sidebar-icon-btn-inner">
+                      <Icon className="w-5 h-5" />
+                      {badge !== undefined && badge > 0 ? (
+                        <span className="roof-er-sidebar-icon-badge">
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
       {/* Navigation Section */}
       <div className="roof-er-sidebar-section">
-        <div className="roof-er-sidebar-title">Navigation</div>
         {navCategories.map((category) => {
           const CategoryIcon = category.icon;
           const isExpanded = expandedCategories.has(category.id);
@@ -420,6 +474,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePanel, setActivePanel, onQuickA
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 };

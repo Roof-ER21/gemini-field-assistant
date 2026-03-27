@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [initialQuickAction, setInitialQuickAction] = useState<'email' | 'transcribe' | 'image'>('email');
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -426,7 +427,7 @@ const App: React.FC = () => {
 
   return (
     <SettingsProvider>
-    <div className="flex flex-col" style={{ background: 'var(--bg-primary)', height: '100dvh', minHeight: '100dvh' }}>
+    <div className="roof-er-app-shell flex flex-col" style={{ background: 'var(--bg-primary)', height: '100dvh', minHeight: '100dvh' }}>
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">
@@ -534,7 +535,7 @@ const App: React.FC = () => {
       />
 
       {/* Main Content */}
-      <div className="flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0, maxHeight: '100%' }}>
+      <div className="roof-er-main-layout flex flex-1" style={{ minWidth: 0, overflow: 'hidden', minHeight: 0, maxHeight: '100%' }}>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
@@ -544,9 +545,11 @@ const App: React.FC = () => {
         )}
 
         {/* Sidebar with mobile support */}
-        <div className={`roof-er-sidebar-wrapper ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+        <div className={`roof-er-sidebar-wrapper ${isMobileMenuOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
           <Sidebar
             activePanel={activePanel}
+            collapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed((previous) => !previous)}
             setActivePanel={(panel) => {
               setActivePanel(panel);
               setIsMobileMenuOpen(false); // Close menu when item is selected
@@ -570,7 +573,7 @@ const App: React.FC = () => {
           />
         </div>
 
-        <main className="flex-1" style={{ minWidth: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <main className="roof-er-main-panel flex-1" style={{ minWidth: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ErrorBoundary>
             {renderPanel()}
           </ErrorBoundary>
