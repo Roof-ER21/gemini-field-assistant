@@ -851,20 +851,22 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   );
 
   const handleGenerateReport = useCallback(async () => {
-    if (!selectedDol || !activeSearchLabel || searchLat === null || searchLng === null) {
+    if (!selectedDol || searchLat === null || searchLng === null) {
       return;
     }
 
+    const reportAddress = activeSearchLabel || searchSummary?.locationLabel || 'DMV Region';
+
     setGeneratingReport(true);
     try {
-      await generateStormReport(activeSearchLabel, searchLat, searchLng, activeRadiusMiles, events, selectedDol);
+      await generateStormReport(reportAddress, searchLat, searchLng, activeRadiusMiles, events, selectedDol);
       setShowDolModal(false);
     } catch (reportError) {
       setError(reportError instanceof Error ? reportError.message : 'Report generation failed');
     } finally {
       setGeneratingReport(false);
     }
-  }, [activeRadiusMiles, activeSearchLabel, events, searchLat, searchLng, selectedDol]);
+  }, [activeRadiusMiles, activeSearchLabel, events, searchLat, searchLng, searchSummary?.locationLabel, selectedDol]);
 
   const openDolModal = useCallback(() => {
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
