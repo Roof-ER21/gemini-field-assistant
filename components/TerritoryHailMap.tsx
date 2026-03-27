@@ -28,6 +28,7 @@ import {
   haversineDistanceMiles,
   isDateInRange,
   geocodeAddress,
+  reverseGeocodeLatLng,
   fetchStormEvents,
   fetchMeshSwathsByLocation,
   deduplicateEvents,
@@ -553,6 +554,8 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
   const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
+  const [mapClickAddress, setMapClickAddress] = useState<string | null>(null);
+  const [mapClickAddressLoading, setMapClickAddressLoading] = useState(false);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [routePendingDestination, setRoutePendingDestination] = useState<[number, number] | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -917,6 +920,34 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     },
     [filteredEvents, handleBuildRoute, stormDates],
   );
+
+  useEffect(() => {
+    if (!mapClickInsight || routeMode) {
+      setMapClickAddress(null);
+      setMapClickAddressLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMapClickAddress(null);
+    setMapClickAddressLoading(true);
+
+    void reverseGeocodeLatLng(mapClickInsight.lat, mapClickInsight.lng)
+      .then((address) => {
+        if (!cancelled) {
+          setMapClickAddress(address);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMapClickAddressLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mapClickInsight, routeMode]);
 
   useEffect(() => {
     if (!routeMode || !routeData || !routeOrigin || !gpsPosition) {
@@ -1429,10 +1460,22 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                             ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
                             : mapClickInsight.nearestEvent.source}
                         </div>
+                        <div style={{ color: '#334155', marginTop: 4 }}>
+                          {mapClickAddressLoading
+                            ? 'Finding address...'
+                            : mapClickAddress || formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                        </div>
                       </div>
                     </>
                   ) : (
-                    <div style={{ fontSize: 12 }}>No nearby storm events found for the current filters.</div>
+                    <div style={{ fontSize: 12 }}>
+                      No nearby storm events found for the current filters.
+                      <div style={{ color: '#334155', marginTop: 4 }}>
+                        {mapClickAddressLoading
+                          ? 'Finding address...'
+                          : mapClickAddress || formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                      </div>
+                    </div>
                   )}
                 </div>
               </Popup>
@@ -1475,6 +1518,23 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               }}
             >
               Map
+            </button>
+            <button
+              onClick={() => setRadarVisible((previous) => !previous)}
+              style={{
+                width: 58,
+                height: 28,
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.2)',
+                background: radarVisible ? '#16a34a' : '#fff',
+                color: radarVisible ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+              }}
+            >
+              Radar
             </button>
             <button
               onClick={() => setBaseMap('satellite')}
@@ -1674,7 +1734,9 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                     : mapClickInsight.nearestEvent.source}
                 </div>
                 <div style={{ marginTop: 6, color: '#93c5fd' }}>
-                  Clicked point: {formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                  {mapClickAddressLoading
+                    ? 'Finding address...'
+                    : mapClickAddress || `Clicked point: ${formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}`}
                 </div>
               </div>
             ) : (
@@ -1682,7 +1744,9 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>No nearby storm hit</div>
                 <div>No nearby storm events found for the current filters.</div>
                 <div style={{ marginTop: 6, color: '#93c5fd' }}>
-                  Clicked point: {formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                  {mapClickAddressLoading
+                    ? 'Finding address...'
+                    : mapClickAddress || `Clicked point: ${formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}`}
                 </div>
               </div>
             )}

@@ -69,6 +69,18 @@ function getSwathWeight(selectedDate: string | null | undefined, severity: HailS
   }
 }
 
+function isSameOrAdjacentDate(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const aDate = new Date(`${a}T12:00:00Z`);
+  const bDate = new Date(`${b}T12:00:00Z`);
+  if (Number.isNaN(aDate.getTime()) || Number.isNaN(bDate.getTime())) {
+    return false;
+  }
+  const diffDays = Math.abs(aDate.getTime() - bDate.getTime()) / (24 * 60 * 60 * 1000);
+  return diffDays <= 1;
+}
+
 const NHP_FEATURE_SERVER = 'https://services.arcgis.com/rGKxabTU9mcXMw7k/arcgis/rest/services/HailSwathMESH_Lines_view/FeatureServer/0/query';
 
 const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
@@ -208,7 +220,9 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
   // can compare directly without any split or UTC conversion.
   const filteredSwaths = useMemo(() => {
     if (!selectedDate) return swaths;
-    return swaths.filter(s => s.startDate === selectedDate);
+    return swaths.filter((s) =>
+      isSameOrAdjacentDate(s.startDate, selectedDate) || isSameOrAdjacentDate(s.endDate, selectedDate),
+    );
   }, [swaths, selectedDate]);
 
   if (!visible) return null;
@@ -230,6 +244,26 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
           fontWeight: 600
         }}>
           Loading MESH hail swaths...
+        </div>
+      )}
+
+      {!loading && visible && filteredSwaths.length === 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '46px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1000,
+          background: 'rgba(15,23,42,0.88)',
+          color: '#e2e8f0',
+          padding: '6px 14px',
+          borderRadius: '20px',
+          fontSize: '11px',
+          fontWeight: 600
+        }}>
+          {selectedDate
+            ? 'No swath track matched this storm date in the current view.'
+            : 'No swath tracks found in the current map view.'}
         </div>
       )}
 

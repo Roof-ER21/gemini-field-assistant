@@ -212,6 +212,19 @@ export async function geocodeAddress(query: string): Promise<SearchResult | null
   } catch { return null; }
 }
 
+export async function reverseGeocodeLatLng(lat: number, lng: number): Promise<string | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const apiBase = getApiBaseUrl();
+  try {
+    const res = await fetch(`${apiBase}/hail/reverse-geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.address === 'string' && data.address.trim() ? data.address : null;
+  } catch {
+    return null;
+  }
+}
+
 // ============================================================
 // Data fetching
 // ============================================================
