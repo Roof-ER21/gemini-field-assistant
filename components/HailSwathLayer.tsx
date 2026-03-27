@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Polyline, Popup, useMap } from 'react-leaflet';
+import { getHailSizeClass } from './stormMapHelpers';
 
 interface HailSwath {
   id: number;
@@ -31,7 +32,6 @@ interface HailSwathLayerProps {
   onSwathClick?: (swath: HailSwath) => void;
 }
 
-// MESH mm thresholds for severity colors
 function getMeshSeverity(meshMm: number): HailSwath['severity'] {
   if (meshMm >= 75) return 'extreme';   // 3"+ hail
   if (meshMm >= 50) return 'severe';     // 2"+ hail
@@ -39,21 +39,33 @@ function getMeshSeverity(meshMm: number): HailSwath['severity'] {
   return 'minor';
 }
 
-function getSeverityColor(severity: HailSwath['severity']): string {
-  switch (severity) {
-    case 'extreme': return '#dc2626';  // red
-    case 'severe': return '#ea580c';   // dark orange
-    case 'moderate': return '#d97706'; // amber
-    case 'minor': return '#65a30d';    // green
-  }
+function getSwathColor(meshInches: number): string {
+  return getHailSizeClass(meshInches)?.color || '#f97316';
 }
 
-function getSeverityWeight(severity: HailSwath['severity']): number {
+function getSwathWeight(selectedDate: string | null | undefined, severity: HailSwath['severity']): number {
+  if (selectedDate) {
+    switch (severity) {
+      case 'extreme':
+        return 6;
+      case 'severe':
+        return 5;
+      case 'moderate':
+        return 4;
+      case 'minor':
+        return 3.5;
+    }
+  }
+
   switch (severity) {
-    case 'extreme': return 8;
-    case 'severe': return 6;
-    case 'moderate': return 4;
-    case 'minor': return 3;
+    case 'extreme':
+      return 5;
+    case 'severe':
+      return 4;
+    case 'moderate':
+      return 3.5;
+    case 'minor':
+      return 3;
   }
 }
 
@@ -174,7 +186,6 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
         })
         .filter((s: HailSwath) => s.coordinates.length >= 2);
 
-      console.log(`✅ Loaded ${parsed.length} MESH hail swaths from NHP`);
       setSwaths(parsed);
     } catch (err) {
       console.error('Failed to fetch hail swaths:', err);
@@ -228,31 +239,18 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
       )}
 
       {filteredSwaths.map(swath => {
-        const color = getSeverityColor(swath.severity);
-        // Base width 12-24px depending on severity, looks like filled swath
-        const baseWeight = swath.severity === 'extreme' ? 24 : swath.severity === 'severe' ? 18 : swath.severity === 'moderate' ? 14 : 10;
+        const color = getSwathColor(swath.maxMeshInches);
+        const weight = getSwathWeight(selectedDate, swath.severity);
+        const opacity = selectedDate ? 0.96 : 0.82;
 
         return (
           <React.Fragment key={swath.id}>
-            {/* Outer glow/border for depth */}
             <Polyline
               positions={swath.coordinates}
               pathOptions={{
                 color: color,
-                weight: baseWeight + 4,
-                opacity: 0.15,
-                lineCap: 'round',
-                lineJoin: 'round'
-              }}
-              interactive={false}
-            />
-            {/* Main swath body */}
-            <Polyline
-              positions={swath.coordinates}
-              pathOptions={{
-                color: color,
-                weight: baseWeight,
-                opacity: 0.5,
+                weight,
+                opacity,
                 lineCap: 'round',
                 lineJoin: 'round'
               }}
@@ -282,7 +280,7 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
                   )}
                 </div>
                 <div style={{ fontSize: '9px', color: '#888', marginTop: '6px' }}>
-                  Source: National Hail Project MRMS MESH
+                  Source: National Hail Project track geometry. This is rendered as a storm track, not a fabricated filled footprint.
                 </div>
               </div>
             </Popup>

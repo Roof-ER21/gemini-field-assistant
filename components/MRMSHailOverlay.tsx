@@ -1,92 +1,195 @@
-/**
- * MRMS MESH Hail Swath Overlay for Leaflet Maps
- *
- * Displays MRMS (Multi-Radar Multi-Sensor) MESH (Maximum Expected Size of Hail)
- * data as a map overlay, sourced from a self-hosted MRMS tile server.
- *
- * Supports two rendering modes:
- *   Mode 1 (primary): ImageOverlay — loads a single colorized PNG covering CONUS.
- *     Best for low-resource tile servers. Auto-refreshes every 5 minutes.
- *   Mode 2 (fallback): TileLayer — standard XYZ tiles for upgraded tile servers.
- *
- * Products:
- *   mesh60   — Max hail size over the past 60 minutes
- *   mesh1440 — Max hail size over the past 24 hours (1440 min)
- */
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ImageOverlay, TileLayer } from 'react-leaflet';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { ImageOverlay } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
-import { Layers, RefreshCw, Settings } from 'lucide-react';
+import { Layers } from 'lucide-react';
+import { getApiBaseUrl } from '../services/config';
+import type { BoundingBox } from './stormMapHelpers';
 
-// CONUS bounding box for the full-extent PNG image
 const CONUS_BOUNDS = new LatLngBounds(
-  [20, -130], // SW corner
-  [55, -60]   // NE corner
+  [20, -130],
+  [55, -60],
 );
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
-// Default tile server — swap to production URL when deployed
-// Uses Railway backend proxy (/api/mrms/) to avoid mixed-content blocking
-const DEFAULT_TILE_SERVER = '';
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 type MRMSProduct = 'mesh60' | 'mesh1440';
-type RenderMode = 'image' | 'tile';
 
-interface MRMSHailOverlayProps {
-  /** Whether the overlay is currently shown on the map */
-  visible: boolean;
-  /** Which MESH product to display */
-  product: MRMSProduct;
-  /** Overlay opacity 0–1 */
-  opacity?: number;
-  /** Toggle visibility from parent */
-  onToggle: () => void;
-  /** Optional override for the tile server base URL */
-  tileServerUrl?: string;
+interface HistoricalMrmsMetadata {
+  ref_time?: string;
+  generated_at?: string;
+  has_hail?: boolean;
+  max_mesh_inches?: number;
+  hail_pixels?: number;
+  bounds?: BoundingBox;
 }
 
-// Legend entries: label + background color for the swatch
+interface MRMSHailOverlayProps {
+  visible: boolean;
+  product: MRMSProduct;
+  opacity?: number;
+  onToggle: () => void;
+  selectedDate?: string | null;
+  historicalBounds?: BoundingBox | null;
+  anchorTimestamp?: string | null;
+}
+
 const HAIL_LEGEND: Array<{ label: string; color: string }> = [
-  { label: '< 0.5"',  color: '#4ade80' }, // light green
-  { label: '0.5–1"',  color: '#16a34a' }, // green
-  { label: '1–1.5"',  color: '#facc15' }, // yellow
-  { label: '1.5–2"',  color: '#f97316' }, // orange
-  { label: '2–3"',    color: '#ea580c' }, // dark orange
-  { label: '3"+',     color: '#dc2626' }, // red
+  { label: 'Pea to Penny', color: '#00FF00' },
+  { label: 'Penny to Quarter', color: '#FFFF00' },
+  { label: 'Quarter to Ping Pong', color: '#FFA500' },
+  { label: 'Ping Pong to Golf Ball', color: '#FF6600' },
+  { label: 'Golf Ball to Tennis Ball', color: '#FF0000' },
+  { label: 'Tennis Ball to Softball', color: '#8B0000' },
+  { label: 'Softball+', color: '#800080' },
 ];
+
+function formatTimestamp(timestamp?: string): string | null {
+  if (!timestamp) {
+    return null;
+  }
+
+  try {
+    return new Date(timestamp).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }) + ' ET';
+  } catch {
+    return timestamp;
+  }
+}
+
+function toLatLngBounds(bounds?: BoundingBox | null): LatLngBounds {
+  if (!bounds) {
+    return CONUS_BOUNDS;
+  }
+
+  return new LatLngBounds(
+    [bounds.south, bounds.west],
+    [bounds.north, bounds.east],
+  );
+}
+
+function buildHistoricalQuery(date: string, bounds: BoundingBox, anchorTimestamp?: string | null): URLSearchParams {
+  const query = new URLSearchParams({
+    date,
+    north: bounds.north.toString(),
+    south: bounds.south.toString(),
+    east: bounds.east.toString(),
+    west: bounds.west.toString(),
+  });
+
+  if (anchorTimestamp) {
+    query.set('anchorTimestamp', anchorTimestamp);
+  }
+
+  return query;
+}
 
 const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
   visible,
   product,
-  opacity: initialOpacity = 0.65,
+  opacity = 0.62,
   onToggle,
-  tileServerUrl = DEFAULT_TILE_SERVER,
+  selectedDate = null,
+  historicalBounds = null,
+  anchorTimestamp = null,
 }) => {
-  const [opacity, setOpacity] = useState(initialOpacity);
-  const [showControls, setShowControls] = useState(false);
-  const [renderMode] = useState<RenderMode>('image');
+  const apiBase = getApiBaseUrl();
+  const refreshTimerRef = useRef<number | null>(null);
   const [cacheBust, setCacheBust] = useState(() => Date.now());
   const [imageError, setImageError] = useState(false);
-  const refreshTimerRef = useRef<number | null>(null);
+  const [historicalMeta, setHistoricalMeta] = useState<HistoricalMrmsMetadata | null>(null);
+  const [loadingHistorical, setLoadingHistorical] = useState(false);
 
-  // Build the full-image URL via Railway proxy with cache-busting
-  const imageUrl = tileServerUrl
-    ? `${tileServerUrl}/overlays/${product}.png?t=${cacheBust}`
-    : `/api/mrms/${product}.png?t=${cacheBust}`;
+  const isHistoricalMode = Boolean(selectedDate && historicalBounds);
 
-  // Build the XYZ tile URL template for tile mode
-  const tileUrl = tileServerUrl
-    ? `${tileServerUrl}/tiles/${product}/{z}/{x}/{y}.png`
-    : `/api/mrms/tiles/${product}/{z}/{x}/{y}.png`;
+  const liveImageUrl = useMemo(
+    () => `${apiBase.replace(/\/$/, '')}/mrms/${product}.png?t=${cacheBust}`,
+    [apiBase, cacheBust, product],
+  );
 
-  const triggerRefresh = useCallback(() => {
+  const historicalQuery = useMemo(() => {
+    if (!selectedDate || !historicalBounds) {
+      return null;
+    }
+
+    return buildHistoricalQuery(selectedDate, historicalBounds, anchorTimestamp);
+  }, [anchorTimestamp, historicalBounds, selectedDate]);
+
+  const historicalImageUrl = useMemo(() => {
+    if (!historicalQuery) {
+      return null;
+    }
+
+    return `${apiBase}/hail/mrms-historical-image?${historicalQuery.toString()}&t=${cacheBust}`;
+  }, [apiBase, cacheBust, historicalQuery]);
+
+  const overlayBounds = useMemo(() => {
+    if (isHistoricalMode) {
+      return toLatLngBounds(historicalMeta?.bounds || historicalBounds);
+    }
+    return CONUS_BOUNDS;
+  }, [historicalBounds, historicalMeta?.bounds, isHistoricalMode]);
+
+  const overlayUrl = isHistoricalMode ? historicalImageUrl : liveImageUrl;
+
+  const refreshOverlay = useCallback(() => {
     setCacheBust(Date.now());
     setImageError(false);
   }, []);
 
-  // Auto-refresh every 5 minutes while visible
+  useEffect(() => {
+    if (!visible || !isHistoricalMode || !historicalQuery) {
+      setHistoricalMeta(null);
+      setLoadingHistorical(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadHistoricalMetadata = async () => {
+      setLoadingHistorical(true);
+      try {
+        const response = await fetch(
+          `${apiBase}/hail/mrms-historical-meta?${historicalQuery.toString()}`,
+          {
+            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Historical MRMS metadata returned ${response.status}`);
+        }
+
+        const data: HistoricalMrmsMetadata = await response.json();
+        if (!controller.signal.aborted) {
+          setHistoricalMeta(data);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error('Historical MRMS metadata fetch failed:', error);
+          setHistoricalMeta(null);
+          setImageError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingHistorical(false);
+        }
+      }
+    };
+
+    void loadHistoricalMetadata();
+
+    return () => {
+      controller.abort();
+    };
+  }, [apiBase, historicalQuery, isHistoricalMode, visible]);
+
   useEffect(() => {
     if (!visible) {
       if (refreshTimerRef.current) {
@@ -96,10 +199,11 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
       return;
     }
 
-    // Immediate refresh when becoming visible
-    triggerRefresh();
+    refreshOverlay();
 
-    refreshTimerRef.current = window.setInterval(triggerRefresh, REFRESH_INTERVAL_MS);
+    if (!isHistoricalMode) {
+      refreshTimerRef.current = window.setInterval(refreshOverlay, REFRESH_INTERVAL_MS);
+    }
 
     return () => {
       if (refreshTimerRef.current) {
@@ -107,20 +211,18 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
         refreshTimerRef.current = null;
       }
     };
-  }, [visible, product, triggerRefresh]);
+  }, [isHistoricalMode, refreshOverlay, visible]);
 
-  // When product changes, refresh immediately
-  useEffect(() => {
-    if (visible) {
-      triggerRefresh();
-    }
-  }, [product, visible, triggerRefresh]);
+  const infoMessage = isHistoricalMode
+    ? historicalMeta?.has_hail === false
+      ? 'No archived MRMS hail raster was found inside the selected storm bounds.'
+      : historicalMeta?.ref_time
+        ? `Archived MRMS ${formatTimestamp(historicalMeta.ref_time)}`
+        : 'Historical hail footprint for the selected storm date.'
+    : `Live ${product === 'mesh60' ? '60-minute' : '24-hour'} MRMS hail overlay`;
 
   return (
     <>
-      {/* ------------------------------------------------------------------ */}
-      {/* Toggle button — positioned below RainViewer (top: 160px + 80px gap) */}
-      {/* ------------------------------------------------------------------ */}
       <div
         style={{
           position: 'absolute',
@@ -134,7 +236,7 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
       >
         <button
           onClick={onToggle}
-          title={visible ? 'Hide MRMS Hail Swath' : 'Show MRMS Hail Swath'}
+          title={visible ? 'Hide MRMS Hail Overlay' : 'Show MRMS Hail Overlay'}
           style={{
             width: '36px',
             height: '36px',
@@ -151,72 +253,23 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
         >
           <Layers className="w-4 h-4" />
         </button>
-
       </div>
 
-      {/* Controls panel removed — just toggle on/off */}
-      {false && (
-        <div style={{ display: 'none' }}>
-          <button
-            onClick={triggerRefresh}
-            style={{
-              gap: '4px',
-            }}
-          >
-            <RefreshCw className="w-3 h-3" />
-            Refresh now
-          </button>
-
-          {/* Server status */}
-          {imageError && (
-            <div
-              style={{
-                marginTop: '8px',
-                padding: '6px 8px',
-                borderRadius: '4px',
-                background: '#fff5f5',
-                border: '1px solid #fed7d7',
-                fontSize: '10px',
-                color: '#c53030',
-              }}
-            >
-              Tile server not reachable. Data will appear automatically when the server is online.
-            </div>
-          )}
-
-          {/* Render mode badge */}
-          <div
-            style={{
-              marginTop: '8px',
-              fontSize: '9px',
-              color: '#a0aec0',
-              display: 'flex',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span>Mode: {renderMode === 'image' ? 'Image overlay' : 'Tile layer'}</span>
-            <span>Auto-refresh: 5 min</span>
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Legend — shown in the bottom-left corner when overlay is active     */}
-      {/* ------------------------------------------------------------------ */}
-      {visible && !imageError && (
+      {visible && (
         <div
           style={{
             position: 'absolute',
             bottom: '32px',
             left: '10px',
             zIndex: 1000,
-            background: 'rgba(26, 32, 44, 0.88)',
+            background: 'rgba(26, 32, 44, 0.9)',
             backdropFilter: 'blur(6px)',
             borderRadius: '8px',
             padding: '8px 10px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
             color: 'white',
             fontSize: '10px',
+            maxWidth: '260px',
           }}
         >
           <div
@@ -230,8 +283,16 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
             }}
           >
             <Layers className="w-3 h-3" style={{ color: '#c084fc' }} />
-            MRMS MESH — {product === 'mesh60' ? '60-min' : '24-hr'} Hail
+            {isHistoricalMode ? 'Historical MRMS Hail' : `MRMS MESH ${product === 'mesh60' ? '60m' : '24h'}`}
           </div>
+          <div style={{ marginBottom: '6px', color: '#d1d5db', lineHeight: 1.45 }}>
+            {loadingHistorical ? 'Loading archived MRMS hail raster...' : infoMessage}
+          </div>
+          {historicalMeta?.max_mesh_inches ? (
+            <div style={{ marginBottom: '6px', color: '#fde68a' }}>
+              Max {historicalMeta.max_mesh_inches.toFixed(2)}" hail
+            </div>
+          ) : null}
           {HAIL_LEGEND.map(({ label, color }) => (
             <div
               key={label}
@@ -258,31 +319,17 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Map overlay — rendered inside MapContainer context                  */}
-      {/* ------------------------------------------------------------------ */}
-      {visible && renderMode === 'image' && (
+      {visible && overlayUrl && !(isHistoricalMode && historicalMeta?.has_hail === false) && (
         <ImageOverlay
-          key={`mrms-image-${product}-${cacheBust}`}
-          url={imageUrl}
-          bounds={CONUS_BOUNDS}
+          key={`mrms-image-${isHistoricalMode ? 'historical' : product}-${cacheBust}`}
+          url={overlayUrl}
+          bounds={overlayBounds}
           opacity={opacity}
           zIndex={502}
-          // Gracefully handle 404/server-down: hide the legend
           eventHandlers={{
             error: () => setImageError(true),
             load: () => setImageError(false),
           }}
-        />
-      )}
-
-      {visible && renderMode === 'tile' && (
-        <TileLayer
-          key={`mrms-tiles-${product}-${cacheBust}`}
-          url={tileUrl}
-          opacity={opacity}
-          zIndex={502}
-          attribution='MRMS MESH: NOAA/NSSL'
         />
       )}
     </>

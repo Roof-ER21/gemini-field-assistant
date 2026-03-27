@@ -77,8 +77,15 @@ export interface SearchResult {
   lat: number;
   lng: number;
   placeId: string;
-  viewport: { north: number; south: number; east: number; west: number } | null;
+  viewport: BoundingBox | null;
   resultType: SearchResultType;
+}
+
+export interface BoundingBox {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
 }
 
 export interface HailSizeClass {
@@ -104,8 +111,8 @@ export const HAIL_SIZE_CLASSES: HailSizeClass[] = [
   { minInches: 4.5, maxInches: 99, label: 'Softball+', reference: 'softball', color: '#800080', damageSeverity: 5 },
 ];
 
-export const DEFAULT_CENTER: [number, number] = [39.0, -98.0];
-export const DEFAULT_ZOOM = 5;
+export const DEFAULT_CENTER: [number, number] = [39.0, -77.0];
+export const DEFAULT_ZOOM = 8;
 
 const ALERT_RADIUS_MILES = 0.5;
 const NHP_FEATURE_SERVER = 'https://services.arcgis.com/rGKxabTU9mcXMw7k/arcgis/rest/services/HailSwathMESH_Lines_view/FeatureServer/0/query';
