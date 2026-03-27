@@ -51,36 +51,44 @@ export class PDFReportServiceV2 {
     CW = 612 - 100;
     BOTTOM = 745;
     // ========== FORMATTING HELPERS ==========
-    fmtDateET(dateStr) {
+    parseStormDate(dateStr) {
         try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime()))
-                return dateStr;
-            return d.toLocaleDateString('en-US', {
-                timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric'
-            });
+            if (!dateStr)
+                return null;
+            const dateOnlyMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})$/);
+            if (dateOnlyMatch) {
+                const parsed = new Date(`${dateOnlyMatch[1]}T12:00:00Z`);
+                return Number.isNaN(parsed.getTime()) ? null : parsed;
+            }
+            const parsed = new Date(dateStr);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
         }
         catch {
-            return dateStr;
+            return null;
         }
     }
+    fmtDateET(dateStr) {
+        const d = this.parseStormDate(dateStr);
+        if (!d)
+            return dateStr;
+        return d.toLocaleDateString('en-US', {
+            timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric'
+        });
+    }
     fmtTimeET(dateStr) {
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime()))
-                return '';
-            const etFull = d.toLocaleString('en-US', {
-                timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
-            });
-            const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
-            const time = d.toLocaleTimeString('en-US', {
-                timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
-            });
-            return `${time} ${tz}`;
-        }
-        catch {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr))
             return '';
-        }
+        const d = this.parseStormDate(dateStr);
+        if (!d)
+            return '';
+        const etFull = d.toLocaleString('en-US', {
+            timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
+        });
+        const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
+        const time = d.toLocaleTimeString('en-US', {
+            timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
+        });
+        return `${time} ${tz}`;
     }
     fmtDateTimeET(dateStr) {
         const date = this.fmtDateET(dateStr);
@@ -88,23 +96,18 @@ export class PDFReportServiceV2 {
         return time ? `${date}\n${time}` : date;
     }
     fmtFullDateTimeET(dateStr) {
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime()))
-                return dateStr;
-            const etFull = d.toLocaleString('en-US', {
-                timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
-            });
-            const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
-            const formatted = d.toLocaleString('en-US', {
-                timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric',
-                hour: 'numeric', minute: '2-digit', hour12: true
-            });
-            return `${formatted} ${tz}`;
-        }
-        catch {
+        const d = this.parseStormDate(dateStr);
+        if (!d)
             return dateStr;
-        }
+        const etFull = d.toLocaleString('en-US', {
+            timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
+        });
+        const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
+        const formatted = d.toLocaleString('en-US', {
+            timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+        });
+        return `${formatted} ${tz}`;
     }
     generateReportId() {
         const now = Date.now();
