@@ -90,6 +90,35 @@ router.get('/geocode', async (req, res) => {
         return res.status(500).json({ error: 'Geocoding failed' });
     }
 });
+// GET /api/hail/reverse-geocode?lat=<lat>&lng=<lng>
+router.get('/reverse-geocode', async (req, res) => {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ error: 'Missing or invalid lat/lng parameters' });
+    }
+    try {
+        const params = new URLSearchParams({
+            lat: lat.toString(),
+            lon: lng.toString(),
+            format: 'jsonv2',
+            zoom: '18',
+            addressdetails: '1',
+        });
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+            headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' },
+        });
+        if (!response.ok) {
+            return res.json({ address: null });
+        }
+        const data = await response.json();
+        return res.json({ address: data?.display_name || null });
+    }
+    catch (err) {
+        console.error('Reverse geocode proxy error:', err);
+        return res.status(500).json({ error: 'Reverse geocoding failed' });
+    }
+});
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
     const ihmConfigured = hailMapsService.isConfigured();
