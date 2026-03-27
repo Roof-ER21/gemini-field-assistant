@@ -69,6 +69,10 @@ interface RouteData {
   destination: [number, number];
 }
 
+function formatLatLng(lat: number, lng: number): string {
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
 function MapCameraController({
   center,
   zoom,
@@ -550,6 +554,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [routeMode, setRouteMode] = useState(false);
   const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [routePendingDestination, setRoutePendingDestination] = useState<[number, number] | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [showDolModal, setShowDolModal] = useState(false);
@@ -855,6 +860,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
       const controller = new AbortController();
       routeAbortRef.current = controller;
       routeOriginRef.current = routeOrigin;
+      setRoutePendingDestination(destination);
       setRouteLoading(true);
       setRouteError(null);
 
@@ -864,6 +870,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           return;
         }
         setRouteData(nextRoute);
+        setRoutePendingDestination(null);
         const routeBounds = padBounds(getCoordinateBounds(nextRoute.coordinates), 0.12);
         if (routeBounds) {
           setFitBoundsRequest({
@@ -879,6 +886,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
       } finally {
         if (!controller.signal.aborted) {
           setRouteLoading(false);
+          setRoutePendingDestination(null);
         }
       }
     },
@@ -1364,6 +1372,18 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               />
             </>
           ) : null}
+          {routePendingDestination && !routeData ? (
+            <CircleMarker
+              center={routePendingDestination}
+              radius={7}
+              pathOptions={{
+                color: '#ffffff',
+                fillColor: '#ef4444',
+                fillOpacity: 1,
+                weight: 2,
+              }}
+            />
+          ) : null}
           {mapClickInsight ? (
             <>
               <CircleMarker
@@ -1553,6 +1573,11 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             <div style={{ fontSize: 12, color: '#d1d5db', lineHeight: 1.5 }}>
               Click the map to set a destination. The app will route from your GPS location, or from the searched property if GPS is off.
             </div>
+            {routePendingDestination ? (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#fca5a5' }}>
+                Destination: {formatLatLng(routePendingDestination[0], routePendingDestination[1])}
+              </div>
+            ) : null}
             {routeLoading ? (
               <div style={{ marginTop: 8, fontSize: 12, color: '#93c5fd' }}>Building route...</div>
             ) : null}
@@ -1598,6 +1623,69 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                 </a>
               </div>
             ) : null}
+          </div>
+        )}
+
+        {mapClickInsight && !routeMode && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 96,
+              right: 92,
+              zIndex: 1000,
+              width: 300,
+              maxWidth: 'calc(100% - 116px)',
+              background: 'rgba(10,10,15,0.92)',
+              backdropFilter: 'blur(6px)',
+              borderRadius: 12,
+              padding: 12,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+              color: '#fff',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fca5a5' }}>
+                Map Click
+              </div>
+              <button
+                onClick={() => setMapClickInsight(null)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 12 }}
+              >
+                Clear
+              </button>
+            </div>
+            {mapClickInsight.nearestEvent ? (
+              <div style={{ fontSize: 12, lineHeight: 1.55 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Nearest storm hit</div>
+                <div>
+                  {mapClickInsight.nearestEvent.eventType === 'Hail'
+                    ? `${mapClickInsight.nearestEvent.magnitude}" hail`
+                    : `${mapClickInsight.nearestEvent.magnitude} mph wind`}
+                </div>
+                <div>{formatDateLabel(mapClickInsight.nearestEvent.beginDate)}</div>
+                <div>
+                  {mapClickInsight.distanceMiles !== null
+                    ? `${mapClickInsight.distanceMiles.toFixed(2)} mi away`
+                    : 'Distance unavailable'}
+                </div>
+                <div style={{ marginTop: 4, color: '#d1d5db' }}>
+                  {mapClickInsight.nearestEvent.county
+                    ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
+                    : mapClickInsight.nearestEvent.source}
+                </div>
+                <div style={{ marginTop: 6, color: '#93c5fd' }}>
+                  Clicked point: {formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, lineHeight: 1.55 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>No nearby storm hit</div>
+                <div>No nearby storm events found for the current filters.</div>
+                <div style={{ marginTop: 6, color: '#93c5fd' }}>
+                  Clicked point: {formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
