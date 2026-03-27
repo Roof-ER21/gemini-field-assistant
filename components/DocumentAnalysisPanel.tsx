@@ -79,6 +79,7 @@ const DocumentAnalysisPanel: React.FC = () => {
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<'general' | 'supplement'>('general');
+  const [selectedTrades, setSelectedTrades] = useState<{ roofing: boolean; siding: boolean; gutters: boolean }>({ roofing: true, siding: false, gutters: false });
   const [showChatWithSusan, setShowChatWithSusan] = useState(false);
   const [susanContext, setSusanContext] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -318,33 +319,92 @@ const DocumentAnalysisPanel: React.FC = () => {
 
       const susanContextBlock = susanContext ? `\n${susanContext}\n` : '';
 
-      const supplementPrompt = `You are Susan, S21's expert insurance supplement specialist. A sales rep has uploaded documents for supplement review. When BOTH an adjuster's estimate AND a Hover measurement report are provided, you MUST cross-reference every measurement.
+      const tradesSelected = Object.entries(selectedTrades).filter(([, v]) => v).map(([k]) => k);
+      const tradesLabel = tradesSelected.join(', ') || 'roofing';
+
+      const supplementPrompt = `You are Susan, S21's expert insurance supplement specialist. A sales rep has uploaded documents for supplement review.
+
+**SELECTED TRADES FOR THIS SUPPLEMENT: ${tradesLabel.toUpperCase()}**
+Only analyze and supplement items for the selected trades. Ignore trades not selected.
 
 ${contextInfo ? `Context:\n${contextInfo}\n\n` : ''}Documents:
 ${combinedText}
 
-**CRITICAL — HOVER REPORT CROSS-REFERENCE:**
+**CRITICAL — MEASUREMENT REPORT DETECTION:**
+
+⚠️ FIRST: Determine what measurement report is included. Look for these indicators:
+- "EagleView" or "Eagle View" or "EagleView Technologies" → This is an **EagleView** report
+- "Hover" or "HOVER" or "hover.to" → This is a **Hover** report
+- "GAF QuickMeasure" → This is a **GAF QuickMeasure** report
+- If unclear, call it "measurement report" — do NOT guess or default to Hover
+
+Use the CORRECT name throughout your analysis. Do NOT call an EagleView report "Hover" or vice versa.
+
+Both EagleView and Hover report roof area in SQUARE FEET (SF). The same conversion rules apply regardless of provider.
 
 ⚠️ UNIT CONVERSION RULE — READ CAREFULLY:
 - 1 ROOFING SQUARE (SQ) = 100 SQUARE FEET (SF)
-- Hover reports roof area in SQUARE FEET (SF)
+- Measurement reports show roof area in SQUARE FEET (SF)
 - Xactimate estimates use SQUARES (SQ) for shingles, tear-off, felt, steep/high charges
-- To convert: Hover SF ÷ 100 = SQ
-- Example: Hover says 2,951 SF = 29.51 SQ. Estimate says 29.26 SQ. Difference = 0.25 SQ (NOT 25 SQ!)
+- To convert: SF ÷ 100 = SQ
+- Example: Report says 2,951 SF = 29.51 SQ. Estimate says 29.26 SQ. Difference = 0.25 SQ (NOT 25 SQ!)
 - NEVER subtract SF from SQ or treat them as the same unit
 - The quantity correction difference should be in SQ (for per-SQ items) or SF (for per-SF items like ice & water shield)
 - If the difference is less than 1 SQ, it may not be worth supplementing — note this
 
-Compare EVERY measurement:
-- Roof total area: Convert Hover SF to SQ, then compare to estimate SQ. Show both units clearly.
-- Ridge/hip lengths (LF): Hover ridge/hip total vs estimate ridge cap LF
-- Valley lengths (LF): Hover valley total vs estimate valley metal LF — if estimate has NO valley line item, supplement it
-- Drip edge (LF): Hover perimeter vs estimate drip edge LF
+${selectedTrades.roofing ? `**ROOFING MEASUREMENTS — Compare EVERY measurement:**
+- Roof total area: Convert report SF to SQ, then compare to estimate SQ. Show both units clearly.
+- Ridge/hip lengths (LF): Report ridge/hip total vs estimate ridge cap LF
+- Valley lengths (LF): Report valley total vs estimate valley metal LF — if estimate has NO valley line item, supplement it
+- Drip edge (LF): Report perimeter vs estimate drip edge LF
 - Eave/rake lengths: For starter strip calculation
-- Step flashing (LF): Hover step flashing total vs estimate step flashing LF
-- Pipe jacks (EA): Hover flashing count vs estimate pipe jack count
-- Roof pitch: Hover pitch breakdown — verify steep charges applied to correct area
-- Stories: Hover story count — verify high roof charges
+- Step flashing (LF): Report step flashing total vs estimate step flashing LF
+- Pipe jacks (EA): Report flashing count vs estimate pipe jack count
+- Roof pitch: Report pitch breakdown — verify steep charges applied to correct area
+- Stories: Report story count — verify high roof charges
+` : ''}
+${selectedTrades.siding ? `**SIDING MEASUREMENTS — Compare ALL siding measurements:**
+- Total siding area (SF): Report siding SF vs estimate siding SF. EagleView and Hover both measure wall/siding areas.
+- Siding by wall face: Compare each wall face area if available
+- Siding type: Vinyl, fiber cement (HardiePlank), wood, aluminum — verify correct material in estimate
+- Housewrap/WRB (SF): Should match siding area — required per IRC R703.2
+- Window/door trim (LF): Report window/door count × perimeter vs estimate trim LF
+- J-channel (LF): Around all openings — commonly missed
+- Soffit (SF): Report soffit area vs estimate
+- Fascia (LF): Report fascia length vs estimate
+
+**SIDING XACTIMATE CODES:**
+| Code | Description | Unit | Avg Price |
+|------|-------------|------|-----------|
+| SDG VNYL | Vinyl siding | SF | $3.50-7.00 |
+| SDG VNYLR | R&R vinyl siding | SF | $4.50-8.50 |
+| SDG HARDI | Fiber cement siding (HardiePlank) | SF | $8.00-14.00 |
+| SDG HARDIR | R&R fiber cement siding | SF | $9.00-16.00 |
+| SDG HWRAP | Housewrap/WRB | SF | $0.50-1.25 |
+| SDG JCHNL | J-channel | LF | $1.50-3.00 |
+| SDG TRIM | Window/door trim | LF | $3.00-6.00 |
+| SDG SOFFIT | Soffit - vinyl/aluminum | SF | $5.00-10.00 |
+| SDG FASCIA | Fascia board | LF | $4.00-9.00 |
+| SDG CRNR | Corner post | EA | $15.00-35.00 |
+` : ''}
+${selectedTrades.gutters ? `**GUTTER MEASUREMENTS — Compare ALL gutter measurements:**
+- Gutter length (LF): Report eave/gutter length vs estimate gutter LF
+- Downspouts (LF): Report downspout count × avg length vs estimate
+- Downspout elbows (EA): 2-3 per downspout typically
+- Gutter guards/screens (LF): If present, verify in estimate
+- Splash blocks (EA): One per downspout
+
+**GUTTER XACTIMATE CODES:**
+| Code | Description | Unit | Avg Price |
+|------|-------------|------|-----------|
+| SFG GUTA5 | Aluminum gutter - 5" seamless | LF | $7.00-14.00 |
+| SFG GUTA6 | Aluminum gutter - 6" seamless | LF | $9.00-16.00 |
+| SFG DSPAT | Downspout - aluminum | LF | $5.00-10.00 |
+| SFG DSPE | Downspout elbow | EA | $8.00-15.00 |
+| SFG GUTGRD | Gutter guard/screen | LF | $4.00-12.00 |
+| SFG SPLSH | Splash block | EA | $12.00-25.00 |
+| SFG GUTR | Detach & reset gutters (for roof work) | LF | $3.00-6.00 |
+` : ''}
 
 For EACH discrepancy, calculate the DOLLAR DIFFERENCE using CORRECT UNITS:
 - Per-SQ items: difference in SQ × $/SQ
@@ -356,26 +416,26 @@ ${susanContextBlock}
 
 YOUR MISSION: Find EVERY item the adjuster missed, undervalued, or incorrectly calculated. For EACH item you MUST provide:
 1. The EXACT quantity from the estimate (or "missing/not included")
-2. The CORRECT quantity from Hover (if available)
+2. The CORRECT quantity from the measurement report (if available)
 3. The DIFFERENCE in units (SF, LF, SQ, EA)
 4. The DOLLAR AMOUNT to supplement (using the estimate's own unit prices when available, or market rates when not)
 5. The CODE REFERENCE or REASON it's required
 
-DO NOT give vague recommendations like "add drip edge." Instead: "Add 91.74 LF drip edge: estimate has 310.09 LF, Hover perimeter is 401'10\" (401.83 LF). At $3.33/LF = $305.49. Required per IRC R905.2.8.5."
+DO NOT give vague recommendations like "add drip edge." Instead: "Add 91.74 LF drip edge: estimate has 310.09 LF, report perimeter is 401'10\" (401.83 LF). At $3.33/LF = $305.49. Required per IRC R905.2.8.5."
 
 ALWAYS end with a TOTAL SUPPLEMENT DOLLAR AMOUNT summing all items.
 
 **CRITICAL RULES FOR ACCURACY:**
 
 RULE 1 — QUANTITY CORRECTION vs WASTE:
-- The Hover report shows the ACTUAL roof area (zero waste). The estimate also has a base area before waste.
-- Compare the estimate's PRE-WASTE base area (surface area in the roof diagram) to the Hover zero-waste area.
-- If the estimate's pre-waste area is LESS than Hover's measurement, that is a QUANTITY CORRECTION (the adjuster measured wrong), NOT a waste issue.
+- The measurement report shows the ACTUAL roof area (zero waste). The estimate also has a base area before waste.
+- Compare the estimate's PRE-WASTE base area (surface area in the roof diagram) to the report's zero-waste area.
+- If the estimate's pre-waste area is LESS than the report's measurement, that is a QUANTITY CORRECTION (the adjuster measured wrong), NOT a waste issue.
 - Call this "SUPPLEMENT FOR QUANTITY CORRECTION" — NOT "roof area discrepancy."
 - Waste factor is a SEPARATE check — verify the waste % is reasonable (10-15% regular, 15-20% hip/complex).
 
 RULE 2 — QUANTITY CORRECTION CASCADES TO ALL PER-SQ LINE ITEMS:
-- When there is a quantity correction (Hover shows more SQ than estimate), the additional squares affect EVERY line item priced per SQ, not just shingles. You MUST calculate the supplement for EACH:
+- When there is a quantity correction (report shows more SQ than estimate), the additional squares affect EVERY line item priced per SQ, not just shingles. You MUST calculate the supplement for EACH:
   • Shingles (comp shingle line item — $/SQ)
   • Tear-off (tear off line item — $/SQ)
   • Underlayment/felt (roofing felt line item — $/SQ)
@@ -392,39 +452,39 @@ RULE 3 — STARTER STRIP:
 - If the estimate already includes adequate waste %, note that starter may be covered by waste.
 
 RULE 4 — DRIP EDGE:
-- Compare the estimate's drip edge LF to the Hover perimeter measurement.
+- Compare the estimate's drip edge LF to the report's perimeter measurement.
 - This is one of the strongest supplement items — IRC R905.2.8.5 explicitly requires it.
 
 RULE 5 — STEP FLASHING:
-- Check Hover's step flashing count and total LF against the estimate.
+- Check the report's step flashing count and total LF against the estimate.
 - Step flashing at roof-to-wall intersections is frequently undermeasured or omitted.
 
 RULE 6 — PITCH / STEEP CHARGES:
-- Use Hover's pitch breakdown to verify steep slope charges.
+- Use the report's pitch breakdown to verify steep slope charges.
 - Any pitch 7/12 or greater requires steep charges.
-- Calculate what % of the roof is steep from Hover, multiply by the additional charge per SQ.
+- Calculate what % of the roof is steep from the report, multiply by the additional charge per SQ.
 
 **SUPPLEMENT ANALYSIS CHECKLIST:**
 
 1. **Quantity Correction** (MOST IMPORTANT — check first):
-   - Compare estimate pre-waste area to Hover zero-waste area
+   - Compare estimate pre-waste area to report zero-waste area
    - If different, calculate cascaded supplement across ALL per-SQ line items
 
 2. **Missing Line Items**:
-   - Drip edge (IRC R905.2.8.5) — compare LF to Hover perimeter
+   - Drip edge (IRC R905.2.8.5) — compare LF to report perimeter
    - Starter strip (note: commonly denied, waste may cover)
-   - Step flashing — compare to Hover step flashing measurements
-   - Ridge cap / hip cap — compare to Hover ridge/hip lengths
+   - Step flashing — compare to report step flashing measurements
+   - Ridge cap / hip cap — compare to report ridge/hip lengths
    - Pipe boot/jack replacements
    - Counter flashing
-   - Valley metal/lining — compare to Hover valley lengths
+   - Valley metal/lining — compare to report valley lengths
    - Chimney cricket (IRC R903.2.2 for chimneys >30" wide)
    - Detach & reset gutters
    - Permit fees
 
 3. **Undervalued Items**:
-   - Steep slope charges (verify against Hover pitch data)
-   - High roof charges (verify against Hover story count)
+   - Steep slope charges (verify against report pitch data)
+   - High roof charges (verify against report story count)
    - O&P not included (standard 10% + 10%)
    - Waste factor accuracy
 
@@ -474,11 +534,11 @@ EVERY supplement item MUST include the Xactimate code. Format:
 "[Xactimate Code] — [Description]: [quantity] [unit] × $[price]/[unit] = $[total]. [Reason/Code ref]"
 
 Example: "RFG DRIP — Drip edge: 91.74 LF × $3.33/LF = $305.49. IRC R905.2.8.5"
-Example: "RFG VMTL — Valley metal: 28.08 LF × $12.00/LF = $336.96. Missing from estimate, Hover shows 2 valleys"
-Example: "RFG STEP — Step flashing: Estimate has 90 LF, Hover shows 65 LF. No supplement needed (estimate exceeds Hover)."
+Example: "RFG VMTL — Valley metal: 28.08 LF × $12.00/LF = $336.96. Missing from estimate, report shows 2 valleys"
+Example: "RFG STEP — Step flashing: Estimate has 90 LF, report shows 65 LF. No supplement needed (estimate exceeds report)."
 
-If an item in the estimate EXCEEDS Hover measurements, note it but do NOT supplement it.
-If Hover shows items the estimate doesn't have at all (like valleys), ADD them as new line items.
+If an item in the estimate EXCEEDS report measurements, note it but do NOT supplement it.
+If the report shows items the estimate doesn't have at all (like valleys), ADD them as new line items.
    - Flashing requirements (IRC R903.2)
    - If local codes are stricter than IRC, note that
 
@@ -512,8 +572,8 @@ CRITICAL: Respond with ONLY a JSON object. Do NOT include any text, analysis, or
   },
   "summary": "1-2 sentence overview of estimate completeness and total supplement potential",
   "keyFindings": [
-    "QUANTITY CORRECTION: Estimate pre-waste area is [X] SQ. Hover zero-waste area is [Y] SQ. Difference: [Z] SQ. This correction cascades to ALL per-SQ line items (see recommendations).",
-    "EACH additional finding follows: '[ITEM]: Estimate has [X]. Hover shows [Y]. Difference: [Z]. At $[price]/[unit] = $[amount]. [Code ref].'",
+    "QUANTITY CORRECTION: Estimate pre-waste area is [X] SQ. Report zero-waste area is [Y] SQ. Difference: [Z] SQ. This correction cascades to ALL per-SQ line items (see recommendations).",
+    "EACH additional finding follows: '[ITEM]: Estimate has [X]. Report shows [Y]. Difference: [Z]. At $[price]/[unit] = $[amount]. [Code ref].'",
     "For starter strip, note: 'COMMONLY DENIED — waste typically accounts for starter strip material.'"
   ],
   "damageDescriptions": ["List every line item from the estimate with its quantity, unit, unit price, and RCV"],
@@ -527,7 +587,7 @@ CRITICAL: Respond with ONLY a JSON object. Do NOT include any text, analysis, or
     "Then list other supplement items: 'Add [ITEM]: [qty] [unit] × $[price]/[unit] = $[total]. [Code/reason]'",
     "TOTAL SUPPLEMENT VALUE: $[sum of ALL items including all cascaded quantity corrections]"
   ],
-  "nextSteps": ["Step 1: Prepare supplement document listing each line item with Hover measurements as evidence", "Step 2: Attach Hover report PDF showing correct measurements", "Step 3: Reference IRC codes for code-required items (drip edge, ventilation, etc.)", "Step 4: Submit supplement to adjuster with claim number"]
+  "nextSteps": ["Step 1: Prepare supplement document listing each line item with report measurements as evidence", "Step 2: Attach measurement report PDF (EagleView/Hover) showing correct measurements", "Step 3: Reference IRC codes for code-required items (drip edge, ventilation, etc.)", "Step 4: Submit supplement to adjuster with claim number"]
 }`;
 
       const analysisPrompt = analysisMode === 'supplement' ? supplementPrompt : `You are Susan, S21's expert insurance claim analyst. A sales rep has uploaded ${files.length} document(s) for analysis.
@@ -958,7 +1018,49 @@ CRITICAL: Respond with ONLY a JSON object. Do NOT include any text before or aft
             color: 'var(--text-secondary)',
             lineHeight: 1.5
           }}>
-            <strong style={{ color: '#f97316' }}>Supplement Mode:</strong> Upload the adjuster's estimate and Susan will identify missed line items, undervalued repairs, code-required upgrades, and items that should be supplemented. She'll reference IRC/IBC building codes and manufacturer specs.
+            <strong style={{ color: '#f97316' }}>Supplement Mode:</strong> Upload the adjuster's estimate (and EagleView/Hover report if available). Susan will cross-reference measurements and identify missed line items, undervalued repairs, and code-required upgrades. Select the applicable trades below.
+          </div>
+        )}
+
+        {analysisMode === 'supplement' && (
+          <div style={{
+            display: 'flex',
+            gap: '10px',
+            marginBottom: '1.5rem',
+            flexWrap: 'wrap',
+          }}>
+            {(['roofing', 'siding', 'gutters'] as const).map(trade => (
+              <button
+                key={trade}
+                onClick={() => setSelectedTrades(prev => ({ ...prev, [trade]: !prev[trade] }))}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: selectedTrades[trade] ? '2px solid #f97316' : '2px solid var(--border-default)',
+                  background: selectedTrades[trade] ? 'rgba(249, 115, 22, 0.15)' : 'var(--bg-elevated)',
+                  color: selectedTrades[trade] ? '#f97316' : 'var(--text-tertiary)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                  textTransform: 'capitalize',
+                }}
+              >
+                <span style={{
+                  width: 16, height: 16, borderRadius: 4,
+                  border: selectedTrades[trade] ? '2px solid #f97316' : '2px solid var(--border-default)',
+                  background: selectedTrades[trade] ? '#f97316' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#fff', fontWeight: 700,
+                }}>
+                  {selectedTrades[trade] ? '✓' : ''}
+                </span>
+                {trade}
+              </button>
+            ))}
           </div>
         )}
 
