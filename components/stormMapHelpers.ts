@@ -1,0 +1,405 @@
+/**
+ * stormMapHelpers -- Types, utilities, and data-fetching for TerritoryHailMap.
+ *
+ * Extracted to keep the main component file lean.
+ */
+
+import { getApiBaseUrl } from '../services/config';
+import { authService } from '../services/authService';
+
+// ============================================================
+// Types
+// ============================================================
+
+export type HistoryRangePreset = '1y' | '2y' | '5y' | '10y' | 'since';
+export type TabId = 'recent' | 'impact';
+export type SearchResultType = 'address' | 'postal_code' | 'locality' | 'administrative_area' | 'unknown';
+
+export interface StormEvent {
+  id: string;
+  eventType: 'Hail' | 'Thunderstorm Wind' | 'Tornado' | 'Flash Flood';
+  state: string;
+  county: string;
+  beginDate: string;
+  endDate: string;
+  beginLat: number;
+  beginLon: number;
+  endLat: number;
+  endLon: number;
+  magnitude: number;
+  magnitudeType: string;
+  damageProperty: number;
+  source: string;
+  narrative: string;
+}
+
+export interface StormDate {
+  date: string;
+  label: string;
+  eventCount: number;
+  maxHailInches: number;
+  maxWindMph: number;
+  statesAffected: string[];
+}
+
+export interface GpsPosition {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  heading: number | null;
+  speed: number | null;
+  timestamp: number;
+}
+
+export interface CanvassingAlert {
+  inHailZone: boolean;
+  estimatedHailSize: number | null;
+  stormDate: string | null;
+  distanceToSwathMiles: number | null;
+  talkingPoints: string[];
+}
+
+export interface EventFilterState {
+  hail: boolean;
+  wind: boolean;
+}
+
+export interface PropertySearchSummary {
+  locationLabel: string;
+  resultType: SearchResultType;
+  radiusMiles: number;
+  historyPreset: HistoryRangePreset;
+  sinceDate: string | null;
+}
+
+export interface SearchResult {
+  address: string;
+  lat: number;
+  lng: number;
+  placeId: string;
+  viewport: { north: number; south: number; east: number; west: number } | null;
+  resultType: SearchResultType;
+}
+
+export interface HailSizeClass {
+  minInches: number;
+  maxInches: number;
+  label: string;
+  color: string;
+  reference: string;
+  damageSeverity: number;
+}
+
+// ============================================================
+// Constants
+// ============================================================
+
+export const HAIL_SIZE_CLASSES: HailSizeClass[] = [
+  { minInches: 0.25, maxInches: 0.75, label: 'Pea to Penny', reference: 'pea', color: '#00FF00', damageSeverity: 0 },
+  { minInches: 0.75, maxInches: 1.0, label: 'Penny to Quarter', reference: 'penny', color: '#FFFF00', damageSeverity: 1 },
+  { minInches: 1.0, maxInches: 1.5, label: 'Quarter to Ping Pong', reference: 'quarter', color: '#FFA500', damageSeverity: 2 },
+  { minInches: 1.5, maxInches: 1.75, label: 'Ping Pong to Golf Ball', reference: 'ping-pong', color: '#FF6600', damageSeverity: 3 },
+  { minInches: 1.75, maxInches: 2.5, label: 'Golf Ball to Tennis Ball', reference: 'golf-ball', color: '#FF0000', damageSeverity: 4 },
+  { minInches: 2.5, maxInches: 4.5, label: 'Tennis Ball to Softball', reference: 'tennis-ball', color: '#8B0000', damageSeverity: 5 },
+  { minInches: 4.5, maxInches: 99, label: 'Softball+', reference: 'softball', color: '#800080', damageSeverity: 5 },
+];
+
+export const DEFAULT_CENTER: [number, number] = [39.0, -98.0];
+export const DEFAULT_ZOOM = 5;
+
+const ALERT_RADIUS_MILES = 0.5;
+const NHP_FEATURE_SERVER = 'https://services.arcgis.com/rGKxabTU9mcXMw7k/arcgis/rest/services/HailSwathMESH_Lines_view/FeatureServer/0/query';
+
+// ============================================================
+// Utility functions
+// ============================================================
+
+export function getHailSizeClass(inches: number): HailSizeClass | null {
+  return HAIL_SIZE_CLASSES.find((c) => inches >= c.minInches && inches < c.maxInches) ?? null;
+}
+
+export function haversineDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function getStormDateKey(dateStr: string): string | null {
+  if (!dateStr) return null;
+  const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!match) return null;
+  const parsed = new Date(`${match[1]}T12:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? null : match[1];
+}
+
+export function formatDateLabel(dateStr: string): string {
+  const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!match) return dateStr;
+  const d = new Date(`${match[1]}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+export function formatHistoryRangeLabel(range: HistoryRangePreset, sinceDate: string): string {
+  if (range === 'since' && sinceDate) {
+    const p = new Date(`${sinceDate}T12:00:00Z`);
+    const label = Number.isNaN(p.getTime()) ? sinceDate : p.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    return `since ${label}`;
+  }
+  const map: Record<string, string> = { '10y': 'the last 10 years', '5y': 'the last 5 years', '2y': 'the last 2 years', '1y': 'the last year' };
+  return map[range] || 'the last year';
+}
+
+export function formatStormImpactSummary(sd: StormDate): string {
+  const parts: string[] = [];
+  if (sd.maxHailInches > 0) parts.push(`${sd.maxHailInches.toFixed(2)}" hail`);
+  if (sd.maxWindMph > 0) parts.push(`${sd.maxWindMph.toFixed(0)} mph wind`);
+  return parts.join(' / ') || 'no measured hail or wind';
+}
+
+export function getFilterSummaryLabel(filters: EventFilterState, count: number): string {
+  if (filters.hail && filters.wind) return `storm date${count === 1 ? '' : 's'}`;
+  if (filters.wind) return `wind date${count === 1 ? '' : 's'}`;
+  return `hail date${count === 1 ? '' : 's'}`;
+}
+
+export function rangeToMonths(range: HistoryRangePreset): number {
+  const map: Record<string, number> = { '1y': 12, '2y': 24, '5y': 60, '10y': 120, since: 12 };
+  return map[range] || 12;
+}
+
+export function getEffectiveMonths(months: number, sinceDate: string | null): number {
+  if (!sinceDate) return months;
+  const startMs = Date.parse(`${sinceDate}T00:00:00Z`);
+  if (Number.isNaN(startMs)) return months;
+  return Math.max(months, Math.ceil((Date.now() - startMs) / (30 * 24 * 60 * 60 * 1000)), 1);
+}
+
+export function isDateInRange(dateStr: string, sinceDate: string | null): boolean {
+  const dateKey = getStormDateKey(dateStr);
+  if (!dateKey) return false;
+  return !sinceDate || dateKey >= sinceDate;
+}
+
+// ============================================================
+// Geocoding (US Census Bureau -- free)
+// ============================================================
+
+function isZipCode(q: string): boolean { return /^\d{5}(-\d{4})?$/.test(q.trim()); }
+
+export async function geocodeAddress(query: string): Promise<SearchResult | null> {
+  if (!query?.trim()) return null;
+  const cleaned = query.trim();
+  const params = new URLSearchParams({ address: cleaned, benchmark: 'Public_AR_Current', format: 'json' });
+  try {
+    const res = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const matches = data?.result?.addressMatches;
+    if (!matches?.length) return null;
+    const f = matches[0];
+    const lat = f.coordinates.y, lng = f.coordinates.x;
+    const pad = isZipCode(cleaned) ? 0.08 : 0.01;
+    return { address: f.matchedAddress, lat, lng, placeId: `census-${lat}-${lng}`, viewport: { north: lat + pad, south: lat - pad, east: lng + pad, west: lng - pad }, resultType: isZipCode(cleaned) ? 'postal_code' : 'address' };
+  } catch { return null; }
+}
+
+// ============================================================
+// Data fetching
+// ============================================================
+
+interface Sa21Response {
+  events?: Array<{ id?: string | number; date?: string; latitude?: number; longitude?: number; hailSize?: number; severity?: string; source?: string }>;
+  noaaEvents?: Array<{ id?: string | number; eventType?: string; date?: string; latitude?: number; longitude?: number; magnitude?: number; state?: string; source?: string; narrative?: string; location?: string }>;
+}
+
+function mapNoaaType(t?: string): StormEvent['eventType'] | null {
+  const n = t?.toLowerCase().trim();
+  if (n === 'hail') return 'Hail';
+  if (n === 'wind' || n === 'thunderstorm wind') return 'Thunderstorm Wind';
+  return null;
+}
+
+export async function fetchStormEvents(lat: number, lng: number, months: number, radiusMiles: number, signal?: AbortSignal): Promise<StormEvent[]> {
+  const apiBase = getApiBaseUrl();
+  const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
+  const params = new URLSearchParams({ lat: lat.toString(), lng: lng.toString(), months: months.toString(), radius: radiusMiles.toString() });
+  try {
+    const res = await fetch(`${apiBase}/hail/search?${params}`, {
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
+      headers: { 'x-user-email': email },
+    });
+    if (!res.ok) return [];
+    const data: Sa21Response = await res.json();
+    const events: StormEvent[] = [];
+    for (const [i, e] of (data.events || []).entries()) {
+      events.push({ id: `ihm-${e.id || i}`, eventType: 'Hail', state: '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: e.latitude || 0, beginLon: e.longitude || 0, endLat: e.latitude || 0, endLon: e.longitude || 0, magnitude: e.hailSize || 0, magnitudeType: 'inches', damageProperty: 0, source: e.source || 'Storm Database', narrative: `Hail ${e.hailSize}" - ${e.severity || 'unknown'} severity` });
+    }
+    for (const [i, e] of (data.noaaEvents || []).entries()) {
+      const et = mapNoaaType(e.eventType);
+      if (!et) continue;
+      events.push({ id: `noaa-${e.id || i}`, eventType: et, state: e.state || '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: e.latitude || 0, beginLon: e.longitude || 0, endLat: e.latitude || 0, endLon: e.longitude || 0, magnitude: e.magnitude || 0, magnitudeType: et === 'Thunderstorm Wind' ? 'mph' : 'inches', damageProperty: 0, source: e.source || 'NOAA', narrative: e.narrative || `${e.eventType} - ${e.location || ''}` });
+    }
+    return events;
+  } catch { return []; }
+}
+
+function estimateMeshInches(w: number): number {
+  if (w >= 30) return 3.5; if (w >= 22) return 2.75; if (w >= 15) return 2.0;
+  if (w >= 10) return 1.75; if (w >= 6) return 1.5; if (w >= 3) return 1.0;
+  return 0.75;
+}
+
+export async function fetchMeshSwathsByLocation(lat: number, lng: number, months: number, radiusMiles: number, sinceDate: string | null, signal?: AbortSignal): Promise<StormDate[]> {
+  const deg = radiusMiles / 69;
+  const bounds = { north: lat + deg, south: lat - deg, east: lng + deg / Math.cos((lat * Math.PI) / 180), west: lng - deg / Math.cos((lat * Math.PI) / 180) };
+  const start = sinceDate ? new Date(`${sinceDate}T00:00:00Z`) : new Date(Date.now() - months * 30 * 24 * 60 * 60 * 1000);
+  if (Number.isNaN(start.getTime())) return [];
+  const where = `Start_Date >= DATE '${start.toISOString().slice(0, 10)} 00:00:00'`;
+  const p: Record<string, string> = {
+    where, outFields: '*', returnGeometry: 'true', outSR: '4326', f: 'geojson', resultRecordCount: '500',
+    geometry: JSON.stringify({ xmin: bounds.west, ymin: bounds.south, xmax: bounds.east, ymax: bounds.north, spatialReference: { wkid: 4326 } }),
+    geometryType: 'esriGeometryEnvelope', spatialRel: 'esriSpatialRelIntersects', inSR: '4326',
+  };
+  try {
+    const res = await fetch(`${NHP_FEATURE_SERVER}?${new URLSearchParams(p)}`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.features?.length) return [];
+    return data.features.filter((f: any) => f.geometry).map((f: any) => {
+      const props = f.properties || {};
+      const epoch = props.Start_Date ? Number(props.Start_Date) : null;
+      let dateStr = '';
+      if (epoch) { const d = new Date(epoch); dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+      const mesh = estimateMeshInches(props.MaxWidth__ || 0);
+      return { date: dateStr, label: formatDateLabel(dateStr), eventCount: 0, maxHailInches: mesh, maxWindMph: 0, statesAffected: (props.Province || props.States || '').split(',').map((s: string) => s.trim()).filter(Boolean) };
+    });
+  } catch { return []; }
+}
+
+// ============================================================
+// Grouping / dedup
+// ============================================================
+
+export function deduplicateEvents(events: StormEvent[]): StormEvent[] {
+  const seen = new Map<string, StormEvent>();
+  for (const e of events) {
+    const dk = getStormDateKey(e.beginDate);
+    if (!dk) continue;
+    const key = `${dk}-${Math.round(e.beginLat * 100)}-${Math.round(e.beginLon * 100)}`;
+    const ex = seen.get(key);
+    if (!ex || e.narrative.length > ex.narrative.length) seen.set(key, e);
+  }
+  return Array.from(seen.values());
+}
+
+export function groupEventsByDate(events: StormEvent[]): StormDate[] {
+  const map = new Map<string, { events: StormEvent[]; states: Set<string> }>();
+  for (const e of events) {
+    const dk = getStormDateKey(e.beginDate);
+    if (!dk) continue;
+    if (!map.has(dk)) map.set(dk, { events: [], states: new Set() });
+    const g = map.get(dk)!;
+    g.events.push(e);
+    if (e.state) g.states.add(e.state);
+  }
+  return Array.from(map.entries()).map(([date, { events: evts, states }]) => ({
+    date,
+    label: formatDateLabel(date),
+    eventCount: evts.length,
+    maxHailInches: Math.max(0, ...evts.filter((e) => e.eventType === 'Hail').map((e) => e.magnitude)),
+    maxWindMph: Math.max(0, ...evts.filter((e) => e.eventType === 'Thunderstorm Wind').map((e) => e.magnitude)),
+    statesAffected: [...states],
+  })).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function mergeDateLists(eventDates: StormDate[], swathDates: StormDate[]): StormDate[] {
+  const map = new Map<string, StormDate>();
+  for (const sd of eventDates) map.set(sd.date, sd);
+  for (const sd of swathDates) {
+    const dk = getStormDateKey(sd.date);
+    if (!dk) continue;
+    const norm = { ...sd, date: dk, label: formatDateLabel(dk) };
+    const ex = map.get(dk);
+    if (ex) {
+      ex.maxHailInches = Math.max(ex.maxHailInches, norm.maxHailInches);
+      ex.maxWindMph = Math.max(ex.maxWindMph, norm.maxWindMph);
+      ex.statesAffected = [...new Set([...ex.statesAffected, ...norm.statesAffected])];
+    } else { map.set(dk, norm); }
+  }
+  return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+// ============================================================
+// Canvassing alert
+// ============================================================
+
+export function computeCanvassingAlert(position: GpsPosition | null, events: StormEvent[]): CanvassingAlert | null {
+  if (!position || !events.length) return null;
+  let closestEvent: StormEvent | null = null, closestDist = Infinity;
+  for (const e of events) {
+    if (e.eventType !== 'Hail' || e.magnitude < 0.75) continue;
+    const d = haversineDistanceMiles(position.lat, position.lng, e.beginLat, e.beginLon);
+    if (d < closestDist) { closestDist = d; closestEvent = e; }
+  }
+  if (!closestEvent) return null;
+  if (closestDist > ALERT_RADIUS_MILES) {
+    return closestDist <= 5 ? { inHailZone: false, estimatedHailSize: null, stormDate: null, distanceToSwathMiles: Math.round(closestDist * 100) / 100, talkingPoints: [] } : null;
+  }
+  const sd = closestEvent.beginDate.slice(0, 10);
+  const sc = getHailSizeClass(closestEvent.magnitude);
+  let dl = sd;
+  try { const d = new Date(sd + 'T12:00:00Z'); dl = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); } catch { /* keep raw */ }
+  const pts = [`This area was hit by ${closestEvent.magnitude}" hail on ${dl}.`];
+  if (sc) pts.push(`That's ${sc.label} size -- damage severity level ${sc.damageSeverity}/5.`);
+  if (closestEvent.magnitude >= 1.0) { pts.push('Hail this size commonly damages shingles, gutters, and siding.'); pts.push('Most homeowner insurance policies cover hail damage with no out-of-pocket cost.'); }
+  if (closestEvent.magnitude >= 1.75) pts.push('Golf ball+ hail almost always requires a full roof replacement.');
+  return { inHailZone: true, estimatedHailSize: closestEvent.magnitude, stormDate: sd, distanceToSwathMiles: Math.round(closestDist * 1000) / 1000, talkingPoints: pts };
+}
+
+// ============================================================
+// Report generation
+// ============================================================
+
+export async function generateStormReport(address: string, lat: number, lng: number, radiusMiles: number, events: StormEvent[], dateOfLoss: string): Promise<void> {
+  const apiBase = getApiBaseUrl();
+  const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
+  const datedEvents = events.filter((e) => e.beginDate.slice(0, 10) === dateOfLoss);
+  if (!datedEvents.length) throw new Error('No events for the selected date of loss.');
+
+  const hailEvts = datedEvents.filter((e) => e.eventType === 'Hail');
+  const windEvts = datedEvents.filter((e) => e.eventType === 'Thunderstorm Wind');
+  let maxHailSize = 0;
+  for (const e of hailEvts) if (e.magnitude > maxHailSize) maxHailSize = e.magnitude;
+  const cumulative = hailEvts.reduce((s, e) => s + e.magnitude, 0);
+  const score = Math.max(0, Math.min(100, Math.round(hailEvts.length * 8 + windEvts.length * 5 + maxHailSize * 18 + cumulative * 4)));
+  const riskLevel = score >= 76 ? 'Critical' : score >= 51 ? 'High' : score >= 26 ? 'Moderate' : 'Low';
+  const riskColor = { Critical: '#b91c1c', High: '#ea580c', Moderate: '#ca8a04', Low: '#16a34a' }[riskLevel];
+
+  const toRE = (e: StormEvent) => {
+    const c = { id: e.id, date: e.beginDate, latitude: e.beginLat, longitude: e.beginLon };
+    if (e.eventType === 'Hail') return { ...c, hailSize: e.magnitude, severity: e.magnitude >= 1.75 ? 'severe' : e.magnitude >= 1 ? 'moderate' : 'minor', source: e.source };
+    return { ...c, magnitude: e.magnitude, eventType: 'wind', location: [e.county, e.state].filter(Boolean).join(', ') || e.source };
+  };
+
+  const payload = {
+    address, lat, lng, radius: radiusMiles, events: hailEvts.map(toRE), noaaEvents: datedEvents.map(toRE),
+    damageScore: { score, riskLevel, summary: score >= 60 ? 'Documented storm activity supports a high-likelihood roof damage conversation.' : score >= 30 ? 'Documented storm history supports a moderate damage review.' : 'Limited storm history was found for this loss date.', color: riskColor, factors: { eventCount: datedEvents.length, stormSystemCount: 1, maxHailSize, recentActivity: datedEvents.length, cumulativeExposure: cumulative, severityDistribution: { severe: hailEvts.filter((e) => e.magnitude >= 1.75).length, moderate: hailEvts.filter((e) => e.magnitude >= 1 && e.magnitude < 1.75).length, minor: hailEvts.filter((e) => e.magnitude < 1).length }, recencyScore: 0, documentedDamage: 0, windEvents: windEvts.length } },
+    filter: 'hail-wind', includeNexrad: true, includeMap: true, includeWarnings: true, dateOfLoss, template: 'noaa-forward',
+    repName: 'Ahmed Mahmoud', repPhone: '(703) 555-0199', repEmail: 'ahmed@theroofdocs.com', companyName: 'The Roof Docs',
+  };
+
+  const response = await fetch(`${apiBase}/hail/generate-report`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-email': email }, body: JSON.stringify(payload) });
+  if (!response.ok) throw new Error(`Report API returned ${response.status}`);
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateOfLoss}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(blobUrl);
+}
