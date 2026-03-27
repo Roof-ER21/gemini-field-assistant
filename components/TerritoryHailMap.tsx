@@ -677,6 +677,22 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     [selectedDate?.date, selectedStormEvents],
   );
 
+  const mapClickLocationLabel = useMemo(() => {
+    if (!mapClickInsight) {
+      return null;
+    }
+    if (mapClickAddress) {
+      return mapClickAddress;
+    }
+    if (mapClickInsight.nearestEvent?.county) {
+      return `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`;
+    }
+    if (mapClickInsight.nearestEvent?.source) {
+      return `Near ${mapClickInsight.nearestEvent.source}`;
+    }
+    return 'Address unavailable';
+  }, [mapClickAddress, mapClickInsight]);
+
   const fetchData = useCallback(async () => {
     if (searchLat === null || searchLng === null) {
       return;
@@ -1463,7 +1479,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                         <div style={{ color: '#334155', marginTop: 4 }}>
                           {mapClickAddressLoading
                             ? 'Finding address...'
-                            : mapClickAddress || formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                            : mapClickLocationLabel}
                         </div>
                       </div>
                     </>
@@ -1473,7 +1489,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                       <div style={{ color: '#334155', marginTop: 4 }}>
                         {mapClickAddressLoading
                           ? 'Finding address...'
-                          : mapClickAddress || formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}
+                          : mapClickLocationLabel}
                       </div>
                     </div>
                   )}
@@ -1736,7 +1752,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                 <div style={{ marginTop: 6, color: '#93c5fd' }}>
                   {mapClickAddressLoading
                     ? 'Finding address...'
-                    : mapClickAddress || `Clicked point: ${formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}`}
+                    : mapClickLocationLabel}
                 </div>
               </div>
             ) : (
@@ -1746,7 +1762,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                 <div style={{ marginTop: 6, color: '#93c5fd' }}>
                   {mapClickAddressLoading
                     ? 'Finding address...'
-                    : mapClickAddress || `Clicked point: ${formatLatLng(mapClickInsight.lat, mapClickInsight.lng)}`}
+                    : mapClickLocationLabel}
                 </div>
               </div>
             )}
