@@ -97,7 +97,7 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
       // Build ArcGIS REST API query
       const params = new URLSearchParams({
         where: '1=1',
-        outFields: 'OBJECTID,Max_MESH_Value_in_the_Hailswath,Hailswath_Length,Max_width_of_swath,Start_Date_Time,End_Date_Time',
+        outFields: 'FID,Start_Date,End_DateTi,MaxWidth__,MaxWidth_4,HailLength,Shape__Length',
         geometry: JSON.stringify({
           xmin: bounds.getWest(),
           ymin: bounds.getSouth(),
@@ -132,17 +132,12 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
       const parsed: HailSwath[] = data.features
         .filter((f: any) => {
           if (!f.geometry || !f.geometry.coordinates) return false;
-          // Only include features with a valid MESH value — wind-only events
-          // either have no MESH field or a zero/null value. The field name
-          // explicitly says "Hailswath", so any feature here is already
-          // hail-related, but we enforce meshMm > 0 to exclude wind reports
-          // that may occasionally appear with a null MESH attribute.
-          const meshMm = f.properties?.Max_MESH_Value_in_the_Hailswath;
+          const meshMm = Number(f.properties?.MaxWidth_4 || 0);
           return meshMm != null && meshMm > 0;
         })
         .map((f: any) => {
           const props = f.properties;
-          const meshMm = props.Max_MESH_Value_in_the_Hailswath || 0;
+          const meshMm = Number(props.MaxWidth_4 || 0);
           const meshInches = meshMm / 25.4;
 
           // Convert GeoJSON coordinates [lng, lat] to Leaflet [lat, lng]
@@ -159,8 +154,8 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
           // Using toISOString() would give UTC midnight which shifts the date
           // by -1 day in US timezones.  We store the raw epoch value and
           // derive the date string on comparison instead, so we keep both.
-          const startEpoch = props.Start_Date_Time ? Number(props.Start_Date_Time) : null;
-          const endEpoch = props.End_Date_Time ? Number(props.End_Date_Time) : null;
+          const startEpoch = props.Start_Date ? Number(props.Start_Date) : null;
+          const endEpoch = props.End_DateTi ? Number(props.End_DateTi) : null;
 
           // Local date string: format as YYYY-MM-DD in the local (browser) TZ
           const toLocalDateStr = (epoch: number | null): string => {
@@ -173,11 +168,11 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
           };
 
           return {
-            id: props.OBJECTID,
+            id: props.FID ?? f.id,
             maxMesh: meshMm,
             maxMeshInches: meshInches,
-            length: props.Hailswath_Length || 0,
-            maxWidth: props.Max_width_of_swath || 0,
+            length: Number(props.Shape__Length || props.HailLength || 0),
+            maxWidth: Number(props.MaxWidth_4 || props.MaxWidth__ || 0),
             startDate: toLocalDateStr(startEpoch),
             endDate: toLocalDateStr(endEpoch),
             coordinates: coords,
