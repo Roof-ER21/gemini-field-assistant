@@ -382,6 +382,43 @@ export function computeCanvassingAlert(position: GpsPosition | null, events: Sto
 // Report generation
 // ============================================================
 
+function getResponseFilename(response: Response, fallback: string): string {
+  const disposition = response.headers.get('content-disposition');
+  if (!disposition) return fallback;
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const basicMatch = disposition.match(/filename="?([^";]+)"?/i);
+  return basicMatch?.[1] || fallback;
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+
+  // Give the browser a full frame to register the link before clicking it.
+  window.requestAnimationFrame(() => {
+    link.click();
+  });
+
+  window.setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+  }, 60_000);
+}
+
 export async function generateStormReport(address: string, lat: number, lng: number, radiusMiles: number, events: StormEvent[], dateOfLoss: string): Promise<void> {
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
@@ -413,12 +450,6 @@ export async function generateStormReport(address: string, lat: number, lng: num
   const response = await fetch(`${apiBase}/hail/generate-report`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-email': email }, body: JSON.stringify(payload) });
   if (!response.ok) throw new Error(`Report API returned ${response.status}`);
   const blob = await response.blob();
-  const blobUrl = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateOfLoss}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(blobUrl);
+  const fallbackFilename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateOfLoss}.pdf`;
+  downloadBlob(blob, getResponseFilename(response, fallbackFilename));
 }

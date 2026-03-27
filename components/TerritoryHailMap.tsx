@@ -563,6 +563,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [showDolModal, setShowDolModal] = useState(false);
   const [selectedDol, setSelectedDol] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const gpsWatchRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -858,10 +859,14 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     const reportAddress = activeSearchLabel || searchSummary?.locationLabel || 'DMV Region';
 
     setGeneratingReport(true);
+    setError(null);
+    setReportMessage(null);
     try {
       await generateStormReport(reportAddress, searchLat, searchLng, activeRadiusMiles, events, selectedDol);
+      setReportMessage('PDF ready. Check your browser downloads if it did not open automatically.');
       setShowDolModal(false);
     } catch (reportError) {
+      setReportMessage(null);
       setError(reportError instanceof Error ? reportError.message : 'Report generation failed');
     } finally {
       setGeneratingReport(false);
@@ -869,6 +874,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   }, [activeRadiusMiles, activeSearchLabel, events, searchLat, searchLng, searchSummary?.locationLabel, selectedDol]);
 
   const openDolModal = useCallback(() => {
+    setReportMessage(null);
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
@@ -1287,6 +1293,11 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           {error && (
             <div style={{ margin: 12, padding: 12, background: 'rgba(127,29,29,0.3)', border: '1px solid #7f1d1d', borderRadius: 8 }}>
               <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{error}</p>
+            </div>
+          )}
+          {reportMessage && (
+            <div style={{ margin: 12, padding: 12, background: 'rgba(20,83,45,0.3)', border: '1px solid #166534', borderRadius: 8 }}>
+              <p style={{ fontSize: 12, color: '#86efac', margin: 0 }}>{reportMessage}</p>
             </div>
           )}
           {!loading && !error && sortedDates.length === 0 && (
