@@ -8481,6 +8481,7 @@ try {
   const uploadsDir = isRailwayEnv ? '/app/data/uploads' : path.resolve(process.cwd(), 'public/uploads');
   fs.mkdirSync(path.join(uploadsDir, 'headshots'), { recursive: true });
   fs.mkdirSync(path.join(uploadsDir, 'videos'), { recursive: true });
+  fs.mkdirSync(path.join(uploadsDir, 'reports'), { recursive: true });
   app.use('/uploads', express.static(uploadsDir, {
     maxAge: '30d',
     immutable: true,
@@ -8489,6 +8490,9 @@ try {
       if (filePath.endsWith('.mp4') || filePath.endsWith('.m4v') || filePath.endsWith('.mov')) {
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Accept-Ranges', 'bytes');
+      } else if (filePath.endsWith('.pdf')) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline');
       }
     }
   }));

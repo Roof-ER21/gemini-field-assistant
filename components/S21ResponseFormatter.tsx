@@ -179,9 +179,46 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
   };
 
   // Helper function to render text with interactive citations
+  // Auto-linkify URLs and download paths in text
+  const renderLinks = (text: string): React.ReactNode => {
+    // Match /uploads/... paths and http(s) URLs
+    const urlPattern = /((?:https?:\/\/[^\s)]+)|(?:\/uploads\/[^\s)]+\.pdf))/g;
+    const parts = text.split(urlPattern);
+    if (parts.length === 1) return text;
+    return parts.map((part, i) => {
+      if (urlPattern.test(part)) {
+        urlPattern.lastIndex = 0; // reset regex state
+        const isPdf = part.endsWith('.pdf');
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={isPdf ? undefined : undefined}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', margin: '4px 0',
+              background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+              color: '#fff', borderRadius: '8px', textDecoration: 'none',
+              fontWeight: 600, fontSize: '13px', boxShadow: '0 2px 6px rgba(220,38,38,0.3)',
+              transition: 'transform 0.15s, box-shadow 0.15s',
+            }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.transform = 'translateY(-1px)'; (e.target as HTMLElement).style.boxShadow = '0 4px 12px rgba(220,38,38,0.4)'; }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.transform = 'none'; (e.target as HTMLElement).style.boxShadow = '0 2px 6px rgba(220,38,38,0.3)'; }}
+          >
+            <Download size={14} />
+            {isPdf ? 'Download Storm Report (PDF)' : 'Open Link'}
+          </a>
+        );
+      }
+      return <React.Fragment key={i}>{part}</React.Fragment>;
+    });
+  };
+
   const renderTextWithCitations = (text: string) => {
     if (!sources || sources.length === 0) {
-      return <span>{text}</span>;
+      return <span>{renderLinks(text)}</span>;
     }
 
     // Split text by citation pattern [1], [2], etc.
@@ -305,7 +342,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
               );
             }
           }
-          return <span key={idx}>{part}</span>;
+          return <span key={idx}>{renderLinks(part)}</span>;
         })}
       </>
     );

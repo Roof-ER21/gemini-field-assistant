@@ -1187,6 +1187,212 @@ async function executeSendNotification(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tool 13: generate_storm_report
+// ---------------------------------------------------------------------------
+
+const generateStormReportDeclaration: FunctionDeclaration = {
+  name: 'generate_storm_report',
+  description:
+    'Generate a professional Storm Impact Analysis PDF for a property address. ' +
+    'IMPORTANT: Before calling this, you MUST first call lookup_hail_data to find storm events and let the rep choose a date of loss. ' +
+    'Returns a download link to the PDF. The report includes NOAA verified observations, NWS warnings, NEXRAD radar imagery, and a damage narrative.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      address: {
+        type: Type.STRING,
+        description: 'Full property address, e.g. "8100 Boone Blvd, Tysons, VA 22182".'
+      },
+      lat: {
+        type: Type.NUMBER,
+        description: 'Latitude from the lookup_hail_data result.'
+      },
+      lng: {
+        type: Type.NUMBER,
+        description: 'Longitude from the lookup_hail_data result.'
+      },
+      dateOfLoss: {
+        type: Type.STRING,
+        description: 'Date of loss in YYYY-MM-DD format chosen by the rep from the storm events list.'
+      },
+      customerName: {
+        type: Type.STRING,
+        description: 'Homeowner / property owner name (optional, will appear on the report).'
+      },
+      radius: {
+        type: Type.NUMBER,
+        description: 'Search radius in miles. Defaults to 15.'
+      }
+    },
+    required: ['address', 'lat', 'lng', 'dateOfLoss']
+  }
+};
+
+async function executeGenerateStormReport(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const address = String(args.address || '');
+  const lat = Number(args.lat);
+  const lng = Number(args.lng);
+  const dateOfLoss = String(args.dateOfLoss || '');
+  const customerName = args.customerName ? String(args.customerName) : undefined;
+  const radius = Number(args.radius) || 15;
+
+  if (!address || !Number.isFinite(lat) || !Number.isFinite(lng) || !dateOfLoss) {
+    return { success: false, error: 'address, lat, lng, and dateOfLoss are required.' };
+  }
+
+  try {
+    // 1. Fetch NOAA events
+    const years = 2;
+    const noaaEvents = await noaaStormService.getStormEvents(lat, lng, radius, years);
+
+    const getDateKey = (d: string) => d.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || null;
+    const datedEvents = noaaEvents.filter(e => getDateKey(e.date) === dateOfLoss);
+    const hailEvents = datedEvents.filter(e => e.eventType === 'hail');
+    const windEvents = datedEvents.filter(e => e.eventType === 'wind');
+    const historyHail = noaaEvents.filter(e => e.eventType === 'hail');
+
+    if (!datedEvents.length) {
+      return { success: false, error: `No storm events found on ${dateOfLoss} within ${radius} miles of ${address}.` };
+    }
+
+    // 2. Build damage score
+    const maxHailSize = Math.max(0, ...hailEvents.map(e => e.magnitude || 0));
+    const cumulative = hailEvents.reduce((s, e) => s + (e.magnitude || 0), 0);
+    const score = Math.max(0, Math.min(100, Math.round(hailEvents.length * 8 + windEvents.length * 5 + maxHailSize * 18 + cumulative * 4)));
+    const riskLevel = score >= 76 ? 'Critical' : score >= 51 ? 'High' : score >= 26 ? 'Moderate' : 'Low';
+    const riskColor: Record<string, string> = { Critical: '#b91c1c', High: '#ea580c', Moderate: '#ca8a04', Low: '#16a34a' };
+
+    // 3. Haversine distance helper
+    const dist = (eLat: number, eLng: number) => {
+      const R = 3958.8;
+      const dLat = ((eLat - lat) * Math.PI) / 180;
+      const dLon = ((eLng - lng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat * Math.PI) / 180) * Math.cos((eLat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    // 4. Normalize date-only values to ET afternoon
+    const normalizeDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T17:00:00-04:00` : d;
+
+    const mapEvent = (e: any) => ({
+      id: e.id || `noaa-${Math.random().toString(36).slice(2, 8)}`,
+      date: normalizeDate(e.date),
+      latitude: e.latitude,
+      longitude: e.longitude,
+      magnitude: e.magnitude,
+      hailSize: e.eventType === 'hail' ? e.magnitude : null,
+      eventType: e.eventType,
+      location: e.location || '',
+      distanceMiles: Number.isFinite(e.latitude) && e.latitude !== 0 ? dist(e.latitude, e.longitude) : undefined,
+      comments: e.narrative || e.description || '',
+      source: 'NOAA Storm Events',
+      severity: e.eventType === 'hail' ? ((e.magnitude || 0) >= 1.75 ? 'severe' : (e.magnitude || 0) >= 1 ? 'moderate' : 'minor') : undefined,
+    });
+
+    // 5. Build payload matching what the generate-report endpoint expects
+    const payload = {
+      address,
+      lat,
+      lng,
+      radius,
+      events: [] as any[],
+      noaaEvents: datedEvents.map(mapEvent),
+      historyEvents: historyHail.map(mapEvent),
+      damageScore: {
+        score,
+        riskLevel,
+        summary: score >= 60
+          ? 'Documented storm activity supports a high-likelihood roof damage conversation.'
+          : score >= 30
+            ? 'Documented storm history supports a moderate damage review.'
+            : 'Limited storm history was found for this loss date.',
+        color: riskColor[riskLevel] || '#16a34a',
+        factors: {
+          eventCount: datedEvents.length,
+          stormSystemCount: 1,
+          maxHailSize,
+          recentActivity: datedEvents.length,
+          cumulativeExposure: cumulative,
+          severityDistribution: {
+            severe: hailEvents.filter(e => (e.magnitude || 0) >= 1.75).length,
+            moderate: hailEvents.filter(e => (e.magnitude || 0) >= 1 && (e.magnitude || 0) < 1.75).length,
+            minor: hailEvents.filter(e => (e.magnitude || 0) < 1).length,
+          },
+          recencyScore: 0,
+          documentedDamage: 0,
+          windEvents: windEvents.length,
+        },
+      },
+      filter: 'hail-wind',
+      includeNexrad: true,
+      includeMap: true,
+      includeWarnings: true,
+      dateOfLoss,
+      template: 'noaa-forward',
+      customerName,
+      repName: ctx.userName || 'Ahmed Mahmoud',
+      repPhone: '(703) 555-0199',
+      repEmail: ctx.userEmail || 'ahmed@theroofdocs.com',
+      companyName: 'The Roof Docs',
+    };
+
+    // 6. Call the report endpoint internally
+    const port = process.env.PORT || 8080;
+    const reportRes = await fetch(`http://localhost:${port}/api/hail/generate-report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-email': ctx.userEmail },
+      body: JSON.stringify(payload),
+    });
+
+    if (!reportRes.ok) {
+      const errBody = await reportRes.text();
+      return { success: false, error: `Report generation failed (${reportRes.status}): ${errBody}` };
+    }
+
+    // 7. Save PDF to uploads directory
+    const buffer = Buffer.from(await reportRes.arrayBuffer());
+    const fs = await import('fs');
+    const pathMod = await import('path');
+    const { fileURLToPath: toPath } = await import('url');
+    const __dirname = pathMod.dirname(toPath(import.meta.url));
+
+    const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PROJECT_ID;
+    const uploadsBase = isRailway ? '/app/data/uploads' : pathMod.resolve(__dirname, '../../public/uploads');
+    const reportsDir = pathMod.join(uploadsBase, 'reports');
+    fs.mkdirSync(reportsDir, { recursive: true });
+
+    const safeName = address.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
+    const filename = `Storm_Report_${safeName}_${dateOfLoss}_${Date.now()}.pdf`;
+    const filepath = pathMod.join(reportsDir, filename);
+    fs.writeFileSync(filepath, buffer);
+
+    const downloadUrl = `/uploads/reports/${filename}`;
+
+    return {
+      success: true,
+      download_url: downloadUrl,
+      filename,
+      address,
+      dateOfLoss,
+      eventsOnDate: datedEvents.length,
+      hailEvents: hailEvents.length,
+      windEvents: windEvents.length,
+      maxHailSize: maxHailSize > 0 ? `${maxHailSize.toFixed(2)}"` : 'none',
+      riskLevel,
+      damageScore: score,
+      message: `Storm Impact Analysis PDF is ready. The rep can download it at the link below.`,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[SusanTool:generate_storm_report] Error:', message);
+    return { success: false, error: `Failed to generate storm report: ${message}` };
+  }
+}
+
 // Public API: SUSAN_TOOLS array + executeTool dispatcher
 // ---------------------------------------------------------------------------
 
@@ -1203,7 +1409,8 @@ export const SUSAN_TOOLS: FunctionDeclaration[] = [
   createCalendarEventDeclaration,
   checkAvailabilityDeclaration,
   fetchCalendarEventsDeclaration,
-  sendNotificationDeclaration
+  sendNotificationDeclaration,
+  generateStormReportDeclaration
 ];
 
 /** Map from tool name to executor for O(1) dispatch */
@@ -1222,7 +1429,8 @@ const TOOL_EXECUTORS: Record<
   create_calendar_event: executeCreateCalendarEvent,
   check_availability: executeCheckAvailability,
   fetch_calendar_events: executeFetchCalendarEvents,
-  send_notification: executeSendNotification
+  send_notification: executeSendNotification,
+  generate_storm_report: executeGenerateStormReport
 };
 
 /**
