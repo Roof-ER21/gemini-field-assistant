@@ -212,6 +212,19 @@ function padBounds(bounds: BoundingBox | null, factor = 0.2): BoundingBox | null
   };
 }
 
+function getCoordinateBounds(coordinates: [number, number][]): BoundingBox | null {
+  let bounds: BoundingBox | null = null;
+
+  for (const [lat, lng] of coordinates) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      continue;
+    }
+    bounds = extendBounds(bounds, lat, lng);
+  }
+
+  return bounds;
+}
+
 function getBoundsCenter(bounds: BoundingBox | null, fallback: [number, number]): [number, number] {
   if (!bounds) {
     return fallback;
@@ -851,6 +864,14 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           return;
         }
         setRouteData(nextRoute);
+        const routeBounds = padBounds(getCoordinateBounds(nextRoute.coordinates), 0.12);
+        if (routeBounds) {
+          setFitBoundsRequest({
+            id: Date.now(),
+            bounds: routeBounds,
+            maxZoom: 13,
+          });
+        }
       } catch (routeFetchError) {
         if (!controller.signal.aborted) {
           setRouteError(routeFetchError instanceof Error ? routeFetchError.message : 'Failed to build route');
@@ -1344,44 +1365,58 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             </>
           ) : null}
           {mapClickInsight ? (
-            <Popup
-              position={[mapClickInsight.lat, mapClickInsight.lng]}
-              eventHandlers={{
-                remove: () => setMapClickInsight(null),
-              }}
-            >
-              <div style={{ fontFamily: 'system-ui', padding: 4, maxWidth: 260 }}>
-                {mapClickInsight.nearestEvent ? (
-                  <>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
-                      Nearest storm hit
-                    </div>
-                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                      <div>
-                        <strong>
-                          {mapClickInsight.nearestEvent.eventType === 'Hail'
-                            ? `${mapClickInsight.nearestEvent.magnitude}" hail`
-                            : `${mapClickInsight.nearestEvent.magnitude} mph wind`}
-                        </strong>
+            <>
+              <CircleMarker
+                center={[mapClickInsight.lat, mapClickInsight.lng]}
+                radius={6}
+                pathOptions={{
+                  color: '#ffffff',
+                  fillColor: '#ef4444',
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+              />
+              <Popup
+                position={[mapClickInsight.lat, mapClickInsight.lng]}
+                autoClose={false}
+                closeOnClick={false}
+                eventHandlers={{
+                  remove: () => setMapClickInsight(null),
+                }}
+              >
+                <div style={{ fontFamily: 'system-ui', padding: 4, maxWidth: 260 }}>
+                  {mapClickInsight.nearestEvent ? (
+                    <>
+                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                        Nearest storm hit
                       </div>
-                      <div>{formatDateLabel(mapClickInsight.nearestEvent.beginDate)}</div>
-                      <div>
-                        {mapClickInsight.distanceMiles !== null
-                          ? `${mapClickInsight.distanceMiles.toFixed(2)} mi away`
-                          : 'Distance unavailable'}
+                      <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                        <div>
+                          <strong>
+                            {mapClickInsight.nearestEvent.eventType === 'Hail'
+                              ? `${mapClickInsight.nearestEvent.magnitude}" hail`
+                              : `${mapClickInsight.nearestEvent.magnitude} mph wind`}
+                          </strong>
+                        </div>
+                        <div>{formatDateLabel(mapClickInsight.nearestEvent.beginDate)}</div>
+                        <div>
+                          {mapClickInsight.distanceMiles !== null
+                            ? `${mapClickInsight.distanceMiles.toFixed(2)} mi away`
+                            : 'Distance unavailable'}
+                        </div>
+                        <div style={{ color: '#6b7280', marginTop: 4 }}>
+                          {mapClickInsight.nearestEvent.county
+                            ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
+                            : mapClickInsight.nearestEvent.source}
+                        </div>
                       </div>
-                      <div style={{ color: '#6b7280', marginTop: 4 }}>
-                        {mapClickInsight.nearestEvent.county
-                          ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
-                          : mapClickInsight.nearestEvent.source}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 12 }}>No nearby storm events found for the current filters.</div>
-                )}
-              </div>
-            </Popup>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12 }}>No nearby storm events found for the current filters.</div>
+                  )}
+                </div>
+              </Popup>
+            </>
           ) : null}
           <NexradRadarLayer
             visible={radarVisible}
