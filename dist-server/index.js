@@ -140,7 +140,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org"],
+            imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
             connectSrc: [
                 "'self'",
                 "wss:",
@@ -156,7 +156,13 @@ app.use(helmet({
                 "https://a.tile.openstreetmap.org",
                 "https://b.tile.openstreetmap.org",
                 "https://c.tile.openstreetmap.org",
-                "https://*.tile.openstreetmap.org"
+                "https://*.tile.openstreetmap.org",
+                "https://services.arcgis.com",
+                "https://geocoding.geo.census.gov",
+                "https://api.rainviewer.com",
+                "https://tilecache.rainviewer.com",
+                "https://api.qrserver.com",
+                "https://cdnjs.cloudflare.com"
             ],
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
