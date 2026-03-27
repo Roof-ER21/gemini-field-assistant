@@ -192,17 +192,16 @@ function isZipCode(q: string): boolean { return /^\d{5}(-\d{4})?$/.test(q.trim()
 export async function geocodeAddress(query: string): Promise<SearchResult | null> {
   if (!query?.trim()) return null;
   const cleaned = query.trim();
-  const params = new URLSearchParams({ address: cleaned, benchmark: 'Public_AR_Current', format: 'json' });
+  const apiBase = getApiBaseUrl();
   try {
-    const res = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+    // Use server-side proxy to avoid CORS issues with Census Bureau
+    const res = await fetch(`${apiBase}/hail/geocode?q=${encodeURIComponent(cleaned)}`);
     if (!res.ok) return null;
     const data = await res.json();
-    const matches = data?.result?.addressMatches;
-    if (!matches?.length) return null;
-    const f = matches[0];
-    const lat = f.coordinates.y, lng = f.coordinates.x;
+    if (!data.lat || !data.lng) return null;
+    const { lat, lng, address } = data;
     const pad = isZipCode(cleaned) ? 0.08 : 0.01;
-    return { address: f.matchedAddress, lat, lng, placeId: `census-${lat}-${lng}`, viewport: { north: lat + pad, south: lat - pad, east: lng + pad, west: lng - pad }, resultType: isZipCode(cleaned) ? 'postal_code' : 'address' };
+    return { address: address || cleaned, lat, lng, placeId: `geocode-${lat}-${lng}`, viewport: { north: lat + pad, south: lat - pad, east: lng + pad, west: lng - pad }, resultType: isZipCode(cleaned) ? 'postal_code' : 'address' };
   } catch { return null; }
 }
 

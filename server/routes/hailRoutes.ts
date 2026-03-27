@@ -6,6 +6,7 @@ import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
 import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
 import { hailtraceImportService } from '../services/hailtraceImportService.js';
+import { getHistoricalMrmsOverlay } from '../services/historicalMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -65,6 +66,37 @@ const geocodeForHailSearch = async (params: { address?: string; city?: string; s
 
   return null;
 };
+
+// GET /api/hail/geocode?q=<address|city|zip>
+// Server-side proxy for Census Bureau geocoding (avoids CORS on the client)
+router.get('/geocode', async (req: Request, res: Response) => {
+  const q = (req.query.q as string || '').trim();
+  if (!q) return res.status(400).json({ error: 'Missing ?q= parameter' });
+  try {
+    const params = new URLSearchParams({ address: q, benchmark: 'Public_AR_Current', format: 'json' });
+    const censusRes = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+    if (censusRes.ok) {
+      const data = await censusRes.json();
+      const matches = data?.result?.addressMatches;
+      if (matches?.length) {
+        const f = matches[0];
+        return res.json({ address: f.matchedAddress, lat: f.coordinates.y, lng: f.coordinates.x });
+      }
+    }
+    // Fallback to Nominatim
+    const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
+      headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
+    });
+    const nomData = await nomRes.json();
+    if (Array.isArray(nomData) && nomData.length > 0) {
+      return res.json({ address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) });
+    }
+    return res.json({ address: null, lat: null, lng: null });
+  } catch (err) {
+    console.error('Geocode proxy error:', err);
+    return res.status(500).json({ error: 'Geocoding failed' });
+  }
+});
 
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
@@ -971,6 +1003,76 @@ router.get('/nexrad-meta', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('NEXRAD meta error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/mrms-historical-meta - Historical MRMS MESH overlay metadata for a storm date/bounds
+router.get('/mrms-historical-meta', async (req: Request, res: Response) => {
+  try {
+    const { date, north, south, east, west, anchorTimestamp } = req.query;
+
+    if (!date || !north || !south || !east || !west) {
+      return res.status(400).json({
+        error: 'date, north, south, east, and west are required',
+      });
+    }
+
+    const result = await getHistoricalMrmsOverlay({
+      date: String(date),
+      north: Number(north),
+      south: Number(south),
+      east: Number(east),
+      west: Number(west),
+      anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+    });
+
+    res.json({
+      ...result.metadata,
+      overlay_url:
+        `/api/hail/mrms-historical-image?date=${encodeURIComponent(String(date))}` +
+        `&north=${encodeURIComponent(String(north))}` +
+        `&south=${encodeURIComponent(String(south))}` +
+        `&east=${encodeURIComponent(String(east))}` +
+        `&west=${encodeURIComponent(String(west))}` +
+        (anchorTimestamp
+          ? `&anchorTimestamp=${encodeURIComponent(String(anchorTimestamp))}`
+          : ''),
+    });
+  } catch (error) {
+    console.error('Historical MRMS meta error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/mrms-historical-image - Historical MRMS MESH overlay PNG for a storm date/bounds
+router.get('/mrms-historical-image', async (req: Request, res: Response) => {
+  try {
+    const { date, north, south, east, west, anchorTimestamp } = req.query;
+
+    if (!date || !north || !south || !east || !west) {
+      return res.status(400).json({
+        error: 'date, north, south, east, and west are required',
+      });
+    }
+
+    const result = await getHistoricalMrmsOverlay({
+      date: String(date),
+      north: Number(north),
+      south: Number(south),
+      east: Number(east),
+      west: Number(west),
+      anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=900');
+    res.setHeader('X-MRMS-Ref-Time', result.metadata.ref_time);
+    res.setHeader('X-MRMS-Bounds', JSON.stringify(result.metadata.bounds));
+    res.setHeader('Access-Control-Expose-Headers', 'X-MRMS-Ref-Time, X-MRMS-Bounds');
+    res.send(result.imageBuffer);
+  } catch (error) {
+    console.error('Historical MRMS image error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

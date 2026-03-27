@@ -58,6 +58,38 @@ const geocodeForHailSearch = async (params) => {
     }
     return null;
 };
+// GET /api/hail/geocode?q=<address|city|zip>
+// Server-side proxy for Census Bureau geocoding (avoids CORS on the client)
+router.get('/geocode', async (req, res) => {
+    const q = (req.query.q || '').trim();
+    if (!q)
+        return res.status(400).json({ error: 'Missing ?q= parameter' });
+    try {
+        const params = new URLSearchParams({ address: q, benchmark: 'Public_AR_Current', format: 'json' });
+        const censusRes = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+        if (censusRes.ok) {
+            const data = await censusRes.json();
+            const matches = data?.result?.addressMatches;
+            if (matches?.length) {
+                const f = matches[0];
+                return res.json({ address: f.matchedAddress, lat: f.coordinates.y, lng: f.coordinates.x });
+            }
+        }
+        // Fallback to Nominatim
+        const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
+            headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
+        });
+        const nomData = await nomRes.json();
+        if (Array.isArray(nomData) && nomData.length > 0) {
+            return res.json({ address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) });
+        }
+        return res.json({ address: null, lat: null, lng: null });
+    }
+    catch (err) {
+        console.error('Geocode proxy error:', err);
+        return res.status(500).json({ error: 'Geocoding failed' });
+    }
+});
 // GET /api/hail/status
 router.get('/status', (_req, res) => {
     const ihmConfigured = hailMapsService.isConfigured();
