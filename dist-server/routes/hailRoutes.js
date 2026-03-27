@@ -634,7 +634,7 @@ router.get('/hot-zones', async (req, res) => {
 // POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req, res) => {
     try {
-        const { address, city, state, lat, lng, radius, events, noaaEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, dateOfLoss, template = 'standard' } = req.body;
+        const { address, city, state, lat, lng, radius, events, noaaEvents, historyEvents, damageScore, repName, repPhone, repEmail, companyName, filter, includeNexrad = true, includeMap = true, includeWarnings = true, customerName, dateOfLoss, template = 'standard' } = req.body;
         // Validate required fields
         if (!address || !lat || !lng || !radius || !damageScore) {
             return res.status(400).json({
@@ -665,7 +665,7 @@ router.post('/generate-report', async (req, res) => {
                 : new Date(value);
             return Number.isNaN(parsed.getTime()) ? null : parsed;
         };
-        const combinedSourceEvents = [...(events || []), ...(noaaEvents || [])];
+        const combinedSourceEvents = [...(events || []), ...(noaaEvents || []), ...(historyEvents || [])];
         const preferredTimestampByDate = new Map();
         for (const event of combinedSourceEvents) {
             const eventDate = typeof event?.date === 'string' ? event.date : '';
@@ -693,6 +693,10 @@ router.post('/generate-report', async (req, res) => {
             date: normalizeEventDate(event?.date),
         }));
         const normalizedNoaaEvents = (noaaEvents || []).map((event) => ({
+            ...event,
+            date: normalizeEventDate(event?.date),
+        }));
+        const normalizedHistoryEvents = (historyEvents || []).map((event) => ({
             ...event,
             date: normalizeEventDate(event?.date),
         }));
@@ -803,6 +807,7 @@ router.post('/generate-report', async (req, res) => {
             lng: parsedLng,
             radius: parseFloat(radius),
             noaaEvents: normalizedNoaaEvents,
+            historyEvents: normalizedHistoryEvents,
             dateOfLoss,
             events: normalizedEvents,
             damageScore,

@@ -423,6 +423,7 @@ export async function generateStormReport(address: string, lat: number, lng: num
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
   const datedEvents = events.filter((e) => getStormDateKey(e.beginDate) === dateOfLoss);
+  const historyHailEvents = events.filter((e) => e.eventType === 'Hail');
   if (!datedEvents.length) throw new Error('No events for the selected date of loss.');
 
   const hailEvts = datedEvents.filter((e) => e.eventType === 'Hail');
@@ -472,7 +473,13 @@ export async function generateStormReport(address: string, lat: number, lng: num
   };
 
   const payload = {
-    address, lat, lng, radius: radiusMiles, events: hailEvts.map(toRE), noaaEvents: datedEvents.map(toRE),
+    address,
+    lat,
+    lng,
+    radius: radiusMiles,
+    events: hailEvts.map(toRE),
+    noaaEvents: datedEvents.map(toRE),
+    historyEvents: historyHailEvents.map(toRE),
     damageScore: { score, riskLevel, summary: score >= 60 ? 'Documented storm activity supports a high-likelihood roof damage conversation.' : score >= 30 ? 'Documented storm history supports a moderate damage review.' : 'Limited storm history was found for this loss date.', color: riskColor, factors: { eventCount: datedEvents.length, stormSystemCount: 1, maxHailSize, recentActivity: datedEvents.length, cumulativeExposure: cumulative, severityDistribution: { severe: hailEvts.filter((e) => e.magnitude >= 1.75).length, moderate: hailEvts.filter((e) => e.magnitude >= 1 && e.magnitude < 1.75).length, minor: hailEvts.filter((e) => e.magnitude < 1).length }, recencyScore: 0, documentedDamage: 0, windEvents: windEvts.length } },
     filter: 'hail-wind', includeNexrad: true, includeMap: true, includeWarnings: true, dateOfLoss, template: 'noaa-forward',
     repName: 'Ahmed Mahmoud', repPhone: '(703) 555-0199', repEmail: 'ahmed@theroofdocs.com', companyName: 'The Roof Docs',

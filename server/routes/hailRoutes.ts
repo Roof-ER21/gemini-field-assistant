@@ -754,6 +754,7 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       radius,
       events,
       noaaEvents,
+      historyEvents,
       damageScore,
       repName,
       repPhone,
@@ -803,7 +804,7 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
 
-    const combinedSourceEvents = [...(events || []), ...(noaaEvents || [])];
+    const combinedSourceEvents = [...(events || []), ...(noaaEvents || []), ...(historyEvents || [])];
     const preferredTimestampByDate = new Map<string, string>();
     for (const event of combinedSourceEvents) {
       const eventDate = typeof event?.date === 'string' ? event.date : '';
@@ -831,6 +832,10 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       date: normalizeEventDate(event?.date),
     }));
     const normalizedNoaaEvents = (noaaEvents || []).map((event: any) => ({
+      ...event,
+      date: normalizeEventDate(event?.date),
+    }));
+    const normalizedHistoryEvents = (historyEvents || []).map((event: any) => ({
       ...event,
       date: normalizeEventDate(event?.date),
     }));
@@ -952,6 +957,7 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       lng: parsedLng,
       radius: parseFloat(radius),
       noaaEvents: normalizedNoaaEvents,
+      historyEvents: normalizedHistoryEvents,
       dateOfLoss,
       events: normalizedEvents,
       damageScore,

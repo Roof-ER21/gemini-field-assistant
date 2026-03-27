@@ -45,7 +45,7 @@ function extractHailSizeFromText(text: string): string | null {
 
   // Named sizes (common NWS descriptors)
   const namedSizes: Record<string, string> = {
-    'softball': '4.00',
+    'softball': '4.50',
     'baseball': '2.75',
     'tennis ball': '2.50',
     'golf ball': '1.75',
@@ -204,8 +204,8 @@ describe('extractHailSizeFromText', () => {
 
   // --- named size lookups (case-insensitive via lower) ---
 
-  it('returns 4.00" for softball', () => {
-    expect(extractHailSizeFromText('HAIL THE SIZE OF A SOFTBALL')).toBe('4.00"');
+  it('returns 4.50" for softball', () => {
+    expect(extractHailSizeFromText('HAIL THE SIZE OF A SOFTBALL')).toBe('4.50"');
   });
 
   it('returns 2.75" for baseball', () => {
@@ -731,17 +731,8 @@ describe('NWS named hail size accuracy', () => {
     });
   }
 
-  /**
-   * KNOWN DISCREPANCY: softball
-   *
-   * The service maps 'softball' -> '4.00"' but NWS standard is 4.5".
-   * The test above will FAIL for softball to surface this.
-   * See the test below which documents the CURRENT (incorrect) behaviour.
-   */
-  it('DOCUMENTS CURRENT BEHAVIOUR: softball returns 4.00" (NWS standard is 4.50")', () => {
+  it('returns the corrected NWS softball size of 4.50"', () => {
     const result = extractHailSizeFromText('Softball-sized hail');
-    expect(result).toBe('4.00"');
-    // This is WRONG per NWS.  The correct value is '4.50"'.
-    // When fixed in the service, update the reference table above.
+    expect(result).toBe('4.50"');
   });
 });

@@ -10,6 +10,7 @@ import {
   type StormEvent,
   type StormDate,
   type GpsPosition,
+  type CanvassingAlert,
   type EventFilterState,
   type PropertySearchSummary,
   type SearchResultType,
@@ -71,6 +72,45 @@ interface RouteData {
 
 function formatLatLng(lat: number, lng: number): string {
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+const CANVASSING_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+const CANVASSING_ALERT_AUTO_DISMISS_MS = 8 * 1000;
+const GPS_FOCUS_PAD_DEGREES = 0.008;
+
+async function showStormMapNotification(alert: CanvassingAlert): Promise<void> {
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  const title = alert.estimatedHailSize && alert.estimatedHailSize >= 1
+    ? 'Storm Maps: Knock Here'
+    : 'Storm Maps: Nearby Hail Zone';
+  const body = alert.stormDate
+    ? `You're in a zone hit by ${alert.estimatedHailSize}" hail on ${formatDateLabel(alert.stormDate)}.`
+    : 'You entered a nearby hail zone.';
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        tag: `storm-map-${alert.stormDate ?? 'hail-zone'}`,
+        renotify: true,
+        data: { type: 'storm_alert' },
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+      });
+      return;
+    }
+  } catch {
+    // Fall back to the page context notification below.
+  }
+
+  new Notification(title, {
+    body,
+    tag: `storm-map-${alert.stormDate ?? 'hail-zone'}`,
+  });
 }
 
 function MapCameraController({
@@ -548,6 +588,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [error, setError] = useState<string | null>(null);
   const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
+  const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
   const [mrmsVisible, setMrmsVisible] = useState(false);
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
@@ -564,9 +605,12 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const gpsWatchRef = useRef<number | null>(null);
+  const gpsAutoCenteredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
   const routeOriginRef = useRef<[number, number] | null>(null);
+  const canvassingCooldownRef = useRef(new Map<string, number>());
+  const canvassingDismissRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activeRadiusMiles = searchSummary?.radiusMiles ?? 35;
@@ -805,8 +849,10 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
         navigator.geolocation.clearWatch(gpsWatchRef.current);
       }
       gpsWatchRef.current = null;
+      gpsAutoCenteredRef.current = false;
       setGpsTracking(false);
       setGpsPosition(null);
+      setCanvassingBanner(null);
       return;
     }
 
@@ -815,6 +861,9 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     }
 
     setGpsTracking(true);
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission().catch(() => undefined);
+    }
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (position) => {
         setGpsPosition({
@@ -840,9 +889,59 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
       if (gpsWatchRef.current !== null) {
         navigator.geolocation.clearWatch(gpsWatchRef.current);
       }
+      if (canvassingDismissRef.current !== null) {
+        window.clearTimeout(canvassingDismissRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    if (!gpsTracking || !gpsPosition || gpsAutoCenteredRef.current) {
+      return;
+    }
+
+    gpsAutoCenteredRef.current = true;
+    const bounds = {
+      north: gpsPosition.lat + GPS_FOCUS_PAD_DEGREES,
+      south: gpsPosition.lat - GPS_FOCUS_PAD_DEGREES,
+      east: gpsPosition.lng + GPS_FOCUS_PAD_DEGREES,
+      west: gpsPosition.lng - GPS_FOCUS_PAD_DEGREES,
+    };
+
+    setMapCenter([gpsPosition.lat, gpsPosition.lng]);
+    setMapZoom(15);
+    setFitBoundsRequest({
+      id: Date.now(),
+      bounds,
+      maxZoom: 16,
+    });
+  }, [gpsPosition, gpsTracking]);
+
+  useEffect(() => {
+    if (!canvassingAlert?.inHailZone) {
+      return;
+    }
+
+    const alertKey = `${canvassingAlert.stormDate ?? 'unknown'}:${canvassingAlert.estimatedHailSize ?? 'na'}`;
+    const now = Date.now();
+    const lastShownAt = canvassingCooldownRef.current.get(alertKey) ?? 0;
+    if (now - lastShownAt < CANVASSING_ALERT_COOLDOWN_MS) {
+      return;
+    }
+
+    canvassingCooldownRef.current.set(alertKey, now);
+    setCanvassingBanner(canvassingAlert);
+
+    if (canvassingDismissRef.current !== null) {
+      window.clearTimeout(canvassingDismissRef.current);
+    }
+    canvassingDismissRef.current = window.setTimeout(() => {
+      setCanvassingBanner((current) => (current?.stormDate === canvassingAlert.stormDate ? null : current));
+    }, CANVASSING_ALERT_AUTO_DISMISS_MS);
+
+    void showStormMapNotification(canvassingAlert);
+  }, [canvassingAlert]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!selectedDol || searchLat === null || searchLng === null) {
@@ -871,6 +970,27 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
+
+  const centerOnGps = useCallback(() => {
+    if (!gpsPosition) {
+      return;
+    }
+
+    const bounds = {
+      north: gpsPosition.lat + GPS_FOCUS_PAD_DEGREES,
+      south: gpsPosition.lat - GPS_FOCUS_PAD_DEGREES,
+      east: gpsPosition.lng + GPS_FOCUS_PAD_DEGREES,
+      west: gpsPosition.lng - GPS_FOCUS_PAD_DEGREES,
+    };
+
+    setMapCenter([gpsPosition.lat, gpsPosition.lng]);
+    setMapZoom(15);
+    setFitBoundsRequest({
+      id: Date.now(),
+      bounds,
+      maxZoom: 17,
+    });
+  }, [gpsPosition]);
 
   const handleEventFilterSelect = useCallback((type: 'hail' | 'wind') => {
     setEventFilters(type === 'hail' ? { hail: true, wind: false } : { hail: false, wind: true });
@@ -1183,15 +1303,26 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           </div>
         )}
 
-        {canvassingAlert?.inHailZone && (
-          <div style={{ margin: 12, padding: 12, background: 'rgba(127,29,29,0.6)', border: '1px solid #b91c1c', borderRadius: 8, flexShrink: 0 }}>
+        {canvassingBanner?.inHailZone && (
+          <div
+            style={{
+              margin: 12,
+              padding: 12,
+              background: canvassingBanner.estimatedHailSize && canvassingBanner.estimatedHailSize >= 1 ? 'rgba(146,64,14,0.7)' : 'rgba(20,83,45,0.65)',
+              border: canvassingBanner.estimatedHailSize && canvassingBanner.estimatedHailSize >= 1 ? '1px solid #f59e0b' : '1px solid #22c55e',
+              borderRadius: 8,
+              flexShrink: 0,
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f87171', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hail Zone Alert</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: canvassingBanner.estimatedHailSize && canvassingBanner.estimatedHailSize >= 1 ? '#f59e0b' : '#4ade80', animation: 'pulse 2s infinite' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: canvassingBanner.estimatedHailSize && canvassingBanner.estimatedHailSize >= 1 ? '#fde68a' : '#bbf7d0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hail Zone Alert</span>
             </div>
-            <p style={{ fontSize: 13, color: '#fee2e2', fontWeight: 500, margin: 0 }}>{canvassingAlert.estimatedHailSize}" hail detected nearby</p>
-            {canvassingAlert.talkingPoints[0] && (
-              <p style={{ fontSize: 12, color: '#fecaca', marginTop: 4 }}>{canvassingAlert.talkingPoints[0]}</p>
+            <p style={{ fontSize: 13, color: '#fff7ed', fontWeight: 500, margin: 0 }}>
+              You&apos;re in a zone hit by {canvassingBanner.estimatedHailSize}" hail on {canvassingBanner.stormDate ? formatDateLabel(canvassingBanner.stormDate) : 'a recent storm'}.
+            </p>
+            {canvassingBanner.talkingPoints[0] && (
+              <p style={{ fontSize: 12, color: canvassingBanner.estimatedHailSize && canvassingBanner.estimatedHailSize >= 1 ? '#ffedd5' : '#dcfce7', marginTop: 4 }}>{canvassingBanner.talkingPoints[0]}</p>
             )}
           </div>
         )}
@@ -1529,6 +1660,25 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               }}
             >
               Route
+            </button>
+            <button
+              onClick={centerOnGps}
+              disabled={!gpsPosition}
+              title={gpsPosition ? 'Center on your live GPS location' : 'Turn on GPS to center on your location'}
+              style={{
+                width: 44,
+                height: 28,
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.2)',
+                background: gpsPosition ? '#2563eb' : '#fff',
+                color: gpsPosition ? '#fff' : '#9ca3af',
+                cursor: gpsPosition ? 'pointer' : 'not-allowed',
+                fontSize: 11,
+                fontWeight: 700,
+                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+              }}
+            >
+              Me
             </button>
             <button
               onClick={() => setSwathVisible((previous) => !previous)}

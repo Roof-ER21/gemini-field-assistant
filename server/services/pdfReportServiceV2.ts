@@ -77,6 +77,7 @@ interface ReportInput {
   radius: number;
   events: HailEvent[];
   noaaEvents: NOAAEvent[];
+  historyEvents?: HailEvent[];
   damageScore: DamageScoreResult;
   repName?: string;
   repPhone?: string;
@@ -332,20 +333,33 @@ export class PDFReportServiceV2 {
     doc.pipe(stream);
 
     // ===== COMPUTE STATS =====
+    const dateMatchesLoss = (value: string): boolean => {
+      return !input.dateOfLoss || this.getDateKey(value) === input.dateOfLoss;
+    };
+
+    const selectedEvents = input.events.filter(e => dateMatchesLoss(e.date));
+    const selectedNoaaEvents = input.noaaEvents.filter(e => dateMatchesLoss(e.date));
+    const selectedNoaaHailEvents = selectedNoaaEvents.filter(e => e.eventType === 'hail');
+    const selectedWindEvents = selectedNoaaEvents.filter(e => e.eventType === 'wind');
+
     const allHailSizes = [
       ...input.events.map(e => e.hailSize || 0),
       ...input.noaaEvents.filter(e => e.eventType === 'hail').map(e => e.magnitude || 0)
     ].filter(s => s > 0);
     const maxHail = allHailSizes.length > 0 ? Math.max(...allHailSizes) : 0;
-    const severeCount = allHailSizes.filter(s => s >= 1.5).length;
-    const windEvents = input.noaaEvents.filter(e => e.eventType === 'wind');
+    const selectedHailSizes = [
+      ...selectedEvents.map(e => e.hailSize || 0),
+      ...selectedNoaaHailEvents.map(e => e.magnitude || 0),
+    ].filter(s => s > 0);
+    const selectedMaxHail = selectedHailSizes.length > 0 ? Math.max(...selectedHailSizes) : maxHail;
+    const severeCount = selectedHailSizes.filter(s => s >= 1.5).length;
     const hailEvents = [
-      ...input.events.map(e => ({
+      ...selectedEvents.map(e => ({
         date: e.date, size: e.hailSize, source: 'NEXRAD' as const,
         distance: e.distanceMiles, location: '', comments: e.comments || '',
         direction: e.stormDirection || '', speed: e.stormSpeed, duration: e.duration
       })),
-      ...input.noaaEvents.filter(e => e.eventType === 'hail').map(e => ({
+      ...selectedNoaaHailEvents.map(e => ({
         date: e.date, size: e.magnitude, source: 'NOAA' as const,
         distance: e.distanceMiles, location: e.location, comments: e.comments || '',
         direction: '', speed: undefined as number | undefined, duration: undefined as number | undefined
@@ -362,7 +376,7 @@ export class PDFReportServiceV2 {
     // Count ALL nearby events (hail + wind + tornado), not just hail
     const allNearbyEvents = [
       ...hailEvents.filter(e => (e.distance || 99) < 10),
-      ...windEvents.filter(e => (e.distanceMiles || 99) < 10)
+      ...selectedWindEvents.filter(e => (e.distanceMiles || 99) < 10)
     ];
     const nearbyCount = allNearbyEvents.length;
 
@@ -376,6 +390,11 @@ export class PDFReportServiceV2 {
       case 'ihm-only': filteredNoaa = []; break;
       case 'noaa-only': filteredIhm = []; break;
     }
+
+    const filteredSelectedIhm = filteredIhm.filter(e => dateMatchesLoss(e.date));
+    const filteredSelectedNoaa = filteredNoaa.filter(e => dateMatchesLoss(e.date));
+    const filteredSelectedNoaaHail = filteredSelectedNoaa.filter(e => e.eventType === 'hail');
+    const filteredSelectedNoaaWind = filteredSelectedNoaa.filter(e => e.eventType === 'wind');
 
     // =========================================================
     // PAGE 1 HEADER — Federal data authority styling
@@ -549,7 +568,7 @@ export class PDFReportServiceV2 {
       drawDetailRow('Storm Direction:', primaryEvent?.direction || 'N', 0, 2);
       drawDetailRow('Verified Reports:', `${nearbyCount} within 10 mi`, 1, 2);
       drawDetailRow('Storm Speed:', primaryEvent?.speed ? `${primaryEvent.speed.toFixed(1)} mph` : '---', 0, 3);
-      drawDetailRow('Max Hail Reported:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : '---', 1, 3);
+      drawDetailRow('Max Hail Reported:', selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '---', 1, 3);
 
       for (let r = 1; r <= 3; r++) {
         const ly = gridY + r * rowH;
@@ -567,9 +586,9 @@ export class PDFReportServiceV2 {
 
     const narrative = generateHailNarrative({
       address: input.address, city: input.city, state: input.state,
-      stormDate: primaryStormDate, maxHailSize: maxHail,
-      totalEvents: input.events.length + input.noaaEvents.length,
-      severeCount, windEvents: windEvents.length,
+      stormDate: primaryStormDate, maxHailSize: selectedMaxHail,
+      totalEvents: filteredSelectedIhm.length + filteredSelectedNoaa.length,
+      severeCount, windEvents: filteredSelectedNoaaWind.length,
       nearbyReports: hailEvents.filter(e => (e.distance || 99) < 1).length,
       radiusMiles: input.radius,
       stormDirection: primaryEvent?.direction,
@@ -597,7 +616,7 @@ export class PDFReportServiceV2 {
     const hailWidths = [75, 70, 50, 65, this.CW - 260];
 
     const hailRows: string[][] = [];
-    filteredIhm.forEach(e => {
+    filteredSelectedIhm.forEach(e => {
       hailRows.push([
         this.fmtDateTimeET(e.date),
         'NEXRAD WSR-88D',
@@ -606,7 +625,7 @@ export class PDFReportServiceV2 {
         e.comments || 'Radar-detected hail signature'
       ]);
     });
-    filteredNoaa.filter(e => e.eventType === 'hail').forEach(e => {
+    filteredSelectedNoaaHail.forEach(e => {
       hailRows.push([
         this.fmtDateTimeET(e.date),
         'NOAA Storm Events',
@@ -629,7 +648,7 @@ export class PDFReportServiceV2 {
     // =========================================================
     // VERIFIED GROUND OBSERVATIONS - WIND
     // =========================================================
-    const windObsNoaa = filteredNoaa.filter(e => e.eventType === 'wind');
+    const windObsNoaa = filteredSelectedNoaaWind;
     if (windObsNoaa.length > 0) {
       this.drawSectionBanner(doc, 'Verified Ground Observations — Wind');
 
@@ -784,7 +803,7 @@ export class PDFReportServiceV2 {
         drawLegacyDetail('Effective:', this.fmtTimeET(alert.onset), 0, 0);
         drawLegacyDetail('Expires:', this.fmtTimeET(alert.expires), 1, 0);
         drawLegacyDetail('Hail Size:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'n/a', 0, 1);
-        drawLegacyDetail('Wind Speed:', windEvents.length > 0 ? `${Math.round(windEvents[0]?.magnitude || 0)} mph` : 'n/a', 1, 1);
+        drawLegacyDetail('Wind Speed:', selectedWindEvents.length > 0 ? `${Math.round(selectedWindEvents[0]?.magnitude || 0)} mph` : 'n/a', 1, 1);
         drawLegacyDetail('Urgency:', 'Immediate', 0, 2);
         drawLegacyDetail('Certainty:', 'Observed', 1, 2);
         doc.y = Math.max(captionY + 20, gridStartY + 3 * 16 + 10);
@@ -844,7 +863,25 @@ export class PDFReportServiceV2 {
     const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'Duration', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
     const histWidths = [62, 70, 48, 38, 44, 58, 54, 54, 54];
 
-    const historicalHailEvents = filteredIhm
+    const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
+      ? input.historyEvents
+      : filteredIhm.length > 0
+        ? filteredIhm
+        : filteredNoaa
+            .filter(e => e.eventType === 'hail')
+            .map(e => ({
+              id: e.id,
+              date: e.date,
+              latitude: e.latitude,
+              longitude: e.longitude,
+              hailSize: e.magnitude,
+              severity: (e.magnitude || 0) >= 1.75 ? 'severe' as const : (e.magnitude || 0) >= 1 ? 'moderate' as const : 'minor' as const,
+              source: e.location || 'NOAA Storm Events',
+              distanceMiles: e.distanceMiles,
+              comments: e.comments,
+            }));
+
+    const historicalHailEvents = historicalSeedEvents
       .map(e => ({
         date: e.date,
         direction: e.stormDirection || 'N',
