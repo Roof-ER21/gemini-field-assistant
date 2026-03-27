@@ -132,29 +132,43 @@ export class PDFReportServiceV2 {
 
   // ========== FORMATTING HELPERS ==========
 
-  private fmtDateET(dateStr: string): string {
+  private parseStormDate(dateStr: string): Date | null {
     try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString('en-US', {
-        timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric'
-      });
-    } catch { return dateStr; }
+      if (!dateStr) return null;
+
+      const dateOnlyMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})$/);
+      if (dateOnlyMatch) {
+        const parsed = new Date(`${dateOnlyMatch[1]}T12:00:00Z`);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+
+      const parsed = new Date(dateStr);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private fmtDateET(dateStr: string): string {
+    const d = this.parseStormDate(dateStr);
+    if (!d) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric'
+    });
   }
 
   private fmtTimeET(dateStr: string): string {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return '';
-      const etFull = d.toLocaleString('en-US', {
-        timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
-      });
-      const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
-      const time = d.toLocaleTimeString('en-US', {
-        timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
-      });
-      return `${time} ${tz}`;
-    } catch { return ''; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
+    const d = this.parseStormDate(dateStr);
+    if (!d) return '';
+    const etFull = d.toLocaleString('en-US', {
+      timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
+    });
+    const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
+    const time = d.toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    return `${time} ${tz}`;
   }
 
   private fmtDateTimeET(dateStr: string): string {
@@ -164,19 +178,17 @@ export class PDFReportServiceV2 {
   }
 
   private fmtFullDateTimeET(dateStr: string): string {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const etFull = d.toLocaleString('en-US', {
-        timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
-      });
-      const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
-      const formatted = d.toLocaleString('en-US', {
-        timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit', hour12: true
-      });
-      return `${formatted} ${tz}`;
-    } catch { return dateStr; }
+    const d = this.parseStormDate(dateStr);
+    if (!d) return dateStr;
+    const etFull = d.toLocaleString('en-US', {
+      timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
+    });
+    const tz = etFull.includes('EDT') ? 'EDT' : 'EST';
+    const formatted = d.toLocaleString('en-US', {
+      timeZone: 'America/New_York', month: 'numeric', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    return `${formatted} ${tz}`;
   }
 
   private generateReportId(): string {

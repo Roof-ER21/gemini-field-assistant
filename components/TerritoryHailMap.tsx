@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap,
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import HailSwathLayer from './HailSwathLayer';
-import NexradRadarLayer from './NexradRadarLayer';
 import {
   type BoundingBox,
   type HistoryRangePreset,
@@ -531,7 +530,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [fitBoundsRequest, setFitBoundsRequest] = useState<FitBoundsRequest | null>(null);
-  const [baseMap, setBaseMap] = useState<'map' | 'satellite'>('satellite');
+  const [baseMap, setBaseMap] = useState<'map' | 'satellite'>('map');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchLabel, setActiveSearchLabel] = useState<string | null>(null);
   const [searchLat, setSearchLat] = useState<number | null>(DEFAULT_CENTER[0]);
@@ -549,7 +548,6 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [error, setError] = useState<string | null>(null);
   const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
-  const [radarVisible, setRadarVisible] = useState(false);
   const [mrmsVisible, setMrmsVisible] = useState(false);
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
@@ -675,11 +673,6 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
 
     return getSelectedStormRadarTimestamp(selectedDate.date, selectedStormEvents);
   }, [selectedDate, selectedStormEvents]);
-
-  const historicalRadarTimestamps = useMemo(
-    () => getHistoricalRadarTimestamps(selectedStormEvents, selectedDate?.date ?? null),
-    [selectedDate?.date, selectedStormEvents],
-  );
 
   const mapClickLocationLabel = useMemo(() => {
     if (!mapClickInsight) {
@@ -878,6 +871,13 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
+
+  const handleEventFilterSelect = useCallback((type: 'hail' | 'wind') => {
+    setEventFilters(type === 'hail' ? { hail: true, wind: false } : { hail: false, wind: true });
+    setSelectedDate(null);
+    setExpandedDate(null);
+    setMapClickInsight(null);
+  }, []);
 
   const handleBuildRoute = useCallback(
     async (destination: [number, number]) => {
@@ -1237,7 +1237,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               <button
                 key={type}
                 type="button"
-                onClick={() => setEventFilters((previous) => ({ ...previous, [type]: !previous[type] }))}
+                onClick={() => handleEventFilterSelect(type)}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 8,
@@ -1448,79 +1448,17 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             />
           ) : null}
           {mapClickInsight ? (
-            <>
-              <CircleMarker
-                center={[mapClickInsight.lat, mapClickInsight.lng]}
-                radius={6}
-                pathOptions={{
-                  color: '#ffffff',
-                  fillColor: '#ef4444',
-                  fillOpacity: 1,
-                  weight: 2,
-                }}
-              />
-              <Popup
-                position={[mapClickInsight.lat, mapClickInsight.lng]}
-                autoClose={false}
-                closeOnClick={false}
-                eventHandlers={{
-                  remove: () => setMapClickInsight(null),
-                }}
-              >
-                <div style={{ fontFamily: 'system-ui', padding: 4, maxWidth: 260 }}>
-                  {mapClickInsight.nearestEvent ? (
-                    <>
-                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
-                        Nearest storm hit
-                      </div>
-                      <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                        <div>
-                          <strong>
-                            {mapClickInsight.nearestEvent.eventType === 'Hail'
-                              ? `${mapClickInsight.nearestEvent.magnitude}" hail`
-                              : `${mapClickInsight.nearestEvent.magnitude} mph wind`}
-                          </strong>
-                        </div>
-                        <div>{formatDateLabel(mapClickInsight.nearestEvent.beginDate)}</div>
-                        <div>
-                          {mapClickInsight.distanceMiles !== null
-                            ? `${mapClickInsight.distanceMiles.toFixed(2)} mi away`
-                            : 'Distance unavailable'}
-                        </div>
-                        <div style={{ color: '#6b7280', marginTop: 4 }}>
-                          {mapClickInsight.nearestEvent.county
-                            ? `${mapClickInsight.nearestEvent.county}, ${mapClickInsight.nearestEvent.state}`
-                            : mapClickInsight.nearestEvent.source}
-                        </div>
-                        <div style={{ color: '#334155', marginTop: 4 }}>
-                          {mapClickAddressLoading
-                            ? 'Finding address...'
-                            : mapClickLocationLabel}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 12 }}>
-                      No nearby storm events found for the current filters.
-                      <div style={{ color: '#334155', marginTop: 4 }}>
-                        {mapClickAddressLoading
-                          ? 'Finding address...'
-                          : mapClickLocationLabel}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </>
+            <CircleMarker
+              center={[mapClickInsight.lat, mapClickInsight.lng]}
+              radius={6}
+              pathOptions={{
+                color: '#ffffff',
+                fillColor: '#ef4444',
+                fillOpacity: 1,
+                weight: 2,
+              }}
+            />
           ) : null}
-          <NexradRadarLayer
-            visible={radarVisible}
-            onToggle={() => setRadarVisible((previous) => !previous)}
-            stormDate={selectedDate?.date ?? null}
-            stormLocation={{ lat: selectedStormCenter[0], lng: selectedStormCenter[1] }}
-            stormBounds={selectedStormBounds}
-            historicalTimestamps={historicalRadarTimestamps}
-          />
           <MRMSHailOverlay
             visible={mrmsLayerVisible}
             product="mesh1440"
@@ -1553,23 +1491,6 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               }}
             >
               Map
-            </button>
-            <button
-              onClick={() => setRadarVisible((previous) => !previous)}
-              style={{
-                width: 58,
-                height: 28,
-                borderRadius: 6,
-                border: '2px solid rgba(0,0,0,0.2)',
-                background: radarVisible ? '#16a34a' : '#fff',
-                color: radarVisible ? '#fff' : '#333',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: 700,
-                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
-              }}
-            >
-              Radar
             </button>
             <button
               onClick={() => setBaseMap('satellite')}

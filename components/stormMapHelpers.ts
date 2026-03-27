@@ -422,7 +422,7 @@ function downloadBlob(blob: Blob, filename: string): void {
 export async function generateStormReport(address: string, lat: number, lng: number, radiusMiles: number, events: StormEvent[], dateOfLoss: string): Promise<void> {
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
-  const datedEvents = events.filter((e) => e.beginDate.slice(0, 10) === dateOfLoss);
+  const datedEvents = events.filter((e) => getStormDateKey(e.beginDate) === dateOfLoss);
   if (!datedEvents.length) throw new Error('No events for the selected date of loss.');
 
   const hailEvts = datedEvents.filter((e) => e.eventType === 'Hail');
