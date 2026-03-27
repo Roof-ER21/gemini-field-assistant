@@ -601,6 +601,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [showDolModal, setShowDolModal] = useState(false);
   const [selectedDol, setSelectedDol] = useState('');
+  const [customerNameInput, setCustomerNameInput] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -954,7 +955,15 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     setError(null);
     setReportMessage(null);
     try {
-      await generateStormReport(reportAddress, searchLat, searchLng, activeRadiusMiles, events, selectedDol);
+      await generateStormReport(
+        reportAddress,
+        searchLat,
+        searchLng,
+        activeRadiusMiles,
+        events,
+        selectedDol,
+        customerNameInput,
+      );
       setReportMessage('PDF ready. Check your browser downloads if it did not open automatically.');
       setShowDolModal(false);
     } catch (reportError) {
@@ -963,11 +972,12 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
     } finally {
       setGeneratingReport(false);
     }
-  }, [activeRadiusMiles, activeSearchLabel, events, searchLat, searchLng, searchSummary?.locationLabel, selectedDol]);
+  }, [activeRadiusMiles, activeSearchLabel, customerNameInput, events, searchLat, searchLng, searchSummary?.locationLabel, selectedDol]);
 
   const openDolModal = useCallback(() => {
     setReportMessage(null);
     setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
+    setCustomerNameInput('');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
 
@@ -1886,20 +1896,30 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
               <button onClick={() => setShowDolModal(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, padding: 4 }}>x</button>
             </div>
             <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>Choose the storm date to include as the Date of Loss in the PDF report.</p>
-            <div style={{ marginTop: 16, maxHeight: 320, overflowY: 'auto' }}>
-              {stormDates.map((stormDate) => (
+            <div
+              style={{
+                marginTop: 16,
+                maxHeight: 320,
+                overflowY: 'auto',
+                borderRadius: 14,
+                border: '1px solid #1f2937',
+                background: 'rgba(17,24,39,0.55)',
+              }}
+            >
+              {stormDates.map((stormDate, index) => (
                 <button
                   key={`dol-${stormDate.date}`}
                   onClick={() => setSelectedDol(stormDate.date)}
                   style={{
                     width: '100%',
-                    borderRadius: 12,
-                    border: selectedDol === stormDate.date ? '1px solid #ef4444' : '1px solid #1f2937',
-                    background: selectedDol === stormDate.date ? 'rgba(239,68,68,0.1)' : 'rgba(17,24,39,0.7)',
+                    borderRadius: 0,
+                    border: 'none',
+                    borderBottom: index === stormDates.length - 1 ? 'none' : '1px solid rgba(31,41,55,0.9)',
+                    background: selectedDol === stormDate.date ? 'rgba(239,68,68,0.12)' : 'transparent',
+                    boxShadow: selectedDol === stormDate.date ? 'inset 3px 0 0 #ef4444' : 'none',
                     padding: 12,
                     textAlign: 'left',
                     cursor: 'pointer',
-                    marginBottom: 8,
                     color: '#fff',
                     display: 'block',
                   }}
@@ -1908,6 +1928,30 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                   <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, margin: 0 }}>{stormDate.eventCount} event{stormDate.eventCount === 1 ? '' : 's'} / {formatStormImpactSummary(stormDate)}</p>
                 </button>
               ))}
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <label htmlFor="customer-name-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#d1d5db', marginBottom: 6 }}>
+                Homeowner Info
+                <span style={{ color: '#6b7280', fontWeight: 500 }}> (optional)</span>
+              </label>
+              <input
+                id="customer-name-input"
+                type="text"
+                value={customerNameInput}
+                onChange={(event) => setCustomerNameInput(event.target.value)}
+                placeholder="Homeowner / property owner name"
+                style={{
+                  width: '100%',
+                  borderRadius: 10,
+                  border: '1px solid #374151',
+                  background: '#111827',
+                  padding: '10px 12px',
+                  fontSize: 13,
+                  color: '#fff',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setShowDolModal(false)} style={{ borderRadius: 8, border: '1px solid #374151', background: 'transparent', padding: '8px 12px', fontSize: 13, color: '#d1d5db', cursor: 'pointer' }}>Cancel</button>
