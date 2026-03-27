@@ -9,6 +9,7 @@ import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
+import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
 import type { Pool } from 'pg';
 
 const router = Router();
@@ -956,6 +957,44 @@ router.get('/mrms-historical-image', async (req: Request, res: Response) => {
     res.send(result.imageBuffer);
   } catch (error) {
     console.error('Historical MRMS image error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/evidence-search - Search public evidence candidates near a property/storm date
+router.get('/evidence-search', async (req: Request, res: Response) => {
+  try {
+    const propertyLabel = String(req.query.propertyLabel || '').trim();
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusMiles = req.query.radiusMiles
+      ? Number(req.query.radiusMiles)
+      : 25;
+
+    if (!propertyLabel || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({
+        error: 'propertyLabel, lat, and lng are required',
+      });
+    }
+
+    const stormDateParams = req.query.stormDates;
+    const stormDates = Array.isArray(stormDateParams)
+      ? stormDateParams.map(String)
+      : typeof stormDateParams === 'string' && stormDateParams.length > 0
+        ? stormDateParams.split(',').map((value) => value.trim()).filter(Boolean)
+        : [];
+
+    const result = await searchEvidenceCandidates({
+      propertyLabel,
+      lat,
+      lng,
+      stormDates,
+      radiusMiles: Number.isFinite(radiusMiles) ? radiusMiles : 25,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Evidence search error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
