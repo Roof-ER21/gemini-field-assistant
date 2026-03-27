@@ -2190,10 +2190,33 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
                 Storm Map
               </h1>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                NOAA + NWS + NEXRAD Storm Intelligence
+                NOAA + MRMS Storm Intelligence
               </p>
             </div>
           </div>
+          {/* Full Storm Map button */}
+          <a
+            href="https://appealing-bravery-production-d7d6.up.railway.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '8px 16px',
+              background: 'var(--roof-red)',
+              color: 'white',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(196, 30, 58, 0.3)'
+            }}
+          >
+            <MapPin className="w-4 h-4" />
+            Full Storm Map
+          </a>
           {/* HailTrace Data Badge */}
           {hasHailTraceData && (
             <div style={{
@@ -2969,24 +2992,7 @@ export default function TerritoryHailMap({ isAdmin }: TerritoryHailMapProps) {
             }}
           />
 
-          {/* NEXRAD Radar Overlay */}
-          <NexradRadarLayer
-            visible={showNexrad}
-            onToggle={() => setShowNexrad(!showNexrad)}
-            stormDate={
-              nexradStormDate ||
-              (hailEvents.length > 0 ? hailEvents[0].date :
-              noaaEvents.length > 0 ? noaaEvents[0].date :
-              undefined)
-            }
-            stormLocation={nexradStormLocation ?? undefined}
-          />
-
-          {/* RainViewer Live Radar Overlay */}
-          <RainViewerRadarLayer
-            visible={showRainViewer}
-            onToggle={() => setShowRainViewer(!showRainViewer)}
-          />
+          {/* NEXRAD + RainViewer hidden — reps use MRMS only */}
 
           {/* MRMS MESH Hail Swath Overlay */}
           <MRMSHailOverlay
