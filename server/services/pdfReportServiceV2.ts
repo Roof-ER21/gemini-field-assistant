@@ -1083,7 +1083,7 @@ export class PDFReportServiceV2 {
     const year = new Date().getFullYear();
     doc.fontSize(8).fillColor('#ffffff').font('Helvetica')
        .text(
-         `Prepared by Roof-ER  |  Data sourced from NOAA, NWS, and NEXRAD federal weather systems  |  \u00A9 ${year}`,
+         `Prepared by Roof ER The Roof Docs  |  Data sourced from NOAA, NWS, and NEXRAD federal weather systems  |  \u00A9 ${year}`,
          this.M, copyY + 10, { width: this.CW, align: 'center' }
        );
 

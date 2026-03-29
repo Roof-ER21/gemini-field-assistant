@@ -2,12 +2,14 @@
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
 
--- Seed existing users with company default
-UPDATE users SET company_name = 'The Roof Docs' WHERE company_name IS NULL;
+-- Set company for all users
+UPDATE users SET company_name = 'Roof ER The Roof Docs' WHERE company_name IS NULL OR company_name = 'The Roof Docs';
 
--- Add company defaults to system_settings if not exists
-INSERT INTO system_settings (key, value, description)
-VALUES
-  ('company_name', '"The Roof Docs"', 'Default company name for reports and branding'),
-  ('company_phone', '"(703) 555-0199"', 'Default company phone number')
-ON CONFLICT (key) DO NOTHING;
+-- Sync phone numbers from employee_profiles into users table where missing
+UPDATE users u
+SET phone = ep.phone_number
+FROM employee_profiles ep
+WHERE LOWER(u.email) = LOWER(ep.email)
+  AND ep.phone_number IS NOT NULL
+  AND ep.phone_number != ''
+  AND (u.phone IS NULL OR u.phone = '');

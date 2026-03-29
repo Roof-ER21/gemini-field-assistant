@@ -514,39 +514,41 @@ router.post('/generate-report', async (req, res) => {
         let resolvedRepName = repName;
         let resolvedRepPhone = repPhone;
         let resolvedRepEmail = repEmail;
-        let resolvedCompanyName = companyName;
+        const resolvedCompanyName = 'Roof ER The Roof Docs';
+        const DEFAULT_PHONE = '(703) 239-3738';
         const userEmail = req.header('x-user-email');
         if (userEmail) {
             try {
                 const pool = req.app.get('pool');
-                const userRow = await pool.query('SELECT name, email, phone, company_name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
+                // 1. Check users table
+                const userRow = await pool.query('SELECT name, email, phone FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
                 if (userRow.rows.length > 0) {
                     const u = userRow.rows[0];
-                    if (!resolvedRepName || resolvedRepName === 'Ahmed Mahmoud')
-                        resolvedRepName = u.name || resolvedRepName;
-                    if (!resolvedRepEmail || resolvedRepEmail === 'ahmed@theroofdocs.com')
-                        resolvedRepEmail = u.email || resolvedRepEmail;
-                    if (!resolvedRepPhone || resolvedRepPhone === '(703) 555-0199')
-                        resolvedRepPhone = u.phone || resolvedRepPhone;
-                    if (!resolvedCompanyName || resolvedCompanyName === 'The Roof Docs')
-                        resolvedCompanyName = u.company_name || resolvedCompanyName;
+                    if (!resolvedRepName)
+                        resolvedRepName = u.name;
+                    if (!resolvedRepEmail)
+                        resolvedRepEmail = u.email;
+                    if (!resolvedRepPhone)
+                        resolvedRepPhone = u.phone;
                 }
-                // Fall back to system_settings for company defaults
-                if (!resolvedCompanyName) {
-                    const settingsRow = await pool.query("SELECT value FROM system_settings WHERE key = 'company_name' LIMIT 1");
-                    if (settingsRow.rows.length > 0)
-                        resolvedCompanyName = JSON.parse(settingsRow.rows[0].value);
-                }
+                // 2. Fall back to employee_profiles for phone if still missing
                 if (!resolvedRepPhone) {
-                    const phoneRow = await pool.query("SELECT value FROM system_settings WHERE key = 'company_phone' LIMIT 1");
-                    if (phoneRow.rows.length > 0)
-                        resolvedRepPhone = JSON.parse(phoneRow.rows[0].value);
+                    const profileRow = await pool.query('SELECT phone_number FROM employee_profiles WHERE LOWER(email) = LOWER($1) AND phone_number IS NOT NULL LIMIT 1', [userEmail]);
+                    if (profileRow.rows.length > 0)
+                        resolvedRepPhone = profileRow.rows[0].phone_number;
                 }
             }
             catch (e) {
                 console.warn('Could not resolve rep profile from DB:', e.message);
             }
         }
+        // Final defaults
+        if (!resolvedRepPhone)
+            resolvedRepPhone = DEFAULT_PHONE;
+        if (!resolvedRepEmail)
+            resolvedRepEmail = userEmail || undefined;
+        if (!resolvedRepName)
+            resolvedRepName = undefined;
         // Validate filter if provided
         const validFilters = ['all', 'hail-only', 'hail-wind', 'ihm-only', 'noaa-only'];
         const reportFilter = validFilters.includes(filter) ? filter : 'all';

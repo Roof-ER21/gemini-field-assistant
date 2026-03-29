@@ -3075,6 +3075,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
 
+-- Sync phone numbers from employee_profiles into users where missing
+UPDATE users u SET phone = ep.phone_number
+FROM employee_profiles ep
+WHERE LOWER(u.email) = LOWER(ep.email)
+  AND ep.phone_number IS NOT NULL AND ep.phone_number != ''
+  AND (u.phone IS NULL OR u.phone = '');
+
+-- Set company for all
+UPDATE users SET company_name = 'Roof ER The Roof Docs'
+WHERE company_name IS NULL OR company_name = '';
+
 -- 4. CREATE VIEWS
 CREATE OR REPLACE VIEW daily_activity_summary AS
 SELECT
