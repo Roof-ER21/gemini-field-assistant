@@ -1202,6 +1202,23 @@ Generate ONLY the email body text, no subject line or metadata.`;
           console.log('[Memory] Added job context to prompt');
         }
 
+        // Load past conversation summaries for session continuity
+        const userEmailCtx = authService.getCurrentUser()?.email;
+        if (userEmailCtx) {
+          try {
+            const ctxRes = await fetch(`${API_BASE_URL}/susan/agent/context`, {
+              headers: { 'x-user-email': userEmailCtx },
+            });
+            if (ctxRes.ok) {
+              const ctxData = await ctxRes.json();
+              if (ctxData.context) {
+                systemPrompt += ctxData.context;
+                console.log('[Memory] Added past conversation context');
+              }
+            }
+          } catch { /* context fetch optional */ }
+        }
+
         const hailContext = localStorage.getItem('susan_hail_context');
         if (hailContext) {
           systemPrompt += `\n\nHAIL HISTORY CONTEXT:\n${hailContext}\nUse these documented storm dates and hail sizes when relevant, especially for adjuster emails.`;
@@ -1614,6 +1631,18 @@ Generate ONLY the email body text, no subject line or metadata.`;
   };
 
   const handleNewChat = () => {
+    // Summarize the old session before starting fresh (fire and forget)
+    const oldMessages = messages;
+    const oldSessionId = currentSessionId;
+    const userEmail = authService.getCurrentUser()?.email;
+    if (oldMessages.length >= 4 && userEmail) {
+      fetch(`${API_BASE_URL}/susan/agent/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
+        body: JSON.stringify({ sessionId: oldSessionId, messages: oldMessages }),
+      }).catch(() => {});
+    }
+
     const newSessionId = `session-${Date.now()}`;
     setCurrentSessionId(newSessionId);
     setMessages([]);

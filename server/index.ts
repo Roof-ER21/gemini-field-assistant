@@ -1602,6 +1602,28 @@ app.post('/api/chat/feedback', async (req, res) => {
       console.warn('Global learning update failed:', learningError);
     }
 
+    // Create learning candidate from NEGATIVE feedback so Susan improves
+    if (rating === -1 && result.rows[0]?.id) {
+      try {
+        const { createLearningFromFeedback } = await import('./services/conversationIntelService.js');
+        // Find the user's question that preceded this response
+        const prevMsg = await pool.query(
+          `SELECT content FROM chat_history
+           WHERE session_id = $1 AND sender = 'user'
+           ORDER BY created_at DESC LIMIT 1`,
+          [session_id]
+        );
+        const userQuery = prevMsg.rows[0]?.content || '';
+        await createLearningFromFeedback(
+          pool, result.rows[0].id, userQuery,
+          response_excerpt || '', comment || undefined,
+          tags || [], normalizedState, normalizedInsurer
+        );
+      } catch (learnErr) {
+        console.warn('Negative feedback learning extraction failed:', learnErr);
+      }
+    }
+
     res.json({ success: true, feedback: result.rows[0] });
   } catch (error) {
     console.error('Error saving chat feedback:', error);

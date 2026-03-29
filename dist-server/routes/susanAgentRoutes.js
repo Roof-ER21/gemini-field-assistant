@@ -399,6 +399,50 @@ export function createSusanAgentRoutes(pool) {
             });
         }
     });
+    // POST /api/susan/agent/summarize — Generate and save conversation summary
+    router.post('/summarize', async (req, res) => {
+        try {
+            const email = req.header('x-user-email');
+            if (!email)
+                return res.status(401).json({ error: 'x-user-email header required' });
+            const { sessionId, messages } = req.body;
+            if (!sessionId || !messages?.length) {
+                return res.status(400).json({ error: 'sessionId and messages required' });
+            }
+            const userId = await resolveUserId(pool, email);
+            if (!userId)
+                return res.status(404).json({ error: 'User not found' });
+            const { summarizeAndSaveSession } = await import('../services/conversationIntelService.js');
+            const chatMsgs = messages.map(m => ({
+                sender: (m.sender === 'user' ? 'user' : 'bot'),
+                content: m.text || '',
+            }));
+            const summary = await summarizeAndSaveSession(pool, userId, sessionId, chatMsgs);
+            res.json({ success: true, summary });
+        }
+        catch (err) {
+            console.error('[SusanAgent] Summarize error:', err.message);
+            res.status(500).json({ error: 'Failed to summarize conversation' });
+        }
+    });
+    // GET /api/susan/agent/context — Load past conversation summaries for context
+    router.get('/context', async (req, res) => {
+        try {
+            const email = req.header('x-user-email');
+            if (!email)
+                return res.status(401).json({ error: 'x-user-email header required' });
+            const userId = await resolveUserId(pool, email);
+            if (!userId)
+                return res.json({ context: '' });
+            const { loadRecentSummaries } = await import('../services/conversationIntelService.js');
+            const context = await loadRecentSummaries(pool, userId, 3);
+            res.json({ context });
+        }
+        catch (err) {
+            console.error('[SusanAgent] Context load error:', err.message);
+            res.json({ context: '' });
+        }
+    });
     return router;
 }
 export default createSusanAgentRoutes;
