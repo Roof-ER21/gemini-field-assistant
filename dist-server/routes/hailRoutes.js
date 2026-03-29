@@ -189,6 +189,34 @@ router.put('/rep-profile', async (req, res) => {
         res.status(500).json({ error: 'Failed to update profile' });
     }
 });
+// POST /api/hail/run-profile-migration - One-time migration to add phone/company columns
+router.post('/run-profile-migration', async (req, res) => {
+    try {
+        const pool = req.app.get('pool');
+        await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
+    `);
+        // Sync phones from employee_profiles
+        try {
+            await pool.query(`
+        UPDATE users u SET phone = ep.phone_number
+        FROM employee_profiles ep
+        WHERE LOWER(u.email) = LOWER(ep.email)
+          AND ep.phone_number IS NOT NULL AND ep.phone_number != ''
+          AND (u.phone IS NULL OR u.phone = '')
+      `);
+        }
+        catch { /* employee_profiles may not exist */ }
+        // Set company for all
+        await pool.query(`UPDATE users SET company_name = 'Roof ER The Roof Docs' WHERE company_name IS NULL OR company_name = ''`);
+        res.json({ success: true, message: 'Profile columns added and data synced' });
+    }
+    catch (e) {
+        console.error('Profile migration error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
 // GET /api/hail/search?address=...&months=24 OR lat/lng
 router.get('/search', async (req, res) => {
     try {
