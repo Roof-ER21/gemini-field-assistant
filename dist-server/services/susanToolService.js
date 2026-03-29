@@ -1109,6 +1109,64 @@ async function executeGenerateStormReport(args, ctx) {
         return { success: false, error: `Failed to generate storm report: ${message}` };
     }
 }
+// ---------------------------------------------------------------------------
+// Tool 14: record_claim_outcome
+// ---------------------------------------------------------------------------
+const recordClaimOutcomeDeclaration = {
+    name: 'record_claim_outcome',
+    description: 'Record the outcome of an insurance claim (approved, partial, denied, pending). ' +
+        'Use when a rep tells you a claim result, supplement outcome, or adjuster decision. ' +
+        'This data helps Susan learn which arguments and strategies work for which insurers.',
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            insuranceCompany: { type: Type.STRING, description: 'Insurance company name (e.g. "State Farm", "Travelers")' },
+            claimResult: { type: Type.STRING, description: 'Outcome: "approved", "partial", "denied", or "pending"' },
+            claimNumber: { type: Type.STRING, description: 'Claim number if mentioned' },
+            approvalAmount: { type: Type.NUMBER, description: 'Dollar amount approved (if applicable)' },
+            keyArguments: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Arguments/strategies that worked or were used' },
+            lessonsLearned: { type: Type.STRING, description: 'What the rep learned from this outcome' },
+            state: { type: Type.STRING, description: 'State (VA, MD, PA)' },
+        },
+        required: ['insuranceCompany', 'claimResult']
+    }
+};
+async function executeRecordClaimOutcome(args, ctx) {
+    const insuranceCompany = String(args.insuranceCompany || '');
+    const claimResult = String(args.claimResult || '').toLowerCase();
+    const claimNumber = args.claimNumber ? String(args.claimNumber) : null;
+    const approvalAmount = args.approvalAmount ? Number(args.approvalAmount) : null;
+    const keyArguments = Array.isArray(args.keyArguments) ? args.keyArguments.map(String) : [];
+    const lessonsLearned = args.lessonsLearned ? String(args.lessonsLearned) : null;
+    const state = args.state ? String(args.state).toUpperCase() : ctx.userState || null;
+    if (!insuranceCompany || !['approved', 'partial', 'denied', 'pending'].includes(claimResult)) {
+        return { success: false, error: 'insuranceCompany and valid claimResult (approved/partial/denied/pending) required' };
+    }
+    try {
+        await ctx.pool.query(`INSERT INTO storm_claim_outcomes
+        (user_id, insurance_company, claim_number, claim_result,
+         approval_amount, key_arguments, lessons_learned, claim_status, outcome_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $4, CURRENT_DATE)`, [ctx.userId, insuranceCompany, claimNumber, claimResult,
+            approvalAmount, keyArguments.length > 0 ? keyArguments : null, lessonsLearned]);
+        // Also save as a memory for future context
+        await ctx.pool.query(`INSERT INTO user_memory (user_id, memory_type, category, key, value, confidence, source_type)
+       VALUES ($1, 'outcome', 'claim_outcome', $2, $3, 0.9, 'explicit')
+       ON CONFLICT DO NOTHING`, [ctx.userId, `${insuranceCompany}_${claimResult}`,
+            `${claimResult} claim with ${insuranceCompany}${state ? ` in ${state}` : ''}${approvalAmount ? ` for $${approvalAmount}` : ''}. ${keyArguments.length ? 'Key arguments: ' + keyArguments.join(', ') : ''}`.trim()]);
+        return {
+            success: true,
+            message: `Recorded ${claimResult} outcome with ${insuranceCompany}. This helps me learn what works.`,
+            insuranceCompany,
+            claimResult,
+            approvalAmount,
+        };
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[SusanTool:record_claim_outcome] Error:', message);
+        return { success: false, error: `Failed to record outcome: ${message}` };
+    }
+}
 // Public API: SUSAN_TOOLS array + executeTool dispatcher
 // ---------------------------------------------------------------------------
 /** All Susan function declarations in Gemini format */
@@ -1125,7 +1183,8 @@ export const SUSAN_TOOLS = [
     checkAvailabilityDeclaration,
     fetchCalendarEventsDeclaration,
     sendNotificationDeclaration,
-    generateStormReportDeclaration
+    generateStormReportDeclaration,
+    recordClaimOutcomeDeclaration
 ];
 /** Map from tool name to executor for O(1) dispatch */
 const TOOL_EXECUTORS = {
@@ -1141,7 +1200,8 @@ const TOOL_EXECUTORS = {
     check_availability: executeCheckAvailability,
     fetch_calendar_events: executeFetchCalendarEvents,
     send_notification: executeSendNotification,
-    generate_storm_report: executeGenerateStormReport
+    generate_storm_report: executeGenerateStormReport,
+    record_claim_outcome: executeRecordClaimOutcome
 };
 /**
  * Execute a named tool with the given arguments and user context.
