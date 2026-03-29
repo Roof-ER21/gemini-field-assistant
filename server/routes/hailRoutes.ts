@@ -183,11 +183,13 @@ router.put('/rep-profile', async (req: Request, res: Response) => {
     if (name !== undefined) { sets.push(`name = $${idx++}`); vals.push(name); }
     if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
     vals.push(email);
-    await pool.query(`UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE LOWER(email) = LOWER($${idx})`, vals);
+    const sql = `UPDATE users SET ${sets.join(', ')} WHERE LOWER(email) = LOWER($${idx})`;
+    await pool.query(sql, vals);
     res.json({ success: true });
   } catch (e) {
-    console.error('Rep profile update error:', e);
-    res.status(500).json({ error: 'Failed to update profile' });
+    const msg = (e as Error).message;
+    console.error('Rep profile update error:', msg);
+    res.status(500).json({ error: msg });
   }
 });
 
