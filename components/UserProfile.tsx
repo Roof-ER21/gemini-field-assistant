@@ -29,6 +29,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
   const [user, setUser] = useState<AuthUser | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [state, setState] = useState<'VA' | 'MD' | 'PA' | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -48,6 +49,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
       setUser(currentUser);
       setName(currentUser.name);
       setState(currentUser.state);
+      setPhone(currentUser.phone || '');
+
+      // Load phone from server (rep-profile has the latest)
+      fetch(`${API_BASE_URL}/hail/rep-profile`, {
+        headers: { 'x-user-email': currentUser.email }
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.phone) setPhone(data.phone);
+        })
+        .catch(() => {});
 
       // Check Google connection status
       fetch(`${API_BASE_URL}/google/status`, {
@@ -82,8 +94,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
     setSaving(true);
 
     try {
-      const updated = await authService.updateUserProfile({ name, state });
+      const updated = await authService.updateUserProfile({ name, state, phone: phone || null });
       if (updated) {
+        // Also save phone to server for storm report PDFs
+        if (user?.email) {
+          await fetch(`${API_BASE_URL}/hail/rep-profile`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+            body: JSON.stringify({ name, phone: phone || null }),
+          }).catch(() => {});
+        }
         const currentUser = authService.getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
@@ -377,6 +397,28 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
             />
           </div>
 
+          {/* Phone */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Phone Number</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={!editing}
+              placeholder="(703) 555-1234"
+              style={{
+                ...inputStyle,
+                border: editing ? '2px solid #dc2626' : '1px solid var(--border-subtle)',
+                cursor: editing ? 'text' : 'not-allowed'
+              }}
+            />
+            {editing && (
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                This number appears on your storm report PDFs sent to adjusters
+              </p>
+            )}
+          </div>
+
           {/* State */}
           <div style={{ marginBottom: '20px' }}>
             <label style={labelStyle}>
@@ -404,7 +446,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
           {editing ? (
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               <button
-                onClick={() => { setEditing(false); setName(user.name); setState(user.state); }}
+                onClick={() => { setEditing(false); setName(user.name); setPhone(user.phone || ''); setState(user.state); }}
                 style={{ ...buttonStyle, flex: 1, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
               >
                 Cancel

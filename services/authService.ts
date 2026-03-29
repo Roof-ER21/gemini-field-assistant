@@ -13,6 +13,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  phone?: string | null;
   role: 'sales_rep' | 'manager' | 'admin';
   state: 'VA' | 'MD' | 'PA' | null;
   created_at: Date;
