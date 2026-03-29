@@ -143,6 +143,54 @@ router.get('/status', (_req, res) => {
   });
 });
 
+// GET /api/hail/rep-profile - Get the logged-in rep's report profile
+router.get('/rep-profile', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+    const pool: import('pg').Pool = req.app.get('pool');
+    const { rows } = await pool.query(
+      'SELECT name, email, phone, company_name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email]
+    );
+    if (!rows.length) return res.json({ name: null, email, phone: null, companyName: null });
+    const u = rows[0];
+    // Fall back to system_settings for company defaults
+    let companyName = u.company_name;
+    if (!companyName) {
+      const s = await pool.query("SELECT value FROM system_settings WHERE key = 'company_name' LIMIT 1");
+      if (s.rows.length) companyName = JSON.parse(s.rows[0].value);
+    }
+    res.json({ name: u.name, email: u.email, phone: u.phone, companyName });
+  } catch (e) {
+    console.error('Rep profile fetch error:', e);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// PUT /api/hail/rep-profile - Update the logged-in rep's report profile
+router.put('/rep-profile', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+    const { phone, companyName, name } = req.body;
+    const pool: import('pg').Pool = req.app.get('pool');
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let idx = 1;
+    if (phone !== undefined) { sets.push(`phone = $${idx++}`); vals.push(phone); }
+    if (companyName !== undefined) { sets.push(`company_name = $${idx++}`); vals.push(companyName); }
+    if (name !== undefined) { sets.push(`name = $${idx++}`); vals.push(name); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    vals.push(email);
+    await pool.query(`UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE LOWER(email) = LOWER($${idx})`, vals);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Rep profile update error:', e);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 // GET /api/hail/search?address=...&months=24 OR lat/lng
 router.get('/search', async (req, res) => {
   try {
@@ -555,6 +603,41 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       });
     }
 
+    // Auto-resolve rep profile from authenticated user if not explicitly provided
+    let resolvedRepName = repName;
+    let resolvedRepPhone = repPhone;
+    let resolvedRepEmail = repEmail;
+    let resolvedCompanyName = companyName;
+
+    const userEmail = req.header('x-user-email');
+    if (userEmail) {
+      try {
+        const pool: import('pg').Pool = req.app.get('pool');
+        const userRow = await pool.query(
+          'SELECT name, email, phone, company_name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+          [userEmail]
+        );
+        if (userRow.rows.length > 0) {
+          const u = userRow.rows[0];
+          if (!resolvedRepName || resolvedRepName === 'Ahmed Mahmoud') resolvedRepName = u.name || resolvedRepName;
+          if (!resolvedRepEmail || resolvedRepEmail === 'ahmed@theroofdocs.com') resolvedRepEmail = u.email || resolvedRepEmail;
+          if (!resolvedRepPhone || resolvedRepPhone === '(703) 555-0199') resolvedRepPhone = u.phone || resolvedRepPhone;
+          if (!resolvedCompanyName || resolvedCompanyName === 'The Roof Docs') resolvedCompanyName = u.company_name || resolvedCompanyName;
+        }
+        // Fall back to system_settings for company defaults
+        if (!resolvedCompanyName) {
+          const settingsRow = await pool.query("SELECT value FROM system_settings WHERE key = 'company_name' LIMIT 1");
+          if (settingsRow.rows.length > 0) resolvedCompanyName = JSON.parse(settingsRow.rows[0].value);
+        }
+        if (!resolvedRepPhone) {
+          const phoneRow = await pool.query("SELECT value FROM system_settings WHERE key = 'company_phone' LIMIT 1");
+          if (phoneRow.rows.length > 0) resolvedRepPhone = JSON.parse(phoneRow.rows[0].value);
+        }
+      } catch (e) {
+        console.warn('Could not resolve rep profile from DB:', (e as Error).message);
+      }
+    }
+
     // Validate filter if provided
     const validFilters: ReportFilter[] = ['all', 'hail-only', 'hail-wind', 'ihm-only', 'noaa-only'];
     const reportFilter: ReportFilter = validFilters.includes(filter) ? filter : 'all';
@@ -749,10 +832,10 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       dateOfLoss,
       events: normalizedEvents,
       damageScore,
-      repName,
-      repPhone,
-      repEmail,
-      companyName,
+      repName: resolvedRepName,
+      repPhone: resolvedRepPhone,
+      repEmail: resolvedRepEmail,
+      companyName: resolvedCompanyName,
       filter: reportFilter,
       mapImage: mapImage || undefined,
       nexradImage: nexradResult?.imageBuffer || undefined,

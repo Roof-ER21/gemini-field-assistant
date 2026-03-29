@@ -1060,11 +1060,8 @@ async function executeGenerateStormReport(args, ctx) {
             dateOfLoss,
             template: 'noaa-forward',
             customerName,
-            repName: ctx.userName || 'Ahmed Mahmoud',
-            repPhone: '(703) 555-0199',
-            repEmail: ctx.userEmail || 'ahmed@theroofdocs.com',
-            companyName: 'The Roof Docs',
         };
+        // 5b. Rep info resolved server-side from x-user-email header (no hardcoded defaults)
         // 6. Call the report endpoint internally
         const port = process.env.PORT || 8080;
         const reportRes = await fetch(`http://localhost:${port}/api/hail/generate-report`, {
