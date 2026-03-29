@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
-  <meta name="description" content="Your AI-powered field toolkit. Roof ER The Roof Docs rep guide for the Gemini Field Assistant app." />
-  <title>Rep Guide — Gemini Field Assistant | Roof ER The Roof Docs</title>
+  <meta name="description" content="Your AI-powered field toolkit. Roof ER The Roof Docs rep guide — Storm Maps, PDF reports, Susan AI, and more." />
+  <title>Rep Guide — Roof ER The Roof Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -94,7 +94,6 @@
       100% { transform: translate(30px, 20px) scale(1.03); }
     }
 
-    /* Grid lines overlay */
     .bg-grid {
       position: fixed;
       inset: 0;
@@ -113,6 +112,18 @@
       max-width: 680px;
       margin: 0 auto;
       padding: 0 16px 80px;
+    }
+
+    /* ─── Progress Bar ──────────────────────────────────────────────────────── */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--red) 0%, var(--red-light) 100%);
+      z-index: 200;
+      width: 0%;
+      transition: width 0.1s linear;
     }
 
     /* ─── Nav ───────────────────────────────────────────────────────────────── */
@@ -259,9 +270,7 @@
       margin-bottom: 40px;
     }
 
-    .stat-item {
-      text-align: center;
-    }
+    .stat-item { text-align: center; }
 
     .stat-num {
       font-size: 28px;
@@ -270,10 +279,6 @@
       letter-spacing: -1px;
       display: block;
       line-height: 1;
-    }
-
-    .stat-num .stat-digit {
-      display: inline-block;
     }
 
     .stat-label {
@@ -334,6 +339,25 @@
       transform: translateY(-2px);
     }
 
+    .scroll-hint {
+      text-align: center;
+      margin-top: 40px;
+      animation: bounce 2s ease-in-out infinite;
+      color: var(--text-4);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .scroll-hint svg { opacity: 0.5; }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
+
     /* ─── Section Cards ─────────────────────────────────────────────────────── */
     .section {
       margin-bottom: 24px;
@@ -383,9 +407,7 @@
       font-size: 20px;
     }
 
-    .card-meta {
-      flex: 1;
-    }
+    .card-meta { flex: 1; }
 
     .card-number {
       font-size: 11px;
@@ -405,6 +427,13 @@
       line-height: 1.2;
     }
 
+    .card-subtitle {
+      font-size: 13px;
+      color: var(--text-4);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
     .card-body {
       padding: 16px 24px 24px;
     }
@@ -415,6 +444,33 @@
       margin-bottom: 16px;
       line-height: 1.6;
     }
+
+    .card-desc strong { color: var(--text-2); }
+
+    /* ─── Section divider ───────────────────────────────────────────────────── */
+    .section-divider {
+      text-align: center;
+      color: var(--text-4);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 8px 0 4px;
+      position: relative;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: calc(50% - 70px);
+      height: 1px;
+      background: var(--border);
+    }
+
+    .section-divider::before { left: 0; }
+    .section-divider::after  { right: 0; }
 
     /* ─── Feature List ──────────────────────────────────────────────────────── */
     .feature-list {
@@ -449,7 +505,7 @@
       background-size: 12px;
     }
 
-    /* ─── Callout / Tip box ─────────────────────────────────────────────────── */
+    /* ─── Tip / Callout Box ─────────────────────────────────────────────────── */
     .tip-box {
       margin-top: 16px;
       padding: 14px 16px;
@@ -466,15 +522,36 @@
 
     .tip-icon {
       font-size: 16px;
-      margin-top: 0px;
       flex-shrink: 0;
     }
 
-    .tip-box strong {
-      color: var(--red-light);
+    .tip-box strong { color: var(--red-light); }
+
+    /* ─── Tag chips ─────────────────────────────────────────────────────────── */
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 14px;
     }
 
-    /* ─── Mock UI screenshots ───────────────────────────────────────────────── */
+    .tag {
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-3);
+      color: var(--text-3);
+      border: 1px solid var(--border);
+    }
+
+    .tag.red {
+      background: rgba(220,38,38,0.12);
+      color: var(--red-light);
+      border-color: rgba(220,38,38,0.25);
+    }
+
+    /* ─── Mock Screen Wrapper ───────────────────────────────────────────────── */
     .mock-screen {
       background: var(--bg-2);
       border: 1px solid var(--border);
@@ -493,10 +570,7 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .mock-dots {
-      display: flex;
-      gap: 5px;
-    }
+    .mock-dots { display: flex; gap: 5px; }
 
     .mock-dot {
       width: 8px;
@@ -504,9 +578,9 @@
       border-radius: 50%;
     }
 
-    .mock-dot--red   { background: #ef4444; }
-    .mock-dot--yellow{ background: #f59e0b; }
-    .mock-dot--green { background: #22c55e; }
+    .mock-dot--red    { background: #ef4444; }
+    .mock-dot--yellow { background: #f59e0b; }
+    .mock-dot--green  { background: #22c55e; }
 
     .mock-bar-label {
       font-size: 12px;
@@ -514,38 +588,125 @@
       font-weight: 500;
     }
 
+    /* ─── Storm Map Mock ─────────────────────────────────────────────────────── */
     .mock-body {
       display: flex;
-      min-height: 120px;
+      min-height: 200px;
     }
 
     .mock-sidebar {
-      width: 140px;
-      min-width: 140px;
+      width: 160px;
+      min-width: 160px;
       background: var(--bg-1);
       border-right: 1px solid var(--border);
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
 
-    .mock-sidebar-item {
-      padding: 6px 10px;
+    .mock-search-bar {
+      background: var(--bg-0);
+      border: 1px solid var(--border);
       border-radius: 6px;
-      font-size: 12px;
-      color: var(--text-3);
+      padding: 7px 9px;
+      font-size: 11px;
+      color: var(--text-4);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
 
-    .mock-sidebar-item.active {
+    .mock-search-icon {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+
+    .mock-filter-row {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 8px;
+    }
+
+    .mock-filter-chip {
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--bg-2);
+      color: var(--text-4);
+      border: 1px solid var(--border);
+    }
+
+    .mock-filter-chip.active {
       background: rgba(220,38,38,0.15);
       color: var(--red-light);
+      border-color: rgba(220,38,38,0.3);
+    }
+
+    .mock-storm-card {
+      padding: 7px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 3px;
+      cursor: pointer;
+    }
+
+    .mock-storm-card.active {
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.3);
+    }
+
+    .mock-storm-card .storm-date {
+      font-weight: 700;
+      color: var(--text-1);
+      display: block;
+    }
+
+    .mock-storm-card .storm-detail {
+      color: var(--text-4);
+      font-size: 10px;
+    }
+
+    .mock-storm-card.active .storm-date {
+      color: var(--red-light);
+    }
+
+    .mock-storm-card:not(.active) {
+      color: var(--text-4);
+    }
+
+    .mock-gps-row {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 8px;
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 5px;
+      font-size: 10px;
+      color: #4ade80;
       font-weight: 600;
+    }
+
+    .gps-dot {
+      width: 7px;
+      height: 7px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: gps-blink 1.2s ease-in-out infinite;
+    }
+
+    @keyframes gps-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
     }
 
     .mock-map {
       flex: 1;
-      background: #1a2030;
+      background: #141b2a;
       position: relative;
       display: flex;
       align-items: center;
@@ -557,20 +718,32 @@
       position: absolute;
       inset: 0;
       background-image:
-        linear-gradient(rgba(220,38,38,0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(220,38,38,0.05) 1px, transparent 1px);
-      background-size: 20px 20px;
+        linear-gradient(rgba(34,197,94,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34,197,94,0.04) 1px, transparent 1px);
+      background-size: 18px 18px;
     }
 
-    .mock-map-pin {
-      width: 20px;
-      height: 20px;
-      background: var(--red);
-      border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg);
-      box-shadow: 0 2px 8px rgba(220,38,38,0.5);
-      position: relative;
-      z-index: 1;
+    /* Hail swath lines */
+    .mock-swath {
+      position: absolute;
+      opacity: 0.4;
+      border-radius: 50%;
+    }
+
+    .mock-swath--1 {
+      width: 90px; height: 50px;
+      background: rgba(251,191,36,0.35);
+      top: 25%; left: 15%;
+      transform: rotate(-18deg);
+      filter: blur(4px);
+    }
+
+    .mock-swath--2 {
+      width: 70px; height: 35px;
+      background: rgba(239,68,68,0.3);
+      top: 55%; left: 40%;
+      transform: rotate(10deg);
+      filter: blur(3px);
     }
 
     .mock-hail-dots {
@@ -581,30 +754,342 @@
     .hail-dot {
       position: absolute;
       border-radius: 50%;
-      background: rgba(251,191,36,0.6);
+      background: rgba(251,191,36,0.65);
       animation: hail-pulse 2.5s ease-in-out infinite alternate;
     }
 
-    .hail-dot--1 { width: 30px; height: 30px; top: 20%; left: 25%; animation-delay: 0s; }
-    .hail-dot--2 { width: 20px; height: 20px; top: 50%; left: 55%; animation-delay: 0.4s; }
-    .hail-dot--3 { width: 36px; height: 36px; top: 65%; left: 35%; animation-delay: 0.8s; }
-    .hail-dot--4 { width: 16px; height: 16px; top: 30%; left: 70%; animation-delay: 1.2s; }
+    .hail-dot--1 { width: 26px; height: 26px; top: 22%; left: 20%; animation-delay: 0s; }
+    .hail-dot--2 { width: 18px; height: 18px; top: 48%; left: 52%; animation-delay: 0.4s; }
+    .hail-dot--3 { width: 32px; height: 32px; top: 60%; left: 30%; animation-delay: 0.8s; }
+    .hail-dot--4 { width: 14px; height: 14px; top: 28%; left: 70%; animation-delay: 1.2s; }
+    .hail-dot--5 { width: 20px; height: 20px; top: 15%; left: 55%; animation-delay: 0.6s; }
 
     @keyframes hail-pulse {
       0%   { opacity: 0.4; transform: scale(0.9); }
       100% { opacity: 0.9; transform: scale(1.1); }
     }
 
-    /* Chat mock */
+    /* GPS blue dot on map */
+    .mock-gps-pin {
+      position: absolute;
+      bottom: 30%;
+      right: 28%;
+      z-index: 2;
+    }
+
+    .gps-pin-dot {
+      width: 12px;
+      height: 12px;
+      background: #3b82f6;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.25);
+      animation: gps-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes gps-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(59,130,246,0.25); }
+      50% { box-shadow: 0 0 0 8px rgba(59,130,246,0.1); }
+    }
+
+    .mock-map-label {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(10,13,20,0.75);
+      border: 1px solid rgba(251,191,36,0.3);
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #fbbf24;
+    }
+
+    /* ─── Storm popup detail mock ───────────────────────────────────────────── */
+    .mock-storm-detail {
+      background: var(--bg-0);
+      border: 1px solid rgba(220,38,38,0.25);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-top: 12px;
+    }
+
+    .storm-detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .storm-detail-date {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-1);
+    }
+
+    .storm-detail-badge {
+      padding: 3px 9px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(251,191,36,0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(251,191,36,0.3);
+    }
+
+    .storm-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .storm-stat-box {
+      background: var(--bg-2);
+      border-radius: 7px;
+      padding: 9px 11px;
+    }
+
+    .storm-stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-4);
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .storm-stat-value {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-1);
+    }
+
+    .storm-stat-value .unit {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-4);
+    }
+
+    .storm-stat-source {
+      font-size: 10px;
+      color: var(--red-light);
+      margin-top: 2px;
+      display: block;
+    }
+
+    /* ─── PDF Report Mock ───────────────────────────────────────────────────── */
+    .mock-pdf-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+    }
+
+    .pdf-step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--bg-0);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .pdf-step-num {
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--red-light);
+    }
+
+    .pdf-step-text {
+      font-size: 13px;
+      color: var(--text-2);
+      font-weight: 500;
+    }
+
+    .pdf-step.done .pdf-step-num {
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.35);
+      color: #4ade80;
+    }
+
+    .pdf-step.done .pdf-step-text { color: var(--text-3); }
+
+    .pdf-ready-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(220,38,38,0.08);
+      border: 1px solid rgba(220,38,38,0.25);
+      border-radius: 8px;
+      margin-top: 4px;
+    }
+
+    .pdf-icon {
+      font-size: 28px;
+    }
+
+    .pdf-ready-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--red-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+
+    .pdf-ready-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+
+    .pdf-ready-meta {
+      font-size: 12px;
+      color: var(--text-4);
+      margin-top: 1px;
+    }
+
+    .pdf-download-btn {
+      margin-left: auto;
+      padding: 8px 14px;
+      background: var(--red);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      white-space: nowrap;
+    }
+
+    /* ─── Report Contents List ──────────────────────────────────────────────── */
+    .report-pages {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .report-page-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--bg-2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .report-page-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red-light);
+      min-width: 28px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .report-page-content {}
+
+    .report-page-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-1);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .report-page-desc {
+      font-size: 12px;
+      color: var(--text-4);
+      line-height: 1.5;
+    }
+
+    /* ─── Chat Mock ─────────────────────────────────────────────────────────── */
+    .mock-chat-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-0);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .susan-avatar {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--red) 0%, #7c3aed 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 900;
+      color: white;
+    }
+
+    .susan-status {
+      flex: 1;
+    }
+
+    .susan-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+
+    .susan-online {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #4ade80;
+    }
+
+    .online-dot {
+      width: 6px;
+      height: 6px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: gps-blink 1.5s ease-in-out infinite;
+    }
+
     .mock-chat {
       padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
 
+    .chat-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .chat-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-4);
+      padding: 0 2px;
+    }
+
+    .chat-label--susan { color: var(--red-light); }
+
     .chat-bubble {
-      max-width: 82%;
+      max-width: 85%;
       padding: 10px 13px;
       border-radius: 12px;
       font-size: 13px;
@@ -625,15 +1110,25 @@
       border-bottom-left-radius: 3px;
     }
 
-    .chat-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
+    .chat-storm-list {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .chat-label--susan { color: var(--red-light); }
+    .chat-storm-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .chat-storm-row .s-date { color: var(--text-2); font-weight: 600; }
+    .chat-storm-row .s-hail { color: #fbbf24; font-weight: 700; font-size: 11px; }
 
     .download-btn-mock {
       display: inline-flex;
@@ -649,51 +1144,189 @@
       color: var(--red-light);
     }
 
-    /* Doc analyzer mock */
-    .mock-analyzer {
-      padding: 14px;
+    /* ─── Leaderboard Mock ───────────────────────────────────────────────────── */
+    .leaderboard-mock {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
     }
 
-    .analyzer-row {
+    .lb-header {
+      background: var(--bg-0);
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 10px;
-      border-radius: 7px;
-      font-size: 13px;
-      color: var(--text-3);
       border-bottom: 1px solid var(--border);
     }
 
-    .analyzer-row:last-child { border-bottom: none; }
-    .analyzer-row.highlight { background: rgba(220,38,38,0.08); color: var(--text-1); }
-
-    .badge-found {
-      font-size: 11px;
+    .lb-title {
+      font-size: 12px;
       font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 100px;
-      background: rgba(34,197,94,0.15);
-      color: #4ade80;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .badge-missed {
+    .lb-period {
       font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 100px;
-      background: rgba(220,38,38,0.15);
-      color: #f87171;
+      color: var(--text-4);
     }
 
-    /* ─── Pro Tips / Checklist ──────────────────────────────────────────────── */
-    .tips-grid {
+    .lb-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-1);
+      transition: background 0.15s;
+    }
+
+    .lb-row:last-child { border-bottom: none; }
+
+    .lb-row.you {
+      background: rgba(220,38,38,0.07);
+      border-left: 3px solid var(--red);
+    }
+
+    .lb-rank {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-4);
+      min-width: 22px;
+    }
+
+    .lb-rank.gold   { color: #fbbf24; }
+    .lb-rank.silver { color: #9ca3af; }
+    .lb-rank.bronze { color: #b45309; }
+
+    .lb-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .lb-name-col { flex: 1; }
+
+    .lb-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-1);
+      display: block;
+    }
+
+    .lb-sub {
+      font-size: 11px;
+      color: var(--text-4);
+    }
+
+    .lb-revenue {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-1);
+    }
+
+    .lb-bar-wrap {
+      width: 60px;
+      height: 5px;
+      background: var(--bg-3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .lb-bar {
+      height: 100%;
+      background: var(--red);
+      border-radius: 3px;
+      transition: width 1s ease;
+    }
+
+    /* ─── Email Mock ─────────────────────────────────────────────────────────── */
+    .mock-email {
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-top: 14px;
+    }
+
+    .email-header {
+      background: var(--bg-2);
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .email-subject {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+
+    .email-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-4);
+    }
+
+    .email-meta-row span { color: var(--text-3); }
+
+    .email-body-preview {
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text-3);
+      line-height: 1.7;
+    }
+
+    .email-body-preview strong { color: var(--text-2); }
+
+    .email-footer-bar {
+      background: var(--bg-2);
+      border-top: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .email-action-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .email-action-btn.send {
+      background: var(--red);
+      color: white;
+    }
+
+    .email-action-btn.draft {
+      background: var(--bg-3);
+      color: var(--text-3);
+      border: 1px solid var(--border);
+    }
+
+    /* ─── Checklist ─────────────────────────────────────────────────────────── */
+    .checklist {
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
 
-    .tip-check {
+    .check-item {
       display: flex;
       align-items: flex-start;
       gap: 14px;
@@ -707,17 +1340,17 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .tip-check:hover {
+    .check-item:hover {
       border-color: rgba(220,38,38,0.3);
       background: var(--bg-3);
     }
 
-    .tip-check.checked {
+    .check-item.checked {
       border-color: rgba(34,197,94,0.35);
       background: rgba(34,197,94,0.05);
     }
 
-    .tip-checkbox {
+    .check-box {
       width: 22px;
       height: 22px;
       min-width: 22px;
@@ -733,17 +1366,15 @@
       margin-top: 1px;
     }
 
-    .tip-check.checked .tip-checkbox {
+    .check-item.checked .check-box {
       background: #22c55e;
       border-color: #22c55e;
       color: white;
     }
 
-    .tip-text {
-      flex: 1;
-    }
+    .check-text { flex: 1; }
 
-    .tip-text strong {
+    .check-text strong {
       display: block;
       font-size: 14px;
       font-weight: 700;
@@ -751,101 +1382,53 @@
       margin-bottom: 3px;
     }
 
-    .tip-text span {
+    .check-item.checked .check-text strong { color: var(--text-3); }
+
+    .check-text span {
       font-size: 13px;
       color: var(--text-3);
       line-height: 1.5;
     }
 
-    /* ─── QR Section ────────────────────────────────────────────────────────── */
-    .qr-demo {
+    /* ─── Progress counter ──────────────────────────────────────────────────── */
+    .checklist-progress {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 16px;
+      justify-content: space-between;
+      padding: 10px 14px;
       background: var(--bg-2);
+      border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      margin-top: 16px;
+      margin-bottom: 12px;
     }
 
-    .qr-box {
-      width: 64px;
-      height: 64px;
-      min-width: 64px;
-      background: white;
-      border-radius: 8px;
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 1.5px;
-      padding: 5px;
-    }
-
-    .qr-cell {
-      background: #111;
-      border-radius: 1px;
-    }
-
-    .qr-cell.w { background: white; }
-
-    .qr-info strong {
-      display: block;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-1);
-      margin-bottom: 4px;
-    }
-
-    .qr-info p {
+    .progress-label {
       font-size: 13px;
+      font-weight: 600;
       color: var(--text-3);
-      line-height: 1.5;
     }
 
-    /* ─── Divider ───────────────────────────────────────────────────────────── */
-    .section-divider {
-      text-align: center;
-      color: var(--text-4);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      padding: 8px 0 4px;
-      position: relative;
+    .progress-count {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-1);
     }
 
-    .section-divider::before,
-    .section-divider::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      width: calc(50% - 70px);
-      height: 1px;
-      background: var(--border);
-    }
-
-    .section-divider::before { left: 0; }
-    .section-divider::after  { right: 0; }
-
-    /* ─── Tag chips ─────────────────────────────────────────────────────────── */
-    .tag-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 12px;
-    }
-
-    .tag {
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 12px;
-      font-weight: 600;
+    .progress-track {
+      margin-top: 6px;
+      height: 4px;
       background: var(--bg-3);
-      color: var(--text-3);
-      border: 1px solid var(--border);
+      border-radius: 2px;
+      overflow: hidden;
     }
 
-    .tag.red { background: rgba(220,38,38,0.12); color: var(--red-light); border-color: rgba(220,38,38,0.25); }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--red) 0%, #22c55e 100%);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
 
     /* ─── Footer ────────────────────────────────────────────────────────────── */
     .footer {
@@ -901,40 +1484,6 @@
     .footer-powered a { color: var(--red-light); text-decoration: none; }
     .footer-powered a:hover { text-decoration: underline; }
 
-    /* ─── Scroll indicator ──────────────────────────────────────────────────── */
-    .scroll-hint {
-      text-align: center;
-      margin-top: 40px;
-      animation: bounce 2s ease-in-out infinite;
-      color: var(--text-4);
-      font-size: 13px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .scroll-hint svg {
-      opacity: 0.5;
-    }
-
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(6px); }
-    }
-
-    /* ─── Progress bar at top ───────────────────────────────────────────────── */
-    .progress-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--red) 0%, var(--red-light) 100%);
-      z-index: 200;
-      width: 0%;
-      transition: width 0.1s linear;
-    }
-
     /* ─── Responsive ────────────────────────────────────────────────────────── */
     @media (min-width: 600px) {
       .hero { padding: 90px 0 70px; }
@@ -943,35 +1492,32 @@
       .card-header { padding: 24px 28px 0; }
     }
 
-    @media (max-width: 380px) {
+    @media (max-width: 420px) {
+      .mock-sidebar { width: 130px; min-width: 130px; }
       .hero-stats { gap: 20px; }
       .stat-num { font-size: 24px; }
+      .mock-body { min-height: 180px; }
     }
 
-    /* ─── Shimmer loading effect ────────────────────────────────────────────── */
-    @keyframes shimmer {
-      0%   { background-position: -400px 0; }
-      100% { background-position: 400px 0; }
-    }
-
-    /* ─── Count up animation ───────────────────────────────────────────────── */
+    /* ─── Count up animation ────────────────────────────────────────────────── */
     .counting { display: inline-block; }
 
   </style>
 </head>
 <body>
   <div class="progress-bar" id="progress"></div>
-  <div class="bg-canvas">
+
+  <div class="bg-canvas" aria-hidden="true">
     <div class="bg-orb bg-orb--1"></div>
     <div class="bg-orb bg-orb--2"></div>
     <div class="bg-orb bg-orb--3"></div>
   </div>
-  <div class="bg-grid"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
 
   <!-- Nav -->
-  <nav class="nav">
+  <nav class="nav" aria-label="Site navigation">
     <a href="https://sa21.up.railway.app" class="nav-brand" aria-label="Roof ER home">
-      <div class="nav-logo">RE</div>
+      <div class="nav-logo" aria-hidden="true">RE</div>
       <span class="nav-name">Roof ER</span>
     </a>
     <a href="https://sa21.up.railway.app" class="nav-cta" target="_blank" rel="noopener">
@@ -986,7 +1532,7 @@
 
     <!-- ─── Hero ──────────────────────────────────────────────────────────── -->
     <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-badge">
+      <div class="hero-badge" role="status">
         <span class="badge-dot" aria-hidden="true"></span>
         Field Rep Guide
       </div>
@@ -996,20 +1542,20 @@
       </h1>
 
       <p class="hero-sub">Roof ER The Roof Docs</p>
-      <p class="hero-tagline">Built for reps. <em>By reps.</em></p>
+      <p class="hero-tagline">Built for reps who <em>close.</em></p>
 
-      <div class="hero-stats" role="list">
+      <div class="hero-stats" role="list" aria-label="Key stats">
         <div class="stat-item" role="listitem">
           <span class="stat-num"><span class="counting" data-target="3">0</span></span>
           <span class="stat-label">Federal Data Sources</span>
         </div>
         <div class="stat-item" role="listitem">
-          <span class="stat-num"><span class="counting" data-target="26">0</span></span>
-          <span class="stat-label">Xactimate Codes Built In</span>
+          <span class="stat-num">Instant</span>
+          <span class="stat-label">PDF Reports</span>
         </div>
         <div class="stat-item" role="listitem">
-          <span class="stat-num"><span class="counting" data-target="4">0</span>-Page</span>
-          <span class="stat-label">Professional PDF</span>
+          <span class="stat-num">AI</span>
+          <span class="stat-label">Powered Intel</span>
         </div>
       </div>
 
@@ -1039,21 +1585,22 @@
     <p class="section-divider" aria-hidden="true">Features</p>
 
     <!-- ─── 1. Storm Maps ──────────────────────────────────────────────────── -->
-    <article class="section from-left card" id="storm-maps" aria-labelledby="storm-title">
+    <article class="section from-left card" id="storm-maps" aria-labelledby="storm-maps-title">
       <div class="card-header">
         <div class="card-icon" aria-hidden="true">🌩️</div>
         <div class="card-meta">
           <span class="card-number">Feature 01</span>
-          <h2 class="card-title" id="storm-title">Storm Maps</h2>
+          <h2 class="card-title" id="storm-maps-title">Storm Maps</h2>
+          <p class="card-subtitle">Know Before You Knock</p>
         </div>
       </div>
       <div class="card-body">
         <p class="card-desc">
-          Pull up verified hail history for any address in the US before you even ring the doorbell. NOAA-verified federal data — the same sources insurance adjusters use.
+          The killer feature. Pull up verified hail and wind history for <strong>any address in the US</strong> before you ring the doorbell. NOAA federal data — the same sources insurance adjusters use.
         </p>
 
-        <!-- Mock map UI -->
-        <div class="mock-screen" aria-hidden="true">
+        <!-- Storm Map Mock UI -->
+        <div class="mock-screen" aria-hidden="true" role="img" aria-label="Storm Maps interface preview">
           <div class="mock-titlebar">
             <div class="mock-dots">
               <div class="mock-dot mock-dot--red"></div>
@@ -1063,133 +1610,274 @@
             <span class="mock-bar-label">sa21.up.railway.app &rsaquo; Storm Maps</span>
           </div>
           <div class="mock-body">
-            <div class="mock-sidebar" aria-hidden="true">
-              <div class="mock-sidebar-item active">Hail Events</div>
-              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Mar 14, 2023</div>
-              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Jul 2, 2022</div>
-              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Apr 29, 2021</div>
-              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Jun 11, 2020</div>
+            <!-- Sidebar -->
+            <div class="mock-sidebar">
+              <div class="mock-search-bar">
+                <span class="mock-search-icon">&#128269;</span>
+                123 Oak Lane, VA
+              </div>
+              <div class="mock-filter-row">
+                <div class="mock-filter-chip">1Y</div>
+                <div class="mock-filter-chip active">5Y</div>
+                <div class="mock-filter-chip">10Y</div>
+              </div>
+              <div class="mock-storm-card active">
+                <span class="storm-date">May 16, 2025</span>
+                <span class="storm-detail">1.75&rdquo; hail &bull; 62mph</span>
+              </div>
+              <div class="mock-storm-card">
+                <span class="storm-date" style="color:var(--text-3)">Aug 3, 2024</span>
+                <span class="storm-detail">1.00&rdquo; hail</span>
+              </div>
+              <div class="mock-storm-card">
+                <span class="storm-date" style="color:var(--text-3)">Mar 14, 2023</span>
+                <span class="storm-detail">Wind 58mph</span>
+              </div>
+              <div class="mock-storm-card">
+                <span class="storm-date" style="color:var(--text-3)">Jul 2, 2022</span>
+                <span class="storm-detail">1.25&rdquo; hail</span>
+              </div>
+              <div class="mock-gps-row">
+                <div class="gps-dot"></div>
+                GPS Active
+              </div>
             </div>
+            <!-- Map -->
             <div class="mock-map">
               <div class="mock-map-grid"></div>
+              <div class="mock-swath mock-swath--1"></div>
+              <div class="mock-swath mock-swath--2"></div>
               <div class="mock-hail-dots">
                 <div class="hail-dot hail-dot--1"></div>
                 <div class="hail-dot hail-dot--2"></div>
                 <div class="hail-dot hail-dot--3"></div>
                 <div class="hail-dot hail-dot--4"></div>
+                <div class="hail-dot hail-dot--5"></div>
               </div>
-              <div class="mock-map-pin"></div>
+              <div class="mock-gps-pin">
+                <div class="gps-pin-dot"></div>
+              </div>
+              <div class="mock-map-label">NEXRAD</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Storm event detail popup -->
+        <div class="mock-storm-detail" aria-hidden="true">
+          <div class="storm-detail-header">
+            <span class="storm-detail-date">May 16, 2025</span>
+            <span class="storm-detail-badge">NHP Verified</span>
+          </div>
+          <div class="storm-detail-grid">
+            <div class="storm-stat-box">
+              <span class="storm-stat-label">Hail Size</span>
+              <span class="storm-stat-value">1.75 <span class="unit">in</span></span>
+              <span class="storm-stat-source">NOAA / NHP</span>
+            </div>
+            <div class="storm-stat-box">
+              <span class="storm-stat-label">Wind Speed</span>
+              <span class="storm-stat-value">62 <span class="unit">mph</span></span>
+              <span class="storm-stat-source">NWS Verified</span>
             </div>
           </div>
         </div>
 
         <ul class="feature-list" style="margin-top:16px;">
           <li>Search any US address, city, or ZIP code instantly</li>
-          <li>See hail history from NOAA federal data — verified &amp; free</li>
-          <li>Filter by date range: 1Y, 2Y, 5Y, or 10Y</li>
-          <li>Click any storm date to expand full event details</li>
-          <li>GPS tracking shows your exact position on the map</li>
-          <li>NEXRAD radar imagery + NWS severe weather warnings overlay</li>
+          <li>Verified hail &amp; wind history from NOAA — same data insurance adjusters use</li>
+          <li>Filter by date range: 1 year, 2 years, 5 years, 10 years</li>
+          <li>Click any storm date card to see hail size, wind speed, and source</li>
+          <li>GPS blue dot tracks your position live on the map</li>
+          <li>NEXRAD radar imagery overlays with NWS severe weather warning history</li>
+          <li>Hail swath polylines from the National Hail Project</li>
         </ul>
+
+        <div class="tip-box">
+          <span class="tip-icon" aria-hidden="true">&#128161;</span>
+          <div>
+            <strong>Pro tip:</strong> Search the address <em>before</em> you knock. Know exactly what storms hit, when, and how hard — before they open the door.
+          </div>
+        </div>
 
         <div class="tag-row" aria-label="Data sources">
           <span class="tag red">NOAA</span>
-          <span class="tag red">NEXRAD Radar</span>
+          <span class="tag red">NEXRAD</span>
           <span class="tag red">NWS</span>
+          <span class="tag red">Nat'l Hail Project</span>
           <span class="tag">Federal Data</span>
-          <span class="tag">GPS</span>
+          <span class="tag">Live GPS</span>
         </div>
       </div>
     </article>
 
     <!-- ─── 2. Storm Reports ───────────────────────────────────────────────── -->
-    <article class="section from-right card" aria-labelledby="reports-title">
+    <article class="section from-right card" id="storm-reports" aria-labelledby="storm-reports-title">
       <div class="card-header">
         <div class="card-icon" aria-hidden="true">📄</div>
         <div class="card-meta">
           <span class="card-number">Feature 02</span>
-          <h2 class="card-title" id="reports-title">Storm Reports (PDF)</h2>
+          <h2 class="card-title" id="storm-reports-title">Storm Reports</h2>
+          <p class="card-subtitle">Your Secret Weapon</p>
         </div>
       </div>
       <div class="card-body">
         <p class="card-desc">
-          Generate a professional, adjuster-ready PDF in seconds. Federal storm data + your name on every page — hand it over at the door or email it directly to the insurance company.
+          One tap: pick a date of loss, enter the homeowner name, and generate a <strong>professional 4-page Storm Impact Analysis PDF</strong> in seconds. Hand it to the adjuster — it's the same federal data they use.
         </p>
 
-        <ul class="feature-list">
-          <li>Click "Generate Report" on any storm date from the map</li>
-          <li>Select date of loss, enter homeowner name, then generate</li>
-          <li>4-page professional PDF with NOAA-verified observations</li>
-          <li>Includes: hail + wind data, NEXRAD radar images, NWS warnings</li>
-          <li>Historical storm activity summary table included</li>
-          <li>AI-written damage narrative tailored to the event</li>
-          <li>YOUR name, phone, and email printed on every report</li>
-          <li>Send directly to adjusters and insurance companies</li>
-        </ul>
-
-        <div class="tip-box">
-          <span class="tip-icon" aria-hidden="true">💡</span>
-          <div>
-            <strong>Pro tip:</strong> Set your phone number in <strong>Settings &rsaquo; Profile</strong> before your first door knock. It goes on every PDF you generate — automatically.
-          </div>
-        </div>
-
-        <div class="tag-row" aria-label="What's in the PDF">
-          <span class="tag red">4 Pages</span>
-          <span class="tag">Hail + Wind Data</span>
-          <span class="tag">Radar Images</span>
-          <span class="tag">NWS Warnings</span>
-          <span class="tag">Your Branding</span>
-        </div>
-      </div>
-    </article>
-
-    <!-- ─── 3. Ask Susan ───────────────────────────────────────────────────── -->
-    <article class="section from-left card" aria-labelledby="susan-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">🤖</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 03</span>
-          <h2 class="card-title" id="susan-title">Ask Susan — AI Chat</h2>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          Just talk to Susan like a knowledgeable colleague who's always available. She looks up storm data, generates reports, drafts emails, and knows roofing insurance inside and out.
-        </p>
-
-        <!-- Chat mock -->
-        <div class="mock-screen" aria-hidden="true">
+        <!-- PDF generation flow mock -->
+        <div class="mock-screen" aria-hidden="true" role="img" aria-label="PDF generation flow">
           <div class="mock-titlebar">
             <div class="mock-dots">
               <div class="mock-dot mock-dot--red"></div>
               <div class="mock-dot mock-dot--yellow"></div>
               <div class="mock-dot mock-dot--green"></div>
             </div>
-            <span class="mock-bar-label">Susan AI Chat</span>
+            <span class="mock-bar-label">Generate Storm Report</span>
           </div>
-          <div class="mock-chat">
-            <div>
-              <p class="chat-bubble chat-bubble--user">
-                Hey Susan, generate a storm report for 8100 Boone Blvd, Tysons VA
-              </p>
+          <div class="mock-pdf-flow">
+            <div class="pdf-step done">
+              <div class="pdf-step-num">&#10003;</div>
+              <span class="pdf-step-text">Address confirmed: 123 Oak Lane, Manassas VA</span>
             </div>
-            <div>
-              <p class="chat-label chat-label--susan">Susan</p>
-              <div class="chat-bubble chat-bubble--susan">
-                Found 4 hail events at that address. Which date of loss do you want to use?<br/>
-                <span style="color:#9ca3af;font-size:12px;">Mar 14, 2023 &bull; Jul 2, 2022 &bull; Apr 29, 2021 &bull; Jun 11, 2020</span>
+            <div class="pdf-step done">
+              <div class="pdf-step-num">&#10003;</div>
+              <span class="pdf-step-text">Date of Loss: May 16, 2025</span>
+            </div>
+            <div class="pdf-step done">
+              <div class="pdf-step-num">&#10003;</div>
+              <span class="pdf-step-text">Homeowner: John &amp; Sarah Martinez</span>
+            </div>
+            <div class="pdf-ready-box">
+              <span class="pdf-icon" aria-hidden="true">📋</span>
+              <div>
+                <div class="pdf-ready-label">Report Ready</div>
+                <div class="pdf-ready-name">Storm Impact Analysis — May 16, 2025</div>
+                <div class="pdf-ready-meta">4 pages &bull; NOAA verified &bull; Your name on cover</div>
+              </div>
+              <div class="pdf-download-btn">Download</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- What's in the report -->
+        <p style="font-size:13px;font-weight:700;color:var(--text-2);margin:18px 0 10px;text-transform:uppercase;letter-spacing:0.5px;">What's in the 4-Page PDF</p>
+        <div class="report-pages">
+          <div class="report-page-item">
+            <span class="report-page-num">Pg 1</span>
+            <div class="report-page-content">
+              <span class="report-page-title">Cover Page</span>
+              <span class="report-page-desc">Your name, phone, email, and company — automatically pulled from your profile.</span>
+            </div>
+          </div>
+          <div class="report-page-item">
+            <span class="report-page-num">Pg 2</span>
+            <div class="report-page-content">
+              <span class="report-page-title">Data Sources &amp; Property Info</span>
+              <span class="report-page-desc">NOAA, NEXRAD, NWS methodology section. Satellite property map. CCM-grade credibility.</span>
+            </div>
+          </div>
+          <div class="report-page-item">
+            <span class="report-page-num">Pg 3</span>
+            <div class="report-page-content">
+              <span class="report-page-title">Storm Impact Summary &amp; Narrative</span>
+              <span class="report-page-desc">Date, time, direction, speed, hail size. Insurance-grade narrative language. Verified ground observations (hail + wind with distances). NWS warning blocks with NEXRAD radar snapshots.</span>
+            </div>
+          </div>
+          <div class="report-page-item">
+            <span class="report-page-num">Pg 4</span>
+            <div class="report-page-content">
+              <span class="report-page-title">Historical Activity &amp; Disclaimer</span>
+              <span class="report-page-desc">Historical storm activity table for the property. Professional disclaimer. Print-ready layout.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tip-box" style="margin-top:16px;">
+          <span class="tip-icon" aria-hidden="true">&#128161;</span>
+          <div>
+            <strong>Tip:</strong> Your phone number from <strong>Settings &rsaquo; Profile</strong> goes on every report automatically. Make sure it's set before your first door knock.
+          </div>
+        </div>
+
+        <div class="tag-row" aria-label="Report features">
+          <span class="tag red">4 Pages</span>
+          <span class="tag">Your Branding</span>
+          <span class="tag">Hail + Wind Data</span>
+          <span class="tag">Radar Snapshots</span>
+          <span class="tag">NWS Warnings</span>
+          <span class="tag">Instant PDF</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── 3. Ask Susan ───────────────────────────────────────────────────── -->
+    <article class="section from-left card" id="ask-susan" aria-labelledby="susan-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">🤖</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 03</span>
+          <h2 class="card-title" id="susan-title">Ask Susan</h2>
+          <p class="card-subtitle">AI That Knows Roofing</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Just talk to Susan like a knowledgeable colleague who's always on. She looks up storm history, generates reports, drafts adjuster emails, and knows Xactimate codes, IRC building codes, and insurance negotiation tactics.
+        </p>
+
+        <!-- Chat mock -->
+        <div class="mock-screen" aria-hidden="true" role="img" aria-label="Susan AI chat preview">
+          <div class="mock-chat-header">
+            <div class="susan-avatar">S</div>
+            <div class="susan-status">
+              <div class="susan-name">Susan AI</div>
+              <div class="susan-online">
+                <div class="online-dot"></div>
+                Always on
               </div>
             </div>
-            <div>
-              <p class="chat-bubble chat-bubble--user">March 14, 2023 — homeowner is Jane Smith</p>
+          </div>
+          <div class="mock-chat">
+            <div class="chat-row" style="align-items:flex-end">
+              <span class="chat-label" style="text-align:right;align-self:flex-end">You</span>
+              <div class="chat-bubble chat-bubble--user">
+                Generate a storm report for 123 Oak Lane, Manassas VA
+              </div>
             </div>
-            <div>
-              <p class="chat-label chat-label--susan">Susan</p>
+            <div class="chat-row">
+              <span class="chat-label chat-label--susan">Susan</span>
               <div class="chat-bubble chat-bubble--susan">
-                Report generated! 1.75" hail confirmed, 62mph winds.
+                I found <strong>8 hail events</strong> near that address. Here are the top results:
+                <div class="chat-storm-list">
+                  <div class="chat-storm-row">
+                    <span class="s-date">May 16, 2025</span>
+                    <span class="s-hail">1.75&rdquo; hail</span>
+                  </div>
+                  <div class="chat-storm-row">
+                    <span class="s-date">Aug 3, 2024</span>
+                    <span class="s-hail">1.00&rdquo; hail</span>
+                  </div>
+                  <div class="chat-storm-row">
+                    <span class="s-date">Jul 2, 2022</span>
+                    <span class="s-hail">1.25&rdquo; hail</span>
+                  </div>
+                </div>
+                Which date should I use?
+              </div>
+            </div>
+            <div class="chat-row" style="align-items:flex-end">
+              <span class="chat-label" style="text-align:right;align-self:flex-end">You</span>
+              <div class="chat-bubble chat-bubble--user">
+                Use May 16 2025
+              </div>
+            </div>
+            <div class="chat-row">
+              <span class="chat-label chat-label--susan">Susan</span>
+              <div class="chat-bubble chat-bubble--susan">
+                Your Storm Impact Analysis is ready!
                 <div class="download-btn-mock">
-                  ↓ &nbsp;Download PDF Report
+                  &#128203; Download PDF
                 </div>
               </div>
             </div>
@@ -1197,290 +1885,348 @@
         </div>
 
         <ul class="feature-list" style="margin-top:16px;">
-          <li>"What hail events happened at [address]?" — instant lookup</li>
-          <li>Generate full PDF reports right from the chat window</li>
-          <li>Draft professional emails to adjusters and insurance companies</li>
-          <li>Knows roofing insurance claims, supplements, and Xactimate codes</li>
-          <li>Schedule follow-ups and look up jobs</li>
+          <li>Look up hail history and storm events by address</li>
+          <li>Generate full PDF reports from the chat — just say the date</li>
+          <li>Draft professional emails to adjusters based on claim context</li>
+          <li>Schedule follow-ups that get tracked in your pipeline</li>
+          <li>Search the knowledge base for Xactimate codes and IRC specs</li>
+          <li>Insurance negotiation tactics and objection handling, on demand</li>
+          <li>Available 24/7 — no waiting, no hold music</li>
         </ul>
 
-        <div class="tip-box">
-          <span class="tip-icon" aria-hidden="true">⚡</span>
-          <div>
-            <strong>Try it:</strong> Paste a full property address and ask Susan for hail history. She'll pull real NOAA data and walk you through the report in under a minute.
-          </div>
+        <div class="tag-row" aria-label="Susan capabilities">
+          <span class="tag red">Xactimate Codes</span>
+          <span class="tag red">IRC Building Codes</span>
+          <span class="tag">Insurance Tactics</span>
+          <span class="tag">Email Drafting</span>
+          <span class="tag">24/7</span>
         </div>
       </div>
     </article>
 
-    <!-- ─── 4. Doc Analyzer ────────────────────────────────────────────────── -->
-    <article class="section from-right card" aria-labelledby="analyzer-title">
+    <!-- ─── 4. Team & Leaderboard ──────────────────────────────────────────── -->
+    <article class="section from-right card" id="team-leaderboard" aria-labelledby="team-title">
       <div class="card-header">
-        <div class="card-icon" aria-hidden="true">🔍</div>
+        <div class="card-icon" aria-hidden="true">🏆</div>
         <div class="card-meta">
           <span class="card-number">Feature 04</span>
-          <h2 class="card-title" id="analyzer-title">Doc Analyzer — Supplements</h2>
+          <h2 class="card-title" id="team-title">Team &amp; Leaderboard</h2>
+          <p class="card-subtitle">See where you stack up</p>
         </div>
       </div>
       <div class="card-body">
         <p class="card-desc">
-          Upload an adjuster estimate and a measurement report. Susan cross-references every single line item, finds what they missed, and builds your supplement with real Xactimate codes.
+          Real-time sales leaderboard with revenue tracking, team intel sharing, and manager directives that flow to every rep in the field.
         </p>
 
-        <!-- Analyzer mock -->
-        <div class="mock-screen" aria-hidden="true">
-          <div class="mock-titlebar">
-            <div class="mock-dots">
-              <div class="mock-dot mock-dot--red"></div>
-              <div class="mock-dot mock-dot--yellow"></div>
-              <div class="mock-dot mock-dot--green"></div>
-            </div>
-            <span class="mock-bar-label">Doc Analyzer &rsaquo; Supplement Results</span>
+        <!-- Leaderboard mock -->
+        <div class="leaderboard-mock" aria-hidden="true">
+          <div class="lb-header">
+            <span class="lb-title">Sales Leaderboard</span>
+            <span class="lb-period">March 2026</span>
           </div>
-          <div class="mock-analyzer">
-            <div class="analyzer-row">
-              <span>Main field / starter shingles</span>
-              <span class="badge-found">Covered</span>
+          <div class="lb-row">
+            <span class="lb-rank gold">#1</span>
+            <div class="lb-avatar" style="background:linear-gradient(135deg,#dc2626,#7c3aed);">MR</div>
+            <div class="lb-name-col">
+              <span class="lb-name">Marcus R.</span>
+              <span class="lb-sub">14 closes</span>
             </div>
-            <div class="analyzer-row highlight">
-              <span>Drip edge — missing from estimate</span>
-              <span class="badge-missed">+$342</span>
+            <div>
+              <div class="lb-revenue">$148k</div>
+              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="100" style="width:0%"></div></div>
             </div>
-            <div class="analyzer-row highlight">
-              <span>Step flashing — miscalculated qty</span>
-              <span class="badge-missed">+$215</span>
+          </div>
+          <div class="lb-row">
+            <span class="lb-rank silver">#2</span>
+            <div class="lb-avatar" style="background:linear-gradient(135deg,#0891b2,#0d9488);">JT</div>
+            <div class="lb-name-col">
+              <span class="lb-name">Jasmine T.</span>
+              <span class="lb-sub">11 closes</span>
             </div>
-            <div class="analyzer-row highlight">
-              <span>Steep slope charge — not applied</span>
-              <span class="badge-missed">+$580</span>
+            <div>
+              <div class="lb-revenue">$112k</div>
+              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="76" style="width:0%"></div></div>
             </div>
-            <div class="analyzer-row" style="font-weight:700;color:#f9fafb;padding-top:10px;">
-              <span>Total supplement value</span>
-              <span style="color:#4ade80;font-weight:800;">$1,137</span>
+          </div>
+          <div class="lb-row you">
+            <span class="lb-rank bronze">#3</span>
+            <div class="lb-avatar" style="background:var(--red);">YOU</div>
+            <div class="lb-name-col">
+              <span class="lb-name">You</span>
+              <span class="lb-sub">9 closes</span>
+            </div>
+            <div>
+              <div class="lb-revenue">$94k</div>
+              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="63" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <span class="lb-rank">#4</span>
+            <div class="lb-avatar" style="background:var(--bg-3);">DK</div>
+            <div class="lb-name-col">
+              <span class="lb-name">Devon K.</span>
+              <span class="lb-sub">7 closes</span>
+            </div>
+            <div>
+              <div class="lb-revenue">$71k</div>
+              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="48" style="width:0%"></div></div>
             </div>
           </div>
         </div>
 
         <ul class="feature-list" style="margin-top:16px;">
-          <li>Upload adjuster estimate + EagleView or Hover measurement report</li>
-          <li>Select trades: Roofing, Siding, Gutters — or all three</li>
-          <li>Cross-references every measurement automatically</li>
-          <li>Finds missed line items with real Xactimate codes and dollar amounts</li>
-          <li>Catches: quantity corrections, missing drip edge, step flashing, steep charges</li>
-          <li>Auto-detects EagleView vs Hover — no more misidentification errors</li>
-          <li>Shows total supplement value before you even talk to the adjuster</li>
+          <li>Live sales leaderboard with revenue and close count</li>
+          <li>Share storm reports and market intel with your team instantly</li>
+          <li>Manager directives flow to all reps in real-time</li>
+          <li>Activity tracking and full job pipeline visibility</li>
         </ul>
 
-        <div class="tip-box">
-          <span class="tip-icon" aria-hidden="true">💰</span>
-          <div>
-            <strong>26 Xactimate codes</strong> built in. Susan knows them all — so you don't have to memorize a single one.
-          </div>
-        </div>
-
-        <div class="tag-row" aria-label="Supported reports">
-          <span class="tag red">EagleView</span>
-          <span class="tag red">Hover</span>
-          <span class="tag">Xactimate Codes</span>
-          <span class="tag">Auto-Detect</span>
+        <div class="tag-row" aria-label="Team features">
+          <span class="tag red">Live Rankings</span>
+          <span class="tag">Revenue Tracking</span>
+          <span class="tag">Team Intel</span>
+          <span class="tag">Job Pipeline</span>
         </div>
       </div>
     </article>
 
-    <!-- ─── 5. QR Profiles ─────────────────────────────────────────────────── -->
-    <article class="section from-left card" aria-labelledby="qr-title">
+    <!-- ─── 5. Email & Communication ─────────────────────────────────────── -->
+    <article class="section from-left card" id="email-comms" aria-labelledby="email-title">
       <div class="card-header">
-        <div class="card-icon" aria-hidden="true">📲</div>
+        <div class="card-icon" aria-hidden="true">✉️</div>
         <div class="card-meta">
           <span class="card-number">Feature 05</span>
-          <h2 class="card-title" id="qr-title">QR Profiles</h2>
+          <h2 class="card-title" id="email-title">Email &amp; Communication</h2>
+          <p class="card-subtitle">Stay ahead of every claim</p>
         </div>
       </div>
       <div class="card-body">
         <p class="card-desc">
-          Every rep gets a unique shareable profile page. Homeowners scan your QR code, see your info, and can request service — leads flow into the system automatically.
+          Susan drafts professional emails to adjusters and insurance companies — based on the actual claim context, not a generic template. Connected to your Gmail with optional Calendar integration.
         </p>
 
-        <div class="qr-demo" aria-hidden="true">
-          <!-- Decorative QR pattern -->
-          <div class="qr-box">
-            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div>
-            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
-            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div>
-            <div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div>
-            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
-            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell w"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div>
-            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
+        <!-- Email mock -->
+        <div class="mock-email" aria-hidden="true" role="img" aria-label="Email draft preview">
+          <div class="email-header">
+            <div class="email-subject">Storm Impact Report — Martinez Property, May 16 2025</div>
+            <div class="email-meta-row">
+              To: <span>claims@statefarm.com</span>
+              &bull; From: <span>Rep &lt;you@theroofdocs.com&gt;</span>
+            </div>
           </div>
-          <div class="qr-info">
-            <strong>Your Profile Page</strong>
-            <p>sa21.up.railway.app/profile/your-name<br/>Homeowners scan → see your info → request service</p>
+          <div class="email-body-preview">
+            Dear Claims Adjuster,<br /><br />
+            Please find attached a <strong>Storm Impact Analysis</strong> for the property at 123 Oak Lane, Manassas VA. The report documents a verified hail event on <strong>May 16, 2025</strong> (1.75&rdquo; hail, 62mph winds) sourced from NOAA federal weather records.<br /><br />
+            I am available to coordinate an inspection at your earliest convenience&hellip;
+          </div>
+          <div class="email-footer-bar">
+            <div class="email-action-btn send">Send</div>
+            <div class="email-action-btn draft">Save Draft</div>
+            <span style="font-size:11px;color:var(--text-4);margin-left:auto">&#128206; Storm report attached</span>
           </div>
         </div>
 
         <ul class="feature-list" style="margin-top:16px;">
-          <li>Unique URL and QR code per rep — fully personalized</li>
-          <li>Homeowners see your photo, name, phone, and credentials</li>
-          <li>One tap to request a free inspection</li>
-          <li>Leads captured automatically — no manual entry needed</li>
-          <li>Great for door hangers, yard signs, or business cards</li>
+          <li>Susan drafts adjuster emails based on claim details — not generic templates</li>
+          <li>Connected to your Gmail (optional Google Calendar integration)</li>
+          <li>Schedule follow-ups that are actually tracked in your pipeline</li>
+          <li>Push notifications for new leads, updates, and job status changes</li>
+          <li>PDF report auto-attached when drafting adjuster emails</li>
         </ul>
+
+        <div class="tag-row" aria-label="Communication features">
+          <span class="tag red">Gmail Connected</span>
+          <span class="tag">Calendar Sync</span>
+          <span class="tag">Follow-Up Tracking</span>
+          <span class="tag">Push Notifications</span>
+        </div>
       </div>
     </article>
 
-    <!-- ─── 6. Pro Tips ────────────────────────────────────────────────────── -->
-    <article class="section from-right card" aria-labelledby="tips-title">
+    <p class="section-divider" aria-hidden="true">Get Started</p>
+
+    <!-- ─── 6. Quick Start Checklist ─────────────────────────────────────── -->
+    <article class="section from-left card" id="quick-start" aria-labelledby="checklist-title">
       <div class="card-header">
-        <div class="card-icon" aria-hidden="true">✅</div>
+        <div class="card-icon" aria-hidden="true">&#9989;</div>
         <div class="card-meta">
-          <span class="card-number">Rep Playbook</span>
-          <h2 class="card-title" id="tips-title">Pro Tips</h2>
+          <span class="card-number">Quick Start</span>
+          <h2 class="card-title" id="checklist-title">Your First Day Checklist</h2>
+          <p class="card-subtitle">Tap each step when done</p>
         </div>
       </div>
       <div class="card-body">
-        <p class="card-desc">
-          Tap each tip as you knock it out. Your onboarding checklist.
-        </p>
-
-        <div class="tips-grid" role="list">
-          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
-            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
-            <div class="tip-text">
-              <strong>Set your profile info first</strong>
-              <span>Go to Settings &rsaquo; Profile and enter your name, phone, and email. It will appear on every PDF you generate — automatically.</span>
-            </div>
-          </div>
-          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
-            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
-            <div class="tip-text">
-              <strong>Storm Maps before every door knock</strong>
-              <span>Know the hail history before you ring the bell. Walk up with confidence — "Your neighborhood had 1.75" hail in March 2023."</span>
-            </div>
-          </div>
-          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
-            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
-            <div class="tip-text">
-              <strong>Let Susan write the supplement</strong>
-              <span>Upload the adjuster estimate and the measurement report. Susan finds what they missed and builds the supplement with the right codes.</span>
-            </div>
-          </div>
-          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
-            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
-            <div class="tip-text">
-              <strong>Hand adjuster the PDF at the inspection</strong>
-              <span>Federal NOAA/NWS data on a professional PDF. They can't argue with it — it's the same data CCM meteorologists use.</span>
-            </div>
-          </div>
-          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
-            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
-            <div class="tip-text">
-              <strong>Share your QR code everywhere</strong>
-              <span>Put it on door hangers, yard signs, and your business card. Homeowners scan → they see you → lead captured. Zero friction.</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tip-box" style="margin-top:20px;">
-          <span class="tip-icon" aria-hidden="true">🛰️</span>
+        <!-- Progress tracker -->
+        <div class="checklist-progress" id="cl-progress">
           <div>
-            <strong>The data comes from NOAA, NWS, and NEXRAD</strong> — the same federal sources that Certified Consulting Meteorologists rely on in court. When you hand a homeowner this report, you're handing them verified government data.
+            <div class="progress-label">Setup Progress</div>
+            <div class="progress-track">
+              <div class="progress-fill" id="cl-fill"></div>
+            </div>
           </div>
+          <div class="progress-count" id="cl-count">0 / 7</div>
         </div>
+
+        <ol class="checklist" aria-label="Quick start steps">
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Log in with your @theroofdocs.com email</strong>
+              <span>Open the app and sign in with your company email address.</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Set your phone number in Settings &rsaquo; Profile</strong>
+              <span>Your number appears on every PDF report you generate. Do this first.</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Search your first address in Storm Maps</strong>
+              <span>Type any US address, city, or ZIP. See the hail and wind history come in.</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Generate your first storm report PDF</strong>
+              <span>Pick a storm date, enter a homeowner name, tap Generate. Takes about 10 seconds.</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Ask Susan a question in the chat</strong>
+              <span>Try: "What's the hail history at [a neighborhood address]?" or "Write an adjuster email for a 1.75 inch hail event."</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Share a storm report with an adjuster</strong>
+              <span>Download the PDF from the report screen and email it, text it, or print it on site.</span>
+            </div>
+          </li>
+          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="check-box" aria-hidden="true">&#10003;</div>
+            <div class="check-text">
+              <strong>Check the team leaderboard</strong>
+              <span>See where you rank this month. The gap is closer than you think.</span>
+            </div>
+          </li>
+        </ol>
       </div>
     </article>
 
     <!-- ─── Footer ────────────────────────────────────────────────────────── -->
-    <footer class="footer" role="contentinfo">
-      <div class="footer-logo">Roof ER <span>The Roof Docs</span></div>
-      <p class="footer-tagline">Built for reps who close deals in the field</p>
-
+    <footer class="footer">
+      <div class="footer-logo">Roof <span>ER</span> The Roof Docs</div>
+      <p class="footer-tagline">Powered by Susan AI + NOAA Federal Weather Data</p>
       <a href="https://sa21.up.railway.app" class="footer-link" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <rect x="2" y="2" width="12" height="12" rx="3" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M5.5 8h5M8 5.5v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        Open the App
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Open Gemini Field Assistant
       </a>
-
       <p class="footer-powered">
-        Powered by <a href="https://sa21.up.railway.app" target="_blank" rel="noopener">Susan AI</a> + NOAA Federal Weather Data
+        <a href="https://sa21.up.railway.app">sa21.up.railway.app</a>
       </p>
     </footer>
 
   </main>
 
   <script>
-    // ─── Scroll progress bar ────────────────────────────────────────────────
+    /* ─── Scroll progress bar ───────────────────────────────────────────────── */
     const progressBar = document.getElementById('progress');
-    function updateProgress() {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      progressBar.style.width = pct + '%';
-    }
-    window.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      progressBar.style.width = (total > 0 ? (scrolled / total) * 100 : 0) + '%';
+    }, { passive: true });
 
-    // ─── Intersection Observer — slide-in cards ────────────────────────────
+    /* ─── IntersectionObserver — slide-in cards ─────────────────────────────── */
     const sections = document.querySelectorAll('.section');
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, {
-      threshold: 0.08,
-      rootMargin: '0px 0px -40px 0px'
-    });
-
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 }
+    );
     sections.forEach(s => observer.observe(s));
 
-    // ─── Count-up animation ────────────────────────────────────────────────
-    const counters = document.querySelectorAll('.counting');
-    let countersStarted = false;
-
-    function easeOutQuad(t) { return t * (2 - t); }
-
-    function startCounters() {
-      if (countersStarted) return;
-      countersStarted = true;
-      counters.forEach(el => {
-        const target = parseInt(el.dataset.target, 10);
-        const duration = 1200;
-        const start = performance.now();
-        function tick(now) {
-          const elapsed = now - start;
-          const progress = Math.min(elapsed / duration, 1);
-          const value = Math.round(easeOutQuad(progress) * target);
-          el.textContent = value;
-          if (progress < 1) requestAnimationFrame(tick);
-          else el.textContent = target;
-        }
-        requestAnimationFrame(tick);
-      });
+    /* ─── Count-up animation ────────────────────────────────────────────────── */
+    function animateCount(el) {
+      const target = parseInt(el.dataset.target, 10);
+      const duration = 1200;
+      const step = 16;
+      const increment = target / (duration / step);
+      let current = 0;
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) { current = target; clearInterval(timer); }
+        el.textContent = Math.floor(current);
+      }, step);
     }
 
-    // Trigger counters when hero is visible
-    const heroEl = document.querySelector('.hero');
-    const heroObserver = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setTimeout(startCounters, 400);
-        heroObserver.disconnect();
-      }
-    }, { threshold: 0.3 });
-    heroObserver.observe(heroEl);
+    const countEls = document.querySelectorAll('.counting');
+    const countObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateCount(entry.target);
+            countObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    countEls.forEach(el => countObserver.observe(el));
 
-    // ─── Interactive checklist ─────────────────────────────────────────────
-    const tipChecks = document.querySelectorAll('.tip-check');
-    tipChecks.forEach(tip => {
+    /* ─── Leaderboard bar animation ─────────────────────────────────────────── */
+    const lbBars = document.querySelectorAll('.lb-bar');
+    const lbObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.style.width = (entry.target.dataset.pct || '0') + '%';
+            lbObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+    lbBars.forEach(bar => lbObserver.observe(bar));
+
+    /* ─── Interactive checklist ─────────────────────────────────────────────── */
+    const checkItems = document.querySelectorAll('.check-item');
+    const clFill = document.getElementById('cl-fill');
+    const clCount = document.getElementById('cl-count');
+    const total = checkItems.length;
+
+    function updateProgress() {
+      const done = document.querySelectorAll('.check-item.checked').length;
+      const pct = total > 0 ? (done / total) * 100 : 0;
+      clFill.style.width = pct + '%';
+      clCount.textContent = done + ' / ' + total;
+    }
+
+    checkItems.forEach(item => {
       function toggle() {
-        const isChecked = tip.classList.toggle('checked');
-        tip.setAttribute('aria-checked', isChecked ? 'true' : 'false');
+        const checked = item.classList.toggle('checked');
+        item.setAttribute('aria-checked', checked ? 'true' : 'false');
+        updateProgress();
       }
-      tip.addEventListener('click', toggle);
-      tip.addEventListener('keydown', (e) => {
+      item.addEventListener('click', toggle);
+      item.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           toggle();
@@ -1488,12 +2234,7 @@
       });
     });
 
-    // ─── Haptic feedback on mobile (where available) ───────────────────────
-    tipChecks.forEach(tip => {
-      tip.addEventListener('click', () => {
-        if (navigator.vibrate) navigator.vibrate(30);
-      });
-    });
+    updateProgress();
   </script>
 </body>
 </html>
