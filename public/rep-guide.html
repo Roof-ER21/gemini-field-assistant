@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="description" content="Your AI-powered field toolkit. Roof ER The Roof Docs rep guide for the Gemini Field Assistant app." />
+  <title>Rep Guide — Gemini Field Assistant | Roof ER The Roof Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Reset & Base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red:       #dc2626;
+      --red-light: #ef4444;
+      --red-dim:   #991b1b;
+      --bg-0:      #0a0d14;
+      --bg-1:      #111827;
+      --bg-2:      #1f2937;
+      --bg-3:      #374151;
+      --text-1:    #f9fafb;
+      --text-2:    #e5e7eb;
+      --text-3:    #9ca3af;
+      --text-4:    #6b7280;
+      --border:    rgba(255,255,255,0.07);
+      --glow:      rgba(220,38,38,0.3);
+      --radius:    16px;
+      --radius-sm: 10px;
+      --sans:      'Inter', system-ui, sans-serif;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg-0);
+      color: var(--text-2);
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100dvh;
+    }
+
+    /* ─── Animated Background ───────────────────────────────────────────────── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.12;
+      animation: orb-drift 20s ease-in-out infinite alternate;
+    }
+
+    .bg-orb--1 {
+      width: 600px; height: 600px;
+      background: var(--red);
+      top: -200px; left: -150px;
+      animation-duration: 22s;
+    }
+
+    .bg-orb--2 {
+      width: 400px; height: 400px;
+      background: #7c3aed;
+      bottom: 20%; right: -100px;
+      animation-duration: 28s;
+      animation-delay: -5s;
+    }
+
+    .bg-orb--3 {
+      width: 300px; height: 300px;
+      background: var(--red-light);
+      top: 50%; left: 30%;
+      animation-duration: 18s;
+      animation-delay: -10s;
+      opacity: 0.07;
+    }
+
+    @keyframes orb-drift {
+      0%   { transform: translate(0, 0) scale(1); }
+      33%  { transform: translate(40px, -30px) scale(1.05); }
+      66%  { transform: translate(-20px, 50px) scale(0.97); }
+      100% { transform: translate(30px, 20px) scale(1.03); }
+    }
+
+    /* Grid lines overlay */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    /* ─── Layout ────────────────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 16px 80px;
+    }
+
+    /* ─── Nav ───────────────────────────────────────────────────────────────── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(10,13,20,0.85);
+      backdrop-filter: blur(16px) saturate(1.4);
+      border-bottom: 1px solid var(--border);
+      margin: 0 -16px 0;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .nav-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--red);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-1);
+      letter-spacing: -0.3px;
+    }
+
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--red);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .nav-cta:hover { background: var(--red-light); transform: translateY(-1px); }
+    .nav-cta:active { transform: translateY(0); }
+
+    /* ─── Hero ──────────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 72px 0 60px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border: 1px solid rgba(220,38,38,0.4);
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--red-light);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      animation: badge-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+      50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0.12); }
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--red-light);
+      border-radius: 50%;
+      animation: dot-blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero-title {
+      font-size: clamp(32px, 8vw, 52px);
+      font-weight: 900;
+      line-height: 1.08;
+      letter-spacing: -1.5px;
+      color: var(--text-1);
+      margin-bottom: 16px;
+    }
+
+    .hero-title .accent {
+      background: linear-gradient(135deg, var(--red) 0%, #f87171 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 16px;
+      color: var(--text-3);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .hero-tagline {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-2);
+      margin-bottom: 36px;
+      letter-spacing: -0.3px;
+    }
+
+    .hero-tagline em {
+      font-style: normal;
+      color: var(--red-light);
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--text-1);
+      letter-spacing: -1px;
+      display: block;
+      line-height: 1;
+    }
+
+    .stat-num .stat-digit {
+      display: inline-block;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-4);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+      display: block;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: var(--red);
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 4px 20px rgba(220,38,38,0.35);
+    }
+
+    .btn-primary:hover {
+      background: var(--red-light);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(220,38,38,0.45);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: var(--bg-2);
+      color: var(--text-2);
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 12px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-3);
+      transform: translateY(-2px);
+    }
+
+    /* ─── Section Cards ─────────────────────────────────────────────────────── */
+    .section {
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateX(40px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .section.from-left  { transform: translateX(-40px); }
+    .section.from-right { transform: translateX(40px); }
+
+    .section.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .card:hover {
+      border-color: rgba(220,38,38,0.3);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(220,38,38,0.1);
+    }
+
+    .card-header {
+      padding: 20px 24px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      background: rgba(220,38,38,0.12);
+      border: 1px solid rgba(220,38,38,0.25);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .card-meta {
+      flex: 1;
+    }
+
+    .card-number {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red-light);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-1);
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+
+    .card-body {
+      padding: 16px 24px 24px;
+    }
+
+    .card-desc {
+      font-size: 15px;
+      color: var(--text-3);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    /* ─── Feature List ──────────────────────────────────────────────────────── */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+
+    .feature-list li::before {
+      content: '';
+      display: block;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.3);
+      border-radius: 5px;
+      margin-top: 1px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23ef4444' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 12px;
+    }
+
+    /* ─── Callout / Tip box ─────────────────────────────────────────────────── */
+    .tip-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: rgba(220,38,38,0.08);
+      border: 1px solid rgba(220,38,38,0.2);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-2);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .tip-icon {
+      font-size: 16px;
+      margin-top: 0px;
+      flex-shrink: 0;
+    }
+
+    .tip-box strong {
+      color: var(--red-light);
+    }
+
+    /* ─── Mock UI screenshots ───────────────────────────────────────────────── */
+    .mock-screen {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-top: 16px;
+      font-size: 13px;
+    }
+
+    .mock-titlebar {
+      background: var(--bg-0);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mock-dots {
+      display: flex;
+      gap: 5px;
+    }
+
+    .mock-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .mock-dot--red   { background: #ef4444; }
+    .mock-dot--yellow{ background: #f59e0b; }
+    .mock-dot--green { background: #22c55e; }
+
+    .mock-bar-label {
+      font-size: 12px;
+      color: var(--text-4);
+      font-weight: 500;
+    }
+
+    .mock-body {
+      display: flex;
+      min-height: 120px;
+    }
+
+    .mock-sidebar {
+      width: 140px;
+      min-width: 140px;
+      background: var(--bg-1);
+      border-right: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .mock-sidebar-item {
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .mock-sidebar-item.active {
+      background: rgba(220,38,38,0.15);
+      color: var(--red-light);
+      font-weight: 600;
+    }
+
+    .mock-map {
+      flex: 1;
+      background: #1a2030;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .mock-map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(220,38,38,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(220,38,38,0.05) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .mock-map-pin {
+      width: 20px;
+      height: 20px;
+      background: var(--red);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      box-shadow: 0 2px 8px rgba(220,38,38,0.5);
+      position: relative;
+      z-index: 1;
+    }
+
+    .mock-hail-dots {
+      position: absolute;
+      inset: 0;
+    }
+
+    .hail-dot {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(251,191,36,0.6);
+      animation: hail-pulse 2.5s ease-in-out infinite alternate;
+    }
+
+    .hail-dot--1 { width: 30px; height: 30px; top: 20%; left: 25%; animation-delay: 0s; }
+    .hail-dot--2 { width: 20px; height: 20px; top: 50%; left: 55%; animation-delay: 0.4s; }
+    .hail-dot--3 { width: 36px; height: 36px; top: 65%; left: 35%; animation-delay: 0.8s; }
+    .hail-dot--4 { width: 16px; height: 16px; top: 30%; left: 70%; animation-delay: 1.2s; }
+
+    @keyframes hail-pulse {
+      0%   { opacity: 0.4; transform: scale(0.9); }
+      100% { opacity: 0.9; transform: scale(1.1); }
+    }
+
+    /* Chat mock */
+    .mock-chat {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-bubble {
+      max-width: 82%;
+      padding: 10px 13px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .chat-bubble--user {
+      background: var(--red);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-bubble--susan {
+      background: var(--bg-3);
+      color: var(--text-2);
+      align-self: flex-start;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .chat-label--susan { color: var(--red-light); }
+
+    .download-btn-mock {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 7px 12px;
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.3);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--red-light);
+    }
+
+    /* Doc analyzer mock */
+    .mock-analyzer {
+      padding: 14px;
+    }
+
+    .analyzer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .analyzer-row:last-child { border-bottom: none; }
+    .analyzer-row.highlight { background: rgba(220,38,38,0.08); color: var(--text-1); }
+
+    .badge-found {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+      background: rgba(34,197,94,0.15);
+      color: #4ade80;
+    }
+
+    .badge-missed {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+      background: rgba(220,38,38,0.15);
+      color: #f87171;
+    }
+
+    /* ─── Pro Tips / Checklist ──────────────────────────────────────────────── */
+    .tips-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tip-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tip-check:hover {
+      border-color: rgba(220,38,38,0.3);
+      background: var(--bg-3);
+    }
+
+    .tip-check.checked {
+      border-color: rgba(34,197,94,0.35);
+      background: rgba(34,197,94,0.05);
+    }
+
+    .tip-checkbox {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      border: 2px solid var(--bg-3);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 13px;
+      color: transparent;
+      background: var(--bg-0);
+      margin-top: 1px;
+    }
+
+    .tip-check.checked .tip-checkbox {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: white;
+    }
+
+    .tip-text {
+      flex: 1;
+    }
+
+    .tip-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 3px;
+    }
+
+    .tip-text span {
+      font-size: 13px;
+      color: var(--text-3);
+      line-height: 1.5;
+    }
+
+    /* ─── QR Section ────────────────────────────────────────────────────────── */
+    .qr-demo {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-2);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      margin-top: 16px;
+    }
+
+    .qr-box {
+      width: 64px;
+      height: 64px;
+      min-width: 64px;
+      background: white;
+      border-radius: 8px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1.5px;
+      padding: 5px;
+    }
+
+    .qr-cell {
+      background: #111;
+      border-radius: 1px;
+    }
+
+    .qr-cell.w { background: white; }
+
+    .qr-info strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+
+    .qr-info p {
+      font-size: 13px;
+      color: var(--text-3);
+      line-height: 1.5;
+    }
+
+    /* ─── Divider ───────────────────────────────────────────────────────────── */
+    .section-divider {
+      text-align: center;
+      color: var(--text-4);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 8px 0 4px;
+      position: relative;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: calc(50% - 70px);
+      height: 1px;
+      background: var(--border);
+    }
+
+    .section-divider::before { left: 0; }
+    .section-divider::after  { right: 0; }
+
+    /* ─── Tag chips ─────────────────────────────────────────────────────────── */
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-3);
+      color: var(--text-3);
+      border: 1px solid var(--border);
+    }
+
+    .tag.red { background: rgba(220,38,38,0.12); color: var(--red-light); border-color: rgba(220,38,38,0.25); }
+
+    /* ─── Footer ────────────────────────────────────────────────────────────── */
+    .footer {
+      margin-top: 60px;
+      padding: 40px 0 20px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-logo {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-1);
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .footer-logo span { color: var(--red); }
+
+    .footer-tagline {
+      font-size: 13px;
+      color: var(--text-4);
+      margin-bottom: 20px;
+    }
+
+    .footer-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-2);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .footer-link:hover {
+      background: var(--bg-3);
+      border-color: rgba(220,38,38,0.3);
+      color: var(--text-1);
+    }
+
+    .footer-powered {
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--text-4);
+    }
+
+    .footer-powered a { color: var(--red-light); text-decoration: none; }
+    .footer-powered a:hover { text-decoration: underline; }
+
+    /* ─── Scroll indicator ──────────────────────────────────────────────────── */
+    .scroll-hint {
+      text-align: center;
+      margin-top: 40px;
+      animation: bounce 2s ease-in-out infinite;
+      color: var(--text-4);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .scroll-hint svg {
+      opacity: 0.5;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
+
+    /* ─── Progress bar at top ───────────────────────────────────────────────── */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--red) 0%, var(--red-light) 100%);
+      z-index: 200;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* ─── Responsive ────────────────────────────────────────────────────────── */
+    @media (min-width: 600px) {
+      .hero { padding: 90px 0 70px; }
+      .hero-title { letter-spacing: -2px; }
+      .card-body { padding: 16px 28px 28px; }
+      .card-header { padding: 24px 28px 0; }
+    }
+
+    @media (max-width: 380px) {
+      .hero-stats { gap: 20px; }
+      .stat-num { font-size: 24px; }
+    }
+
+    /* ─── Shimmer loading effect ────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    /* ─── Count up animation ───────────────────────────────────────────────── */
+    .counting { display: inline-block; }
+
+  </style>
+</head>
+<body>
+  <div class="progress-bar" id="progress"></div>
+  <div class="bg-canvas">
+    <div class="bg-orb bg-orb--1"></div>
+    <div class="bg-orb bg-orb--2"></div>
+    <div class="bg-orb bg-orb--3"></div>
+  </div>
+  <div class="bg-grid"></div>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="https://sa21.up.railway.app" class="nav-brand" aria-label="Roof ER home">
+      <div class="nav-logo">RE</div>
+      <span class="nav-name">Roof ER</span>
+    </a>
+    <a href="https://sa21.up.railway.app" class="nav-cta" target="_blank" rel="noopener">
+      Open App
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </nav>
+
+  <main class="page">
+
+    <!-- ─── Hero ──────────────────────────────────────────────────────────── -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        Field Rep Guide
+      </div>
+
+      <h1 class="hero-title" id="hero-title">
+        Your <span class="accent">AI-Powered</span><br />Field Toolkit
+      </h1>
+
+      <p class="hero-sub">Roof ER The Roof Docs</p>
+      <p class="hero-tagline">Built for reps. <em>By reps.</em></p>
+
+      <div class="hero-stats" role="list">
+        <div class="stat-item" role="listitem">
+          <span class="stat-num"><span class="counting" data-target="3">0</span></span>
+          <span class="stat-label">Federal Data Sources</span>
+        </div>
+        <div class="stat-item" role="listitem">
+          <span class="stat-num"><span class="counting" data-target="26">0</span></span>
+          <span class="stat-label">Xactimate Codes Built In</span>
+        </div>
+        <div class="stat-item" role="listitem">
+          <span class="stat-num"><span class="counting" data-target="4">0</span>-Page</span>
+          <span class="stat-label">Professional PDF</span>
+        </div>
+      </div>
+
+      <div class="hero-cta-group">
+        <a href="https://sa21.up.railway.app" class="btn-primary" target="_blank" rel="noopener">
+          Open the App
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <a href="#storm-maps" class="btn-secondary">
+          Read the Guide
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+
+      <div class="scroll-hint" aria-hidden="true">
+        <span>Scroll to explore</span>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </section>
+
+    <p class="section-divider" aria-hidden="true">Features</p>
+
+    <!-- ─── 1. Storm Maps ──────────────────────────────────────────────────── -->
+    <article class="section from-left card" id="storm-maps" aria-labelledby="storm-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">🌩️</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 01</span>
+          <h2 class="card-title" id="storm-title">Storm Maps</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Pull up verified hail history for any address in the US before you even ring the doorbell. NOAA-verified federal data — the same sources insurance adjusters use.
+        </p>
+
+        <!-- Mock map UI -->
+        <div class="mock-screen" aria-hidden="true">
+          <div class="mock-titlebar">
+            <div class="mock-dots">
+              <div class="mock-dot mock-dot--red"></div>
+              <div class="mock-dot mock-dot--yellow"></div>
+              <div class="mock-dot mock-dot--green"></div>
+            </div>
+            <span class="mock-bar-label">sa21.up.railway.app &rsaquo; Storm Maps</span>
+          </div>
+          <div class="mock-body">
+            <div class="mock-sidebar" aria-hidden="true">
+              <div class="mock-sidebar-item active">Hail Events</div>
+              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Mar 14, 2023</div>
+              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Jul 2, 2022</div>
+              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Apr 29, 2021</div>
+              <div class="mock-sidebar-item" style="font-size:11px;color:#6b7280;">Jun 11, 2020</div>
+            </div>
+            <div class="mock-map">
+              <div class="mock-map-grid"></div>
+              <div class="mock-hail-dots">
+                <div class="hail-dot hail-dot--1"></div>
+                <div class="hail-dot hail-dot--2"></div>
+                <div class="hail-dot hail-dot--3"></div>
+                <div class="hail-dot hail-dot--4"></div>
+              </div>
+              <div class="mock-map-pin"></div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="feature-list" style="margin-top:16px;">
+          <li>Search any US address, city, or ZIP code instantly</li>
+          <li>See hail history from NOAA federal data — verified &amp; free</li>
+          <li>Filter by date range: 1Y, 2Y, 5Y, or 10Y</li>
+          <li>Click any storm date to expand full event details</li>
+          <li>GPS tracking shows your exact position on the map</li>
+          <li>NEXRAD radar imagery + NWS severe weather warnings overlay</li>
+        </ul>
+
+        <div class="tag-row" aria-label="Data sources">
+          <span class="tag red">NOAA</span>
+          <span class="tag red">NEXRAD Radar</span>
+          <span class="tag red">NWS</span>
+          <span class="tag">Federal Data</span>
+          <span class="tag">GPS</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── 2. Storm Reports ───────────────────────────────────────────────── -->
+    <article class="section from-right card" aria-labelledby="reports-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">📄</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 02</span>
+          <h2 class="card-title" id="reports-title">Storm Reports (PDF)</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Generate a professional, adjuster-ready PDF in seconds. Federal storm data + your name on every page — hand it over at the door or email it directly to the insurance company.
+        </p>
+
+        <ul class="feature-list">
+          <li>Click "Generate Report" on any storm date from the map</li>
+          <li>Select date of loss, enter homeowner name, then generate</li>
+          <li>4-page professional PDF with NOAA-verified observations</li>
+          <li>Includes: hail + wind data, NEXRAD radar images, NWS warnings</li>
+          <li>Historical storm activity summary table included</li>
+          <li>AI-written damage narrative tailored to the event</li>
+          <li>YOUR name, phone, and email printed on every report</li>
+          <li>Send directly to adjusters and insurance companies</li>
+        </ul>
+
+        <div class="tip-box">
+          <span class="tip-icon" aria-hidden="true">💡</span>
+          <div>
+            <strong>Pro tip:</strong> Set your phone number in <strong>Settings &rsaquo; Profile</strong> before your first door knock. It goes on every PDF you generate — automatically.
+          </div>
+        </div>
+
+        <div class="tag-row" aria-label="What's in the PDF">
+          <span class="tag red">4 Pages</span>
+          <span class="tag">Hail + Wind Data</span>
+          <span class="tag">Radar Images</span>
+          <span class="tag">NWS Warnings</span>
+          <span class="tag">Your Branding</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── 3. Ask Susan ───────────────────────────────────────────────────── -->
+    <article class="section from-left card" aria-labelledby="susan-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">🤖</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 03</span>
+          <h2 class="card-title" id="susan-title">Ask Susan — AI Chat</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Just talk to Susan like a knowledgeable colleague who's always available. She looks up storm data, generates reports, drafts emails, and knows roofing insurance inside and out.
+        </p>
+
+        <!-- Chat mock -->
+        <div class="mock-screen" aria-hidden="true">
+          <div class="mock-titlebar">
+            <div class="mock-dots">
+              <div class="mock-dot mock-dot--red"></div>
+              <div class="mock-dot mock-dot--yellow"></div>
+              <div class="mock-dot mock-dot--green"></div>
+            </div>
+            <span class="mock-bar-label">Susan AI Chat</span>
+          </div>
+          <div class="mock-chat">
+            <div>
+              <p class="chat-bubble chat-bubble--user">
+                Hey Susan, generate a storm report for 8100 Boone Blvd, Tysons VA
+              </p>
+            </div>
+            <div>
+              <p class="chat-label chat-label--susan">Susan</p>
+              <div class="chat-bubble chat-bubble--susan">
+                Found 4 hail events at that address. Which date of loss do you want to use?<br/>
+                <span style="color:#9ca3af;font-size:12px;">Mar 14, 2023 &bull; Jul 2, 2022 &bull; Apr 29, 2021 &bull; Jun 11, 2020</span>
+              </div>
+            </div>
+            <div>
+              <p class="chat-bubble chat-bubble--user">March 14, 2023 — homeowner is Jane Smith</p>
+            </div>
+            <div>
+              <p class="chat-label chat-label--susan">Susan</p>
+              <div class="chat-bubble chat-bubble--susan">
+                Report generated! 1.75" hail confirmed, 62mph winds.
+                <div class="download-btn-mock">
+                  ↓ &nbsp;Download PDF Report
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="feature-list" style="margin-top:16px;">
+          <li>"What hail events happened at [address]?" — instant lookup</li>
+          <li>Generate full PDF reports right from the chat window</li>
+          <li>Draft professional emails to adjusters and insurance companies</li>
+          <li>Knows roofing insurance claims, supplements, and Xactimate codes</li>
+          <li>Schedule follow-ups and look up jobs</li>
+        </ul>
+
+        <div class="tip-box">
+          <span class="tip-icon" aria-hidden="true">⚡</span>
+          <div>
+            <strong>Try it:</strong> Paste a full property address and ask Susan for hail history. She'll pull real NOAA data and walk you through the report in under a minute.
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── 4. Doc Analyzer ────────────────────────────────────────────────── -->
+    <article class="section from-right card" aria-labelledby="analyzer-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">🔍</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 04</span>
+          <h2 class="card-title" id="analyzer-title">Doc Analyzer — Supplements</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Upload an adjuster estimate and a measurement report. Susan cross-references every single line item, finds what they missed, and builds your supplement with real Xactimate codes.
+        </p>
+
+        <!-- Analyzer mock -->
+        <div class="mock-screen" aria-hidden="true">
+          <div class="mock-titlebar">
+            <div class="mock-dots">
+              <div class="mock-dot mock-dot--red"></div>
+              <div class="mock-dot mock-dot--yellow"></div>
+              <div class="mock-dot mock-dot--green"></div>
+            </div>
+            <span class="mock-bar-label">Doc Analyzer &rsaquo; Supplement Results</span>
+          </div>
+          <div class="mock-analyzer">
+            <div class="analyzer-row">
+              <span>Main field / starter shingles</span>
+              <span class="badge-found">Covered</span>
+            </div>
+            <div class="analyzer-row highlight">
+              <span>Drip edge — missing from estimate</span>
+              <span class="badge-missed">+$342</span>
+            </div>
+            <div class="analyzer-row highlight">
+              <span>Step flashing — miscalculated qty</span>
+              <span class="badge-missed">+$215</span>
+            </div>
+            <div class="analyzer-row highlight">
+              <span>Steep slope charge — not applied</span>
+              <span class="badge-missed">+$580</span>
+            </div>
+            <div class="analyzer-row" style="font-weight:700;color:#f9fafb;padding-top:10px;">
+              <span>Total supplement value</span>
+              <span style="color:#4ade80;font-weight:800;">$1,137</span>
+            </div>
+          </div>
+        </div>
+
+        <ul class="feature-list" style="margin-top:16px;">
+          <li>Upload adjuster estimate + EagleView or Hover measurement report</li>
+          <li>Select trades: Roofing, Siding, Gutters — or all three</li>
+          <li>Cross-references every measurement automatically</li>
+          <li>Finds missed line items with real Xactimate codes and dollar amounts</li>
+          <li>Catches: quantity corrections, missing drip edge, step flashing, steep charges</li>
+          <li>Auto-detects EagleView vs Hover — no more misidentification errors</li>
+          <li>Shows total supplement value before you even talk to the adjuster</li>
+        </ul>
+
+        <div class="tip-box">
+          <span class="tip-icon" aria-hidden="true">💰</span>
+          <div>
+            <strong>26 Xactimate codes</strong> built in. Susan knows them all — so you don't have to memorize a single one.
+          </div>
+        </div>
+
+        <div class="tag-row" aria-label="Supported reports">
+          <span class="tag red">EagleView</span>
+          <span class="tag red">Hover</span>
+          <span class="tag">Xactimate Codes</span>
+          <span class="tag">Auto-Detect</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── 5. QR Profiles ─────────────────────────────────────────────────── -->
+    <article class="section from-left card" aria-labelledby="qr-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">📲</div>
+        <div class="card-meta">
+          <span class="card-number">Feature 05</span>
+          <h2 class="card-title" id="qr-title">QR Profiles</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Every rep gets a unique shareable profile page. Homeowners scan your QR code, see your info, and can request service — leads flow into the system automatically.
+        </p>
+
+        <div class="qr-demo" aria-hidden="true">
+          <!-- Decorative QR pattern -->
+          <div class="qr-box">
+            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div>
+            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
+            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div>
+            <div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div>
+            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
+            <div class="qr-cell"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell w"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell"></div>
+            <div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div><div class="qr-cell w"></div><div class="qr-cell"></div>
+          </div>
+          <div class="qr-info">
+            <strong>Your Profile Page</strong>
+            <p>sa21.up.railway.app/profile/your-name<br/>Homeowners scan → see your info → request service</p>
+          </div>
+        </div>
+
+        <ul class="feature-list" style="margin-top:16px;">
+          <li>Unique URL and QR code per rep — fully personalized</li>
+          <li>Homeowners see your photo, name, phone, and credentials</li>
+          <li>One tap to request a free inspection</li>
+          <li>Leads captured automatically — no manual entry needed</li>
+          <li>Great for door hangers, yard signs, or business cards</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- ─── 6. Pro Tips ────────────────────────────────────────────────────── -->
+    <article class="section from-right card" aria-labelledby="tips-title">
+      <div class="card-header">
+        <div class="card-icon" aria-hidden="true">✅</div>
+        <div class="card-meta">
+          <span class="card-number">Rep Playbook</span>
+          <h2 class="card-title" id="tips-title">Pro Tips</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">
+          Tap each tip as you knock it out. Your onboarding checklist.
+        </p>
+
+        <div class="tips-grid" role="list">
+          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
+            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
+            <div class="tip-text">
+              <strong>Set your profile info first</strong>
+              <span>Go to Settings &rsaquo; Profile and enter your name, phone, and email. It will appear on every PDF you generate — automatically.</span>
+            </div>
+          </div>
+          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
+            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
+            <div class="tip-text">
+              <strong>Storm Maps before every door knock</strong>
+              <span>Know the hail history before you ring the bell. Walk up with confidence — "Your neighborhood had 1.75" hail in March 2023."</span>
+            </div>
+          </div>
+          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
+            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
+            <div class="tip-text">
+              <strong>Let Susan write the supplement</strong>
+              <span>Upload the adjuster estimate and the measurement report. Susan finds what they missed and builds the supplement with the right codes.</span>
+            </div>
+          </div>
+          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
+            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
+            <div class="tip-text">
+              <strong>Hand adjuster the PDF at the inspection</strong>
+              <span>Federal NOAA/NWS data on a professional PDF. They can't argue with it — it's the same data CCM meteorologists use.</span>
+            </div>
+          </div>
+          <div class="tip-check" role="listitem" tabindex="0" aria-checked="false">
+            <div class="tip-checkbox" aria-hidden="true">&#10003;</div>
+            <div class="tip-text">
+              <strong>Share your QR code everywhere</strong>
+              <span>Put it on door hangers, yard signs, and your business card. Homeowners scan → they see you → lead captured. Zero friction.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tip-box" style="margin-top:20px;">
+          <span class="tip-icon" aria-hidden="true">🛰️</span>
+          <div>
+            <strong>The data comes from NOAA, NWS, and NEXRAD</strong> — the same federal sources that Certified Consulting Meteorologists rely on in court. When you hand a homeowner this report, you're handing them verified government data.
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─── Footer ────────────────────────────────────────────────────────── -->
+    <footer class="footer" role="contentinfo">
+      <div class="footer-logo">Roof ER <span>The Roof Docs</span></div>
+      <p class="footer-tagline">Built for reps who close deals in the field</p>
+
+      <a href="https://sa21.up.railway.app" class="footer-link" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <rect x="2" y="2" width="12" height="12" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M5.5 8h5M8 5.5v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Open Gemini Field Assistant
+      </a>
+
+      <p class="footer-powered">
+        Powered by <a href="https://sa21.up.railway.app" target="_blank" rel="noopener">Susan AI</a> + NOAA Federal Weather Data
+      </p>
+    </footer>
+
+  </main>
+
+  <script>
+    // ─── Scroll progress bar ────────────────────────────────────────────────
+    const progressBar = document.getElementById('progress');
+    function updateProgress() {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+      progressBar.style.width = pct + '%';
+    }
+    window.addEventListener('scroll', updateProgress, { passive: true });
+
+    // ─── Intersection Observer — slide-in cards ────────────────────────────
+    const sections = document.querySelectorAll('.section');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.08,
+      rootMargin: '0px 0px -40px 0px'
+    });
+
+    sections.forEach(s => observer.observe(s));
+
+    // ─── Count-up animation ────────────────────────────────────────────────
+    const counters = document.querySelectorAll('.counting');
+    let countersStarted = false;
+
+    function easeOutQuad(t) { return t * (2 - t); }
+
+    function startCounters() {
+      if (countersStarted) return;
+      countersStarted = true;
+      counters.forEach(el => {
+        const target = parseInt(el.dataset.target, 10);
+        const duration = 1200;
+        const start = performance.now();
+        function tick(now) {
+          const elapsed = now - start;
+          const progress = Math.min(elapsed / duration, 1);
+          const value = Math.round(easeOutQuad(progress) * target);
+          el.textContent = value;
+          if (progress < 1) requestAnimationFrame(tick);
+          else el.textContent = target;
+        }
+        requestAnimationFrame(tick);
+      });
+    }
+
+    // Trigger counters when hero is visible
+    const heroEl = document.querySelector('.hero');
+    const heroObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setTimeout(startCounters, 400);
+        heroObserver.disconnect();
+      }
+    }, { threshold: 0.3 });
+    heroObserver.observe(heroEl);
+
+    // ─── Interactive checklist ─────────────────────────────────────────────
+    const tipChecks = document.querySelectorAll('.tip-check');
+    tipChecks.forEach(tip => {
+      function toggle() {
+        const isChecked = tip.classList.toggle('checked');
+        tip.setAttribute('aria-checked', isChecked ? 'true' : 'false');
+      }
+      tip.addEventListener('click', toggle);
+      tip.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
+      });
+    });
+
+    // ─── Haptic feedback on mobile (where available) ───────────────────────
+    tipChecks.forEach(tip => {
+      tip.addEventListener('click', () => {
+        if (navigator.vibrate) navigator.vibrate(30);
+      });
+    });
+  </script>
+</body>
+</html>
