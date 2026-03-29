@@ -8,10 +8,12 @@
 import React, { useState } from 'react';
 import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
 import S21ResponseFormatter from '../S21ResponseFormatter';
+import { databaseService } from '../../services/databaseService';
 
 interface SusanMessageProps {
   role: 'user' | 'assistant';
   content: string;
+  messageId?: string;
   sources?: any[];
   provider?: string;
   onRegenerate?: () => void;
@@ -20,12 +22,26 @@ interface SusanMessageProps {
 export const SusanMessageComponent: React.FC<SusanMessageProps> = ({
   role,
   content,
+  messageId,
   sources,
   provider,
   onRegenerate,
 }) => {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+
+  const submitFeedback = (rating: 1 | -1) => {
+    const newFb = rating === 1 ? 'up' : 'down';
+    setFeedback(feedback === newFb ? null : newFb);
+    if (feedback !== newFb && messageId) {
+      databaseService.submitChatFeedback({
+        message_id: messageId,
+        rating,
+        tags: [rating === 1 ? 'Accurate' : 'Needs improvement'],
+        response_excerpt: content.slice(0, 400),
+      }).catch(() => {});
+    }
+  };
 
   const handleCopy = async () => {
     try {
@@ -126,7 +142,7 @@ export const SusanMessageComponent: React.FC<SusanMessageProps> = ({
           </button>
 
           <button
-            onClick={() => setFeedback(feedback === 'up' ? null : 'up')}
+            onClick={() => submitFeedback(1)}
             style={{
               background: 'none',
               border: 'none',
@@ -143,7 +159,7 @@ export const SusanMessageComponent: React.FC<SusanMessageProps> = ({
           </button>
 
           <button
-            onClick={() => setFeedback(feedback === 'down' ? null : 'down')}
+            onClick={() => submitFeedback(-1)}
             style={{
               background: 'none',
               border: 'none',

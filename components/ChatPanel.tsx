@@ -793,6 +793,11 @@ Generate a professional, compliant email that:
 4. Matches the ${emailTone} tone appropriate for ${recipientLabels[emailRecipientType]}
 5. Incorporates ${selectedState ? selectedState + '-specific' : 'general tri-state'} building codes and requirements where relevant
 
+IMPORTANT - REP IDENTITY (use in all emails):
+- Sign as: ${currentUser?.name || 'the rep'}, Roof ER The Roof Docs
+- Rep email: ${currentUser?.email || ''}
+- NEVER use placeholder brackets like [Your Name], [Company Name]. Use the actual name above.
+
 Generate ONLY the email body text, no subject line or metadata.`;
 
       const finalEmailPrompt = (() => {
@@ -1161,6 +1166,19 @@ Generate ONLY the email body text, no subject line or metadata.`;
       const queryType = personalityHelpers.detectQueryType(originalQuery);
       const useRAG = ragService.shouldUseRAG(originalQuery);
       let systemPrompt = SYSTEM_PROMPT;
+
+      // Inject rep identity so Susan never uses [Your Name] placeholders
+      const currentUser = authService.getCurrentUser();
+      const repName = currentUser?.name || '';
+      const repEmail = currentUser?.email || '';
+      if (repName) {
+        systemPrompt += `\n\nREP IDENTITY (use in all emails and communications):
+- Rep Name: ${repName}
+- Rep Email: ${repEmail}
+- Company: Roof ER The Roof Docs
+- NEVER use placeholder brackets like [Your Name], [Company Name], [Rep Name]. Always use the actual rep name and company above.
+- When drafting emails, sign as: ${repName}, Roof ER The Roof Docs`;
+      }
 
       // Add state context if selected, else enforce tri-state-safe guidance
       if (selectedState) {
