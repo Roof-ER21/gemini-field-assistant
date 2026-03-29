@@ -14,28 +14,35 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --red:       #dc2626;
-      --red-light: #ef4444;
-      --red-dim:   #991b1b;
-      --bg-0:      #0a0d14;
-      --bg-1:      #111827;
-      --bg-2:      #1f2937;
-      --bg-3:      #374151;
-      --text-1:    #f9fafb;
-      --text-2:    #e5e7eb;
-      --text-3:    #9ca3af;
-      --text-4:    #6b7280;
-      --border:    rgba(255,255,255,0.07);
-      --glow:      rgba(220,38,38,0.3);
-      --radius:    16px;
-      --radius-sm: 10px;
-      --sans:      'Inter', system-ui, sans-serif;
+      --red:        #dc2626;
+      --red-light:  #ef4444;
+      --red-dim:    #991b1b;
+      --red-glow:   rgba(220,38,38,0.18);
+      --blue:       #3b82f6;
+      --blue-dim:   rgba(59,130,246,0.15);
+      --orange:     #f97316;
+      --orange-dim: rgba(249,115,22,0.15);
+      --green:      #22c55e;
+      --green-dim:  rgba(34,197,94,0.15);
+      --purple:     #7c3aed;
+      --bg-0:       #0a0d14;
+      --bg-1:       #111827;
+      --bg-2:       #1f2937;
+      --bg-3:       #374151;
+      --text-1:     #f9fafb;
+      --text-2:     #e5e7eb;
+      --text-3:     #9ca3af;
+      --text-4:     #6b7280;
+      --border:     rgba(255,255,255,0.07);
+      --border-md:  rgba(255,255,255,0.11);
+      --glow:       rgba(220,38,38,0.3);
+      --radius:     16px;
+      --radius-sm:  10px;
+      --radius-xs:  6px;
+      --sans:       'Inter', system-ui, sans-serif;
     }
 
-    html {
-      scroll-behavior: smooth;
-      -webkit-text-size-adjust: 100%;
-    }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
     body {
       font-family: var(--sans);
@@ -44,6 +51,18 @@
       line-height: 1.6;
       overflow-x: hidden;
       min-height: 100dvh;
+    }
+
+    /* ─── Scroll Progress Bar ───────────────────────────────────────────────── */
+    #scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--red), var(--red-light), #f87171);
+      z-index: 9999;
+      transition: width 0.1s linear;
+      box-shadow: 0 0 8px var(--glow);
     }
 
     /* ─── Animated Background ───────────────────────────────────────────────── */
@@ -60,38 +79,17 @@
       border-radius: 50%;
       filter: blur(90px);
       opacity: 0.12;
-      animation: orb-drift 20s ease-in-out infinite alternate;
+      animation: orb-drift 22s ease-in-out infinite alternate;
     }
-
-    .bg-orb--1 {
-      width: 600px; height: 600px;
-      background: var(--red);
-      top: -200px; left: -150px;
-      animation-duration: 22s;
-    }
-
-    .bg-orb--2 {
-      width: 400px; height: 400px;
-      background: #7c3aed;
-      bottom: 20%; right: -100px;
-      animation-duration: 28s;
-      animation-delay: -5s;
-    }
-
-    .bg-orb--3 {
-      width: 300px; height: 300px;
-      background: var(--red-light);
-      top: 50%; left: 30%;
-      animation-duration: 18s;
-      animation-delay: -10s;
-      opacity: 0.07;
-    }
+    .bg-orb--1 { width:600px;height:600px;background:var(--red);top:-200px;left:-150px;animation-duration:22s; }
+    .bg-orb--2 { width:400px;height:400px;background:var(--purple);bottom:20%;right:-100px;animation-duration:28s;animation-delay:-5s; }
+    .bg-orb--3 { width:300px;height:300px;background:var(--red-light);top:50%;left:30%;animation-duration:18s;animation-delay:-10s;opacity:0.07; }
 
     @keyframes orb-drift {
-      0%   { transform: translate(0, 0) scale(1); }
-      33%  { transform: translate(40px, -30px) scale(1.05); }
-      66%  { transform: translate(-20px, 50px) scale(0.97); }
-      100% { transform: translate(30px, 20px) scale(1.03); }
+      0%   { transform: translate(0,0) scale(1); }
+      33%  { transform: translate(40px,-30px) scale(1.05); }
+      66%  { transform: translate(-20px,50px) scale(0.97); }
+      100% { transform: translate(30px,20px) scale(1.03); }
     }
 
     .bg-grid {
@@ -99,196 +97,239 @@
       inset: 0;
       z-index: 0;
       background-image:
-        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-      background-size: 60px 60px;
-      pointer-events: none;
-    }
-
-    /* ─── Layout ────────────────────────────────────────────────────────────── */
-    .page {
-      position: relative;
-      z-index: 1;
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 0 16px 80px;
-    }
-
-    /* ─── Progress Bar ──────────────────────────────────────────────────────── */
-    .progress-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--red) 0%, var(--red-light) 100%);
-      z-index: 200;
-      width: 0%;
-      transition: width 0.1s linear;
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
     }
 
     /* ─── Nav ───────────────────────────────────────────────────────────────── */
     .nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      padding: 14px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      background: rgba(10,13,20,0.85);
-      backdrop-filter: blur(16px) saturate(1.4);
+      background: rgba(10,13,20,0.72);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
       border-bottom: 1px solid var(--border);
-      margin: 0 -16px 0;
+      transition: background 0.3s;
     }
 
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       text-decoration: none;
     }
 
     .nav-logo {
-      width: 28px;
-      height: 28px;
+      width: 32px; height: 32px;
       background: var(--red);
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
       font-weight: 900;
-      color: white;
-      letter-spacing: -0.5px;
+      color: #fff;
+      flex-shrink: 0;
     }
 
-    .nav-name {
+    .nav-title {
       font-size: 14px;
       font-weight: 700;
       color: var(--text-1);
-      letter-spacing: -0.3px;
+      letter-spacing: -0.01em;
     }
+
+    .nav-sub {
+      font-size: 11px;
+      color: var(--text-4);
+      font-weight: 500;
+      display: none;
+    }
+
+    @media (min-width: 480px) { .nav-sub { display: block; } }
 
     .nav-cta {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
+      gap: 8px;
+      padding: 8px 16px;
       background: var(--red);
-      color: white;
-      font-size: 13px;
-      font-weight: 600;
+      color: #fff;
       border-radius: 8px;
       text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
       transition: background 0.2s, transform 0.15s;
     }
-
     .nav-cta:hover { background: var(--red-light); transform: translateY(-1px); }
-    .nav-cta:active { transform: translateY(0); }
+
+    /* ─── Layout ────────────────────────────────────────────────────────────── */
+    .page { position: relative; z-index: 1; }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    section {
+      padding: 96px 0 80px;
+    }
+
+    section:first-of-type { padding-top: 80px; }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      background: var(--red-glow);
+      border: 1px solid rgba(220,38,38,0.25);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--red-light);
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 900;
+      color: var(--text-1);
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 14px;
+    }
+
+    .section-body {
+      font-size: 16px;
+      color: var(--text-3);
+      max-width: 600px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+
+    /* ─── Slide-in Animations ───────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.08s; }
+    .reveal-delay-2 { transition-delay: 0.16s; }
+    .reveal-delay-3 { transition-delay: 0.24s; }
+    .reveal-delay-4 { transition-delay: 0.32s; }
+    .reveal-delay-5 { transition-delay: 0.40s; }
+    .reveal-delay-6 { transition-delay: 0.48s; }
+    .reveal-delay-7 { transition-delay: 0.56s; }
 
     /* ─── Hero ──────────────────────────────────────────────────────────────── */
     .hero {
-      padding: 72px 0 60px;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
+      padding: 100px 20px 80px;
     }
 
-    .hero-badge {
+    .hero-eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border: 1px solid rgba(220,38,38,0.4);
-      border-radius: 100px;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(220,38,38,0.12);
+      border: 1px solid rgba(220,38,38,0.3);
+      border-radius: 24px;
       font-size: 12px;
-      font-weight: 600;
-      color: var(--red-light);
-      letter-spacing: 0.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      margin-bottom: 24px;
-      animation: badge-pulse 3s ease-in-out infinite;
+      color: #fca5a5;
+      margin-bottom: 28px;
     }
 
-    @keyframes badge-pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
-      50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0.12); }
-    }
-
-    .badge-dot {
-      width: 6px;
-      height: 6px;
+    .hero-eyebrow-dot {
+      width: 6px; height: 6px;
       background: var(--red-light);
       border-radius: 50%;
-      animation: dot-blink 1.5s ease-in-out infinite;
+      animation: pulse-dot 2s ease-in-out infinite;
     }
 
-    @keyframes dot-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.7); }
     }
 
     .hero-title {
-      font-size: clamp(32px, 8vw, 52px);
+      font-size: clamp(40px, 9vw, 80px);
       font-weight: 900;
-      line-height: 1.08;
-      letter-spacing: -1.5px;
       color: var(--text-1);
-      margin-bottom: 16px;
+      letter-spacing: -0.04em;
+      line-height: 1.0;
+      margin-bottom: 12px;
     }
 
-    .hero-title .accent {
-      background: linear-gradient(135deg, var(--red) 0%, #f87171 100%);
+    .hero-title span {
+      background: linear-gradient(135deg, var(--red) 0%, #f87171 50%, var(--red-light) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
 
-    .hero-sub {
-      font-size: 16px;
-      color: var(--text-3);
-      margin-bottom: 8px;
-      font-weight: 500;
-    }
-
-    .hero-tagline {
-      font-size: 20px;
+    .hero-company {
+      font-size: clamp(16px, 3vw, 22px);
       font-weight: 700;
-      color: var(--text-2);
-      margin-bottom: 36px;
-      letter-spacing: -0.3px;
+      color: var(--text-3);
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
     }
 
-    .hero-tagline em {
-      font-style: normal;
-      color: var(--red-light);
+    .hero-sub {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: var(--text-4);
+      font-weight: 500;
+      margin-bottom: 44px;
+      letter-spacing: -0.01em;
     }
 
     .hero-stats {
       display: flex;
+      gap: 12px;
       justify-content: center;
-      gap: 32px;
       flex-wrap: wrap;
-      margin-bottom: 40px;
+      margin-bottom: 44px;
     }
 
-    .stat-item { text-align: center; }
-
-    .stat-num {
-      font-size: 28px;
-      font-weight: 900;
-      color: var(--text-1);
-      letter-spacing: -1px;
-      display: block;
-      line-height: 1;
+    .hero-stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-2);
     }
 
-    .stat-label {
-      font-size: 12px;
-      color: var(--text-4);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 4px;
-      display: block;
+    .hero-stat-icon {
+      font-size: 15px;
     }
 
     .hero-cta-group {
@@ -302,1939 +343,1691 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 24px;
+      padding: 14px 28px;
       background: var(--red);
-      color: white;
+      color: #fff;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
       font-size: 15px;
       font-weight: 700;
-      border-radius: 12px;
-      text-decoration: none;
-      transition: all 0.2s;
+      letter-spacing: -0.01em;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
       box-shadow: 0 4px 20px rgba(220,38,38,0.35);
     }
+    .btn-primary:hover { background: var(--red-light); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(220,38,38,0.45); }
 
-    .btn-primary:hover {
-      background: var(--red-light);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(220,38,38,0.45);
-    }
-
-    .btn-secondary {
+    .btn-ghost {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 24px;
-      background: var(--bg-2);
+      padding: 14px 28px;
+      background: transparent;
       color: var(--text-2);
+      border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
       font-size: 15px;
       font-weight: 600;
-      border-radius: 12px;
-      text-decoration: none;
-      border: 1px solid var(--border);
-      transition: all 0.2s;
+      letter-spacing: -0.01em;
+      transition: background 0.2s, color 0.2s, transform 0.15s;
     }
+    .btn-ghost:hover { background: var(--bg-2); color: var(--text-1); transform: translateY(-2px); }
 
-    .btn-secondary:hover {
-      background: var(--bg-3);
-      transform: translateY(-2px);
-    }
-
-    .scroll-hint {
-      text-align: center;
-      margin-top: 40px;
-      animation: bounce 2s ease-in-out infinite;
-      color: var(--text-4);
-      font-size: 13px;
+    .hero-scroll-hint {
+      margin-top: 60px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      opacity: 0.4;
+      animation: bounce-hint 2.5s ease-in-out infinite;
     }
+    .hero-scroll-hint span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-4); }
 
-    .scroll-hint svg { opacity: 0.5; }
-
-    @keyframes bounce {
+    @keyframes bounce-hint {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(6px); }
+      50%       { transform: translateY(8px); }
     }
 
-    /* ─── Section Cards ─────────────────────────────────────────────────────── */
-    .section {
-      margin-bottom: 24px;
-      opacity: 0;
-      transform: translateX(40px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
+    /* ─── What's Inside Grid ────────────────────────────────────────────────── */
+    .inside-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
     }
 
-    .section.from-left  { transform: translateX(-40px); }
-    .section.from-right { transform: translateX(40px); }
-
-    .section.visible {
-      opacity: 1;
-      transform: translateX(0);
+    @media (min-width: 768px) {
+      .inside-grid { grid-template-columns: repeat(4, 1fr); }
     }
 
-    .card {
+    .inside-card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 16px;
+      border-top-width: 3px;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .inside-card:hover { background: var(--bg-2); transform: translateY(-3px); }
+
+    .inside-card--red    { border-top-color: var(--red); }
+    .inside-card--blue   { border-top-color: var(--blue); }
+    .inside-card--orange { border-top-color: var(--orange); }
+    .inside-card--green  { border-top-color: var(--green); }
+
+    .inside-cat {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 14px;
+    }
+    .inside-card--red    .inside-cat { color: var(--red-light); }
+    .inside-card--blue   .inside-cat { color: #60a5fa; }
+    .inside-card--orange .inside-cat { color: #fb923c; }
+    .inside-card--green  .inside-cat { color: #4ade80; }
+
+    .inside-items { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+    .inside-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.35;
+    }
+    .inside-item.dimmed { opacity: 0.45; }
+
+    .inside-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .inside-card--red    .inside-dot { background: var(--red); }
+    .inside-card--blue   .inside-dot { background: var(--blue); }
+    .inside-card--orange .inside-dot { background: var(--orange); }
+    .inside-card--green  .inside-dot { background: var(--green); }
+
+    .inside-item-content { flex: 1; }
+
+    .inside-item-name { font-weight: 600; }
+    .inside-item-desc { font-size: 11px; color: var(--text-4); margin-top: 2px; }
+
+    .badge-soon {
+      display: inline-block;
+      padding: 2px 7px;
+      background: rgba(107,114,128,0.2);
+      border: 1px solid rgba(107,114,128,0.3);
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-4);
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* ─── Panel Mocks ───────────────────────────────────────────────────────── */
+    .mock-panel {
       background: var(--bg-1);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       overflow: hidden;
-      transition: border-color 0.3s, box-shadow 0.3s;
-    }
-
-    .card:hover {
-      border-color: rgba(220,38,38,0.3);
-      box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(220,38,38,0.1);
-    }
-
-    .card-header {
-      padding: 20px 24px 0;
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-    }
-
-    .card-icon {
-      width: 44px;
-      height: 44px;
-      min-width: 44px;
-      background: rgba(220,38,38,0.12);
-      border: 1px solid rgba(220,38,38,0.25);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-    }
-
-    .card-meta { flex: 1; }
-
-    .card-number {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--red-light);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    .card-title {
-      font-size: 20px;
-      font-weight: 800;
-      color: var(--text-1);
-      letter-spacing: -0.5px;
-      line-height: 1.2;
-    }
-
-    .card-subtitle {
       font-size: 13px;
-      color: var(--text-4);
-      font-weight: 500;
-      margin-top: 2px;
     }
 
-    .card-body {
-      padding: 16px 24px 24px;
-    }
-
-    .card-desc {
-      font-size: 15px;
-      color: var(--text-3);
-      margin-bottom: 16px;
-      line-height: 1.6;
-    }
-
-    .card-desc strong { color: var(--text-2); }
-
-    /* ─── Section divider ───────────────────────────────────────────────────── */
-    .section-divider {
-      text-align: center;
-      color: var(--text-4);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      padding: 8px 0 4px;
-      position: relative;
-    }
-
-    .section-divider::before,
-    .section-divider::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      width: calc(50% - 70px);
-      height: 1px;
-      background: var(--border);
-    }
-
-    .section-divider::before { left: 0; }
-    .section-divider::after  { right: 0; }
-
-    /* ─── Feature List ──────────────────────────────────────────────────────── */
-    .feature-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .feature-list li {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 14px;
-      color: var(--text-2);
-      line-height: 1.5;
-    }
-
-    .feature-list li::before {
-      content: '';
-      display: block;
-      width: 18px;
-      height: 18px;
-      min-width: 18px;
-      background: rgba(220,38,38,0.15);
-      border: 1px solid rgba(220,38,38,0.3);
-      border-radius: 5px;
-      margin-top: 1px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23ef4444' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 12px;
-    }
-
-    /* ─── Tip / Callout Box ─────────────────────────────────────────────────── */
-    .tip-box {
-      margin-top: 16px;
-      padding: 14px 16px;
-      background: rgba(220,38,38,0.08);
-      border: 1px solid rgba(220,38,38,0.2);
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      color: var(--text-2);
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      line-height: 1.5;
-    }
-
-    .tip-icon {
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-
-    .tip-box strong { color: var(--red-light); }
-
-    /* ─── Tag chips ─────────────────────────────────────────────────────────── */
-    .tag-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 14px;
-    }
-
-    .tag {
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 12px;
-      font-weight: 600;
-      background: var(--bg-3);
-      color: var(--text-3);
-      border: 1px solid var(--border);
-    }
-
-    .tag.red {
-      background: rgba(220,38,38,0.12);
-      color: var(--red-light);
-      border-color: rgba(220,38,38,0.25);
-    }
-
-    /* ─── Mock Screen Wrapper ───────────────────────────────────────────────── */
-    .mock-screen {
+    .mock-topbar {
       background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      margin-top: 16px;
-      font-size: 13px;
-    }
-
-    .mock-titlebar {
-      background: var(--bg-0);
       padding: 10px 14px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       border-bottom: 1px solid var(--border);
     }
 
-    .mock-dots { display: flex; gap: 5px; }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .mock-dot--red    { background: #ff5f57; }
+    .mock-dot--yellow { background: #febc2e; }
+    .mock-dot--green  { background: #28c840; }
 
-    .mock-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-
-    .mock-dot--red    { background: #ef4444; }
-    .mock-dot--yellow { background: #f59e0b; }
-    .mock-dot--green  { background: #22c55e; }
-
-    .mock-bar-label {
+    .mock-title {
       font-size: 12px;
-      color: var(--text-4);
-      font-weight: 500;
+      font-weight: 600;
+      color: var(--text-3);
+      margin-left: 4px;
     }
 
-    /* ─── Storm Map Mock ─────────────────────────────────────────────────────── */
-    .mock-body {
-      display: flex;
-      min-height: 200px;
+    /* Storm Maps mock */
+    .storm-mock {
+      display: grid;
+      grid-template-columns: 240px 1fr;
     }
 
-    .mock-sidebar {
-      width: 160px;
-      min-width: 160px;
-      background: var(--bg-1);
+    @media (max-width: 640px) {
+      .storm-mock { grid-template-columns: 1fr; }
+      .storm-mock-map { display: none; }
+    }
+
+    .storm-mock-sidebar {
       border-right: 1px solid var(--border);
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      padding: 14px;
     }
 
-    .mock-search-bar {
+    .storm-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       background: var(--bg-0);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 9px;
-      font-size: 11px;
-      color: var(--text-4);
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      border: 1px solid var(--border-md);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 14px;
     }
+    .storm-search-icon { color: var(--text-4); font-size: 13px; }
+    .storm-search-text { font-size: 12px; color: var(--text-4); font-style: italic; }
 
-    .mock-search-icon {
-      font-size: 10px;
-      opacity: 0.6;
-    }
-
-    .mock-filter-row {
-      display: flex;
-      gap: 3px;
-      margin-bottom: 8px;
-    }
-
-    .mock-filter-chip {
-      padding: 3px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 600;
+    .storm-card {
       background: var(--bg-2);
-      color: var(--text-4);
       border: 1px solid var(--border);
-    }
-
-    .mock-filter-chip.active {
-      background: rgba(220,38,38,0.15);
-      color: var(--red-light);
-      border-color: rgba(220,38,38,0.3);
-    }
-
-    .mock-storm-card {
-      padding: 7px 9px;
-      border-radius: 6px;
-      font-size: 11px;
-      margin-bottom: 3px;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
       cursor: pointer;
+      transition: border-color 0.2s;
     }
+    .storm-card:hover { border-color: rgba(220,38,38,0.4); }
+    .storm-card.active { border-color: var(--red); background: rgba(220,38,38,0.07); }
 
-    .mock-storm-card.active {
-      background: rgba(220,38,38,0.15);
-      border: 1px solid rgba(220,38,38,0.3);
+    .storm-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
     }
-
-    .mock-storm-card .storm-date {
+    .storm-card-addr { font-size: 12px; font-weight: 700; color: var(--text-1); }
+    .storm-card-sev {
+      font-size: 10px;
       font-weight: 700;
-      color: var(--text-1);
-      display: block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
+    .sev-high  { background: rgba(220,38,38,0.2); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
+    .sev-med   { background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
 
-    .mock-storm-card .storm-detail {
-      color: var(--text-4);
-      font-size: 10px;
-    }
+    .storm-card-meta { font-size: 11px; color: var(--text-4); }
 
-    .mock-storm-card.active .storm-date {
-      color: var(--red-light);
-    }
-
-    .mock-storm-card:not(.active) {
-      color: var(--text-4);
-    }
-
-    .mock-gps-row {
-      margin-top: auto;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 6px 8px;
-      background: rgba(34,197,94,0.08);
-      border: 1px solid rgba(34,197,94,0.2);
-      border-radius: 5px;
-      font-size: 10px;
-      color: #4ade80;
-      font-weight: 600;
-    }
-
-    .gps-dot {
-      width: 7px;
-      height: 7px;
-      background: #4ade80;
-      border-radius: 50%;
-      animation: gps-blink 1.2s ease-in-out infinite;
-    }
-
-    @keyframes gps-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.25; }
-    }
-
-    .mock-map {
-      flex: 1;
-      background: #141b2a;
+    .storm-mock-map {
+      background: var(--bg-0);
       position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      min-height: 280px;
       overflow: hidden;
     }
 
-    .mock-map-grid {
+    .map-grid-lines {
       position: absolute;
       inset: 0;
       background-image:
-        linear-gradient(rgba(34,197,94,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(34,197,94,0.04) 1px, transparent 1px);
-      background-size: 18px 18px;
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 36px 36px;
     }
 
-    /* Hail swath lines */
-    .mock-swath {
-      position: absolute;
-      opacity: 0.4;
-      border-radius: 50%;
-    }
-
-    .mock-swath--1 {
-      width: 90px; height: 50px;
-      background: rgba(251,191,36,0.35);
-      top: 25%; left: 15%;
-      transform: rotate(-18deg);
-      filter: blur(4px);
-    }
-
-    .mock-swath--2 {
-      width: 70px; height: 35px;
-      background: rgba(239,68,68,0.3);
-      top: 55%; left: 40%;
-      transform: rotate(10deg);
-      filter: blur(3px);
-    }
-
-    .mock-hail-dots {
-      position: absolute;
-      inset: 0;
-    }
-
-    .hail-dot {
+    .map-hail {
       position: absolute;
       border-radius: 50%;
-      background: rgba(251,191,36,0.65);
-      animation: hail-pulse 2.5s ease-in-out infinite alternate;
+      animation: hail-pulse 3s ease-in-out infinite;
     }
-
-    .hail-dot--1 { width: 26px; height: 26px; top: 22%; left: 20%; animation-delay: 0s; }
-    .hail-dot--2 { width: 18px; height: 18px; top: 48%; left: 52%; animation-delay: 0.4s; }
-    .hail-dot--3 { width: 32px; height: 32px; top: 60%; left: 30%; animation-delay: 0.8s; }
-    .hail-dot--4 { width: 14px; height: 14px; top: 28%; left: 70%; animation-delay: 1.2s; }
-    .hail-dot--5 { width: 20px; height: 20px; top: 15%; left: 55%; animation-delay: 0.6s; }
+    .map-hail--sm { width: 14px; height: 14px; background: rgba(251,191,36,0.6); }
+    .map-hail--md { width: 22px; height: 22px; background: rgba(239,68,68,0.55); }
+    .map-hail--lg { width: 32px; height: 32px; background: rgba(220,38,38,0.45); }
 
     @keyframes hail-pulse {
-      0%   { opacity: 0.4; transform: scale(0.9); }
-      100% { opacity: 0.9; transform: scale(1.1); }
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50%       { transform: scale(1.2); opacity: 0.6; }
     }
 
-    /* GPS blue dot on map */
-    .mock-gps-pin {
+    .map-pin {
       position: absolute;
-      bottom: 30%;
-      right: 28%;
-      z-index: 2;
-    }
-
-    .gps-pin-dot {
-      width: 12px;
-      height: 12px;
-      background: #3b82f6;
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 0 0 4px rgba(59,130,246,0.25);
-      animation: gps-pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes gps-pulse {
-      0%, 100% { box-shadow: 0 0 0 4px rgba(59,130,246,0.25); }
-      50% { box-shadow: 0 0 0 8px rgba(59,130,246,0.1); }
-    }
-
-    .mock-map-label {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(10,13,20,0.75);
-      border: 1px solid rgba(251,191,36,0.3);
-      border-radius: 5px;
-      padding: 4px 8px;
-      font-size: 10px;
-      font-weight: 600;
-      color: #fbbf24;
-    }
-
-    /* ─── Storm popup detail mock ───────────────────────────────────────────── */
-    .mock-storm-detail {
-      background: var(--bg-0);
-      border: 1px solid rgba(220,38,38,0.25);
-      border-radius: var(--radius-sm);
-      padding: 14px;
-      margin-top: 12px;
-    }
-
-    .storm-detail-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-
-    .storm-detail-date {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--text-1);
-    }
-
-    .storm-detail-badge {
-      padding: 3px 9px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(251,191,36,0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(251,191,36,0.3);
-    }
-
-    .storm-detail-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .storm-stat-box {
-      background: var(--bg-2);
-      border-radius: 7px;
-      padding: 9px 11px;
-    }
-
-    .storm-stat-label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-4);
-      display: block;
-      margin-bottom: 3px;
-    }
-
-    .storm-stat-value {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--text-1);
-    }
-
-    .storm-stat-value .unit {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--text-4);
-    }
-
-    .storm-stat-source {
-      font-size: 10px;
-      color: var(--red-light);
-      margin-top: 2px;
-      display: block;
-    }
-
-    /* ─── PDF Report Mock ───────────────────────────────────────────────────── */
-    .mock-pdf-flow {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 14px;
-    }
-
-    .pdf-step {
-      display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      background: var(--bg-0);
-      border-radius: 8px;
-      border: 1px solid var(--border);
     }
-
-    .pdf-step-num {
-      width: 26px;
-      height: 26px;
-      min-width: 26px;
-      background: rgba(220,38,38,0.15);
-      border: 1px solid rgba(220,38,38,0.3);
+    .map-pin-dot {
+      width: 16px; height: 16px;
+      background: var(--red);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 800;
-      color: var(--red-light);
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 3px var(--glow);
+      animation: pin-pulse 2s ease-in-out infinite;
     }
-
-    .pdf-step-text {
-      font-size: 13px;
-      color: var(--text-2);
-      font-weight: 500;
-    }
-
-    .pdf-step.done .pdf-step-num {
-      background: rgba(34,197,94,0.15);
-      border-color: rgba(34,197,94,0.35);
-      color: #4ade80;
-    }
-
-    .pdf-step.done .pdf-step-text { color: var(--text-3); }
-
-    .pdf-ready-box {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-      background: rgba(220,38,38,0.08);
-      border: 1px solid rgba(220,38,38,0.25);
-      border-radius: 8px;
+    .map-pin-line { width: 2px; height: 18px; background: var(--red); }
+    .map-pin-label {
+      background: var(--red);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
       margin-top: 4px;
     }
 
-    .pdf-icon {
-      font-size: 28px;
+    @keyframes pin-pulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--glow); }
+      50%       { box-shadow: 0 0 0 8px rgba(220,38,38,0.1); }
     }
 
-    .pdf-ready-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--red-light);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 2px;
-    }
-
-    .pdf-ready-name {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-1);
-    }
-
-    .pdf-ready-meta {
-      font-size: 12px;
-      color: var(--text-4);
-      margin-top: 1px;
-    }
-
-    .pdf-download-btn {
-      margin-left: auto;
-      padding: 8px 14px;
-      background: var(--red);
-      border-radius: 7px;
-      font-size: 12px;
-      font-weight: 700;
-      color: white;
-      white-space: nowrap;
-    }
-
-    /* ─── Report Contents List ──────────────────────────────────────────────── */
-    .report-pages {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .report-page-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 12px 14px;
-      background: var(--bg-2);
-      border-radius: 8px;
+    .map-legend {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      background: rgba(10,13,20,0.85);
       border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
     }
-
-    .report-page-num {
+    .map-legend-title { font-size: 10px; color: var(--text-4); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 11px;
-      font-weight: 700;
-      color: var(--red-light);
-      min-width: 28px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      color: var(--text-3);
+      margin-bottom: 3px;
     }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .legend-dot--low  { background: rgba(251,191,36,0.8); }
+    .legend-dot--med  { background: rgba(239,68,68,0.7); }
+    .legend-dot--high { background: rgba(220,38,38,0.9); }
 
-    .report-page-content {}
+    /* Chat mock */
+    .chat-mock { display: flex; flex-direction: column; }
 
-    .report-page-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-1);
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    .report-page-desc {
-      font-size: 12px;
-      color: var(--text-4);
-      line-height: 1.5;
-    }
-
-    /* ─── Chat Mock ─────────────────────────────────────────────────────────── */
-    .mock-chat-header {
+    .chat-header {
+      background: var(--bg-2);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 12px 14px;
-      background: var(--bg-0);
       border-bottom: 1px solid var(--border);
     }
 
-    .susan-avatar {
-      width: 28px;
-      height: 28px;
-      background: linear-gradient(135deg, var(--red) 0%, #7c3aed 100%);
+    .chat-avatar {
+      width: 34px; height: 34px;
+      background: var(--red);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
       font-weight: 900;
-      color: white;
+      color: #fff;
+      flex-shrink: 0;
     }
 
-    .susan-status {
-      flex: 1;
-    }
+    .chat-ai-name { font-size: 14px; font-weight: 700; color: var(--text-1); }
+    .chat-ai-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4ade80; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s ease-in-out infinite; }
 
-    .susan-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-1);
-    }
-
-    .susan-online {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: #4ade80;
-    }
-
-    .online-dot {
-      width: 6px;
-      height: 6px;
-      background: #4ade80;
-      border-radius: 50%;
-      animation: gps-blink 1.5s ease-in-out infinite;
-    }
-
-    .mock-chat {
-      padding: 14px;
+    .chat-messages {
+      padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
 
-    .chat-row {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+    .msg { display: flex; gap: 8px; }
+    .msg--rep { flex-direction: row-reverse; }
 
-    .chat-label {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-4);
-      padding: 0 2px;
-    }
-
-    .chat-label--susan { color: var(--red-light); }
-
-    .chat-bubble {
-      max-width: 85%;
-      padding: 10px 13px;
+    .msg-bubble {
+      max-width: 78%;
+      padding: 10px 14px;
       border-radius: 12px;
       font-size: 13px;
       line-height: 1.5;
     }
 
-    .chat-bubble--user {
-      background: var(--red);
-      color: white;
-      align-self: flex-end;
-      border-bottom-right-radius: 3px;
-    }
-
-    .chat-bubble--susan {
-      background: var(--bg-3);
+    .msg--ai .msg-bubble {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
       color: var(--text-2);
-      align-self: flex-start;
-      border-bottom-left-radius: 3px;
+      border-bottom-left-radius: 4px;
     }
 
-    .chat-storm-list {
-      margin-top: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .msg--rep .msg-bubble {
+      background: var(--red);
+      color: #fff;
+      border-bottom-right-radius: 4px;
     }
 
-    .chat-storm-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 5px 8px;
-      background: rgba(255,255,255,0.07);
-      border-radius: 6px;
-      font-size: 12px;
-    }
+    .msg-meta { font-size: 10px; color: var(--text-4); margin-top: 3px; }
+    .msg--rep .msg-meta { text-align: right; }
 
-    .chat-storm-row .s-date { color: var(--text-2); font-weight: 600; }
-    .chat-storm-row .s-hail { color: #fbbf24; font-weight: 700; font-size: 11px; }
-
-    .download-btn-mock {
+    .chat-dl-btn {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       margin-top: 8px;
-      padding: 7px 12px;
-      background: rgba(220,38,38,0.15);
-      border: 1px solid rgba(220,38,38,0.3);
+      padding: 7px 14px;
+      background: var(--red);
+      color: #fff;
       border-radius: 7px;
       font-size: 12px;
-      font-weight: 600;
-      color: var(--red-light);
+      font-weight: 700;
+      text-decoration: none;
+      cursor: default;
     }
 
-    /* ─── Leaderboard Mock ───────────────────────────────────────────────────── */
-    .leaderboard-mock {
-      margin-top: 14px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
+    .chat-input-row {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
-    .lb-header {
+    .chat-input-fake {
+      flex: 1;
       background: var(--bg-0);
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .lb-title {
+      border: 1px solid var(--border-md);
+      border-radius: 8px;
+      padding: 9px 13px;
       font-size: 12px;
-      font-weight: 700;
-      color: var(--text-2);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .lb-period {
-      font-size: 11px;
       color: var(--text-4);
+      font-style: italic;
     }
 
-    .lb-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-1);
-      transition: background 0.15s;
-    }
-
-    .lb-row:last-child { border-bottom: none; }
-
-    .lb-row.you {
-      background: rgba(220,38,38,0.07);
-      border-left: 3px solid var(--red);
-    }
-
-    .lb-rank {
-      font-size: 13px;
-      font-weight: 800;
-      color: var(--text-4);
-      min-width: 22px;
-    }
-
-    .lb-rank.gold   { color: #fbbf24; }
-    .lb-rank.silver { color: #9ca3af; }
-    .lb-rank.bronze { color: #b45309; }
-
-    .lb-avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 700;
-      color: white;
-      flex-shrink: 0;
-    }
-
-    .lb-name-col { flex: 1; }
-
-    .lb-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-1);
-      display: block;
-    }
-
-    .lb-sub {
-      font-size: 11px;
-      color: var(--text-4);
-    }
-
-    .lb-revenue {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--text-1);
-    }
-
-    .lb-bar-wrap {
-      width: 60px;
-      height: 5px;
-      background: var(--bg-3);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .lb-bar {
-      height: 100%;
+    .chat-send-btn {
+      width: 34px; height: 34px;
       background: var(--red);
-      border-radius: 3px;
-      transition: width 1s ease;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      font-size: 14px;
     }
 
-    /* ─── Email Mock ─────────────────────────────────────────────────────────── */
-    .mock-email {
-      background: var(--bg-0);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      margin-top: 14px;
-    }
+    /* Email mock */
+    .email-mock { display: flex; flex-direction: column; }
 
-    .email-header {
+    .email-toolbar {
       background: var(--bg-2);
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .email-subject {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-1);
-      margin-bottom: 4px;
-    }
-
-    .email-meta-row {
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 11px;
-      color: var(--text-4);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }
 
-    .email-meta-row span { color: var(--text-3); }
+    .email-tag {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-weight: 600;
+    }
+    .email-tag--connected { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .email-tag--ai        { background: var(--red-glow); color: #fca5a5; border: 1px solid rgba(220,38,38,0.25); }
+    .email-tag--tracked   { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.25); }
 
-    .email-body-preview {
-      padding: 12px 14px;
-      font-size: 13px;
+    .email-body { padding: 16px; }
+
+    .email-field {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .email-field:last-of-type { border-bottom: none; margin-bottom: 12px; }
+    .email-label { color: var(--text-4); font-weight: 600; min-width: 44px; }
+    .email-val   { color: var(--text-2); }
+
+    .email-content {
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 12px;
       color: var(--text-3);
       line-height: 1.7;
     }
 
-    .email-body-preview strong { color: var(--text-2); }
+    .email-highlight { color: var(--text-1); font-weight: 600; }
 
-    .email-footer-bar {
+    /* ─── Feature Lists ─────────────────────────────────────────────────────── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 480px) { .feature-grid { grid-template-columns: 1fr; } }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px;
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+
+    .feature-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .fi-red    { background: rgba(220,38,38,0.15); }
+    .fi-blue   { background: rgba(59,130,246,0.15); }
+    .fi-green  { background: rgba(34,197,94,0.15); }
+    .fi-orange { background: rgba(249,115,22,0.15); }
+    .fi-purple { background: rgba(124,58,237,0.15); }
+
+    .feature-text-title { font-size: 13px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+    .feature-text-body  { font-size: 12px; color: var(--text-4); line-height: 1.45; }
+
+    /* ─── PDF Pages ─────────────────────────────────────────────────────────── */
+    .pdf-pages {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    @media (min-width: 600px) { .pdf-pages { grid-template-columns: repeat(4, 1fr); } }
+
+    .pdf-page-card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .pdf-page-thumb {
       background: var(--bg-2);
-      border-top: 1px solid var(--border);
-      padding: 8px 14px;
+      height: 80px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      font-size: 26px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .email-action-btn {
-      padding: 5px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-    }
+    .pdf-page-info { padding: 10px 12px; }
+    .pdf-page-num  { font-size: 10px; color: var(--text-4); margin-bottom: 3px; }
+    .pdf-page-name { font-size: 13px; font-weight: 700; color: var(--text-1); margin-bottom: 5px; }
+    .pdf-page-desc { font-size: 11px; color: var(--text-4); line-height: 1.4; }
 
-    .email-action-btn.send {
-      background: var(--red);
-      color: white;
+    /* ─── Impacted Assets Section ───────────────────────────────────────────── */
+    .asset-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 28px;
     }
+    @media (max-width: 480px) { .asset-cards { grid-template-columns: 1fr; } }
 
-    .email-action-btn.draft {
-      background: var(--bg-3);
-      color: var(--text-3);
+    .asset-card {
+      background: var(--bg-1);
       border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: var(--radius-sm);
+      padding: 16px;
     }
+    .asset-card--alert { border-left-color: var(--red); }
+
+    .asset-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .asset-card-addr  { font-size: 13px; font-weight: 700; color: var(--text-1); }
+    .asset-card-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-hit  { background: rgba(220,38,38,0.2); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
+    .badge-safe { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+
+    .asset-card-meta { font-size: 12px; color: var(--text-4); line-height: 1.5; }
+    .asset-meta-row  { display: flex; gap: 6px; margin-bottom: 3px; }
+    .asset-meta-key  { font-weight: 600; color: var(--text-3); }
+
+    .callout-box {
+      background: rgba(220,38,38,0.06);
+      border: 1px solid rgba(220,38,38,0.2);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .callout-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+    .callout-text { font-size: 14px; color: var(--text-2); line-height: 1.65; }
+    .callout-text strong { color: var(--text-1); }
+
+    /* ─── Pro Tip ───────────────────────────────────────────────────────────── */
+    .pro-tip {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 16px 20px;
+      background: rgba(59,130,246,0.07);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: var(--radius-sm);
+    }
+    .pro-tip-label {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #60a5fa;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .pro-tip-text { font-size: 13px; color: var(--text-3); line-height: 1.6; }
+    .pro-tip-text strong { color: var(--text-1); }
+
+    /* ─── Report Stages ─────────────────────────────────────────────────────── */
+    .report-stage {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .report-stage:last-child { border-bottom: none; }
+
+    .stage-num {
+      width: 32px; height: 32px;
+      background: var(--red);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .stage-label { font-size: 15px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+    .stage-body  { font-size: 13px; color: var(--text-4); line-height: 1.5; }
 
     /* ─── Checklist ─────────────────────────────────────────────────────────── */
-    .checklist {
+    .checklist-header {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
     }
+
+    .checklist-progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .checklist-progress-bar {
+      width: 160px;
+      height: 6px;
+      background: var(--bg-3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .checklist-progress-fill {
+      height: 100%;
+      background: var(--red);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    .checklist-count {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-3);
+    }
+    .checklist-count span { color: var(--red-light); }
+
+    .checklist { display: flex; flex-direction: column; gap: 10px; }
 
     .check-item {
       display: flex;
       align-items: flex-start;
       gap: 14px;
-      padding: 14px;
-      background: var(--bg-2);
+      padding: 16px 18px;
+      background: var(--bg-1);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
       user-select: none;
-      -webkit-tap-highlight-color: transparent;
     }
-
-    .check-item:hover {
-      border-color: rgba(220,38,38,0.3);
-      background: var(--bg-3);
-    }
-
-    .check-item.checked {
-      border-color: rgba(34,197,94,0.35);
-      background: rgba(34,197,94,0.05);
-    }
+    .check-item:hover { background: var(--bg-2); transform: translateX(3px); }
+    .check-item.done  { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.05); }
 
     .check-box {
-      width: 22px;
-      height: 22px;
-      min-width: 22px;
+      width: 22px; height: 22px;
       border: 2px solid var(--bg-3);
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
+      border-radius: 6px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
       font-size: 13px;
-      color: transparent;
-      background: var(--bg-0);
+      transition: background 0.2s, border-color 0.2s;
       margin-top: 1px;
     }
-
-    .check-item.checked .check-box {
-      background: #22c55e;
-      border-color: #22c55e;
-      color: white;
+    .check-item.done .check-box {
+      background: var(--green);
+      border-color: var(--green);
     }
 
     .check-text { flex: 1; }
+    .check-num  { font-size: 10px; color: var(--text-4); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+    .check-title { font-size: 14px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+    .check-sub   { font-size: 12px; color: var(--text-4); line-height: 1.4; }
 
-    .check-text strong {
-      display: block;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-1);
-      margin-bottom: 3px;
+    .check-item.done .check-title { color: var(--text-3); }
+
+    .checklist-done-msg {
+      display: none;
+      text-align: center;
+      padding: 28px;
+      background: rgba(34,197,94,0.07);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: var(--radius);
+      margin-top: 14px;
     }
+    .checklist-done-msg.visible { display: block; }
+    .checklist-done-title { font-size: 20px; font-weight: 800; color: #4ade80; margin-bottom: 6px; }
+    .checklist-done-body  { font-size: 14px; color: var(--text-4); }
 
-    .check-item.checked .check-text strong { color: var(--text-3); }
-
-    .check-text span {
-      font-size: 13px;
-      color: var(--text-3);
-      line-height: 1.5;
-    }
-
-    /* ─── Progress counter ──────────────────────────────────────────────────── */
-    .checklist-progress {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      margin-bottom: 12px;
-    }
-
-    .progress-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-3);
-    }
-
-    .progress-count {
-      font-size: 18px;
-      font-weight: 900;
-      color: var(--text-1);
-    }
-
-    .progress-track {
-      margin-top: 6px;
-      height: 4px;
-      background: var(--bg-3);
+    /* ─── Divider ───────────────────────────────────────────────────────────── */
+    .section-divider {
+      width: 48px; height: 3px;
+      background: var(--red);
       border-radius: 2px;
-      overflow: hidden;
+      margin-bottom: 24px;
     }
 
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--red) 0%, #22c55e 100%);
-      border-radius: 2px;
-      transition: width 0.4s ease;
-      width: 0%;
+    /* ─── Two-col layout ────────────────────────────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (min-width: 768px) {
+      .two-col { grid-template-columns: 1fr 1fr; gap: 56px; }
+      .two-col--wide { grid-template-columns: 1.1fr 0.9fr; }
+      .two-col--wide-r { grid-template-columns: 0.9fr 1.1fr; }
     }
 
     /* ─── Footer ────────────────────────────────────────────────────────────── */
-    .footer {
-      margin-top: 60px;
-      padding: 40px 0 20px;
-      text-align: center;
+    footer {
       border-top: 1px solid var(--border);
+      padding: 44px 0;
+      text-align: center;
     }
 
     .footer-logo {
-      font-size: 18px;
-      font-weight: 900;
-      color: var(--text-1);
-      letter-spacing: -0.5px;
-      margin-bottom: 4px;
-    }
-
-    .footer-logo span { color: var(--red); }
-
-    .footer-tagline {
-      font-size: 13px;
-      color: var(--text-4);
-      margin-bottom: 20px;
-    }
-
-    .footer-link {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 10px 20px;
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text-2);
-      font-size: 14px;
-      font-weight: 600;
+      gap: 10px;
+      margin-bottom: 16px;
       text-decoration: none;
-      transition: all 0.2s;
     }
 
-    .footer-link:hover {
-      background: var(--bg-3);
-      border-color: rgba(220,38,38,0.3);
-      color: var(--text-1);
+    .footer-logo-mark {
+      width: 36px; height: 36px;
+      background: var(--red);
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+      font-weight: 900;
+      color: #fff;
     }
 
-    .footer-powered {
-      margin-top: 24px;
+    .footer-company { font-size: 16px; font-weight: 800; color: var(--text-1); }
+    .footer-powered { font-size: 13px; color: var(--text-4); margin-bottom: 22px; }
+
+    .footer-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: var(--red);
+      color: #fff;
+      border-radius: 9px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .footer-cta:hover { background: var(--red-light); transform: translateY(-2px); }
+
+    .footer-legal {
+      margin-top: 28px;
       font-size: 12px;
       color: var(--text-4);
     }
 
-    .footer-powered a { color: var(--red-light); text-decoration: none; }
-    .footer-powered a:hover { text-decoration: underline; }
+    /* ─── Utilities ─────────────────────────────────────────────────────────── */
+    .mt-8  { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .mt-32 { margin-top: 32px; }
+    .mb-8  { margin-bottom: 8px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
 
-    /* ─── Responsive ────────────────────────────────────────────────────────── */
-    @media (min-width: 600px) {
-      .hero { padding: 90px 0 70px; }
-      .hero-title { letter-spacing: -2px; }
-      .card-body { padding: 16px 28px 28px; }
-      .card-header { padding: 24px 28px 0; }
-    }
+    .text-red   { color: var(--red-light); }
+    .text-muted { color: var(--text-4); }
+    .fw-700     { font-weight: 700; }
 
-    @media (max-width: 420px) {
-      .mock-sidebar { width: 130px; min-width: 130px; }
-      .hero-stats { gap: 20px; }
-      .stat-num { font-size: 24px; }
-      .mock-body { min-height: 180px; }
-    }
-
-    /* ─── Count up animation ────────────────────────────────────────────────── */
-    .counting { display: inline-block; }
-
+    /* ─── Section BG alt ────────────────────────────────────────────────────── */
+    .section-alt { background: rgba(255,255,255,0.015); }
   </style>
 </head>
 <body>
-  <div class="progress-bar" id="progress"></div>
+  <!-- Scroll Progress -->
+  <div id="scroll-progress"></div>
 
+  <!-- Background -->
   <div class="bg-canvas" aria-hidden="true">
+    <div class="bg-grid"></div>
     <div class="bg-orb bg-orb--1"></div>
     <div class="bg-orb bg-orb--2"></div>
     <div class="bg-orb bg-orb--3"></div>
   </div>
-  <div class="bg-grid" aria-hidden="true"></div>
 
   <!-- Nav -->
   <nav class="nav" aria-label="Site navigation">
-    <a href="https://sa21.up.railway.app" class="nav-brand" aria-label="Roof ER home">
-      <div class="nav-logo" aria-hidden="true">RE</div>
-      <span class="nav-name">Roof ER</span>
+    <a href="#" class="nav-brand">
+      <div class="nav-logo" aria-hidden="true">R</div>
+      <div>
+        <div class="nav-title">Roof ER</div>
+        <div class="nav-sub">Rep Guide</div>
+      </div>
     </a>
     <a href="https://sa21.up.railway.app" class="nav-cta" target="_blank" rel="noopener">
-      Open App
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      Open App ↗
     </a>
   </nav>
 
-  <main class="page">
+  <div class="page">
 
-    <!-- ─── Hero ──────────────────────────────────────────────────────────── -->
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-badge" role="status">
-        <span class="badge-dot" aria-hidden="true"></span>
-        Field Rep Guide
+    <!-- ─── HERO ──────────────────────────────────────────────────────────── -->
+    <section class="hero" aria-labelledby="hero-h1">
+      <div class="hero-eyebrow reveal">
+        <span class="hero-eyebrow-dot" aria-hidden="true"></span>
+        Field Rep Toolkit
       </div>
-
-      <h1 class="hero-title" id="hero-title">
-        Your <span class="accent">AI-Powered</span><br />Field Toolkit
+      <h1 id="hero-h1" class="hero-title reveal reveal-delay-1">
+        Your <span>AI-Powered</span><br>Field Toolkit
       </h1>
-
-      <p class="hero-sub">Roof ER The Roof Docs</p>
-      <p class="hero-tagline">Built for reps who <em>close.</em></p>
-
-      <div class="hero-stats" role="list" aria-label="Key stats">
-        <div class="stat-item" role="listitem">
-          <span class="stat-num"><span class="counting" data-target="3">0</span></span>
-          <span class="stat-label">Federal Data Sources</span>
+      <p class="hero-company reveal reveal-delay-2">Roof ER The Roof Docs</p>
+      <p class="hero-sub reveal reveal-delay-3">Built for reps who close.</p>
+      <div class="hero-stats reveal reveal-delay-4" role="list">
+        <div class="hero-stat" role="listitem">
+          <span class="hero-stat-icon" aria-hidden="true">🌩️</span>
+          3 Federal Data Sources
         </div>
-        <div class="stat-item" role="listitem">
-          <span class="stat-num">Instant</span>
-          <span class="stat-label">PDF Reports</span>
+        <div class="hero-stat" role="listitem">
+          <span class="hero-stat-icon" aria-hidden="true">📄</span>
+          Instant PDF Reports
         </div>
-        <div class="stat-item" role="listitem">
-          <span class="stat-num">AI</span>
-          <span class="stat-label">Powered Intel</span>
+        <div class="hero-stat" role="listitem">
+          <span class="hero-stat-icon" aria-hidden="true">🤖</span>
+          AI That Knows Roofing
         </div>
       </div>
-
-      <div class="hero-cta-group">
+      <div class="hero-cta-group reveal reveal-delay-5">
         <a href="https://sa21.up.railway.app" class="btn-primary" target="_blank" rel="noopener">
-          Open the App
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          Open the App ↗
         </a>
-        <a href="#storm-maps" class="btn-secondary">
-          Read the Guide
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <a href="#whats-inside" class="btn-ghost">
+          See What's Inside
         </a>
       </div>
-
-      <div class="scroll-hint" aria-hidden="true">
+      <div class="hero-scroll-hint reveal reveal-delay-6" aria-hidden="true">
         <span>Scroll to explore</span>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
     </section>
 
-    <p class="section-divider" aria-hidden="true">Features</p>
-
-    <!-- ─── 1. Storm Maps ──────────────────────────────────────────────────── -->
-    <article class="section from-left card" id="storm-maps" aria-labelledby="storm-maps-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">🌩️</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 01</span>
-          <h2 class="card-title" id="storm-maps-title">Storm Maps</h2>
-          <p class="card-subtitle">Know Before You Knock</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          The killer feature. Pull up verified hail and wind history for <strong>any address in the US</strong> before you ring the doorbell. NOAA federal data — the same sources insurance adjusters use.
+    <!-- ─── WHAT'S INSIDE ─────────────────────────────────────────────────── -->
+    <section id="whats-inside" aria-labelledby="inside-h2">
+      <div class="container">
+        <div class="section-label reveal">App Overview</div>
+        <h2 id="inside-h2" class="section-title reveal reveal-delay-1">What's Inside</h2>
+        <p class="section-body reveal reveal-delay-2">
+          Everything you need to find storms, generate reports, communicate with adjusters, and close more jobs — all in one place.
         </p>
 
-        <!-- Storm Map Mock UI -->
-        <div class="mock-screen" aria-hidden="true" role="img" aria-label="Storm Maps interface preview">
-          <div class="mock-titlebar">
-            <div class="mock-dots">
-              <div class="mock-dot mock-dot--red"></div>
-              <div class="mock-dot mock-dot--yellow"></div>
-              <div class="mock-dot mock-dot--green"></div>
-            </div>
-            <span class="mock-bar-label">sa21.up.railway.app &rsaquo; Storm Maps</span>
+        <div class="inside-grid" role="list">
+
+          <!-- Main -->
+          <div class="inside-card inside-card--red reveal reveal-delay-1" role="listitem">
+            <div class="inside-cat">Main</div>
+            <ul class="inside-items">
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Home</div>
+                  <div class="inside-item-desc">Dashboard overview</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Susan 21</div>
+                  <div class="inside-item-desc">AI conversation assistant</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Agnes 21</div>
+                  <div class="inside-item-desc">Roleplay training scenarios</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Pocket Linguist</div>
+                  <div class="inside-item-desc">Translate + close in any language</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Deaf Communication</div>
+                  <div class="inside-item-desc">Sign language + live captions</div>
+                </div>
+              </li>
+            </ul>
           </div>
-          <div class="mock-body">
-            <!-- Sidebar -->
-            <div class="mock-sidebar">
-              <div class="mock-search-bar">
-                <span class="mock-search-icon">&#128269;</span>
-                123 Oak Lane, VA
-              </div>
-              <div class="mock-filter-row">
-                <div class="mock-filter-chip">1Y</div>
-                <div class="mock-filter-chip active">5Y</div>
-                <div class="mock-filter-chip">10Y</div>
-              </div>
-              <div class="mock-storm-card active">
-                <span class="storm-date">May 16, 2025</span>
-                <span class="storm-detail">1.75&rdquo; hail &bull; 62mph</span>
-              </div>
-              <div class="mock-storm-card">
-                <span class="storm-date" style="color:var(--text-3)">Aug 3, 2024</span>
-                <span class="storm-detail">1.00&rdquo; hail</span>
-              </div>
-              <div class="mock-storm-card">
-                <span class="storm-date" style="color:var(--text-3)">Mar 14, 2023</span>
-                <span class="storm-detail">Wind 58mph</span>
-              </div>
-              <div class="mock-storm-card">
-                <span class="storm-date" style="color:var(--text-3)">Jul 2, 2022</span>
-                <span class="storm-detail">1.25&rdquo; hail</span>
-              </div>
-              <div class="mock-gps-row">
-                <div class="gps-dot"></div>
-                GPS Active
-              </div>
-            </div>
-            <!-- Map -->
-            <div class="mock-map">
-              <div class="mock-map-grid"></div>
-              <div class="mock-swath mock-swath--1"></div>
-              <div class="mock-swath mock-swath--2"></div>
-              <div class="mock-hail-dots">
-                <div class="hail-dot hail-dot--1"></div>
-                <div class="hail-dot hail-dot--2"></div>
-                <div class="hail-dot hail-dot--3"></div>
-                <div class="hail-dot hail-dot--4"></div>
-                <div class="hail-dot hail-dot--5"></div>
-              </div>
-              <div class="mock-gps-pin">
-                <div class="gps-pin-dot"></div>
-              </div>
-              <div class="mock-map-label">NEXRAD</div>
-            </div>
+
+          <!-- Team -->
+          <div class="inside-card inside-card--blue reveal reveal-delay-2" role="listitem">
+            <div class="inside-cat">Team</div>
+            <ul class="inside-items">
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Team Chat</div>
+                  <div class="inside-item-desc">Message colleagues in real time</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Team Knowledge</div>
+                  <div class="inside-item-desc">Shared learning &amp; field intel</div>
+                </div>
+              </li>
+            </ul>
           </div>
+
+          <!-- Tools -->
+          <div class="inside-card inside-card--orange reveal reveal-delay-3" role="listitem">
+            <div class="inside-cat">Tools</div>
+            <ul class="inside-items">
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Email</div>
+                  <div class="inside-item-desc">Generate adjuster emails with AI</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Transcription</div>
+                  <div class="inside-item-desc">Voice to text on the go</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Upload Analysis</div>
+                  <div class="inside-item-desc">Analyze docs &amp; photos with AI</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Knowledge Base</div>
+                  <div class="inside-item-desc">Documents, guides, scripts</div>
+                </div>
+              </li>
+              <li class="inside-item dimmed">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">
+                    QR Profiles
+                    <span class="badge-soon">Soon</span>
+                  </div>
+                  <div class="inside-item-desc">Public rep landing pages</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Storm Intel -->
+          <div class="inside-card inside-card--green reveal reveal-delay-4" role="listitem">
+            <div class="inside-cat">Storm Intel</div>
+            <ul class="inside-items">
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Storm Maps</div>
+                  <div class="inside-item-desc">Hail history, radar, NWS warnings</div>
+                </div>
+              </li>
+              <li class="inside-item">
+                <span class="inside-dot" aria-hidden="true"></span>
+                <div class="inside-item-content">
+                  <div class="inside-item-name">Impacted Assets</div>
+                  <div class="inside-item-desc">Customer storm damage alerts</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+
         </div>
+      </div>
+    </section>
 
-        <!-- Storm event detail popup -->
-        <div class="mock-storm-detail" aria-hidden="true">
-          <div class="storm-detail-header">
-            <span class="storm-detail-date">May 16, 2025</span>
-            <span class="storm-detail-badge">NHP Verified</span>
-          </div>
-          <div class="storm-detail-grid">
-            <div class="storm-stat-box">
-              <span class="storm-stat-label">Hail Size</span>
-              <span class="storm-stat-value">1.75 <span class="unit">in</span></span>
-              <span class="storm-stat-source">NOAA / NHP</span>
-            </div>
-            <div class="storm-stat-box">
-              <span class="storm-stat-label">Wind Speed</span>
-              <span class="storm-stat-value">62 <span class="unit">mph</span></span>
-              <span class="storm-stat-source">NWS Verified</span>
-            </div>
-          </div>
-        </div>
-
-        <ul class="feature-list" style="margin-top:16px;">
-          <li>Search any US address, city, or ZIP code instantly</li>
-          <li>Verified hail &amp; wind history from NOAA — same data insurance adjusters use</li>
-          <li>Filter by date range: 1 year, 2 years, 5 years, 10 years</li>
-          <li>Click any storm date card to see hail size, wind speed, and source</li>
-          <li>GPS blue dot tracks your position live on the map</li>
-          <li>NEXRAD radar imagery overlays with NWS severe weather warning history</li>
-          <li>Hail swath polylines from the National Hail Project</li>
-        </ul>
-
-        <div class="tip-box">
-          <span class="tip-icon" aria-hidden="true">&#128161;</span>
+    <!-- ─── STORM MAPS ────────────────────────────────────────────────────── -->
+    <section class="section-alt" aria-labelledby="storm-h2">
+      <div class="container">
+        <div class="two-col two-col--wide">
           <div>
-            <strong>Pro tip:</strong> Search the address <em>before</em> you knock. Know exactly what storms hit, when, and how hard — before they open the door.
+            <div class="section-label reveal">Storm Intel</div>
+            <h2 id="storm-h2" class="section-title reveal reveal-delay-1">Storm Maps — Know Before You Knock</h2>
+            <div class="section-divider reveal reveal-delay-2"></div>
+            <p class="section-body reveal reveal-delay-2" style="margin-bottom:28px;">
+              Pull up any address and see its full storm history — hail size, wind events, NWS warnings — before you ring the doorbell. Stop guessing. Start knowing.
+            </p>
+
+            <div class="feature-grid reveal reveal-delay-3">
+              <div class="feature-item">
+                <div class="feature-icon fi-red" aria-hidden="true">🌩️</div>
+                <div>
+                  <div class="feature-text-title">Hail History</div>
+                  <div class="feature-text-body">Hail size + date for any address going back years</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-blue" aria-hidden="true">🗺️</div>
+                <div>
+                  <div class="feature-text-title">Visual Map</div>
+                  <div class="feature-text-body">Color-coded damage radius on an interactive map</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-orange" aria-hidden="true">📡</div>
+                <div>
+                  <div class="feature-text-title">NOAA + SPC Data</div>
+                  <div class="feature-text-body">3 federal sources: NWS, SPC, SWO</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-green" aria-hidden="true">📍</div>
+                <div>
+                  <div class="feature-text-title">GPS Pin Drop</div>
+                  <div class="feature-text-body">Auto-locate your position with one tap</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pro-tip reveal reveal-delay-4 mt-24">
+              <div class="pro-tip-label">Pro Tip</div>
+              <div class="pro-tip-text">
+                <strong>Search your first address before your first knock.</strong> Knowing the hail date lets you lead with
+                "Your roof was hit on April 14th — want to see the report?" instead of a cold pitch.
+              </div>
+            </div>
+          </div>
+
+          <!-- Storm Maps Mock UI -->
+          <div class="reveal reveal-delay-2">
+            <div class="mock-panel">
+              <div class="mock-topbar">
+                <div class="mock-dot mock-dot--red" aria-hidden="true"></div>
+                <div class="mock-dot mock-dot--yellow" aria-hidden="true"></div>
+                <div class="mock-dot mock-dot--green" aria-hidden="true"></div>
+                <div class="mock-title">Storm Maps</div>
+              </div>
+              <div class="storm-mock">
+                <div class="storm-mock-sidebar">
+                  <div class="storm-search">
+                    <span class="storm-search-icon" aria-hidden="true">🔍</span>
+                    <span class="storm-search-text">Search address…</span>
+                  </div>
+                  <div class="storm-card active">
+                    <div class="storm-card-header">
+                      <div class="storm-card-addr">14 Maple Dr</div>
+                      <div class="storm-card-sev sev-high">High</div>
+                    </div>
+                    <div class="storm-card-meta">Apr 14, 2024 · 2.0" hail</div>
+                  </div>
+                  <div class="storm-card">
+                    <div class="storm-card-header">
+                      <div class="storm-card-addr">201 Pine Ave</div>
+                      <div class="storm-card-sev sev-med">Med</div>
+                    </div>
+                    <div class="storm-card-meta">Jul 3, 2024 · 1.25" hail</div>
+                  </div>
+                  <div class="storm-card">
+                    <div class="storm-card-header">
+                      <div class="storm-card-addr">88 Oak Circle</div>
+                      <div class="storm-card-sev sev-high">High</div>
+                    </div>
+                    <div class="storm-card-meta">Apr 14, 2024 · 1.75" hail</div>
+                  </div>
+                </div>
+                <div class="storm-mock-map" aria-hidden="true">
+                  <div class="map-grid-lines"></div>
+                  <div class="map-hail map-hail--lg" style="top:38%;left:44%;"></div>
+                  <div class="map-hail map-hail--md" style="top:55%;left:62%;animation-delay:-1s;"></div>
+                  <div class="map-hail map-hail--sm" style="top:28%;left:70%;animation-delay:-2s;"></div>
+                  <div class="map-hail map-hail--md" style="top:64%;left:35%;animation-delay:-0.7s;"></div>
+                  <div class="map-hail map-hail--sm" style="top:22%;left:52%;animation-delay:-1.5s;"></div>
+                  <div class="map-pin" style="position:absolute;top:32%;left:42%;">
+                    <div class="map-pin-dot"></div>
+                    <div class="map-pin-line"></div>
+                    <div class="map-pin-label">14 Maple Dr</div>
+                  </div>
+                  <div class="map-legend">
+                    <div class="map-legend-title">Hail Size</div>
+                    <div class="map-legend-item"><div class="legend-dot legend-dot--low"></div> &lt;1"</div>
+                    <div class="map-legend-item"><div class="legend-dot legend-dot--med"></div> 1–1.75"</div>
+                    <div class="map-legend-item"><div class="legend-dot legend-dot--high"></div> 2"+ </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div class="tag-row" aria-label="Data sources">
-          <span class="tag red">NOAA</span>
-          <span class="tag red">NEXRAD</span>
-          <span class="tag red">NWS</span>
-          <span class="tag red">Nat'l Hail Project</span>
-          <span class="tag">Federal Data</span>
-          <span class="tag">Live GPS</span>
-        </div>
       </div>
-    </article>
+    </section>
 
-    <!-- ─── 2. Storm Reports ───────────────────────────────────────────────── -->
-    <article class="section from-right card" id="storm-reports" aria-labelledby="storm-reports-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">📄</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 02</span>
-          <h2 class="card-title" id="storm-reports-title">Storm Reports</h2>
-          <p class="card-subtitle">Your Secret Weapon</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          One tap: pick a date of loss, enter the homeowner name, and generate a <strong>professional 4-page Storm Impact Analysis PDF</strong> in seconds. Hand it to the adjuster — it's the same federal data they use.
+    <!-- ─── STORM REPORTS ─────────────────────────────────────────────────── -->
+    <section aria-labelledby="report-h2">
+      <div class="container">
+        <div class="section-label reveal">PDF Reports</div>
+        <h2 id="report-h2" class="section-title reveal reveal-delay-1">Storm Reports — Your Secret Weapon</h2>
+        <p class="section-body reveal reveal-delay-2">
+          One tap generates a professional, leave-behind PDF with federal storm data. Hand it to a homeowner. Email it to an adjuster. Use it on the door.
         </p>
 
-        <!-- PDF generation flow mock -->
-        <div class="mock-screen" aria-hidden="true" role="img" aria-label="PDF generation flow">
-          <div class="mock-titlebar">
-            <div class="mock-dots">
-              <div class="mock-dot mock-dot--red"></div>
-              <div class="mock-dot mock-dot--yellow"></div>
-              <div class="mock-dot mock-dot--green"></div>
-            </div>
-            <span class="mock-bar-label">Generate Storm Report</span>
-          </div>
-          <div class="mock-pdf-flow">
-            <div class="pdf-step done">
-              <div class="pdf-step-num">&#10003;</div>
-              <span class="pdf-step-text">Address confirmed: 123 Oak Lane, Manassas VA</span>
-            </div>
-            <div class="pdf-step done">
-              <div class="pdf-step-num">&#10003;</div>
-              <span class="pdf-step-text">Date of Loss: May 16, 2025</span>
-            </div>
-            <div class="pdf-step done">
-              <div class="pdf-step-num">&#10003;</div>
-              <span class="pdf-step-text">Homeowner: John &amp; Sarah Martinez</span>
-            </div>
-            <div class="pdf-ready-box">
-              <span class="pdf-icon" aria-hidden="true">📋</span>
+        <!-- Report Stages -->
+        <div class="two-col mt-32">
+          <div class="reveal reveal-delay-1">
+            <div class="report-stage">
+              <div class="stage-num" aria-hidden="true">1</div>
               <div>
-                <div class="pdf-ready-label">Report Ready</div>
-                <div class="pdf-ready-name">Storm Impact Analysis — May 16, 2025</div>
-                <div class="pdf-ready-meta">4 pages &bull; NOAA verified &bull; Your name on cover</div>
+                <div class="stage-label">Search the Address</div>
+                <div class="stage-body">Type any address into Storm Maps. Susan pulls hail history, NWS warnings, and SPC storm reports instantly.</div>
               </div>
-              <div class="pdf-download-btn">Download</div>
             </div>
-          </div>
-        </div>
-
-        <!-- What's in the report -->
-        <p style="font-size:13px;font-weight:700;color:var(--text-2);margin:18px 0 10px;text-transform:uppercase;letter-spacing:0.5px;">What's in the 4-Page PDF</p>
-        <div class="report-pages">
-          <div class="report-page-item">
-            <span class="report-page-num">Pg 1</span>
-            <div class="report-page-content">
-              <span class="report-page-title">Cover Page</span>
-              <span class="report-page-desc">Your name, phone, email, and company — automatically pulled from your profile.</span>
+            <div class="report-stage">
+              <div class="stage-num" aria-hidden="true">2</div>
+              <div>
+                <div class="stage-label">Review Storm Events</div>
+                <div class="stage-body">See dates, hail sizes, and damage radius. Tap an event to select it for the report.</div>
+              </div>
             </div>
-          </div>
-          <div class="report-page-item">
-            <span class="report-page-num">Pg 2</span>
-            <div class="report-page-content">
-              <span class="report-page-title">Data Sources &amp; Property Info</span>
-              <span class="report-page-desc">NOAA, NEXRAD, NWS methodology section. Satellite property map. CCM-grade credibility.</span>
+            <div class="report-stage">
+              <div class="stage-num" aria-hidden="true">3</div>
+              <div>
+                <div class="stage-label">Generate the PDF</div>
+                <div class="stage-body">Hit "Generate Report" — Susan creates a 4-page branded PDF in seconds using your rep profile information.</div>
+              </div>
             </div>
-          </div>
-          <div class="report-page-item">
-            <span class="report-page-num">Pg 3</span>
-            <div class="report-page-content">
-              <span class="report-page-title">Storm Impact Summary &amp; Narrative</span>
-              <span class="report-page-desc">Date, time, direction, speed, hail size. Insurance-grade narrative language. Verified ground observations (hail + wind with distances). NWS warning blocks with NEXRAD radar snapshots.</span>
+            <div class="report-stage">
+              <div class="stage-num" aria-hidden="true">4</div>
+              <div>
+                <div class="stage-label">Share or Save</div>
+                <div class="stage-body">Download it, AirDrop it, email it directly to the homeowner or adjuster from within the app.</div>
+              </div>
             </div>
-          </div>
-          <div class="report-page-item">
-            <span class="report-page-num">Pg 4</span>
-            <div class="report-page-content">
-              <span class="report-page-title">Historical Activity &amp; Disclaimer</span>
-              <span class="report-page-desc">Historical storm activity table for the property. Professional disclaimer. Print-ready layout.</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tip-box" style="margin-top:16px;">
-          <span class="tip-icon" aria-hidden="true">&#128161;</span>
-          <div>
-            <strong>Tip:</strong> Your phone number from <strong>Settings &rsaquo; Profile</strong> goes on every report automatically. Make sure it's set before your first door knock.
-          </div>
-        </div>
-
-        <div class="tag-row" aria-label="Report features">
-          <span class="tag red">4 Pages</span>
-          <span class="tag">Your Branding</span>
-          <span class="tag">Hail + Wind Data</span>
-          <span class="tag">Radar Snapshots</span>
-          <span class="tag">NWS Warnings</span>
-          <span class="tag">Instant PDF</span>
-        </div>
-      </div>
-    </article>
-
-    <!-- ─── 3. Ask Susan ───────────────────────────────────────────────────── -->
-    <article class="section from-left card" id="ask-susan" aria-labelledby="susan-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">🤖</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 03</span>
-          <h2 class="card-title" id="susan-title">Ask Susan</h2>
-          <p class="card-subtitle">AI That Knows Roofing</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          Just talk to Susan like a knowledgeable colleague who's always on. She looks up storm history, generates reports, drafts adjuster emails, and knows Xactimate codes, IRC building codes, and insurance negotiation tactics.
-        </p>
-
-        <!-- Chat mock -->
-        <div class="mock-screen" aria-hidden="true" role="img" aria-label="Susan AI chat preview">
-          <div class="mock-chat-header">
-            <div class="susan-avatar">S</div>
-            <div class="susan-status">
-              <div class="susan-name">Susan AI</div>
-              <div class="susan-online">
-                <div class="online-dot"></div>
-                Always on
+            <div class="pro-tip mt-24">
+              <div class="pro-tip-label">Pro Tip</div>
+              <div class="pro-tip-text">
+                Go to <strong>Settings &gt; Profile</strong> and set your phone number before generating your first report — it gets embedded on the cover page.
               </div>
             </div>
           </div>
-          <div class="mock-chat">
-            <div class="chat-row" style="align-items:flex-end">
-              <span class="chat-label" style="text-align:right;align-self:flex-end">You</span>
-              <div class="chat-bubble chat-bubble--user">
-                Generate a storm report for 123 Oak Lane, Manassas VA
-              </div>
-            </div>
-            <div class="chat-row">
-              <span class="chat-label chat-label--susan">Susan</span>
-              <div class="chat-bubble chat-bubble--susan">
-                I found <strong>8 hail events</strong> near that address. Here are the top results:
-                <div class="chat-storm-list">
-                  <div class="chat-storm-row">
-                    <span class="s-date">May 16, 2025</span>
-                    <span class="s-hail">1.75&rdquo; hail</span>
-                  </div>
-                  <div class="chat-storm-row">
-                    <span class="s-date">Aug 3, 2024</span>
-                    <span class="s-hail">1.00&rdquo; hail</span>
-                  </div>
-                  <div class="chat-storm-row">
-                    <span class="s-date">Jul 2, 2022</span>
-                    <span class="s-hail">1.25&rdquo; hail</span>
-                  </div>
+
+          <!-- 4-Page Breakdown -->
+          <div class="reveal reveal-delay-2">
+            <div style="font-size:13px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">Report Breakdown</div>
+            <div class="pdf-pages">
+              <div class="pdf-page-card">
+                <div class="pdf-page-thumb" aria-hidden="true">📋</div>
+                <div class="pdf-page-info">
+                  <div class="pdf-page-num">Page 1</div>
+                  <div class="pdf-page-name">Cover Page</div>
+                  <div class="pdf-page-desc">Property address, rep contact info, company branding, storm summary date</div>
                 </div>
-                Which date should I use?
               </div>
-            </div>
-            <div class="chat-row" style="align-items:flex-end">
-              <span class="chat-label" style="text-align:right;align-self:flex-end">You</span>
-              <div class="chat-bubble chat-bubble--user">
-                Use May 16 2025
+              <div class="pdf-page-card">
+                <div class="pdf-page-thumb" aria-hidden="true">🗂️</div>
+                <div class="pdf-page-info">
+                  <div class="pdf-page-num">Page 2</div>
+                  <div class="pdf-page-name">Data Sources</div>
+                  <div class="pdf-page-desc">NOAA, NWS, and SPC source citations with official references</div>
+                </div>
               </div>
-            </div>
-            <div class="chat-row">
-              <span class="chat-label chat-label--susan">Susan</span>
-              <div class="chat-bubble chat-bubble--susan">
-                Your Storm Impact Analysis is ready!
-                <div class="download-btn-mock">
-                  &#128203; Download PDF
+              <div class="pdf-page-card">
+                <div class="pdf-page-thumb" aria-hidden="true">⚡</div>
+                <div class="pdf-page-info">
+                  <div class="pdf-page-num">Page 3</div>
+                  <div class="pdf-page-name">Impact Summary</div>
+                  <div class="pdf-page-desc">Storm events listed with hail size, wind speed, and damage radius</div>
+                </div>
+              </div>
+              <div class="pdf-page-card">
+                <div class="pdf-page-thumb" aria-hidden="true">📅</div>
+                <div class="pdf-page-info">
+                  <div class="pdf-page-num">Page 4</div>
+                  <div class="pdf-page-name">Historical Log</div>
+                  <div class="pdf-page-desc">Full timeline of storms at this property going back multiple years</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        <ul class="feature-list" style="margin-top:16px;">
-          <li>Look up hail history and storm events by address</li>
-          <li>Generate full PDF reports from the chat — just say the date</li>
-          <li>Draft professional emails to adjusters based on claim context</li>
-          <li>Schedule follow-ups that get tracked in your pipeline</li>
-          <li>Search the knowledge base for Xactimate codes and IRC specs</li>
-          <li>Insurance negotiation tactics and objection handling, on demand</li>
-          <li>Available 24/7 — no waiting, no hold music</li>
-        </ul>
-
-        <div class="tag-row" aria-label="Susan capabilities">
-          <span class="tag red">Xactimate Codes</span>
-          <span class="tag red">IRC Building Codes</span>
-          <span class="tag">Insurance Tactics</span>
-          <span class="tag">Email Drafting</span>
-          <span class="tag">24/7</span>
-        </div>
       </div>
-    </article>
+    </section>
 
-    <!-- ─── 4. Team & Leaderboard ──────────────────────────────────────────── -->
-    <article class="section from-right card" id="team-leaderboard" aria-labelledby="team-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">🏆</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 04</span>
-          <h2 class="card-title" id="team-title">Team &amp; Leaderboard</h2>
-          <p class="card-subtitle">See where you stack up</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          Real-time sales leaderboard with revenue tracking, team intel sharing, and manager directives that flow to every rep in the field.
-        </p>
+    <!-- ─── ASK SUSAN ─────────────────────────────────────────────────────── -->
+    <section class="section-alt" aria-labelledby="susan-h2">
+      <div class="container">
+        <div class="two-col two-col--wide-r">
 
-        <!-- Leaderboard mock -->
-        <div class="leaderboard-mock" aria-hidden="true">
-          <div class="lb-header">
-            <span class="lb-title">Sales Leaderboard</span>
-            <span class="lb-period">March 2026</span>
-          </div>
-          <div class="lb-row">
-            <span class="lb-rank gold">#1</span>
-            <div class="lb-avatar" style="background:linear-gradient(135deg,#dc2626,#7c3aed);">MR</div>
-            <div class="lb-name-col">
-              <span class="lb-name">Marcus R.</span>
-              <span class="lb-sub">14 closes</span>
-            </div>
-            <div>
-              <div class="lb-revenue">$148k</div>
-              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="100" style="width:0%"></div></div>
-            </div>
-          </div>
-          <div class="lb-row">
-            <span class="lb-rank silver">#2</span>
-            <div class="lb-avatar" style="background:linear-gradient(135deg,#0891b2,#0d9488);">JT</div>
-            <div class="lb-name-col">
-              <span class="lb-name">Jasmine T.</span>
-              <span class="lb-sub">11 closes</span>
-            </div>
-            <div>
-              <div class="lb-revenue">$112k</div>
-              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="76" style="width:0%"></div></div>
-            </div>
-          </div>
-          <div class="lb-row you">
-            <span class="lb-rank bronze">#3</span>
-            <div class="lb-avatar" style="background:var(--red);">YOU</div>
-            <div class="lb-name-col">
-              <span class="lb-name">You</span>
-              <span class="lb-sub">9 closes</span>
-            </div>
-            <div>
-              <div class="lb-revenue">$94k</div>
-              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="63" style="width:0%"></div></div>
-            </div>
-          </div>
-          <div class="lb-row">
-            <span class="lb-rank">#4</span>
-            <div class="lb-avatar" style="background:var(--bg-3);">DK</div>
-            <div class="lb-name-col">
-              <span class="lb-name">Devon K.</span>
-              <span class="lb-sub">7 closes</span>
-            </div>
-            <div>
-              <div class="lb-revenue">$71k</div>
-              <div class="lb-bar-wrap"><div class="lb-bar" data-pct="48" style="width:0%"></div></div>
+          <!-- Chat Mock -->
+          <div class="reveal">
+            <div class="mock-panel chat-mock">
+              <div class="chat-header">
+                <div class="chat-avatar" aria-hidden="true">S</div>
+                <div>
+                  <div class="chat-ai-name">Susan 21</div>
+                  <div class="chat-ai-status"><span class="status-dot" aria-hidden="true"></span>Online</div>
+                </div>
+              </div>
+              <div class="chat-messages" role="log" aria-label="Chat example">
+                <div class="msg msg--rep">
+                  <div>
+                    <div class="msg-bubble">Can you pull storm data for 142 Birchwood Lane?</div>
+                    <div class="msg-meta">You · 2:14 PM</div>
+                  </div>
+                </div>
+                <div class="msg msg--ai">
+                  <div class="chat-avatar" style="width:28px;height:28px;font-size:11px;" aria-hidden="true">S</div>
+                  <div>
+                    <div class="msg-bubble">
+                      Found <strong>3 storm events</strong> at 142 Birchwood Lane:<br><br>
+                      • <strong>Apr 14, 2024</strong> — 2.0" hail, SPC confirmed<br>
+                      • <strong>Jun 22, 2023</strong> — 1.5" hail + 60mph wind<br>
+                      • <strong>Aug 7, 2022</strong> — 1.0" hail<br><br>
+                      Ready to generate a PDF report?
+                      <div>
+                        <span class="chat-dl-btn" aria-label="Generate PDF Report button (example)">📄 Generate Report</span>
+                      </div>
+                    </div>
+                    <div class="msg-meta">Susan · 2:14 PM</div>
+                  </div>
+                </div>
+                <div class="msg msg--rep">
+                  <div>
+                    <div class="msg-bubble">Yes, generate it and include my contact info.</div>
+                    <div class="msg-meta">You · 2:15 PM</div>
+                  </div>
+                </div>
+                <div class="msg msg--ai">
+                  <div class="chat-avatar" style="width:28px;height:28px;font-size:11px;" aria-hidden="true">S</div>
+                  <div>
+                    <div class="msg-bubble">
+                      Done! Your report is ready — 4 pages, 3 storm events, your phone number on the cover.
+                      <div>
+                        <span class="chat-dl-btn" aria-label="Download PDF button (example)">⬇️ Download PDF</span>
+                      </div>
+                    </div>
+                    <div class="msg-meta">Susan · 2:15 PM</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chat-input-row">
+                <div class="chat-input-fake">Ask Susan anything…</div>
+                <div class="chat-send-btn" aria-hidden="true">→</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <ul class="feature-list" style="margin-top:16px;">
-          <li>Live sales leaderboard with revenue and close count</li>
-          <li>Share storm reports and market intel with your team instantly</li>
-          <li>Manager directives flow to all reps in real-time</li>
-          <li>Activity tracking and full job pipeline visibility</li>
-        </ul>
-
-        <div class="tag-row" aria-label="Team features">
-          <span class="tag red">Live Rankings</span>
-          <span class="tag">Revenue Tracking</span>
-          <span class="tag">Team Intel</span>
-          <span class="tag">Job Pipeline</span>
-        </div>
-      </div>
-    </article>
-
-    <!-- ─── 5. Email & Communication ─────────────────────────────────────── -->
-    <article class="section from-left card" id="email-comms" aria-labelledby="email-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">✉️</div>
-        <div class="card-meta">
-          <span class="card-number">Feature 05</span>
-          <h2 class="card-title" id="email-title">Email &amp; Communication</h2>
-          <p class="card-subtitle">Stay ahead of every claim</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="card-desc">
-          Susan drafts professional emails to adjusters and insurance companies — based on the actual claim context, not a generic template. Connected to your Gmail with optional Calendar integration.
-        </p>
-
-        <!-- Email mock -->
-        <div class="mock-email" aria-hidden="true" role="img" aria-label="Email draft preview">
-          <div class="email-header">
-            <div class="email-subject">Storm Impact Report — Martinez Property, May 16 2025</div>
-            <div class="email-meta-row">
-              To: <span>claims@statefarm.com</span>
-              &bull; From: <span>Rep &lt;you@theroofdocs.com&gt;</span>
-            </div>
-          </div>
-          <div class="email-body-preview">
-            Dear Claims Adjuster,<br /><br />
-            Please find attached a <strong>Storm Impact Analysis</strong> for the property at 123 Oak Lane, Manassas VA. The report documents a verified hail event on <strong>May 16, 2025</strong> (1.75&rdquo; hail, 62mph winds) sourced from NOAA federal weather records.<br /><br />
-            I am available to coordinate an inspection at your earliest convenience&hellip;
-          </div>
-          <div class="email-footer-bar">
-            <div class="email-action-btn send">Send</div>
-            <div class="email-action-btn draft">Save Draft</div>
-            <span style="font-size:11px;color:var(--text-4);margin-left:auto">&#128206; Storm report attached</span>
-          </div>
-        </div>
-
-        <ul class="feature-list" style="margin-top:16px;">
-          <li>Susan drafts adjuster emails based on claim details — not generic templates</li>
-          <li>Connected to your Gmail (optional Google Calendar integration)</li>
-          <li>Schedule follow-ups that are actually tracked in your pipeline</li>
-          <li>Push notifications for new leads, updates, and job status changes</li>
-          <li>PDF report auto-attached when drafting adjuster emails</li>
-        </ul>
-
-        <div class="tag-row" aria-label="Communication features">
-          <span class="tag red">Gmail Connected</span>
-          <span class="tag">Calendar Sync</span>
-          <span class="tag">Follow-Up Tracking</span>
-          <span class="tag">Push Notifications</span>
-        </div>
-      </div>
-    </article>
-
-    <p class="section-divider" aria-hidden="true">Get Started</p>
-
-    <!-- ─── 6. Quick Start Checklist ─────────────────────────────────────── -->
-    <article class="section from-left card" id="quick-start" aria-labelledby="checklist-title">
-      <div class="card-header">
-        <div class="card-icon" aria-hidden="true">&#9989;</div>
-        <div class="card-meta">
-          <span class="card-number">Quick Start</span>
-          <h2 class="card-title" id="checklist-title">Your First Day Checklist</h2>
-          <p class="card-subtitle">Tap each step when done</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <!-- Progress tracker -->
-        <div class="checklist-progress" id="cl-progress">
           <div>
-            <div class="progress-label">Setup Progress</div>
-            <div class="progress-track">
-              <div class="progress-fill" id="cl-fill"></div>
+            <div class="section-label reveal">AI Assistant</div>
+            <h2 id="susan-h2" class="section-title reveal reveal-delay-1">Ask Susan — AI That Knows Roofing</h2>
+            <div class="section-divider reveal reveal-delay-2"></div>
+            <p class="section-body reveal reveal-delay-2" style="margin-bottom:28px;">
+              Susan 21 is trained on roofing, insurance claims, and storm data. She's not a generic chatbot — she speaks the language of the industry and works as your field co-pilot.
+            </p>
+            <div class="feature-grid reveal reveal-delay-3">
+              <div class="feature-item">
+                <div class="feature-icon fi-red" aria-hidden="true">⚡</div>
+                <div>
+                  <div class="feature-text-title">Instant Storm Lookup</div>
+                  <div class="feature-text-body">Ask for any address — Susan returns verified event data</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-orange" aria-hidden="true">📄</div>
+                <div>
+                  <div class="feature-text-title">One-Tap PDF</div>
+                  <div class="feature-text-body">Generate branded reports mid-conversation</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-blue" aria-hidden="true">🧠</div>
+                <div>
+                  <div class="feature-text-title">Roofing Knowledge</div>
+                  <div class="feature-text-body">Insurance terms, claims process, objection handling</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-green" aria-hidden="true">🎭</div>
+                <div>
+                  <div class="feature-text-title">Agnes Roleplay</div>
+                  <div class="feature-text-body">Practice pitches with Agnes before the real knock</div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="progress-count" id="cl-count">0 / 7</div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── EMAIL & COMMUNICATION ─────────────────────────────────────────── -->
+    <section aria-labelledby="email-h2">
+      <div class="container">
+        <div class="two-col two-col--wide">
+          <div>
+            <div class="section-label reveal">Communication</div>
+            <h2 id="email-h2" class="section-title reveal reveal-delay-1">Email &amp; Communication</h2>
+            <div class="section-divider reveal reveal-delay-2"></div>
+            <p class="section-body reveal reveal-delay-2" style="margin-bottom:28px;">
+              Stop writing adjuster emails from scratch. The AI drafts professional follow-ups in seconds — you review, edit, and send. Faster follow-up means faster closes.
+            </p>
+            <div class="feature-grid reveal reveal-delay-3">
+              <div class="feature-item">
+                <div class="feature-icon fi-red" aria-hidden="true">✉️</div>
+                <div>
+                  <div class="feature-text-title">AI Draft Engine</div>
+                  <div class="feature-text-body">Paste storm data — get a professional adjuster email in one click</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-green" aria-hidden="true">🔗</div>
+                <div>
+                  <div class="feature-text-title">Gmail Connected</div>
+                  <div class="feature-text-body">Send directly from your connected inbox, no copy-paste needed</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-blue" aria-hidden="true">📅</div>
+                <div>
+                  <div class="feature-text-title">Calendar Sync</div>
+                  <div class="feature-text-body">Schedule adjuster appointments without leaving the app</div>
+                </div>
+              </div>
+              <div class="feature-item">
+                <div class="feature-icon fi-orange" aria-hidden="true">🔔</div>
+                <div>
+                  <div class="feature-text-title">Push Notifications</div>
+                  <div class="feature-text-body">Get alerted when adjusters open emails or reply</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Email Mock -->
+          <div class="reveal reveal-delay-2">
+            <div class="mock-panel email-mock">
+              <div class="mock-topbar">
+                <div class="mock-dot mock-dot--red" aria-hidden="true"></div>
+                <div class="mock-dot mock-dot--yellow" aria-hidden="true"></div>
+                <div class="mock-dot mock-dot--green" aria-hidden="true"></div>
+                <div class="mock-title">New Email Draft</div>
+                <div style="margin-left:auto;display:flex;gap:6px;">
+                  <div class="email-tag email-tag--connected">Gmail ✓</div>
+                  <div class="email-tag email-tag--ai">AI Draft</div>
+                </div>
+              </div>
+              <div class="email-body">
+                <div class="email-field">
+                  <span class="email-label">To</span>
+                  <span class="email-val">adjuster@nationwide.com</span>
+                </div>
+                <div class="email-field">
+                  <span class="email-label">Re</span>
+                  <span class="email-val">Claim #NW-2024-8821 · 14 Maple Dr</span>
+                  <span class="email-tag email-tag--tracked" style="margin-left:auto;flex-shrink:0;">Tracked</span>
+                </div>
+                <div class="email-content">
+                  <span class="email-highlight">Dear Mr. Richards,</span><br><br>
+                  I'm following up on the storm claim for <span class="email-highlight">14 Maple Drive</span>. Per our NOAA-verified storm report, the property sustained <span class="email-highlight">2.0" hail impact on April 14, 2024</span>, confirmed by both NOAA and the Storm Prediction Center.<br><br>
+                  I've attached the full 4-page storm report for your review. Please let me know if you need any additional documentation or would like to schedule a re-inspection.<br><br>
+                  <span class="email-highlight">Best regards,<br>Your Name — Roof ER The Roof Docs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── IMPACTED ASSETS ────────────────────────────────────────────────── -->
+    <section class="section-alt" aria-labelledby="assets-h2">
+      <div class="container">
+        <div class="section-label reveal">Storm Intel</div>
+        <h2 id="assets-h2" class="section-title reveal reveal-delay-1">Impacted Assets — Your Customers Got Hit</h2>
+        <p class="section-body reveal reveal-delay-2">
+          You added their addresses. Now the app watches them. When a storm rolls through, you'll know which customers were in the path before they figure it out themselves.
+        </p>
+
+        <div class="asset-cards reveal reveal-delay-2">
+          <div class="asset-card asset-card--alert">
+            <div class="asset-card-header">
+              <div class="asset-card-addr">142 Birchwood Lane</div>
+              <div class="asset-card-badge badge-hit">Storm Hit</div>
+            </div>
+            <div class="asset-card-meta">
+              <div class="asset-meta-row"><span class="asset-meta-key">Event:</span> Apr 14, 2024</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Hail:</span> 2.0" — High severity</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Customer:</span> Johnson, Mark</div>
+            </div>
+          </div>
+          <div class="asset-card asset-card--alert">
+            <div class="asset-card-header">
+              <div class="asset-card-addr">88 Oak Circle</div>
+              <div class="asset-card-badge badge-hit">Storm Hit</div>
+            </div>
+            <div class="asset-card-meta">
+              <div class="asset-meta-row"><span class="asset-meta-key">Event:</span> Apr 14, 2024</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Hail:</span> 1.75" — High severity</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Customer:</span> Williams, T.</div>
+            </div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-card-header">
+              <div class="asset-card-addr">201 Pine Ave</div>
+              <div class="asset-card-badge badge-safe">No Events</div>
+            </div>
+            <div class="asset-card-meta">
+              <div class="asset-meta-row"><span class="asset-meta-key">Last Check:</span> Today, 6:00 AM</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Status:</span> No recent activity</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Customer:</span> Davis, R.</div>
+            </div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-card-header">
+              <div class="asset-card-addr">355 Elm Street</div>
+              <div class="asset-card-badge badge-safe">No Events</div>
+            </div>
+            <div class="asset-card-meta">
+              <div class="asset-meta-row"><span class="asset-meta-key">Last Check:</span> Today, 6:00 AM</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Status:</span> No recent activity</div>
+              <div class="asset-meta-row"><span class="asset-meta-key">Customer:</span> Chen, L.</div>
+            </div>
+          </div>
         </div>
 
-        <ol class="checklist" aria-label="Quick start steps">
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Log in with your @theroofdocs.com email</strong>
-              <span>Open the app and sign in with your company email address.</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Set your phone number in Settings &rsaquo; Profile</strong>
-              <span>Your number appears on every PDF report you generate. Do this first.</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Search your first address in Storm Maps</strong>
-              <span>Type any US address, city, or ZIP. See the hail and wind history come in.</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Generate your first storm report PDF</strong>
-              <span>Pick a storm date, enter a homeowner name, tap Generate. Takes about 10 seconds.</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Ask Susan a question in the chat</strong>
-              <span>Try: "What's the hail history at [a neighborhood address]?" or "Write an adjuster email for a 1.75 inch hail event."</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Share a storm report with an adjuster</strong>
-              <span>Download the PDF from the report screen and email it, text it, or print it on site.</span>
-            </div>
-          </li>
-          <li class="check-item" role="checkbox" aria-checked="false" tabindex="0">
-            <div class="check-box" aria-hidden="true">&#10003;</div>
-            <div class="check-text">
-              <strong>Check the team leaderboard</strong>
-              <span>See where you rank this month. The gap is closer than you think.</span>
-            </div>
-          </li>
-        </ol>
-      </div>
-    </article>
+        <div class="callout-box reveal reveal-delay-3">
+          <div class="callout-icon" aria-hidden="true">💡</div>
+          <div class="callout-text">
+            <strong>Your customers don't always know they were hit.</strong> You'll know first.
+            Prioritize follow-ups based on storm severity — 2"+ hail is an automatic callback. Use the report as your door opener: "I wanted to reach out because your home was in last week's storm path."
+          </div>
+        </div>
 
-    <!-- ─── Footer ────────────────────────────────────────────────────────── -->
-    <footer class="footer">
-      <div class="footer-logo">Roof <span>ER</span> The Roof Docs</div>
-      <p class="footer-tagline">Powered by Susan AI + NOAA Federal Weather Data</p>
-      <a href="https://sa21.up.railway.app" class="footer-link" target="_blank" rel="noopener">
-        Open the App
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </a>
-      <p class="footer-powered">
-        <a href="https://sa21.up.railway.app">sa21.up.railway.app</a>
-      </p>
+        <div class="feature-grid mt-24 reveal reveal-delay-4">
+          <div class="feature-item">
+            <div class="feature-icon fi-red" aria-hidden="true">🚨</div>
+            <div>
+              <div class="feature-text-title">Real-Time Alerts</div>
+              <div class="feature-text-body">Push notification the moment a tracked address gets hit</div>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon fi-orange" aria-hidden="true">🔥</div>
+            <div>
+              <div class="feature-text-title">Severity Ranking</div>
+              <div class="feature-text-body">Prioritize your callback list by damage severity, not guesswork</div>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon fi-blue" aria-hidden="true">📋</div>
+            <div>
+              <div class="feature-text-title">Instant Report</div>
+              <div class="feature-text-body">One tap to generate the PDF from the alert — ready to send</div>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon fi-green" aria-hidden="true">📈</div>
+            <div>
+              <div class="feature-text-title">Re-Engagement</div>
+              <div class="feature-text-body">Turn past customers into new jobs without cold outreach</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── QUICK START CHECKLIST ─────────────────────────────────────────── -->
+    <section aria-labelledby="checklist-h2">
+      <div class="container">
+        <div class="section-label reveal">Get Started</div>
+        <h2 id="checklist-h2" class="section-title reveal reveal-delay-1">Quick Start Checklist</h2>
+        <p class="section-body reveal reveal-delay-2">
+          Seven steps to go from zero to closing. Tap each step as you complete it.
+        </p>
+
+        <div class="checklist-header reveal reveal-delay-3">
+          <div></div>
+          <div class="checklist-progress-wrap">
+            <div class="checklist-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="7" aria-valuenow="0" id="checklist-progressbar">
+              <div class="checklist-progress-fill" id="checklist-fill"></div>
+            </div>
+            <div class="checklist-count" id="checklist-count">
+              <span id="checklist-num">0</span> / 7 done
+            </div>
+          </div>
+        </div>
+
+        <div class="checklist reveal reveal-delay-3" id="checklist" role="list">
+
+          <div class="check-item" role="listitem" data-step="1" tabindex="0" aria-label="Step 1: Log in with your @theroofdocs.com email">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 01</div>
+              <div class="check-title">Log in with your @theroofdocs.com email</div>
+              <div class="check-sub">Use your official company email — personal emails won't grant full access.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="2" tabindex="0" aria-label="Step 2: Go to Settings > Profile and set your phone number">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 02</div>
+              <div class="check-title">Go to Settings &gt; Profile and set your phone number</div>
+              <div class="check-sub">Your number is printed on every report cover page. Do this before your first PDF.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="3" tabindex="0" aria-label="Step 3: Search your first address in Storm Maps">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 03</div>
+              <div class="check-title">Search your first address in Storm Maps</div>
+              <div class="check-sub">Try a current lead or your own home. See what the data looks like before you're in the field.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="4" tabindex="0" aria-label="Step 4: Generate your first storm report PDF">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 04</div>
+              <div class="check-title">Generate your first storm report PDF</div>
+              <div class="check-sub">Hit "Generate Report" from any storm event. Download it to your phone and open it — that's what the homeowner sees.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="5" tabindex="0" aria-label="Step 5: Ask Susan a question in the chat">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 05</div>
+              <div class="check-title">Ask Susan a question in the chat</div>
+              <div class="check-sub">Try: "What does ACV mean?" or "How do I handle a denied claim?" Susan is trained on the full roofing process.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="6" tabindex="0" aria-label="Step 6: Send a storm report to an adjuster">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 06</div>
+              <div class="check-title">Send a storm report to an adjuster</div>
+              <div class="check-sub">Use the Email tool to draft and send. Connect Gmail for one-tap sending with open tracking.</div>
+            </div>
+          </div>
+
+          <div class="check-item" role="listitem" data-step="7" tabindex="0" aria-label="Step 7: Check Team Knowledge for field intel">
+            <div class="check-box" aria-hidden="true"></div>
+            <div class="check-text">
+              <div class="check-num">Step 07</div>
+              <div class="check-title">Check Team Knowledge for field intel</div>
+              <div class="check-sub">Your team posts scripts, tips, and updates here. Read it before your first day in the field.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="checklist-done-msg" id="checklist-done" aria-live="polite">
+          <div class="checklist-done-title">You're ready to work.</div>
+          <div class="checklist-done-body">All 7 steps complete. Open the app and start finding storms.</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── FOOTER ────────────────────────────────────────────────────────── -->
+    <footer>
+      <div class="container">
+        <a href="https://sa21.up.railway.app" class="footer-logo" target="_blank" rel="noopener" aria-label="Roof ER The Roof Docs homepage">
+          <div class="footer-logo-mark" aria-hidden="true">R</div>
+          <div class="footer-company">Roof ER The Roof Docs</div>
+        </a>
+        <p class="footer-powered">Powered by Susan AI + NOAA Federal Weather Data</p>
+        <a href="https://sa21.up.railway.app" class="footer-cta" target="_blank" rel="noopener">
+          Open the App ↗
+        </a>
+        <p class="footer-legal">
+          &copy; 2025 Roof ER The Roof Docs. All rights reserved.
+        </p>
+      </div>
     </footer>
 
-  </main>
+  </div><!-- .page -->
 
   <script>
-    /* ─── Scroll progress bar ───────────────────────────────────────────────── */
-    const progressBar = document.getElementById('progress');
-    window.addEventListener('scroll', () => {
+    // ─── Scroll Progress Bar ───────────────────────────────────────────────
+    const progressBar = document.getElementById('scroll-progress');
+    function updateProgress() {
       const scrolled = window.scrollY;
       const total = document.documentElement.scrollHeight - window.innerHeight;
-      progressBar.style.width = (total > 0 ? (scrolled / total) * 100 : 0) + '%';
-    }, { passive: true });
-
-    /* ─── IntersectionObserver — slide-in cards ─────────────────────────────── */
-    const sections = document.querySelectorAll('.section');
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.08 }
-    );
-    sections.forEach(s => observer.observe(s));
-
-    /* ─── Count-up animation ────────────────────────────────────────────────── */
-    function animateCount(el) {
-      const target = parseInt(el.dataset.target, 10);
-      const duration = 1200;
-      const step = 16;
-      const increment = target / (duration / step);
-      let current = 0;
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) { current = target; clearInterval(timer); }
-        el.textContent = Math.floor(current);
-      }, step);
+      progressBar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
     }
+    window.addEventListener('scroll', updateProgress, { passive: true });
 
-    const countEls = document.querySelectorAll('.counting');
-    const countObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            animateCount(entry.target);
-            countObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-    countEls.forEach(el => countObserver.observe(el));
+    // ─── IntersectionObserver Reveal ───────────────────────────────────────
+    const revealEls = document.querySelectorAll('.reveal');
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(el => revealObserver.observe(el));
 
-    /* ─── Leaderboard bar animation ─────────────────────────────────────────── */
-    const lbBars = document.querySelectorAll('.lb-bar');
-    const lbObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.style.width = (entry.target.dataset.pct || '0') + '%';
-            lbObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.3 }
-    );
-    lbBars.forEach(bar => lbObserver.observe(bar));
-
-    /* ─── Interactive checklist ─────────────────────────────────────────────── */
+    // ─── Interactive Checklist ─────────────────────────────────────────────
     const checkItems = document.querySelectorAll('.check-item');
-    const clFill = document.getElementById('cl-fill');
-    const clCount = document.getElementById('cl-count');
-    const total = checkItems.length;
+    const fillEl     = document.getElementById('checklist-fill');
+    const numEl      = document.getElementById('checklist-num');
+    const doneMsg    = document.getElementById('checklist-done');
+    const progressEl = document.getElementById('checklist-progressbar');
+    let completed    = 0;
 
-    function updateProgress() {
-      const done = document.querySelectorAll('.check-item.checked').length;
-      const pct = total > 0 ? (done / total) * 100 : 0;
-      clFill.style.width = pct + '%';
-      clCount.textContent = done + ' / ' + total;
+    function updateChecklistUI() {
+      const pct = (completed / 7) * 100;
+      fillEl.style.width = pct + '%';
+      numEl.textContent = completed;
+      progressEl.setAttribute('aria-valuenow', completed);
+      if (completed === 7) {
+        doneMsg.classList.add('visible');
+      } else {
+        doneMsg.classList.remove('visible');
+      }
     }
 
     checkItems.forEach(item => {
       function toggle() {
-        const checked = item.classList.toggle('checked');
-        item.setAttribute('aria-checked', checked ? 'true' : 'false');
-        updateProgress();
-      }
-      item.addEventListener('click', toggle);
-      item.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
+        const wasDone = item.classList.contains('done');
+        item.classList.toggle('done');
+        const box = item.querySelector('.check-box');
+        if (!wasDone) {
+          box.textContent = '✓';
+          completed++;
+        } else {
+          box.textContent = '';
+          completed--;
         }
+        updateChecklistUI();
+      }
+
+      item.addEventListener('click', toggle);
+      item.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
     });
 
-    updateProgress();
+    // ─── Hero entrance ────────────────────────────────────────────────────
+    // Trigger hero reveals immediately
+    document.querySelectorAll('.hero .reveal').forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 90);
+    });
   </script>
 </body>
 </html>
