@@ -2296,9 +2296,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     ) : msg.sender === 'bot' && msg.text.startsWith('EMAIL_GENERATED:') ? (
                       // Special rendering for generated emails
                       (() => {
-                        const [header, ...bodyParts] = msg.text.split('\n\n');
-                        const [, recipientType, tone] = header.split(':');
-                        const emailBody = bodyParts.join('\n\n');
+                        const firstBreak = msg.text.indexOf('\n\n');
+                        const header = firstBreak > 0 ? msg.text.slice(0, firstBreak) : msg.text;
+                        const emailBody = firstBreak > 0 ? msg.text.slice(firstBreak + 2) : '';
+                        const headerParts = header.split(':');
+                        const recipientType = headerParts[1] || 'recipient';
+                        const tone = headerParts[2] || 'professional';
                         const emailData = generatedEmailData?.messageId === msg.id ? generatedEmailData : null;
                         const compliance = emailData?.compliance;
 

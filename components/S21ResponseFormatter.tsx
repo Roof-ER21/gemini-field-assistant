@@ -179,38 +179,46 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
   };
 
   // Helper function to render text with interactive citations
-  // Auto-linkify URLs and download paths in text
-  const renderLinks = (text: string): React.ReactNode => {
-    // Match /uploads/... paths and http(s) URLs
-    const urlPattern = /((?:https?:\/\/[^\s)]+)|(?:\/uploads\/[^\s)]+\.pdf))/g;
-    const parts = text.split(urlPattern);
+  // Render inline markdown (bold, italic, code) + auto-linkify URLs
+  const renderInline = (text: string): React.ReactNode => {
+    // Split by markdown patterns: **bold**, *italic*, `code`, URLs
+    const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|(?:https?:\/\/[^\s)]+)|(?:\/uploads\/[^\s)]+\.pdf))/g;
+    const parts = text.split(pattern);
     if (parts.length === 1) return text;
+
     return parts.map((part, i) => {
-      if (urlPattern.test(part)) {
-        urlPattern.lastIndex = 0; // reset regex state
-        const isPdf = part.endsWith('.pdf');
+      // Bold
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{part.slice(2, -2)}</strong>;
+      }
+      // Italic
+      if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+        return <em key={i}>{part.slice(1, -1)}</em>;
+      }
+      // Inline code
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={i} style={{ background: 'rgba(220,38,38,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace' }}>{part.slice(1, -1)}</code>;
+      }
+      // PDF download link
+      if (part.endsWith('.pdf') && (part.startsWith('/uploads/') || part.startsWith('http'))) {
         return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={isPdf ? undefined : undefined}
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '8px 16px', margin: '4px 0',
               background: 'linear-gradient(135deg, #dc2626, #991b1b)',
               color: '#fff', borderRadius: '8px', textDecoration: 'none',
               fontWeight: 600, fontSize: '13px', boxShadow: '0 2px 6px rgba(220,38,38,0.3)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
             }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.transform = 'translateY(-1px)'; (e.target as HTMLElement).style.boxShadow = '0 4px 12px rgba(220,38,38,0.4)'; }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.transform = 'none'; (e.target as HTMLElement).style.boxShadow = '0 2px 6px rgba(220,38,38,0.3)'; }}
           >
             <Download size={14} />
-            {isPdf ? 'Download Storm Report (PDF)' : 'Open Link'}
+            Download Storm Report (PDF)
           </a>
         );
+      }
+      // Other URL
+      if (part.match(/^https?:\/\//)) {
+        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
       }
       return <React.Fragment key={i}>{part}</React.Fragment>;
     });
@@ -218,7 +226,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
 
   const renderTextWithCitations = (text: string) => {
     if (!sources || sources.length === 0) {
-      return <span>{renderLinks(text)}</span>;
+      return <span>{renderInline(text)}</span>;
     }
 
     // Split text by citation pattern [1], [2], etc.
@@ -342,7 +350,7 @@ const S21ResponseFormatter: React.FC<S21ResponseFormatterProps> = ({ content, on
               );
             }
           }
-          return <span key={idx}>{renderLinks(part)}</span>;
+          return <span key={idx}>{renderInline(part)}</span>;
         })}
       </>
     );
