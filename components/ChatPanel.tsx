@@ -185,6 +185,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [voiceError, setVoiceError] = useState('');
   const [currentProvider, setCurrentProvider] = useState<string>('Auto');
@@ -1027,6 +1028,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
       // We have a valid parsed address - proceed with lookup
       setIsLoading(true);
+      setLoadingStep('Checking storm history cache...');
 
       try {
         // 🧠 STEP 1: Check if we have recent cached storm data
@@ -1043,12 +1045,13 @@ Generate ONLY the email body text, no subject line or metadata.`;
               sender: 'assistant',
             };
             setMessages(prev => [...prev, cachedMessage]);
-            setIsLoading(false);
+            setIsLoading(false); setLoadingStep('');
             return;
           }
         }
 
         // 🌐 STEP 2: Look up hail data with timeout protection
+        setLoadingStep('Searching NOAA Storm Events Database...');
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000)
         );
@@ -1058,6 +1061,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
           timeoutPromise
         ]) as any;
 
+        setLoadingStep('Processing storm data...');
         const hailContext = formatHailResultsForSusan(hailResults, hailRequest.address);
 
         // Store in localStorage for future reference
@@ -1094,7 +1098,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
         };
 
         setMessages(prev => [...prev, responseMessage, followUpMessage]);
-        setIsLoading(false);
+        setIsLoading(false); setLoadingStep('');
         return;
       } catch (error) {
         console.error('Hail lookup failed:', error);
@@ -1105,7 +1109,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
           sender: 'assistant',
         };
         setMessages(prev => [...prev, errorMessage]);
-        setIsLoading(false);
+        setIsLoading(false); setLoadingStep('');
         return; // STOP HERE - do not fall through to Susan
       }
     }
@@ -1150,10 +1154,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
     }
 
     setIsLoading(true);
+    setLoadingStep('Building context...');
 
     try {
       let currentGlobalLearnings = globalLearningHints;
       try {
+        setLoadingStep('Loading memories & knowledge...');
         const refreshedContext = await buildSusanContext(30, originalQuery);
         const refreshedLearnings = extractGlobalLearnings(refreshedContext);
         setSusanContext(refreshedContext);
@@ -1386,6 +1392,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
       ];
 
       // Try agent endpoint first (Gemini with tools), fall back to multiAI
+      setLoadingStep('Susan is thinking...');
       let responseText = '';
       let responseProvider = '';
       let agentToolResults: AgentToolResult[] = [];
@@ -1398,6 +1405,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
           .map(m => m.content)
           .join('\n\n');
 
+        setLoadingStep('Susan is working on your request...');
         const agentResponse = await susanAgentChat(agentMessages, agentSystemPrompt);
         responseText = agentResponse.content;
         responseProvider = agentResponse.provider;
@@ -1494,7 +1502,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); setLoadingStep('');
     }
   };
 
@@ -2625,10 +2633,17 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   <div className="roof-er-message ai">
                     <div className="roof-er-message-avatar">S21</div>
                     <div className="roof-er-message-content">
-                      <div className="roof-er-typing-indicator">
-                        <div className="roof-er-typing-dot"></div>
-                        <div className="roof-er-typing-dot"></div>
-                        <div className="roof-er-typing-dot"></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                        <div className="roof-er-typing-indicator" style={{ margin: 0 }}>
+                          <div className="roof-er-typing-dot"></div>
+                          <div className="roof-er-typing-dot"></div>
+                          <div className="roof-er-typing-dot"></div>
+                        </div>
+                        {loadingStep && (
+                          <span style={{ fontSize: '13px', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                            {loadingStep}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
