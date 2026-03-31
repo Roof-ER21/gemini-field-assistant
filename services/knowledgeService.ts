@@ -257,11 +257,11 @@ export const knowledgeService = {
       .filter(w => w.length > 2)
       .map(w => w.replace(/[^a-z0-9]/g, ''));
 
-    // Detect state mentions in query
+    // Detect state mentions in query — includes major cities in the DMV/PA territory
     const stateKeywords = {
-      'VA': ['virginia', 'va'],
-      'MD': ['maryland', 'md'],
-      'PA': ['pennsylvania', 'pa', 'philly', 'philadelphia']
+      'VA': ['virginia', ' va', 'va ', 'richmond', 'fairfax', 'arlington', 'alexandria', 'manassas', 'vienna', 'tysons', 'mclean', 'reston', 'herndon', 'leesburg', 'sterling', 'ashburn', 'woodbridge', 'stafford', 'fredericksburg', 'chantilly', 'centreville', 'loudoun', 'prince william', 'falls church', 'hamilton'],
+      'MD': ['maryland', ' md', 'md ', 'baltimore', 'bethesda', 'rockville', 'gaithersburg', 'silver spring', 'columbia', 'frederick', 'annapolis', 'bowie', 'laurel', 'college park', 'hagerstown', 'montgomery county', 'prince george', 'howard county'],
+      'PA': ['pennsylvania', ' pa', 'pa ', 'philadelphia', 'philly', 'pittsburgh', 'harrisburg', 'allentown', 'reading', 'lancaster', 'york', 'gettysburg', 'chester county', 'delaware county', 'bucks county']
     };
 
     const detectedStates: string[] = [];
