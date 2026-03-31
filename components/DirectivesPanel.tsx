@@ -16,6 +16,8 @@ interface Directive {
   priority: 'normal' | 'high' | 'critical';
   is_active: boolean;
   target_audience: string;
+  effective_from: string | null;
+  effective_until: string | null;
   created_by_name: string;
   created_at: string;
   updated_at: string;
@@ -35,6 +37,7 @@ const DirectivesPanel: React.FC = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<'normal' | 'high' | 'critical'>('normal');
+  const [effectiveUntil, setEffectiveUntil] = useState('');
   const [saving, setSaving] = useState(false);
 
   const email = authService.getCurrentUser()?.email || '';
@@ -64,6 +67,7 @@ const DirectivesPanel: React.FC = () => {
     setTitle('');
     setContent('');
     setPriority('normal');
+    setEffectiveUntil('');
     setEditingId(null);
     setShowForm(false);
   };
@@ -74,7 +78,9 @@ const DirectivesPanel: React.FC = () => {
     try {
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId ? `${apiBase}/directives/${editingId}` : `${apiBase}/directives`;
-      await fetch(url, { method, headers, body: JSON.stringify({ title, content, priority }) });
+      const body: any = { title, content, priority };
+      if (effectiveUntil) body.effective_until = new Date(effectiveUntil + 'T23:59:59').toISOString();
+      await fetch(url, { method, headers, body: JSON.stringify(body) });
       resetForm();
       await fetchDirectives();
     } catch {
@@ -103,6 +109,7 @@ const DirectivesPanel: React.FC = () => {
     setTitle(d.title);
     setContent(d.content);
     setPriority(d.priority);
+    setEffectiveUntil(d.effective_until ? d.effective_until.slice(0, 10) : '');
     setEditingId(d.id);
     setShowForm(true);
   };
@@ -217,6 +224,46 @@ const DirectivesPanel: React.FC = () => {
               })}
             </div>
           </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+              Expires On <span style={{ fontWeight: 400, color: '#6b7280' }}>(optional — leave blank for permanent)</span>
+            </label>
+            <input
+              type="date"
+              value={effectiveUntil}
+              onChange={(e) => setEffectiveUntil(e.target.value)}
+              style={inputStyle}
+            />
+            <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Today only', days: 0 },
+                { label: '3 days', days: 3 },
+                { label: '1 week', days: 7 },
+                { label: '1 month', days: 30 },
+              ].map(({ label, days }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + days);
+                    setEffectiveUntil(d.toISOString().slice(0, 10));
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--text-tertiary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={resetForm}
@@ -306,8 +353,22 @@ const DirectivesPanel: React.FC = () => {
                     <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '13px', lineHeight: '1.5' }}>
                       {d.content}
                     </p>
-                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-disabled)' }}>
-                      By {d.created_by_name} &middot; {new Date(d.created_at).toLocaleDateString()}
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-disabled)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <span>By {d.created_by_name} &middot; {new Date(d.created_at).toLocaleDateString()}</span>
+                      {d.effective_until && (
+                        <span style={{
+                          padding: '1px 8px',
+                          borderRadius: '4px',
+                          background: new Date(d.effective_until) < new Date() ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
+                          color: new Date(d.effective_until) < new Date() ? '#f87171' : '#60a5fa',
+                          fontWeight: 600,
+                        }}>
+                          {new Date(d.effective_until) < new Date() ? 'Expired' : `Expires ${new Date(d.effective_until).toLocaleDateString()}`}
+                        </span>
+                      )}
+                      {!d.effective_until && (
+                        <span style={{ color: '#6b7280' }}>Permanent</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
