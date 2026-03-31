@@ -41,6 +41,9 @@ import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
+import AdminKnowledgePanel from './AdminKnowledgePanel';
+import AdminLearningsPanel from './AdminLearningsPanel';
+import AdminRepPhonePanel from './AdminRepPhonePanel';
 import AdminLeadsPanel from './AdminLeadsPanel';
 import DirectivesPanel from './DirectivesPanel';
 import { useToast } from './Toast';
@@ -288,7 +291,7 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
   const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1646,8 +1649,8 @@ const AdminPanel: React.FC = () => {
           { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
           { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
           { id: 'perf' as const, label: 'Performance', tabs: ['analytics', 'budget', 'tiers'] },
-          { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review'] },
-          { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles'] }
+          { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
+          { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'rep-phones'] }
         ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -1663,7 +1666,10 @@ const AdminPanel: React.FC = () => {
           directives: { label: 'Directives', icon: <Target style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'intel-review': { label: 'Intel Review', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
           settings: { label: 'Settings', icon: <Sliders style={{ width: '0.875rem', height: '0.875rem' }} /> },
-          'qr-profiles': { label: 'QR Profiles', icon: <MapPin style={{ width: '0.875rem', height: '0.875rem' }} /> }
+          'qr-profiles': { label: 'QR Profiles', icon: <MapPin style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'knowledge': { label: 'Knowledge Base', icon: <Database style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'learnings': { label: 'Susan Learnings', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> }
         };
 
         const currentGroup = tabGroups.find(g => g.id === activeGroup) || tabGroups[0];
@@ -4987,6 +4993,21 @@ const AdminPanel: React.FC = () => {
         {/* Leads Tab */}
         {activeTab === 'leads' && (
           <AdminLeadsPanel />
+        )}
+
+        {/* Knowledge Base Management */}
+        {activeTab === 'knowledge' && (
+          <AdminKnowledgePanel />
+        )}
+
+        {/* Susan Learnings Approval */}
+        {activeTab === 'learnings' && (
+          <AdminLearningsPanel />
+        )}
+
+        {/* Rep Phone Management */}
+        {activeTab === 'rep-phones' && (
+          <AdminRepPhonePanel />
         )}
       </div>
 

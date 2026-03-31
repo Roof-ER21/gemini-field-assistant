@@ -6845,6 +6845,101 @@ app.put('/api/admin/budget/company', async (req, res) => {
     }
 });
 // ============================================================================
+// ADMIN: KNOWLEDGE DOCS MANAGEMENT
+// ============================================================================
+app.get('/api/admin/knowledge-docs', async (req, res) => {
+    try {
+        const { search, category } = req.query;
+        let sql = 'SELECT id, name, category, state, LEFT(content, 200) as content_preview, created_at FROM knowledge_documents WHERE 1=1';
+        const params = [];
+        if (search) {
+            params.push(`%${search}%`);
+            sql += ` AND (name ILIKE $${params.length} OR content ILIKE $${params.length})`;
+        }
+        if (category && category !== 'All') {
+            params.push(category);
+            sql += ` AND category = $${params.length}`;
+        }
+        sql += ' ORDER BY category, name LIMIT 500';
+        const { rows } = await pool.query(sql, params);
+        res.json(rows);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.post('/api/admin/knowledge-docs', async (req, res) => {
+    try {
+        const { name, category, state, content } = req.body;
+        if (!name || !content)
+            return res.status(400).json({ error: 'name and content required' });
+        const { rows } = await pool.query('INSERT INTO knowledge_documents (name, category, state, content) VALUES ($1, $2, $3, $4) RETURNING *', [name, category || 'General', state || null, content]);
+        res.json(rows[0]);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.put('/api/admin/knowledge-docs/:id', async (req, res) => {
+    try {
+        const { name, category, state, content } = req.body;
+        await pool.query('UPDATE knowledge_documents SET name = COALESCE($1, name), category = COALESCE($2, category), state = $3, content = COALESCE($4, content) WHERE id = $5', [name, category, state || null, content, req.params.id]);
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.delete('/api/admin/knowledge-docs/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM knowledge_documents WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+// ============================================================================
+// ADMIN: GLOBAL LEARNINGS APPROVAL
+// ============================================================================
+app.get('/api/admin/learnings', async (req, res) => {
+    try {
+        const status = req.query.status || 'pending';
+        const { rows } = await pool.query(`SELECT gl.*,
+        (SELECT response_excerpt FROM chat_feedback cf
+         JOIN global_learning_sources gls ON gls.feedback_id = cf.id
+         WHERE gls.global_learning_id = gl.id LIMIT 1) as source_excerpt
+       FROM global_learnings gl
+       WHERE gl.status = $1
+       ORDER BY gl.updated_at DESC LIMIT 100`, [status]);
+        res.json(rows);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.put('/api/admin/learnings/:id/approve', async (req, res) => {
+    try {
+        const email = req.header('x-user-email') || '';
+        const userRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+        const userId = userRow.rows[0]?.id || null;
+        await pool.query('UPDATE global_learnings SET status = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $3', ['approved', userId, req.params.id]);
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.put('/api/admin/learnings/:id/reject', async (req, res) => {
+    try {
+        await pool.query('UPDATE global_learnings SET status = $1, updated_at = NOW() WHERE id = $2', ['rejected', req.params.id]);
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+// ============================================================================
 // USER MEMORY ENDPOINTS
 // ============================================================================
 // Save user memories
