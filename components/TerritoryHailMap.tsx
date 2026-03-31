@@ -1167,6 +1167,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s',
           fontFamily: 'system-ui, -apple-system, sans-serif',
+          height: '100%',
         }}
       >
         <div style={{ padding: 16, borderBottom: '1px solid #1f2937', flexShrink: 0 }}>
@@ -1201,7 +1202,8 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           </div>
         </div>
 
-        <form onSubmit={handleSearch} style={{ padding: 12, borderBottom: '1px solid #1f2937', flexShrink: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+        <form onSubmit={handleSearch} style={{ padding: 12, borderBottom: '1px solid #1f2937' }}>
           <div style={{ position: 'relative' }}>
             <input
               ref={inputRef}
@@ -1407,7 +1409,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div>
           {loading && (
             <div style={{ padding: 16, textAlign: 'center' }}>
               <div style={{ display: 'inline-block', width: 20, height: 20, border: '2px solid #374151', borderTop: '2px solid #ef4444', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -1468,6 +1470,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           </button>
           <p style={{ marginTop: 8, textAlign: 'center', fontSize: 11, color: '#6b7280' }}>Choose the loss date, then download the NOAA-forward PDF.</p>
         </div>
+        </div>{/* end scrollable wrapper */}
 
         <div style={{ padding: 12, borderTop: '1px solid #1f2937', fontSize: 12, color: '#6b7280', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>

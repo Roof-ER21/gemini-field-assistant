@@ -239,19 +239,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         label: 'Tools',
         icon: Wrench,
         defaultExpanded: false,
-        items: ['email', 'transcribe', 'image', 'inspections', 'knowledge', 'myprofile']
+        items: ['email', 'transcribe', 'image', 'knowledge', 'myprofile']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
       },
-      {
+      ...(isAdmin ? [{
         id: 'field-ops',
         label: 'Field Ops',
         icon: HardHat,
         defaultExpanded: false,
-        items: ['documentjob', 'territories', 'canvassing']
+        items: ['documentjob', 'territories', 'canvassing', 'inspections']
           .map(id => itemsMap.get(id))
           .filter((item): item is NavItem => !!item)
-      },
+      }] : []),
       {
         id: 'storm-intel',
         label: 'Storm Intel',
