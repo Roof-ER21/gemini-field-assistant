@@ -281,18 +281,21 @@ export const knowledgeService = {
       const categoryLower = (doc.category || '').toLowerCase();
       let relevance = 0;
 
-      // CRITICAL: State-specific documents get massive boost
-      if (doc.category === 'State-Specific Codes' && relevantStates.length > 0) {
-        relevance += 10.0;
-      }
+      // State filtering: boost matching states, PENALIZE wrong states
+      if (relevantStates.length > 0) {
+        const docMatchesState = relevantStates.some(state => {
+          const sl = state.toLowerCase();
+          const full = sl === 'va' ? 'virginia' : sl === 'md' ? 'maryland' : sl === 'pa' ? 'pennsylvania' : sl;
+          return nameLower.includes(sl) || nameLower.includes(full);
+        });
+        const docIsWrongState = !docMatchesState && ['virginia', 'maryland', 'pennsylvania', 'va-', 'md-', 'pa-', 'pa ', 'md ', 'va '].some(s => nameLower.includes(s));
 
-      // State mentions in document name
-      relevantStates.forEach(state => {
-        const stateLower = state.toLowerCase();
-        if (nameLower.includes(stateLower) || categoryLower.includes(stateLower)) {
-          relevance += 5.0;
+        if (docMatchesState) {
+          relevance += 10.0; // Boost matching state docs
+        } else if (docIsWrongState) {
+          relevance -= 20.0; // Kill wrong state docs — never show PA law for VA query
         }
-      });
+      }
 
       // Exact matches
       if (nameLower === queryLower) relevance += 8.0;
@@ -356,17 +359,19 @@ export const knowledgeService = {
       }
     }
 
-    // Sort by relevance (descending)
-    let topResults = results.sort((a, b) => b.relevance - a.relevance);
+    // Sort by relevance (descending), filter out negative scores
+    let topResults = results
+      .filter(r => r.relevance > 0)
+      .sort((a, b) => b.relevance - a.relevance);
 
-    // Ensure state-specific docs are ALWAYS included if states detected
-    if (relevantStates.length > 0) {
-      const stateDoc = topResults.find(r => r.document.category === 'State-Specific Codes');
-      if (stateDoc && topResults.indexOf(stateDoc) > 0) {
-        // Move to top if not already there
-        topResults = [stateDoc, ...topResults.filter(r => r !== stateDoc)];
-      }
-    }
+    // Deduplicate by document name (same doc can appear from multiple index entries)
+    const seenNames = new Set<string>();
+    topResults = topResults.filter(r => {
+      const key = r.document.name.toLowerCase().trim();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
 
     // Limit results
     topResults = topResults.slice(0, limit);
