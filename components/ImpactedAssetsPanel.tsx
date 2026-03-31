@@ -545,7 +545,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                             {alert.alertType.toUpperCase()} Alert
                           </div>
                           <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                            {formatDate(alert.stormDate)} • {alert.stormDistanceMiles.toFixed(1)} miles from property
+                            {formatDate(alert.stormDate)} • Verified report {alert.stormDistanceMiles.toFixed(1)} mi from property
                           </div>
                         </div>
                       </div>

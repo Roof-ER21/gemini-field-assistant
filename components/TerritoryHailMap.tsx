@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
+import { impactedAssetApi } from '../services/impactedAssetApi';
 import HailSwathLayer from './HailSwathLayer';
 import {
   type BoundingBox,
@@ -605,6 +606,8 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [trackingProperty, setTrackingProperty] = useState(false);
+  const [propertyTracked, setPropertyTracked] = useState(false);
   const gpsWatchRef = useRef<number | null>(null);
   const gpsAutoCenteredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -820,6 +823,7 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
       setSearchLat(result.lat);
       setSearchLng(result.lng);
       setActiveSearchLabel(result.address);
+      setPropertyTracked(false);
       setMapCenter([result.lat, result.lng]);
       setMapZoom(getFallbackZoom(result.resultType));
       setSearchSummary({
@@ -1295,6 +1299,60 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
                 Last hit {latestStorms[0].label} with {formatStormImpactSummary(latestStorms[0])}
               </p>
             )}
+          </div>
+        )}
+
+        {searchSummary && searchLat && searchLng && !loading && (
+          <div style={{ padding: '0 12px 12px', flexShrink: 0 }}>
+            <button
+              onClick={async () => {
+                if (propertyTracked || trackingProperty) return;
+                setTrackingProperty(true);
+                try {
+                  const label = searchSummary.locationLabel || activeSearchLabel || '';
+                  const parts = label.split(',').map(s => s.trim());
+                  const result = await impactedAssetApi.addProperty({
+                    customerName: customerNameInput || 'Property Owner',
+                    address: parts[0] || label,
+                    city: parts[1] || '',
+                    state: searchSummary.resultType === 'postal_code' ? '' : (parts[2]?.split(' ')[0] || ''),
+                    zipCode: parts[parts.length - 1]?.match(/\d{5}/)?.[0] || '',
+                    latitude: searchLat!,
+                    longitude: searchLng!,
+                    notifyOnHail: true,
+                    notifyOnWind: true,
+                    notifyRadiusMiles: 10,
+                  });
+                  if (result) setPropertyTracked(true);
+                } catch { /* silent */ }
+                setTrackingProperty(false);
+              }}
+              disabled={trackingProperty || propertyTracked}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: propertyTracked ? '1px solid #22c55e' : '1px solid #374151',
+                background: propertyTracked ? 'rgba(34,197,94,0.12)' : '#111827',
+                color: propertyTracked ? '#86efac' : '#d1d5db',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: propertyTracked ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'all 0.2s',
+              }}
+            >
+              {propertyTracked ? (
+                <><span style={{ fontSize: 16 }}>&#10003;</span> Property Tracked — Storm Alerts Active</>
+              ) : trackingProperty ? (
+                'Saving...'
+              ) : (
+                <><span style={{ fontSize: 16 }}>&#9888;</span> Track Property for Storm Alerts</>
+              )}
+            </button>
           </div>
         )}
 
