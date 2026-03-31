@@ -749,6 +749,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
 
     summary += `\nSource verification: NOAA data from ncei.noaa.gov/stormevents`;
+    summary += `\n\nIMPORTANT: NOAA reports show where the observation was DOCUMENTED (spotter/station location), NOT the edge of the storm. Hail swaths are 1-10 miles wide. A report within 10 miles = the property was IN the storm path. Tell the rep: "Verified hail was documented in the area on [date]" — do NOT say "X miles away" which implies it missed the property.`;
 
     return summary;
   };
