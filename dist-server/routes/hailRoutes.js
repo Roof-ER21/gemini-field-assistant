@@ -56,13 +56,23 @@ const geocodeForHailSearch = async (params) => {
     }
     return null;
 };
+// Simple geocode cache to avoid rate-limiting from Nominatim
+const geocodeCache = new Map();
+const GEOCODE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 // GET /api/hail/geocode?q=<address|city|zip>
 // Server-side proxy for Census Bureau geocoding (avoids CORS on the client)
 router.get('/geocode', async (req, res) => {
     const q = (req.query.q || '').trim();
     if (!q)
         return res.status(400).json({ error: 'Missing ?q= parameter' });
+    // Check cache first
+    const cacheKey = q.toLowerCase();
+    const cached = geocodeCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < GEOCODE_CACHE_TTL) {
+        return res.json({ address: cached.address, lat: cached.lat, lng: cached.lng });
+    }
     try {
+        // Try Census Bureau first (best for street addresses)
         const params = new URLSearchParams({ address: q, benchmark: 'Public_AR_Current', format: 'json' });
         const censusRes = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
         if (censusRes.ok) {
@@ -70,16 +80,30 @@ router.get('/geocode', async (req, res) => {
             const matches = data?.result?.addressMatches;
             if (matches?.length) {
                 const f = matches[0];
-                return res.json({ address: f.matchedAddress, lat: f.coordinates.y, lng: f.coordinates.x });
+                const result = { address: f.matchedAddress, lat: f.coordinates.y, lng: f.coordinates.x };
+                geocodeCache.set(cacheKey, { ...result, ts: Date.now() });
+                return res.json(result);
             }
         }
-        // Fallback to Nominatim
-        const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
-            headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
-        });
-        const nomData = await nomRes.json();
-        if (Array.isArray(nomData) && nomData.length > 0) {
-            return res.json({ address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) });
+        // Fallback to Nominatim (handle rate-limiting gracefully)
+        try {
+            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
+                headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
+            });
+            if (nomRes.ok) {
+                const nomData = await nomRes.json();
+                if (Array.isArray(nomData) && nomData.length > 0) {
+                    const result = { address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) };
+                    geocodeCache.set(cacheKey, { ...result, ts: Date.now() });
+                    return res.json(result);
+                }
+            }
+            else {
+                console.warn(`Nominatim returned ${nomRes.status} for "${q}" — may be rate-limited`);
+            }
+        }
+        catch (nomErr) {
+            console.warn('Nominatim fallback failed:', nomErr.message);
         }
         return res.json({ address: null, lat: null, lng: null });
     }
