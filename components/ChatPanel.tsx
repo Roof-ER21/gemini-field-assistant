@@ -8,6 +8,7 @@ import Spinner from './Spinner';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
+import { API_BASE_URL } from '../services/config';
 import { susanAgentChat, type AgentToolResult } from '../services/susanAgentService';
 import ToolResultCard from './ToolResultCard';
 import { messagingService } from '../services/messagingService';
