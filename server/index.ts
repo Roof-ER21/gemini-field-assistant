@@ -7818,7 +7818,7 @@ app.put('/api/admin/budget/company', async (req, res) => {
 app.get('/api/admin/knowledge-docs', async (req, res) => {
   try {
     const { search, category } = req.query;
-    let sql = 'SELECT id, name, category, state, LEFT(content, 200) as content_preview, created_at FROM knowledge_documents WHERE 1=1';
+    let sql = 'SELECT id, name, category, state, LEFT(content, 200) as content, created_at FROM knowledge_documents WHERE 1=1';
     const params: any[] = [];
     if (search) { params.push(`%${search}%`); sql += ` AND (name ILIKE $${params.length} OR content ILIKE $${params.length})`; }
     if (category && category !== 'All') { params.push(category); sql += ` AND category = $${params.length}`; }

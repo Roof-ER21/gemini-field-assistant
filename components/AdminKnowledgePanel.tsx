@@ -592,7 +592,7 @@ const AdminKnowledgePanel: React.FC = () => {
                       name: doc.name,
                       category: doc.category as DocCategory,
                       state: (doc.state || '') as DocState,
-                      content: doc.content,
+                      content: doc.content || '',
                     }}
                     onSave={handleSave}
                     onCancel={() => setEditDoc(null)}
@@ -629,7 +629,7 @@ const AdminKnowledgePanel: React.FC = () => {
                         WebkitBoxOrient: 'vertical',
                       } as React.CSSProperties}
                     >
-                      {doc.content.slice(0, 100)}{doc.content.length > 100 ? '…' : ''}
+                      {(doc.content || '').slice(0, 100)}{(doc.content || '').length > 100 ? '…' : ''}
                     </p>
 
                     {/* Footer row */}

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
+import { API_BASE_URL } from '../services/config';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
@@ -180,7 +181,7 @@ const IntelReviewPanel: React.FC = () => {
     setLoading(true);
     try {
       const user = authService.getCurrentUser();
-      const res = await fetch(`${databaseService.getApiBaseUrl()}/agent-network/pending`, {
+      const res = await fetch(`${API_BASE_URL}/agent-network/pending`, {
         headers: { 'x-user-email': user?.email || '' },
       });
       if (res.ok) setPending(await res.json());
@@ -196,7 +197,7 @@ const IntelReviewPanel: React.FC = () => {
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
     try {
       const user = authService.getCurrentUser();
-      await fetch(`${databaseService.getApiBaseUrl()}/agent-network/${id}/${action}`, {
+      await fetch(`${API_BASE_URL}/agent-network/${id}/${action}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-email': user?.email || '' },
       });
@@ -209,7 +210,7 @@ const IntelReviewPanel: React.FC = () => {
   const handlePromote = async (id: string) => {
     try {
       const user = authService.getCurrentUser();
-      await fetch(`${databaseService.getApiBaseUrl()}/agent-network/${id}/promote`, {
+      await fetch(`${API_BASE_URL}/agent-network/${id}/promote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-email': user?.email || '' },
         body: JSON.stringify({ category: 'field_intel' }),
