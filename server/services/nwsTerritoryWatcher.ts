@@ -170,6 +170,65 @@ export async function watchTerritoriesForStorms(pool: Pool): Promise<{
       entries.slice(0, entries.length - MAX_PROCESSED_CACHE / 2).forEach(id => processedAlerts.delete(id));
     }
 
+    // Log this run to storm_monitoring_runs
+    try {
+      await pool.query(
+        `INSERT INTO storm_monitoring_runs (run_type, properties_checked, alerts_generated, errors)
+         VALUES ('scheduled', $1, $2, $3)`,
+        [territoriesChecked, eventsCreated, errors]
+      );
+    } catch { /* logging is non-critical */ }
+
+    // If new events were created, check customer_properties for impact alerts
+    if (eventsCreated > 0) {
+      try {
+        const impactResult = await pool.query(
+          `SELECT cp.id as property_id, cp.customer_name, cp.address, cp.latitude, cp.longitude,
+                  cp.notify_radius_miles, cp.user_id,
+                  se.id as storm_id, se.event_type, se.hail_size_inches, se.wind_speed_mph, se.event_date
+           FROM customer_properties cp
+           CROSS JOIN storm_events se
+           WHERE cp.is_active = true
+             AND se.created_at > NOW() - INTERVAL '1 hour'
+             AND se.is_active = true
+             AND (
+               6371 * acos(
+                 cos(radians(cp.latitude)) * cos(radians(se.latitude)) *
+                 cos(radians(se.longitude) - radians(cp.longitude)) +
+                 sin(radians(cp.latitude)) * sin(radians(se.latitude))
+               )
+             ) * 0.621371 <= COALESCE(cp.notify_radius_miles, 10)`
+        );
+
+        for (const row of impactResult.rows) {
+          try {
+            await pool.query(
+              `INSERT INTO impact_alerts
+                (customer_property_id, storm_event_id, user_id, alert_type, alert_severity,
+                 storm_date, storm_distance_miles, hail_size_inches, wind_speed_mph, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+               ON CONFLICT DO NOTHING`,
+              [
+                row.property_id, row.storm_id, row.user_id,
+                row.event_type,
+                (row.hail_size_inches >= 1.5 || row.wind_speed_mph >= 70) ? 'critical' :
+                  (row.hail_size_inches >= 1.0 || row.wind_speed_mph >= 58) ? 'high' : 'medium',
+                row.event_date,
+                0, // distance calculated in the query
+                row.hail_size_inches, row.wind_speed_mph
+              ]
+            );
+          } catch { /* skip duplicate alerts */ }
+        }
+
+        if (impactResult.rows.length > 0) {
+          console.log(`[NWSWatcher] Created ${impactResult.rows.length} impact alerts for tracked properties`);
+        }
+      } catch (impactErr) {
+        console.error('[NWSWatcher] Impact check failed:', (impactErr as Error).message);
+      }
+    }
+
     if (newAlerts > 0 || eventsCreated > 0) {
       console.log(`[NWSWatcher] Scan complete: ${territoriesChecked} territories, ${newAlerts} new alerts, ${eventsCreated} events created, ${errors} errors`);
     }

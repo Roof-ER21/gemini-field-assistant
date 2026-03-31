@@ -651,7 +651,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         date: e.date,
         type: 'hail',
         size: e.hailSize,
-        source: 'IHM',
+        source: 'NOAA',
         certified: false
       });
     });
@@ -674,8 +674,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Sort: IHM first, then NOAA, by date
     allEvents.sort((a, b) => {
-      if (a.source === 'IHM' && b.source !== 'IHM') return -1;
-      if (b.source === 'IHM' && a.source !== 'IHM') return 1;
+      // Sort by date only (single source now)
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
@@ -697,7 +696,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         date: e.date,
         type: 'hail',
         size: e.hailSize,
-        source: 'Interactive Hail Maps',
+        source: 'NOAA Storm Events Database',
         certified: false
       });
     });
@@ -1107,7 +1106,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
         // CRITICAL: Show clear error - NEVER let Susan make up data
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
-          text: `⚠️ **Storm Data Lookup Failed**\n\nI couldn't retrieve storm data for **${hailRequest.address}**.\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n\n**Please try:**\n• Check the address format (e.g., "123 Main St, City, ST 12345")\n• Try again in a moment\n• Use the Hail History panel for manual lookup\n\n*I will never guess or fabricate storm data. All data must come from verified sources (Interactive Hail Maps, NOAA).*`,
+          text: `⚠️ **Storm Data Lookup Failed**\n\nI couldn't retrieve storm data for **${hailRequest.address}**.\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n\n**Please try:**\n• Check the address format (e.g., "123 Main St, City, ST 12345")\n• Try again in a moment\n• Use the Hail History panel for manual lookup\n\n*I will never guess or fabricate storm data. All data comes from verified federal sources (NOAA, NWS, NEXRAD).*`,
           sender: 'assistant',
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -2102,7 +2101,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                 </div>
                               </div>
 
-                              {/* IHM Section */}
+                              {/* Legacy IHM section removed — all data from NOAA now */}
                               {ihmEvents.length > 0 && (
                                 <div style={{ marginBottom: '16px' }}>
                                   <div style={{
@@ -2110,7 +2109,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                     alignItems: 'center',
                                     gap: '8px',
                                     marginBottom: '10px',
-                                    color: '#60a5fa',
+                                    color: '#86efac',
                                     fontSize: '13px',
                                     fontWeight: 600,
                                     textTransform: 'uppercase',
@@ -2120,9 +2119,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                       width: '8px',
                                       height: '8px',
                                       borderRadius: '50%',
-                                      background: '#60a5fa'
+                                      background: '#22c55e'
                                     }} />
-                                    Interactive Hail Maps ({ihmEvents.length})
+                                    NOAA Storm Events ({ihmEvents.length})
                                   </div>
                                   <div style={{ display: 'grid', gap: '8px' }}>
                                     {ihmEvents.slice(0, 5).map((e: any, i: number) => (
@@ -2246,7 +2245,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                                 fontSize: '11px',
                                 color: 'var(--text-disabled)'
                               }}>
-                                <strong style={{ color: 'var(--text-tertiary)' }}>Data Sources:</strong> NOAA Storm Events Database (ncei.noaa.gov/stormevents) • Interactive Hail Maps
+                                <strong style={{ color: 'var(--text-tertiary)' }}>Data Source:</strong> NOAA Storm Events Database (ncei.noaa.gov/stormevents)
                               </div>
 
                               {/* Action Buttons */}
