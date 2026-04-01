@@ -1,233 +1,121 @@
-# CODEX HANDOFF - Gemini Field Assistant
+# Gemini Field Assistant — Handoff (Apr 1, 2026)
 
-## Status Summary
+## Project
+- **Repo**: `/Users/a21/gemini-field-assistant/`
+- **Production**: https://sa21.up.railway.app
+- **Deploy**: `git push origin main` (auto-deploys via Railway)
+- **Stack**: React + Vite (frontend) → Express + TypeScript (server) → PostgreSQL
+- **DB**: `PGPASSWORD=[REDACTED] psql -h hopper.proxy.rlwy.net -p 15533 -U postgres -d railway`
+- **Latest commit**: `25ccd52` (perf: NOAA cache, PDF limiter, DB pool)
+- **Admin**: 1 account — ahmed.mahmoud@theroofdocs.com
 
-**CURRENT STATUS**: App is LIVE and HEALTHY at `https://sa21.up.railway.app/`
+## What Was Built (40+ commits, Mar 27 - Apr 1)
 
-The previous debugging session was checking the wrong URL (`s21-production.up.railway.app`). The actual Railway domain is `sa21.up.railway.app`.
+### Storm Maps & PDFs
+- All data from NOAA/NWS/NEXRAD (free federal — IHM/VisualCrossing/HailTrace removed, $500+/mo saved)
+- PDF reports: no duplicate rows, consolidated history, dynamic rep profile from DB
+- Company: "Roof ER The Roof Docs" | Default phone: (703) 239-3738
+- Track Property button → saves to customer_properties for NWS monitoring
+- Geocode cache (24h) prevents Nominatim rate-limiting
+- NOAA query cache (1hr) — same search = instant response
+- PDF concurrency limiter (max 3 simultaneous)
+- Sidebar fully scrollable on mobile
 
----
+### Susan AI (14 tools)
+1. schedule_followup, 2. lookup_hail_data, 3. save_client_note, 4. draft_email,
+5. share_team_intel, 6. get_job_details, 7. search_knowledge_base, 8. send_email,
+9. create_calendar_event, 10. check_availability, 11. fetch_calendar_events,
+12. send_notification, 13. generate_storm_report, 14. record_claim_outcome
 
-## Quick Verification Commands
+- Conversation summaries auto-generated on new session
+- Last 3 summaries loaded into context for session continuity
+- Negative feedback → auto-creates global_learnings (pending admin approval)
+- Proactive memory: auto-saves client facts (homeowner, insurer, claim#, adjuster)
+- 79/79 reps have preferred_name seeded
+- 141 knowledge documents loaded and searchable
+- Email placeholders fixed (no more [Your Name] brackets)
+- Referral language in thank-you emails
+- 24-month minimum search (reps saying "last year" won't miss older storms)
+- RAG skips hail/storm/address queries (no irrelevant citations)
+- Always uses PDF tool for report requests (never text dumps)
 
+### Doc Analyzer
+- Trade selection: Roofing, Siding, Gutters checkboxes
+- EagleView/Hover auto-detection from document content
+- Siding + gutter Xactimate codes and measurement comparison
+
+### Impacted Assets (fully wired end-to-end)
+- Storm Maps → Track Property → NWS monitoring (15-min cron) → impact_alerts → dashboard
+- NWS watcher creates storm_events AND checks customer_properties for alerts
+- Haversine distance matching, severity calculation (critical/high/medium)
+
+### Admin Panel (3 new tabs + directive expiration)
+- Knowledge Base: CRUD for documents (Training group)
+- Susan Learnings: approve/reject pending learnings (Training group)
+- Rep Phones: inline edit, bulk default set (System group)
+- Directives: expiration dates with quick-set buttons (Today/3d/1w/1mo)
+
+### Scaling (Priority 1 done)
+- NOAA query cache (1hr TTL, max 200 entries)
+- PDF concurrency limiter (max 3 simultaneous, 30s queue)
+- DB pool: max 20 connections, 30s idle, 5s connect timeout
+
+### Other
+- Field Ops + Inspection Presentations → admin-only sidebar
+- Markdown rendering in chat (bold, italic, code)
+- JSON sanitized in tool result cards
+- Loading progress steps ("Searching NOAA...", "Susan is working...")
+- State-aware RAG: wrong-state docs penalized, DMV city names detected
+- NOAA distance reframed ("documented in the area" not "X miles away")
+- Rep guide page at /rep-guide.html
+
+## Current Production State
+- Data sources: NOAA + NWS + NEXRAD (3 federal, all free)
+- Users: 84 (82 missing personal phone — using default)
+- Knowledge docs: 141
+- Global learnings: 3 approved
+- Tracked properties: 2
+- Agent Intel: 0 (feature built, needs rep submissions)
+
+## Known Remaining Items (all low priority)
+- 82 reps need to set phone in Settings > Profile
+- Agent Intel feed empty — needs rep content
+- QR Profiles coming soon for non-admins
+- Old pdfService V1 has stale IHM references (V2 is default)
+- Railway auto-scaling needed at 200+ concurrent users
+- Redis for shared cache needed with multiple Railway instances
+
+## Build & Test
 ```bash
-# Health check (should return healthy)
-curl -s https://sa21.up.railway.app/api/health
-# Expected: {"status":"healthy","database":"connected","timestamp":"..."}
-
-# Root page (should return HTML)
-curl -s https://sa21.up.railway.app/ | head -5
-
-# API endpoints require authentication (expected behavior)
-curl -s https://sa21.up.railway.app/api/canvassing/stats/user
-# Expected: {"error":"User email required"}
+cd /Users/a21/gemini-field-assistant
+npm run build          # vite + tsc
+npm run dev            # local dev
+git push origin main   # deploy to Railway
+npx vitest run server/services/__tests__/hailReportAccuracy.test.ts  # tests
 ```
 
----
+## Key Files
+| Area | File |
+|------|------|
+| Storm Maps UI | `components/TerritoryHailMap.tsx` |
+| Susan Chat | `components/ChatPanel.tsx` |
+| Susan Tools (14) | `server/services/susanToolService.ts` |
+| Susan System Prompt | `config/s21Personality.ts` |
+| PDF Generator | `server/services/pdfReportServiceV2.ts` |
+| NOAA Service | `server/services/noaaStormService.ts` |
+| Hail Routes | `server/routes/hailRoutes.ts` |
+| NWS Watcher | `server/services/nwsTerritoryWatcher.ts` |
+| Conversation Intel | `server/services/conversationIntelService.ts` |
+| RAG Service | `services/ragService.ts` |
+| Knowledge Service | `services/knowledgeService.ts` |
+| Doc Analyzer | `components/DocumentAnalysisPanel.tsx` |
+| Admin Panel | `components/AdminPanel.tsx` |
+| Admin Knowledge | `components/AdminKnowledgePanel.tsx` |
+| Admin Learnings | `components/AdminLearningsPanel.tsx` |
+| Admin Rep Phones | `components/AdminRepPhonePanel.tsx` |
+| Directives | `components/DirectivesPanel.tsx` |
+| Impacted Assets | `components/ImpactedAssetsPanel.tsx` |
+| Rep Guide | `public/rep-guide.html` |
 
-## Recent Work Completed
-
-### Commits (most recent first)
-1. `deea74c` - Fix all modal UI issues - proper z-index, backdrop, and scrolling
-2. `3d18ef1` - Add /stats/user endpoint for canvassing API
-3. `f0ae382` - Fix impacted-assets API route path
-4. `a972bc4` - Fix modal scrolling - make entire modal box scrollable
-5. `26dc2e4` - fix: Remove all u.username column references - column does not exist
-
-### Files Changed
-- `components/CanvassingPanel.tsx` - Modal z-index and backdrop fixes
-- `components/DocumentJobPanel.tsx` - Modal z-index and backdrop fixes
-- `components/ImpactedAssetsPanel.tsx` - Modal z-index and backdrop fixes
-- `server/index.ts` - Route registration fixed (`/api/impacted-assets`)
-- `server/routes/canvassingRoutes.ts` - Added `/stats/user` endpoint
-
----
-
-## Problem History
-
-### 1. 502 Errors (FIXED)
-**Cause**: Database queries were referencing `u.username` column which doesn't exist in the `users` table.
-
-**Solution**: Changed all queries to derive username from email:
-```sql
--- Before (broken)
-SELECT u.username FROM users u
-
--- After (working)
-SELECT LOWER(SPLIT_PART(u.email, '@', 1)) AS username FROM users u
-```
-
-**Verification**: Search codebase - no remaining `username` column references:
-```bash
-grep -r "u\.username\|username FROM" server/ --include="*.ts"
-# Should return nothing
-```
-
-### 2. 404 on API Routes (FIXED)
-**Cause**: Route paths didn't match frontend expectations.
-
-**Fixes**:
-- `/api/assets/*` → `/api/impacted-assets/*` in `server/index.ts`
-- Added `/stats/user` endpoint to `canvassingRoutes.ts`
-
-### 3. Modal UI Issues (FIXED)
-**Cause**: Modals were hidden behind black backdrop or cut off.
-
-**Fixes in all three panels**:
-- `zIndex: 99999` for modal container
-- `zIndex: 99998` for backdrop
-- `position: 'fixed'` with `inset: 0`
-- `maxHeight: '90vh'` with `overflowY: 'auto'`
-
----
-
-## Remaining Issues to Investigate
-
-### 1. Modal Visual Testing
-The modal fixes need visual verification on actual device/browser:
-- Open app at https://sa21.up.railway.app/
-- Login with valid credentials
-- Navigate to Canvassing panel → Add Homeowner modal
-- Navigate to Impacted Assets panel → Add Property modal
-- Navigate to Document/Jobs panel → Create Job modal
-- Verify all modals:
-  - [ ] Appear above all other content
-  - [ ] Have dark backdrop
-  - [ ] Are scrollable when content exceeds viewport
-  - [ ] Form inputs are accessible
-  - [ ] Close button works
-
-### 2. Potential Authentication Issues
-Some endpoints require user email header:
-```javascript
-// Frontend should send:
-headers: {
-  'x-user-email': userEmail
-}
-```
-
-Check if frontend services are sending this header correctly in:
-- `services/canvassingApi.ts`
-- `services/impactedAssetApi.ts`
-
----
-
-## Technical Details
-
-### Railway Configuration
-```
-Project: The S21
-Service: Susan 21
-Domain: https://sa21.up.railway.app
-Environment: production
-Database: PostgreSQL (internal URL: postgres.railway.internal:5432)
-```
-
-### Key Environment Variables
-- `DATABASE_URL` - PostgreSQL connection string
-- `GEMINI_API_KEY` - Google AI API
-- `GROQ_API_KEY` - Groq API
-- `RESEND_API_KEY` - Email service
-- `IHM_API_KEY` / `IHM_API_SECRET` - Interactive Hail Maps
-
-### Start Command
-```bash
-node dist-server/index.js
-```
-
-### Build Command
-```bash
-npm install && npm run build && npm run server:build
-```
-
----
-
-## File Locations
-
-### Frontend Components with Modals
-- `/components/CanvassingPanel.tsx` - Door-to-door tracking
-- `/components/ImpactedAssetsPanel.tsx` - Customer property monitoring
-- `/components/DocumentJobPanel.tsx` - Job management system
-
-### Backend Routes
-- `/server/routes/canvassingRoutes.ts` - Canvassing API
-- `/server/routes/impactedAssetRoutes.ts` - Impacted assets API
-- `/server/index.ts` - Main server, route registration
-
-### API Services (Frontend)
-- `/services/canvassingApi.ts` - Canvassing API client
-- `/services/impactedAssetApi.ts` - Impacted assets API client
-- `/services/jobService.ts` - Job management client
-
----
-
-## Deployment
-
-### Preferred Method: GitHub Auto-Deploy
-Railway is configured to auto-deploy on push to `main` branch.
-
-```bash
-git add .
-git commit -m "description"
-git push origin main
-# Railway auto-deploys
-```
-
-### Alternative: Railway CLI
-```bash
-railway up --detach
-```
-
-### DO NOT USE
-- `railway up` without `--detach` (blocks terminal)
-- Direct Railway dashboard deploys (inconsistent)
-
----
-
-## Testing Checklist
-
-### API Endpoints
-- [ ] `GET /api/health` → Returns healthy status
-- [ ] `GET /api/canvassing/stats/user` → Requires auth header
-- [ ] `GET /api/impacted-assets/stats` → Requires auth header
-- [ ] `POST /api/canvassing/entry` → Creates canvassing entry
-- [ ] `POST /api/impacted-assets/properties` → Creates property
-
-### UI Components
-- [ ] CanvassingPanel loads without error
-- [ ] ImpactedAssetsPanel loads without error
-- [ ] DocumentJobPanel loads without error
-- [ ] All modals open and close properly
-- [ ] All modals are scrollable
-- [ ] Form submissions work
-
-### Database
-- [ ] All queries work (no username column errors)
-- [ ] Migrations are up to date
-- [ ] Data persists correctly
-
----
-
-## Known Working State
-
-As of commit `deea74c`:
-- App deploys successfully
-- Health endpoint returns healthy
-- Database connected
-- All API routes registered
-- No username column errors
-
-The app is production-ready. Remaining work is visual UI verification of the modal fixes.
-
----
-
-## Contact/Context
-
-- **Railway Project**: The S21
-- **GitHub Org**: Roof-ER21
-- **Local Path**: `/Users/a21/gemini-field-assistant/`
-- **iOS Path**: `/Users/a21/gemini-field-assistant-ios/`
-
----
-
-*Generated: January 30, 2026*
+## Memory File
+Full sprint details: `~/.claude/projects/-Users-a21/memory/gemini-field-sprint-apr2026.md`

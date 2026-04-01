@@ -468,7 +468,8 @@ export function createLeadGenRoutes(pool: Pool) {
         return res.status(403).json({ success: false, error: 'No profile linked to your account' });
       }
 
-      const profileFilter = !isAdmin ? `AND pl.profile_id = '${profileId}'` : '';
+      const profileFilter = !isAdmin ? `AND pl.profile_id = $1` : '';
+      const profileParams = !isAdmin ? [profileId] : [];
 
       // Leads by source
       const bySourceResult = await pool.query(
@@ -479,7 +480,8 @@ export function createLeadGenRoutes(pool: Pool) {
          FROM profile_leads pl
          WHERE 1=1 ${profileFilter}
          GROUP BY source
-         ORDER BY total DESC`
+         ORDER BY total DESC`,
+        profileParams
       );
 
       // Lead score distribution buckets
@@ -493,7 +495,8 @@ export function createLeadGenRoutes(pool: Pool) {
            COUNT(*) as count
          FROM profile_leads pl
          WHERE 1=1 ${profileFilter}
-         GROUP BY bucket`
+         GROUP BY bucket`,
+        profileParams
       );
 
       // Top zip codes by lead volume
@@ -505,7 +508,8 @@ export function createLeadGenRoutes(pool: Pool) {
          WHERE zip_code IS NOT NULL ${profileFilter}
          GROUP BY zip_code
          ORDER BY lead_count DESC
-         LIMIT 10`
+         LIMIT 10`,
+        profileParams
       );
 
       // Recent leads (last 10)
@@ -525,7 +529,8 @@ export function createLeadGenRoutes(pool: Pool) {
          LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
          WHERE 1=1 ${profileFilter}
          ORDER BY pl.created_at DESC
-         LIMIT 10`
+         LIMIT 10`,
+        profileParams
       );
 
       // Totals
@@ -537,7 +542,8 @@ export function createLeadGenRoutes(pool: Pool) {
            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as this_month,
            ROUND(AVG(lead_score)) as avg_score
          FROM profile_leads pl
-         WHERE 1=1 ${profileFilter}`
+         WHERE 1=1 ${profileFilter}`,
+        profileParams
       );
 
       const totals = totalsResult.rows[0];

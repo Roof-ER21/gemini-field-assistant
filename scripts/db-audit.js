@@ -8,7 +8,7 @@
 import pg from 'pg';
 const { Client } = pg;
 
-const DATABASE_URL = 'postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway';
+const DATABASE_URL = process.env.DATABASE_URL;
 
 async function auditDatabase() {
   const client = new Client({

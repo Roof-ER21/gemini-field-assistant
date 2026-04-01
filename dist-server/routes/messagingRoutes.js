@@ -667,6 +667,20 @@ export function createMessagingRoutes(pool) {
         }
         const mimeType = match[1];
         const base64Data = match[2];
+        // Whitelist allowed MIME types for attachments
+        const ALLOWED_ATTACHMENT_TYPES = new Set([
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            'application/pdf',
+            'text/plain', 'text/csv',
+            'video/mp4', 'video/quicktime',
+            'audio/mpeg', 'audio/wav', 'audio/mp4',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/msword',
+        ]);
+        if (!ALLOWED_ATTACHMENT_TYPES.has(mimeType)) {
+            return res.status(400).json({ error: `File type '${mimeType}' is not allowed` });
+        }
         const buffer = Buffer.from(base64Data, 'base64');
         if (buffer.length > maxSize) {
             return res.status(400).json({ success: false, error: 'Attachment too large (max 10MB)' });

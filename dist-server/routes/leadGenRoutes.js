@@ -337,7 +337,8 @@ export function createLeadGenRoutes(pool) {
             if (!isAdmin && !profileId) {
                 return res.status(403).json({ success: false, error: 'No profile linked to your account' });
             }
-            const profileFilter = !isAdmin ? `AND pl.profile_id = '${profileId}'` : '';
+            const profileFilter = !isAdmin ? `AND pl.profile_id = $1` : '';
+            const profileParams = !isAdmin ? [profileId] : [];
             // Leads by source
             const bySourceResult = await pool.query(`SELECT
            source,
@@ -346,7 +347,7 @@ export function createLeadGenRoutes(pool) {
          FROM profile_leads pl
          WHERE 1=1 ${profileFilter}
          GROUP BY source
-         ORDER BY total DESC`);
+         ORDER BY total DESC`, profileParams);
             // Lead score distribution buckets
             const scoreDistResult = await pool.query(`SELECT
            CASE
@@ -357,7 +358,7 @@ export function createLeadGenRoutes(pool) {
            COUNT(*) as count
          FROM profile_leads pl
          WHERE 1=1 ${profileFilter}
-         GROUP BY bucket`);
+         GROUP BY bucket`, profileParams);
             // Top zip codes by lead volume
             const topZipsResult = await pool.query(`SELECT
            zip_code,
@@ -366,7 +367,7 @@ export function createLeadGenRoutes(pool) {
          WHERE zip_code IS NOT NULL ${profileFilter}
          GROUP BY zip_code
          ORDER BY lead_count DESC
-         LIMIT 10`);
+         LIMIT 10`, profileParams);
             // Recent leads (last 10)
             const recentResult = await pool.query(`SELECT
            pl.id,
@@ -383,7 +384,7 @@ export function createLeadGenRoutes(pool) {
          LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
          WHERE 1=1 ${profileFilter}
          ORDER BY pl.created_at DESC
-         LIMIT 10`);
+         LIMIT 10`, profileParams);
             // Totals
             const totalsResult = await pool.query(`SELECT
            COUNT(*) as total,
@@ -392,7 +393,7 @@ export function createLeadGenRoutes(pool) {
            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as this_month,
            ROUND(AVG(lead_score)) as avg_score
          FROM profile_leads pl
-         WHERE 1=1 ${profileFilter}`);
+         WHERE 1=1 ${profileFilter}`, profileParams);
             const totals = totalsResult.rows[0];
             const total = parseInt(totals.total);
             const converted = parseInt(totals.converted);

@@ -38,7 +38,7 @@ The PostgreSQL database for **gemini-field-assistant** is now fully set up and r
 
 ### Connection String
 ```
-postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway
+postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway
 ```
 
 **This is already configured in Railway:**
@@ -80,7 +80,7 @@ Want to test it first? Run this:
 
 ```bash
 # Set the DATABASE_URL
-export DATABASE_URL='postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway'
+export DATABASE_URL='postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway'
 
 # Test saving a chat message
 node -e "const pg=require('pg');const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});(async()=>{await pool.query('INSERT INTO chat_history (message_id,sender,content,session_id) VALUES (\$1,\$2,\$3,\$4)',['test-1','user','Hello database!','test-session']);const r=await pool.query('SELECT * FROM chat_history');console.log('✅ Saved message:',r.rows[0]);await pool.end()})();"
@@ -156,7 +156,7 @@ You can view your database data in Railway:
 Run this to verify everything is working:
 
 ```bash
-export DATABASE_URL='postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway'
+export DATABASE_URL='postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway'
 
 node -e "const pg=require('pg');const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});(async()=>{const t=await pool.query('SELECT table_name FROM information_schema.tables WHERE table_schema=\\'public\\' ORDER BY table_name');console.log('Tables:',t.rows.map(r=>r.table_name));await pool.end()})();"
 ```

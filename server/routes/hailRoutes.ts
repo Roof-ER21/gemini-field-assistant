@@ -31,8 +31,7 @@ function releasePdfSlot(): void {
 import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
-import { pdfReportService, type ReportFilter } from '../services/pdfReportService.js';
-import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
+import { pdfReportServiceV2, type ReportFilter } from '../services/pdfReportServiceV2.js';
 import { getHistoricalMrmsOverlay } from '../services/historicalMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
@@ -910,14 +909,10 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       return res.status(503).json({ error: (queueErr as Error).message });
     }
 
-    // Select template: 'standard' (IHM-style) or 'noaa-forward' (federal data emphasis)
-    const useV2 = template === 'noaa-forward' || template === 'v2';
-    const reportService = useV2 ? pdfReportServiceV2 : pdfReportService;
-
-    console.log(`📄 Using ${useV2 ? 'NOAA-Forward (V2)' : 'Standard (IHM)'} template (${activePdfCount}/${MAX_CONCURRENT_PDFS} active)`);
+    console.log(`📄 Generating PDF report (${activePdfCount}/${MAX_CONCURRENT_PDFS} active)`);
 
     // Generate PDF stream
-    const pdfStream = reportService.generateReport({
+    const pdfStream = pdfReportServiceV2.generateReport({
       address,
       city,
       state,

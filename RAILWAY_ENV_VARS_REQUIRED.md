@@ -34,7 +34,7 @@ EMAIL_ADMIN_ADDRESS=ahmed.mahmoud@theroofdocs.com
 EMAIL_FROM_ADDRESS=s21-assistant@roofer.com
 
 # Resend API Key (Email Service)
-RESEND_API_KEY=re_6GVYbR5u_Cky9agmkxFdBBcqhEa15egME
+RESEND_API_KEY=[REDACTED]
 
 # Interactive Hail Maps (Enterprise)
 IHM_API_KEY=your_ihm_api_key_here

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/config';
 import { authService } from '../services/authService';
+import { getAdminHeaders } from '../services/adminAuth';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,11 @@ const DEFAULT_PHONE = '(703) 239-3738';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function authHeaders(overrideEmail?: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'x-user-email': overrideEmail || authService.getCurrentUser()?.email || '',
-  };
+  // When overrideEmail is set (for rep-specific calls), preserve it but still add admin token
+  if (overrideEmail) {
+    return getAdminHeaders({ 'x-user-email': overrideEmail });
+  }
+  return getAdminHeaders();
 }
 
 // ─── Inline Phone Editor ──────────────────────────────────────────────────────

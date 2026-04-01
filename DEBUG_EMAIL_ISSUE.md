@@ -3,7 +3,7 @@
 ## Current Status
 
 ### ✅ What's Working:
-1. **RESEND_API_KEY is configured** in Railway (`re_6GVYbR5u_Cky9agmkxFdBBcqhEa15egME`)
+1. **RESEND_API_KEY is configured** in Railway (`[REDACTED]`)
 2. **Email service detects Resend** as provider
 3. **API returns success** when email endpoint is called
 4. **First-login detection is fixed** (returns `isNew: true` for new users)

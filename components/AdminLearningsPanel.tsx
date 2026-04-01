@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/config';
 import { authService } from '../services/authService';
+import { getAdminHeaders } from '../services/adminAuth';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,7 @@ interface GlobalLearning {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function authHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'x-user-email': authService.getCurrentUser()?.email || '',
-  };
+  return getAdminHeaders();
 }
 
 function formatDate(iso: string): string {

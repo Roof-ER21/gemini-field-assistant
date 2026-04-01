@@ -6,7 +6,7 @@
 import { Resend } from 'resend';
 
 // Load environment variables
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_6GVYbR5u_Cky9agmkxFdBBcqhEa15egME';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '[REDACTED]';
 const ADMIN_EMAIL = process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com';
 const APP_URL = process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`

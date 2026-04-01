@@ -24,7 +24,7 @@ import { describe, it, expect } from 'vitest';
 
 /**
  * We re-implement the two extraction helpers and the three date formatters
- * verbatim from pdfReportService.ts so that:
+ * verbatim from pdfReportServiceV2.ts so that:
  *  1. Tests are not coupled to PDFKit / sharp (heavy deps, no network, etc.)
  *  2. Any future divergence between this file and the service will surface as
  *     test failures, giving us a regression signal.

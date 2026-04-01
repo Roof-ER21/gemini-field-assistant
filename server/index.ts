@@ -11,6 +11,28 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+
+// Admin PIN hashing helpers (scrypt — no external dependencies)
+function hashPin(pin: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.scrypt(pin, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
+function verifyPin(pin: string, hash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const [salt, key] = hash.split(':');
+    crypto.scrypt(pin, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(crypto.timingSafeEqual(Buffer.from(key, 'hex'), derivedKey));
+    });
+  });
+}
+
 import http from 'http';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
@@ -160,6 +182,14 @@ pushNotificationService.initializeFirebase().then((initialized) => {
 // MIDDLEWARE
 // ============================================================================
 
+// Force HTTPS in production (Railway terminates TLS at load balancer)
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https' && !req.path.startsWith('/api/health')) {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
 // Security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -233,8 +263,8 @@ app.use(cors({
 }));
 
 // Body parsers - increased limit for photo uploads (base64 encoded)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting - General API protection
 const generalLimiter = rateLimit({
@@ -296,6 +326,28 @@ app.use('/api/documents/', writeLimiter);
 app.use('/api/emails/', emailLimiter);
 app.use('/api/notifications/email', emailLimiter);
 app.use('/api/auth/send-verification-code', verificationLimiter);
+
+// AI endpoint rate limiting
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: 'AI rate limit exceeded. Please try again shortly.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Strict rate limiting for OTP verification attempts
+const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many verification attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/ai', aiLimiter);
+app.use('/api/susan', aiLimiter);
+app.use('/api/auth/verify-code', verifyLimiter);
 
 // Request logging
 app.use((req, res, next) => {
@@ -865,7 +917,7 @@ app.post('/api/users', async (req, res) => {
 
     // Determine role (admin if matches configured admin email)
     const adminEnv = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
-    const userRole = adminEnv && adminEnv === normalizedEmail ? 'admin' : (role || 'sales_rep');
+    const userRole = adminEnv && adminEnv === normalizedEmail ? 'admin' : 'sales_rep';
 
     // Create new user (let PostgreSQL generate UUID via gen_random_uuid())
     const result = await pool.query(
@@ -890,6 +942,7 @@ app.post('/api/users', async (req, res) => {
 // Update user
 app.patch('/api/users/me', async (req, res) => {
   try {
+    const email = getRequestEmail(req);
     const { name, state } = req.body;
     const result = await pool.query(
       `UPDATE users
@@ -898,7 +951,7 @@ app.patch('/api/users/me', async (req, res) => {
            updated_at = CURRENT_TIMESTAMP
        WHERE email = $3
        RETURNING *`,
-      [name, state, 'demo@roofer.com']
+      [name, state, email.toLowerCase()]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -2480,7 +2533,7 @@ setInterval(() => {
 
 // Generate a 6-digit verification code
 function generateVerificationCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Email domain validation — Roof-ER internal tool
@@ -2615,7 +2668,7 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
     }
 
     // Log code for debugging (but don't return to client)
-    console.log(`[AUTH] Verification code for ${email}: ${code} (email sent: ${emailSent})`);
+    console.log(`[AUTH] Verification code sent for ${email} (email delivered: ${emailSent})`);
 
     // Return success WITHOUT the verification code (security fix)
     res.json({
@@ -2640,6 +2693,11 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
 app.post('/api/auth/direct-login', async (req, res) => {
   try {
     const { email, name } = req.body;
+
+    // Block direct login in production — require email verification instead
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+      return res.status(403).json({ error: 'Direct login is disabled in production. Use email verification.' });
+    }
 
     if (!email) {
       return res.status(400).json({
@@ -2903,6 +2961,187 @@ app.get('/api/activity/summary/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error getting activity summary:', error);
     res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ============================================================================
+// ADMIN PIN AUTHENTICATION
+// ============================================================================
+
+// Check if admin has PIN set + check existing session validity
+app.post('/api/admin/auth/check', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    if (!email || email === 'demo@roofer.com') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const userResult = await pool.query(
+      'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const user = userResult.rows[0];
+    const hasPin = !!user.admin_pin_hash;
+
+    // Check if caller has a valid session token
+    const adminToken = req.headers['x-admin-token'] as string;
+    let sessionValid = false;
+    if (adminToken) {
+      const sessionResult = await pool.query(
+        'SELECT id FROM admin_sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
+        [adminToken, user.id]
+      );
+      sessionValid = sessionResult.rows.length > 0;
+    }
+
+    res.json({ hasPin, sessionValid });
+  } catch (error) {
+    console.error('[ADMIN AUTH] Check error:', error);
+    res.status(500).json({ error: 'Auth check failed' });
+  }
+});
+
+// Set or change admin PIN (4-6 digits)
+app.post('/api/admin/auth/set-pin', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    if (!email || email === 'demo@roofer.com') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const userResult = await pool.query(
+      'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { pin, currentPin } = req.body;
+    if (!pin || !/^\d{4,6}$/.test(pin)) {
+      return res.status(400).json({ error: 'PIN must be 4-6 digits' });
+    }
+
+    // If PIN already set, require current PIN to change it
+    const user = userResult.rows[0];
+    if (user.admin_pin_hash) {
+      if (!currentPin) {
+        return res.status(400).json({ error: 'Current PIN required to change PIN' });
+      }
+      const valid = await verifyPin(currentPin, user.admin_pin_hash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Current PIN is incorrect' });
+      }
+    }
+
+    const pinHash = await hashPin(pin);
+    await pool.query('UPDATE users SET admin_pin_hash = $1 WHERE id = $2', [pinHash, user.id]);
+
+    // Create a new session after setting PIN
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await pool.query(
+      'INSERT INTO admin_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, token, expiresAt]
+    );
+
+    console.log(`[ADMIN AUTH] PIN set for ${email}`);
+    res.json({ success: true, token, expiresAt: expiresAt.toISOString() });
+  } catch (error) {
+    console.error('[ADMIN AUTH] Set PIN error:', error);
+    res.status(500).json({ error: 'Failed to set PIN' });
+  }
+});
+
+// Verify PIN and create session
+app.post('/api/admin/auth/verify-pin', async (req, res) => {
+  try {
+    const email = getRequestEmail(req);
+    if (!email || email === 'demo@roofer.com') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const userResult = await pool.query(
+      'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const user = userResult.rows[0];
+    if (!user.admin_pin_hash) {
+      return res.status(400).json({ error: 'No PIN set. Please set a PIN first.', needsSetup: true });
+    }
+
+    const { pin } = req.body;
+    if (!pin) {
+      return res.status(400).json({ error: 'PIN is required' });
+    }
+
+    const valid = await verifyPin(pin, user.admin_pin_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Incorrect PIN' });
+    }
+
+    // Create session token (24 hour expiry)
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Clean up old sessions for this user, then create new one
+    await pool.query('DELETE FROM admin_sessions WHERE user_id = $1', [user.id]);
+    await pool.query(
+      'INSERT INTO admin_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, token, expiresAt]
+    );
+
+    console.log(`[ADMIN AUTH] PIN verified for ${email}, session created`);
+    res.json({ success: true, token, expiresAt: expiresAt.toISOString() });
+  } catch (error) {
+    console.error('[ADMIN AUTH] Verify PIN error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// Admin authorization middleware — protects all /api/admin/* routes
+app.use('/api/admin', async (req, res, next) => {
+  // PIN auth endpoints are accessible to any admin user (they handle their own auth)
+  if (req.path.startsWith('/auth/')) {
+    return next();
+  }
+
+  const email = getRequestEmail(req);
+  if (!email || email === 'demo@roofer.com') {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    // Verify user is admin
+    const userResult = await pool.query('SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const user = userResult.rows[0];
+
+    // If admin has a PIN set, require valid session token
+    if (user.admin_pin_hash) {
+      const adminToken = req.headers['x-admin-token'] as string;
+      if (!adminToken) {
+        return res.status(401).json({ error: 'Admin PIN verification required', requiresPin: true });
+      }
+      const sessionResult = await pool.query(
+        'SELECT id FROM admin_sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
+        [adminToken, user.id]
+      );
+      if (sessionResult.rows.length === 0) {
+        return res.status(401).json({ error: 'Admin session expired', requiresPin: true });
+      }
+    }
+
+    next();
+  } catch (err) {
+    return res.status(500).json({ error: 'Authorization check failed' });
   }
 });
 
@@ -4508,6 +4747,31 @@ async function ensureUserSalesRepMappingTable() {
   }
 }
 ensureUserSalesRepMappingTable();
+
+// Admin PIN auth tables + promote Reese to admin
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_pin_hash TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`);
+    // Promote Reese Samala to admin
+    await pool.query(`UPDATE users SET role = 'admin' WHERE LOWER(email) = 'reese.samala@theroofdocs.com' AND role != 'admin'`);
+    // Clean expired sessions periodically
+    await pool.query(`DELETE FROM admin_sessions WHERE expires_at < NOW()`);
+    console.log('✅ Admin PIN auth tables ready');
+  } catch (e) {
+    console.error('Admin PIN migration error:', e);
+  }
+})();
 
 // Get all user-to-sales-rep mappings
 app.get('/api/admin/user-mappings', async (req, res) => {
@@ -8597,7 +8861,7 @@ app.get('/api/insurance/companies', async (req, res) => {
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Server error:', err);
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================================================
@@ -8611,11 +8875,16 @@ try {
   fs.mkdirSync(path.join(uploadsDir, 'headshots'), { recursive: true });
   fs.mkdirSync(path.join(uploadsDir, 'videos'), { recursive: true });
   fs.mkdirSync(path.join(uploadsDir, 'reports'), { recursive: true });
-  app.use('/uploads', express.static(uploadsDir, {
+  app.use('/uploads', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    next();
+  }, express.static(uploadsDir, {
     maxAge: '30d',
     immutable: true,
     setHeaders: (res, filePath) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
       if (filePath.endsWith('.mp4') || filePath.endsWith('.m4v') || filePath.endsWith('.mov')) {
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Accept-Ranges', 'bytes');

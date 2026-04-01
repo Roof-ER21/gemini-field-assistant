@@ -223,7 +223,7 @@ private useLocalStorage: boolean = true; // Change to false to enable PostgreSQL
 #### Database Initialization
 **Connection String:**
 ```
-postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway
+postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway
 ```
 
 **Process:**
@@ -730,7 +730,7 @@ railway logs
 
 ### Test Database Connection (Local)
 ```bash
-export DATABASE_URL='postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway'
+export DATABASE_URL='postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway'
 node scripts/init-database.js
 ```
 

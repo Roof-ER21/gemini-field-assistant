@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAdminHeaders } from '../services/adminAuth';
 import {
   DollarSign,
   TrendingUp,
@@ -132,11 +133,7 @@ const AdminBudgetTab: React.FC = () => {
     }
   };
 
-  const getAuthHeaders = () => {
-    const authUser = localStorage.getItem('s21_auth_user');
-    const userEmail = authUser ? JSON.parse(authUser).email : null;
-    return userEmail ? { 'x-user-email': userEmail } : {};
-  };
+  const getAuthHeaders = () => getAdminHeaders();
 
   const fetchOverview = async () => {
     try {

@@ -161,7 +161,7 @@ However, the local database doesn't exist. You have two options:
 2. **Use Railway database** (recommended):
    ```bash
    # Update .env.local with Railway DATABASE_PUBLIC_URL
-   DATABASE_URL=postgresql://postgres:RNNiLPPQGUpCGIGIESYjlNQqGajUCPhb@hopper.proxy.rlwy.net:15533/railway
+   DATABASE_URL=postgresql://postgres:[REDACTED]@hopper.proxy.rlwy.net:15533/railway
 
    # Restart server
    npm start

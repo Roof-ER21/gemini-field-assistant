@@ -44,6 +44,7 @@ import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
 import AdminKnowledgePanel from './AdminKnowledgePanel';
 import AdminLearningsPanel from './AdminLearningsPanel';
+import AdminPinModal from './AdminPinModal';
 import AdminRepPhonePanel from './AdminRepPhonePanel';
 import AdminLeadsPanel from './AdminLeadsPanel';
 import DirectivesPanel from './DirectivesPanel';
@@ -401,6 +402,69 @@ const AdminPanel: React.FC = () => {
   // Check if current user is admin
   const isAdmin = currentUser?.role === 'admin';
 
+  // Admin PIN auth state
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('s21_admin_token'));
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState<'verify' | 'setup'>('verify');
+  const [adminAuthChecked, setAdminAuthChecked] = useState(false);
+
+  // Centralized fetch wrapper that injects both auth headers on every admin API call
+  const adminFetch = (url: string, options: RequestInit = {}) => {
+    const token = adminToken || localStorage.getItem('s21_admin_token') || '';
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+      'x-user-email': currentUser?.email || '',
+      ...(token ? { 'x-admin-token': token } : {}),
+    };
+    return fetch(url, { ...options, headers });
+  };
+
+  // PIN success/cancel handlers
+  const handlePinSuccess = (token: string) => {
+    localStorage.setItem('s21_admin_token', token);
+    setAdminToken(token);
+    setShowPinModal(false);
+    setAdminAuthChecked(true);
+  };
+
+  const handlePinCancel = () => {
+    setShowPinModal(false);
+  };
+
+  // Check admin PIN auth status on mount
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const checkAdminAuth = async () => {
+      try {
+        const token = localStorage.getItem('s21_admin_token') || '';
+        const response = await fetch('/api/admin/auth/check', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-email': currentUser?.email || '',
+            ...(token ? { 'x-admin-token': token } : {}),
+          },
+        });
+        const result = await response.json();
+        if (result.sessionValid) {
+          setAdminAuthChecked(true);
+        } else if (!result.hasPin) {
+          setPinMode('setup');
+          setShowPinModal(true);
+        } else {
+          setPinMode('verify');
+          setShowPinModal(true);
+        }
+      } catch {
+        // On network error, optimistically allow access (PIN check is best-effort on mount)
+        setAdminAuthChecked(true);
+      }
+    };
+
+    checkAdminAuth();
+  }, [isAdmin]);
+
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
@@ -551,11 +615,7 @@ const AdminPanel: React.FC = () => {
     setSettingsLoading(true);
     setSettingsError(null);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/settings', { headers });
+      const response = await adminFetch('/api/admin/settings');
       if (!response.ok) {
         throw new Error('Failed to fetch settings');
       }
@@ -578,11 +638,7 @@ const AdminPanel: React.FC = () => {
     setTiersLoading(true);
     setTiersError(null);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/goals/tiers', { headers });
+      const response = await adminFetch('/api/admin/goals/tiers');
       if (!response.ok) {
         throw new Error('Failed to fetch bonus tiers');
       }
@@ -600,16 +656,9 @@ const AdminPanel: React.FC = () => {
   const saveBonusTiers = async () => {
     setSavingTiers(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(userEmail ? { 'x-user-email': userEmail } : {})
-      };
-
-      const response = await fetch('/api/admin/tiers', {
+      const response = await adminFetch('/api/admin/tiers', {
         method: 'PUT',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tiers: bonusTiers })
       });
 
@@ -636,16 +685,9 @@ const AdminPanel: React.FC = () => {
 
     setSavingTiers(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(userEmail ? { 'x-user-email': userEmail } : {})
-      };
-
-      const response = await fetch('/api/admin/tiers/reset', {
+      const response = await adminFetch('/api/admin/tiers/reset', {
         method: 'POST',
-        headers
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (!response.ok) {
@@ -674,15 +716,9 @@ const AdminPanel: React.FC = () => {
   const updateSetting = async (key: string, value: any) => {
     setSavingSettings(prev => new Set(prev).add(key));
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch(`/api/admin/settings/${key}`, {
+      const response = await adminFetch(`/api/admin/settings/${key}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(userEmail ? { 'x-user-email': userEmail } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value })
       });
 
@@ -717,14 +753,10 @@ const AdminPanel: React.FC = () => {
   const fetchUserMappings = async () => {
     setMappingsLoading(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers: Record<string, string> = userEmail ? { 'x-user-email': userEmail } : {};
-
       const [mappingsRes, unmappedUsersRes, unmappedRepsRes] = await Promise.all([
-        fetch('/api/admin/user-mappings', { headers }),
-        fetch('/api/admin/unmapped-users', { headers }),
-        fetch('/api/admin/unmapped-sales-reps', { headers })
+        adminFetch('/api/admin/user-mappings'),
+        adminFetch('/api/admin/unmapped-users'),
+        adminFetch('/api/admin/unmapped-sales-reps')
       ]);
 
       if (mappingsRes.ok) {
@@ -754,15 +786,9 @@ const AdminPanel: React.FC = () => {
     }
 
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const res = await fetch('/api/admin/user-mappings', {
+      const res = await adminFetch('/api/admin/user-mappings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(userEmail ? { 'x-user-email': userEmail } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: selectedUnmappedUser,
           salesRepId: parseInt(selectedUnmappedRep),
@@ -790,12 +816,8 @@ const AdminPanel: React.FC = () => {
     if (!confirm('Are you sure you want to delete this mapping?')) return;
 
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const res = await fetch(`/api/admin/user-mappings/${mappingId}`, {
-        method: 'DELETE',
-        headers: userEmail ? { 'x-user-email': userEmail } : {}
+      const res = await adminFetch(`/api/admin/user-mappings/${mappingId}`, {
+        method: 'DELETE'
       });
 
       if (res.ok) {
@@ -814,15 +836,10 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Get user email from localStorage for authentication
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      let resp = await fetch('/api/admin/users', { headers });
+      let resp = await adminFetch('/api/admin/users');
       if (!resp.ok) {
         // Fallback to basic endpoint if legacy schema causes failure
-        resp = await fetch('/api/admin/users-basic', { headers });
+        resp = await adminFetch('/api/admin/users-basic');
       }
       if (!resp.ok) throw new Error('Failed to fetch users');
       const data = await resp.json();
@@ -843,15 +860,9 @@ const AdminPanel: React.FC = () => {
     }
     setUserModalLoading(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const adminEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch('/api/admin/users', {
+      const response = await adminFetch('/api/admin/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(adminEmail ? { 'x-user-email': adminEmail } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userFormData)
       });
 
@@ -875,15 +886,9 @@ const AdminPanel: React.FC = () => {
     if (!editingUser) return;
     setUserModalLoading(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const adminEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+      const response = await adminFetch(`/api/admin/users/${editingUser.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(adminEmail ? { 'x-user-email': adminEmail } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: userFormData.name,
           role: userFormData.role,
@@ -913,12 +918,8 @@ const AdminPanel: React.FC = () => {
       return;
     }
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const adminEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch(`/api/admin/users/${user.id}`, {
-        method: 'DELETE',
-        headers: adminEmail ? { 'x-user-email': adminEmail } : {}
+      const response = await adminFetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE'
       });
 
       const data = await response.json();
@@ -938,12 +939,8 @@ const AdminPanel: React.FC = () => {
 
   const handleResendVerification = async (user: UserSummary) => {
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const adminEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch(`/api/admin/users/${user.id}/resend-verification`, {
-        method: 'POST',
-        headers: adminEmail ? { 'x-user-email': adminEmail } : {}
+      const response = await adminFetch(`/api/admin/users/${user.id}/resend-verification`, {
+        method: 'POST'
       });
 
       const data = await response.json();
@@ -976,11 +973,7 @@ const AdminPanel: React.FC = () => {
 
   const fetchLeaderboardSyncStatus = async () => {
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/leaderboard/sync-status', { headers });
+      const response = await adminFetch('/api/leaderboard/sync-status');
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -1004,15 +997,9 @@ const AdminPanel: React.FC = () => {
     setLeaderboardSyncRunning(true);
     setLeaderboardSyncMessage(null);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail
-        ? { 'x-user-email': userEmail, 'Content-Type': 'application/json' }
-        : { 'Content-Type': 'application/json' };
-
-      const response = await fetch('/api/leaderboard/sync', {
+      const response = await adminFetch('/api/leaderboard/sync', {
         method: 'POST',
-        headers
+        headers: { 'Content-Type': 'application/json' }
       });
       const data = await response.json();
 
@@ -1035,11 +1022,7 @@ const AdminPanel: React.FC = () => {
   // Fetch sales reps for goal setting
   const fetchSalesReps = async () => {
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/goals/reps', { headers });
+      const response = await adminFetch('/api/admin/goals/reps');
       if (!response.ok) throw new Error('Failed to fetch sales reps');
       const data = await response.json();
       setSalesReps(data.reps || []);
@@ -1053,11 +1036,7 @@ const AdminPanel: React.FC = () => {
   const fetchAllGoals = async () => {
     setGoalsLoading(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/goals', { headers });
+      const response = await adminFetch('/api/admin/goals');
       if (!response.ok) throw new Error('Failed to fetch goals');
       const data = await response.json();
       setAllGoals(data.goals || []);
@@ -1072,11 +1051,7 @@ const AdminPanel: React.FC = () => {
   // Fetch goal progress
   const fetchGoalProgress = async () => {
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch('/api/admin/goals/progress', { headers });
+      const response = await adminFetch('/api/admin/goals/progress');
       if (!response.ok) throw new Error('Failed to fetch goal progress');
       const data = await response.json();
       setGoalProgress(data.progress || []);
@@ -1094,20 +1069,14 @@ const AdminPanel: React.FC = () => {
 
     setGoalsLoading(true);
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-
       const method = editingGoalId ? 'PUT' : 'POST';
       const url = editingGoalId
         ? `/api/admin/goals/${editingGoalId}`
         : '/api/admin/goals';
 
-      const response = await fetch(url, {
+      const response = await adminFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(userEmail ? { 'x-user-email': userEmail } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           salesRepId: parseInt(selectedRepForGoal),
           monthlySignupGoal: parseInt(monthlySignupGoal),
@@ -1137,12 +1106,8 @@ const AdminPanel: React.FC = () => {
     if (!confirm('Are you sure you want to delete this goal?')) return;
 
     try {
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-
-      const response = await fetch(`/api/admin/goals/${goalId}`, {
-        method: 'DELETE',
-        headers: userEmail ? { 'x-user-email': userEmail } : {}
+      const response = await adminFetch(`/api/admin/goals/${goalId}`, {
+        method: 'DELETE'
       });
 
       if (!response.ok) throw new Error('Failed to delete goal');
@@ -1169,12 +1134,7 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Get user email from localStorage for authentication
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch(`/api/admin/conversations?userId=${userId}`, { headers });
+      const response = await adminFetch(`/api/admin/conversations?userId=${userId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
@@ -1192,12 +1152,7 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Get user email from localStorage for authentication
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
-      const response = await fetch(`/api/admin/conversations/${sessionId}?userId=${userId}`, { headers });
+      const response = await adminFetch(`/api/admin/conversations/${sessionId}?userId=${userId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch messages');
       }
@@ -1214,13 +1169,8 @@ const AdminPanel: React.FC = () => {
   const fetchEmails = async () => {
     setEmailsLoading(true);
     try {
-      // Get user email from localStorage for authentication
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
       // Try to fetch from API endpoint first
-      const response = await fetch('/api/admin/emails', { headers });
+      const response = await adminFetch('/api/admin/emails');
       if (response.ok) {
         const responseData = await response.json();
         // API returns {data: [], pagination: {}} - extract the data array
@@ -1246,13 +1196,8 @@ const AdminPanel: React.FC = () => {
   const fetchAllMessages = async () => {
     setMessagesLoading(true);
     try {
-      // Get user email from localStorage for authentication
-      const authUser = localStorage.getItem('s21_auth_user');
-      const userEmail = authUser ? JSON.parse(authUser).email : null;
-      const headers = userEmail ? { 'x-user-email': userEmail } : {};
-
       // Try to fetch from API endpoint first
-      const response = await fetch('/api/admin/all-messages', { headers });
+      const response = await adminFetch('/api/admin/all-messages');
       if (response.ok) {
         const responseData = await response.json();
         // API returns {data: [], pagination: {}} - extract the data array
@@ -1458,6 +1403,26 @@ const AdminPanel: React.FC = () => {
     return lastActiveDate > fiveMinutesAgo;
   };
 
+  // PIN auth loading state — show spinner while checking session on mount
+  if (isAdmin && !adminAuthChecked && !showPinModal) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-secondary)' }}>
+        {showPinModal && (
+          <AdminPinModal
+            mode={pinMode}
+            onSuccess={handlePinSuccess}
+            onCancel={handlePinCancel}
+            userEmail={currentUser?.email || ''}
+          />
+        )}
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-slate-600 border-t-transparent rounded-full animate-spin" />
+          <p style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Access denied for non-admin users
   if (!isAdmin) {
     return (
@@ -1511,6 +1476,15 @@ const AdminPanel: React.FC = () => {
       paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       WebkitOverflowScrolling: 'touch'
     } as React.CSSProperties}>
+      {/* Admin PIN Modal — renders as overlay when session is invalid */}
+      {showPinModal && (
+        <AdminPinModal
+          mode={pinMode}
+          onSuccess={handlePinSuccess}
+          onCancel={handlePinCancel}
+          userEmail={currentUser?.email || ''}
+        />
+      )}
       {/* Database Migrations Section */}
       <div style={{
         background: 'var(--bg-primary)',
@@ -3522,11 +3496,9 @@ const AdminPanel: React.FC = () => {
                                 onClick={async () => {
                                   setSettingsUserActionLoading(true);
                                   try {
-                                    const authUser = localStorage.getItem('s21_auth_user');
-                                    const userEmail = authUser ? JSON.parse(authUser).email : null;
-                                    const response = await fetch(`/api/admin/users/${selectedUser.id}/resend-verification`, {
+                                    const response = await adminFetch(`/api/admin/users/${selectedUser.id}/resend-verification`, {
                                       method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', ...(userEmail ? { 'x-user-email': userEmail } : {}) }
+                                      headers: { 'Content-Type': 'application/json' }
                                     });
                                     if (response.ok) {
                                       toast.success('Verification code sent', `Sent new code to ${selectedUser.email}`);
@@ -3614,11 +3586,8 @@ const AdminPanel: React.FC = () => {
                                   if (!confirm(`Are you sure you want to delete ${selectedUser.name}? This cannot be undone.`)) return;
                                   setSettingsUserActionLoading(true);
                                   try {
-                                    const authUser = localStorage.getItem('s21_auth_user');
-                                    const userEmail = authUser ? JSON.parse(authUser).email : null;
-                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
-                                      method: 'DELETE',
-                                      headers: { ...(userEmail ? { 'x-user-email': userEmail } : {}) }
+                                    const response = await adminFetch(`/api/admin/users/${selectedUser.id}`, {
+                                      method: 'DELETE'
                                     });
                                     if (response.ok) {
                                       toast.success('User deleted', `${selectedUser.name} has been removed`);

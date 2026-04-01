@@ -7,6 +7,15 @@ import pg from 'pg';
 const { Pool } = pg;
 // Email service import
 import { emailService } from './emailService.js';
+/** Escape user-controlled strings before injecting into HTML email templates */
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
 class DailySummaryService {
     static instance;
     pool;
@@ -137,10 +146,10 @@ class DailySummaryService {
           <div class="header">
             <h1>📊 Daily Activity Summary</h1>
             <div class="date">${summary.date}</div>
-            ${summary.state ? `<div class="badge">${summary.state}</div>` : ''}
+            ${summary.state ? `<div class="badge">${escapeHtml(summary.state)}</div>` : ''}
           </div>
           <div class="content">
-            <p>Hi <strong>${summary.userName}</strong>,</p>
+            <p>Hi <strong>${escapeHtml(summary.userName)}</strong>,</p>
             <p>Here's your activity summary for today. You had <strong>${totalActivities} total activities</strong>.</p>
 
             <div class="summary-grid">
@@ -168,7 +177,7 @@ class DailySummaryService {
               <ul class="document-list">
                 ${summary.topDocuments.map(doc => `
                 <li class="document-item">
-                  <span class="doc-name">${doc.name}</span>
+                  <span class="doc-name">${escapeHtml(doc.name)}</span>
                   <span class="doc-views">${doc.views} ${doc.views === 1 ? 'view' : 'views'}</span>
                 </li>
                 `).join('')}
@@ -180,7 +189,7 @@ class DailySummaryService {
             <div class="section">
               <div class="section-title">💬 Recent Chat Activity</div>
               ${summary.chatPreview.map(msg => `
-                <div class="chat-preview">"${msg}"</div>
+                <div class="chat-preview">"${escapeHtml(msg)}"</div>
               `).join('')}
             </div>
             ` : ''}
@@ -540,8 +549,8 @@ Powered by ROOFER - The Roof Docs
                 <tbody>
                   ${summary.userBreakdown.map(user => `
                   <tr>
-                    <td><strong>${user.name}</strong><br><span style="font-size: 11px; color: #666;">${user.email}</span></td>
-                    <td>${user.state ? `<span class="state-badge">${user.state}</span>` : '-'}</td>
+                    <td><strong>${escapeHtml(user.name)}</strong><br><span style="font-size: 11px; color: #666;">${escapeHtml(user.email)}</span></td>
+                    <td>${user.state ? `<span class="state-badge">${escapeHtml(user.state)}</span>` : '-'}</td>
                     <td>${user.logins}</td>
                     <td>${user.chats}</td>
                     <td>${user.documents}</td>
@@ -559,8 +568,8 @@ Powered by ROOFER - The Roof Docs
               <div class="error-title">⚠️ Errors & Issues (${summary.errors.length})</div>
               ${summary.errors.slice(0, 10).map(err => `
               <div class="error-item">
-                <strong>${err.type}</strong> → ${err.email}<br>
-                <span style="color: #666;">${err.error}</span>
+                <strong>${escapeHtml(err.type)}</strong> → ${escapeHtml(err.email)}<br>
+                <span style="color: #666;">${escapeHtml(err.error)}</span>
               </div>
               `).join('')}
               ${summary.errors.length > 10 ? `<p style="text-align: center; color: #666; font-size: 12px;">...and ${summary.errors.length - 10} more errors</p>` : ''}
