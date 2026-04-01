@@ -96,7 +96,10 @@ console.log(`  - Hugging Face: ${hfKey ? '✅ Available' : '❌ Not configured'}
 // ============================================================================
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 20, // Max connections (default was 10, Railway allows 100)
+    idleTimeoutMillis: 30000, // Close idle connections after 30s
+    connectionTimeoutMillis: 5000, // Fail fast if can't connect in 5s
 });
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {

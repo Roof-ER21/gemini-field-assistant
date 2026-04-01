@@ -1,4 +1,31 @@
 import { Router } from 'express';
+// PDF generation concurrency limiter — prevents server freeze when many PDFs generated simultaneously
+let activePdfCount = 0;
+const MAX_CONCURRENT_PDFS = 3;
+const PDF_QUEUE_TIMEOUT = 30000; // 30s max wait
+function acquirePdfSlot() {
+    if (activePdfCount < MAX_CONCURRENT_PDFS) {
+        activePdfCount++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const check = setInterval(() => {
+            if (activePdfCount < MAX_CONCURRENT_PDFS) {
+                clearInterval(check);
+                activePdfCount++;
+                resolve();
+            }
+            else if (Date.now() - start > PDF_QUEUE_TIMEOUT) {
+                clearInterval(check);
+                reject(new Error('PDF generation queue full — please try again in a moment'));
+            }
+        }, 500);
+    });
+}
+function releasePdfSlot() {
+    activePdfCount = Math.max(0, activePdfCount - 1);
+}
 import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
@@ -767,10 +794,17 @@ router.post('/generate-report', async (req, res) => {
                 .catch(e => { console.warn('NEXRAD fetch failed:', e.message); return null; });
         }
         console.log(`📊 Supplemental data: NEXRAD=${nwsAlertImages.length > 0 ? `${nwsAlertImages.length} per-alert` : (nexradResult ? 'single' : 'no')}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
+        // Concurrency gate — max 3 PDFs at once to prevent server freeze
+        try {
+            await acquirePdfSlot();
+        }
+        catch (queueErr) {
+            return res.status(503).json({ error: queueErr.message });
+        }
         // Select template: 'standard' (IHM-style) or 'noaa-forward' (federal data emphasis)
         const useV2 = template === 'noaa-forward' || template === 'v2';
         const reportService = useV2 ? pdfReportServiceV2 : pdfReportService;
-        console.log(`📄 Using ${useV2 ? 'NOAA-Forward (V2)' : 'Standard (IHM)'} template`);
+        console.log(`📄 Using ${useV2 ? 'NOAA-Forward (V2)' : 'Standard (IHM)'} template (${activePdfCount}/${MAX_CONCURRENT_PDFS} active)`);
         // Generate PDF stream
         const pdfStream = reportService.generateReport({
             address,
@@ -813,9 +847,11 @@ router.post('/generate-report', async (req, res) => {
         // Pipe the PDF stream to response
         pdfStream.pipe(res);
         pdfStream.on('end', () => {
+            releasePdfSlot();
             console.log(`✅ PDF report generated successfully: ${filename}`);
         });
         pdfStream.on('error', (error) => {
+            releasePdfSlot();
             console.error('❌ PDF generation error:', error);
             if (!res.headersSent) {
                 res.status(500).json({ error: 'Failed to generate PDF report' });
@@ -823,6 +859,7 @@ router.post('/generate-report', async (req, res) => {
         });
     }
     catch (error) {
+        releasePdfSlot();
         console.error('❌ PDF report generation error:', error);
         res.status(500).json({ error: error.message });
     }

@@ -6,7 +6,17 @@ class NOAAStormService {
     cache = new Map();
     cacheExpiry = new Map();
     CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+    // Query-level result cache: same lat/lng/radius/years = instant response
+    queryCache = new Map();
+    QUERY_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+    MAX_QUERY_CACHE = 200;
     async getStormEvents(lat, lng, radiusMiles = 10, years = 2) {
+        // Check query cache first — same search = instant return
+        const qKey = `${lat.toFixed(3)},${lng.toFixed(3)},${radiusMiles},${years}`;
+        const cached = this.queryCache.get(qKey);
+        if (cached && Date.now() - cached.ts < this.QUERY_CACHE_TTL) {
+            return cached.data;
+        }
         const events = [];
         const currentYear = new Date().getFullYear();
         // Fetch last N years of data
@@ -20,7 +30,15 @@ class NOAAStormService {
                 console.warn(`NOAA data for ${year} not available:`, error);
             }
         }
-        return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const sorted = events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Cache the result — prune if cache gets too large
+        if (this.queryCache.size >= this.MAX_QUERY_CACHE) {
+            const oldest = [...this.queryCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+            for (let i = 0; i < oldest.length / 2; i++)
+                this.queryCache.delete(oldest[i][0]);
+        }
+        this.queryCache.set(qKey, { data: sorted, ts: Date.now() });
+        return sorted;
     }
     async fetchYearData(year) {
         const cacheKey = `noaa-${year}`;
