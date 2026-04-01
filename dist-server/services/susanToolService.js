@@ -153,18 +153,19 @@ const lookupHailDataDeclaration = {
             },
             months: {
                 type: Type.NUMBER,
-                description: 'How many months of history to retrieve. Defaults to 24.'
+                description: 'How many months of history to retrieve. ALWAYS use 24 (minimum). Even if the rep says "last year", use 24 months to avoid missing storms near the boundary.'
             }
         },
-        required: ['street', 'city', 'state', 'zip']
+        required: ['street', 'city', 'state']
     }
 };
 async function executeLookupHailData(args, _ctx) {
     const { street, city, state, zip, months = 24 } = args;
     try {
         // Geocode the address via Census Bureau
+        const addressLine = `${street}, ${city}, ${state}${zip ? ' ' + zip : ''}`.trim();
         const params = new URLSearchParams({
-            address: `${street}, ${city}, ${state} ${zip}`,
+            address: addressLine,
             benchmark: 'Public_AR_Current',
             format: 'json'
         });
@@ -181,7 +182,7 @@ async function executeLookupHailData(args, _ctx) {
         }
         // Fallback to Nominatim
         if (!lat || !lng) {
-            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${street}, ${city}, ${state} ${zip}`)}&format=json&limit=1&countrycodes=us`, { headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' } });
+            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressLine)}&format=json&limit=1&countrycodes=us`, { headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' } });
             const nomData = await nomRes.json();
             if (Array.isArray(nomData) && nomData.length > 0) {
                 lat = parseFloat(nomData[0].lat);
@@ -191,7 +192,9 @@ async function executeLookupHailData(args, _ctx) {
         if (!lat || !lng) {
             return { success: false, error: 'Could not geocode address', address: { street, city, state, zip } };
         }
-        const years = Math.ceil(months / 12);
+        // Always search at least 24 months — reps say "last year" but storms at 13 months ago are still relevant
+        const effectiveMonths = Math.max(months, 24);
+        const years = Math.ceil(effectiveMonths / 12);
         const noaaEvents = await noaaStormService.getStormEvents(lat, lng, 15, years);
         const hailEvents = noaaEvents.filter(e => e.eventType === 'hail').slice(0, 20);
         const windEvents = noaaEvents.filter(e => e.eventType === 'wind').slice(0, 10);
