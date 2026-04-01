@@ -70,24 +70,29 @@ const geocodeForHailSearch = async (params: { address?: string; city?: string; s
     }
   }
 
-  // Fallback to Nominatim
-  try {
-    const queryParts = [address, city, state, zip].filter(Boolean);
-    const query = queryParts.join(', ');
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
+  // Fallback to Nominatim — try full address first, then city/state/zip
+  const nominatimAttempts = [
+    [address, city, state, zip].filter(Boolean).join(', '),
+    ...(address ? [[city, state, zip].filter(Boolean).join(', ')] : []),
+  ];
 
-    console.log('🔍 Hail search geocoding with Nominatim:', query);
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
-    });
-    const data = await response.json();
+  for (const query of nominatimAttempts) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
 
-    if (Array.isArray(data) && data.length > 0) {
-      console.log('✅ Nominatim geocoding succeeded');
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      console.log('🔍 Hail search geocoding with Nominatim:', query);
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
+      });
+      const data = await response.json();
+
+      if (Array.isArray(data) && data.length > 0) {
+        console.log('✅ Nominatim geocoding succeeded');
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+    } catch (e) {
+      console.error('Nominatim geocoding error:', e);
     }
-  } catch (e) {
-    console.error('Nominatim geocoding error:', e);
   }
 
   return null;
