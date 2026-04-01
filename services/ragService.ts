@@ -169,6 +169,17 @@ Please provide your answer:`;
   shouldUseRAG(query: string): boolean {
     const queryLower = query.toLowerCase();
 
+    // SKIP RAG for hail/storm/weather lookups — these use the lookup_hail_data tool, not knowledge docs
+    const skipPatterns = [
+      /\bhail\b.*\b(hit|storm|history|event|check|look\s*up|search|report)\b/,
+      /\b(storm|weather)\b.*\b(hit|report|history|check|look\s*up|search|data)\b/,
+      /\b(has|did|was|any)\b.*\bhail\b/,
+      /\bgenerate.*report\b/,
+      /\bstorm\s*(report|map|impact|analysis)\b/,
+      /^\d+\s+\w+.*\b(st|rd|ave|blvd|ct|crt|dr|ln|way|pl|cir)\b/i, // Starts with a street address
+    ];
+    if (skipPatterns.some(p => p.test(queryLower))) return false;
+
     // Keywords that suggest RAG would be helpful
     const ragKeywords = [
       'script', 'pitch', 'email', 'template', 'insurance',
@@ -176,8 +187,8 @@ Please provide your answer:`;
       'training', 'process', 'how to', 'what is', 'tell me about',
       'adjuster', 'repair', 'inspection', 'estimate', 'customer',
       'code', 'codes', 'building', 'irc', 'virginia', 'maryland', 'pennsylvania',
-      'va', 'md', 'pa', 'matching', 'requirement', 'document', 'show me',
-      'give me', 'find', 'search', 'license', 'certification', 'guideline'
+      'matching', 'requirement', 'document', 'show me',
+      'give me', 'license', 'certification', 'guideline'
     ];
 
     // Check if query contains any RAG-relevant keywords
