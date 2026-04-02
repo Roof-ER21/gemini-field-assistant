@@ -596,13 +596,13 @@ async function executeSearchKnowledgeBase(args, ctx) {
             .toLowerCase()
             .replace(/[^\w\s]/g, '')
             .split(/\s+/)
-            .filter(w => w.length > 2 && !['the', 'and', 'for', 'with', 'that', 'this', 'our', 'are', 'was', 'what', 'how', 'does', 'who', 'which'].includes(w));
+            .filter(w => w.length > 2 && !['the', 'and', 'for', 'with', 'that', 'this', 'our', 'are', 'was', 'what', 'how', 'does', 'who', 'which', 'can', 'you', 'know', 'about', 'each', 'one', 'work', 'should', 'need', 'have', 'would', 'could', 'when', 'where', 'they', 'them', 'their', 'there', 'here', 'just', 'like', 'also', 'been', 'from', 'some', 'will', 'more', 'very', 'than', 'only'].includes(w));
         let result;
         if (keywords.length > 0) {
-            // Build OR conditions for each keyword across both columns
+            // Build OR conditions for each keyword — name matches weighted 3x higher
             const conditions = keywords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
             const sql = `SELECT name, category, content,
-        (${keywords.map((_, i) => `(CASE WHEN content ILIKE '%' || $${i + 1} || '%' THEN 1 ELSE 0 END)`).join(' + ')}) as relevance
+        (${keywords.map((_, i) => `(CASE WHEN name ILIKE '%' || $${i + 1} || '%' THEN 3 ELSE 0 END) + (CASE WHEN content ILIKE '%' || $${i + 1} || '%' THEN 1 ELSE 0 END)`).join(' + ')}) as relevance
         FROM knowledge_documents
         WHERE ${conditions.join(' OR ')}
         ORDER BY relevance DESC
