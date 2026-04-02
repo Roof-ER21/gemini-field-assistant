@@ -4058,6 +4058,44 @@ ensureUserSalesRepMappingTable();
         console.error('Admin PIN migration error:', e);
     }
 })();
+// Storm alert tracking table
+(async () => {
+    try {
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS storm_alerts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        spc_event_id TEXT NOT NULL UNIQUE,
+        event_type VARCHAR(20) NOT NULL,
+        event_date DATE NOT NULL,
+        event_time VARCHAR(10),
+        magnitude NUMERIC,
+        magnitude_unit VARCHAR(10),
+        location TEXT,
+        county TEXT,
+        state VARCHAR(2),
+        latitude NUMERIC(10,6),
+        longitude NUMERIC(11,6),
+        narrative TEXT,
+        alert_phase VARCHAR(20) DEFAULT 'initial',
+        initial_alert_sent BOOLEAN DEFAULT FALSE,
+        initial_alert_sent_at TIMESTAMPTZ,
+        followup_sent BOOLEAN DEFAULT FALSE,
+        followup_sent_at TIMESTAMPTZ,
+        noaa_update_sent BOOLEAN DEFAULT FALSE,
+        noaa_update_sent_at TIMESTAMPTZ,
+        noaa_reconciled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_event_id ON storm_alerts(spc_event_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_date ON storm_alerts(event_date)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_state ON storm_alerts(state)`);
+        console.log('✅ Storm alerts table ready');
+    }
+    catch (e) {
+        console.error('Storm alerts migration error:', e);
+    }
+})();
 // Get all user-to-sales-rep mappings
 app.get('/api/admin/user-mappings', async (req, res) => {
     try {
