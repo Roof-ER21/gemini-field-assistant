@@ -37,7 +37,7 @@ export async function watchTerritoriesForStorms(pool) {
                 existing.territories.push(t);
             }
             else {
-                uniquePoints.push({ lat: t.center_lat, lng: t.center_lng, territories: [t] });
+                uniquePoints.push({ lat: Number(t.center_lat), lng: Number(t.center_lng), territories: [t] });
             }
         }
         // Check each unique point for active NWS alerts
