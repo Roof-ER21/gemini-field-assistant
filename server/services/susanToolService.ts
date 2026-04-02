@@ -760,14 +760,35 @@ async function executeSearchKnowledgeBase(
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
 
   try {
-    const result = await ctx.pool.query(
-      `SELECT name, category, content
-       FROM knowledge_documents
-       WHERE content ILIKE '%' || $1 || '%'
-          OR name    ILIKE '%' || $1 || '%'
-       LIMIT $2`,
-      [query, safeLimit]
-    );
+    // Split query into keywords for broader matching (exact phrase rarely matches)
+    const keywords = query
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !['the', 'and', 'for', 'with', 'that', 'this', 'our', 'are', 'was', 'what', 'how', 'does', 'who', 'which'].includes(w));
+
+    let result;
+    if (keywords.length > 0) {
+      // Build OR conditions for each keyword across both columns
+      const conditions = keywords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
+      const sql = `SELECT name, category, content,
+        (${keywords.map((_, i) => `(CASE WHEN content ILIKE '%' || $${i + 1} || '%' THEN 1 ELSE 0 END)`).join(' + ')}) as relevance
+        FROM knowledge_documents
+        WHERE ${conditions.join(' OR ')}
+        ORDER BY relevance DESC
+        LIMIT $${keywords.length + 1}`;
+      result = await ctx.pool.query(sql, [...keywords, safeLimit]);
+    } else {
+      // Fallback to original exact match if no usable keywords
+      result = await ctx.pool.query(
+        `SELECT name, category, content
+         FROM knowledge_documents
+         WHERE content ILIKE '%' || $1 || '%'
+            OR name    ILIKE '%' || $1 || '%'
+         LIMIT $2`,
+        [query, safeLimit]
+      );
+    }
 
     if (result.rows.length === 0) {
       return {
