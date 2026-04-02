@@ -51,13 +51,13 @@ class NOAAStormService {
     const events: NOAAStormEvent[] = [];
     const currentYear = new Date().getFullYear();
 
-    // Fetch SPC same-day reports first (real-time, no delay)
+    // Fetch SPC recent reports (today + yesterday — bridges NOAA's reporting delay)
     try {
-      const spcEvents = await this.fetchSPCToday();
+      const spcEvents = await this.fetchSPCRecent();
       const nearbySPC = this.filterByLocation(spcEvents, lat, lng, radiusMiles);
       events.push(...nearbySPC);
     } catch (error) {
-      console.warn('SPC today reports not available:', error);
+      console.warn('SPC recent reports not available:', error);
     }
 
     // Fetch last N years of historical data from NOAA
@@ -256,19 +256,27 @@ class NOAAStormService {
   private spcCache: { data: NOAAStormEvent[]; ts: number } | null = null;
   private SPC_CACHE_TTL = 10 * 60 * 1000; // 10 min cache (reports update throughout the day)
 
-  private async fetchSPCToday(): Promise<NOAAStormEvent[]> {
+  private async fetchSPCRecent(): Promise<NOAAStormEvent[]> {
     if (this.spcCache && Date.now() - this.spcCache.ts < this.SPC_CACHE_TTL) {
       return this.spcCache.data;
     }
 
     const events: NOAAStormEvent[] = [];
     const today = new Date();
-    const dateStr = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const todayStr = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
-    // Fetch hail and wind reports
-    for (const type of ['hail', 'wind'] as const) {
-      try {
-        const url = `https://www.spc.noaa.gov/climo/reports/today_${type}.csv`;
+    // Fetch today + yesterday for both hail and wind (bridges NOAA's multi-day delay)
+    const csvFiles = [
+      { prefix: 'today', dateStr: todayStr },
+      { prefix: 'yesterday', dateStr: yesterdayStr },
+    ];
+
+    for (const { prefix, dateStr } of csvFiles) {
+      for (const type of ['hail', 'wind'] as const) {
+        try {
+          const url = `https://www.spc.noaa.gov/climo/reports/${prefix}_${type}.csv`;
         const response = await fetch(url);
         if (!response.ok) continue;
 
@@ -316,12 +324,13 @@ class NOAAStormService {
           });
         }
       } catch (e) {
-        console.warn(`SPC ${type} fetch error:`, e);
+        console.warn(`SPC ${prefix}_${type} fetch error:`, e);
+      }
       }
     }
 
     this.spcCache = { data: events, ts: Date.now() };
-    console.log(`[SPC] Fetched ${events.length} same-day reports`);
+    console.log(`[SPC] Fetched ${events.length} recent reports (today + yesterday)`);
     return events;
   }
 }
