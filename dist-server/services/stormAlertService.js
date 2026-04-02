@@ -8,11 +8,107 @@
  * 3. NOAA UPDATE: When full NOAA data arrives, comprehensive update
  */
 const SERVICE_STATES = ['VA', 'MD', 'PA'];
+/**
+ * Check NWS active severe thunderstorm warnings for hail in our territory.
+ * NWS alerts are near-real-time (minute-level), much faster than SPC CSVs.
+ * This is ADDITIONAL to SPC — both sources should run.
+ */
+export async function checkNWSActiveAlerts(pool, pushService) {
+    let alertsSent = 0;
+    for (const state of SERVICE_STATES) {
+        try {
+            const url = `https://api.weather.gov/alerts/active?area=${state}&event=Severe%20Thunderstorm%20Warning`;
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'RoofER-GeminiFieldAssistant/1.0',
+                    'Accept': 'application/geo+json'
+                }
+            });
+            if (!response.ok)
+                continue;
+            const data = await response.json();
+            const features = data.features || [];
+            for (const feature of features) {
+                const props = feature.properties || {};
+                const desc = props.description || '';
+                const headline = props.headline || '';
+                // Only alert on warnings that mention hail
+                const hailMatch = desc.match(/hail[^.]*?(\d+\.?\d*)\s*inch/i) || desc.match(/(\d+\.?\d*)\s*inch\s*hail/i);
+                if (!hailMatch)
+                    continue;
+                const hailSize = parseFloat(hailMatch[1]);
+                if (hailSize < 0.75)
+                    continue; // Only quarter-size or larger
+                const alertId = props.id || `nws-${Date.now()}`;
+                const eventId = `nws-alert-${alertId}`;
+                // Check if already tracked
+                const existing = await pool.query('SELECT id FROM storm_alerts WHERE spc_event_id = $1', [eventId]);
+                if (existing.rows.length > 0)
+                    continue;
+                // Extract location info
+                const areaDesc = props.areaDesc || state;
+                const sent = props.sent || new Date().toISOString();
+                const dateStr = new Date(sent).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                const timeStr = new Date(sent).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' });
+                // Get centroid from geometry if available
+                let lat = 0, lng = 0;
+                if (feature.geometry?.coordinates) {
+                    const coords = feature.geometry.coordinates[0] || [];
+                    if (coords.length > 0) {
+                        lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+                        lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+                    }
+                }
+                // Insert alert
+                await pool.query(`INSERT INTO storm_alerts (spc_event_id, event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, latitude, longitude, narrative)
+           VALUES ($1, 'hail', $2, $3, $4, 'inches', $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (spc_event_id) DO NOTHING`, [eventId, dateStr, timeStr, hailSize, areaDesc.split(',')[0]?.trim() || '', areaDesc.split(',')[1]?.trim() || '', state, lat, lng, headline]);
+                // Push to all reps
+                const users = await pool.query("SELECT id FROM users WHERE role IN ('sales_rep', 'manager', 'admin')");
+                const userIds = users.rows.map((u) => u.id);
+                if (userIds.length > 0) {
+                    await pushService.sendStormAlert(userIds, {
+                        latitude: lat,
+                        longitude: lng,
+                        city: areaDesc.split(',')[0]?.trim() || '',
+                        state,
+                        eventType: 'hail',
+                        hailSize
+                    }, eventId);
+                    await pool.query(`UPDATE storm_alerts SET initial_alert_sent = TRUE, initial_alert_sent_at = NOW(), alert_phase = 'initial_sent' WHERE spc_event_id = $1`, [eventId]);
+                    // Also create in-app notifications
+                    for (const userId of userIds) {
+                        await pool.query(`INSERT INTO notifications (user_id, type, title, body, data, created_at)
+               VALUES ($1, 'storm_alert', $2, $3, $4, NOW())
+               ON CONFLICT DO NOTHING`, [
+                            userId,
+                            `⚠️ ${hailSize}" hail — ${areaDesc.split(',')[0]?.trim()}, ${state}`,
+                            `NWS WARNING: ${hailSize}" hail near ${areaDesc.split(',')[0]?.trim()}, ${state}. ${headline}`,
+                            JSON.stringify({ type: 'storm_alert', spc_event_id: eventId, lat, lng, eventType: 'hail' })
+                        ]).catch(() => { }); // notifications table may not exist yet
+                    }
+                    alertsSent++;
+                    console.log(`[StormAlert] 🚨 NWS LIVE: ${hailSize}" hail warning — ${areaDesc}, ${state} → ${userIds.length} reps`);
+                }
+            }
+        }
+        catch (e) {
+            console.warn(`[StormAlert] NWS alert check error for ${state}:`, e);
+        }
+    }
+    return alertsSent;
+}
 export async function detectAndAlertNewStorms(pool, pushService) {
     let newAlerts = 0;
     let followups = 0;
     let errors = 0;
     try {
+        // Step 0: Check NWS active warnings first (real-time, minute-level speed)
+        const nwsAlerts = await checkNWSActiveAlerts(pool, pushService).catch(e => {
+            console.warn('[StormAlert] NWS check failed (non-fatal):', e);
+            return 0;
+        });
+        newAlerts += nwsAlerts;
         // Step 1: Fetch SPC recent reports filtered to our service territory
         const spcEvents = await fetchSPCForStates(SERVICE_STATES);
         if (spcEvents.length === 0)
