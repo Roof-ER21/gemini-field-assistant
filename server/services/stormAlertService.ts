@@ -63,7 +63,7 @@ export async function checkNWSActiveAlerts(
         if (!hailMatch) continue;
 
         const hailSize = parseFloat(hailMatch[1]);
-        if (hailSize < 0.75) continue; // Only quarter-size or larger
+        if (hailSize < 0.25) continue; // Any documented hail (pea-size or larger)
 
         const alertId = props.id || `nws-${Date.now()}`;
         const eventId = `nws-alert-${alertId}`;
