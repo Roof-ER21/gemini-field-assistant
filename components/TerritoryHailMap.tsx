@@ -244,8 +244,8 @@ function padBounds(bounds: BoundingBox | null, factor = 0.2): BoundingBox | null
     return null;
   }
 
-  const latSpan = Math.max(0.5, bounds.north - bounds.south);
-  const lngSpan = Math.max(0.5, bounds.east - bounds.west);
+  const latSpan = Math.max(1.0, bounds.north - bounds.south);
+  const lngSpan = Math.max(1.0, bounds.east - bounds.west);
   const latPad = latSpan * factor;
   const lngPad = lngSpan * factor;
 
