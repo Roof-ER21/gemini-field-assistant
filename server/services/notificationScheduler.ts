@@ -32,7 +32,7 @@ export async function scanForNewStorms(
       `SELECT ia.id, ia.user_id, ia.alert_type, ia.alert_severity,
               ia.storm_distance_miles, ia.hail_size_inches, ia.storm_date,
               se.city, se.state, se.event_type, se.latitude, se.longitude,
-              cp.address, cp.owner_name
+              cp.address, cp.customer_name
        FROM impact_alerts ia
        JOIN storm_events se ON se.id = ia.storm_event_id
        LEFT JOIN customer_properties cp ON cp.id = ia.customer_property_id
@@ -53,8 +53,8 @@ export async function scanForNewStorms(
         const distInfo = alert.storm_distance_miles
           ? ` — ${Number(alert.storm_distance_miles).toFixed(1)} mi away`
           : '';
-        const customerInfo = alert.owner_name
-          ? `${alert.owner_name} at ${alert.address || 'unknown address'}`
+        const customerInfo = alert.customer_name
+          ? `${alert.customer_name} at ${alert.address || 'unknown address'}`
           : `Property near ${alert.city || 'your territory'}, ${alert.state || ''}`;
 
         const results = await pushService.sendToUser(
