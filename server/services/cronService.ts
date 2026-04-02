@@ -16,6 +16,7 @@ import {
   sendEndOfDaySummary
 } from './notificationScheduler.js';
 import { watchTerritoriesForStorms } from './nwsTerritoryWatcher.js';
+import { detectAndAlertNewStorms } from './stormAlertService.js';
 
 class CronService {
   private static instance: CronService;
@@ -165,15 +166,16 @@ class CronService {
       // Every 15 minutes: Storm alert scanner + calendar/task reminders
       const pushScanJob = cron.schedule('*/15 * * * *', async () => {
         try {
-          const [storms, nwsWatch, calendar, tasks] = await Promise.all([
+          const [storms, nwsWatch, calendar, tasks, territoryAlerts] = await Promise.all([
             scanForNewStorms(pool, pushService),
             watchTerritoriesForStorms(pool).catch(e => { console.error('[NWSWatcher]', e.message); return { territoriesChecked: 0, newAlerts: 0, eventsCreated: 0, errors: 1 }; }),
             sendCalendarReminders(pool, pushService),
-            sendTaskReminders(pool, pushService)
+            sendTaskReminders(pool, pushService),
+            detectAndAlertNewStorms(pool, pushService).catch(e => { console.error('[StormAlert]', e.message); return { newAlerts: 0, followups: 0, errors: 1 }; })
           ]);
           const total = storms.alertsSent + calendar.remindersSent + tasks.remindersSent;
-          if (total > 0 || nwsWatch.eventsCreated > 0) {
-            console.log(`📲 [Push Scan] Storms: ${storms.alertsSent}, NWS Watch: ${nwsWatch.eventsCreated} new, Calendar: ${calendar.remindersSent}, Tasks: ${tasks.remindersSent}`);
+          if (total > 0 || nwsWatch.eventsCreated > 0 || territoryAlerts.newAlerts > 0 || territoryAlerts.followups > 0) {
+            console.log(`📲 [Push Scan] Storms: ${storms.alertsSent}, Territory: ${territoryAlerts.newAlerts} new/${territoryAlerts.followups} followups, NWS: ${nwsWatch.eventsCreated}, Calendar: ${calendar.remindersSent}, Tasks: ${tasks.remindersSent}`);
           }
         } catch (err) {
           console.error('❌ [Push Scan] Error:', (err as Error).message);
