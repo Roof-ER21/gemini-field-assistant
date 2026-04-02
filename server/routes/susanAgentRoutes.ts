@@ -308,6 +308,27 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       enrichedSystemPrompt += `\n\n[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${dLines.join('\n')}`;
     }
 
+    // Inject recent storm alerts into Susan's context
+    try {
+      const recentAlerts = await pool.query(
+        `SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative
+         FROM storm_alerts
+         WHERE event_date >= CURRENT_DATE - INTERVAL '3 days'
+         ORDER BY event_date DESC, event_time DESC
+         LIMIT 20`
+      );
+
+      if (recentAlerts.rows.length > 0) {
+        const alertLines = recentAlerts.rows.map((a: any) => {
+          const mag = a.magnitude ? `${a.magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
+          return `- ${a.event_date} ${a.event_time || ''}: ${a.event_type} ${mag} at ${a.location}, ${a.county}, ${a.state}${a.narrative ? ` — ${a.narrative}` : ''}`;
+        });
+        enrichedSystemPrompt += `\n\n[RECENT STORM ALERTS — LAST 3 DAYS]\nThese are verified storm reports from SPC/NOAA that our system detected and alerted all reps about:\n${alertLines.join('\n')}\nUse this data when reps ask about recent storms. You don't need to search — this is already confirmed.`;
+      }
+    } catch (e) {
+      // storm_alerts table may not exist yet — silently skip
+    }
+
     if (enrichedSystemPrompt.trim().length > 0) {
       contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
       contents.push({ role: 'model', parts: [{ text: `Understood. I am Susan, ready to help${personality.preferred_name ? ` ${personality.preferred_name}` : ''}.` }] });

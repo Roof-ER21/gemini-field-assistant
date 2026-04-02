@@ -163,19 +163,31 @@ class CronService {
     if (pool) {
       const pushService = createPushNotificationService(pool);
 
-      // Every 15 minutes: Storm alert scanner + calendar/task reminders
+      // Every 5 minutes: Fast storm detection (NWS active alerts + SPC reports)
+      const fastStormJob = cron.schedule('*/5 * * * *', async () => {
+        try {
+          const result = await detectAndAlertNewStorms(pool, pushService);
+          if (result.newAlerts > 0 || result.followups > 0) {
+            console.log(`🚨 [Fast Storm Scan] New: ${result.newAlerts}, Followups: ${result.followups}`);
+          }
+        } catch (err) {
+          console.error('❌ [Fast Storm Scan] Error:', (err as Error).message);
+        }
+      }, { timezone: 'America/New_York' });
+      jobs.push(fastStormJob);
+
+      // Every 15 minutes: Property storm scanner + NWS territory watcher + calendar/task reminders
       const pushScanJob = cron.schedule('*/15 * * * *', async () => {
         try {
-          const [storms, nwsWatch, calendar, tasks, territoryAlerts] = await Promise.all([
+          const [storms, nwsWatch, calendar, tasks] = await Promise.all([
             scanForNewStorms(pool, pushService),
             watchTerritoriesForStorms(pool).catch(e => { console.error('[NWSWatcher]', e.message); return { territoriesChecked: 0, newAlerts: 0, eventsCreated: 0, errors: 1 }; }),
             sendCalendarReminders(pool, pushService),
-            sendTaskReminders(pool, pushService),
-            detectAndAlertNewStorms(pool, pushService).catch(e => { console.error('[StormAlert]', e.message); return { newAlerts: 0, followups: 0, errors: 1 }; })
+            sendTaskReminders(pool, pushService)
           ]);
           const total = storms.alertsSent + calendar.remindersSent + tasks.remindersSent;
-          if (total > 0 || nwsWatch.eventsCreated > 0 || territoryAlerts.newAlerts > 0 || territoryAlerts.followups > 0) {
-            console.log(`📲 [Push Scan] Storms: ${storms.alertsSent}, Territory: ${territoryAlerts.newAlerts} new/${territoryAlerts.followups} followups, NWS: ${nwsWatch.eventsCreated}, Calendar: ${calendar.remindersSent}, Tasks: ${tasks.remindersSent}`);
+          if (total > 0 || nwsWatch.eventsCreated > 0) {
+            console.log(`📲 [Push Scan] Storms: ${storms.alertsSent}, NWS: ${nwsWatch.eventsCreated}, Calendar: ${calendar.remindersSent}, Tasks: ${tasks.remindersSent}`);
           }
         } catch (err) {
           console.error('❌ [Push Scan] Error:', (err as Error).message);
@@ -208,7 +220,8 @@ class CronService {
       jobs.push(eodSummaryJob);
 
       console.log('📲 Push notification cron jobs scheduled:');
-      console.log('   - Every 15 min: Storm alerts + Calendar/Task reminders');
+      console.log('   - Every 5 min: Fast storm detection (NWS + SPC)');
+      console.log('   - Every 15 min: Property storm scanner + Calendar/Task reminders');
       console.log('   - 7:00 AM: Morning briefing');
       console.log('   - 6:00 PM: End-of-day summary');
     }
