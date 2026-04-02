@@ -112,7 +112,7 @@ router.post('/save', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error saving storm lookup:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -171,7 +171,7 @@ router.get('/nearby', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error finding nearby storms:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -211,7 +211,7 @@ router.get('/by-zip/:zipCode', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting storms by ZIP:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -261,7 +261,7 @@ router.get('/by-city', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting storms by city:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -325,7 +325,7 @@ router.post('/outcome', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error recording outcome:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -364,7 +364,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting stats:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -412,94 +412,7 @@ router.get('/search', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error searching storm events:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * GET /api/storm-memory/:lookupId
- * Get a specific storm lookup by ID
- */
-router.get('/:lookupId', async (req: Request, res: Response) => {
-  try {
-    const pool = getPool(req);
-    const userEmail = req.headers['x-user-email'] as string;
-
-    if (!userEmail) {
-      return res.status(401).json({ error: 'User email required' });
-    }
-
-    const userId = await getUserIdFromEmail(pool, userEmail);
-    if (!userId) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { lookupId } = req.params;
-
-    const service = createStormMemoryService(pool);
-    const lookup = await service.getLookupById(lookupId);
-
-    if (!lookup) {
-      return res.status(404).json({ error: 'Storm lookup not found' });
-    }
-
-    // Storm data is universal - any authenticated user can view any lookup (read-only)
-    res.json({
-      success: true,
-      lookup
-    });
-  } catch (error) {
-    console.error('❌ Error getting lookup:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * DELETE /api/storm-memory/:lookupId
- * Delete a storm lookup
- */
-router.delete('/:lookupId', async (req: Request, res: Response) => {
-  try {
-    const pool = getPool(req);
-    const userEmail = req.headers['x-user-email'] as string;
-
-    if (!userEmail) {
-      return res.status(401).json({ error: 'User email required' });
-    }
-
-    const userId = await getUserIdFromEmail(pool, userEmail);
-    if (!userId) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { lookupId } = req.params;
-
-    const service = createStormMemoryService(pool);
-    const deleted = await service.deleteLookup(lookupId, userId);
-
-    if (!deleted) {
-      return res.status(404).json({ error: 'Storm lookup not found or access denied' });
-    }
-
-    // Also delete from knowledge base
-    try {
-      const knowledgeService = createHailKnowledgeService(pool);
-      await knowledgeService.deleteByStormLookupId(lookupId);
-      console.log(`✅ Deleted hail knowledge for lookup: ${lookupId}`);
-    } catch (error) {
-      console.error('⚠️ Failed to delete hail knowledge:', error);
-      // Don't fail the request if knowledge deletion fails
-    }
-
-    console.log(`✅ Deleted storm lookup: ${lookupId}`);
-
-    res.json({
-      success: true,
-      message: 'Storm lookup deleted'
-    });
-  } catch (error) {
-    console.error('❌ Error deleting lookup:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -557,7 +470,7 @@ router.get('/by-address', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting lookup by address:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -611,7 +524,143 @@ router.get('/recent', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting recent lookups:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/storm-memory/knowledge/context
+ * Get hail knowledge context for Susan AI chat
+ *
+ * Query params:
+ * - query: string (required) - User's chat query
+ * - state?: string - User's state (VA, MD, PA)
+ * - limit?: number (default: 5)
+ */
+router.get('/knowledge/context', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { query, state, limit = '5' } = req.query;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'query parameter is required' });
+    }
+
+    const knowledgeService = createHailKnowledgeService(pool);
+
+    // Storm knowledge is universal - query across all users
+    const context = await knowledgeService.getContextForChat({
+      userQuery: query,
+      state: state as string | undefined,
+      limit: parseInt(limit as string, 10)
+    });
+
+    res.json({
+      success: true,
+      context,
+      hasContext: context.length > 0
+    });
+  } catch (error) {
+    console.error('❌ Error getting hail knowledge context:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/storm-memory/:lookupId
+ * Get a specific storm lookup by ID
+ */
+router.get('/:lookupId', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { lookupId } = req.params;
+
+    const service = createStormMemoryService(pool);
+    const lookup = await service.getLookupById(lookupId);
+
+    if (!lookup) {
+      return res.status(404).json({ error: 'Storm lookup not found' });
+    }
+
+    // Storm data is universal - any authenticated user can view any lookup (read-only)
+    res.json({
+      success: true,
+      lookup
+    });
+  } catch (error) {
+    console.error('❌ Error getting lookup:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/storm-memory/:lookupId
+ * Delete a storm lookup
+ */
+router.delete('/:lookupId', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool(req);
+    const userEmail = req.headers['x-user-email'] as string;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    const userId = await getUserIdFromEmail(pool, userEmail);
+    if (!userId) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { lookupId } = req.params;
+
+    const service = createStormMemoryService(pool);
+    const deleted = await service.deleteLookup(lookupId, userId);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Storm lookup not found or access denied' });
+    }
+
+    // Also delete from knowledge base
+    try {
+      const knowledgeService = createHailKnowledgeService(pool);
+      await knowledgeService.deleteByStormLookupId(lookupId);
+      console.log(`✅ Deleted hail knowledge for lookup: ${lookupId}`);
+    } catch (error) {
+      console.error('⚠️ Failed to delete hail knowledge:', error);
+      // Don't fail the request if knowledge deletion fails
+    }
+
+    console.log(`✅ Deleted storm lookup: ${lookupId}`);
+
+    res.json({
+      success: true,
+      message: 'Storm lookup deleted'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting lookup:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -675,56 +724,7 @@ router.put('/:lookupId/outcome', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error updating outcome:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * GET /api/storm-memory/knowledge/context
- * Get hail knowledge context for Susan AI chat
- *
- * Query params:
- * - query: string (required) - User's chat query
- * - state?: string - User's state (VA, MD, PA)
- * - limit?: number (default: 5)
- */
-router.get('/knowledge/context', async (req: Request, res: Response) => {
-  try {
-    const pool = getPool(req);
-    const userEmail = req.headers['x-user-email'] as string;
-
-    if (!userEmail) {
-      return res.status(401).json({ error: 'User email required' });
-    }
-
-    const userId = await getUserIdFromEmail(pool, userEmail);
-    if (!userId) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { query, state, limit = '5' } = req.query;
-
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ error: 'query parameter is required' });
-    }
-
-    const knowledgeService = createHailKnowledgeService(pool);
-
-    // Storm knowledge is universal - query across all users
-    const context = await knowledgeService.getContextForChat({
-      userQuery: query,
-      state: state as string | undefined,
-      limit: parseInt(limit as string, 10)
-    });
-
-    res.json({
-      success: true,
-      context,
-      hasContext: context.length > 0
-    });
-  } catch (error) {
-    console.error('❌ Error getting hail knowledge context:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -762,7 +762,7 @@ router.get('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ Error getting user lookups:', error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
