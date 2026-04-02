@@ -224,7 +224,9 @@ GUIDANCE: Let them know they don't have territories assigned. Suggest they check
     }
 
     // Territory boundaries
-    context += `- Location: Center at ${territory.center_lat.toFixed(4)}, ${territory.center_lng.toFixed(4)}\n`;
+    if (territory.center_lat != null && territory.center_lng != null) {
+      context += `- Location: Center at ${Number(territory.center_lat).toFixed(4)}, ${Number(territory.center_lng).toFixed(4)}\n`;
+    }
   }
 
   // Summary statistics

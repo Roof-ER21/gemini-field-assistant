@@ -243,7 +243,7 @@ GUIDANCE: Let them know their field activity data isn't available right now. Sug
     context += `Current Session: ACTIVE (Territory Check-in)\n`;
     context += `- Checked in: ${new Date(active_territory_checkin.checked_in_at).toLocaleTimeString()} (${duration})\n`;
     context += `- Territory: ${active_territory_checkin.territory_name}\n`;
-    context += `- Location: ${active_territory_checkin.check_in_lat.toFixed(4)}, ${active_territory_checkin.check_in_lng.toFixed(4)}\n`;
+    context += `- Location: ${Number(active_territory_checkin.check_in_lat || 0).toFixed(4)}, ${Number(active_territory_checkin.check_in_lng || 0).toFixed(4)}\n`;
   } else {
     context += `Current Session: Not checked in\n`;
   }

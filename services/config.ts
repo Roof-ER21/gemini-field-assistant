@@ -32,19 +32,7 @@ function isCapacitorNative(): boolean {
                                protocol !== 'http:' &&
                                protocol !== 'https:';
 
-  const result = hasCapacitorNative || isNativePlatform || isSpecialProtocol || isCapacitorLocalhost;
-
-  console.log('[Config] Capacitor detection:', {
-    hasCapacitorNative,
-    isNativePlatform,
-    platform,
-    protocol,
-    isSpecialProtocol,
-    isCapacitorLocalhost,
-    result
-  });
-
-  return result;
+  return hasCapacitorNative || isNativePlatform || isSpecialProtocol || isCapacitorLocalhost;
 }
 
 /**
@@ -57,35 +45,21 @@ function isCapacitorNative(): boolean {
  *
  * @returns The API base URL (without trailing slash)
  */
+let _cachedApiUrl: string | null = null;
+
 export function getApiBaseUrl(): string {
-  // Check for Capacitor native app FIRST
+  if (_cachedApiUrl) return _cachedApiUrl;
+
   if (isCapacitorNative()) {
-    console.log('[Config] 📱 Capacitor native app detected');
-    console.log('[Config] API URL:', PRODUCTION_API_URL);
-    return PRODUCTION_API_URL;
+    _cachedApiUrl = PRODUCTION_API_URL;
+  } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    _cachedApiUrl = '/api';
+  } else {
+    _cachedApiUrl = `${window.location.origin}/api`;
   }
 
-  // Check for localhost development
-  const isLocalhost = window.location.hostname === 'localhost' ||
-                      window.location.hostname === '127.0.0.1';
-
-  if (isLocalhost) {
-    // Use relative URL so Vite proxy can forward to the backend
-    const url = '/api';
-    console.log('[Config] 🔧 Development mode detected');
-    console.log('[Config] API URL:', url);
-    return url;
-  }
-
-  // Production web: use same origin (works for Railway, Vercel, etc.)
-  const url = `${window.location.origin}/api`;
-  console.log('[Config] 🚀 Production web detected');
-  console.log('[Config] Origin:', window.location.origin);
-  console.log('[Config] Hostname:', window.location.hostname);
-  console.log('[Config] Protocol:', window.location.protocol);
-  console.log('[Config] API URL:', url);
-
-  return url;
+  console.log('[Config] API URL:', _cachedApiUrl);
+  return _cachedApiUrl;
 }
 
 /**
