@@ -2265,10 +2265,8 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
 app.post('/api/auth/direct-login', async (req, res) => {
     try {
         const { email, name } = req.body;
-        // Block direct login in production — require email verification instead
-        if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
-            return res.status(403).json({ error: 'Direct login is disabled in production. Use email verification.' });
-        }
+        // Direct login is allowed for all reps (@theroofdocs.com domain check below).
+        // Admin features are separately protected by the admin PIN system.
         if (!email) {
             return res.status(400).json({
                 success: false,
