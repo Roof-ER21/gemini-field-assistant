@@ -35,6 +35,7 @@ interface MRMSHailOverlayProps {
 
 // Color-to-hail-size mapping with RGB ranges (accounts for PNG compression artifacts)
 const HAIL_LEGEND: Array<{ label: string; color: string; sizeRange: string; minInches: number; maxInches: number }> = [
+  { label: 'Trace to Pea',           color: '#90EE90', sizeRange: '< 0.25"',         minInches: 0.05, maxInches: 0.25 },
   { label: 'Pea to Penny',           color: '#00FF00', sizeRange: '0.25" - 0.75"',  minInches: 0.25, maxInches: 0.75 },
   { label: 'Penny to Quarter',       color: '#FFFF00', sizeRange: '0.75" - 1.00"',  minInches: 0.75, maxInches: 1.00 },
   { label: 'Quarter to Ping Pong',   color: '#FFA500', sizeRange: '1.00" - 1.50"',  minInches: 1.00, maxInches: 1.50 },

@@ -77,6 +77,7 @@ const USER_AGENT = 'RoofER-StormMaps/1.0';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const HAIL_COLORS: ColorStop[] = [
+  { minInches: 0.05, maxInches: 0.25, rgba: [144, 238, 144, 160] },
   { minInches: 0.25, maxInches: 0.75, rgba: [0, 255, 0, 210] },
   { minInches: 0.75, maxInches: 1.0, rgba: [255, 255, 0, 220] },
   { minInches: 1.0, maxInches: 1.5, rgba: [255, 165, 0, 230] },
