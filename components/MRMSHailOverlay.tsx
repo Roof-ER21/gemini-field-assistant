@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ImageOverlay } from 'react-leaflet';
+import { ImageOverlay, useMap } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import { Layers } from 'lucide-react';
 import { getApiBaseUrl } from '../services/config';
@@ -33,15 +33,47 @@ interface MRMSHailOverlayProps {
   anchorTimestamp?: string | null;
 }
 
-const HAIL_LEGEND: Array<{ label: string; color: string }> = [
-  { label: 'Pea to Penny', color: '#00FF00' },
-  { label: 'Penny to Quarter', color: '#FFFF00' },
-  { label: 'Quarter to Ping Pong', color: '#FFA500' },
-  { label: 'Ping Pong to Golf Ball', color: '#FF6600' },
-  { label: 'Golf Ball to Tennis Ball', color: '#FF0000' },
-  { label: 'Tennis Ball to Softball', color: '#8B0000' },
-  { label: 'Softball+', color: '#800080' },
+// Color-to-hail-size mapping with RGB ranges (accounts for PNG compression artifacts)
+const HAIL_LEGEND: Array<{ label: string; color: string; sizeRange: string; minInches: number; maxInches: number }> = [
+  { label: 'Pea to Penny',           color: '#00FF00', sizeRange: '0.25" - 0.75"',  minInches: 0.25, maxInches: 0.75 },
+  { label: 'Penny to Quarter',       color: '#FFFF00', sizeRange: '0.75" - 1.00"',  minInches: 0.75, maxInches: 1.00 },
+  { label: 'Quarter to Ping Pong',   color: '#FFA500', sizeRange: '1.00" - 1.50"',  minInches: 1.00, maxInches: 1.50 },
+  { label: 'Ping Pong to Golf Ball', color: '#FF6600', sizeRange: '1.50" - 1.75"',  minInches: 1.50, maxInches: 1.75 },
+  { label: 'Golf Ball to Tennis Ball',color: '#FF0000', sizeRange: '1.75" - 2.50"', minInches: 1.75, maxInches: 2.50 },
+  { label: 'Tennis Ball to Softball', color: '#8B0000', sizeRange: '2.50" - 4.00"', minInches: 2.50, maxInches: 4.00 },
+  { label: 'Softball+',              color: '#800080', sizeRange: '4.00"+',          minInches: 4.00, maxInches: 6.00 },
 ];
+
+// Parse hex color to RGB
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Pre-compute reference RGB values
+const LEGEND_RGB = HAIL_LEGEND.map(entry => ({
+  ...entry,
+  rgb: hexToRgb(entry.color),
+}));
+
+// Find closest legend entry by RGB distance
+function matchPixelToHail(r: number, g: number, b: number, a: number): typeof HAIL_LEGEND[0] | null {
+  if (a < 30) return null; // Transparent = no hail
+  let best = LEGEND_RGB[0];
+  let bestDist = Infinity;
+  for (const entry of LEGEND_RGB) {
+    const dr = r - entry.rgb[0];
+    const dg = g - entry.rgb[1];
+    const db = b - entry.rgb[2];
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = entry;
+    }
+  }
+  // Only match if reasonably close (distance < 15000 allows for compression artifacts)
+  return bestDist < 15000 ? best : null;
+}
 
 function formatTimestamp(timestamp?: string): string | null {
   if (!timestamp) {
@@ -100,11 +132,18 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
   anchorTimestamp = null,
 }) => {
   const apiBase = getApiBaseUrl();
+  const map = useMap();
   const refreshTimerRef = useRef<number | null>(null);
   const [cacheBust, setCacheBust] = useState(() => Date.now());
   const [imageError, setImageError] = useState(false);
   const [historicalMeta, setHistoricalMeta] = useState<HistoricalMrmsMetadata | null>(null);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
+
+  // Hover tooltip state
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; label: string; size: string; color: string } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const imgLoadedRef = useRef(false);
 
   const isHistoricalMode = Boolean(selectedDate && historicalBounds);
 
@@ -141,7 +180,98 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
   const refreshOverlay = useCallback(() => {
     setCacheBust(Date.now());
     setImageError(false);
+    imgLoadedRef.current = false;
   }, []);
+
+  // Load MRMS image into offscreen canvas for pixel reading
+  useEffect(() => {
+    if (!visible || !overlayUrl) {
+      imgLoadedRef.current = false;
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        canvasRef.current = canvas;
+        imgRef.current = img;
+        imgLoadedRef.current = true;
+      }
+    };
+    img.onerror = () => {
+      imgLoadedRef.current = false;
+    };
+    img.src = overlayUrl;
+  }, [visible, overlayUrl]);
+
+  // Map mousemove handler for hail size tooltip
+  useEffect(() => {
+    if (!visible || !map) return;
+
+    const onMouseMove = (e: any) => {
+      if (!imgLoadedRef.current || !canvasRef.current) {
+        if (hoverInfo) setHoverInfo(null);
+        return;
+      }
+
+      const latlng = e.latlng;
+      const bounds = overlayBounds;
+
+      // Check if cursor is within overlay bounds
+      if (!bounds.contains(latlng)) {
+        if (hoverInfo) setHoverInfo(null);
+        return;
+      }
+
+      // Map lat/lng to pixel coordinates on the canvas
+      const canvas = canvasRef.current;
+      const xPct = (latlng.lng - bounds.getWest()) / (bounds.getEast() - bounds.getWest());
+      const yPct = (bounds.getNorth() - latlng.lat) / (bounds.getNorth() - bounds.getSouth());
+
+      const px = Math.floor(xPct * canvas.width);
+      const py = Math.floor(yPct * canvas.height);
+
+      if (px < 0 || px >= canvas.width || py < 0 || py >= canvas.height) {
+        if (hoverInfo) setHoverInfo(null);
+        return;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const pixel = ctx.getImageData(px, py, 1, 1).data;
+      const match = matchPixelToHail(pixel[0], pixel[1], pixel[2], pixel[3]);
+
+      if (match) {
+        const containerPoint = map.latLngToContainerPoint(latlng);
+        setHoverInfo({
+          x: containerPoint.x,
+          y: containerPoint.y,
+          label: match.label,
+          size: match.sizeRange,
+          color: match.color,
+        });
+      } else {
+        if (hoverInfo) setHoverInfo(null);
+      }
+    };
+
+    const onMouseOut = () => setHoverInfo(null);
+
+    map.on('mousemove', onMouseMove);
+    map.on('mouseout', onMouseOut);
+
+    return () => {
+      map.off('mousemove', onMouseMove);
+      map.off('mouseout', onMouseOut);
+    };
+  }, [visible, map, overlayBounds, hoverInfo]);
 
   useEffect(() => {
     if (!visible || !isHistoricalMode || !historicalQuery) {
@@ -196,6 +326,7 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
         clearInterval(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
+      setHoverInfo(null);
       return;
     }
 
@@ -254,6 +385,44 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
           <Layers className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Hover tooltip — shows hail size when cursor is over the swath */}
+      {visible && hoverInfo && (
+        <div
+          style={{
+            position: 'absolute',
+            left: hoverInfo.x + 16,
+            top: hoverInfo.y - 20,
+            zIndex: 1001,
+            background: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            color: 'white',
+            fontSize: '12px',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            border: `2px solid ${hoverInfo.color}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '3px',
+                background: hoverInfo.color,
+                flexShrink: 0,
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '13px' }}>{hoverInfo.size}</div>
+              <div style={{ color: '#94a3b8', fontSize: '11px' }}>{hoverInfo.label}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {visible && (
         <div
