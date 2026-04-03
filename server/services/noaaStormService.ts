@@ -267,16 +267,30 @@ class NOAAStormService {
     const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
     const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
-    // Fetch today + yesterday for both hail and wind (bridges NOAA's multi-day delay)
-    const csvFiles = [
-      { prefix: 'today', dateStr: todayStr },
-      { prefix: 'yesterday', dateStr: yesterdayStr },
-    ];
+    // Fetch today + yesterday + last 7 days of dated archives (bridges NOAA's multi-week delay)
+    const csvSources: Array<{ url: string; dateStr: string }> = [];
 
-    for (const { prefix, dateStr } of csvFiles) {
+    // Today and yesterday (named files)
+    for (const type of ['hail', 'wind'] as const) {
+      csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/today_${type}.csv`, dateStr: todayStr });
+      csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/yesterday_${type}.csv`, dateStr: yesterdayStr });
+    }
+
+    // Last 7 days of dated archives (YYMMDD format)
+    for (let daysBack = 2; daysBack <= 7; daysBack++) {
+      const d = new Date(today.getTime() - daysBack * 24 * 60 * 60 * 1000);
+      const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const yy = dateStr.slice(2, 4);
+      const mm = dateStr.slice(5, 7);
+      const dd = dateStr.slice(8, 10);
       for (const type of ['hail', 'wind'] as const) {
+        csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/${yy}${mm}${dd}_rpts_filtered_${type}.csv`, dateStr });
+      }
+    }
+
+    for (const { url, dateStr } of csvSources) {
+      const type = url.includes('hail') ? 'hail' as const : 'wind' as const;
         try {
-          const url = `https://www.spc.noaa.gov/climo/reports/${prefix}_${type}.csv`;
         const response = await fetch(url);
         if (!response.ok) continue;
 
@@ -324,13 +338,12 @@ class NOAAStormService {
           });
         }
       } catch (e) {
-        console.warn(`SPC ${prefix}_${type} fetch error:`, e);
-      }
+        // Dated archive 404s are normal for recent days — silently skip
       }
     }
 
     this.spcCache = { data: events, ts: Date.now() };
-    console.log(`[SPC] Fetched ${events.length} recent reports (today + yesterday)`);
+    console.log(`[SPC] Fetched ${events.length} recent reports (today + 7-day archive)`);
     return events;
   }
 }
