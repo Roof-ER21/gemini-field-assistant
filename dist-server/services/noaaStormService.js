@@ -207,66 +207,77 @@ class NOAAStormService {
         const todayStr = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
         const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
         const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        // Fetch today + yesterday for both hail and wind (bridges NOAA's multi-day delay)
-        const csvFiles = [
-            { prefix: 'today', dateStr: todayStr },
-            { prefix: 'yesterday', dateStr: yesterdayStr },
-        ];
-        for (const { prefix, dateStr } of csvFiles) {
+        // Fetch today + yesterday + last 7 days of dated archives (bridges NOAA's multi-week delay)
+        const csvSources = [];
+        // Today and yesterday (named files)
+        for (const type of ['hail', 'wind']) {
+            csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/today_${type}.csv`, dateStr: todayStr });
+            csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/yesterday_${type}.csv`, dateStr: yesterdayStr });
+        }
+        // Last 7 days of dated archives (YYMMDD format)
+        for (let daysBack = 2; daysBack <= 7; daysBack++) {
+            const d = new Date(today.getTime() - daysBack * 24 * 60 * 60 * 1000);
+            const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            const yy = dateStr.slice(2, 4);
+            const mm = dateStr.slice(5, 7);
+            const dd = dateStr.slice(8, 10);
             for (const type of ['hail', 'wind']) {
-                try {
-                    const url = `https://www.spc.noaa.gov/climo/reports/${prefix}_${type}.csv`;
-                    const response = await fetch(url);
-                    if (!response.ok)
+                csvSources.push({ url: `https://www.spc.noaa.gov/climo/reports/${yy}${mm}${dd}_rpts_filtered_${type}.csv`, dateStr });
+            }
+        }
+        for (const { url, dateStr } of csvSources) {
+            const type = url.includes('hail') ? 'hail' : 'wind';
+            try {
+                const response = await fetch(url);
+                if (!response.ok)
+                    continue;
+                const text = await response.text();
+                const lines = text.trim().split('\n').slice(1); // Skip header
+                for (const line of lines) {
+                    const parts = line.split(',');
+                    if (parts.length < 8)
                         continue;
-                    const text = await response.text();
-                    const lines = text.trim().split('\n').slice(1); // Skip header
-                    for (const line of lines) {
-                        const parts = line.split(',');
-                        if (parts.length < 8)
-                            continue;
-                        const [time, magnitude, location, county, state, lat, lon, ...commentParts] = parts;
-                        const parsedLat = parseFloat(lat);
-                        const parsedLon = parseFloat(lon);
-                        if (isNaN(parsedLat) || isNaN(parsedLon))
-                            continue;
-                        // Format time from HHMM to readable
-                        const hh = time.slice(0, 2);
-                        const mm = time.slice(2, 4);
-                        const timeFormatted = `${hh}:${mm} UTC`;
-                        const mag = parseFloat(magnitude);
-                        const hailInches = type === 'hail' ? mag / 100 : null; // SPC reports hail in hundredths of inches
-                        const windKts = type === 'wind' ? mag : null;
-                        events.push({
-                            id: `spc-${type}-${dateStr}-${time}-${parsedLat}-${parsedLon}`,
-                            eventType: type === 'hail' ? 'hail' : 'wind',
-                            date: dateStr,
-                            state: state?.trim() || '',
-                            location: `${location?.trim()}, ${county?.trim()}`,
-                            latitude: parsedLat,
-                            longitude: parsedLon,
-                            magnitude: type === 'hail' ? hailInches : windKts,
-                            magnitudeUnit: type === 'hail' ? 'inches' : 'kts',
-                            source: 'SPC Storm Report',
-                            narrative: commentParts.join(',').replace(/^\(.*?\)\s*/, '').trim() || `${type === 'hail' ? (hailInches ? hailInches + '" hail' : 'Hail') : (windKts ? windKts + ' kt wind' : 'Wind')} reported at ${location?.trim()}, ${state?.trim()} at ${timeFormatted}`,
-                            episodeId: '',
-                            damageProperty: null,
-                            damageCrops: null,
-                            injuries: 0,
-                            deaths: 0,
-                            distanceMiles: null,
-                            dataSource: 'NOAA Storm Events Database',
-                            certified: true,
-                        });
-                    }
+                    const [time, magnitude, location, county, state, lat, lon, ...commentParts] = parts;
+                    const parsedLat = parseFloat(lat);
+                    const parsedLon = parseFloat(lon);
+                    if (isNaN(parsedLat) || isNaN(parsedLon))
+                        continue;
+                    // Format time from HHMM to readable
+                    const hh = time.slice(0, 2);
+                    const mm = time.slice(2, 4);
+                    const timeFormatted = `${hh}:${mm} UTC`;
+                    const mag = parseFloat(magnitude);
+                    const hailInches = type === 'hail' ? mag / 100 : null; // SPC reports hail in hundredths of inches
+                    const windKts = type === 'wind' ? mag : null;
+                    events.push({
+                        id: `spc-${type}-${dateStr}-${time}-${parsedLat}-${parsedLon}`,
+                        eventType: type === 'hail' ? 'hail' : 'wind',
+                        date: dateStr,
+                        state: state?.trim() || '',
+                        location: `${location?.trim()}, ${county?.trim()}`,
+                        latitude: parsedLat,
+                        longitude: parsedLon,
+                        magnitude: type === 'hail' ? hailInches : windKts,
+                        magnitudeUnit: type === 'hail' ? 'inches' : 'kts',
+                        source: 'SPC Storm Report',
+                        narrative: commentParts.join(',').replace(/^\(.*?\)\s*/, '').trim() || `${type === 'hail' ? (hailInches ? hailInches + '" hail' : 'Hail') : (windKts ? windKts + ' kt wind' : 'Wind')} reported at ${location?.trim()}, ${state?.trim()} at ${timeFormatted}`,
+                        episodeId: '',
+                        damageProperty: null,
+                        damageCrops: null,
+                        injuries: 0,
+                        deaths: 0,
+                        distanceMiles: null,
+                        dataSource: 'NOAA Storm Events Database',
+                        certified: true,
+                    });
                 }
-                catch (e) {
-                    console.warn(`SPC ${prefix}_${type} fetch error:`, e);
-                }
+            }
+            catch (e) {
+                // Dated archive 404s are normal for recent days — silently skip
             }
         }
         this.spcCache = { data: events, ts: Date.now() };
-        console.log(`[SPC] Fetched ${events.length} recent reports (today + yesterday)`);
+        console.log(`[SPC] Fetched ${events.length} recent reports (today + 7-day archive)`);
         return events;
     }
 }
