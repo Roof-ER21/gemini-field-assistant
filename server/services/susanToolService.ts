@@ -770,10 +770,11 @@ async function executeSearchKnowledgeBase(
     let result;
 
     if (searchWords.length > 0) {
-      // Try full-text search first (OR between words for broader matching)
-      // word:* enables prefix matching so "insur" matches "insurance"
-      const tsQuery = searchWords.map(w => w + ':*').join(' | ');
+      // Try AND first for precision (all words must match), then OR for recall
+      const tsQueryAnd = searchWords.map(w => w + ':*').join(' & ');
+      const tsQueryOr = searchWords.map(w => w + ':*').join(' | ');
 
+      // Precision: AND query — docs containing ALL search words rank highest
       result = await ctx.pool.query(
         `SELECT name, category, content,
           ts_rank(search_vector, to_tsquery('english', $1)) as rank
@@ -781,10 +782,31 @@ async function executeSearchKnowledgeBase(
         WHERE search_vector @@ to_tsquery('english', $1)
         ORDER BY rank DESC
         LIMIT $2`,
-        [tsQuery, safeLimit]
+        [tsQueryAnd, safeLimit]
       );
 
-      // If FTS found nothing, fall back to ILIKE (handles typos, partial words)
+      // If AND found too few, supplement with OR results (broader recall)
+      if (result.rows.length < safeLimit) {
+        const existingNames = new Set(result.rows.map((r: any) => r.name));
+        const orResult = await ctx.pool.query(
+          `SELECT name, category, content,
+            ts_rank(search_vector, to_tsquery('english', $1)) as rank
+          FROM knowledge_documents
+          WHERE search_vector @@ to_tsquery('english', $1)
+          ORDER BY rank DESC
+          LIMIT $2`,
+          [tsQueryOr, safeLimit]
+        );
+        // Merge without duplicates — AND results first (higher precision)
+        for (const row of orResult.rows) {
+          if (!existingNames.has(row.name) && result.rows.length < safeLimit) {
+            result.rows.push(row);
+            existingNames.add(row.name);
+          }
+        }
+      }
+
+      // If FTS found nothing at all, fall back to ILIKE (handles typos, partial words)
       if (result.rows.length === 0) {
         const conditions = searchWords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
         const sql = `SELECT name, category, content,
