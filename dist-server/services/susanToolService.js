@@ -600,16 +600,34 @@ async function executeSearchKnowledgeBase(args, ctx) {
             .filter(w => w.length > 2 && !['the', 'and', 'for', 'with', 'that', 'this', 'our', 'are', 'was', 'what', 'how', 'does', 'who', 'which', 'can', 'you', 'know', 'about', 'each', 'one', 'work', 'should', 'need', 'have', 'would', 'could', 'when', 'where', 'they', 'them', 'their', 'there', 'here', 'just', 'like', 'also', 'been', 'from', 'some', 'will', 'more', 'very', 'than', 'only'].includes(w));
         let result;
         if (searchWords.length > 0) {
-            // Try full-text search first (OR between words for broader matching)
-            // word:* enables prefix matching so "insur" matches "insurance"
-            const tsQuery = searchWords.map(w => w + ':*').join(' | ');
+            // Try AND first for precision (all words must match), then OR for recall
+            const tsQueryAnd = searchWords.map(w => w + ':*').join(' & ');
+            const tsQueryOr = searchWords.map(w => w + ':*').join(' | ');
+            // Precision: AND query — docs containing ALL search words rank highest
             result = await ctx.pool.query(`SELECT name, category, content,
           ts_rank(search_vector, to_tsquery('english', $1)) as rank
         FROM knowledge_documents
         WHERE search_vector @@ to_tsquery('english', $1)
         ORDER BY rank DESC
-        LIMIT $2`, [tsQuery, safeLimit]);
-            // If FTS found nothing, fall back to ILIKE (handles typos, partial words)
+        LIMIT $2`, [tsQueryAnd, safeLimit]);
+            // If AND found too few, supplement with OR results (broader recall)
+            if (result.rows.length < safeLimit) {
+                const existingNames = new Set(result.rows.map((r) => r.name));
+                const orResult = await ctx.pool.query(`SELECT name, category, content,
+            ts_rank(search_vector, to_tsquery('english', $1)) as rank
+          FROM knowledge_documents
+          WHERE search_vector @@ to_tsquery('english', $1)
+          ORDER BY rank DESC
+          LIMIT $2`, [tsQueryOr, safeLimit]);
+                // Merge without duplicates — AND results first (higher precision)
+                for (const row of orResult.rows) {
+                    if (!existingNames.has(row.name) && result.rows.length < safeLimit) {
+                        result.rows.push(row);
+                        existingNames.add(row.name);
+                    }
+                }
+            }
+            // If FTS found nothing at all, fall back to ILIKE (handles typos, partial words)
             if (result.rows.length === 0) {
                 const conditions = searchWords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
                 const sql = `SELECT name, category, content,
