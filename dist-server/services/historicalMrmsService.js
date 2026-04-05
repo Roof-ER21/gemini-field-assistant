@@ -85,17 +85,74 @@ async function listArchiveFiles(date) {
     }
     return files;
 }
-function chooseArchiveFile(files, anchorTimestamp) {
-    if (!anchorTimestamp) {
-        return files[files.length - 1];
-    }
-    const parsedAnchor = new Date(anchorTimestamp);
-    if (Number.isNaN(parsedAnchor.getTime())) {
-        return files[files.length - 1];
-    }
-    const compactAnchor = parsedAnchor.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
-    const match = [...files].reverse().find((file) => file.compactTimestamp <= compactAnchor);
+/**
+ * Return the single ArchiveFile whose timestamp is closest to (and not after)
+ * the given compactTimestamp string, or the last file if none precede it.
+ */
+function findFileNearTimestamp(files, compactTarget) {
+    const match = [...files].reverse().find((file) => file.compactTimestamp <= compactTarget);
     return match || files[files.length - 1];
+}
+/**
+ * Choose up to 3 archive files that span the storm day so the composite
+ * captures the full storm path rather than a single snapshot.
+ *
+ * Strategy (UTC times, which map to afternoon/evening ET when severe storms peak):
+ *   - Anchor provided → primary file at/before anchor, plus files ~2 h earlier
+ *     and ~2 h later to bracket the storm window.
+ *   - No anchor → three evenly spaced files: ~15:00 UTC (early afternoon ET),
+ *     ~20:00 UTC (late afternoon ET), and ~23:30 UTC (end of day, maximum
+ *     rolling window).  Severe storms in VA/MD/PA peak 19:00–23:00 UTC so
+ *     all three snapshots together cover the full track.
+ *
+ * Duplicate files are deduplicated so short archive listings never return
+ * the same file more than once.
+ */
+function chooseArchiveFiles(files, anchorTimestamp) {
+    if (files.length === 1) {
+        return files;
+    }
+    if (anchorTimestamp) {
+        const parsedAnchor = new Date(anchorTimestamp);
+        if (!Number.isNaN(parsedAnchor.getTime())) {
+            const anchorMs = parsedAnchor.getTime();
+            const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+            const makeCompact = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
+            const primary = findFileNearTimestamp(files, makeCompact(anchorMs));
+            const earlier = findFileNearTimestamp(files, makeCompact(anchorMs - TWO_HOURS_MS));
+            const later = findFileNearTimestamp(files, makeCompact(anchorMs + TWO_HOURS_MS));
+            const seen = new Set();
+            const result = [];
+            for (const f of [earlier, primary, later]) {
+                if (!seen.has(f.name)) {
+                    seen.add(f.name);
+                    result.push(f);
+                }
+            }
+            return result;
+        }
+    }
+    // No (or unparseable) anchor: pick files near 15:00, 20:00, and 23:30 UTC.
+    // The compactTimestamp format is YYYYMMDD-HHMMSS; use the date portion of
+    // the first available file so the targets stay on the correct calendar day.
+    const datePart = files[0].compactTimestamp.slice(0, 8);
+    const targets = [`${datePart}-150000`, `${datePart}-200000`, `${datePart}-233000`];
+    const seen = new Set();
+    const result = [];
+    for (const target of targets) {
+        const f = findFileNearTimestamp(files, target);
+        if (!seen.has(f.name)) {
+            seen.add(f.name);
+            result.push(f);
+        }
+    }
+    // Always include the last file (maximum rolling window for the day).
+    const last = files[files.length - 1];
+    if (!seen.has(last.name)) {
+        seen.add(last.name);
+        result.push(last);
+    }
+    return result;
 }
 function readSectionLength(buffer, offset) {
     return buffer.readUInt32BE(offset);
@@ -272,20 +329,75 @@ function getValueMillimeters(decoded, rawValue) {
     return ((decoded.refValue + rawValue * 2 ** decoded.binaryScale) /
         10 ** decoded.decimalScale);
 }
+/**
+ * Merge multiple decoded GRIB2 grids into a single composite by taking the
+ * MAX physical value (mm) at each grid cell.  All input grids must share the
+ * same geographic extent and dimensions — IEM's MRMS archive guarantees this
+ * for the same product/date.
+ *
+ * Returns a CompositeDecodedMrmsGrib whose `mmGrid` contains one float per
+ * cell (row-major, same ordering as the GRIB PNG rows).
+ */
+function buildCompositeGrid(grids, sourceFiles) {
+    if (grids.length === 0) {
+        throw new Error('Historical MRMS composite requires at least one decoded grid');
+    }
+    const base = grids[0];
+    const totalCells = base.width * base.height;
+    const mmGrid = new Float32Array(totalCells);
+    // Initialise from first grid.
+    for (let i = 0; i < totalCells; i += 1) {
+        const rawValue = base.data.readUInt16BE(i * 2);
+        mmGrid[i] = getValueMillimeters(base, rawValue);
+    }
+    // Merge remaining grids by taking cell-wise maximum.
+    for (let g = 1; g < grids.length; g += 1) {
+        const grid = grids[g];
+        if (grid.width !== base.width || grid.height !== base.height) {
+            // Grid dimensions changed between files — skip rather than corrupt.
+            console.warn(`Historical MRMS composite: grid ${g} dimensions ${grid.width}x${grid.height} ` +
+                `differ from base ${base.width}x${base.height} — skipping`);
+            continue;
+        }
+        for (let i = 0; i < totalCells; i += 1) {
+            const rawValue = grid.data.readUInt16BE(i * 2);
+            const mm = getValueMillimeters(grid, rawValue);
+            if (mm > mmGrid[i]) {
+                mmGrid[i] = mm;
+            }
+        }
+    }
+    return {
+        refTime: base.refTime,
+        refValue: base.refValue,
+        binaryScale: base.binaryScale,
+        decimalScale: base.decimalScale,
+        width: base.width,
+        height: base.height,
+        north: base.north,
+        south: base.south,
+        east: base.east,
+        west: base.west,
+        mmGrid,
+        sourceFiles,
+    };
+}
 function gridBoundsToIndices(decoded, requestedBounds) {
     const latStep = (decoded.north - decoded.south) / (decoded.height - 1);
     const lonStep = (decoded.east - decoded.west) / (decoded.width - 1);
-    const padCells = 12;
+    // 50 cells ≈ 50 km padding on each side (MRMS grid is ~1 km/cell).
+    // A padding of 12 clipped storm paths that extended beyond the tight event
+    // bounding box.  50 km gives enough margin to capture the full swath even
+    // when the SPC event points only mark a portion of the track.
+    const padCells = 50;
     const rowStart = clamp(Math.floor((decoded.north - requestedBounds.north) / latStep) - padCells, 0, decoded.height - 1);
     const rowEnd = clamp(Math.ceil((decoded.north - requestedBounds.south) / latStep) + padCells, 0, decoded.height - 1);
     const colStart = clamp(Math.floor((requestedBounds.west - decoded.west) / lonStep) - padCells, 0, decoded.width - 1);
     const colEnd = clamp(Math.ceil((requestedBounds.east - decoded.west) / lonStep) + padCells, 0, decoded.width - 1);
     return { rowStart, rowEnd, colStart, colEnd };
 }
-async function renderOverlay(decoded, requestedBounds, file) {
-    const { rowStart, rowEnd, colStart, colEnd } = gridBoundsToIndices(decoded, requestedBounds);
-    const subsetWidth = colEnd - colStart + 1;
-    const subsetHeight = rowEnd - rowStart + 1;
+async function renderOverlay(composite, requestedBounds, primaryFile) {
+    const { rowStart, rowEnd, colStart, colEnd } = gridBoundsToIndices(composite, requestedBounds);
     let hailPixels = 0;
     let maxMm = 0;
     let hailRowMin = Number.POSITIVE_INFINITY;
@@ -294,9 +406,7 @@ async function renderOverlay(decoded, requestedBounds, file) {
     let hailColMax = Number.NEGATIVE_INFINITY;
     for (let row = rowStart; row <= rowEnd; row += 1) {
         for (let col = colStart; col <= colEnd; col += 1) {
-            const offset = (row * decoded.width + col) * 2;
-            const rawValue = decoded.data.readUInt16BE(offset);
-            const mm = getValueMillimeters(decoded, rawValue);
+            const mm = composite.mmGrid[row * composite.width + col];
             const inches = mm / 25.4;
             if (!getColorForInches(inches)) {
                 continue;
@@ -315,8 +425,8 @@ async function renderOverlay(decoded, requestedBounds, file) {
                 hailColMax = col;
         }
     }
-    const latStep = (decoded.north - decoded.south) / (decoded.height - 1);
-    const lonStep = (decoded.east - decoded.west) / (decoded.width - 1);
+    const latStep = (composite.north - composite.south) / (composite.height - 1);
+    const lonStep = (composite.east - composite.west) / (composite.width - 1);
     const generatedAt = new Date().toISOString();
     if (hailPixels === 0) {
         const imageBuffer = await sharp({
@@ -332,10 +442,11 @@ async function renderOverlay(decoded, requestedBounds, file) {
             metadata: {
                 product: 'mesh1440',
                 source: 'IEM MTArchive',
-                ref_time: decoded.refTime,
+                ref_time: composite.refTime,
                 generated_at: generatedAt,
-                archive_file: file.name,
-                archive_url: file.url,
+                archive_file: primaryFile.name,
+                archive_url: primaryFile.url,
+                composite_files: composite.sourceFiles,
                 has_hail: false,
                 max_mesh_mm: 0,
                 max_mesh_inches: 0,
@@ -370,9 +481,7 @@ async function renderOverlay(decoded, requestedBounds, file) {
     let outputIndex = 0;
     for (let row = hailRowMin; row <= hailRowMax; row += 1) {
         for (let col = hailColMin; col <= hailColMax; col += 1) {
-            const offset = (row * decoded.width + col) * 2;
-            const rawValue = decoded.data.readUInt16BE(offset);
-            const mm = getValueMillimeters(decoded, rawValue);
+            const mm = composite.mmGrid[row * composite.width + col];
             const inches = mm / 25.4;
             const color = getColorForInches(inches);
             if (color) {
@@ -398,19 +507,20 @@ async function renderOverlay(decoded, requestedBounds, file) {
         metadata: {
             product: 'mesh1440',
             source: 'IEM MTArchive',
-            ref_time: decoded.refTime,
+            ref_time: composite.refTime,
             generated_at: generatedAt,
-            archive_file: file.name,
-            archive_url: file.url,
+            archive_file: primaryFile.name,
+            archive_url: primaryFile.url,
+            composite_files: composite.sourceFiles,
             has_hail: true,
             max_mesh_mm: Number(maxMm.toFixed(1)),
             max_mesh_inches: Number((maxMm / 25.4).toFixed(2)),
             hail_pixels: hailPixels,
             bounds: {
-                north: Number((decoded.north - hailRowMin * latStep).toFixed(4)),
-                south: Number((decoded.north - (hailRowMax + 1) * latStep).toFixed(4)),
-                west: Number((decoded.west + hailColMin * lonStep).toFixed(4)),
-                east: Number((decoded.west + (hailColMax + 1) * lonStep).toFixed(4)),
+                north: Number((composite.north - hailRowMin * latStep).toFixed(4)),
+                south: Number((composite.north - (hailRowMax + 1) * latStep).toFixed(4)),
+                west: Number((composite.west + hailColMin * lonStep).toFixed(4)),
+                east: Number((composite.west + (hailColMax + 1) * lonStep).toFixed(4)),
             },
             requested_bounds: {
                 north: requestedBounds.north,
@@ -443,11 +553,36 @@ export async function getHistoricalMrmsOverlay(input) {
         return cached.result;
     }
     const files = await listArchiveFiles(request.date);
-    const file = chooseArchiveFile(files, request.anchorTimestamp);
-    const compressedBuffer = await downloadArchiveFile(file);
-    const rawBuffer = zlib.gunzipSync(compressedBuffer);
-    const decoded = decodeMrmsGrib2(rawBuffer);
-    const result = await renderOverlay(decoded, request, file);
+    const selectedFiles = chooseArchiveFiles(files, request.anchorTimestamp);
+    // Download all selected files in parallel to minimise latency.
+    const downloadResults = await Promise.allSettled(selectedFiles.map((file) => downloadArchiveFile(file).then((compressed) => ({
+        file,
+        raw: zlib.gunzipSync(compressed),
+    }))));
+    const decodedGrids = [];
+    const decodedFileNames = [];
+    let primaryFile = selectedFiles[selectedFiles.length - 1];
+    for (const outcome of downloadResults) {
+        if (outcome.status === 'fulfilled') {
+            try {
+                decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
+                decodedFileNames.push(outcome.value.file.name);
+                // Use the last successfully decoded file as the primary reference for metadata.
+                primaryFile = outcome.value.file;
+            }
+            catch (err) {
+                console.warn(`Historical MRMS: failed to decode ${outcome.value.file.name}: ${err}`);
+            }
+        }
+        else {
+            console.warn(`Historical MRMS: failed to download a composite file: ${outcome.reason}`);
+        }
+    }
+    if (decodedGrids.length === 0) {
+        throw new Error('Historical MRMS: all selected archive files failed to download or decode');
+    }
+    const composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+    const result = await renderOverlay(composite, request, primaryFile);
     cache.set(cacheKey, {
         expiresAt: Date.now() + CACHE_TTL_MS,
         result,
