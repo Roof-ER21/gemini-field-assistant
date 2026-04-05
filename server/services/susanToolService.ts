@@ -756,30 +756,47 @@ async function executeSearchKnowledgeBase(
   ctx: ToolContext
 ): Promise<Record<string, unknown>> {
   const { query, limit = 5 } = args as { query: string; limit?: number };
-
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
 
   try {
-    // Split query into keywords for broader matching (exact phrase rarely matches)
-    const keywords = query
+    // Build tsquery from the user's search query
+    // Split into words, filter stop words, join with | (OR) for broader matching
+    const searchWords = query
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
       .split(/\s+/)
       .filter(w => w.length > 2 && !['the', 'and', 'for', 'with', 'that', 'this', 'our', 'are', 'was', 'what', 'how', 'does', 'who', 'which', 'can', 'you', 'know', 'about', 'each', 'one', 'work', 'should', 'need', 'have', 'would', 'could', 'when', 'where', 'they', 'them', 'their', 'there', 'here', 'just', 'like', 'also', 'been', 'from', 'some', 'will', 'more', 'very', 'than', 'only'].includes(w));
 
     let result;
-    if (keywords.length > 0) {
-      // Build OR conditions for each keyword — name matches weighted 3x higher
-      const conditions = keywords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
-      const sql = `SELECT name, category, content,
-        (${keywords.map((_, i) => `(CASE WHEN name ILIKE '%' || $${i + 1} || '%' THEN 3 ELSE 0 END) + (CASE WHEN content ILIKE '%' || $${i + 1} || '%' THEN 1 ELSE 0 END)`).join(' + ')}) as relevance
+
+    if (searchWords.length > 0) {
+      // Try full-text search first (OR between words for broader matching)
+      // word:* enables prefix matching so "insur" matches "insurance"
+      const tsQuery = searchWords.map(w => w + ':*').join(' | ');
+
+      result = await ctx.pool.query(
+        `SELECT name, category, content,
+          ts_rank(search_vector, to_tsquery('english', $1)) as rank
         FROM knowledge_documents
-        WHERE ${conditions.join(' OR ')}
-        ORDER BY relevance DESC
-        LIMIT $${keywords.length + 1}`;
-      result = await ctx.pool.query(sql, [...keywords, safeLimit]);
+        WHERE search_vector @@ to_tsquery('english', $1)
+        ORDER BY rank DESC
+        LIMIT $2`,
+        [tsQuery, safeLimit]
+      );
+
+      // If FTS found nothing, fall back to ILIKE (handles typos, partial words)
+      if (result.rows.length === 0) {
+        const conditions = searchWords.map((_, i) => `(content ILIKE '%' || $${i + 1} || '%' OR name ILIKE '%' || $${i + 1} || '%')`);
+        const sql = `SELECT name, category, content,
+          (${searchWords.map((_, i) => `(CASE WHEN name ILIKE '%' || $${i + 1} || '%' THEN 3 ELSE 0 END) + (CASE WHEN content ILIKE '%' || $${i + 1} || '%' THEN 1 ELSE 0 END)`).join(' + ')}) as rank
+          FROM knowledge_documents
+          WHERE ${conditions.join(' OR ')}
+          ORDER BY rank DESC
+          LIMIT $${searchWords.length + 1}`;
+        result = await ctx.pool.query(sql, [...searchWords, safeLimit]);
+      }
     } else {
-      // Fallback to original exact match if no usable keywords
+      // Very short query — use original exact match
       result = await ctx.pool.query(
         `SELECT name, category, content
          FROM knowledge_documents
@@ -795,8 +812,7 @@ async function executeSearchKnowledgeBase(
         success: true,
         query,
         results: [],
-        message:
-          'No matching documents found in the knowledge base. The answer may be in the rep\'s conversation context or frontend RAG index.'
+        message: 'No matching documents found in the knowledge base. The answer may be in the rep\'s conversation context or frontend RAG index.'
       };
     }
 
@@ -808,34 +824,50 @@ async function executeSearchKnowledgeBase(
       success: true,
       query,
       total_found: result.rows.length,
-      results: result.rows.map((r) => ({
+      results: result.rows.map((r: any) => ({
         name: r.name,
         category: r.category,
-        // Truncate content to keep token usage reasonable
         excerpt: typeof r.content === 'string' ? r.content.slice(0, 600) : null
       }))
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
 
-    // If the table doesn't exist yet, return a soft fallback rather than 500
-    if (message.includes('does not exist') || message.includes('relation')) {
-      console.warn('[SusanTool:search_knowledge_base] knowledge_documents table not found, using fallback');
+    // If the search_vector column doesn't exist yet, fall back to ILIKE
+    if (message.includes('search_vector') || message.includes('does not exist')) {
+      console.warn('[SusanTool:search_knowledge_base] FTS not available, using ILIKE fallback');
+      const result = await ctx.pool.query(
+        `SELECT name, category, content
+         FROM knowledge_documents
+         WHERE content ILIKE '%' || $1 || '%'
+            OR name    ILIKE '%' || $1 || '%'
+         LIMIT $2`,
+        [query, safeLimit]
+      );
+      return {
+        success: true,
+        query,
+        total_found: result.rows.length,
+        results: result.rows.map((r: any) => ({
+          name: r.name,
+          category: r.category,
+          excerpt: typeof r.content === 'string' ? r.content.slice(0, 600) : null
+        }))
+      };
+    }
+
+    // If the table doesn't exist yet, return a soft fallback
+    if (message.includes('relation')) {
       return {
         success: true,
         query,
         results: [],
-        message:
-          'Knowledge base table not yet provisioned on this server. RAG search is handled by the frontend context builder.'
+        message: 'Knowledge base table not yet provisioned.'
       };
     }
 
-    console.error('[SusanTool:search_knowledge_base] Error:', message);
-    return {
-      success: false,
-      error: `Failed to search knowledge base: ${message}`,
-      query
-    };
+    console.error(`[SusanTool:search_knowledge_base] Error:`, message);
+    return { success: false, error: message };
   }
 }
 

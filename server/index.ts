@@ -4809,6 +4809,45 @@ ensureUserSalesRepMappingTable();
   }
 })();
 
+// Full-text search for knowledge documents
+(async () => {
+  try {
+    // Add tsvector column if not exists
+    await pool.query(`ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS search_vector tsvector`);
+
+    // Populate search vectors for existing docs
+    await pool.query(`
+      UPDATE knowledge_documents
+      SET search_vector = to_tsvector('english', coalesce(name, '') || ' ' || coalesce(name, '') || ' ' || coalesce(name, '') || ' ' || coalesce(category, '') || ' ' || coalesce(content, ''))
+      WHERE search_vector IS NULL
+    `);
+    // Name is repeated 3x to boost its weight in ranking
+
+    // Create GIN index for fast search
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_knowledge_fts ON knowledge_documents USING gin(search_vector)`);
+
+    // Create trigger to auto-update on INSERT/UPDATE
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION knowledge_search_vector_update() RETURNS trigger AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('english', coalesce(NEW.name, '') || ' ' || coalesce(NEW.name, '') || ' ' || coalesce(NEW.name, '') || ' ' || coalesce(NEW.category, '') || ' ' || coalesce(NEW.content, ''));
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await pool.query(`
+      DROP TRIGGER IF EXISTS knowledge_search_vector_trigger ON knowledge_documents;
+      CREATE TRIGGER knowledge_search_vector_trigger
+        BEFORE INSERT OR UPDATE ON knowledge_documents
+        FOR EACH ROW EXECUTE FUNCTION knowledge_search_vector_update();
+    `);
+
+    console.log('✅ Knowledge base full-text search ready');
+  } catch (e) {
+    console.error('Knowledge FTS migration error:', e);
+  }
+})();
+
 // Get all user-to-sales-rep mappings
 app.get('/api/admin/user-mappings', async (req, res) => {
   try {
