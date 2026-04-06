@@ -461,13 +461,20 @@ ${ragSection}
  WHAT TO AVOID:
  - Generic, robotic language that could be sent to anyone
  - Writing to wrong audience (e.g., technical adjuster language to homeowner)
- - Including AI commentary or meta-explanations
  - Using "WE'RE going to..." coaching style
  - Ending with generic invites to schedule a call/meeting instead of respectfully requesting full approval
 
+ ABSOLUTE PROHIBITION — PLACEHOLDER BRACKETS AND AI COMMENTARY:
+ NEVER include ANY of these in the email:
+ - Placeholder brackets: [Property Address], [Your Name], [Phone Number], [Rep Name], [Company], etc.
+ - AI reasoning or conditional logic: "if I knew it, I'd put it here", "otherwise omit", "insert X here"
+ - Meta-commentary: "I would include...", "this section should...", "depending on..."
+ - Explanatory notes to the rep inside the email text
+ If you don't have a piece of information (address, phone, etc.), simply LEAVE IT OUT of the sentence entirely. Do NOT use brackets, do NOT explain what's missing, do NOT add notes. Rewrite the sentence so it works without the missing info. The email must read as if a real person wrote it — ready to send with ZERO edits.
+
 ${getCompliancePromptInstructions()}
 
-IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation.
+IMPORTANT: Generate ONLY the email body from the rep's perspective to ${recipientName}. Make it specific to THIS recipient, THIS situation. The email must be READY TO SEND — no placeholders, no brackets, no AI notes.
 If no state-specific rule applies, keep guidance valid across VA/MD/PA and do not assume a state.
       `.trim();
 
