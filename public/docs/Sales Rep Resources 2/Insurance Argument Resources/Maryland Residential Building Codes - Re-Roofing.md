@@ -26,22 +26,21 @@ This is the single most important code section for Maryland roofing claims. Unli
 2. **Tear-off is code-required, not an upgrade** — The cost of removing existing roofing materials is a code compliance cost, not an optional upgrade. The insurance company cannot deny tear-off costs when the work constitutes a roof replacement.
 3. **Ice barrier exception is narrow** — The only existing material permitted to remain is an ice barrier membrane adhered to the deck. All shingles, underlayment, and other coverings must be removed.
 
-## R908.3.1 Roof Recover
+## Maryland Does NOT Allow Roof Recover / Overlay for Replacements
 
-Roof recover (installing new roofing over existing) is permitted **only** when:
+Unlike Virginia (which permits up to 2 layers), **Maryland R908.3 is absolute**: roof replacement means tear-off to the deck. Period.
 
-1. The existing roof covering is **asphalt shingles** being recovered with asphalt shingles.
-2. There is **only one existing layer** on the roof.
-3. The existing roof surface is **flat and smooth** enough to receive new roofing.
-4. **All damaged, deteriorated, or missing shingles** are removed and the deck is repaired.
+If an adjuster or insurance company tries to authorize a "recover" or "overlay" instead of a full tear-off, the response is simple:
 
-**CRITICAL**: Maryland distinguishes between "roof replacement" (R908.3 — tear-off required) and "roof recover" (R908.3.1 — overlay permitted under conditions). If the scope of work constitutes a replacement (not just a recover), R908.3's tear-off mandate applies.
+**"Maryland Residential Code R908.3 states that roof replacement shall include the removal of existing layers of roof coverings down to the roof deck. This is not optional — it is the law."**
 
-**When does a claim become a "replacement" vs. "recover"?**
-- If more than 25% of the roof area is damaged → most jurisdictions treat this as a replacement
-- If the existing roof has 2 layers already → tear-off required (max 2 layers per R908.3.1.1)
-- If the existing material is NOT asphalt shingles → tear-off required
-- If deck damage is suspected → tear-off required to expose and repair the deck
+The ONLY exception is an existing ice barrier membrane adhered to the deck may remain in place (R908.3 Exception). Everything else — shingles, underlayment, felt — must come off.
+
+**When an adjuster argues for repair instead of replacement:**
+- If storm damage affects multiple slopes or a significant portion of the roof, the scope of work becomes a replacement, which triggers R908.3 full tear-off
+- If the existing roof has any layers beyond the original, tear-off is mandatory
+- If deck damage is suspected, tear-off is required to expose and inspect/repair the deck
+- All new roofing must meet current code — ice barrier, drip edge, flashings — even if the original installation didn't have them
 
 ## Ice & Water Shield (R905.1.2 / R905.2.7.1)
 
