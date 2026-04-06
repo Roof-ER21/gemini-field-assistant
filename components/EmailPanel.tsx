@@ -105,28 +105,49 @@ const TEMPLATE_VARIABLES: TemplateVariable[] = [
 
 const STATE_REGULATIONS = {
   VA: {
-    buildingCode: 'Virginia Construction Code (VCC) 2021',
+    buildingCode: 'Virginia USBC 2021 (IRC 2021)',
     insuranceInfo: 'Virginia Bureau of Insurance: 1-877-310-6560',
-    permitInfo: 'Most projects require permits. Check local jurisdiction.',
-    roofingLicense: 'Class A or B Contractor License required',
+    permitInfo: 'Permits required for roof replacement (not for repairs <100 sq ft). DPOR-licensed contractor required.',
+    roofingLicense: 'DPOR Class A (>$120K), B ($10K-$120K), or C ($1K-$10K) Contractor License required',
     matchingRule: 'NO matching requirement in VA building codes. Use repairability arguments (Brittle Test, Repair Attempt), manufacturer warranty requirements, or code-compliant installation arguments instead.',
     keyStrategy: 'Focus on: "As the contractor, I cannot perform a repair that would void manufacturer warranties" or "GAF specifications require full replacement when..."',
+    reRoofingCode: 'R908.3: Max 2 layers asphalt shingles. If 2+ layers exist, complete tear-off to deck required. Wood shakes/shingles require full tear-off. New installation must meet current code.',
+    iceBarrier: 'R905.1.2: Ice & water shield required at eaves (24" past interior wall), all valleys, and roof-to-wall intersections. ASTM D1970.',
+    houseWrap: 'R703.2: Weather-resistive barrier (WRB) required behind ALL exterior cladding. Min #15 felt or approved housewrap. If storm damaged existing WRB, replacement is code-required.',
+    flashings: 'R903.2.1: Required at all wall-to-roof intersections, penetrations, slope changes. Step flashing min 4" wide. On tear-off, ALL flashings must be replaced.',
+    dripEdge: 'R905.2.8.5: Required at eaves and rakes. Min 26-gauge galvanized. At eave: under underlayment. At rake: over underlayment.',
+    cricket: 'R903.2.2: Required for chimneys/penetrations >30" wide.',
+    codeArgument: 'Frame as: "Virginia code R908 requires that re-roofing meet current code standards. As the licensed contractor, I am required to install ice barrier, drip edge, and proper flashings per current code — these are not upgrades."',
   },
   MD: {
-    buildingCode: 'Maryland Building Code 2021',
+    buildingCode: 'Maryland Residential Code 2021 (IRC 2021 with MD Amendments)',
     insuranceInfo: 'Maryland Insurance Administration: 1-800-492-6116',
-    permitInfo: 'Permits required for most roofing projects',
-    roofingLicense: 'Home Improvement License required',
+    permitInfo: 'Permits required for roof replacement. Fees vary by jurisdiction ($75-$200). Contractor pulls permit.',
+    roofingLicense: 'MHIC (Maryland Home Improvement Commission) License required. Fines up to $5,000 per violation without license.',
     matchingRule: 'MD building codes require contractors to ensure UNIFORM APPEARANCE across roof planes. This is YOUR strongest argument - frame as contractor code compliance, NOT insurance requirement.',
     keyStrategy: 'Use: "Maryland building codes require that I, as the licensed contractor, ensure uniform appearance. I cannot perform work that would violate these code requirements."',
+    reRoofingCode: 'R908.3 (CRITICAL): "Roof replacement SHALL include the removal of existing layers of roof coverings down to the roof deck." Maryland REQUIRES full tear-off — NO overlays for replacement. Only exception: existing ice barrier membrane adhered to deck may remain.',
+    iceBarrier: 'R905.1.2: Ice & water shield required at eaves (24" past interior wall), all valleys, and roof-to-wall intersections.',
+    houseWrap: 'R703.2: Weather-resistive barrier required behind ALL exterior cladding. If storm damaged existing WRB, replacement is code-required — not an upgrade.',
+    flashings: 'R903.2.1/R908.5: On tear-off (which MD requires for replacement), ALL deteriorated flashings must be replaced. Required at all intersections and penetrations.',
+    dripEdge: 'R905.2.8.5: Required at eaves and rakes on all asphalt shingle roofs.',
+    cricket: 'R903.2.2: Required for chimneys/penetrations >30" wide.',
+    codeArgument: 'Frame as: "Maryland R908.3 requires removal of existing layers to the roof deck for any roof replacement. This is not optional — the code mandates full tear-off. As the licensed contractor, I cannot perform an overlay that violates Maryland building code."',
   },
   PA: {
-    buildingCode: 'Pennsylvania Uniform Construction Code (UCC)',
+    buildingCode: 'Pennsylvania Uniform Construction Code (UCC) — IRC 2018',
     insuranceInfo: 'PA Insurance Department: 1-877-881-6388',
-    permitInfo: 'Local permits required. Strict enforcement.',
-    roofingLicense: 'Home Improvement Contractor Registration required',
+    permitInfo: 'Local permits required. Philadelphia: eCLIPSE system, L&I permits. Strict enforcement.',
+    roofingLicense: 'PA Home Improvement Contractor (HIC) Registration required',
     matchingRule: 'NO matching requirement in PA building codes. Use repairability arguments, manufacturer specs, or permit denial documentation.',
     keyStrategy: 'Focus on: "The PA permit office denied partial repair" or "Manufacturer specifications prohibit mixing aged and new materials for warranty purposes."',
+    reRoofingCode: 'R908.3: Max 2 layers asphalt shingles. Complete tear-off required if 2+ layers or non-asphalt material. Philadelphia has additional L&I requirements.',
+    iceBarrier: 'R905.1.2: Ice & water shield required at eaves (24" past interior wall), all valleys, and roof-to-wall intersections.',
+    houseWrap: 'R703.2: Weather-resistive barrier required behind ALL exterior cladding.',
+    flashings: 'R903.2.1: Required at all wall-to-roof intersections and penetrations.',
+    dripEdge: 'R905.2.8.5: Required at eaves and rakes on all asphalt shingle roofs.',
+    cricket: 'R903.2.2: Required for chimneys/penetrations >30" wide.',
+    codeArgument: 'Frame as: "Pennsylvania UCC requires code-compliant installation. As the registered contractor, I must install ice barrier, proper flashings, and drip edge per current code. These are code requirements, not optional upgrades."',
   }
 };
 
@@ -340,8 +361,8 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     try {
       // Pull small, state-aware RAG context for email generation
       const ragDocs = await knowledgeService.searchDocuments(
-        [selectedState, subject || '', 'partial', 'approval', 'insurance', 'email'].filter(Boolean).join(' '),
-        2,
+        [selectedState, subject || '', 'building code', 'insurance', 'email'].filter(Boolean).join(' '),
+        4,
         selectedState
       );
 
@@ -409,8 +430,15 @@ STATE-SPECIFIC INFORMATION (${selectedState}) - CRITICAL:
 - MATCHING RULE: ${stateRegs.matchingRule}
 - KEY STRATEGY: ${stateRegs.keyStrategy}
 - Permit Requirements: ${stateRegs.permitInfo}
+- RE-ROOFING CODE: ${stateRegs.reRoofingCode}
+- ICE & WATER SHIELD: ${stateRegs.iceBarrier}
+- HOUSE WRAP/WRB: ${stateRegs.houseWrap}
+- FLASHINGS: ${stateRegs.flashings}
+- DRIP EDGE: ${stateRegs.dripEdge}
+- CRICKET/SADDLE: ${stateRegs.cricket}
+- CODE ARGUMENT TEMPLATE: ${stateRegs.codeArgument}
 
-**IMPORTANT**: Your email MUST use ${selectedState}-specific arguments. ${selectedState === 'MD' ? 'Maryland HAS building code matching requirements - USE THIS as your primary argument framed through contractor code compliance.' : `${selectedState} does NOT have matching requirements - do NOT use matching arguments unless homeowner has matching endorsement. Use repairability, manufacturer specs, or permit denial instead.`}
+**IMPORTANT**: Your email MUST use ${selectedState}-specific arguments and cite actual building code sections (R908, R905, R703, R903) when relevant. ${selectedState === 'MD' ? 'Maryland R908.3 REQUIRES full tear-off to deck for roof replacement — this is your strongest code argument. Also use matching requirements framed through contractor code compliance.' : `${selectedState} does NOT have matching requirements - do NOT use matching arguments unless homeowner has matching endorsement. Use code compliance (R908, R905), repairability, manufacturer specs, or permit denial instead.`}
 
 ${templateContent ? `TEMPLATE TO FOLLOW (adapt to audience):\n${templateContent}\n\n` : ''}
 

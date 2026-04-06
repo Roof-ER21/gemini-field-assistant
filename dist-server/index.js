@@ -7910,8 +7910,11 @@ try {
     const docsDir = path.resolve(process.cwd(), 'public/docs');
     if (fs.existsSync(docsDir)) {
         app.use('/docs', express.static(docsDir, {
-            maxAge: '7d',
+            maxAge: 0,
+            etag: true,
+            lastModified: true,
             setHeaders: (res, filePath) => {
+                res.setHeader('Cache-Control', 'no-cache, must-revalidate');
                 if (filePath.endsWith('.md')) {
                     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
                 }
