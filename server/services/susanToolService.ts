@@ -12,6 +12,7 @@
  *   5. share_team_intel        – INSERT into agent_network_messages (pending admin approval)
  *   6. get_job_details         – SELECT from jobs table by job_number
  *   7. search_knowledge_base   – Full-text search of knowledge_documents table
+ *   8. lookup_insurance_company – Look up insurance company contact details from the directory
  */
 
 import pg from 'pg';
@@ -894,7 +895,97 @@ async function executeSearchKnowledgeBase(
 }
 
 // ---------------------------------------------------------------------------
-// Tool 8: send_email (via Gmail)
+// Tool 8: lookup_insurance_company
+// ---------------------------------------------------------------------------
+
+const lookupInsuranceCompanyDeclaration: FunctionDeclaration = {
+  name: 'lookup_insurance_company',
+  description:
+    'Look up insurance company contact details, claims phone numbers, email addresses, mobile apps, and notes. Use when a rep asks about a specific insurance company, needs a claims phone number, email, app name, or how to file with a particular insurer. Can also list all companies.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: 'Insurance company name or partial name to search for (e.g. "State Farm", "USAA", "Erie"). Leave empty to list all companies.'
+      }
+    },
+    required: []
+  }
+};
+
+async function executeLookupInsuranceCompany(
+  args: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const query = (args.query as string || '').trim();
+
+  try {
+    let result;
+    if (query) {
+      result = await ctx.pool.query(
+        `SELECT name, phone, email, category, website, notes
+         FROM insurance_companies
+         WHERE LOWER(name) LIKE '%' || $1 || '%'
+         ORDER BY name ASC
+         LIMIT 10`,
+        [query.toLowerCase()]
+      );
+    } else {
+      result = await ctx.pool.query(
+        `SELECT name, phone, email, category, notes
+         FROM insurance_companies
+         ORDER BY name ASC
+         LIMIT 50`
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return {
+        success: true,
+        query,
+        results: [],
+        message: `No insurance company matching "${query}" found in the directory. The Insurance tab in the Knowledge Base has 49 companies — the rep can browse there, or try a different name.`
+      };
+    }
+
+    console.log(
+      `[SusanTool:lookup_insurance_company] Found ${result.rows.length} companies for query="${query}" user=${ctx.userEmail}`
+    );
+
+    return {
+      success: true,
+      query,
+      total_found: result.rows.length,
+      results: result.rows.map((r: any) => ({
+        name: r.name,
+        claims_phone: r.phone,
+        claims_email: r.email,
+        mobile_app: r.category || 'Web Portal',
+        login_url: r.website || null,
+        notes: r.notes
+      }))
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    // Table might not exist yet — return soft fallback
+    if (message.includes('relation') || message.includes('does not exist')) {
+      return {
+        success: true,
+        query,
+        results: [],
+        message: 'Insurance companies table not yet provisioned. The rep can check the Insurance tab in the Knowledge Base for company details.'
+      };
+    }
+
+    console.error(`[SusanTool:lookup_insurance_company] Error:`, message);
+    return { success: false, error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tool 9: send_email (via Gmail)
 // ---------------------------------------------------------------------------
 
 const sendEmailDeclaration: FunctionDeclaration = {
@@ -1569,6 +1660,7 @@ export const SUSAN_TOOLS: FunctionDeclaration[] = [
   shareTeamIntelDeclaration,
   getJobDetailsDeclaration,
   searchKnowledgeBaseDeclaration,
+  lookupInsuranceCompanyDeclaration,
   sendEmailDeclaration,
   createCalendarEventDeclaration,
   checkAvailabilityDeclaration,
@@ -1590,6 +1682,7 @@ const TOOL_EXECUTORS: Record<
   share_team_intel: executeShareTeamIntel,
   get_job_details: executeGetJobDetails,
   search_knowledge_base: executeSearchKnowledgeBase,
+  lookup_insurance_company: executeLookupInsuranceCompany,
   send_email: executeSendEmail,
   create_calendar_event: executeCreateCalendarEvent,
   check_availability: executeCheckAvailability,
