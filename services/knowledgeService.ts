@@ -76,6 +76,7 @@ export const knowledgeService = {
       { name: 'Engineers', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Engineers.md`, type: 'md', category: 'Insurance Arguments' },
       { name: 'Low Roof_Flat Roof Code', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Low Roof_Flat Roof Code.md`, type: 'md', category: 'Insurance Arguments' },
       { name: 'Maryland Exterior Wrap Code R703', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Maryland Exterior Wrap Code R703.md`, type: 'md', category: 'Insurance Arguments' },
+      { name: 'Maryland Residential Building Codes - Re-Roofing', path: `${DOCS_BASE}/Sales Rep Resources 2/Insurance Argument Resources/Maryland Residential Building Codes - Re-Roofing.md`, type: 'md', category: 'Insurance Arguments' },
 
       // Training (2)
       { name: 'Training Manual', path: `${DOCS_BASE}/Sales Rep Resources 2/Training Manual.md`, type: 'md', category: 'Training' },

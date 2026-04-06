@@ -4142,6 +4142,10 @@ ensureUserSalesRepMappingTable();
             {
                 name: 'Virginia building codes Re-roofing Chapters',
                 content: fs.readFileSync(path.resolve(process.cwd(), 'public/docs/Sales Rep Resources 2/Insurance Argument Resources/Virginia building codes Re-roofing Chapters.md'), 'utf-8')
+            },
+            {
+                name: 'Maryland Residential Building Codes - Re-Roofing',
+                content: fs.readFileSync(path.resolve(process.cwd(), 'public/docs/Sales Rep Resources 2/Insurance Argument Resources/Maryland Residential Building Codes - Re-Roofing.md'), 'utf-8')
             }
         ];
         for (const doc of vaDocs) {

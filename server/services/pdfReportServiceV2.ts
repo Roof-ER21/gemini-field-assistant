@@ -262,6 +262,58 @@ export class PDFReportServiceV2 {
     return false;
   }
 
+  private getStateBuildingCodes(state: string): {
+    stateName: string;
+    codeEdition: string;
+    provisions: { section: string; requirement: string }[];
+    disclaimer: string;
+  } | null {
+    const codes: Record<string, ReturnType<typeof this.getStateBuildingCodes>> = {
+      'VA': {
+        stateName: 'Virginia',
+        codeEdition: '2021 Virginia Uniform Statewide Building Code (USBC) — IRC 2021',
+        provisions: [
+          { section: 'R908.3 Re-covering', requirement: 'Max 2 layers asphalt shingles. If 2+ layers exist, complete tear-off to deck is required.' },
+          { section: 'R908.3.1 Tear-off', requirement: 'Required when 2+ layers, wood shakes/shingles, or deck damage is present.' },
+          { section: 'R905.1.2 Ice barrier', requirement: 'Required at eaves (24" past wall), valleys, and roof-to-wall intersections.' },
+          { section: 'R905.2.8.5 Drip edge', requirement: 'Required at eaves and rakes on all asphalt shingle roofs.' },
+          { section: 'R903.2.1 Flashings', requirement: 'Required at all wall-to-roof intersections and penetrations. Replace all on tear-off.' },
+          { section: 'R903.2.2 Cricket', requirement: 'Required for chimneys or penetrations exceeding 30 inches in width.' },
+          { section: 'R703.2 House wrap', requirement: 'Weather-resistive barrier required behind all exterior cladding.' },
+        ],
+        disclaimer: 'Code provisions reference the 2021 USBC (IRC 2021). Local jurisdictions may adopt more restrictive requirements. All roofing work requiring a permit must be performed by a DPOR-licensed contractor.',
+      },
+      'MD': {
+        stateName: 'Maryland',
+        codeEdition: 'Maryland Residential Code 2021 — IRC 2021 with Maryland Amendments',
+        provisions: [
+          { section: 'R908.3 Roof Replacement', requirement: 'Roof replacement SHALL include removal of existing layers down to the roof deck. Full tear-off is code-required.' },
+          { section: 'R908.2 Structural Loads', requirement: 'Structural roof components must support the roof covering system and installation loads.' },
+          { section: 'R908.3.1 Roof Recover', requirement: 'Overlay only permitted over one existing layer of asphalt shingles if surface is smooth and undamaged.' },
+          { section: 'R905.1.2 Ice barrier', requirement: 'Required at eaves (24" past wall), valleys, and roof-to-wall intersections.' },
+          { section: 'R905.2.8.5 Drip edge', requirement: 'Required at eaves and rakes on all asphalt shingle roofs.' },
+          { section: 'R903.2.1 Flashings', requirement: 'Required at all intersections and penetrations. All deteriorated flashings must be replaced.' },
+          { section: 'R703.2 House wrap', requirement: 'Weather-resistive barrier required behind all exterior cladding.' },
+        ],
+        disclaimer: 'Code provisions reference the Maryland Residential Code 2021 (IRC 2021 with amendments). Maryland R908.3 requires full tear-off for roof replacement — this is stricter than some neighboring states. All work requires an MHIC-licensed contractor.',
+      },
+      'PA': {
+        stateName: 'Pennsylvania',
+        codeEdition: '2018 Pennsylvania Uniform Construction Code — IRC 2018',
+        provisions: [
+          { section: 'R908.3 Re-covering', requirement: 'Max 2 layers asphalt shingles. Complete tear-off required if 2+ layers or non-asphalt material.' },
+          { section: 'R905.1.2 Ice barrier', requirement: 'Required at eaves (24" past wall), valleys, and roof-to-wall intersections.' },
+          { section: 'R905.2.8.5 Drip edge', requirement: 'Required at eaves and rakes on all asphalt shingle roofs.' },
+          { section: 'R903.2.1 Flashings', requirement: 'Required at all wall-to-roof intersections and penetrations.' },
+          { section: 'R903.2.2 Cricket', requirement: 'Required for chimneys exceeding 30 inches in width.' },
+          { section: 'R703.2 House wrap', requirement: 'Weather-resistive barrier required behind all exterior cladding.' },
+        ],
+        disclaimer: 'Code provisions reference the PA UCC (IRC 2018). Philadelphia and some municipalities may have additional local requirements. All work requires a PA HIC-registered contractor.',
+      },
+    };
+    return codes[state] || null;
+  }
+
   private drawTable(
     doc: any,
     headers: string[],
@@ -1052,6 +1104,62 @@ export class PDFReportServiceV2 {
 
         doc.y = Math.max(doc.y, blockY + previewH) + 10;
       });
+    }
+
+    // =========================================================
+    // APPLICABLE BUILDING CODE REQUIREMENTS
+    // =========================================================
+    if (input.state) {
+      const stateUpper = input.state.toUpperCase().trim();
+      const codeData = this.getStateBuildingCodes(stateUpper);
+      if (codeData) {
+        this.checkPageBreak(doc, 200);
+        this.drawSectionBanner(doc, 'Applicable Building Code Requirements');
+
+        doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
+           .text(
+             `The following building code provisions apply to residential roofing work in ${codeData.stateName} and may be relevant to the scope of repairs or replacement authorized under this claim.`,
+             this.M, doc.y, { width: this.CW }
+           );
+        doc.moveDown(0.5);
+
+        // Code edition
+        doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
+           .text(codeData.codeEdition, this.M, doc.y, { width: this.CW });
+        doc.moveDown(0.4);
+
+        // Key provisions table
+        const provColW = [130, this.CW - 130];
+        const provX = [this.M, this.M + provColW[0]];
+
+        // Table header
+        doc.rect(provX[0], doc.y, this.CW, 16).fill(this.C.tableHeaderBg);
+        doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold');
+        doc.text('Code Section', provX[0] + 5, doc.y - 13, { width: provColW[0] - 10 });
+        doc.text('Requirement', provX[1] + 5, doc.y - 13, { width: provColW[1] - 10 });
+        doc.moveDown(0.3);
+
+        codeData.provisions.forEach((prov, idx) => {
+          this.checkPageBreak(doc, 36);
+          const rowY = doc.y;
+          if (idx % 2 === 0) {
+            doc.rect(provX[0], rowY, this.CW, 28).fill('#f5f6fa');
+          }
+          doc.fontSize(7.5).fillColor(this.C.text).font('Helvetica-Bold')
+             .text(prov.section, provX[0] + 5, rowY + 4, { width: provColW[0] - 10 });
+          doc.fontSize(7.5).fillColor(this.C.text).font('Helvetica')
+             .text(prov.requirement, provX[1] + 5, rowY + 4, { width: provColW[1] - 10, lineGap: 1 });
+          doc.y = Math.max(doc.y, rowY + 28);
+        });
+
+        doc.moveDown(0.5);
+        doc.fontSize(7.5).fillColor(this.C.lightText).font('Helvetica-Oblique')
+           .text(
+             codeData.disclaimer,
+             this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1 }
+           );
+        doc.moveDown(0.8);
+      }
     }
 
     // =========================================================
