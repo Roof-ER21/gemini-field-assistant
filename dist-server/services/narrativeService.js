@@ -123,6 +123,19 @@ export function generateHailNarrative(params) {
     }
     // Damage assessment language
     narrative += `Hail of this magnitude is capable of causing ${damagePotential}. `;
+    // State-specific building code reference
+    if (state) {
+        const stateUpper = state.toUpperCase().trim();
+        if (stateUpper === 'MD' || stateUpper === 'MARYLAND') {
+            narrative += `Per the Maryland Residential Code (IRC 2021, R908.3), roof replacement shall include the removal of existing layers of roof coverings down to the roof deck. `;
+        }
+        else if (stateUpper === 'VA' || stateUpper === 'VIRGINIA') {
+            narrative += `Per the Virginia USBC (IRC 2021, R908.3), re-roofing over more than one existing layer is prohibited, and all new installations must meet current code requirements. `;
+        }
+        else if (stateUpper === 'PA' || stateUpper === 'PENNSYLVANIA') {
+            narrative += `Per the Pennsylvania UCC (IRC 2018, R908.3), a maximum of two layers of asphalt shingles is permitted; existing non-asphalt materials require complete tear-off. `;
+        }
+    }
     // Professional recommendation
     narrative += `Based on the documented storm activity and hail size, a thorough property inspection `;
     narrative += `is recommended to assess potential damage to roofing, siding, gutters, windows, `;
