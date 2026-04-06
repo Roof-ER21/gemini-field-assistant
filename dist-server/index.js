@@ -4165,6 +4165,84 @@ ensureUserSalesRepMappingTable();
         console.error('VA docs migration error:', e);
     }
 })();
+// Seed insurance companies with full contact details (one-time)
+(async () => {
+    try {
+        // Add email column if missing
+        await pool.query(`ALTER TABLE insurance_companies ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
+        // Check if companies have contact details populated
+        const { rows: check } = await pool.query(`SELECT COUNT(*) as cnt FROM insurance_companies WHERE phone IS NOT NULL AND phone != ''`);
+        if (parseInt(check[0].cnt) >= 40) {
+            // Already seeded
+            return;
+        }
+        console.log('[Migration] Seeding insurance companies with full contact details...');
+        const companies = [
+            ['AAA (CSAA Insurance)', 'AAA Mobile', 'myclaims@csaa.com', '(800) 922-8228', 'https://www.csaa-insurance.aaa.com', 'MyPolicy platform for CSAA Insurance Group. Support: 888.980.5650'],
+            ['ALLCAT Claims Service', 'N/A (TPA)', 'info@allcatclaims.com', '(855) 925-5228', null, 'Third Party Administrator - claims management TPA. Contact: (830) 996-3311'],
+            ['Allstate', 'Allstate Mobile', 'claims@claims.allstate.com', '(800) 326-0950', 'https://myaccount.allstate.com', 'MyAccount portal with multi-factor authentication'],
+            ['American Family Insurance', 'MyAmFam', 'claims@amfam.com', '(800) 692-6326', 'https://my.amfam.com', 'Fingerprint authentication supported'],
+            ['American National', 'AN Mobile', 'Claims@AmericanNational.com', '(800) 333-2860', 'https://www.anicoweb.com', 'Multi-factor authentication, roadside assistance available'],
+            ['Ameriprise', 'MyAmFam (CONNECT)', 'aahhome@ampf.com', '(800) 872-5246', 'https://www.ameriprise.com', 'Partners with CONNECT powered by American Family Insurance'],
+            ['Amica Mutual', 'Amica', 'claims@amica.com', '(800) 242-6422', 'https://www.amica.com', 'J.D. Power #1 Digital Experience 2025. Biometric security (Touch ID/Face ID)'],
+            ['Armed Forces Insurance (AFI)', 'Armed Forces Insurance Mobile', 'claims@afi.org', '(800) 255-0187', 'https://www.afi.org', 'Founded 1887 for military members and families'],
+            ['ASI Claims (American Strategic)', 'Web Portal', 'claims@americanstrategic.com', '(866) 274-8765', 'https://www.americanstrategic.com', 'Standard online portal for policy management'],
+            ['Auto-Owners Insurance', 'Auto-Owners Mobile', 'claims@auto-owners.com', '(517) 323-1200', 'https://www.auto-owners.com', 'AO Mobile app with digital ID cards, pay by phone'],
+            ['Cincinnati Insurance', 'Web Portal', 'claimsinfo@cinfin.com', '(800) 827-4755', 'https://www.cinfin.com', 'Independent agent model, claims call center open 24/7'],
+            ['Citizens Insurance (Hanover)', 'Citizens Mobile', 'claimsinfo@citizensinsurance.com', '(866) 248-4913', 'https://www.hanover.com', 'Part of The Hanover Insurance Group. Digital claims submission'],
+            ['Country Financial', 'COUNTRY Financial Mobile', 'claims@countryfinancial.com', '(866) 268-6879', 'https://www.countryfinancial.com', 'Mobile claims with photo upload. Rep locator built in'],
+            ['Donegal Insurance', 'Web Portal', 'claims@donegalgroup.com', '(800) 877-0600', 'https://www.donegalgroup.com', 'Regional carrier - mainly PA, MD, VA, DE'],
+            ['EMC Insurance', 'Web Portal', 'claims@emcins.com', '(800) 447-2295', 'https://www.emcins.com', 'Commercial + Personal lines. Regional Midwest focus'],
+            ['Erie Insurance', 'Erie Insurance Mobile', 'service@erieinsurance.com', '(800) 367-3743', 'https://www.erieinsurance.com', 'Strong in PA, MD, VA. Claims: 800.367.3743 option 2'],
+            ['Esurance', 'Esurance Mobile', 'claims@esurance.com', '(800) 378-7262', 'https://www.esurance.com', 'Allstate subsidiary - digital-first approach'],
+            ['Farmers Insurance', 'Farmers Mobile', 'claims@farmersinsurance.com', '(800) 435-7764', 'https://www.farmers.com', 'Claims hub with live chat. Agent locator integrated'],
+            ['Foremost Insurance', 'Web Portal', 'foremost.claims@foremost.com', '(800) 527-3907', 'https://www.foremost.com', 'Subsidiary of Farmers. Specialty/manufactured homes'],
+            ['GEICO', 'GEICO Mobile', 'claims@geico.com', '(800) 841-3000', 'https://www.geico.com', 'Virtual assistant available. Photo claims submission'],
+            ['Grange Insurance', 'Grange Mobile', 'claimsdepartment@grangeinsurance.com', '(800) 422-0550', 'https://www.grangeinsurance.com', 'OH, PA, VA, MD. Independent agent model'],
+            ['Hanover Insurance', 'THI Mobile', 'claimsinfo@hanover.com', '(800) 628-0250', 'https://www.hanover.com', 'The Hanover. Agent-only model. Claims: 800.628.0250'],
+            ['Hartford (The Hartford)', 'The Hartford Mobile', 'customerservice@thehartford.com', '(800) 243-5860', 'https://www.thehartford.com', 'AARP-endorsed. Photo claims, direct deposit settlements'],
+            ['Hippo Insurance', 'Hippo Mobile', 'claims@hippo.com', '(844) 520-8133', 'https://www.hippo.com', 'Smart home sensors included. Fast digital claims'],
+            ['Homesite Insurance', 'Web Portal', 'claims@homesite.com', '(866) 466-3748', 'https://www.homesite.com', 'American Family subsidiary. Direct-to-consumer model'],
+            ['Kemper Insurance', 'Kemper Mobile', 'claims@kemper.com', '(800) 833-0355', 'https://www.kemper.com', 'Preferred and specialty markets. Trinity Universal subsidiary'],
+            ['Lemonade', 'Lemonade Mobile', 'support@lemonade.com', '(844) 733-8666', 'https://www.lemonade.com', 'AI-powered claims. Maya chatbot. Instant approval possible'],
+            ['Liberty Mutual', 'Liberty Mutual Mobile', 'claims@libertymutual.com', '(800) 225-2467', 'https://www.libertymutual.com', 'Photo-based claims. Multi-policy discounts. EagleView integration'],
+            ['Markel Insurance', 'Web Portal', 'firstcomp@markel.com', '(800) 431-1270', 'https://www.markel.com', 'Specialty/surplus lines. First Comp workers comp subsidiary'],
+            ['Mercury Insurance', 'Mercury Mobile', 'claims@mercuryinsurance.com', '(800) 503-3724', 'https://www.mercuryinsurance.com', 'Strong in CA, TX, FL. Online claims tracking'],
+            ['MetLife (Farmers)', 'Farmers Mobile', 'metlifeclaims@metlife.com', '(800) 854-6011', 'https://www.farmers.com', 'MetLife property policies now handled by Farmers Insurance'],
+            ['Nationwide', 'Nationwide Mobile', 'claims@nationwide.com', '(877) 669-6877', 'https://www.nationwide.com', 'On Your Side Claims service. SmartRide/SmartMiles. File online'],
+            ['NJM Insurance', 'NJM Mobile', 'claims@njm.com', '(800) 232-6600', 'https://www.njm.com', 'NJ & PA only. Low rates, strong claims satisfaction'],
+            ['Norfolk & Dedham (MAPFRE)', 'Web Portal', 'claims@mapfreinsurance.com', '(800) 937-0360', 'https://www.mapfreinsurance.com', 'Part of MAPFRE Insurance. New England regional focus'],
+            ['Pacific Indemnity (Chubb)', 'Chubb Mobile', 'claims@chubb.com', '(800) 252-4670', 'https://www.chubb.com', 'High-value homes. Appraisal-based settlements. White glove service'],
+            ['Plymouth Rock', 'Plymouth Rock Mobile', 'claims@plymouthrock.com', '(800) 438-8383', 'https://www.plymouthrock.com', 'NJ, MA, CT, NH focus. Digital ID cards'],
+            ['Progressive', 'Progressive Mobile', 'claims@progressive.com', '(800) 776-4737', 'https://www.progressive.com', 'HomeQuote Explorer. Name Your Price tool. Snapshot discount'],
+            ['QBE Insurance (North America)', 'Web Portal', 'claims@us.qbe.com', '(855) 872-3862', 'https://www.qbe.com/us', 'Specialty commercial. Crop insurance. International carrier'],
+            ['Safeco (Liberty Mutual)', 'Safeco Mobile', 'claims@safeco.com', '(800) 332-3226', 'https://www.safeco.com', 'Liberty Mutual company. Independent agent model'],
+            ['Selective Insurance', 'Web Portal', 'claimservices@selective.com', '(800) 882-7552', 'https://www.selective.com', 'Strong in Mid-Atlantic. Agent-only model. Fast claims'],
+            ['Shelter Insurance', 'Shelter Insurance Mobile', 'claims@shelterinsurance.com', '(800) 743-5837', 'https://www.shelterinsurance.com', 'Midwest focus (MO, AR, OK, KS). Agent-based'],
+            ['State Auto Insurance', 'Web Portal', 'claims@stateauto.com', '(800) 444-9950', 'https://www.stateauto.com', 'Liberty Mutual subsidiary (acquired 2022). Midwest/Southeast'],
+            ['State Farm', 'State Farm Mobile', 'claims@statefarm.com', '(800) 782-8332', 'https://www.statefarm.com', 'Largest US insurer. Neighborhood of Good. Drive Safe & Save'],
+            ['Stillwater Insurance', 'Web Portal', 'claims@stillwaterinsurance.com', '(800) 849-7498', 'https://www.stillwaterinsurance.com', 'Fidelity National Financial subsidiary. Online-focused'],
+            ['Travelers', 'MyTravelers Mobile', 'claims@travelers.com', '(800) 252-4633', 'https://www.travelers.com', 'IntelliDrive. Simply Business partnership. Major commercial carrier'],
+            ['USAA', 'USAA Mobile', 'claims@usaa.com', '(800) 531-8722', 'https://www.usaa.com', 'Military only. Top-rated. Biometric login. Quick claims photo upload'],
+            ['Utica National', 'Web Portal', 'claims@uticanational.com', '(800) 598-8422', 'https://www.uticanational.com', 'Northeast regional. Agent-only. Strong small business lines'],
+            ['Westfield Insurance', 'Web Portal', 'westfieldclaims@westfieldgrp.com', '(800) 243-0210', 'https://www.westfieldinsurance.com', 'MyWestfield web portal. Phone: 800.766.9133'],
+        ];
+        for (const [name, category, email, phone, website, notes] of companies) {
+            await pool.query(`INSERT INTO insurance_companies (name, category, email, phone, website, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (name) DO UPDATE SET
+           category = COALESCE(EXCLUDED.category, insurance_companies.category),
+           email = COALESCE(EXCLUDED.email, insurance_companies.email),
+           phone = COALESCE(EXCLUDED.phone, insurance_companies.phone),
+           website = COALESCE(EXCLUDED.website, insurance_companies.website),
+           notes = COALESCE(EXCLUDED.notes, insurance_companies.notes)`, [name, category, email, phone, website, notes]);
+        }
+        console.log(`✅ Insurance companies seeded: ${companies.length} companies with full contact details`);
+    }
+    catch (e) {
+        console.error('Insurance seed error:', e);
+    }
+})();
 // Get all user-to-sales-rep mappings
 app.get('/api/admin/user-mappings', async (req, res) => {
     try {
