@@ -293,7 +293,7 @@ export function createSusanAgentRoutes(pool) {
                         model: 'gemini-2.0-flash',
                         contents,
                         config: {
-                            tools: [{ functionDeclarations: SUSAN_TOOLS }]
+                            tools: [{ functionDeclarations: SUSAN_TOOLS }, { googleSearch: {} }]
                         }
                     });
                 }
@@ -386,7 +386,7 @@ export function createSusanAgentRoutes(pool) {
                     model: 'gemini-2.0-flash',
                     contents,
                     config: {
-                        tools: [{ functionDeclarations: SUSAN_TOOLS }]
+                        tools: [{ functionDeclarations: SUSAN_TOOLS }, { googleSearch: {} }]
                     }
                 });
             }
