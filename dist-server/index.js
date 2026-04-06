@@ -4131,6 +4131,36 @@ ensureUserSalesRepMappingTable();
         console.error('Knowledge FTS migration error:', e);
     }
 })();
+// Update VA building code knowledge docs with actual content (one-time migration)
+(async () => {
+    try {
+        const vaDocs = [
+            {
+                name: 'Virginia Residential Building Codes',
+                content: fs.readFileSync(path.resolve(process.cwd(), 'public/docs/Sales Rep Resources 2/Insurance Argument Resources/Virginia Residential Building Codes.md'), 'utf-8')
+            },
+            {
+                name: 'Virginia building codes Re-roofing Chapters',
+                content: fs.readFileSync(path.resolve(process.cwd(), 'public/docs/Sales Rep Resources 2/Insurance Argument Resources/Virginia building codes Re-roofing Chapters.md'), 'utf-8')
+            }
+        ];
+        for (const doc of vaDocs) {
+            // Only update if current content is very short (placeholder/empty)
+            const { rows } = await pool.query(`SELECT id, LENGTH(content) as len FROM knowledge_documents WHERE name = $1 LIMIT 1`, [doc.name]);
+            if (rows.length > 0 && rows[0].len < 500) {
+                await pool.query(`UPDATE knowledge_documents SET content = $1 WHERE id = $2`, [doc.content, rows[0].id]);
+                console.log(`✅ Updated VA doc: ${doc.name} (${doc.content.length} chars)`);
+            }
+            else if (rows.length === 0) {
+                await pool.query(`INSERT INTO knowledge_documents (name, category, state, content) VALUES ($1, $2, $3, $4)`, [doc.name, 'Insurance Arguments', 'VA', doc.content]);
+                console.log(`✅ Inserted VA doc: ${doc.name}`);
+            }
+        }
+    }
+    catch (e) {
+        console.error('VA docs migration error:', e);
+    }
+})();
 // Get all user-to-sales-rep mappings
 app.get('/api/admin/user-mappings', async (req, res) => {
     try {
@@ -7790,6 +7820,32 @@ try {
 }
 catch (e) {
     console.error('❌ Error configuring uploads serving:', e);
+}
+// ============================================================================
+// KNOWLEDGE BASE DOCS (Static)
+// ============================================================================
+try {
+    const docsDir = path.resolve(process.cwd(), 'public/docs');
+    if (fs.existsSync(docsDir)) {
+        app.use('/docs', express.static(docsDir, {
+            maxAge: '7d',
+            setHeaders: (res, filePath) => {
+                if (filePath.endsWith('.md')) {
+                    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+                }
+                else if (filePath.endsWith('.json')) {
+                    res.setHeader('Content-Type', 'application/json');
+                }
+            }
+        }));
+        console.log(`✅ Docs serving from: ${docsDir}`);
+    }
+    else {
+        console.warn('⚠️  Docs directory not found at:', docsDir);
+    }
+}
+catch (e) {
+    console.error('❌ Error configuring docs serving:', e);
 }
 // ============================================================================
 // STATIC FILE SERVING (Production)
