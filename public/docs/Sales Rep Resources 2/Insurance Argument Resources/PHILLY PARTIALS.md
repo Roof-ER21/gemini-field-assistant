@@ -28,7 +28,7 @@ Phone: (215) 686-2400
 - Any roofing work over 100 sq ft requires a permit in Philadelphia.
 - Partial re-roofing (replacing only a portion of the roof) requires a permit for the specific scope.
 - L&I inspectors apply Philadelphia's amendments to the International Residential Code (IRC 2018 as locally amended).
-- Philadelphia Code Section PM-506 and Building Code Sections 1507 require that re-roofing work meet current code — including deck integrity, underlayment, and ice/water shield requirements.
+- Philadelphia Code Section PM-506 and IRC Section R905 (as adopted by Philadelphia) require that re-roofing work meet current code — including deck integrity, underlayment, and ice/water shield requirements.
 - If the existing deck is damaged, deteriorated, or non-code-compliant, L&I will typically require a full deck replacement before issuing a certificate of occupancy for roofing work.
 
 ### The Partial Denial Sequence (How Philly Works for You)

@@ -311,19 +311,26 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
     // Inject recent storm alerts into Susan's context
     try {
       const recentAlerts = await pool.query(
-        `SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative
+        `SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative,
+                noaa_reconciled, noaa_magnitude, noaa_narrative
          FROM storm_alerts
-         WHERE event_date >= CURRENT_DATE - INTERVAL '3 days'
+         WHERE event_date >= CURRENT_DATE - INTERVAL '30 days'
          ORDER BY event_date DESC, event_time DESC
-         LIMIT 20`
+         LIMIT 30`
       );
 
       if (recentAlerts.rows.length > 0) {
         const alertLines = recentAlerts.rows.map((a: any) => {
           const mag = a.magnitude ? `${a.magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
-          return `- ${a.event_date} ${a.event_time || ''}: ${a.event_type} ${mag} at ${a.location}, ${a.county}, ${a.state}${a.narrative ? ` — ${a.narrative}` : ''}`;
+          let line = `- ${a.event_date} ${a.event_time || ''}: ${a.event_type} ${mag} at ${a.location}, ${a.county}, ${a.state}`;
+          if (a.noaa_reconciled) {
+            const noaaMag = a.noaa_magnitude ? `${a.noaa_magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
+            line += ` [NOAA CONFIRMED${noaaMag ? ` — verified ${noaaMag}` : ''}]`;
+          }
+          if (a.narrative) line += ` — ${a.narrative}`;
+          return line;
         });
-        enrichedSystemPrompt += `\n\n[RECENT STORM ALERTS — LAST 3 DAYS]\nThese are verified storm reports from SPC/NOAA that our system detected and alerted all reps about:\n${alertLines.join('\n')}\nUse this data when reps ask about recent storms. You don't need to search — this is already confirmed.`;
+        enrichedSystemPrompt += `\n\n[RECENT STORM ALERTS — LAST 30 DAYS]\nThese are storm reports from SPC/NWS/NOAA. Events marked [NOAA CONFIRMED] have been officially verified by NOAA's Storm Events Database — this is the federal gold standard for insurance claims:\n${alertLines.join('\n')}\nUse this data when reps ask about recent storms. NOAA-confirmed events are especially powerful for homeowner conversations and adjuster negotiations.`;
       }
     } catch (e) {
       // storm_alerts table may not exist yet — silently skip

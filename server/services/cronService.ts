@@ -16,7 +16,7 @@ import {
   sendEndOfDaySummary
 } from './notificationScheduler.js';
 import { watchTerritoriesForStorms } from './nwsTerritoryWatcher.js';
-import { detectAndAlertNewStorms } from './stormAlertService.js';
+import { detectAndAlertNewStorms, reconcileWithNOAA } from './stormAlertService.js';
 
 class CronService {
   private static instance: CronService;
@@ -219,9 +219,24 @@ class CronService {
       }, { timezone: 'America/New_York' });
       jobs.push(eodSummaryJob);
 
+      // Daily 6:00 AM: NOAA Phase 3 reconciliation (matches NOAA official records to existing alerts)
+      const noaaReconcileJob = cron.schedule('0 6 * * *', async () => {
+        console.log('⏰ [6:00 AM] NOAA Phase 3 reconciliation...');
+        try {
+          const result = await reconcileWithNOAA(pool, pushService);
+          if (result.reconciled > 0 || result.errors > 0) {
+            console.log(`🏛️ [NOAA Phase 3] Reconciled: ${result.reconciled}, Notified: ${result.notified}, Errors: ${result.errors}`);
+          }
+        } catch (err) {
+          console.error('❌ [NOAA Phase 3] Error:', (err as Error).message);
+        }
+      }, { timezone: 'America/New_York' });
+      jobs.push(noaaReconcileJob);
+
       console.log('📲 Push notification cron jobs scheduled:');
       console.log('   - Every 5 min: Fast storm detection (NWS + SPC)');
       console.log('   - Every 15 min: Property storm scanner + Calendar/Task reminders');
+      console.log('   - 6:00 AM: NOAA Phase 3 reconciliation');
       console.log('   - 7:00 AM: Morning briefing');
       console.log('   - 6:00 PM: End-of-day summary');
     }

@@ -97,7 +97,7 @@ export interface ArgumentEffectiveness {
 const ARGUMENT_PATTERNS = {
   code_citation: [
     /\b(IRC\s*(?:R|Section)?\s*[\d.]+)\b/gi,
-    /\b(IBC\s*(?:Section)?\s*[\d.]+)\b/gi,
+    /\b(IBC\s*(?:Section)?\s*[\d.]+)\b/gi, // Detect IBC citations to flag — residential work uses IRC, not IBC
     /\b(ASTM\s*[A-Z]?\s*\d+)\b/gi,
     /\b(building code(?:s)?(?:\s+(?:require|mandate|state))?)\b/gi,
   ],

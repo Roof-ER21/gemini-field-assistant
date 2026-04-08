@@ -10,6 +10,7 @@
 
 import type { Pool } from 'pg';
 import type { PushNotificationService } from './pushNotificationService.js';
+import { noaaStormService } from './noaaStormService.js';
 
 const SERVICE_STATES = ['VA', 'MD', 'PA'];
 
@@ -373,4 +374,171 @@ async function fetchSPCForStates(states: string[]): Promise<SPCEvent[]> {
   }
 
   return events;
+}
+
+/**
+ * Phase 3: NOAA Reconciliation
+ *
+ * Matches existing storm_alerts against the official NOAA Storm Events Database.
+ * NOAA publishes verified records days-to-weeks after events. This function:
+ * 1. Finds unreconciled alerts older than 7 days (gives NOAA time to publish)
+ * 2. Searches NOAA data near each alert's location
+ * 3. Matches by event type + date proximity (±2 days) + distance (<20mi)
+ * 4. Updates alerts with NOAA-verified magnitude and narrative
+ * 5. Sends consolidated push notifications to all reps
+ */
+export async function reconcileWithNOAA(
+  pool: Pool,
+  pushService: PushNotificationService
+): Promise<{ reconciled: number; notified: number; errors: number }> {
+  let reconciled = 0;
+  let notified = 0;
+  let errors = 0;
+
+  try {
+    // Get unreconciled alerts older than 7 days, up to 90 days back
+    const pending = await pool.query(
+      `SELECT * FROM storm_alerts
+       WHERE noaa_reconciled = FALSE
+         AND event_date < CURRENT_DATE - INTERVAL '7 days'
+         AND event_date >= CURRENT_DATE - INTERVAL '90 days'
+       ORDER BY event_date DESC`
+    );
+
+    if (pending.rows.length === 0) {
+      return { reconciled: 0, notified: 0, errors: 0 };
+    }
+
+    console.log(`[NOAA Phase 3] Checking ${pending.rows.length} unreconciled alerts against NOAA database...`);
+
+    const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+
+    for (const alert of pending.rows) {
+      try {
+        const lat = Number(alert.latitude);
+        const lng = Number(alert.longitude);
+        if (!lat || !lng) continue;
+
+        // Search NOAA database within 20 miles of this alert
+        const noaaEvents = await noaaStormService.getStormEvents(lat, lng, 20, 1);
+
+        // Filter to only actual NOAA records (not SPC), matching type and date
+        const alertDate = new Date(alert.event_date).getTime();
+        const matches = noaaEvents.filter(e => {
+          if (e.eventType !== alert.event_type) return false;
+          if (!e.id.startsWith('noaa-')) return false;
+          const noaaDate = new Date(e.date).getTime();
+          return Math.abs(noaaDate - alertDate) <= TWO_DAYS_MS;
+        });
+
+        if (matches.length === 0) continue;
+
+        // Pick closest match by distance
+        const best = matches.sort((a, b) =>
+          (a.distanceMiles || 999) - (b.distanceMiles || 999)
+        )[0];
+
+        await pool.query(
+          `UPDATE storm_alerts
+           SET noaa_reconciled = TRUE,
+               noaa_magnitude = $1,
+               noaa_event_id = $2,
+               noaa_narrative = $3,
+               alert_phase = 'noaa_reconciled'
+           WHERE id = $4`,
+          [best.magnitude, best.id, best.narrative, alert.id]
+        );
+
+        reconciled++;
+        const magLabel = alert.event_type === 'hail'
+          ? `${best.magnitude}" hail`
+          : `${best.magnitude} kt wind`;
+        console.log(`[NOAA Phase 3] ✅ Reconciled: ${alert.location}, ${alert.state} → NOAA verified ${magLabel}`);
+      } catch (e) {
+        errors++;
+        console.error(`[NOAA Phase 3] Error reconciling alert ${alert.id}:`, e);
+      }
+    }
+
+    // Send Phase 3 notifications for newly reconciled alerts
+    if (reconciled > 0) {
+      try {
+        const newlyReconciled = await pool.query(
+          `SELECT * FROM storm_alerts
+           WHERE noaa_reconciled = TRUE AND noaa_update_sent = FALSE`
+        );
+
+        if (newlyReconciled.rows.length > 0) {
+          const groups = new Map<string, any[]>();
+          for (const alert of newlyReconciled.rows) {
+            if (!groups.has(alert.state)) groups.set(alert.state, []);
+            groups.get(alert.state)!.push(alert);
+          }
+
+          const users = await pool.query(
+            "SELECT id FROM users WHERE role IN ('sales_rep', 'manager', 'admin')"
+          );
+          const userIds = users.rows.map((u: any) => u.id);
+
+          for (const [state, alerts] of groups) {
+            const hailAlerts = alerts.filter((a: any) => a.event_type === 'hail');
+            const maxHail = hailAlerts.length > 0
+              ? Math.max(...hailAlerts.map((a: any) => Number(a.noaa_magnitude) || Number(a.magnitude) || 0))
+              : 0;
+            const locations = [...new Set(alerts.map((a: any) => a.location))].slice(0, 4).join(', ');
+            const dates = [...new Set(alerts.map((a: any) =>
+              new Date(a.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            ))].join(', ');
+
+            let body = `NOAA has officially confirmed ${alerts.length} storm event(s) in ${state}:\n`;
+            if (hailAlerts.length > 0) {
+              body += `• ${hailAlerts.length} verified hail report(s), up to ${maxHail}" — ${locations}\n`;
+            }
+            body += `• Dates: ${dates}\n`;
+            body += `Official federal records strengthen insurance claims. Use this with homeowners and adjusters.`;
+
+            for (const userId of userIds) {
+              await pushService.sendToUser(userId, {
+                title: `🏛️ NOAA Confirmed — ${state} Storm Verified`,
+                body,
+                data: { type: 'noaa_reconciliation', state, alertCount: String(alerts.length) }
+              }, 'storm_alert').catch(() => {});
+
+              // In-app notification
+              await pool.query(
+                `INSERT INTO notifications (user_id, type, title, body, data, created_at)
+                 VALUES ($1, 'noaa_update', $2, $3, $4, NOW())
+                 ON CONFLICT DO NOTHING`,
+                [
+                  userId,
+                  `🏛️ NOAA Confirmed: ${alerts.length} event(s) in ${state} (${dates})`,
+                  body,
+                  JSON.stringify({ type: 'noaa_reconciliation', state, alertIds: alerts.map((a: any) => a.spc_event_id) })
+                ]
+              ).catch(() => {});
+            }
+
+            // Mark all as notified
+            for (const alert of alerts) {
+              await pool.query(
+                `UPDATE storm_alerts SET noaa_update_sent = TRUE, noaa_update_sent_at = NOW() WHERE id = $1`,
+                [alert.id]
+              );
+            }
+
+            notified++;
+            console.log(`[NOAA Phase 3] 🏛️ ${state}: ${alerts.length} events confirmed → notified ${userIds.length} reps`);
+          }
+        }
+      } catch (e) {
+        console.error('[NOAA Phase 3] Notification error:', e);
+        errors++;
+      }
+    }
+  } catch (error) {
+    console.error('[NOAA Phase 3] Reconciliation error:', error);
+    errors++;
+  }
+
+  return { reconciled, notified, errors };
 }

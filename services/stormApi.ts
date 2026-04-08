@@ -137,6 +137,48 @@ export interface HotZone {
   radius: number;
 }
 
+export interface StormDateObservation {
+  dateTime: string;
+  source: string;
+  hailSize: string | null;
+  windSpeed: string | null;
+  distance: string;
+  narrative: string;
+}
+
+export interface StormDateRow {
+  date: string;
+  displayDate: string;
+  impactTime: string | null;
+  direction: string | null;
+  speed: number | null;
+  duration: number | null;
+  radarDetected: boolean;
+  atLocation: string | null;
+  within1mi: string | null;
+  within3mi: string | null;
+  within10mi: string | null;
+  directHit: boolean;
+  reportCount: number;
+  maxHailSize: number | null;
+  noaaConfirmed: boolean;
+  observations: StormDateObservation[];
+}
+
+export interface AddressHistoryResult {
+  address: string;
+  latitude: number;
+  longitude: number;
+  yearsSearched: number;
+  summary: string;
+  narrative: string | null;
+  directHits: number;
+  totalStormDates: number;
+  largestHail: number | null;
+  noaaConfirmed: number;
+  stormDates: StormDateRow[];
+}
+
 export type ReportFilter = 'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only';
 
 export interface ReportParams {
@@ -297,6 +339,27 @@ class StormApiClient {
     return this.request<SearchResult>(
       `/api/hail/search/advanced?${queryParams.toString()}`
     );
+  }
+
+  /**
+   * Get address-level hail history — every documented hit within 5 miles, last 5 years.
+   * No scores, no percentages — just dates, sizes, and sources.
+   */
+  async getAddressHistory(params: {
+    street?: string; city?: string; state?: string; zip?: string;
+    lat?: number; lng?: number;
+    radius?: number; years?: number;
+  }): Promise<AddressHistoryResult> {
+    const qp = new URLSearchParams();
+    if (params.street) qp.set('street', params.street);
+    if (params.city) qp.set('city', params.city);
+    if (params.state) qp.set('state', params.state);
+    if (params.zip) qp.set('zip', params.zip);
+    if (params.lat) qp.set('lat', params.lat.toString());
+    if (params.lng) qp.set('lng', params.lng.toString());
+    if (params.radius) qp.set('radius', params.radius.toString());
+    if (params.years) qp.set('years', params.years.toString());
+    return this.request<AddressHistoryResult>(`/api/hail/address-history?${qp.toString()}`);
   }
 
   /**

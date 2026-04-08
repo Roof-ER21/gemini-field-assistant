@@ -32,7 +32,7 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2, type ReportFilter } from '../services/pdfReportServiceV2.js';
-import { getHistoricalMrmsOverlay } from '../services/historicalMrmsService.js';
+import { getHistoricalMrmsOverlay, getMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -368,6 +368,309 @@ router.get('/search', async (req, res) => {
     res.status(500).json({ error: (error as Error).message });
   }
 });
+
+/**
+ * GET /api/hail/address-history — IHM-style Hail Impact Report
+ *
+ * Returns property-level hail history with distance bands matching
+ * Interactive Hail Maps format: At Location, Within 1mi, Within 3mi, Within 10mi.
+ * Combines NOAA Storm Events DB + storm_alerts (NWS/SPC) + NWS warnings.
+ * No scores, no percentages — just dates, sizes, distances, and sources.
+ *
+ * Query params: street, city, state, zip  OR  lat, lng
+ * Optional: years (default 5, max 10)
+ */
+router.get('/address-history', async (req: Request, res: Response) => {
+  try {
+    const { street, city, state, zip, lat, lng, years = '5' } = req.query;
+    const yearsBack = Math.min(parseInt(years as string, 10) || 5, 10);
+
+    let searchLat: number | null = lat ? parseFloat(lat as string) : null;
+    let searchLng: number | null = lng ? parseFloat(lng as string) : null;
+    let resolvedAddress = '';
+
+    if (street || city || state || zip) {
+      resolvedAddress = [street, city, state, zip].filter(Boolean).join(', ');
+      if (!searchLat || !searchLng) {
+        const geo = await geocodeForHailSearch({
+          address: String(street || ''),
+          city: String(city || ''),
+          state: String(state || ''),
+          zip: String(zip || '')
+        });
+        if (geo) {
+          searchLat = geo.lat;
+          searchLng = geo.lng;
+        }
+      }
+    }
+
+    if (!searchLat || !searchLng) {
+      return res.status(400).json({ error: 'Could not geocode address. Provide street, city, state, zip or lat/lng.' });
+    }
+
+    // Fetch NOAA + SPC events within 10 miles (widest band)
+    let allEvents: any[] = [];
+    try {
+      allEvents = await noaaStormService.getStormEvents(searchLat, searchLng, 10, yearsBack);
+    } catch (e) {
+      console.warn('[address-history] NOAA fetch error:', e);
+    }
+
+    // Fetch storm_alerts within 10 miles
+    const pool: Pool = req.app.get('pool');
+    let recentAlerts: any[] = [];
+    try {
+      const alertResult = await pool.query(
+        `SELECT * FROM (
+           SELECT *,
+             (3959 * acos(LEAST(1.0,
+               cos(radians($1)) * cos(radians(latitude)) *
+               cos(radians(longitude) - radians($2)) +
+               sin(radians($1)) * sin(radians(latitude))
+             ))) AS distance_miles
+           FROM storm_alerts
+           WHERE event_date >= CURRENT_DATE - INTERVAL '${yearsBack} years'
+             AND latitude IS NOT NULL AND longitude IS NOT NULL
+         ) sub
+         WHERE distance_miles <= 10
+         ORDER BY event_date DESC`,
+        [searchLat, searchLng]
+      );
+      recentAlerts = alertResult.rows;
+    } catch (e) {
+      console.warn('[address-history] storm_alerts query error:', e);
+    }
+
+    // Merge storm_alerts into allEvents (avoid duplicates)
+    for (const a of recentAlerts) {
+      const alertDate = new Date(a.event_date).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const isDup = allEvents.some(e =>
+        e.date === alertDate && e.eventType === a.event_type && Math.abs((e.distanceMiles || 0) - Number(a.distance_miles)) < 2
+      );
+      if (!isDup) {
+        allEvents.push({
+          id: a.spc_event_id,
+          eventType: a.event_type,
+          date: alertDate,
+          state: a.state || '',
+          location: a.location || '',
+          latitude: Number(a.latitude),
+          longitude: Number(a.longitude),
+          magnitude: a.noaa_magnitude ? Number(a.noaa_magnitude) : (a.magnitude ? Number(a.magnitude) : null),
+          magnitudeUnit: a.magnitude_unit || 'inches',
+          source: a.noaa_reconciled ? 'NOAA' : (a.spc_event_id?.startsWith('nws-') ? 'NWS' : 'SPC'),
+          narrative: a.noaa_narrative || a.narrative || '',
+          distanceMiles: Number(a.distance_miles) || 0,
+          noaaReconciled: !!a.noaa_reconciled,
+          time: a.event_time || ''
+        });
+      }
+    }
+
+    // Group all events by storm date → build IHM-style Historical Storm Activity rows
+    const stormDateMap = new Map<string, any[]>();
+    for (const e of allEvents) {
+      if (!stormDateMap.has(e.date)) stormDateMap.set(e.date, []);
+      stormDateMap.get(e.date)!.push(e);
+    }
+
+    // Fetch MRMS radar data for all storm dates in parallel
+    // MRMS gives us radar-derived hail sizes at the exact property location
+    // — this is what makes our "At Location" column match IHM's accuracy
+    const mrmsResults = new Map<string, Awaited<ReturnType<typeof getMrmsHailAtPoint>>>();
+    const mrmsPromises = [...stormDateMap.keys()].map(async (date) => {
+      const result = await getMrmsHailAtPoint(date, searchLat!, searchLng!).catch(() => null);
+      mrmsResults.set(date, result);
+    });
+    await Promise.allSettled(mrmsPromises);
+
+    // Distance bands: At Location (<0.5mi), Within 1mi, Within 3mi, Within 10mi
+    const BANDS = [
+      { key: 'atLocation', label: 'At Location', max: 0.5 },
+      { key: 'within1mi', label: 'Within 1mi', max: 1 },
+      { key: 'within3mi', label: 'Within 3mi', max: 3 },
+      { key: 'within10mi', label: 'Within 10mi', max: 10 },
+    ] as const;
+
+    interface StormDateRow {
+      date: string;
+      displayDate: string;
+      impactTime: string | null;
+      direction: string | null;
+      speed: number | null;
+      duration: number | null;
+      radarDetected: boolean;
+      atLocation: string | null;
+      within1mi: string | null;
+      within3mi: string | null;
+      within10mi: string | null;
+      directHit: boolean;
+      reportCount: number;
+      maxHailSize: number | null;
+      noaaConfirmed: boolean;
+      observations: Array<{
+        dateTime: string;
+        source: string;
+        hailSize: string | null;
+        windSpeed: string | null;
+        distance: string;
+        narrative: string;
+      }>;
+    }
+
+    const stormDates: StormDateRow[] = [];
+
+    for (const [date, events] of stormDateMap) {
+      const hailEvents = events.filter((e: any) => e.eventType === 'hail');
+      const windEvents = events.filter((e: any) => e.eventType === 'wind');
+      const allHailAndWind = [...hailEvents, ...windEvents];
+
+      // Compute max hail size in each distance band:
+      // 1. Ground reports (SPC/NOAA observations within each radius)
+      // 2. MRMS radar data (NEXRAD-derived MESH grid values at each radius)
+      // Take the MAX of both — radar fills gaps where no spotter was nearby,
+      // ground reports fill in when MRMS archive isn't available.
+      const bandValues: Record<string, number | null> = {};
+      const mrms = mrmsResults.get(date) || null;
+
+      for (const band of BANDS) {
+        // Ground report value
+        const inBand = hailEvents.filter((e: any) => (e.distanceMiles || 0) <= band.max);
+        const groundMax = inBand.length > 0 ? Math.max(...inBand.map((e: any) => Number(e.magnitude) || 0)) : 0;
+
+        // MRMS radar value
+        const radarMax = mrms ? (mrms[band.key as keyof typeof mrms] as number | null) || 0 : 0;
+
+        const best = Math.max(groundMax, radarMax);
+        // Floor at 0.50" — no adjuster takes sub-half-inch seriously.
+        // Round to nearest 0.25" to match industry standard (0.50, 0.75, 1.00, 1.25, etc.)
+        if (best < 0.50) {
+          bandValues[band.key] = null;
+        } else {
+          bandValues[band.key] = Math.round(best * 4) / 4;
+        }
+      }
+
+      // Find closest event for impact time
+      const closest = allHailAndWind.sort((a: any, b: any) => (a.distanceMiles || 999) - (b.distanceMiles || 999))[0];
+
+      // Extract direction/speed from NWS narrative if available
+      let direction: string | null = null;
+      let speed: number | null = null;
+      for (const e of events) {
+        const narr = (e.narrative || '').toLowerCase();
+        const dirMatch = narr.match(/moving\s+(north|south|east|west|northeast|northwest|southeast|southwest|n|s|e|w|ne|nw|se|sw)\b/i);
+        if (dirMatch && !direction) {
+          const dirs: Record<string, string> = { n: 'North', s: 'South', e: 'East', w: 'West', ne: 'Northeast', nw: 'Northwest', se: 'Southeast', sw: 'Southwest' };
+          direction = dirs[dirMatch[1].toLowerCase()] || dirMatch[1].charAt(0).toUpperCase() + dirMatch[1].slice(1);
+        }
+        const spdMatch = narr.match(/(\d+\.?\d*)\s*mph/i);
+        if (spdMatch && !speed) speed = parseFloat(spdMatch[1]);
+      }
+
+      const maxOverall = hailEvents.length > 0 ? Math.max(...hailEvents.map((e: any) => Number(e.magnitude) || 0)) : null;
+
+      // Build observations table (ground reports within 10mi)
+      const observations = allHailAndWind
+        .sort((a: any, b: any) => (a.distanceMiles || 0) - (b.distanceMiles || 0))
+        .slice(0, 10)
+        .map((e: any) => {
+          const dist = e.distanceMiles || 0;
+          const compassDir = getCompassDirection(searchLat!, searchLng!, e.latitude, e.longitude);
+          return {
+            dateTime: e.time ? `${date} ${e.time}` : date,
+            source: e.source || (e.id?.startsWith('noaa-') ? 'NOAA' : 'SPC'),
+            hailSize: e.eventType === 'hail' && e.magnitude ? `${e.magnitude}"` : null,
+            windSpeed: e.eventType === 'wind' && e.magnitude ? `${e.magnitude} kts` : null,
+            distance: dist < 0.5 ? 'At location' : `${dist.toFixed(1)} miles ${compassDir}`,
+            narrative: e.narrative || ''
+          };
+        });
+
+      const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+        timeZone: 'America/New_York'
+      });
+
+      stormDates.push({
+        date,
+        displayDate,
+        impactTime: closest?.time || null,
+        direction,
+        speed,
+        duration: null,
+        radarDetected: mrms !== null,
+        atLocation: bandValues.atLocation ? `${bandValues.atLocation}"` : null,
+        within1mi: bandValues.within1mi ? `${bandValues.within1mi}"` : null,
+        within3mi: bandValues.within3mi ? `${bandValues.within3mi}"` : null,
+        within10mi: bandValues.within10mi ? `${bandValues.within10mi}"` : null,
+        directHit: bandValues.atLocation !== null,
+        reportCount: allHailAndWind.length,
+        maxHailSize: maxOverall,
+        noaaConfirmed: events.some((e: any) => e.noaaReconciled || e.id?.startsWith('noaa-')),
+        observations
+      });
+    }
+
+    // Sort storm dates newest first
+    stormDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Generate IHM-style narrative for the most recent direct hit
+    const latestHit = stormDates.find(s => s.directHit);
+    let narrative: string | null = null;
+    if (latestHit) {
+      const addr = resolvedAddress || `${searchLat}, ${searchLng}`;
+      const size = latestHit.atLocation || latestHit.within1mi || latestHit.within3mi || '';
+      const dir = latestHit.direction ? ` moving ${latestHit.direction}` : '';
+      const spd = latestHit.speed ? ` at ${latestHit.speed} miles per hour` : '';
+      const time = latestHit.impactTime ? ` at approximately ${latestHit.impactTime}` : '';
+      narrative = `On ${latestHit.displayDate}${time}, the property located at ${addr} was impacted by a storm${dir}${spd}. Hail as large as ${size} was detected near the property. ${latestHit.reportCount} ground observation(s) were recorded within 10 miles.${latestHit.noaaConfirmed ? ' This event has been confirmed by the NOAA Storm Events Database — the official federal record.' : ''}`;
+    }
+
+    // Summary stats
+    const directHitCount = stormDates.filter(s => s.directHit).length;
+    const totalDates = stormDates.length;
+    const maxHailOverall = stormDates.reduce((max, s) => Math.max(max, s.maxHailSize || 0), 0);
+    const noaaCount = stormDates.filter(s => s.noaaConfirmed).length;
+
+    let summary = '';
+    if (totalDates === 0) {
+      summary = `No documented storm activity within 10 miles in the last ${yearsBack} years.`;
+    } else {
+      summary = `${totalDates} storm date${totalDates > 1 ? 's' : ''} within 10 miles in the last ${yearsBack} years.`;
+      if (directHitCount > 0) summary += ` ${directHitCount} direct hit${directHitCount > 1 ? 's' : ''} at the property (largest: ${maxHailOverall}").`;
+      if (noaaCount > 0) summary += ` ${noaaCount} confirmed by NOAA federal records.`;
+    }
+
+    return res.json({
+      address: resolvedAddress || `${searchLat}, ${searchLng}`,
+      latitude: searchLat,
+      longitude: searchLng,
+      yearsSearched: yearsBack,
+      summary,
+      narrative,
+      directHits: directHitCount,
+      totalStormDates: totalDates,
+      largestHail: maxHailOverall > 0 ? maxHailOverall : null,
+      noaaConfirmed: noaaCount,
+      stormDates
+    });
+  } catch (error) {
+    console.error('❌ Address history error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/** Compass direction from point A to point B */
+function getCompassDirection(lat1: number, lng1: number, lat2: number, lng2: number): string {
+  const dLat = lat2 - lat1;
+  const dLng = lng2 - lng1;
+  const angle = Math.atan2(dLng, dLat) * (180 / Math.PI);
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const idx = Math.round(((angle + 360) % 360) / 22.5) % 16;
+  return dirs[idx];
+}
 
 // POST /api/hail/search-advanced - Advanced search with multiple criteria
 router.post('/search-advanced', async (req: Request, res: Response) => {

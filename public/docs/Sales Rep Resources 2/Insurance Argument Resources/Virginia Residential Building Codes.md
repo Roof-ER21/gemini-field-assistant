@@ -80,7 +80,7 @@ Virginia adopts the International Residential Code (IRC) through the Virginia Un
 
 ## Key Virginia-Specific Notes
 
-1. Virginia uses the **2021 USBC** (based on 2021 IRC/IBC) as of July 1, 2021.
+1. Virginia uses the **2021 USBC** (based on 2021 IRC for residential) as of July 1, 2021.
 2. Local jurisdictions may NOT weaken code requirements but **may adopt more restrictive provisions**.
 3. All roofing work requiring a permit must be performed by a **licensed contractor** (Class A, B, or C based on project value).
 4. **Permits are required** for roof replacement (not for repairs of less than 100 sq ft or emergency repairs).

@@ -4090,6 +4090,10 @@ ensureUserSalesRepMappingTable();
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_event_id ON storm_alerts(spc_event_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_date ON storm_alerts(event_date)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_storm_alerts_state ON storm_alerts(state)`);
+        // Phase 3 reconciliation columns (added Apr 2026)
+        await pool.query(`ALTER TABLE storm_alerts ADD COLUMN IF NOT EXISTS noaa_magnitude NUMERIC`);
+        await pool.query(`ALTER TABLE storm_alerts ADD COLUMN IF NOT EXISTS noaa_event_id TEXT`);
+        await pool.query(`ALTER TABLE storm_alerts ADD COLUMN IF NOT EXISTS noaa_narrative TEXT`);
         console.log('✅ Storm alerts table ready');
     }
     catch (e) {

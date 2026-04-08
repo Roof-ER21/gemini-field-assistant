@@ -803,3 +803,148 @@ export async function getHistoricalMrmsOverlay(
 
   return result;
 }
+
+// ─── MRMS Point Query (radar-derived hail at specific lat/lng) ──────────────
+
+/** Separate cache for composite grids used in point queries (keyed by date only). */
+const compositeGridCache = new Map<string, { expiresAt: number; composite: CompositeDecodedMrmsGrib }>();
+
+export interface MrmsPointResult {
+  /** Max radar-detected hail (inches) within ~0.5mi of property — the "At Location" value. */
+  atLocation: number | null;
+  /** Max within ~1mi */
+  within1mi: number | null;
+  /** Max within ~3mi */
+  within3mi: number | null;
+  /** Max within ~10mi */
+  within10mi: number | null;
+}
+
+/**
+ * Query MRMS radar grid for hail sizes at distance bands from a property.
+ *
+ * This is the radar equivalent of IHM's "At Location / Within 1mi / 3mi / 10mi"
+ * columns. Instead of relying on ground spotter reports, it reads the actual
+ * NEXRAD-derived MESH (Maximum Estimated Size of Hail) grid values.
+ *
+ * Returns null if MRMS archive is unavailable for the given date (common for
+ * dates >1-2 years old or days without significant weather).
+ */
+export async function getMrmsHailAtPoint(
+  date: string,
+  lat: number,
+  lng: number
+): Promise<MrmsPointResult | null> {
+  try {
+    assertValidDate(date);
+
+    const cKey = `mrms-pt-${date}`;
+    let composite: CompositeDecodedMrmsGrib;
+    const cached = compositeGridCache.get(cKey);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      composite = cached.composite;
+    } else {
+      const files = await listArchiveFiles(date);
+      const selectedFiles = chooseArchiveFiles(files);
+
+      const downloadResults = await Promise.allSettled(
+        selectedFiles.map((file) =>
+          downloadArchiveFile(file).then((compressed) => ({
+            file,
+            raw: zlib.gunzipSync(compressed),
+          }))
+        )
+      );
+
+      const decodedGrids: DecodedMrmsGrib[] = [];
+      const decodedFileNames: string[] = [];
+
+      for (const outcome of downloadResults) {
+        if (outcome.status === 'fulfilled') {
+          try {
+            decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
+            decodedFileNames.push(outcome.value.file.name);
+          } catch (err) {
+            console.warn(`[MRMS Point] Decode error: ${err}`);
+          }
+        }
+      }
+
+      if (decodedGrids.length === 0) return null;
+
+      composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+      compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
+
+      // Prune old entries
+      if (compositeGridCache.size > 30) {
+        const now = Date.now();
+        for (const [k, v] of compositeGridCache.entries()) {
+          if (v.expiresAt <= now) compositeGridCache.delete(k);
+        }
+      }
+    }
+
+    // Convert lat/lng to grid row/col
+    const latStep = (composite.north - composite.south) / (composite.height - 1);
+    const lonStep = (composite.east - composite.west) / (composite.width - 1);
+
+    const centerRow = Math.round((composite.north - lat) / latStep);
+    const centerCol = Math.round((lng - composite.west) / lonStep);
+
+    if (centerRow < 0 || centerRow >= composite.height ||
+        centerCol < 0 || centerCol >= composite.width) {
+      return null; // Point outside MRMS CONUS grid
+    }
+
+    // Distance bands in grid cells.
+    // MRMS grid ≈ 0.01° ≈ 1.1km ≈ 0.68mi per cell.
+    // radius 1 cell  → ~0.68mi  (covers "At Location" <0.5mi with margin)
+    // radius 2 cells → ~1.36mi  (covers "Within 1mi")
+    // radius 5 cells → ~3.4mi   (covers "Within 3mi")
+    // radius 16 cells → ~10.9mi (covers "Within 10mi")
+    const bands: Array<{ key: keyof MrmsPointResult; radius: number }> = [
+      { key: 'atLocation', radius: 1 },
+      { key: 'within1mi', radius: 2 },
+      { key: 'within3mi', radius: 5 },
+      { key: 'within10mi', radius: 16 },
+    ];
+
+    const result: MrmsPointResult = {
+      atLocation: null,
+      within1mi: null,
+      within3mi: null,
+      within10mi: null,
+    };
+
+    for (const band of bands) {
+      let maxMm = 0;
+      const r = band.radius;
+
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          if (dr * dr + dc * dc > r * r) continue; // Circle, not square
+          const row = centerRow + dr;
+          const col = centerCol + dc;
+          if (row < 0 || row >= composite.height || col < 0 || col >= composite.width) continue;
+          const mm = composite.mmGrid[row * composite.width + col];
+          if (mm > maxMm) maxMm = mm;
+        }
+      }
+
+      const inches = maxMm / 25.4;
+      // Floor at 0.50" — sub-half-inch hail is not actionable for insurance claims.
+      // Round to nearest 0.25" to match industry standard sizes (0.50, 0.75, 1.00, etc.)
+      if (inches < 0.50) {
+        result[band.key] = null;
+      } else {
+        result[band.key] = Math.round(inches * 4) / 4; // nearest 0.25"
+      }
+    }
+
+    return result;
+  } catch (e) {
+    // MRMS archive doesn't exist for this date — normal for older dates or quiet days
+    return null;
+  }
+}
