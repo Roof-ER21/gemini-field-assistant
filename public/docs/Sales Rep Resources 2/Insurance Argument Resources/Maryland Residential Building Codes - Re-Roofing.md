@@ -26,9 +26,37 @@ This is the single most important code section for Maryland roofing claims. Unli
 2. **Tear-off is code-required, not an upgrade** — The cost of removing existing roofing materials is a code compliance cost, not an optional upgrade. The insurance company cannot deny tear-off costs when the work constitutes a roof replacement.
 3. **Ice barrier exception is narrow** — The only existing material permitted to remain is an ice barrier membrane adhered to the deck. All shingles, underlayment, and other coverings must be removed.
 
-## Maryland Does NOT Allow Roof Recover / Overlay for Replacements
+## IRC R908 — Exact Code Language (IRC 2021 as adopted by Maryland MBPS)
 
-Unlike Virginia (which permits up to 2 layers), **Maryland R908.3 is absolute**: roof replacement means tear-off to the deck. Period.
+Maryland adopts IRC 2021 R908 **without amendments** — the text below is the law.
+
+### R908.3 Roof Replacement
+**"Roof replacement shall include the removal of existing layers of roof coverings down to the roof deck."**
+
+**Exception:** Existing ice barrier membrane adhered to deck may remain if covered with new layer per R905.
+
+### R908.3.1 Roof Recover — Permitted ONLY When:
+1. Installed per manufacturer's approved instructions
+2. Standing-seam metal systems transmitting loads directly to structure
+3. Metal panel/shingle or tile over existing wood shake per R908.4
+4. New protective coating over existing coating/metal/BUR/modified bitumen/single-ply/SPF
+
+### R908.3.1.1 Roof Recover NOT Allowed — SHALL NOT be permitted when:
+1. Existing roof is **water soaked or deteriorated** to the point it is not adequate as a base
+2. Existing covering is **slate, clay, cement, or asbestos-cement tile**
+3. Existing roof has **two or more applications** of any type of roof covering
+
+### R908.5 Reinstallation of Materials
+Existing flashings, edgings, outlets, vents shall be **replaced** where rusted, damaged, or deteriorated.
+
+### R908.6 Flashings
+Flashings shall be reconstructed per manufacturer's installation instructions. Metal flashing receiving bituminous materials shall be primed before installation.
+
+---
+
+## Why R908.3 Is Your Best Weapon in Maryland
+
+R908.3 is absolute: **roof replacement means tear-off to the deck. Period.**
 
 If an adjuster or insurance company tries to authorize a "recover" or "overlay" instead of a full tear-off, the response is simple:
 
@@ -38,8 +66,9 @@ The ONLY exception is an existing ice barrier membrane adhered to the deck may r
 
 **When an adjuster argues for repair instead of replacement:**
 - If storm damage affects multiple slopes or a significant portion of the roof, the scope of work becomes a replacement, which triggers R908.3 full tear-off
-- If the existing roof has any layers beyond the original, tear-off is mandatory
+- If the existing roof has any layers beyond the original, R908.3.1.1 prohibits a recover — tear-off is mandatory
 - If deck damage is suspected, tear-off is required to expose and inspect/repair the deck
+- If existing roof is water soaked or deteriorated, R908.3.1.1 prohibits a recover
 - All new roofing must meet current code — ice barrier, drip edge, flashings — even if the original installation didn't have them
 
 ## Ice & Water Shield (R905.1.2 / R905.2.7.1)
@@ -128,13 +157,14 @@ When applied over wood-based sheathing, the WRB must include a **water-resistive
 
 ---
 
-## Key Difference: Maryland vs. Virginia
+## MD vs. VA vs. PA — R908 Is Identical
 
-| Topic | Maryland | Virginia |
-|-------|----------|---------|
-| Roof Replacement | R908.3: **Full tear-off to deck required** | R908.3: Allows 1 overlay layer (max 2 total) |
-| Recover (overlay) | Only permitted under R908.3.1 conditions | Permitted with 1 existing layer |
-| Max layers | R908.3 effectively = 1 layer (tear-off for replacement) | 2 layers total |
-| Ice barrier | Required (same as IRC) | Required (same as IRC) |
-| Contractor license | MHIC required | DPOR Class A/B/C required |
-| Code edition | IRC 2021 with MD amendments | IRC 2021 via USBC |
+R908 (Reroofing) is adopted **without amendment** by all three states. The code text is identical. The differences are in how each state enforces it and what additional requirements apply.
+
+| Topic | Maryland | Virginia | Pennsylvania |
+|-------|----------|---------|--------------|
+| R908 text | IRC 2021 — no amendments | IRC 2021 — no amendments | IRC 2018 — no amendments |
+| Enforcement | Strong — MBPS | Moderate — USBC | Strong — UCC + local L&I |
+| Matching argument | **YES — R908.3 + uniform appearance** | Context-dependent (check policy) | **NO — use permit denial strategy** |
+| Contractor license | MHIC required | DPOR Class A/B/C required | HIC required |
+| Best leverage | R908.3 tear-off requirement | Manufacturer specs + repairability | L&I permit denial |

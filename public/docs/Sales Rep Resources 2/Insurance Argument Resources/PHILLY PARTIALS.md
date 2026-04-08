@@ -90,10 +90,39 @@ Note: Philadelphia permit timelines vary significantly. Expedited review is avai
 
 ---
 
-## Common L&I Code Citations Used in Philly Partials
+## IRC R908 — Reroofing Code (Philadelphia IRC 2018)
+
+These are the EXACT code sections to cite. Philadelphia adopts IRC 2018 as locally amended.
+
+### R908.3 Roof Replacement
+"Roof replacement shall include the removal of existing layers of roof coverings down to the roof deck."
+
+**Exception:** Existing ice barrier membrane adhered to the deck may remain in place if covered with a new layer per Section R905.
+
+### R908.3.1 Roof Recover
+A recover (overlay) IS permitted ONLY when:
+1. Installed per the manufacturer's approved instructions
+2. Standing-seam metal systems that transmit loads directly to structure
+3. Metal panel/shingle or tile over existing wood shake per R908.4
+4. New protective coating over existing coating/metal/BUR/modified bitumen/single-ply/SPF
+
+### R908.3.1.1 Roof Recover NOT Allowed
+A recover SHALL NOT be permitted where:
+1. **Existing roof is water soaked or deteriorated** — not adequate as a base for additional roofing
+2. **Existing covering is slate, clay, cement, or asbestos-cement tile**
+3. **Two or more existing layers** of any type of roof covering
+
+### R908.5 Reinstallation of Materials
+Existing flashings, edgings, outlets, vents shall be **replaced** where rusted, damaged, or deteriorated.
+
+### R908.6 Flashings
+Flashings shall be reconstructed per manufacturer's installation instructions. Metal flashing receiving bituminous materials shall be primed before installation.
+
+---
+
+## Additional Philadelphia-Specific Code Citations
 
 - Philadelphia IRC Section R905.2 — Asphalt shingles: requires compliant deck, underlayment, and fastening.
-- Philadelphia BC Section 1509 — Roof replacement must meet current code when more than 25% of the roof is replaced.
 - Philadelphia PM Code Section PM-506 — Roofing systems must be structurally sound and watertight; damaged deck triggers full compliance review.
 - Ice and water shield requirement: Philadelphia requires ice and water shield at eaves for the full roof assembly when re-roofing, not just the repaired section.
 

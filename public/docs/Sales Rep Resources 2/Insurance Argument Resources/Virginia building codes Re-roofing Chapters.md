@@ -80,15 +80,38 @@ A complete tear-off (removal of all existing roof coverings down to the deck) is
 - Operating without a license: Class 1 misdemeanor, fines up to $2,500 per offense.
 - Homeowners should verify contractor license at: https://www.dpor.virginia.gov
 
+### IRC R908 — Exact Code Language (IRC 2021 as adopted by Virginia USBC)
+
+**R908.3 Roof Replacement:**
+"Roof replacement shall include the removal of existing layers of roof coverings down to the roof deck."
+Exception: Existing ice barrier membrane adhered to deck may remain if covered with new layer per R905.
+
+**R908.3.1 Roof Recover — Permitted When:**
+1. Installed per manufacturer's approved instructions
+2. Standing-seam metal systems transmitting loads directly to structure
+3. Metal panel/shingle or tile over existing wood shake per R908.4
+4. New protective coating over existing coating/metal/BUR/modified bitumen/single-ply/SPF
+
+**R908.3.1.1 Roof Recover NOT Allowed — SHALL NOT be permitted when:**
+1. Existing roof is **water soaked or deteriorated** to the point it is not adequate as a base
+2. Existing covering is **slate, clay, cement, or asbestos-cement tile**
+3. Existing roof has **two or more applications** of any type of roof covering
+
+**R908.5 Reinstallation of Materials:**
+Existing flashings, edgings, outlets, vents shall be **replaced** where rusted, damaged, or deteriorated. Aggregate surfacing shall not be reinstalled.
+
+**R908.6 Flashings:**
+Flashings shall be reconstructed per manufacturer's installation instructions. Metal flashing receiving bituminous materials shall be primed before installation.
+
 ### Key Code Sections for Quick Reference
 
 | Section | Topic | Key Requirement |
 |---------|-------|----------------|
-| R908.1 | General | New roofing must meet current code |
-| R908.3 | Re-covering | Max 2 layers asphalt shingles; tear-off if wood/slate/tile |
-| R908.3.1 | Tear-off required | 2+ layers, wood shakes, deck damage, different material |
+| R908.3 | Roof Replacement | Tear-off to deck required for all roof replacements |
+| R908.3.1 | Roof Recover | Overlay only if manufacturer allows and conditions met |
+| R908.3.1.1 | Recover NOT Allowed | Water soaked, slate/tile, or 2+ layers = mandatory tear-off |
 | R908.5 | Flashings | Replace all deteriorated flashings; new flashings on tear-off |
-| R908.6 | Underlayment | Full new underlayment on tear-off; ice barrier per current code |
+| R908.6 | Flashing Install | Per manufacturer instructions; prime metal before bitumen |
 | R905.1.2 | Ice barrier | Required at eaves (24" past wall), valleys, roof-to-wall |
 | R905.2.8.5 | Drip edge | Required at eaves and rakes on all asphalt shingle roofs |
 | R903.2.2 | Cricket/saddle | Required for chimneys >30" wide |
