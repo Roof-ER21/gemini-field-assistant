@@ -1,0 +1,31 @@
+🔴 Susan 21 — Big Update Just Dropped
+
+Hey team, we just pushed a major update to the app. Here's what changed:
+
+✅ CLEANER LOOK
+The app got reorganized. 3 sections in the sidebar now: Main, Team, Field/Storm. Less clutter, faster to find what you need.
+
+✅ SUSAN DOES MORE
+Open Susan, tap the "..." button at the bottom — Generate Email, Upload & Analyze, and Select State are all right there. Full templates, compliance checking, building codes — everything the old pages had, now inside the chat.
+
+✅ KNOWLEDGE BASE + TEAM INTEL
+Knowledge Base now has a Team Intel tab. When you learn something in the field — an adjuster tactic, an insurer trick, a tip that worked — post it there. Hit thumbs up on tips that help you. Your votes literally train Susan to be smarter for everyone.
+
+✅ STORM MAPS
+Front and center on your home screen now. One tap.
+
+✅ PROFILE PAGE
+Your profile, notifications, and QR code (coming soon) — all in one place. Tap your avatar in the top-right corner.
+
+⚠️ IMPORTANT: If you saved the app to your phone, you need to:
+1. Delete the old icon
+2. Go to sa21.up.railway.app in Safari
+3. Tap Share → Add to Home Screen
+4. Log out, refresh, and log back in
+
+Full interactive guide here:
+sa21.up.railway.app/susan21-update.html
+
+Questions? Message me in Team Chat or ask Susan — she knows how the app works too.
+
+— Ahmed
