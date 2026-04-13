@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Susan 21 — New Update</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0a0a;
+    color: #e5e5e5;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(220,38,38,0.15) 0%, transparent 50%);
+    animation: pulse-bg 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-bg {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(220,38,38,0.15);
+    border: 1px solid rgba(220,38,38,0.3);
+    border-radius: 50px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s ease-out;
+  }
+
+  .hero-badge .dot {
+    width: 8px; height: 8px;
+    background: #dc2626;
+    border-radius: 50%;
+    animation: blink 1.5s infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .hero h1 {
+    font-size: clamp(3rem, 12vw, 6rem);
+    font-weight: 900;
+    line-height: 0.9;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s ease-out 0.1s both;
+  }
+
+  .hero h1 .red { color: #dc2626; }
+  .hero h1 .white { color: #ffffff; }
+
+  .hero .sub {
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    color: #737373;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    margin-top: 1rem;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s ease-out 0.2s both;
+  }
+
+  .hero .scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #525252;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    animation: bounce 2s infinite;
+    z-index: 1;
+  }
+
+  .scroll-hint .arrow {
+    width: 24px;
+    height: 24px;
+    border-right: 2px solid #525252;
+    border-bottom: 2px solid #525252;
+    transform: rotate(45deg);
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(10px); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== ALERT BANNER ===== */
+  .alert-section {
+    padding: 2rem 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .alert-card {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
+    border: 1px solid #dc2626;
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .alert-card .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .alert-card h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fca5a5;
+    margin-bottom: 0.75rem;
+  }
+
+  .alert-card p {
+    color: #fecaca;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .steps {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .step:hover { background: rgba(0,0,0,0.5); }
+
+  .step.done { opacity: 0.5; }
+  .step.done .step-text { text-decoration: line-through; }
+
+  .step-check {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .step.done .step-check {
+    background: #dc2626;
+    border-color: #dc2626;
+  }
+
+  .step-num {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fca5a5;
+  }
+
+  .step-text {
+    font-size: 0.95rem;
+    color: #fecaca;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  /* ===== FEATURES ===== */
+  .section {
+    padding: 4rem 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: #dc2626;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  .section h2 {
+    font-size: clamp(1.75rem, 6vw, 2.5rem);
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+  }
+
+  .section p.desc {
+    font-size: 1.05rem;
+    color: #737373;
+    line-height: 1.7;
+    margin-bottom: 2rem;
+  }
+
+  /* Feature cards */
+  .feature-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .feature-card {
+    background: #171717;
+    border: 1px solid #262626;
+    border-radius: 16px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    overflow: hidden;
+  }
+
+  .feature-card:hover {
+    border-color: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(220,38,38,0.15);
+  }
+
+  .feature-card .top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 0;
+    transition: margin 0.3s;
+  }
+
+  .feature-card.open .top { margin-bottom: 1rem; }
+
+  .feature-card .emoji {
+    font-size: 2rem;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220,38,38,0.1);
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .feature-card .title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .feature-card .subtitle {
+    font-size: 0.85rem;
+    color: #737373;
+    margin-top: 2px;
+  }
+
+  .feature-card .expand-icon {
+    margin-left: auto;
+    color: #525252;
+    transition: transform 0.3s;
+    font-size: 1.2rem;
+  }
+
+  .feature-card.open .expand-icon { transform: rotate(45deg); color: #dc2626; }
+
+  .feature-card .details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    color: #a3a3a3;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .feature-card.open .details {
+    max-height: 500px;
+  }
+
+  .feature-card .details ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .feature-card .details li {
+    padding: 6px 0;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .feature-card .details li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #262626, transparent);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* ===== NAV PREVIEW ===== */
+  .nav-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .nav-group {
+    background: #171717;
+    border: 1px solid #262626;
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
+
+  .nav-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #525252;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  .nav-items {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #262626;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e5e5e5;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    text-align: center;
+    padding: 4rem 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .footer h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 1rem;
+  }
+
+  .footer p {
+    color: #525252;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .footer .cta {
+    display: inline-block;
+    margin-top: 2rem;
+    padding: 16px 40px;
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-radius: 14px;
+    text-decoration: none;
+    box-shadow: 0 8px 30px rgba(220,38,38,0.4);
+    transition: all 0.3s;
+  }
+
+  .footer .cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(220,38,38,0.5);
+  }
+
+  /* ===== ANIMATIONS ===== */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    NEW UPDATE
+  </div>
+  <h1>
+    <span class="white">Susan</span><br>
+    <span class="red">21</span>
+  </h1>
+  <div class="sub">YOUR APP JUST GOT BETTER</div>
+  <div class="scroll-hint">
+    SCROLL
+    <div class="arrow"></div>
+  </div>
+</section>
+
+<!-- REINSTALL ALERT -->
+<section class="alert-section reveal">
+  <div class="alert-card">
+    <div class="icon">&#9888;&#65039;</div>
+    <h2>Do This First</h2>
+    <p>If you saved the app to your phone or iPad, you need to reinstall it. Takes 30 seconds. Tap each step when done.</p>
+    <div class="steps">
+      <div class="step" onclick="this.classList.toggle('done')">
+        <div class="step-check"><span class="step-num">1</span></div>
+        <div class="step-text">Delete the old app icon from your phone</div>
+      </div>
+      <div class="step" onclick="this.classList.toggle('done')">
+        <div class="step-check"><span class="step-num">2</span></div>
+        <div class="step-text">Open Safari and go to <strong>sa21.up.railway.app</strong></div>
+      </div>
+      <div class="step" onclick="this.classList.toggle('done')">
+        <div class="step-check"><span class="step-num">3</span></div>
+        <div class="step-text">Tap Share &#8594; Add to Home Screen</div>
+      </div>
+      <div class="step" onclick="this.classList.toggle('done')">
+        <div class="step-check"><span class="step-num">4</span></div>
+        <div class="step-text">Log out, refresh, and log back in</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SUSAN -->
+<section class="section reveal">
+  <div class="section-label">The Main Event</div>
+  <h2>Susan does<br>everything now.</h2>
+  <p class="desc">No more hunting through menus. Open Susan, tap the <strong>"..."</strong> button, and you've got the full toolkit right there.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card" onclick="this.classList.toggle('open')">
+      <div class="top">
+        <div class="emoji">&#9993;&#65039;</div>
+        <div>
+          <div class="title">Generate Email</div>
+          <div class="subtitle">Templates, compliance, building codes</div>
+        </div>
+        <div class="expand-icon">+</div>
+      </div>
+      <div class="details">
+        <ul>
+          <li>17+ email templates — follow-ups, supplements, adjuster meetings</li>
+          <li>State-specific building codes auto-injected (VA, MD, PA)</li>
+          <li>Compliance checker catches bad language before you send</li>
+          <li>Tone selection — professional for adjusters, friendly for homeowners</li>
+          <li>Save and reuse your best emails</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-card" onclick="this.classList.toggle('open')">
+      <div class="top">
+        <div class="emoji">&#128200;</div>
+        <div>
+          <div class="title">Upload & Analyze</div>
+          <div class="subtitle">Supplements, approvals, photos</div>
+        </div>
+        <div class="expand-icon">+</div>
+      </div>
+      <div class="details">
+        <ul>
+          <li>Drop in supplements, approvals, denials, or roof photos</li>
+          <li>AI reads the document and pulls claim #, adjuster info, coverage amounts</li>
+          <li>Damage assessment from photos with recommendations</li>
+          <li>Supports up to 20 files at once, PDFs up to 12 pages</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-card" onclick="this.classList.toggle('open')">
+      <div class="top">
+        <div class="emoji">&#127785;&#65039;</div>
+        <div>
+          <div class="title">Storm Maps</div>
+          <div class="subtitle">Hail history and radar</div>
+        </div>
+        <div class="expand-icon">+</div>
+      </div>
+      <div class="details">
+        <ul>
+          <li>NOAA, NWS, and SPC real-time data — no paid services</li>
+          <li>MRMS radar swaths showing exactly where hail fell</li>
+          <li>Territory-wide alerts when storms hit VA/MD/PA</li>
+          <li>Ask Susan: <em>"hail history for 123 Main St, Vienna VA"</em></li>
+          <li>Know about the storm before the homeowner does</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-card" onclick="this.classList.toggle('open')">
+      <div class="top">
+        <div class="emoji">&#129504;</div>
+        <div>
+          <div class="title">Just Ask Susan</div>
+          <div class="subtitle">She knows your codes, your state, your data</div>
+        </div>
+        <div class="expand-icon">+</div>
+      </div>
+      <div class="details">
+        <ul>
+          <li><em>"Draft an email about the partial approval"</em></li>
+          <li><em>"What's the Maryland matching requirement?"</em></li>
+          <li><em>"What do I say when the adjuster lowballs the estimate?"</em></li>
+          <li>Susan searches your knowledge base before answering — real docs, not guesses</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- KNOWLEDGE + INTEL -->
+<section class="section reveal">
+  <div class="section-label">Help The Team</div>
+  <h2>Share what works.<br>Vote on what helps.</h2>
+  <p class="desc">Knowledge Base now has a <strong>Team Intel</strong> tab. When you learn something in the field — an adjuster tactic, an insurer trick, a tip that worked — post it. When someone else posts something useful, <strong>hit the thumbs up</strong>.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card" onclick="this.classList.toggle('open')">
+      <div class="top">
+        <div class="emoji">&#128077;</div>
+        <div>
+          <div class="title">Your Votes Matter</div>
+          <div class="subtitle">They literally train the AI</div>
+        </div>
+        <div class="expand-icon">+</div>
+      </div>
+      <div class="details">
+        <ul>
+          <li>Every upvote tells Susan which strategies actually work</li>
+          <li>Top-voted intel becomes part of Susan's knowledge</li>
+          <li>The more you vote, the smarter Susan gets for everyone</li>
+          <li>Post wins, not just problems — what closed the deal?</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- QR PROFILE — COMING SOON -->
+<section class="section reveal">
+  <div class="section-label">Coming Soon</div>
+  <h2>Your own QR profile.<br>Almost ready.</h2>
+  <p class="desc">We're building personal QR profile pages for every rep. A homeowner scans your code, sees your name, photo, and credentials. Professional first impression every time. You'll be the first to know when it's live.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card" style="cursor: default; opacity: 0.8;">
+      <div class="top">
+        <div class="emoji" style="background: rgba(115,115,115,0.15);">&#128242;</div>
+        <div>
+          <div class="title">QR Profile Pages</div>
+          <div class="subtitle" style="color: #f59e0b;">In development — launching soon</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- NEW NAV -->
+<section class="section reveal">
+  <div class="section-label">Cleaner Navigation</div>
+  <h2>Three sections.<br>That's it.</h2>
+
+  <div class="nav-preview">
+    <div class="nav-group">
+      <div class="nav-group-title">Main</div>
+      <div class="nav-items">
+        <div class="nav-item">&#127968; Home</div>
+        <div class="nav-item">&#129302; Susan 21</div>
+        <div class="nav-item">&#127760; Pocket Linguist</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Team</div>
+      <div class="nav-items">
+        <div class="nav-item">&#128101; Team Chat</div>
+        <div class="nav-item">&#129302; Agnes 21</div>
+        <div class="nav-item">&#128218; Knowledge Base</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Field / Storm</div>
+      <div class="nav-items">
+        <div class="nav-item">&#9925; Storm Maps</div>
+        <div class="nav-item">&#9888;&#65039; Impacted Assets</div>
+        <div class="nav-item">&#128100; Profile</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<section class="footer reveal">
+  <h2>Go try it.</h2>
+  <p>Delete the old icon. Reinstall. Log back in.<br>Susan's waiting.</p>
+  <a href="https://sa21.up.railway.app" class="cta">Open Susan 21</a>
+  <p style="margin-top: 2rem; color: #404040; font-size: 0.8rem;">Questions? Message Ahmed in Team Chat.</p>
+</section>
+
+<script>
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

@@ -429,7 +429,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               textTransform: 'uppercase'
             }}
           >
-            Mobile Command Center
+            Susan 21
           </p>
         </div>
 

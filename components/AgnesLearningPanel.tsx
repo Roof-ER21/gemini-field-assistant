@@ -6,6 +6,7 @@ import { getScriptsByDivision, getScriptById, PhoneScript } from '../agnes21/uti
 import { AgnesAuthProvider, useAuth } from '../agnes21/contexts/AuthContext';
 import { getSessions, getSessionStats, SessionData } from '../agnes21/utils/sessionStorage';
 import { roofService } from '../services/roofService';
+import { useDivision } from '../contexts/DivisionContext';
 
 // Interface for admin-created scripts
 interface AdminScript {
@@ -19,7 +20,8 @@ interface AdminScript {
 
 const AgnesLearningContent: React.FC = () => {
   const { user } = useAuth();
-  const builtInScripts = useMemo(() => getScriptsByDivision('insurance'), []);
+  const { division } = useDivision();
+  const builtInScripts = useMemo(() => getScriptsByDivision(division), [division]);
 
   // Load admin-created scripts from localStorage
   const adminScripts = useMemo(() => {

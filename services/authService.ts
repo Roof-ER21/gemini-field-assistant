@@ -9,6 +9,8 @@ import { emailNotificationService } from './emailNotificationService';
 import { activityService } from './activityService';
 import { API_BASE_URL } from './config';
 
+export type Division = 'insurance' | 'retail';
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -16,6 +18,7 @@ export interface AuthUser {
   phone?: string | null;
   role: 'sales_rep' | 'manager' | 'admin';
   state: 'VA' | 'MD' | 'PA' | null;
+  division?: Division | null;
   created_at: Date;
   last_login_at: Date;
 }

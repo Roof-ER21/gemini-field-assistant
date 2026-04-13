@@ -250,6 +250,15 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       });
     }
 
+    // Resolve user division (default to insurance for existing users)
+    let userDivision = 'insurance';
+    try {
+      const divResult = await pool.query('SELECT division FROM users WHERE id = $1', [userId]);
+      if (divResult.rows.length > 0 && divResult.rows[0].division) {
+        userDivision = divResult.rows[0].division;
+      }
+    } catch { /* division column may not exist yet */ }
+
     // ---- 2. Parse + validate body ----
     const body = req.body as AgentChatRequestBody;
 
@@ -308,8 +317,8 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       enrichedSystemPrompt += `\n\n[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${dLines.join('\n')}`;
     }
 
-    // Inject recent storm alerts into Susan's context
-    try {
+    // Inject recent storm alerts into Susan's context (insurance only — retail doesn't use storm data)
+    if (userDivision === 'insurance') try {
       const recentAlerts = await pool.query(
         `SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative,
                 noaa_reconciled, noaa_magnitude, noaa_narrative

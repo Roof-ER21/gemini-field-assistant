@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
+import { useDivision } from '../contexts/DivisionContext';
 import { Search, FileText, Presentation, FileSpreadsheet, File, BookOpen, Star, Clock, Filter, Pin, Shield } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 import InsuranceDirectory from './InsuranceDirectory';
@@ -17,6 +18,7 @@ interface KnowledgePanelProps {
 
 const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: externalDocPath, onDocumentViewed, onOpenInChat }) => {
   const toast = useToast();
+  const { division } = useDivision();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,7 +52,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
 
   const loadDocumentIndex = async () => {
     try {
-      const docs = await knowledgeService.getDocumentIndex();
+      const docs = await knowledgeService.getDocumentsByDivision(division);
       setDocuments(docs);
     } catch (error) {
       console.error('Failed to load documents:', error);
@@ -81,7 +83,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
     try {
       switch (viewMode) {
         case 'all':
-          let allDocs = await knowledgeService.getDocumentIndex();
+          let allDocs = await knowledgeService.getDocumentsByDivision(division);
           // Apply category filter
           if (selectedCategory !== 'All') {
             allDocs = allDocs.filter(d => d.category === selectedCategory);
@@ -149,7 +151,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
 
       // If not found, load from index
       if (!doc) {
-        const allDocs = await knowledgeService.getDocumentIndex();
+        const allDocs = await knowledgeService.getDocumentsByDivision(division);
         doc = allDocs.find(d => d.path === path);
       }
 

@@ -16,9 +16,11 @@ interface UserProfileProps {
   onClose: () => void;
   onLogout: () => void;
   defaultTab?: 'profile' | 'notifications' | 'preferences';
+  /** When true, renders as inline page content without the modal overlay/wrapper */
+  inline?: boolean;
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab, inline }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'preferences'>(defaultTab || 'profile');
 
   const tabs: { id: 'profile' | 'notifications' | 'preferences'; label: string }[] = [
@@ -223,107 +225,33 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
     transition: 'all 0.2s'
   };
 
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.85)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: '20px',
-        paddingTop: '60px',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch'
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '380px',
-          background: 'var(--bg-primary)',
-          borderRadius: '16px',
-          border: '1px solid var(--border-subtle)',
-          overflow: 'hidden',
-          marginBottom: '40px'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: '20px',
-            borderBottom: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <User style={{ width: '24px', height: '24px', color: '#ffffff' }} />
-            </div>
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                {user.name || 'Profile'}
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: '2px 0 0 0' }}>
-                {user.role === 'sales_rep' ? 'Sales Rep' : user.role}
-              </p>
-            </div>
+  // Inline mode: render just the profile content without modal wrapper
+  const profileContent = (
+    <>
+        {/* Tab Navigation — only shown in modal mode */}
+        {!inline && (
+          <div style={{ display: 'flex', gap: '0.5rem', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-default, #262626)' }}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  background: activeTab === tab.id ? 'var(--roof-red, #dc2626)' : 'var(--bg-hover, #171717)',
+                  color: 'var(--text-primary, #ffffff)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X style={{ width: '18px', height: '18px' }} />
-          </button>
-        </div>
-
-        {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '0.5rem', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-default, #262626)' }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                background: activeTab === tab.id ? 'var(--roof-red, #dc2626)' : 'var(--bg-hover, #171717)',
-                color: 'var(--text-primary, #ffffff)',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        )}
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
@@ -440,6 +368,28 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
               <option value="MD">Maryland</option>
               <option value="PA">Pennsylvania</option>
             </select>
+          </div>
+
+          {/* Division (read-only for reps) */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              Division
+            </label>
+            <div style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'not-allowed',
+              opacity: 0.8,
+            }}>
+              <span style={{ textTransform: 'capitalize' }}>
+                {user.division || 'Insurance'}
+              </span>
+              <span style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>
+                Admin only
+              </span>
+            </div>
           </div>
 
           {/* Edit / Save Button */}
@@ -651,7 +601,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
           </div>
         </div>
         )}
-      </div>
 
       {/* Legal Modal */}
       {showLegal && (
@@ -660,6 +609,95 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
           onClose={() => setShowLegal(null)}
         />
       )}
+    </>
+  );
+
+  // Inline mode — render content directly without modal wrapper
+  if (inline) {
+    return <div style={{ padding: '0', overflow: 'auto' }}>{profileContent}</div>;
+  }
+
+  // Modal mode — original behavior
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.85)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '20px',
+        paddingTop: '60px',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '380px',
+          background: 'var(--bg-primary)',
+          borderRadius: '16px',
+          border: '1px solid var(--border-subtle)',
+          overflow: 'hidden',
+          marginBottom: '40px'
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '20px',
+            borderBottom: '1px solid var(--border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <User style={{ width: '24px', height: '24px', color: '#ffffff' }} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                {user.name || 'Profile'}
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: '2px 0 0 0' }}>
+                {user.role === 'sales_rep' ? 'Sales Rep' : user.role}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X style={{ width: '18px', height: '18px' }} />
+          </button>
+        </div>
+        {profileContent}
+      </div>
     </div>
   );
 };

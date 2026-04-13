@@ -266,7 +266,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onGetStarted }) => {
             Ready to Get Started?
           </h3>
           <p className="max-w-lg mx-auto" style={{ color: 'var(--text-tertiary)' }}>
-            Launch the Mobile Command Center and experience the power of AI-powered field operations
+            Launch Susan 21 and experience the power of AI-powered field operations
           </p>
           <motion.button
             onClick={onGetStarted}

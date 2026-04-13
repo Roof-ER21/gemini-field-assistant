@@ -669,6 +669,477 @@ DON'T SET APPOINTMENT IF:
 4. Always leave a flyer even if they don't qualify
 5. A good lead today is worth more than a wasted appointment
 6. Use visual cues before you even ask questions—notice what you see`
+  },
+  {
+    id: 'retail-product-deep-dive',
+    title: 'Product Deep Dive — Know What You Sell',
+    category: 'retail',
+    division: 'retail',
+    description: 'Master all 9 products so you can answer any question and pivot confidently between them',
+    voice: 'agnes_21',
+    content: `PRODUCT DEEP DIVE — ANSWER ANY QUESTION ON THE SPOT
+═══════════════════════════════════════════════════════════
+
+The difference between a GOOD marketer and a GREAT marketer is product knowledge.
+When a homeowner asks "Why should I replace my windows?" — you need to answer
+with confidence AND specifics, not vague sales talk.
+
+═══════════════════════════════════════════════════════════
+🪟 WINDOWS — The Energy Play
+═══════════════════════════════════════════════════════════
+
+PAIN POINTS TO IDENTIFY:
+• Drafty rooms in winter (feel around frames)
+• AC running nonstop in summer (high utility bills)
+• Condensation between panes (seal failure)
+• Hard to open/close (warped frames)
+• Street noise coming through (single pane)
+
+VALUE SCRIPT:
+"Your windows are like the lungs of your home. When they're old, your house
+can't breathe properly — your HVAC works overtime, your bills go up, and
+you lose comfort. New windows can cut your energy bills by 10-30%. Plus,
+our windows come with a LIFETIME warranty — for the life of YOU, not the
+product. These are the last windows you'll ever buy."
+
+KEY STATS:
+• 10-30% energy savings
+• 2-4% home value increase
+• Lifetime warranty (covers the PERSON, not years)
+• Eliminates drafts, allergens, mold risk
+
+COMMON QUESTION: "How much do windows cost?"
+→ "It depends on the size and style — that's exactly what the free quote is for.
+Our specialist will measure your specific windows and give you clear pricing
+options. No guessing, no pressure."
+
+═══════════════════════════════════════════════════════════
+🏠 SIDING — The Protection Play
+═══════════════════════════════════════════════════════════
+
+PAIN POINTS TO IDENTIFY:
+• Fading or discoloration
+• Warping or buckling panels
+• Gaps where moisture can enter
+• Peeling paint (wood siding)
+• Dents (aluminum siding)
+
+VALUE SCRIPT — VINYL:
+"Siding is your home's armor. Once it starts failing, moisture gets behind it
+and you don't even know until you've got mold or structural damage. Our
+vinyl siding system comes with a TRUE lifetime warranty — covers you, the
+owner, forever. Low maintenance, never needs painting, and instantly
+upgrades your curb appeal."
+
+VALUE SCRIPT — JAMES HARDIE:
+"If you want the premium look, James Hardie is the gold standard. It's
+fire-resistant, hail-resistant, termites can't touch it, and it performs
+for 30+ years. It comes in hundreds of colors and styles — board and batten,
+cedar shake, traditional lap. It's the last siding you'll ever need."
+
+KEY STATS (VINYL):
+• TRUE Lifetime warranty (covers owner, not years)
+• No painting, no maintenance
+• Moisture protection with proper house wrap
+
+KEY STATS (HARDIE):
+• 30+ year lifespan
+• Fire, hail, insect, temperature resistant
+• 2-4% home value increase
+• Hundreds of color/style options
+
+═══════════════════════════════════════════════════════════
+🏗️ ROOFING — The Urgency Play
+═══════════════════════════════════════════════════════════
+
+PAIN POINTS TO IDENTIFY:
+• Missing or curling shingles
+• Black streaks (algae growth)
+• Visible wear from age (15+ years)
+• Leaks or water stains inside
+• Neighbors getting new roofs
+
+VALUE SCRIPT:
+"Your roof is the one thing protecting everything inside your home. Once
+shingles start failing, water gets in and causes damage you can't see —
+rotted decking, mold, insulation damage. Roof ER is Master Elite with GAF,
+which means we're in the top 0.01% of roofers nationwide. Our system
+includes a 50-year non-prorated warranty, 30 years of workmanship coverage,
+unlimited wind speed, and Class 4 hail impact rating."
+
+KEY STATS:
+• 50-year non-prorated warranty
+• 30-year workmanship coverage
+• Unlimited wind speed + Class 4 hail rating
+• Master Elite / President Club with GAF (top 0.01%)
+• 2-4% home value increase
+
+═══════════════════════════════════════════════════════════
+☀️ SOLAR — The Savings Play
+═══════════════════════════════════════════════════════════
+
+PAIN POINTS TO IDENTIFY:
+• High electric bills (ask: "Has your bill been going up?")
+• South-facing roof with good exposure
+• Interest in green energy / sustainability
+• Concern about rising utility rates
+
+VALUE SCRIPT — PURCHASE:
+"Solar is the only home improvement that literally pays you back. With
+federal tax incentives and net metering credits, most homeowners offset
+70-90% of their electric bill. Your home value goes up 4-6%, and homes
+with solar sell faster. We connect you with solar tax professionals who
+maximize every dollar of incentives."
+
+VALUE SCRIPT — PPA:
+"With a Power Purchase Agreement, you get solar with ZERO upfront cost.
+You buy the power the panels produce — at a lower rate than the utility
+company charges. At the end of the contract, you can extend, buy the
+system, or have it removed. Clean energy, lower bills, no investment."
+
+═══════════════════════════════════════════════════════════
+🏠 MORE PRODUCTS — QUICK REFERENCE
+═══════════════════════════════════════════════════════════
+
+INSULATION:
+"Proper insulation saves money, increases comfort, and makes your home
+quieter. If your attic isn't insulated right, your HVAC is working overtime."
+→ Energy efficiency, sound barrier, HVAC protection
+
+GARAGE DOORS:
+"A new garage door is the #1 ROI home improvement — better security,
+insulation, and instant curb appeal upgrade."
+→ Insulated panels, modern styles, stronger security
+
+GUTTERS:
+"Clogged gutters cause foundation damage, trim rot, and landscaping
+erosion. Our seamless systems with covers prevent all of that."
+→ Seamless, larger, gutter covers available
+
+═══════════════════════════════════════════════════════════
+🎯 THE PRODUCT PIVOT — CHAIN SELLING
+═══════════════════════════════════════════════════════════
+
+Never walk away with just one "no." When they don't qualify for one product,
+PIVOT smoothly:
+
+"Windows might not make sense right now, but I noticed [visual cue].
+What about the [next product]? How old is that?"
+
+PIVOT CHAIN: Windows → Siding → Roofing → Solar → Gutters → Insulation
+
+PIVOT SCRIPT:
+"Totally fair — the windows are in good shape. We actually do more than
+just windows. Have you looked at your siding recently? Once it hits that
+10-15 year mark, moisture can start getting behind it without you even
+seeing it. How long has yours been up?"
+
+GOLDEN RULE: Always leave with SOMETHING. A flyer, a name, a future
+appointment — never leave empty-handed.`
+  },
+  {
+    id: 'retail-full-conversation',
+    title: 'The Full Conversation Flow (Start to Finish)',
+    category: 'retail',
+    division: 'retail',
+    description: 'Complete door-knock conversation from approach to departure, with branching paths for every response',
+    voice: 'agnes_21',
+    content: `THE FULL CONVERSATION FLOW — START TO FINISH
+═══════════════════════════════════════════════════════════
+This is the complete conversation from walking up the driveway
+to leaving with an appointment or a flyer. Follow this flow.
+
+═══════════════════════════════════════════════════════════
+STEP 1: THE APPROACH (Before the door opens)
+═══════════════════════════════════════════════════════════
+
+• Walk with confidence — don't skulk or hesitate
+• Doorbell Sandwich: Knock → pause → ring → knock again
+• Take TWO steps back (Broomstick Theory)
+• Smile BEFORE the door opens
+• Materials in hand (clipboard, flyer)
+• If you see them through a window, WAVE
+
+═══════════════════════════════════════════════════════════
+STEP 2: THE ICE BREAKER (First 5 seconds)
+═══════════════════════════════════════════════════════════
+
+Door opens. Smile. Make eye contact.
+
+"Hello! How are you?"
+
+WAIT for their response. React naturally.
+
+If they say "Good" → "Awesome! You look like you're getting stuff done today, I'll be quick."
+If they say "Busy" → "I hear you! I'll be super quick, 30 seconds."
+If they say "What do you want?" → Stay calm. "Great question — I'll keep this quick."
+If they don't answer → "I'll be quick, I promise."
+
+═══════════════════════════════════════════════════════════
+STEP 3: THE HOOK (Next 10 seconds)
+═══════════════════════════════════════════════════════════
+
+"My name is ___________."
+
+[Pause — let them process]
+
+"I'm just giving the neighbors a heads up."
+
+[Pause — create curiosity]
+
+"Our company Roof ER is about to do the [PRODUCT] for one of your
+neighbors right down the street." [POINT toward a house]
+
+"So before we get going, we're coming by and doing free quotes
+for everyone."
+
+═══════════════════════════════════════════════════════════
+STEP 4: THE PIVOT (Product Qualification)
+═══════════════════════════════════════════════════════════
+
+Look at the house. What do you notice?
+
+IF OLD WINDOWS → "I actually noticed your window frames look like
+the originals. Have you noticed any drafts or the AC working
+harder than it should?"
+
+IF WORN SIDING → "I noticed some wear on the siding. How long
+has that been up? Once it hits 10-15 years, moisture can start
+getting behind it."
+
+IF OLD ROOF → "I noticed some wear on the shingles. When was
+the last time someone got up there to check?"
+
+IF SOUTH-FACING → "I noticed you've got perfect southern
+exposure. Has your electric bill been climbing?"
+
+IF NOTHING OBVIOUS → "What would you say is the next big
+thing on your home improvement list?"
+
+═══════════════════════════════════════════════════════════
+STEP 5: THE CLOSE
+═══════════════════════════════════════════════════════════
+
+"Great! So far, we're coming by for everybody in the afternoons —
+or are the evenings better for you?"
+
+[If they give a time → move to Rehash]
+[If they object → use the Stop Sign rebuttal]
+[If they say no twice → leave gracefully with flyer]
+
+═══════════════════════════════════════════════════════════
+STEP 6: THE REHASH (After they agree)
+═══════════════════════════════════════════════════════════
+
+"Perfect! Just to confirm:
+• I have [address] correct?
+• Best number for updates is [phone]?
+• And you mentioned [their specific concern], right?
+
+Our specialist will inspect the [product], take measurements,
+show you options, and give you clear pricing. Super straightforward.
+
+One quick favor — if you can have a recent utility bill handy,
+it helps them be precise.
+
+Again, we're not ripping out [product] on the spot. Worst case,
+you get expert advice and numbers for the future. Best case,
+we fix the issue for good. Sound fair?"
+
+═══════════════════════════════════════════════════════════
+STEP 7: THE GRACEFUL EXIT
+═══════════════════════════════════════════════════════════
+
+IF APPOINTMENT SET:
+"Awesome! You'll see our specialist at [time]. Thanks, [name]!
+Have a great [day/evening]." [Shake hand if offered]
+
+IF NO APPOINTMENT:
+"No worries at all! Here's my card and a flyer with our info.
+If anything comes up or you change your mind, give us a call.
+Have a great [day/evening]!" [Smile, wave, leave clean]
+
+NEVER:
+✗ Get frustrated or show disappointment
+✗ Try a third time after two clear "no"s
+✗ Make them feel guilty for saying no
+✗ Linger after the conversation is over
+
+ALWAYS:
+✓ Thank them for their time
+✓ Leave a flyer
+✓ Be the person they remember positively
+✓ Walk with the same confidence you arrived with
+
+═══════════════════════════════════════════════════════════
+💡 THE MINDSET
+═══════════════════════════════════════════════════════════
+
+You are NOT selling anything. You are:
+• Giving neighbors a heads up
+• Offering free information
+• Helping them plan for the future
+• Being a professional who respects their time
+
+If you believe that, they will too.`
+  },
+  {
+    id: 'retail-curveball-scenarios',
+    title: 'Curveball Scenarios — Expect the Unexpected',
+    category: 'retail',
+    division: 'retail',
+    description: 'Real-world situations that throw you off script: dogs, multiple homeowners, language barriers, previous bad experiences, and more',
+    voice: 'agnes_21',
+    content: `CURVEBALL SCENARIOS — EXPECT THE UNEXPECTED
+═══════════════════════════════════════════════════════════
+The field is unpredictable. These scenarios test your ability to
+stay composed, adapt, and still close when things go sideways.
+
+═══════════════════════════════════════════════════════════
+🐕 CURVEBALL: The Dog Situation
+═══════════════════════════════════════════════════════════
+
+They open the door and a large dog barks aggressively.
+
+DO: Stand still. Don't reach toward the dog. Say "Beautiful
+dog! What's their name?" — Let them handle the dog.
+
+DON'T: Jump back, show fear, or ask them to put it away.
+
+TRANSITION: "I love dogs. I'll keep this quick so you can
+get back to [dog name]. I'm just giving the neighbors a
+heads up..."
+
+═══════════════════════════════════════════════════════════
+👥 CURVEBALL: Multiple People at the Door
+═══════════════════════════════════════════════════════════
+
+Two or more people answer — spouse, roommate, parent.
+
+DO: Address BOTH people. "Hi there, how are you both?"
+Make eye contact with each person. Include them both in
+the conversation.
+
+ADVANTAGE: Both decision-makers are already present.
+Skip the "talk to my spouse" objection entirely.
+
+CLOSE: "Since you're both here, what time works for
+both of you? Mornings or evenings?"
+
+═══════════════════════════════════════════════════════════
+🌍 CURVEBALL: Language Barrier
+═══════════════════════════════════════════════════════════
+
+They don't speak English well or at all.
+
+DO: Slow down. Use simple words. Smile more.
+If you speak Spanish/another language, USE IT.
+
+KEY PHRASES TO SIMPLIFY:
+"Free" → hold up a flyer, point to "FREE"
+"Neighbor" → point to the house
+"Appointment" → point to your calendar/phone
+
+IF TOTAL BARRIER: "Is there someone who speaks English
+at home?" or leave a flyer with your number and point
+to the phone number.
+
+DON'T: Talk louder (they're not deaf), get frustrated,
+or walk away without leaving info.
+
+═══════════════════════════════════════════════════════════
+😤 CURVEBALL: They've Been Burned Before
+═══════════════════════════════════════════════════════════
+
+"Last time someone came to my door like this, they took
+my deposit and never came back."
+
+THIS IS YOUR MOMENT. Don't get defensive.
+
+RESPONSE: "I'm really sorry that happened to you. That's
+not what we're about. Roof ER is a licensed, insured
+company — we've been serving this area for years.
+Here's our card — you can look us up, check our reviews,
+call our office. We don't take deposits at the door. My
+job is just to get your name and set up a time for a
+FREE quote. No money, no commitment."
+
+FOLLOW UP: "Would it help if I gave you our main office
+number so you can verify we're legit before the
+appointment?"
+
+═══════════════════════════════════════════════════════════
+📱 CURVEBALL: They Answer Through a Ring Camera
+═══════════════════════════════════════════════════════════
+
+You hear "Can I help you?" through the doorbell camera.
+
+DO: Look directly at the camera. Smile. Speak clearly.
+Treat it exactly like a face-to-face conversation.
+
+SCRIPT: "Hi! My name is [name] with Roof ER. I'm just
+stopping by to let the neighbors know we're doing work
+down the street and offering free quotes. If you're
+interested, I can leave a flyer with my info."
+
+DON'T: Look around nervously, talk to the door instead
+of the camera, or keep ringing.
+
+═══════════════════════════════════════════════════════════
+👶 CURVEBALL: Baby Crying / Kids Chaos
+═══════════════════════════════════════════════════════════
+
+They open the door with a crying baby or kids running
+around behind them.
+
+DO: Acknowledge it warmly. "Busy house! I'll make this
+super quick — 20 seconds."
+
+SPEED UP your pitch. Hit the hook and close fast.
+
+"We're doing free quotes in the area. My job is simple —
+name, time that works, and I leave a flyer. Afternoons
+or evenings better for you?"
+
+DON'T: Try to do the full pitch. Read the room.
+
+═══════════════════════════════════════════════════════════
+🏗️ CURVEBALL: They Already Got Work Done Recently
+═══════════════════════════════════════════════════════════
+
+"We just got a new roof last year."
+
+PIVOT: "That's awesome — glad it's handled! We actually
+do a lot more than just roofs. Windows, siding, gutters,
+solar, insulation, garage doors. Is there anything else
+on the home you've been thinking about updating?"
+
+ALWAYS PIVOT. Never leave after one product no.
+
+═══════════════════════════════════════════════════════════
+🏘️ CURVEBALL: HOA Restrictions
+═══════════════════════════════════════════════════════════
+
+"We have an HOA, we can't just do whatever we want."
+
+RESPONSE: "Totally understand — we work with HOAs all the
+time. Our specialist can actually help you navigate the
+approval process. We bring color samples and specs that
+match HOA guidelines. Sound helpful?"
+
+═══════════════════════════════════════════════════════════
+🎯 THE GOLDEN RULE FOR ALL CURVEBALLS
+═══════════════════════════════════════════════════════════
+
+1. PAUSE — Don't react instantly
+2. ACKNOWLEDGE — Show you heard them
+3. ADAPT — Adjust your approach
+4. REDIRECT — Get back to the close
+5. STAY WARM — Never let frustration show
+
+The best marketers don't just handle objections — they
+handle SITUATIONS. That's what separates you from everyone
+else knocking on doors.`
   }
 ];
 

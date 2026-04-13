@@ -1,4 +1,5 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
+import { useDivision } from '../contexts/DivisionContext';
 const CalendarPanel = lazy(() => import('./CalendarPanel'));
 import {
   MessageSquare,
@@ -82,6 +83,7 @@ interface MonthlyHistory {
 }
 
 const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel, userEmail }) => {
+  const { isRetail } = useDivision();
   const [progress, setProgress] = useState<GoalProgress | null>(null);
   const [history, setHistory] = useState<MonthlyHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,50 +125,25 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     fetchGoalProgress();
   }, [userEmail]);
 
-  const quickActions = [
-    {
-      id: 'agnes-learning',
-      title: 'Agnes 21 Learning',
-      description: 'Roleplay + feedback training',
-      icon: Sparkles,
-      gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)'
-    },
-    {
-      id: 'chat',
-      title: 'Start Chat',
-      description: 'Get instant AI assistance',
-      icon: MessageSquare,
-      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-    },
-    {
-      id: 'image',
-      title: 'Upload & Analyze',
-      description: 'Docs, approvals, denials, photos',
-      icon: Image,
-      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-    },
-    {
-      id: 'email',
-      title: 'Generate Email',
-      description: 'Professional communication',
-      icon: Mail,
-      gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-    },
-    {
-      id: 'stormmap',
-      title: 'Storm Maps',
-      description: 'Hail history & radar',
-      icon: Building2,
-      gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-    },
-    {
-      id: 'documentjob',
-      title: 'Manage Jobs',
-      description: 'Track your roofing projects',
-      icon: Briefcase,
-      gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)'
-    }
+  const insuranceQuickActions = [
+    { id: 'stormmap', title: 'Storm Maps', description: 'Hail history & radar', icon: Building2, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+    { id: 'email', title: 'Generate Email', description: 'Templates + compliance', icon: Mail, gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' },
+    { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: Image, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+    { id: 'chat', title: 'Susan 21', description: 'AI assistant', icon: MessageSquare, gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
+    { id: 'myprofile', title: 'QR Profile', description: 'Share your landing page', icon: Target, gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)' },
+    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Sparkles, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
   ];
+
+  const retailQuickActions = [
+    { id: 'chat', title: 'Susan 24', description: 'Pitch coaching & product info', icon: MessageSquare, gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
+    { id: 'agnes-learning', title: 'Agnes 24', description: 'Practice your pitch', icon: Sparkles, gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' },
+    { id: 'knowledge', title: 'Knowledge Base', description: 'Scripts, products & rebuttals', icon: Briefcase, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+    { id: 'team', title: 'Team Chat', description: 'Message colleagues', icon: TrendingUp, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Target, gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)' },
+    { id: 'myprofile', title: 'Profile', description: 'Your settings', icon: Trophy, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+  ];
+
+  const quickActions = isRetail ? retailQuickActions : insuranceQuickActions;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -339,65 +316,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     );
   }
 
-  if (error || !progress) {
-    return (
-      <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-primary)',
-        padding: '1.5rem'
-      }}>
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem',
-          background: 'var(--bg-primary)',
-          borderRadius: '16px',
-          border: '1px solid var(--bg-elevated)',
-          maxWidth: '500px'
-        }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1rem'
-          }}>
-            <Target style={{ width: '32px', height: '32px', color: '#ef4444' }} />
-          </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-            Goal Data Unavailable
-          </h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginBottom: '1.5rem' }}>
-            {error || 'Unable to load your goal progress. You may not be synced from Google Sheets yet.'}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '0.75rem 1.5rem',
-              color: '#ffffff',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const StatusIcon = getStatusIcon(progress.monthly.signups.status);
-  const statusColor = getStatusColor(progress.monthly.signups.status);
+  const hasGoals = !error && !!progress;
+  const StatusIcon = hasGoals ? getStatusIcon(progress!.monthly.signups.status) : Target;
+  const statusColor = hasGoals ? getStatusColor(progress!.monthly.signups.status) : '#71717a';
 
   return (
     <div style={{
@@ -409,28 +330,30 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       padding: '0',
       boxSizing: 'border-box'
     }}>
-      {/* Hero Section with Status Badge */}
+      {/* Hero Section */}
       <div style={{
         background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-primary) 100%)',
         borderBottom: '1px solid var(--border-subtle)',
         padding: '1.5rem 1rem',
         textAlign: 'center'
       }}>
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          background: `rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.1)`,
-          padding: '0.5rem 1rem',
-          borderRadius: '50px',
-          marginBottom: '1rem',
-          border: `1px solid rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.3)`
-        }}>
-          <StatusIcon style={{ width: '16px', height: '16px', color: statusColor }} />
-          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-            {getStatusLabel(progress.monthly.signups.status)}
-          </span>
-        </div>
+        {hasGoals && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: `rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.1)`,
+            padding: '0.5rem 1rem',
+            borderRadius: '50px',
+            marginBottom: '1rem',
+            border: `1px solid rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.3)`
+          }}>
+            <StatusIcon style={{ width: '16px', height: '16px', color: statusColor }} />
+            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+              {getStatusLabel(progress!.monthly.signups.status)}
+            </span>
+          </div>
+        )}
 
         <h1 style={{
           fontSize: 'clamp(1.5rem, 5vw, 2rem)',
@@ -458,8 +381,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           </Suspense>
         </section>
 
-        {/* Goal Progress Section */}
-        <section style={{ marginBottom: '2rem' }}>
+        {/* Goal Progress Section — only shown when goal data is available */}
+        {hasGoals && progress && (<section style={{ marginBottom: '2rem' }}>
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
@@ -672,10 +595,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
               )}
             </div>
           </div>
-        </section>
+        </section>)}
 
         {/* Analytics Section */}
-        {chartData.length > 0 && (
+        {hasGoals && progress && chartData.length > 0 && (
           <section style={{ marginBottom: '2rem' }}>
             <h2 style={{
               fontSize: '1.25rem',
@@ -742,7 +665,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         )}
 
         {/* Performance Stats */}
-        <section style={{ marginBottom: '2rem' }}>
+        {hasGoals && progress && (<section style={{ marginBottom: '2rem' }}>
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
@@ -848,7 +771,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
               </div>
             </div>
           </div>
-        </section>
+        </section>)}
 
         {/* Quick Actions */}
         <section style={{ marginBottom: '2rem' }}>

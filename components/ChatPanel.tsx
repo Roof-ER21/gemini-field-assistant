@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { connectTranscriptionStream, generateEmail } from '../services/geminiService';
+
+// Lazy-loaded full panels for Quick Action modals
+const EmailPanel = lazy(() => import('./EmailPanel'));
+const DocumentAnalysisPanel = lazy(() => import('./DocumentAnalysisPanel'));
 import { Session, LiveServerMessage } from '@google/genai';
 import { Message } from '../types';
 import Spinner from './Spinner';
@@ -13,7 +17,8 @@ import { susanAgentChat, type AgentToolResult } from '../services/susanAgentServ
 import ToolResultCard from './ToolResultCard';
 import { messagingService } from '../services/messagingService';
 import { Send, Paperclip, Menu, FileText, X, Mail, Users, Image as ImageIcon, Copy, Edit3, AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, XCircle, Sparkles, ThumbsUp, ThumbsDown, Cloud, Calendar, MapPin, MoreHorizontal } from 'lucide-react';
-import { personalityHelpers, SYSTEM_PROMPT } from '../config/s21Personality';
+import { personalityHelpers, SYSTEM_PROMPT, getSystemPromptForDivision } from '../config/s21Personality';
+import { useDivision } from '../contexts/DivisionContext';
 import S21ResponseFormatter from './S21ResponseFormatter';
 import { enforceCitations, validateCitations } from '../services/citationEnforcer';
 import { databaseService } from '../services/databaseService';
@@ -183,6 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onToggleHistory
 }) => {
   const toast = useToast();
+  const { division } = useDivision();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -222,8 +228,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Set to true to use new SusanThread with assistant-ui primitives
   const [useNewChat, setUseNewChat] = useState(false);
 
-  // Email generation state
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  // Full panel overlay modals (Quick Actions → full-featured panels)
+  const [showEmailPanelModal, setShowEmailPanelModal] = useState(false);
+  const [showDocumentPanelModal, setShowDocumentPanelModal] = useState(false);
+  const [emailPanelContext, setEmailPanelContext] = useState<{ template: string; context: string } | null>(null);
+
+  // Email generation state (used by handleEmailGeneration for in-chat email gen)
   const [emailRecipientType, setEmailRecipientType] = useState<'adjuster' | 'homeowner' | 'insurance' | 'custom'>('adjuster');
   const [emailTone, setEmailTone] = useState<'professional' | 'formal' | 'friendly'>('professional');
   const [emailKeyPoints, setEmailKeyPoints] = useState('');
@@ -880,7 +890,6 @@ Generate ONLY the email body text, no subject line or metadata.`;
         console.warn('[Memory] Error tracking email pattern:', patternError);
       }
 
-      setShowEmailDialog(false);
       setEmailKeyPoints('');
 
       if (!compliance.canSend) {
@@ -988,20 +997,18 @@ Generate ONLY the email body text, no subject line or metadata.`;
     const hasHailKeywords = /\b(?:hail|storm)\b/i.test(userInput);
     const isComplexRequest = hasEmailIntent && hasHailKeywords;
 
-    // Check if this is an email generation request (only for explicit "generate/draft/compose" commands)
-    // "Send an email" goes to Susan so she can use send_email tool directly
-    if (!isComplexRequest && detectEmailRequest(userInput)) {
-      setShowEmailDialog(true);
-      // Extract any key points from the message
+    // Check if this is an email generation request (insurance only — retail doesn't use EmailPanel)
+    if (division === 'insurance' && !isComplexRequest && detectEmailRequest(userInput)) {
       const keyPointsMatch = userInput.match(/(?:about|for|regarding)\s+(.+)$/i);
       if (keyPointsMatch) {
-        setEmailKeyPoints(keyPointsMatch[1]);
+        setEmailPanelContext({ template: '', context: keyPointsMatch[1] });
       }
+      setShowEmailPanelModal(true);
       return;
     }
 
-    // Check if this is a hail/storm lookup request (skip if complex multi-step request)
-    const hailRequest = !isComplexRequest ? detectHailLookupRequest(userInput) : { isHailRequest: false, address: null };
+    // Check if this is a hail/storm lookup request (insurance only — retail doesn't use storm data)
+    const hailRequest = division === 'insurance' && !isComplexRequest ? detectHailLookupRequest(userInput) : { isHailRequest: false, address: null };
     if (hailRequest.isHailRequest && hailRequest.address) {
       // Add user message first
       setMessages(prev => [...prev, {
@@ -1172,7 +1179,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
       const queryType = personalityHelpers.detectQueryType(originalQuery);
       const useRAG = ragService.shouldUseRAG(originalQuery);
-      let systemPrompt = SYSTEM_PROMPT;
+      let systemPrompt = getSystemPromptForDivision(division);
 
       // Inject rep identity so Susan never uses [Your Name] placeholders
       const currentUser = authService.getCurrentUser();
@@ -2958,10 +2965,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
                   Quick Actions:
                 </div>
 
-                {/* Email Generation */}
-                <button
+                {/* Email Generation — opens full EmailPanel (insurance only) */}
+                {division === 'insurance' && <button
                   onClick={() => {
-                    setShowEmailDialog(true);
+                    setShowEmailPanelModal(true);
                     setShowMoreActionsMenu(false);
                   }}
                   style={{
@@ -2984,9 +2991,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 >
                   <Mail className="w-5 h-5" style={{ color: '#dc2626' }} />
                   <span>Generate Email</span>
-                </button>
+                </button>}
 
-                {/* State Selector Toggle */}
+                {/* State Selector Toggle (insurance only) */}
+                {division === 'insurance' &&
                 <button
                   onClick={() => {
                     setShowStateMenu(!showStateMenu);
@@ -3016,12 +3024,12 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 >
                   <MapPin className="w-5 h-5" />
                   <span>{selectedState ? `State: ${selectedState}` : 'Select State'}</span>
-                </button>
+                </button>}
 
-                {/* Attach Document */}
-                <button
+                {/* Attach Document — opens full DocumentAnalysisPanel (insurance only) */}
+                {division === 'insurance' && <button
                   onClick={() => {
-                    fileInputRef.current?.click();
+                    setShowDocumentPanelModal(true);
                     setShowMoreActionsMenu(false);
                   }}
                   style={{
@@ -3043,15 +3051,14 @@ Generate ONLY the email body text, no subject line or metadata.`;
                 >
                   <FileText className="w-5 h-5" />
                   <span>Attach Document</span>
-                </button>
+                </button>}
 
-                {/* Attach Image */}
-                <button
+                {/* Attach Image — opens full DocumentAnalysisPanel (insurance only) */}
+                {division === 'insurance' && <button
                   onClick={() => {
-                    imageInputRef.current?.click();
+                    setShowDocumentPanelModal(true);
                     setShowMoreActionsMenu(false);
                   }}
-                  disabled={isAnalyzingImage}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -3064,15 +3071,14 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
-                    opacity: isAnalyzingImage ? 0.5 : 1
+                    gap: '12px'
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'var(--glass-border)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   <ImageIcon className="w-5 h-5" style={{ color: '#22c55e' }} />
                   <span>Attach Image</span>
-                </button>
+                </button>}
               </div>,
               document.body
             )}
@@ -3183,250 +3189,155 @@ Generate ONLY the email body text, no subject line or metadata.`;
         </form>
       </div>
 
-      {/* Email Generation Dialog */}
-      {showEmailDialog && (
+
+      {/* ===== FULL PANEL MODALS (Quick Actions → full-featured panels) ===== */}
+
+      {/* Email Panel Modal — full EmailPanel with templates, compliance, history */}
+      {showEmailPanelModal && createPortal(
         <div
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
+            inset: 0,
+            zIndex: 100000,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--bg-primary)',
+          }}
+        >
+          {/* Modal Header */}
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
-          onClick={() => setShowEmailDialog(false)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              borderRadius: '16px',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Dialog Header */}
-            <div style={{
-              padding: '24px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <Mail className="w-6 h-6" style={{ color: 'var(--roof-red)' }} />
-                <div>
-                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                    Generate Email
-                  </h2>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                    Susan will create a compliant, professional email
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowEmailDialog(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '8px',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <X className="w-5 h-5" />
-              </button>
+            justifyContent: 'space-between',
+            padding: '12px 20px',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-elevated)',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Mail className="w-5 h-5" style={{ color: '#dc2626' }} />
+              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>
+                Generate Email
+              </span>
             </div>
-
-            {/* Dialog Body */}
-            <div style={{ padding: '24px' }}>
-              {/* Recipient Type */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                  Recipient Type
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                  {[
-                    { value: 'adjuster', label: 'Insurance Adjuster', icon: '👨‍💼' },
-                    { value: 'homeowner', label: 'Homeowner', icon: '🏠' },
-                    { value: 'insurance', label: 'Insurance Company', icon: '🏢' },
-                    { value: 'custom', label: 'Other', icon: '📧' }
-                  ].map((type) => (
-                    <button
-                      key={type.value}
-                      onClick={() => setEmailRecipientType(type.value as any)}
-                      style={{
-                        padding: '12px',
-                        background: emailRecipientType === type.value ? 'var(--roof-red)' : 'var(--bg-elevated)',
-                        border: `2px solid ${emailRecipientType === type.value ? 'var(--roof-red)' : 'var(--border-color)'}`,
-                        borderRadius: '8px',
-                        color: emailRecipientType === type.value ? 'white' : 'var(--text-primary)',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                    >
-                      <span>{type.icon}</span>
-                      <span>{type.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tone */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                  Tone
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { value: 'professional', label: 'Professional', icon: '💼' },
-                    { value: 'formal', label: 'Formal', icon: '📋' },
-                    { value: 'friendly', label: 'Friendly', icon: '😊' }
-                  ].map((tone) => (
-                    <button
-                      key={tone.value}
-                      onClick={() => setEmailTone(tone.value as any)}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: emailTone === tone.value ? 'var(--roof-red)' : 'var(--bg-elevated)',
-                        border: `2px solid ${emailTone === tone.value ? 'var(--roof-red)' : 'var(--border-color)'}`,
-                        borderRadius: '8px',
-                        color: emailTone === tone.value ? 'white' : 'var(--text-primary)',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <span>{tone.icon}</span>
-                      <span>{tone.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Key Points */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                  Key Points to Include
-                </label>
-                <textarea
-                  value={emailKeyPoints}
-                  onChange={(e) => setEmailKeyPoints(e.target.value)}
-                  placeholder="E.g., partial approval for hail damage, need full replacement, Maryland matching requirements..."
-                  style={{
-                    width: '100%',
-                    minHeight: '120px',
-                    padding: '12px',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    color: 'var(--text-primary)',
-                    resize: 'vertical'
-                  }}
-                />
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px' }}>
-                  Tip: Include claim details, damage type, and desired outcome
-                </div>
-              </div>
-
-              {/* State Context Info */}
-              {selectedState && (
-                <div style={{
-                  padding: '12px',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  color: 'var(--text-secondary)',
-                  marginBottom: '20px'
-                }}>
-                  Email will use <span style={{ fontWeight: 600, color: 'var(--roof-red)' }}>{selectedState}</span> building codes and regulations
-                </div>
-              )}
-            </div>
-
-            {/* Dialog Footer */}
-            <div style={{
-              padding: '20px 24px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              gap: '12px',
-              justifyContent: 'flex-end'
-            }}>
-              <button
-                onClick={() => {
-                  setShowEmailDialog(false);
-                  setEmailKeyPoints('');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  color: 'var(--text-primary)',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEmailGeneration}
-                disabled={isGeneratingEmail || !emailKeyPoints.trim()}
-                style={{
-                  padding: '10px 24px',
-                  background: isGeneratingEmail || !emailKeyPoints.trim() ? 'var(--bg-secondary)' : 'linear-gradient(135deg, var(--roof-red) 0%, #b91c1c 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: isGeneratingEmail || !emailKeyPoints.trim() ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
-                }}
-              >
-                {isGeneratingEmail ? (
-                  <>
-                    <Spinner />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Email
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setShowEmailPanelModal(false);
+                setEmailPanelContext(null);
+              }}
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <X className="w-4 h-4" />
+              Back to Chat
+            </button>
           </div>
-        </div>
+          {/* Full EmailPanel */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Suspense fallback={
+              <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {[1, 2, 3].map(i => (
+                  <div key={i} style={{
+                    height: i === 1 ? '48px' : '72px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-secondary)',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    opacity: 1 - (i * 0.15),
+                  }} />
+                ))}
+                <style>{`@keyframes pulse { 0%,100% { opacity: 0.4 } 50% { opacity: 0.7 } }`}</style>
+              </div>
+            }>
+              <EmailPanel
+                emailContext={emailPanelContext}
+                onContextUsed={() => setEmailPanelContext(null)}
+              />
+            </Suspense>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Document/Image Analysis Panel Modal — full DocumentAnalysisPanel */}
+      {showDocumentPanelModal && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100000,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--bg-primary)',
+          }}
+        >
+          {/* Modal Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 20px',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-elevated)',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FileText className="w-5 h-5" style={{ color: '#dc2626' }} />
+              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>
+                Document & Image Analysis
+              </span>
+            </div>
+            <button
+              onClick={() => setShowDocumentPanelModal(false)}
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <X className="w-4 h-4" />
+              Back to Chat
+            </button>
+          </div>
+          {/* Full DocumentAnalysisPanel */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Suspense fallback={
+              <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {[1, 2, 3].map(i => (
+                  <div key={i} style={{
+                    height: i === 1 ? '48px' : '72px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-secondary)',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    opacity: 1 - (i * 0.15),
+                  }} />
+                ))}
+                <style>{`@keyframes pulse { 0%,100% { opacity: 0.4 } 50% { opacity: 0.7 } }`}</style>
+              </div>
+            }>
+              <DocumentAnalysisPanel />
+            </Suspense>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Share Modal */}

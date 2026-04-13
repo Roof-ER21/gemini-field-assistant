@@ -5,6 +5,7 @@ export interface Document {
   path: string;
   type: 'pdf' | 'pptx' | 'docx' | 'md';
   category?: string;
+  division?: 'insurance' | 'retail' | 'both';
 }
 
 export interface DocumentContent {
@@ -197,7 +198,14 @@ export const knowledgeService = {
       { name: 'State-Specific Matching Requirements', path: `${DOCS_BASE}/State-Specific-Matching-Requirements.md`, type: 'md', category: 'State-Specific Codes' },
       { name: 'Virginia Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Virginia-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
       { name: 'Maryland Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Maryland-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
-      { name: 'Pennsylvania Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Pennsylvania-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' }
+      { name: 'Pennsylvania Roofing Law Overview', path: `${DOCS_BASE}/State-Law-Overviews/Pennsylvania-Roofing-Law-Overview.md`, type: 'md', category: 'State-Specific Codes' },
+
+      // ===== RETAIL DIVISION DOCS =====
+      { name: 'Retail Pitch Script', path: `${DOCS_BASE}/Retail Training/Retail Pitch Script.md`, type: 'md', category: 'Retail Training', division: 'retail' },
+      { name: 'Objections & Rebuttals', path: `${DOCS_BASE}/Retail Training/Objections and Rebuttals.md`, type: 'md', category: 'Retail Training', division: 'retail' },
+      { name: 'Field Etiquette', path: `${DOCS_BASE}/Retail Training/Field Etiquette.md`, type: 'md', category: 'Retail Training', division: 'retail' },
+      { name: 'Pitch Essentials', path: `${DOCS_BASE}/Retail Training/Pitch Essentials.md`, type: 'md', category: 'Retail Training', division: 'retail' },
+      { name: 'Product Knowledge', path: `${DOCS_BASE}/Retail Training/Product Knowledge.md`, type: 'md', category: 'Retail Training', division: 'retail' },
     ];
 
     // Append user-uploaded documents from localStorage (if any)
@@ -214,6 +222,18 @@ export const knowledgeService = {
     } catch {
       return baseDocs;
     }
+  },
+
+  /**
+   * Get documents filtered by division.
+   * Insurance sees all non-retail docs. Retail sees only retail + 'both' docs.
+   */
+  async getDocumentsByDivision(division: 'insurance' | 'retail'): Promise<Document[]> {
+    const all = await this.getDocumentIndex();
+    return all.filter(doc => {
+      if (!doc.division) return division === 'insurance'; // untagged = insurance (existing behavior)
+      return doc.division === division || doc.division === 'both';
+    });
   },
 
   // Load document content
