@@ -966,8 +966,13 @@ app.patch('/api/users/me', async (req, res) => {
 });
 
 // Admin: set division for any user
-app.patch('/api/admin/users/:userId/division', adminMiddleware, async (req, res) => {
+app.patch('/api/admin/users/:userId/division', async (req, res) => {
   try {
+    const email = getRequestEmail(req);
+    const adminCheck = await pool.query('SELECT role FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (!adminCheck.rows.length || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
     const { userId } = req.params;
     const { division } = req.body;
     if (!['insurance', 'retail'].includes(division)) {
