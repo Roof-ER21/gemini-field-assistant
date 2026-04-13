@@ -90,7 +90,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userEmail) {
+    if (!userEmail || isRetail) {
       setLoading(false);
       return;
     }
@@ -316,7 +316,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     );
   }
 
-  const hasGoals = !error && !!progress;
+  const hasGoals = !isRetail && !error && !!progress;
   const StatusIcon = hasGoals ? getStatusIcon(progress!.monthly.signups.status) : Target;
   const statusColor = hasGoals ? getStatusColor(progress!.monthly.signups.status) : '#71717a';
 
@@ -337,31 +337,13 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         padding: '1.5rem 1rem',
         textAlign: 'center'
       }}>
-        {hasGoals && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: `rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.1)`,
-            padding: '0.5rem 1rem',
-            borderRadius: '50px',
-            marginBottom: '1rem',
-            border: `1px solid rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '239, 68, 68'}, 0.3)`
-          }}>
-            <StatusIcon style={{ width: '16px', height: '16px', color: statusColor }} />
-            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-              {getStatusLabel(progress!.monthly.signups.status)}
-            </span>
-          </div>
-        )}
-
         <h1 style={{
           fontSize: 'clamp(1.5rem, 5vw, 2rem)',
           fontWeight: '700',
           color: 'var(--text-primary)',
           marginBottom: '0.5rem'
         }}>
-          Your Dashboard
+          {isRetail ? 'Susan 24' : 'Susan 21'}
         </h1>
 
         <p style={{
@@ -369,20 +351,14 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           color: 'var(--text-tertiary)',
           marginBottom: '1.5rem'
         }}>
-          Track your goals, analyze performance, and drive success
+          {isRetail ? 'Your AI sales coach' : 'Your AI field assistant'}
         </p>
       </div>
 
       <div style={{ padding: '1rem', maxWidth: '100%', boxSizing: 'border-box' }}>
-        {/* Full Calendar */}
-        <section style={{ marginBottom: '1.5rem', height: '500px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
-          <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>Loading calendar...</div>}>
-            <CalendarPanel />
-          </Suspense>
-        </section>
 
-        {/* Goal Progress Section — only shown when goal data is available */}
-        {hasGoals && progress && (<section style={{ marginBottom: '2rem' }}>
+        {/* REMOVED: Calendar, Goal Progress, Analytics, Performance Stats — kept Quick Actions only */}
+        {false && hasGoals && progress && (<section style={{ marginBottom: '2rem' }}>
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
