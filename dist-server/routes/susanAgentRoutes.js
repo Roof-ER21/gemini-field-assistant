@@ -194,6 +194,15 @@ export function createSusanAgentRoutes(pool) {
                 error: `Could not resolve or create user for email: ${email}`
             });
         }
+        // Resolve user division (default to insurance for existing users)
+        let userDivision = 'insurance';
+        try {
+            const divResult = await pool.query('SELECT division FROM users WHERE id = $1', [userId]);
+            if (divResult.rows.length > 0 && divResult.rows[0].division) {
+                userDivision = divResult.rows[0].division;
+            }
+        }
+        catch { /* division column may not exist yet */ }
         // ---- 2. Parse + validate body ----
         const body = req.body;
         if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
@@ -243,32 +252,33 @@ export function createSusanAgentRoutes(pool) {
             const dLines = directives.map(d => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`);
             enrichedSystemPrompt += `\n\n[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${dLines.join('\n')}`;
         }
-        // Inject recent storm alerts into Susan's context
-        try {
-            const recentAlerts = await pool.query(`SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative,
+        // Inject recent storm alerts into Susan's context (insurance only — retail doesn't use storm data)
+        if (userDivision === 'insurance')
+            try {
+                const recentAlerts = await pool.query(`SELECT event_type, event_date, event_time, magnitude, magnitude_unit, location, county, state, narrative,
                 noaa_reconciled, noaa_magnitude, noaa_narrative
          FROM storm_alerts
          WHERE event_date >= CURRENT_DATE - INTERVAL '30 days'
          ORDER BY event_date DESC, event_time DESC
          LIMIT 30`);
-            if (recentAlerts.rows.length > 0) {
-                const alertLines = recentAlerts.rows.map((a) => {
-                    const mag = a.magnitude ? `${a.magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
-                    let line = `- ${a.event_date} ${a.event_time || ''}: ${a.event_type} ${mag} at ${a.location}, ${a.county}, ${a.state}`;
-                    if (a.noaa_reconciled) {
-                        const noaaMag = a.noaa_magnitude ? `${a.noaa_magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
-                        line += ` [NOAA CONFIRMED${noaaMag ? ` — verified ${noaaMag}` : ''}]`;
-                    }
-                    if (a.narrative)
-                        line += ` — ${a.narrative}`;
-                    return line;
-                });
-                enrichedSystemPrompt += `\n\n[RECENT STORM ALERTS — LAST 30 DAYS]\nThese are storm reports from SPC/NWS/NOAA. Events marked [NOAA CONFIRMED] have been officially verified by NOAA's Storm Events Database — this is the federal gold standard for insurance claims:\n${alertLines.join('\n')}\nUse this data when reps ask about recent storms. NOAA-confirmed events are especially powerful for homeowner conversations and adjuster negotiations.`;
+                if (recentAlerts.rows.length > 0) {
+                    const alertLines = recentAlerts.rows.map((a) => {
+                        const mag = a.magnitude ? `${a.magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
+                        let line = `- ${a.event_date} ${a.event_time || ''}: ${a.event_type} ${mag} at ${a.location}, ${a.county}, ${a.state}`;
+                        if (a.noaa_reconciled) {
+                            const noaaMag = a.noaa_magnitude ? `${a.noaa_magnitude}${a.magnitude_unit === 'inches' ? '"' : ' kts'}` : '';
+                            line += ` [NOAA CONFIRMED${noaaMag ? ` — verified ${noaaMag}` : ''}]`;
+                        }
+                        if (a.narrative)
+                            line += ` — ${a.narrative}`;
+                        return line;
+                    });
+                    enrichedSystemPrompt += `\n\n[RECENT STORM ALERTS — LAST 30 DAYS]\nThese are storm reports from SPC/NWS/NOAA. Events marked [NOAA CONFIRMED] have been officially verified by NOAA's Storm Events Database — this is the federal gold standard for insurance claims:\n${alertLines.join('\n')}\nUse this data when reps ask about recent storms. NOAA-confirmed events are especially powerful for homeowner conversations and adjuster negotiations.`;
+                }
             }
-        }
-        catch (e) {
-            // storm_alerts table may not exist yet — silently skip
-        }
+            catch (e) {
+                // storm_alerts table may not exist yet — silently skip
+            }
         if (enrichedSystemPrompt.trim().length > 0) {
             contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
             contents.push({ role: 'model', parts: [{ text: `Understood. I am Susan, ready to help${personality.preferred_name ? ` ${personality.preferred_name}` : ''}.` }] });

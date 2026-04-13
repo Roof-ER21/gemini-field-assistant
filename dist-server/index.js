@@ -830,17 +830,41 @@ app.post('/api/users', async (req, res) => {
 app.patch('/api/users/me', async (req, res) => {
     try {
         const email = getRequestEmail(req);
-        const { name, state } = req.body;
+        const { name, state, division } = req.body;
+        // Validate division if provided
+        if (division && !['insurance', 'retail'].includes(division)) {
+            return res.status(400).json({ error: 'Invalid division. Must be: insurance or retail' });
+        }
         const result = await pool.query(`UPDATE users
        SET name = COALESCE($1, name),
            state = COALESCE($2, state),
+           division = COALESCE($3, division),
            updated_at = CURRENT_TIMESTAMP
-       WHERE email = $3
-       RETURNING *`, [name, state, email.toLowerCase()]);
+       WHERE email = $4
+       RETURNING *`, [name, state, division, email.toLowerCase()]);
         res.json(result.rows[0]);
     }
     catch (error) {
         console.error('Error updating user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Admin: set division for any user
+app.patch('/api/admin/users/:userId/division', adminMiddleware, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { division } = req.body;
+        if (!['insurance', 'retail'].includes(division)) {
+            return res.status(400).json({ error: 'Invalid division' });
+        }
+        const result = await pool.query('UPDATE users SET division = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, division', [division, userId]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    }
+    catch (error) {
+        console.error('Error updating user division:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -2810,6 +2834,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS division VARCHAR(20) DEFAULT 'insurance';
 
 -- Sync phone numbers from employee_profiles into users where missing
 UPDATE users u SET phone = ep.phone_number
