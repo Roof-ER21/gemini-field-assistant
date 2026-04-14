@@ -3079,12 +3079,13 @@ app.get('/api/admin/users', async (req, res) => {
         u.name,
         u.role,
         u.state,
+        u.division,
         u.created_at,
         COUNT(DISTINCT ch.id) as total_messages,
         MAX(ch.created_at) as last_active
       FROM users u
       LEFT JOIN chat_history ch ON u.id = ch.user_id
-      GROUP BY u.id, u.email, u.name, u.role, u.state, u.created_at
+      GROUP BY u.id, u.email, u.name, u.role, u.state, u.division, u.created_at
       ORDER BY last_active DESC NULLS LAST
     `);
         res.json(result.rows);
@@ -3186,7 +3187,7 @@ app.put('/api/admin/users/:userId', async (req, res) => {
             return res.status(403).json({ error: 'Admin access required' });
         }
         const { userId } = req.params;
-        const { name, role, state, is_active } = req.body;
+        const { name, role, state, is_active, division } = req.body;
         // Build dynamic update query
         const updates = [];
         const values = [];
@@ -3205,6 +3206,13 @@ app.put('/api/admin/users/:userId', async (req, res) => {
         if (state !== undefined) {
             updates.push(`state = $${paramCount++}`);
             values.push(state || null);
+        }
+        if (division !== undefined) {
+            if (!['insurance', 'retail'].includes(division)) {
+                return res.status(400).json({ error: 'Invalid division' });
+            }
+            updates.push(`division = $${paramCount++}`);
+            values.push(division);
         }
         if (is_active !== undefined) {
             updates.push(`is_active = $${paramCount++}`);
