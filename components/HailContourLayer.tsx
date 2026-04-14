@@ -202,11 +202,20 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
       }));
     }
 
-    const hailEvents = events.filter((e) => {
-      const isHail = e.eventType?.toLowerCase().includes('hail');
-      const hasCoords = Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon);
-      return isHail && hasCoords;
-    });
+    const hailEvents = events
+      .map(e => ({
+        ...e,
+        beginLat: Number(e.beginLat),
+        beginLon: Number(e.beginLon),
+        endLat: Number(e.endLat) || Number(e.beginLat),
+        endLon: Number(e.endLon) || Number(e.beginLon),
+        magnitude: Number(e.magnitude) || 0,
+      }))
+      .filter((e) => {
+        const isHail = e.eventType?.toLowerCase().includes('hail');
+        const hasCoords = Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon) && e.beginLat !== 0;
+        return isHail && hasCoords;
+      });
 
     console.log(`[HailContour] visible=${visible}, total=${events.length}, hail=${hailEvents.length}`);
 
