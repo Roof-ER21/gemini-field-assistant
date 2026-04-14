@@ -1544,6 +1544,33 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
           <MapInteractionHandler routeMode={routeMode} onMapClick={handleMapInteraction} />
           <TileLayer url={mapTileUrl} subdomains={['0', '1', '2', '3']} maxZoom={21} />
 
+          {/* Hail Impact Zones — semi-transparent circles showing estimated storm impact area */}
+          {/* Rendered BEHIND event markers. Radius based on hail size (IHM/HailTrace style). */}
+          {selectedDate && visibleEvents
+            .filter(e => e.eventType === 'Hail' && Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon) && e.magnitude > 0)
+            .map((event) => {
+              const sizeClass = getHailSizeClass(event.magnitude);
+              const color = sizeClass?.color || '#22c55e';
+              // Impact radius: 1mi base + scaled by hail size. Larger hail = wider swath.
+              const radiusMeters = (1609 * 1.5) + (event.magnitude * 1609 * 1.2);
+              return (
+                <Circle
+                  key={`impact-${event.id}`}
+                  center={[event.beginLat, event.beginLon]}
+                  radius={radiusMeters}
+                  pathOptions={{
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.12,
+                    weight: 1,
+                    opacity: 0.3,
+                    dashArray: '4 4',
+                  }}
+                />
+              );
+            })}
+
+          {/* Event markers */}
           {visibleEvents.map((event) => {
             if (!Number.isFinite(event.beginLat) || !Number.isFinite(event.beginLon) || (event.beginLat === 0 && event.beginLon === 0)) {
               return null;
