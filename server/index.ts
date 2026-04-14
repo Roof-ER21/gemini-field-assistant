@@ -720,15 +720,16 @@ app.get('/api/dashboard/storm-summary', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT COUNT(*) as count, MAX(event_date) as latest_date,
-              MAX(magnitude) as max_magnitude
+              MAX(CASE WHEN magnitude IS NOT NULL AND magnitude > 0 THEN magnitude ELSE NULL END) as max_magnitude
        FROM storm_alerts
        WHERE event_date >= CURRENT_DATE - INTERVAL '30 days'`
     );
     const row = result.rows[0];
+    const maxMag = row.max_magnitude ? parseFloat(row.max_magnitude) : null;
     res.json({
       count: parseInt(row.count) || 0,
       latestDate: row.latest_date,
-      maxMagnitude: row.max_magnitude
+      maxMagnitude: (maxMag && !isNaN(maxMag)) ? maxMag : null
     });
   } catch {
     res.json({ count: 0, latestDate: null, maxMagnitude: null });

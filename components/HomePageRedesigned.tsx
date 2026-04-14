@@ -355,7 +355,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 {stormSummary!.count} storm event{stormSummary!.count > 1 ? 's' : ''} this month
-                {stormSummary!.maxMagnitude ? ` — up to ${stormSummary!.maxMagnitude}" hail` : ''}
+                {stormSummary!.maxMagnitude && stormSummary!.maxMagnitude > 0 ? ` — up to ${stormSummary!.maxMagnitude}" hail` : ''}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Tap to view Storm Maps</div>
             </div>
