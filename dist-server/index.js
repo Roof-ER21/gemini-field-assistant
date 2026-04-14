@@ -2833,6 +2833,22 @@ CREATE INDEX IF NOT EXISTS idx_email_notifications_type ON email_notifications(n
 CREATE INDEX IF NOT EXISTS idx_email_notifications_sent ON email_notifications(sent_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_notifications_recipient ON email_notifications(recipient_email);
 
+-- Manager Directives table (admin instructions Susan follows for all reps)
+CREATE TABLE IF NOT EXISTS manager_directives (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_by UUID REFERENCES users(id),
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  priority VARCHAR(20) DEFAULT 'normal',
+  target_audience VARCHAR(50) DEFAULT 'all',
+  is_active BOOLEAN DEFAULT true,
+  effective_from TIMESTAMP DEFAULT NOW(),
+  effective_until TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_directives_active ON manager_directives(is_active, effective_until);
+
 -- 3. ALTER USERS TABLE
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login_at TIMESTAMP;
@@ -8867,6 +8883,36 @@ async function runStartupMigrations() {
       CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_month ON leaderboard_goals(month);
       CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_rep ON leaderboard_goals(sales_rep_id);
     `);
+        // Ensure manager_directives table exists
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS manager_directives (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        created_by UUID REFERENCES users(id),
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        priority VARCHAR(20) DEFAULT 'normal',
+        target_audience VARCHAR(50) DEFAULT 'all',
+        is_active BOOLEAN DEFAULT true,
+        effective_from TIMESTAMP DEFAULT NOW(),
+        effective_until TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+        // Seed: European Chocolate directive (April 14, 2026)
+        const existingChoc = await pool.query(`SELECT id FROM manager_directives WHERE title = 'European Chocolate for Reese'`);
+        if (existingChoc.rows.length === 0) {
+            const adminUser = await pool.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+            if (adminUser.rows.length > 0) {
+                await pool.query(`
+          INSERT INTO manager_directives (created_by, title, content, priority, target_audience, effective_from, effective_until)
+          VALUES ($1, 'European Chocolate for Reese',
+            'When any rep starts a conversation or says hello, casually work in this message: "Oh hey, quick thing — Reese wanted me to ask everyone: what''s your favorite European chocolate? Text her your answer when you get a sec!" Make it feel natural, not forced. Only mention it once per conversation, ideally near the beginning.',
+            'high', 'all', '2026-04-14 00:00:00', '2026-04-15 23:59:59')
+        `, [adminUser.rows[0].id]);
+                console.log('✅ Seeded European Chocolate directive');
+            }
+        }
         console.log('✅ Startup migrations completed');
     }
     catch (error) {
