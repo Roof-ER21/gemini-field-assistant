@@ -121,6 +121,16 @@ export async function fetchNWSAlerts(params) {
         const alerts = features.map((feature) => {
             const props = feature.properties;
             const desc = props.description || '';
+            // Calculate centroid from polygon geometry if available
+            let centroidLat = null;
+            let centroidLng = null;
+            if (feature.geometry?.coordinates) {
+                const coords = feature.geometry.coordinates[0] || [];
+                if (coords.length > 0) {
+                    centroidLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+                    centroidLng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+                }
+            }
             return {
                 id: feature.id || props.id,
                 headline: props.headline || '',
@@ -133,7 +143,9 @@ export async function fetchNWSAlerts(params) {
                 senderName: props.senderName || 'NWS',
                 areaDesc: props.areaDesc || '',
                 hailSize: extractHailSizeFromText(desc),
-                windSpeed: extractWindSpeedFromText(desc)
+                windSpeed: extractWindSpeedFromText(desc),
+                centroidLat,
+                centroidLng
             };
         });
         // Filter to storm-damage relevant events

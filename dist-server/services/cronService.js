@@ -213,10 +213,24 @@ class CronService {
                 }
             }, { timezone: 'America/New_York' });
             jobs.push(noaaReconcileJob);
+            // Evening 6:00 PM: Second NOAA reconciliation pass (catches events published during the day)
+            const noaaReconcileEveningJob = cron.schedule('0 18 * * *', async () => {
+                console.log('⏰ [6:00 PM] NOAA Phase 3 reconciliation (evening pass)...');
+                try {
+                    const result = await reconcileWithNOAA(pool, pushService);
+                    if (result.reconciled > 0 || result.errors > 0) {
+                        console.log(`🏛️ [NOAA Phase 3 PM] Reconciled: ${result.reconciled}, Notified: ${result.notified}, Errors: ${result.errors}`);
+                    }
+                }
+                catch (err) {
+                    console.error('❌ [NOAA Phase 3 PM] Error:', err.message);
+                }
+            }, { timezone: 'America/New_York' });
+            jobs.push(noaaReconcileEveningJob);
             console.log('📲 Push notification cron jobs scheduled:');
             console.log('   - Every 5 min: Fast storm detection (NWS + SPC)');
             console.log('   - Every 15 min: Property storm scanner + Calendar/Task reminders');
-            console.log('   - 6:00 AM: NOAA Phase 3 reconciliation');
+            console.log('   - 6:00 AM + 6:00 PM: NOAA Phase 3 reconciliation (2x daily)');
             console.log('   - 7:00 AM: Morning briefing');
             console.log('   - 6:00 PM: End-of-day summary');
         }
