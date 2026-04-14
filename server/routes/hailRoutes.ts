@@ -351,7 +351,7 @@ router.get('/search', async (req, res) => {
         const pool: import('pg').Pool = req.app.get('pool');
         // Simple query: get all recent alerts in VA/MD/PA territory
         const localAlerts = await pool.query(
-          `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, source
+          `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, alert_phase
            FROM storm_alerts
            WHERE event_date >= CURRENT_DATE - INTERVAL '90 days'
              AND state IN ('VA','MD','PA')
@@ -377,7 +377,7 @@ router.get('/search', async (req, res) => {
               state: a.state,
               location: a.location,
               narrative: a.narrative || `${a.event_type} at ${a.location}`,
-              source: a.source || 'SPC/NWS (saved)'
+              source: a.alert_phase === 'noaa_reconciled' ? 'NOAA (verified)' : 'SPC/NWS (local)'
             });
             merged++;
           }
