@@ -384,7 +384,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
             model: 'gemini-2.0-flash',
             contents,
             config: {
-              tools: [{ functionDeclarations: SUSAN_TOOLS }, { googleSearch: {} }]
+              tools: [{ functionDeclarations: SUSAN_TOOLS }]
             }
           });
         } catch (geminiErr: unknown) {
@@ -506,7 +506,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
           model: 'gemini-2.0-flash',
           contents,
           config: {
-            tools: [{ functionDeclarations: SUSAN_TOOLS }, { googleSearch: {} }]
+            tools: [{ functionDeclarations: SUSAN_TOOLS }]
           }
         });
       } catch (finalErr: unknown) {
