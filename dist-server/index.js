@@ -8907,7 +8907,7 @@ async function runStartupMigrations() {
                 await pool.query(`
           INSERT INTO manager_directives (created_by, title, content, priority, target_audience, effective_from, effective_until)
           VALUES ($1, 'European Chocolate for Reese',
-            'When any rep starts a conversation or says hello, casually work in this message: "Oh hey, quick thing — Reese wanted me to ask everyone: what''s your favorite European chocolate? Text her your answer when you get a sec!" Make it feel natural, not forced. Only mention it once per conversation, ideally near the beginning.',
+            'When any rep starts a conversation or says hello, casually work in this message: "Oh hey, quick thing — Reese wanted me to ask everyone: what''s your favorite European chocolate? Text him your answer when you get a sec!" Make it feel natural, not forced. Only mention it once per conversation, ideally near the beginning.',
             'high', 'all', '2026-04-14 00:00:00', '2026-04-15 23:59:59')
         `, [adminUser.rows[0].id]);
                 console.log('✅ Seeded European Chocolate directive');
