@@ -191,7 +191,8 @@ app.use(helmet({
                 "https://tilecache.rainviewer.com",
                 "https://router.project-osrm.org",
                 "https://api.qrserver.com",
-                "https://cdnjs.cloudflare.com"
+                "https://cdnjs.cloudflare.com",
+                "https://api.weather.gov"
             ],
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
