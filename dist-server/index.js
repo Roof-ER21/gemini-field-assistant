@@ -8910,8 +8910,9 @@ async function runStartupMigrations() {
       CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_month ON leaderboard_goals(month);
       CREATE INDEX IF NOT EXISTS idx_leaderboard_goals_rep ON leaderboard_goals(sales_rep_id);
     `);
-        // Add division column to users table (defaults existing users to 'insurance')
+        // Add missing columns to users table
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS division VARCHAR(20) DEFAULT 'insurance'`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
         // Ensure manager_directives table exists
         await pool.query(`
       CREATE TABLE IF NOT EXISTS manager_directives (
