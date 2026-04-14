@@ -332,6 +332,39 @@ router.get('/search', async (req, res) => {
             catch (e) {
                 console.error('NOAA search error:', e);
             }
+            // Also query local storm_alerts to fill the SPC→NOAA gap (days 8-30)
+            try {
+                const pool = req.app.get('pool');
+                const degRadius = radiusNum / 69;
+                const localAlerts = await pool.query(`SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, state, narrative, source
+           FROM storm_alerts
+           WHERE event_date >= CURRENT_DATE - INTERVAL '${monthsNum} months'
+             AND latitude BETWEEN $1 AND $2
+             AND longitude BETWEEN $3 AND $4
+           ORDER BY event_date DESC`, [searchLat - degRadius, searchLat + degRadius, searchLng - degRadius, searchLng + degRadius]);
+                // Merge local alerts that aren't already in NOAA results (avoid duplicates by date+location)
+                const existingDates = new Set(noaaData.map((e) => `${e.date}-${(e.latitude || 0).toFixed(2)}`));
+                for (const a of localAlerts.rows) {
+                    const key = `${a.event_date}-${(a.latitude || 0).toFixed(2)}`;
+                    if (!existingDates.has(key)) {
+                        noaaData.push({
+                            id: `local-${a.event_date}-${a.location}`,
+                            eventType: a.event_type || 'Hail',
+                            date: a.event_date,
+                            latitude: a.latitude,
+                            longitude: a.longitude,
+                            magnitude: a.magnitude,
+                            state: a.state,
+                            location: a.location,
+                            narrative: a.narrative || `${a.event_type} at ${a.location}`,
+                            source: a.source || 'SPC/NWS (saved)'
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                // storm_alerts table may not exist — silently skip
+            }
             return res.json({
                 events: [],
                 noaaEvents: noaaData,
@@ -339,8 +372,8 @@ router.get('/search', async (req, res) => {
                     center: { lat: searchLat, lng: searchLng },
                     radiusMiles: radiusNum
                 },
-                dataSource: ['NOAA'],
-                message: 'NOAA Storm Events Database'
+                dataSource: ['NOAA', 'Local Storm Alerts'],
+                message: 'NOAA Storm Events Database + Local Alerts'
             });
         }
         if (address) {
