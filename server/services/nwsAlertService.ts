@@ -19,6 +19,8 @@ export interface NWSAlert {
   areaDesc: string;
   hailSize: string | null; // Parsed from description text, e.g. "1.75""
   windSpeed: string | null; // Parsed from description text, e.g. "60 mph"
+  centroidLat: number | null; // Centroid of alert polygon
+  centroidLng: number | null;
 }
 
 /** Extract hail size from NWS warning text. Returns e.g. '1.75"' or null. */
@@ -153,6 +155,16 @@ export async function fetchNWSAlerts(params: AlertSearchParams): Promise<NWSAler
     const alerts: NWSAlert[] = features.map((feature: any) => {
       const props = feature.properties;
       const desc = props.description || '';
+      // Calculate centroid from polygon geometry if available
+      let centroidLat: number | null = null;
+      let centroidLng: number | null = null;
+      if (feature.geometry?.coordinates) {
+        const coords: number[][] = feature.geometry.coordinates[0] || [];
+        if (coords.length > 0) {
+          centroidLat = coords.reduce((s: number, c: number[]) => s + c[1], 0) / coords.length;
+          centroidLng = coords.reduce((s: number, c: number[]) => s + c[0], 0) / coords.length;
+        }
+      }
       return {
         id: feature.id || props.id,
         headline: props.headline || '',
@@ -165,7 +177,9 @@ export async function fetchNWSAlerts(params: AlertSearchParams): Promise<NWSAler
         senderName: props.senderName || 'NWS',
         areaDesc: props.areaDesc || '',
         hailSize: extractHailSizeFromText(desc),
-        windSpeed: extractWindSpeedFromText(desc)
+        windSpeed: extractWindSpeedFromText(desc),
+        centroidLat,
+        centroidLng
       };
     });
 

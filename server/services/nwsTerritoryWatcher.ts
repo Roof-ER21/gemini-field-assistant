@@ -101,16 +101,19 @@ export async function watchTerritoriesForStorms(pool: Pool): Promise<{
           else if (hailInches && hailInches >= 1.0) eventType = 'hail';
           else if (windMph && windMph >= 58) eventType = 'wind';
 
+          // Use alert polygon centroid if available, otherwise fall back to territory center
+          const eventLat = alert.centroidLat || point.lat;
+          const eventLng = alert.centroidLng || point.lng;
+
           // Create storm_event for each territory at this point
           for (const territory of point.territories) {
             try {
-              // Check if we already have this event (by NWS alert ID + territory)
+              // Check if we already have this event (by NWS alert ID)
               const existing = await pool.query(
                 `SELECT id FROM storm_events
                  WHERE source_url = $1
-                   AND latitude = $2 AND longitude = $3
                  LIMIT 1`,
-                [alert.id, point.lat, point.lng]
+                [alert.id]
               );
 
               if (existing.rows.length > 0) continue;
@@ -127,8 +130,8 @@ export async function watchTerritoriesForStorms(pool: Pool): Promise<{
                 [
                   alert.areaDesc?.split(';')[0]?.trim() || territory.name,
                   '', // state extracted from areaDesc if needed
-                  point.lat,
-                  point.lng,
+                  eventLat,
+                  eventLng,
                   alert.onset || now.toISOString(),
                   eventType,
                   hailInches,
