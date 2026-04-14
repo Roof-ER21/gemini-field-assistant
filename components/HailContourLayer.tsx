@@ -189,19 +189,6 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
   const contours = useMemo(() => {
     if (!visible) return [];
 
-    // Log raw event data to diagnose filtering
-    if (events.length > 0) {
-      const sample = events[0];
-      console.log(`[HailContour] RAW sample event:`, JSON.stringify({
-        eventType: sample.eventType,
-        eventTypeChars: Array.from(sample.eventType).map(c => c.charCodeAt(0)),
-        beginLat: sample.beginLat,
-        beginLon: sample.beginLon,
-        magnitude: sample.magnitude,
-        id: sample.id,
-      }));
-    }
-
     const hailEvents = events
       .map(e => ({
         ...e,
@@ -217,7 +204,6 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
         return isHail && hasCoords;
       });
 
-    console.log(`[HailContour] visible=${visible}, total=${events.length}, hail=${hailEvents.length}`);
 
     if (hailEvents.length === 0) return [];
 
@@ -241,11 +227,8 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
       result.push({ path, color, magnitude: maxMag });
     }
 
-    console.log(`[HailContour] Built ${result.length} contour polygons`);
     return result;
   }, [visible, events]);
-
-  console.log(`[HailContour] Rendering: visible=${visible}, contours=${contours.length}`);
   if (!visible || contours.length === 0) return null;
 
   return (
