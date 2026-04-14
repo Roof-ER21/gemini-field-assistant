@@ -45,7 +45,7 @@ export const DivisionProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Update on server
       const currentUser = authService.getCurrentUser();
       if (currentUser) {
-        fetch(`${API_BASE_URL}/api/users/me`, {
+        fetch(`${API_BASE_URL}/users/me`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

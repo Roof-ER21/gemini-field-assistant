@@ -249,7 +249,7 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         .catch(() => {});
     }
 
-    fetch('/api/agent-intel?limit=1&sort=helpful', { headers: { 'x-user-email': userEmail || '' } })
+    fetch('/api/agent-network?limit=1', { headers: { 'x-user-email': userEmail || '' } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (Array.isArray(d) && d.length > 0 && d[0].content) {
