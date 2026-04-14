@@ -346,28 +346,20 @@ router.get('/search', async (req, res) => {
         console.error('NOAA search error:', e);
       }
 
-      // Also query local storm_alerts to fill the SPC→NOAA gap (days 8-30)
+      // Also query local storm_alerts to fill the SPC→NOAA gap (days 8-30+)
       try {
         const pool: import('pg').Pool = req.app.get('pool');
-        const degRadius = radiusNum / 69;
-        const daysBack = Math.max(monthsNum * 30, 90);
+        // Simple query: get all recent alerts in VA/MD/PA territory
         const localAlerts = await pool.query(
           `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, source
            FROM storm_alerts
-           WHERE event_date >= CURRENT_DATE - $5::integer * INTERVAL '1 day'
-             AND (
-               (latitude IS NOT NULL AND longitude IS NOT NULL
-                AND latitude BETWEEN $1 AND $2
-                AND longitude BETWEEN $3 AND $4)
-               OR
-               (latitude IS NULL AND state IN ('VA','MD','PA'))
-             )
+           WHERE event_date >= CURRENT_DATE - INTERVAL '90 days'
+             AND state IN ('VA','MD','PA')
            ORDER BY event_date DESC
-           LIMIT 200`,
-          [searchLat! - degRadius, searchLat! + degRadius, searchLng! - degRadius, searchLng! + degRadius, daysBack]
+           LIMIT 200`
         );
 
-        console.log(`[StormAlerts] Local merge: found ${localAlerts.rows.length} alerts (daysBack=${daysBack}, radius=${radiusNum}mi)`);
+        console.log(`[StormAlerts] Local merge: found ${localAlerts.rows.length} alerts from storm_alerts table`);
 
         // Merge local alerts that aren't already in NOAA results (avoid duplicates by date+location)
         const existingDates = new Set(noaaData.map((e: any) => `${e.date}-${(e.latitude||0).toFixed?.(2) || e.latitude}`));
