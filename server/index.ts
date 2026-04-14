@@ -722,7 +722,7 @@ app.get('/api/dashboard/storm-summary', async (req, res) => {
       `SELECT COUNT(*) as count, MAX(event_date) as latest_date,
               MAX(magnitude) as max_magnitude
        FROM storm_alerts
-       WHERE event_date >= CURRENT_DATE - INTERVAL '7 days'`
+       WHERE event_date >= CURRENT_DATE - INTERVAL '30 days'`
     );
     const row = result.rows[0];
     res.json({
