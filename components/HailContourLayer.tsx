@@ -189,11 +189,26 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
   const contours = useMemo(() => {
     if (!visible) return [];
 
-    const hailEvents = events.filter(
-      (e) => e.eventType === 'Hail' && Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon),
-    );
+    // Log raw event data to diagnose filtering
+    if (events.length > 0) {
+      const sample = events[0];
+      console.log(`[HailContour] RAW sample event:`, JSON.stringify({
+        eventType: sample.eventType,
+        eventTypeChars: Array.from(sample.eventType).map(c => c.charCodeAt(0)),
+        beginLat: sample.beginLat,
+        beginLon: sample.beginLon,
+        magnitude: sample.magnitude,
+        id: sample.id,
+      }));
+    }
 
-    console.log(`[HailContour] visible=${visible}, total=${events.length}, hail=${hailEvents.length}, mags=${hailEvents.slice(0,3).map(e => `${e.magnitude}(${typeof e.magnitude})`)}`);
+    const hailEvents = events.filter((e) => {
+      const isHail = e.eventType?.toLowerCase().includes('hail');
+      const hasCoords = Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon);
+      return isHail && hasCoords;
+    });
+
+    console.log(`[HailContour] visible=${visible}, total=${events.length}, hail=${hailEvents.length}`);
 
     if (hailEvents.length === 0) return [];
 
