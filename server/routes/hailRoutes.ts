@@ -350,11 +350,11 @@ router.get('/search', async (req, res) => {
       try {
         const pool: import('pg').Pool = req.app.get('pool');
         const degRadius = radiusNum / 69;
-        // Query with lat/lng if available, fall back to state-based if coordinates are NULL
+        const daysBack = Math.max(monthsNum * 30, 90);
         const localAlerts = await pool.query(
           `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, source
            FROM storm_alerts
-           WHERE event_date >= CURRENT_DATE - INTERVAL '${monthsNum} months'
+           WHERE event_date >= CURRENT_DATE - $5::integer * INTERVAL '1 day'
              AND (
                (latitude IS NOT NULL AND longitude IS NOT NULL
                 AND latitude BETWEEN $1 AND $2
@@ -364,30 +364,35 @@ router.get('/search', async (req, res) => {
              )
            ORDER BY event_date DESC
            LIMIT 200`,
-          [searchLat! - degRadius, searchLat! + degRadius, searchLng! - degRadius, searchLng! + degRadius]
+          [searchLat! - degRadius, searchLat! + degRadius, searchLng! - degRadius, searchLng! + degRadius, daysBack]
         );
 
+        console.log(`[StormAlerts] Local merge: found ${localAlerts.rows.length} alerts (daysBack=${daysBack}, radius=${radiusNum}mi)`);
+
         // Merge local alerts that aren't already in NOAA results (avoid duplicates by date+location)
-        const existingDates = new Set(noaaData.map((e: any) => `${e.date}-${(e.latitude||0).toFixed(2)}`));
+        const existingDates = new Set(noaaData.map((e: any) => `${e.date}-${(e.latitude||0).toFixed?.(2) || e.latitude}`));
+        let merged = 0;
         for (const a of localAlerts.rows) {
-          const key = `${a.event_date}-${(a.latitude||0).toFixed(2)}`;
+          const key = `${a.event_date}-${(a.latitude||0).toFixed?.(2) || '0'}`;
           if (!existingDates.has(key)) {
             noaaData.push({
               id: `local-${a.event_date}-${a.location}`,
               eventType: a.event_type || 'Hail',
               date: a.event_date,
-              latitude: a.latitude,
-              longitude: a.longitude,
-              magnitude: a.magnitude,
+              latitude: a.latitude || searchLat,
+              longitude: a.longitude || searchLng,
+              magnitude: a.magnitude ? Number(a.magnitude) : null,
               state: a.state,
               location: a.location,
               narrative: a.narrative || `${a.event_type} at ${a.location}`,
               source: a.source || 'SPC/NWS (saved)'
             });
+            merged++;
           }
         }
+        console.log(`[StormAlerts] Merged ${merged} local alerts into results`);
       } catch (e) {
-        // storm_alerts table may not exist — silently skip
+        console.error('[StormAlerts] Local merge error:', (e as Error).message);
       }
 
       return res.json({
