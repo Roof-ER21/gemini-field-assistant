@@ -714,6 +714,26 @@ app.post('/api/ai/generate', async (req, res) => {
 // Register hail history routes early to avoid proxy ordering issues
 app.use('/api/hail', hailRoutes);
 
+// Dashboard: recent storm count (last 7 days)
+app.get('/api/dashboard/storm-summary', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count, MAX(event_date) as latest_date,
+              MAX(magnitude) as max_magnitude
+       FROM storm_alerts
+       WHERE event_date >= CURRENT_DATE - INTERVAL '7 days'`
+    );
+    const row = result.rows[0];
+    res.json({
+      count: parseInt(row.count) || 0,
+      latestDate: row.latest_date,
+      maxMagnitude: row.max_magnitude
+    });
+  } catch {
+    res.json({ count: 0, latestDate: null, maxMagnitude: null });
+  }
+});
+
 // MRMS MESH tile proxy — forwards requests to Oracle Cloud tile server
 // This avoids mixed-content (https→http) blocking in browsers
 app.get('/api/mrms/:file', async (req, res) => {

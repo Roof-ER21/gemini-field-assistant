@@ -10,13 +10,16 @@ import {
   TrendingUp,
   Trophy,
   ChevronRight,
-  Zap,
   Sparkles,
   Sun,
   Moon,
   CloudSun,
-  Clock,
-  ThumbsUp
+  CloudRain,
+  CloudSnow,
+  Cloud,
+  Wind,
+  ThumbsUp,
+  AlertTriangle
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -27,6 +30,82 @@ interface HomePageRedesignedProps {
   userEmail?: string;
 }
 
+// Weather-based motivational quotes
+const WEATHER_QUOTES: Record<string, { insurance: string[]; retail: string[] }> = {
+  sunny: {
+    insurance: [
+      "Clear skies today — perfect for roof inspections. Get up there.",
+      "Sun's out. Homeowners are outside. Time to knock.",
+      "Beautiful day to document damage and build your pipeline.",
+    ],
+    retail: [
+      "Perfect weather for door-knocking. Everyone's in a good mood.",
+      "Sun's out, people are outside — easiest conversations happen today.",
+      "Great day to be in the field. Let's set some appointments.",
+    ]
+  },
+  cloudy: {
+    insurance: [
+      "Overcast skies remind homeowners about their roof. Use it.",
+      "Cloud cover today — good for inspections without the glare.",
+      "Gray sky? Homeowners are thinking about weather. Perfect timing.",
+    ],
+    retail: [
+      "Overcast but comfortable — ideal knocking weather.",
+      "Cloudy days keep homeowners inside. They'll answer the door.",
+      "Not too hot, not too cold. Get those doors knocked.",
+    ]
+  },
+  rainy: {
+    insurance: [
+      "Rain today = leak calls tomorrow. Be ready.",
+      "Rainy days are research days. Prep your supplements and follow-ups.",
+      "Can't knock? Sharpen your emails and call your pipeline.",
+    ],
+    retail: [
+      "Rain means homeowners are HOME. Dial, text, follow up.",
+      "Can't knock doors? Practice with Agnes 24. Get sharper.",
+      "Rainy day = training day. Hit Agnes, review your scripts, come back stronger.",
+    ]
+  },
+  stormy: {
+    insurance: [
+      "Storm activity detected. Check Storm Maps NOW — be first.",
+      "Storms = opportunity. Document everything. Get to those doors first.",
+      "New storm data incoming. Your next claim could be today.",
+    ],
+    retail: [
+      "Storms today — stay safe. Tomorrow's gonna be a busy one.",
+      "Bad weather today means homeowners thinking about their home tomorrow.",
+      "Storm day = prep day. Review your product knowledge and come out swinging.",
+    ]
+  },
+  cold: {
+    insurance: [
+      "Cold out there. Warm up with some emails and Susan time.",
+      "Bundle up if you're inspecting today. Safety first.",
+      "Cold weather = drafty windows = opportunity for your pipeline.",
+    ],
+    retail: [
+      "Cold day — lead with windows. 'Have you noticed any drafts?'",
+      "When it's cold, homeowners FEEL their old windows. Perfect pitch day.",
+      "Bundle up and knock. The cold is your best visual cue for windows.",
+    ]
+  },
+  hot: {
+    insurance: [
+      "Hot one today. Hydrate and inspect smart.",
+      "AC running hard? So are your homeowners' bills. Solar pitch?",
+      "Hot days show shingle wear fast. Great for documentation.",
+    ],
+    retail: [
+      "Hot day — lead with energy savings. Windows, insulation, solar.",
+      "'Has your AC been running nonstop?' — easiest opener on a hot day.",
+      "Hydrate between doors. The heat is your opening for energy efficiency.",
+    ]
+  }
+};
+
 // Daily tips pool
 const INSURANCE_TIPS = [
   "Always search Susan's knowledge base before an adjuster meeting — she has scripts for every scenario.",
@@ -35,73 +114,138 @@ const INSURANCE_TIPS = [
   "After a storm, check Storm Maps immediately. NOAA data + SPC reports = your strongest argument.",
   "The compliance checker in Email Gen catches language that could get you in trouble. Use it every time.",
   "Maryland R908.3 requires full tear-off — no overlays. Susan knows this. Ask her before your next MD claim.",
-  "Agnes 21 scores you out of 100. Practice until you hit 80+ consistently before going door-to-door.",
+  "Agnes 21 scores you out of 100. Practice until you hit 80+ consistently.",
   "Upload supplements and denials to Susan — she reads them and tells you exactly how to respond.",
-  "Don't say 'insurance will cover it.' Say 'as the licensed contractor, I'm required to install per current code.' Susan has the scripts.",
+  "Don't say 'insurance will cover it.' Say 'as the licensed contractor, I'm required to install per current code.'",
   "The best time to check Storm Maps is right after a weather alert. Be the first one knocking.",
 ];
 
 const RETAIL_TIPS = [
-  "Always start with the ice breaker. 'Hello, how are you?' then 'You look ___, I'll be quick.' It sets the tone.",
-  "Practice the 7 Stop Signs with Agnes 24 until the rebuttals feel natural. You should never hesitate at the door.",
+  "Always start with the ice breaker. 'Hello, how are you?' then 'You look ___, I'll be quick.'",
+  "Practice the 7 Stop Signs with Agnes 24 until the rebuttals feel natural.",
   "Point at a neighbor's house when you say 'we're doing work down the street.' Physical pointing creates social proof.",
   "The Broomstick Theory: take two steps back after knocking. Give space = earn respect.",
-  "Always pivot. If they don't need windows, ask about the roof. If not the roof, ask about siding. Never leave after one no.",
+  "Always pivot. If they don't need windows, ask about the roof. Never leave after one no.",
   "The utility bill ask is a micro-commitment. When they go find it, they've invested in the appointment.",
   "'Sound fair?' is your best friend. It gets a verbal yes without feeling like a close.",
-  "Susan 24 knows all 9 products cold. Between doors, ask her 'give me the windows value script' for a quick refresh.",
-  "Know your minimums: 4+ windows, 75% siding coverage, 15+ year roof, south-facing for solar. Don't set bad appointments.",
-  "End every interaction positively — even if they say no. You're the person they'll remember when they're ready.",
+  "Susan 24 knows all 9 products. Between doors, ask her for a quick product refresh.",
+  "Know your minimums: 4+ windows, 75% siding, 15+ year roof, south-facing for solar.",
+  "End every interaction positively — even if they say no. You're the person they'll remember.",
 ];
+
+interface WeatherData {
+  temp: number;
+  condition: string;
+  description: string;
+  icon: React.ComponentType<any>;
+}
 
 const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel, userEmail }) => {
   const { isRetail } = useDivision();
   const user = authService.getCurrentUser();
-  const [recentChats, setRecentChats] = useState<Array<{ text: string; time: string }>>([]);
+  const [recentChats, setRecentChats] = useState<Array<{ text: string }>>([]);
   const [topIntel, setTopIntel] = useState<string | null>(null);
-  const [stormCount, setStormCount] = useState<number>(0);
+  const [stormSummary, setStormSummary] = useState<{ count: number; maxMagnitude: number | null } | null>(null);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
 
   // Get time-based greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
     const name = user?.name?.split(' ')[0] || 'there';
-    if (hour < 12) return { text: `Good morning, ${name}`, icon: Sun, sub: "Let's make today count." };
-    if (hour < 17) return { text: `Good afternoon, ${name}`, icon: CloudSun, sub: isRetail ? "Time to hit the doors." : "Time to close some claims." };
-    return { text: `Good evening, ${name}`, icon: Moon, sub: "Wrapping up strong." };
+    if (hour < 12) return { text: `Good morning, ${name}`, icon: Sun };
+    if (hour < 17) return { text: `Good afternoon, ${name}`, icon: CloudSun };
+    return { text: `Good evening, ${name}`, icon: Moon };
   };
 
-  // Get today's tip (rotates daily based on day of year)
+  // Get daily tip
   const getDailyTip = () => {
     const tips = isRetail ? RETAIL_TIPS : INSURANCE_TIPS;
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
     return tips[dayOfYear % tips.length];
   };
 
-  // Load recent chats from localStorage
+  // Get weather-based quote
+  const getWeatherQuote = (condition: string) => {
+    const pool = WEATHER_QUOTES[condition] || WEATHER_QUOTES.sunny;
+    const quotes = isRetail ? pool.retail : pool.insurance;
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    return quotes[dayOfYear % quotes.length];
+  };
+
+  // Fetch weather from NWS (free, no key needed)
+  useEffect(() => {
+    const state = user?.state || 'VA';
+    // NWS observation stations by state
+    const stations: Record<string, string> = {
+      VA: 'KDCA', // Reagan National (DC/NoVA)
+      MD: 'KBWI', // Baltimore
+      PA: 'KPHL', // Philadelphia
+    };
+    const station = stations[state] || 'KDCA';
+
+    fetch(`https://api.weather.gov/stations/${station}/observations/latest`, {
+      headers: { 'User-Agent': 'Susan21-RoofER/1.0 (admin@roofer.com)' }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.properties) return;
+        const props = data.properties;
+        const tempC = props.temperature?.value;
+        const tempF = tempC != null ? Math.round(tempC * 9 / 5 + 32) : null;
+        const desc = props.textDescription || '';
+        const descLower = desc.toLowerCase();
+
+        let condition = 'sunny';
+        let icon: React.ComponentType<any> = Sun;
+
+        if (descLower.includes('thunder') || descLower.includes('storm')) {
+          condition = 'stormy'; icon = AlertTriangle;
+        } else if (descLower.includes('rain') || descLower.includes('drizzle') || descLower.includes('shower')) {
+          condition = 'rainy'; icon = CloudRain;
+        } else if (descLower.includes('snow') || descLower.includes('ice') || descLower.includes('sleet')) {
+          condition = 'cold'; icon = CloudSnow;
+        } else if (descLower.includes('cloud') || descLower.includes('overcast') || descLower.includes('fog')) {
+          condition = 'cloudy'; icon = Cloud;
+        } else if (descLower.includes('wind')) {
+          condition = 'cloudy'; icon = Wind;
+        } else if (tempF != null && tempF < 40) {
+          condition = 'cold'; icon = CloudSnow;
+        } else if (tempF != null && tempF > 85) {
+          condition = 'hot'; icon = Sun;
+        }
+
+        setWeather({
+          temp: tempF || 0,
+          condition,
+          description: desc || 'Clear',
+          icon
+        });
+      })
+      .catch(() => {});
+  }, [user?.state]);
+
+  // Load recent chats
   useEffect(() => {
     try {
       const raw = localStorage.getItem('chatHistory');
       if (raw) {
-        const msgs = JSON.parse(raw) as Array<{ text: string; sender: string; id: string }>;
+        const msgs = JSON.parse(raw) as Array<{ text: string; sender: string }>;
         const userMsgs = msgs
           .filter(m => m.sender === 'user' && m.text.length > 10)
           .slice(-3)
           .reverse()
-          .map(m => ({
-            text: m.text.length > 80 ? m.text.substring(0, 80) + '...' : m.text,
-            time: 'Recent'
-          }));
+          .map(m => ({ text: m.text.length > 70 ? m.text.substring(0, 70) + '...' : m.text }));
         setRecentChats(userMsgs);
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Load storm count + top intel (graceful if backend unavailable)
+  // Load storm summary + top intel
   useEffect(() => {
     if (!isRetail && userEmail) {
-      fetch('/api/storm-alerts/recent-count', { headers: { 'x-user-email': userEmail } })
+      fetch('/api/dashboard/storm-summary', { headers: { 'x-user-email': userEmail } })
         .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.count) setStormCount(d.count); })
+        .then(d => { if (d) setStormSummary(d); })
         .catch(() => {});
     }
 
@@ -118,6 +262,9 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
   const dailyTip = getDailyTip();
+  const WeatherIcon = weather?.icon || Cloud;
+  const weatherQuote = weather ? getWeatherQuote(weather.condition) : null;
+  const hasRecentStorms = !isRetail && stormSummary && stormSummary.count > 0;
 
   // Quick Actions
   const insuranceQuickActions = [
@@ -139,16 +286,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   ];
 
   const quickActions = isRetail ? retailQuickActions : insuranceQuickActions;
-
-  const cardStyle = {
-    background: 'var(--bg-secondary)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: '14px',
-    padding: '1rem 1.25rem',
-    marginBottom: '0.75rem',
-    cursor: 'pointer' as const,
-    transition: 'all 0.2s',
-  };
+  const accent = isRetail ? '#3b82f6' : '#dc2626';
+  const accentFaint = isRetail ? 'rgba(59,130,246,' : 'rgba(220,38,38,';
 
   return (
     <div style={{
@@ -157,91 +296,115 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       overflowY: 'auto',
       overflowX: 'hidden',
       background: 'var(--bg-primary)',
-      padding: '0',
-      boxSizing: 'border-box'
     }}>
-      {/* Greeting */}
+      {/* Greeting + Weather */}
       <div style={{
-        padding: '2rem 1.5rem 1rem',
+        padding: 'max(1.25rem, env(safe-area-inset-top, 1.25rem)) 1rem 0.75rem',
         display: 'flex',
         alignItems: 'center',
-        gap: '14px',
+        justifyContent: 'space-between',
+        gap: '12px',
       }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: '14px',
-          background: isRetail ? 'rgba(59,130,246,0.15)' : 'rgba(220,38,38,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <GreetingIcon style={{ width: '24px', height: '24px', color: isRetail ? '#60a5fa' : '#f87171' }} />
-        </div>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: 'clamp(1.25rem, 5vw, 1.6rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
             {greeting.text}
           </h1>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', margin: '4px 0 0' }}>
-            {greeting.sub}
-          </p>
         </div>
+
+        {/* Weather pill */}
+        {weather && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-subtle)',
+            flexShrink: 0,
+          }}>
+            <WeatherIcon style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{weather.temp}°</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {weather.description}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div style={{ padding: '0 1rem 1rem' }}>
+      <div style={{ padding: '0 1rem 1.5rem' }}>
+
+        {/* Weather Quote or Storm Alert */}
+        {hasRecentStorms ? (
+          <div
+            onClick={() => setActivePanel('stormmap')}
+            style={{
+              background: 'rgba(139,92,246,0.1)',
+              border: '1px solid rgba(139,92,246,0.25)',
+              borderRadius: '14px',
+              padding: '0.875rem 1rem',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            <AlertTriangle style={{ width: '20px', height: '20px', color: '#a78bfa', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {stormSummary!.count} storm event{stormSummary!.count > 1 ? 's' : ''} this week
+                {stormSummary!.maxMagnitude ? ` — up to ${stormSummary!.maxMagnitude}" hail` : ''}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Tap to view Storm Maps</div>
+            </div>
+            <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
+          </div>
+        ) : weatherQuote ? (
+          <div style={{
+            background: `${accentFaint}0.06)`,
+            border: `1px solid ${accentFaint}0.15)`,
+            borderRadius: '14px',
+            padding: '0.875rem 1rem',
+            marginBottom: '0.75rem',
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'flex-start',
+          }}>
+            <WeatherIcon style={{ width: '16px', height: '16px', color: accent, flexShrink: 0, marginTop: '1px' }} />
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, fontStyle: 'italic' }}>
+              {weatherQuote}
+            </div>
+          </div>
+        ) : null}
 
         {/* Daily Tip */}
-        <div
-          style={{
-            ...cardStyle,
-            cursor: 'default',
-            background: isRetail ? 'rgba(59,130,246,0.08)' : 'rgba(220,38,38,0.08)',
-            border: `1px solid ${isRetail ? 'rgba(59,130,246,0.2)' : 'rgba(220,38,38,0.2)'}`,
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'flex-start',
-          }}
-        >
-          <Sparkles style={{ width: '18px', height: '18px', color: isRetail ? '#60a5fa' : '#f87171', flexShrink: 0, marginTop: '2px' }} />
+        <div style={{
+          background: `${accentFaint}0.08)`,
+          border: `1px solid ${accentFaint}0.2)`,
+          borderRadius: '14px',
+          padding: '0.875rem 1rem',
+          marginBottom: '0.75rem',
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'flex-start',
+        }}>
+          <Sparkles style={{ width: '16px', height: '16px', color: accent, flexShrink: 0, marginTop: '1px' }} />
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: isRetail ? '#60a5fa' : '#f87171', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: accent, letterSpacing: '0.12em', marginBottom: '3px' }}>
               TIP OF THE DAY
             </div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               {dailyTip}
             </div>
           </div>
         </div>
 
-        {/* Storm Alert Banner (insurance only) */}
-        {!isRetail && stormCount > 0 && (
-          <div
-            onClick={() => setActivePanel('stormmap')}
-            style={{
-              ...cardStyle,
-              background: 'rgba(139,92,246,0.1)',
-              border: '1px solid rgba(139,92,246,0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}
-          >
-            <Building2 style={{ width: '20px', height: '20px', color: '#a78bfa', flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {stormCount} storm event{stormCount > 1 ? 's' : ''} in the last 30 days
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Tap to view Storm Maps</div>
-            </div>
-            <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
-          </div>
-        )}
-
         {/* Recent Conversations */}
         {recentChats.length > 0 && (
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-tertiary)', letterSpacing: '0.1em', marginBottom: '8px', paddingLeft: '4px' }}>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-disabled)', letterSpacing: '0.12em', marginBottom: '6px', paddingLeft: '2px' }}>
               RECENT CONVERSATIONS
             </div>
             {recentChats.map((chat, i) => (
@@ -249,17 +412,23 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 key={i}
                 onClick={() => setActivePanel('chat')}
                 style={{
-                  ...cardStyle,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '10px',
+                  padding: '0.7rem 0.875rem',
+                  marginBottom: '6px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
                 }}
               >
-                <MessageSquare style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)', flexShrink: 0 }} />
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <MessageSquare style={{ width: '14px', height: '14px', color: 'var(--text-disabled)', flexShrink: 0 }} />
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {chat.text}
                 </div>
-                <ChevronRight style={{ width: '14px', height: '14px', color: 'var(--text-disabled)', flexShrink: 0 }} />
+                <ChevronRight style={{ width: '12px', height: '12px', color: 'var(--text-disabled)', flexShrink: 0 }} />
               </div>
             ))}
           </div>
@@ -270,35 +439,41 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           <div
             onClick={() => setActivePanel('knowledge')}
             style={{
-              ...cardStyle,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '14px',
+              padding: '0.875rem 1rem',
+              marginBottom: '0.75rem',
               display: 'flex',
-              gap: '12px',
+              gap: '10px',
               alignItems: 'flex-start',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
             }}
           >
-            <ThumbsUp style={{ width: '16px', height: '16px', color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+            <ThumbsUp style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', letterSpacing: '0.1em', marginBottom: '4px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', letterSpacing: '0.12em', marginBottom: '3px' }}>
                 TOP TEAM TIP
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 {topIntel}
               </div>
             </div>
-            <ChevronRight style={{ width: '14px', height: '14px', color: 'var(--text-disabled)', flexShrink: 0, marginTop: '2px' }} />
+            <ChevronRight style={{ width: '12px', height: '12px', color: 'var(--text-disabled)', flexShrink: 0, marginTop: '2px' }} />
           </div>
         )}
 
         {/* Quick Actions */}
-        <div style={{ marginTop: '0.5rem' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-tertiary)', letterSpacing: '0.1em', marginBottom: '10px', paddingLeft: '4px' }}>
+        <div style={{ marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-disabled)', letterSpacing: '0.12em', marginBottom: '8px', paddingLeft: '2px' }}>
             QUICK ACTIONS
           </div>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-            gap: '0.75rem'
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '0.6rem',
           }}>
             {quickActions.map((action) => {
               const Icon = action.icon;
@@ -310,41 +485,26 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                     background: action.gradient,
                     border: 'none',
                     borderRadius: '12px',
-                    padding: '1rem',
+                    padding: '0.875rem',
                     cursor: 'pointer',
                     textAlign: 'left',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    minHeight: '80px',
                   }}
                 >
-                  <div style={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '0.6rem',
-                    borderRadius: '10px'
-                  }}>
-                    <Icon style={{ width: '1.25rem', height: '1.25rem', color: '#ffffff' }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#ffffff', marginBottom: '0.15rem' }}>
+                  <Icon style={{ width: '1.25rem', height: '1.25rem', color: 'rgba(255,255,255,0.9)' }} />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff', lineHeight: 1.2 }}>
                       {action.title}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.85)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>
                       {action.description}
                     </div>
                   </div>
-                  <ChevronRight style={{ width: '1rem', height: '1rem', color: 'rgba(255, 255, 255, 0.7)' }} />
                 </button>
               );
             })}
