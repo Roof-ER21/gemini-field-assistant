@@ -240,9 +240,9 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
           pathOptions={{
             color: contour.color,
             fillColor: contour.color,
-            fillOpacity: 0.25,
-            weight: 2.5,
-            opacity: 0.85,
+            fillOpacity: 0.22,
+            weight: 0,
+            opacity: 0,
           }}
         />
       ))}
