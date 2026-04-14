@@ -56,6 +56,7 @@ interface UserSummary {
   name: string;
   role: string;
   state: string | null;
+  division: string | null;
   total_messages: number;
   last_active: string;
 }
@@ -371,7 +372,7 @@ const AdminPanel: React.FC = () => {
   // User management modal state
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserSummary | null>(null);
-  const [userFormData, setUserFormData] = useState({ name: '', email: '', role: 'sales_rep', state: '' });
+  const [userFormData, setUserFormData] = useState({ name: '', email: '', role: 'sales_rep', state: '', division: 'insurance' });
   const [userModalLoading, setUserModalLoading] = useState(false);
   const [showConversationsModal, setShowConversationsModal] = useState(false);
   const [conversationsModalUser, setConversationsModalUser] = useState<UserSummary | null>(null);
@@ -892,7 +893,8 @@ const AdminPanel: React.FC = () => {
         body: JSON.stringify({
           name: userFormData.name,
           role: userFormData.role,
-          state: userFormData.state || null
+          state: userFormData.state || null,
+          division: userFormData.division || 'insurance'
         })
       });
 
@@ -901,10 +903,19 @@ const AdminPanel: React.FC = () => {
         throw new Error(data.error || 'Failed to update user');
       }
 
+      // Also update division via dedicated endpoint
+      if (userFormData.division) {
+        await adminFetch(`/api/admin/users/${editingUser.id}/division`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ division: userFormData.division })
+        });
+      }
+
       toast.success('User updated');
       setShowUserModal(false);
       setEditingUser(null);
-      setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+      setUserFormData({ name: '', email: '', role: 'sales_rep', state: '', division: 'insurance' });
       fetchUsers();
     } catch (err) {
       toast.error('Error', (err as Error).message);
@@ -956,7 +967,7 @@ const AdminPanel: React.FC = () => {
 
   const openCreateUserModal = () => {
     setEditingUser(null);
-    setUserFormData({ name: '', email: '', role: 'sales_rep', state: '' });
+    setUserFormData({ name: '', email: '', role: 'sales_rep', state: '', division: 'insurance' });
     setShowUserModal(true);
   };
 
@@ -966,7 +977,8 @@ const AdminPanel: React.FC = () => {
       name: user.name,
       email: user.email,
       role: user.role,
-      state: user.state || ''
+      state: user.state || '',
+      division: user.division || 'insurance'
     });
     setShowUserModal(true);
   };
@@ -2137,6 +2149,18 @@ const AdminPanel: React.FC = () => {
                             {user.state}
                           </span>
                         )}
+                        <span style={{
+                          padding: '6px 12px',
+                          background: (user.division || 'insurance') === 'retail' ? 'rgba(59,130,246,0.2)' : 'rgba(220,38,38,0.15)',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: (user.division || 'insurance') === 'retail' ? '#60a5fa' : '#f87171',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          {(user.division || 'insurance') === 'retail' ? 'RETAIL' : 'INS'}
+                        </span>
                       </div>
 
                       {/* Stats */}
@@ -5321,6 +5345,29 @@ const AdminPanel: React.FC = () => {
                   <option value="VA">Virginia (VA)</option>
                   <option value="MD">Maryland (MD)</option>
                   <option value="PA">Pennsylvania (PA)</option>
+                </select>
+              </div>
+
+              {/* Division field */}
+              <div>
+                <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                  Division
+                </label>
+                <select
+                  value={userFormData.division}
+                  onChange={(e) => setUserFormData(prev => ({ ...prev, division: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    background: 'var(--bg-secondary)',
+                    border: `1px solid ${userFormData.division === 'retail' ? '#3b82f6' : 'var(--border-subtle)'}`,
+                    borderRadius: '8px',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9375rem'
+                  }}
+                >
+                  <option value="insurance">Insurance</option>
+                  <option value="retail">Retail</option>
                 </select>
               </div>
 
