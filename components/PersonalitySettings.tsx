@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Save, Check } from 'lucide-react';
 import { getApiBaseUrl } from '../services/config';
 import { authService } from '../services/authService';
+import { useDivision } from '../contexts/DivisionContext';
 
 interface PersonalityData {
   preferred_name: string;
@@ -19,18 +20,28 @@ interface PersonalityData {
 
 const TONE_OPTIONS = ['professional', 'casual', 'motivational', 'direct', 'friendly'];
 const VERBOSITY_OPTIONS = ['concise', 'balanced', 'detailed'];
-const SPECIALTY_OPTIONS = [
+const INSURANCE_SPECIALTIES = [
   'insurance claims',
-  'retail sales',
   'storm chasing',
   'commercial roofing',
   'gutters & siding',
   'solar',
-  'door knocking',
   'adjuster meetings',
 ];
 
+const RETAIL_SPECIALTIES = [
+  'retail sales',
+  'door knocking',
+  'windows',
+  'siding',
+  'roofing',
+  'solar',
+  'gutters & insulation',
+];
+
 const PersonalitySettings: React.FC = () => {
+  const { isRetail } = useDivision();
+  const SPECIALTY_OPTIONS = isRetail ? RETAIL_SPECIALTIES : INSURANCE_SPECIALTIES;
   const [data, setData] = useState<PersonalityData>({
     preferred_name: '',
     tone: '',
