@@ -40,11 +40,12 @@ interface ClusterEvent extends StormEvent {
 // Hail size → impact radius in miles (matches IHM/HailTrace)
 // Minimum 3mi ensures visible polygons even for single-point events
 function getRadiusMiles(magnitudeInches: number): number {
-  if (magnitudeInches >= 3) return 8;
-  if (magnitudeInches >= 2.5) return 6;
-  if (magnitudeInches >= 2) return 5;
-  if (magnitudeInches >= 1.5) return 4;
-  if (magnitudeInches >= 1) return 3.5;
+  const mag = Number(magnitudeInches) || 0;
+  if (mag >= 3) return 8;
+  if (mag >= 2.5) return 6;
+  if (mag >= 2) return 5;
+  if (mag >= 1.5) return 4;
+  if (mag >= 1) return 3.5;
   return 3;
 }
 
@@ -77,7 +78,7 @@ function clusterEvents(events: StormEvent[]): ClusterEvent[][] {
   for (const event of events) {
     if (visited.has(event.id)) continue;
 
-    const seed: ClusterEvent = { ...event, radiusMiles: getRadiusMiles(event.magnitude) };
+    const seed: ClusterEvent = { ...event, magnitude: Number(event.magnitude) || 0, radiusMiles: getRadiusMiles(event.magnitude) };
     const cluster: ClusterEvent[] = [seed];
     visited.add(event.id);
 
@@ -189,10 +190,10 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
     if (!visible) return [];
 
     const hailEvents = events.filter(
-      (e) => e.eventType === 'Hail' && Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon) && e.magnitude > 0,
+      (e) => e.eventType === 'Hail' && Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon),
     );
 
-    console.log(`[HailContour] visible=${visible}, total events=${events.length}, hail events=${hailEvents.length}, eventTypes=${[...new Set(events.map(e => e.eventType))]}`);
+    console.log(`[HailContour] visible=${visible}, total=${events.length}, hail=${hailEvents.length}, mags=${hailEvents.slice(0,3).map(e => `${e.magnitude}(${typeof e.magnitude})`)}`);
 
     if (hailEvents.length === 0) return [];
 
