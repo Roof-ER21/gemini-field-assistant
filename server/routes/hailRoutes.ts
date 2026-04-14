@@ -350,14 +350,21 @@ router.get('/search', async (req, res) => {
       try {
         const pool: import('pg').Pool = req.app.get('pool');
         const degRadius = radiusNum / 69;
+        // Query with lat/lng if available, fall back to state-based if coordinates are NULL
         const localAlerts = await pool.query(
-          `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, state, narrative, source
+          `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, source
            FROM storm_alerts
            WHERE event_date >= CURRENT_DATE - INTERVAL '${monthsNum} months'
-             AND latitude BETWEEN $1 AND $2
-             AND longitude BETWEEN $3 AND $4
-           ORDER BY event_date DESC`,
-          [searchLat - degRadius, searchLat + degRadius, searchLng - degRadius, searchLng + degRadius]
+             AND (
+               (latitude IS NOT NULL AND longitude IS NOT NULL
+                AND latitude BETWEEN $1 AND $2
+                AND longitude BETWEEN $3 AND $4)
+               OR
+               (latitude IS NULL AND state IN ('VA','MD','PA'))
+             )
+           ORDER BY event_date DESC
+           LIMIT 200`,
+          [searchLat! - degRadius, searchLat! + degRadius, searchLng! - degRadius, searchLng! + degRadius]
         );
 
         // Merge local alerts that aren't already in NOAA results (avoid duplicates by date+location)
