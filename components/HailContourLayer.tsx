@@ -192,6 +192,8 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
       (e) => e.eventType === 'Hail' && Number.isFinite(e.beginLat) && Number.isFinite(e.beginLon) && e.magnitude > 0,
     );
 
+    console.log(`[HailContour] visible=${visible}, total events=${events.length}, hail events=${hailEvents.length}, eventTypes=${[...new Set(events.map(e => e.eventType))]}`);
+
     if (hailEvents.length === 0) return [];
 
     const result: Array<{ path: LatLngExpression[]; color: string; magnitude: number }> = [];
@@ -214,9 +216,11 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
       result.push({ path, color, magnitude: maxMag });
     }
 
+    console.log(`[HailContour] Built ${result.length} contour polygons`);
     return result;
   }, [visible, events]);
 
+  console.log(`[HailContour] Rendering: visible=${visible}, contours=${contours.length}`);
   if (!visible || contours.length === 0) return null;
 
   return (
