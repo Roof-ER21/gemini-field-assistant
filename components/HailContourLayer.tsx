@@ -38,13 +38,14 @@ interface ClusterEvent extends StormEvent {
 }
 
 // Hail size → impact radius in miles (matches IHM/HailTrace)
+// Minimum 3mi ensures visible polygons even for single-point events
 function getRadiusMiles(magnitudeInches: number): number {
-  if (magnitudeInches >= 3) return 7;
-  if (magnitudeInches >= 2.5) return 5.5;
-  if (magnitudeInches >= 2) return 4.5;
-  if (magnitudeInches >= 1.5) return 3.5;
-  if (magnitudeInches >= 1) return 2.5;
-  return 1.75;
+  if (magnitudeInches >= 3) return 8;
+  if (magnitudeInches >= 2.5) return 6;
+  if (magnitudeInches >= 2) return 5;
+  if (magnitudeInches >= 1.5) return 4;
+  if (magnitudeInches >= 1) return 3.5;
+  return 3;
 }
 
 // Hail size → color (matches existing HAIL_SIZE_CLASSES)
@@ -227,9 +228,9 @@ export default function HailContourLayer({ visible, events }: HailContourLayerPr
           pathOptions={{
             color: contour.color,
             fillColor: contour.color,
-            fillOpacity: 0.18,
-            weight: 2,
-            opacity: 0.7,
+            fillOpacity: 0.25,
+            weight: 2.5,
+            opacity: 0.85,
           }}
         />
       ))}
