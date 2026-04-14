@@ -458,29 +458,34 @@ router.get('/address-history', async (req: Request, res: Response) => {
       console.warn('[address-history] NOAA fetch error:', e);
     }
 
-    // Fetch storm_alerts within 10 miles
+    // Fetch storm_alerts — with coordinates (distance filter) OR without (state fallback)
     const pool: Pool = req.app.get('pool');
     let recentAlerts: any[] = [];
     try {
       const alertResult = await pool.query(
-        `SELECT * FROM (
-           SELECT *,
+        `SELECT *,
+           CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN
              (3959 * acos(LEAST(1.0,
                cos(radians($1)) * cos(radians(latitude)) *
                cos(radians(longitude) - radians($2)) +
                sin(radians($1)) * sin(radians(latitude))
-             ))) AS distance_miles
-           FROM storm_alerts
-           WHERE event_date >= CURRENT_DATE - INTERVAL '${yearsBack} years'
-             AND latitude IS NOT NULL AND longitude IS NOT NULL
-         ) sub
-         WHERE distance_miles <= 10
-         ORDER BY event_date DESC`,
+             )))
+           ELSE 999 END AS distance_miles
+         FROM storm_alerts
+         WHERE event_date >= CURRENT_DATE - INTERVAL '${yearsBack} years'
+           AND (
+             (latitude IS NOT NULL AND longitude IS NOT NULL)
+             OR state IN ('VA','MD','PA')
+           )
+         ORDER BY event_date DESC
+         LIMIT 200`,
         [searchLat, searchLng]
       );
-      recentAlerts = alertResult.rows;
+      // Filter: keep events within 10 miles OR events without coordinates (state-level)
+      recentAlerts = alertResult.rows.filter((r: any) => Number(r.distance_miles) <= 10 || r.latitude === null);
+      console.log(`[address-history] storm_alerts: ${alertResult.rows.length} total, ${recentAlerts.length} after distance filter`);
     } catch (e) {
-      console.warn('[address-history] storm_alerts query error:', e);
+      console.error('[address-history] storm_alerts query error:', (e as Error).message);
     }
 
     // Merge storm_alerts into allEvents (avoid duplicates)
