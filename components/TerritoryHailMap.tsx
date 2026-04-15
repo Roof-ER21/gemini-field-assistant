@@ -245,16 +245,25 @@ function padBounds(bounds: BoundingBox | null, factor = 0.2): BoundingBox | null
     return null;
   }
 
-  const latSpan = Math.max(1.0, bounds.north - bounds.south);
-  const lngSpan = Math.max(1.0, bounds.east - bounds.west);
+  const MIN_SPAN_DEG = 1.0; // ~69 miles — ensures MRMS always has a meaningful search area
+
+  const latSpan = Math.max(MIN_SPAN_DEG, bounds.north - bounds.south);
+  const lngSpan = Math.max(MIN_SPAN_DEG, bounds.east - bounds.west);
   const latPad = latSpan * factor;
   const lngPad = lngSpan * factor;
 
+  const centerLat = (bounds.north + bounds.south) / 2;
+  const centerLng = (bounds.east + bounds.west) / 2;
+
+  // Ensure final span is at least MIN_SPAN_DEG, then add padding on top
+  const halfLat = Math.max(MIN_SPAN_DEG / 2, (bounds.north - bounds.south) / 2) + latPad;
+  const halfLng = Math.max(MIN_SPAN_DEG / 2, (bounds.east - bounds.west) / 2) + lngPad;
+
   return {
-    north: bounds.north + latPad,
-    south: bounds.south - latPad,
-    east: bounds.east + lngPad,
-    west: bounds.west - lngPad,
+    north: centerLat + halfLat,
+    south: centerLat - halfLat,
+    east: centerLng + halfLng,
+    west: centerLng - halfLng,
   };
 }
 

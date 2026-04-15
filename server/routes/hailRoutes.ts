@@ -349,9 +349,9 @@ router.get('/search', async (req, res) => {
       // Also query local storm_alerts to fill the SPC→NOAA gap (days 8-30+)
       try {
         const pool: import('pg').Pool = req.app.get('pool');
-        // Simple query: get all recent alerts in VA/MD/PA territory
+        // Get all recent alerts in VA/MD/PA territory — NOT radius-filtered so PA storms show
         const localAlerts = await pool.query(
-          `SELECT event_type, event_date, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, alert_phase
+          `SELECT event_type, TO_CHAR(event_date, 'YYYY-MM-DD') AS event_date_str, magnitude, magnitude_unit, latitude, longitude, location, county, state, narrative, alert_phase
            FROM storm_alerts
            WHERE event_date >= CURRENT_DATE - INTERVAL '90 days'
              AND state IN ('VA','MD','PA')
@@ -361,28 +361,41 @@ router.get('/search', async (req, res) => {
 
         console.log(`[StormAlerts] Local merge: found ${localAlerts.rows.length} alerts from storm_alerts table`);
 
+        // Normalize NOAA dates to YYYY-MM-DD for consistent dedup keys
+        const toDateKey = (dateVal: any): string => {
+          if (!dateVal) return '';
+          const s = String(dateVal);
+          const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+          return m ? m[1] : s;
+        };
+
         // Merge local alerts that aren't already in NOAA results (avoid duplicates by date+location)
-        const existingDates = new Set(noaaData.map((e: any) => `${e.date}-${(e.latitude||0).toFixed?.(2) || e.latitude}`));
+        const existingDates = new Set(noaaData.map((e: any) => `${toDateKey(e.date)}-${(Number(e.latitude)||0).toFixed(2)}`));
         let merged = 0;
         for (const a of localAlerts.rows) {
-          const key = `${a.event_date}-${(a.latitude||0).toFixed?.(2) || '0'}`;
+          const alertDate = a.event_date_str || toDateKey(a.event_date);
+          const alertLat = Number(a.latitude) || 0;
+          const alertLng = Number(a.longitude) || 0;
+          const key = `${alertDate}-${alertLat.toFixed(2)}`;
           if (!existingDates.has(key)) {
             noaaData.push({
-              id: `local-${a.event_date}-${a.location}`,
+              id: `local-${alertDate}-${a.location}-${alertLat.toFixed(2)}`,
               eventType: a.event_type || 'Hail',
-              date: a.event_date,
-              latitude: a.latitude || searchLat,
-              longitude: a.longitude || searchLng,
+              date: alertDate,
+              latitude: alertLat !== 0 ? alertLat : searchLat,
+              longitude: alertLng !== 0 ? alertLng : searchLng,
               magnitude: a.magnitude ? Number(a.magnitude) : null,
               state: a.state,
+              county: a.county || '',
               location: a.location,
-              narrative: a.narrative || `${a.event_type} at ${a.location}`,
+              narrative: a.narrative || `${a.event_type} at ${a.location}, ${a.state}`,
               source: a.alert_phase === 'noaa_reconciled' ? 'NOAA (verified)' : 'SPC/NWS (local)'
             });
+            existingDates.add(key); // prevent duplicates within storm_alerts
             merged++;
           }
         }
-        console.log(`[StormAlerts] Merged ${merged} local alerts into results`);
+        console.log(`[StormAlerts] Merged ${merged} local alerts into results (PA: ${localAlerts.rows.filter((r: any) => r.state === 'PA').length} events)`);
       } catch (e) {
         console.error('[StormAlerts] Local merge error:', (e as Error).message);
       }

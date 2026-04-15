@@ -115,44 +115,75 @@ function toLatLng(point: ProjectedPoint, refLat: number, refLng: number): [numbe
   return [refLat + point.y / milesPerLat, refLng + point.x / milesPerLng];
 }
 
-// Build capsule (stadium shape) along storm travel path, or circle if no travel
+// Deterministic noise seeded by event coordinates — produces organic-looking variation
+// without randomness so the same event always renders the same shape.
+function seededNoise(seed: number, index: number): number {
+  const x = Math.sin(seed * 127.1 + index * 311.7) * 43758.5453;
+  return x - Math.floor(x); // 0..1
+}
+
+function organicRadius(baseRadius: number, angle: number, seed: number): number {
+  // Layer 3 sine waves at different frequencies for natural variation (±25%)
+  const n1 = Math.sin(angle * 2.3 + seed * 1.7) * 0.12;
+  const n2 = Math.sin(angle * 4.1 + seed * 3.2) * 0.08;
+  const n3 = Math.sin(angle * 7.9 + seed * 0.3) * 0.05;
+  return baseRadius * (1.0 + n1 + n2 + n3);
+}
+
+// Build organic capsule along storm travel path, or organic blob if no travel
 function sampleEventFootprint(event: ClusterEvent, refLat: number, refLng: number): ProjectedPoint[] {
   const begin = toProjectedPoint(event.beginLat, event.beginLon, refLat, refLng);
+  // Seed from coordinates for deterministic but varied shapes per event
+  const seed = Math.abs(event.beginLat * 1000 + event.beginLon * 777);
 
   const hasEnd =
     Number.isFinite(event.endLat) && Number.isFinite(event.endLon) &&
     (Math.abs(event.endLat - event.beginLat) > 0.001 || Math.abs(event.endLon - event.beginLon) > 0.001);
 
+  // Determine an elongation direction: use storm track if available, otherwise derive from seed
+  const elongAngle = hasEnd
+    ? Math.atan2(event.endLat - event.beginLat, event.endLon - event.beginLon)
+    : (seededNoise(seed, 0) * Math.PI * 2);
+  // Storms are typically elongated 1.2–1.6x along travel axis
+  const elongation = 1.2 + seededNoise(seed, 1) * 0.4;
+
   if (!hasEnd) {
-    // No travel path — circle
+    // No travel path — organic blob (not a perfect circle)
     const ring: ProjectedPoint[] = [];
-    const steps = 20;
+    const steps = 28; // more points for smoother organic shape
     for (let i = 0; i < steps; i++) {
       const angle = (Math.PI * 2 * i) / steps;
-      ring.push({ x: begin.x + Math.cos(angle) * event.radiusMiles, y: begin.y + Math.sin(angle) * event.radiusMiles });
+      const r = organicRadius(event.radiusMiles, angle, seed);
+      // Apply elongation along the derived storm axis
+      const cosA = Math.cos(angle - elongAngle);
+      const sinA = Math.sin(angle - elongAngle);
+      const rElongated = r * Math.sqrt((elongation * cosA) ** 2 + sinA ** 2) / Math.sqrt(cosA ** 2 + sinA ** 2);
+      ring.push({ x: begin.x + Math.cos(angle) * rElongated, y: begin.y + Math.sin(angle) * rElongated });
     }
     return ring;
   }
 
-  // Stadium shape along begin→end path
+  // Stadium shape along begin→end path with organic edges
   const end = toProjectedPoint(event.endLat, event.endLon, refLat, refLng);
   const dx = end.x - begin.x;
   const dy = end.y - begin.y;
   const pathAngle = Math.atan2(dy, dx);
   const halfWidth = event.radiusMiles;
   const points: ProjectedPoint[] = [];
-  const arcSteps = 10;
+  const arcSteps = 14; // more points for organic arcs
 
-  // Semicircle around begin (facing away from end)
+  // Semicircle around begin (facing away from end) with organic variation
   for (let i = 0; i <= arcSteps; i++) {
     const a = pathAngle + Math.PI / 2 + (Math.PI * i) / arcSteps;
-    points.push({ x: begin.x + Math.cos(a) * halfWidth, y: begin.y + Math.sin(a) * halfWidth });
+    const r = organicRadius(halfWidth, a, seed);
+    points.push({ x: begin.x + Math.cos(a) * r, y: begin.y + Math.sin(a) * r });
   }
 
-  // Semicircle around end (facing away from begin)
+  // Semicircle around end (facing away from begin) with organic variation
   for (let i = 0; i <= arcSteps; i++) {
     const a = pathAngle - Math.PI / 2 + (Math.PI * i) / arcSteps;
-    points.push({ x: end.x + Math.cos(a) * halfWidth, y: end.y + Math.sin(a) * halfWidth });
+    const r = organicRadius(halfWidth, a, seed + 100);
+    points.push({ x: end.x + Math.cos(a) * r, y: end.y + Math.sin(a) * r });
   }
 
   return points;
@@ -182,7 +213,24 @@ function buildConvexHull(points: ProjectedPoint[]): ProjectedPoint[] {
 
   lower.pop();
   upper.pop();
-  return [...lower, ...upper];
+  const hull = [...lower, ...upper];
+
+  // Smooth hull with Chaikin subdivision for organic curves (2 passes)
+  return chaikinSmooth(chaikinSmooth(hull));
+}
+
+// Chaikin's corner-cutting: replaces each edge with 2 points at 25%/75%,
+// producing smooth curves that converge toward a B-spline.
+function chaikinSmooth(points: ProjectedPoint[]): ProjectedPoint[] {
+  if (points.length < 3) return points;
+  const result: ProjectedPoint[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    result.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+    result.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+  }
+  return result;
 }
 
 export default function HailContourLayer({ visible, events }: HailContourLayerProps) {
