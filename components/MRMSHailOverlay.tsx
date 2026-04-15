@@ -142,6 +142,7 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
 
   // Hover tooltip state
   const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; label: string; size: string; color: string } | null>(null);
+  const [liveMeta, setLiveMeta] = useState<{ ref_time?: string; max_mesh_inches?: number; hail_pixels?: number; source?: string } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const imgLoadedRef = useRef(false);
@@ -345,13 +346,36 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
     };
   }, [isHistoricalMode, refreshOverlay, visible]);
 
+  // Fetch live MRMS metadata (update time, max hail) when in live mode
+  useEffect(() => {
+    if (!visible || isHistoricalMode) {
+      setLiveMeta(null);
+      return;
+    }
+    const loadMeta = () => {
+      fetch(`${apiBase.replace(/\/$/, '')}/mrms/${product}.json?t=${Date.now()}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d) setLiveMeta(d); })
+        .catch(() => {});
+    };
+    loadMeta();
+    const timer = window.setInterval(loadMeta, REFRESH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [apiBase, isHistoricalMode, product, visible]);
+
+  const liveAgeMinutes = liveMeta?.ref_time
+    ? Math.round((Date.now() - new Date(liveMeta.ref_time).getTime()) / 60000)
+    : null;
+
   const infoMessage = isHistoricalMode
     ? historicalMeta?.has_hail === false
       ? 'No archived MRMS hail raster was found inside the selected storm bounds.'
       : historicalMeta?.ref_time
         ? `Archived MRMS ${formatTimestamp(historicalMeta.ref_time)}`
         : 'Historical hail footprint for the selected storm date.'
-    : `Live ${product === 'mesh60' ? '60-minute' : '24-hour'} MRMS hail overlay`;
+    : liveMeta?.ref_time
+      ? `Updated ${liveAgeMinutes != null && liveAgeMinutes < 120 ? `${liveAgeMinutes}m ago` : formatTimestamp(liveMeta.ref_time)}${liveMeta.max_mesh_inches ? ` · Max ${liveMeta.max_mesh_inches.toFixed(1)}" hail` : ''}`
+      : `Live ${product === 'mesh60' ? '60-minute' : '24-hour'} MRMS hail overlay`;
 
   return (
     <>

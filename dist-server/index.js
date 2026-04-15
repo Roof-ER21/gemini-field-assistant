@@ -655,28 +655,69 @@ app.get('/api/dashboard/storm-summary', async (req, res) => {
     }
 });
 // MRMS MESH tile proxy — forwards requests to Oracle Cloud tile server
-// This avoids mixed-content (https→http) blocking in browsers
+// Falls back to IEM historical archive if Oracle is unreachable
+const MRMS_ORACLE = 'http://129.159.190.3:8080';
 app.get('/api/mrms/:file', async (req, res) => {
     try {
         const file = req.params.file;
-        // Only allow specific file patterns
         if (!/^(mesh60|mesh1440)\.(png|json)$/.test(file)) {
             return res.status(400).send('Invalid file');
         }
-        const upstream = `http://129.159.190.3:8080/overlays/${file}`;
-        const response = await fetch(upstream, { signal: AbortSignal.timeout(10000) });
-        if (!response.ok) {
-            return res.status(response.status).send('MRMS data unavailable');
+        // Try Oracle Cloud tile server first
+        try {
+            const response = await fetch(`${MRMS_ORACLE}/overlays/${file}`, { signal: AbortSignal.timeout(8000) });
+            if (response.ok) {
+                const contentType = file.endsWith('.json') ? 'application/json' : 'image/png';
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Cache-Control', 'public, max-age=120');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('X-MRMS-Source', 'oracle-live');
+                const buffer = Buffer.from(await response.arrayBuffer());
+                return res.send(buffer);
+            }
         }
-        const contentType = file.endsWith('.json') ? 'application/json' : 'image/png';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=120'); // 2-min cache
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        const buffer = Buffer.from(await response.arrayBuffer());
-        res.send(buffer);
+        catch {
+            console.warn('[MRMS] Oracle tile server unreachable, falling back to IEM historical');
+        }
+        // Fallback: serve today's IEM historical MRMS for mesh1440 (PNG only)
+        if (file === 'mesh1440.png') {
+            try {
+                const { getHistoricalMrmsOverlay } = await import('./services/historicalMrmsService.js');
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                const result = await getHistoricalMrmsOverlay({
+                    date: today, north: 50, south: 25, east: -66, west: -125,
+                });
+                res.setHeader('Content-Type', 'image/png');
+                res.setHeader('Cache-Control', 'public, max-age=300');
+                res.setHeader('X-MRMS-Source', 'iem-fallback');
+                return res.send(result.imageBuffer);
+            }
+            catch (e) {
+                console.error('[MRMS] IEM fallback also failed:', e.message);
+            }
+        }
+        // Fallback for JSON metadata
+        if (file.endsWith('.json')) {
+            return res.json({ has_hail: false, source: 'fallback', message: 'MRMS tile server temporarily unavailable' });
+        }
+        res.status(502).send('MRMS data unavailable from all sources');
     }
     catch (err) {
         res.status(502).send('MRMS tile server unreachable');
+    }
+});
+// MRMS server status proxy — exposes Oracle tile server health to frontend
+app.get('/api/mrms/status', async (_req, res) => {
+    try {
+        const response = await fetch(`${MRMS_ORACLE}/api/status`, { signal: AbortSignal.timeout(5000) });
+        if (response.ok) {
+            const data = await response.json();
+            return res.json({ ...data, proxy: 'oracle-live' });
+        }
+        res.json({ status: 'degraded', proxy: 'oracle-down', message: 'Using IEM fallback' });
+    }
+    catch {
+        res.json({ status: 'degraded', proxy: 'oracle-unreachable', message: 'Using IEM fallback' });
     }
 });
 // One-time migration runner for analytics tables (admin only)

@@ -42,6 +42,7 @@ import {
 
 interface TerritoryHailMapProps {
   isAdmin?: boolean;
+  setActivePanel?: (panel: string) => void;
 }
 
 interface FitBoundsRequest {
@@ -577,7 +578,7 @@ function getSearchRadiusMiles(resultType: SearchResultType): number {
   }
 }
 
-export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
+export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapProps) {
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [fitBoundsRequest, setFitBoundsRequest] = useState<FitBoundsRequest | null>(null);
@@ -1537,6 +1538,36 @@ export default function TerritoryHailMap(_props: TerritoryHailMapProps) {
             {generatingReport ? 'Generating Report...' : 'Generate Report'}
           </button>
           <p style={{ marginTop: 8, textAlign: 'center', fontSize: 11, color: '#6b7280' }}>Choose the loss date, then download the NOAA-forward PDF.</p>
+          {selectedDate && setActivePanel && (
+            <button
+              onClick={() => {
+                const context = [
+                  `I'm looking at the storm from ${selectedDate.label} on Storm Maps.`,
+                  selectedDate.maxHailInches > 0 ? `Max hail: ${selectedDate.maxHailInches}" detected.` : null,
+                  selectedDate.maxWindMph > 0 ? `Max wind: ${selectedDate.maxWindMph} mph.` : null,
+                  `${selectedDate.eventCount} verified report${selectedDate.eventCount !== 1 ? 's' : ''} in ${selectedDate.statesAffected.join(', ')}.`,
+                  activeSearchLabel ? `Property/area: ${activeSearchLabel}.` : null,
+                  'What should I know about this storm for door-knocking? Any talking points for homeowners?',
+                ].filter(Boolean).join(' ');
+                localStorage.setItem('susan_storm_context', context);
+                setActivePanel('chat');
+              }}
+              style={{
+                width: '100%',
+                marginTop: 8,
+                borderRadius: 12,
+                border: '1px solid #7c3aed',
+                padding: '10px 12px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                color: '#a78bfa',
+              }}
+            >
+              Ask Susan About This Storm
+            </button>
+          )}
         </div>
         </div>{/* end scrollable wrapper */}
 

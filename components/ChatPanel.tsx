@@ -222,6 +222,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [feedbackAdjuster, setFeedbackAdjuster] = useState('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({});
 
+  // Pick up pre-filled storm context from Storm Maps "Ask Susan" button
+  useEffect(() => {
+    const stormContext = localStorage.getItem('susan_storm_context');
+    if (stormContext) {
+      localStorage.removeItem('susan_storm_context');
+      setUserInput(stormContext);
+      setShowWelcome(false);
+    }
+  }, []);
+
   // Toggle for new assistant-ui rendering (incremental migration)
   // Note: Set to false to use legacy rendering with full feature support
   // (HAIL_RESULTS, EMAIL_GENERATED special rendering, etc.)

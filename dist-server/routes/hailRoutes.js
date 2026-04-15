@@ -34,6 +34,7 @@ import { getHistoricalMrmsOverlay, getMrmsHailAtPoint } from '../services/histor
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
+import { compositeContourOverlay } from '../services/contourOverlayService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
 const router = Router();
@@ -1026,6 +1027,29 @@ router.post('/generate-report', async (req, res) => {
                 ? assessPropertyRisk({ lat: parsedLat, lng: parsedLng, zip }).catch(() => null)
                 : Promise.resolve(null)
         ]);
+        // Step 1b: Composite organic hail contours onto the map image
+        let finalMapImage = mapImage;
+        if (mapImage && (normalizedEvents.length > 0 || normalizedNoaaEvents.length > 0)) {
+            try {
+                const contourEvents = [...normalizedEvents, ...normalizedNoaaEvents]
+                    .filter((e) => e.hailSize > 0 || (e.eventType === 'hail' && e.magnitude > 0))
+                    .map((e) => ({
+                    beginLat: Number(e.latitude) || 0,
+                    beginLon: Number(e.longitude) || 0,
+                    endLat: Number(e.latitude) || 0,
+                    endLon: Number(e.longitude) || 0,
+                    magnitude: Number(e.hailSize || e.magnitude) || 0,
+                    eventType: 'Hail',
+                }));
+                if (contourEvents.length > 0) {
+                    finalMapImage = await compositeContourOverlay(mapImage, contourEvents, { lat: parsedLat, lng: parsedLng }, 15);
+                    console.log(`[PDF] Composited ${contourEvents.length} hail contours onto map image`);
+                }
+            }
+            catch (e) {
+                console.warn('[PDF] Contour overlay failed (using plain map):', e.message);
+            }
+        }
         // Step 2: Fetch per-alert NEXRAD radar images in parallel (up to 5 alerts)
         // If NWS returned real alerts, use those. Otherwise, synthesize from event dates
         // so we still get per-event radar snapshots in the IHM layout.
@@ -1131,7 +1155,7 @@ router.post('/generate-report', async (req, res) => {
             repEmail: resolvedRepEmail,
             companyName: resolvedCompanyName,
             filter: reportFilter,
-            mapImage: mapImage || undefined,
+            mapImage: finalMapImage || undefined,
             nexradImage: nexradResult?.imageBuffer || undefined,
             nexradTimestamp: nexradResult?.timestamp || undefined,
             nwsAlerts: nwsAlerts || undefined,

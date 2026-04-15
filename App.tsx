@@ -443,7 +443,7 @@ const App: React.FC = () => {
       case 'stormmap':
         return (
           <LazyLoadBoundary componentName="Storm Map">
-            <TerritoryHailMap isAdmin={currentUser?.role === 'admin'} />
+            <TerritoryHailMap isAdmin={currentUser?.role === 'admin'} setActivePanel={setActivePanel} />
           </LazyLoadBoundary>
         );
       case 'leaderboard':
