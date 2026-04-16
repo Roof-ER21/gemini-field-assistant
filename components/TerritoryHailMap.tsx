@@ -1554,12 +1554,13 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             <button
               onClick={() => {
                 const context = [
-                  `I'm looking at the storm from ${selectedDate.label} on Storm Maps.`,
-                  selectedDate.maxHailInches > 0 ? `Max hail: ${selectedDate.maxHailInches}" detected.` : null,
-                  selectedDate.maxWindMph > 0 ? `Max wind: ${selectedDate.maxWindMph} mph.` : null,
+                  `I already looked up the storm data on Storm Maps — don't run a hail lookup, just give me advice.`,
+                  `Storm date: ${selectedDate.label}.`,
+                  selectedDate.maxHailInches > 0 ? `Hail: ${selectedDate.maxHailInches}" confirmed.` : null,
+                  selectedDate.maxWindMph > 0 ? `Wind: ${selectedDate.maxWindMph} mph.` : null,
                   `${selectedDate.eventCount} verified report${selectedDate.eventCount !== 1 ? 's' : ''} in ${selectedDate.statesAffected.join(', ')}.`,
-                  activeSearchLabel ? `Property/area: ${activeSearchLabel}.` : null,
-                  'What should I know about this storm for door-knocking? Any talking points for homeowners?',
+                  activeSearchLabel ? `Area: near ${activeSearchLabel.split(',').slice(0, 2).join(',')}.` : null,
+                  'Give me door-knocking talking points for homeowners in this area. What should I say about this storm and why they should get an inspection?',
                 ].filter(Boolean).join(' ');
                 localStorage.setItem('susan_storm_context', context);
                 setActivePanel('chat');
