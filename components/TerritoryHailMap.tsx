@@ -655,7 +655,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   }, [filteredEvents, selectedDate]);
 
   const filteredStormDates = useMemo(() => {
-    const sourceDates = eventFilters.hail && eventFilters.wind
+    let sourceDates = eventFilters.hail && eventFilters.wind
       ? stormDates
       : stormDates.filter((stormDate) => {
         const hasHail = stormDate.maxHailInches > 0;
@@ -663,8 +663,14 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
         return (eventFilters.hail && hasHail) || (eventFilters.wind && hasWind);
       });
 
+    // When an address or ZIP is searched, only show dates with events near the property
+    // Address: within search radius. Broader searches (city/state) keep all results.
+    if (searchSummary && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code')) {
+      sourceDates = sourceDates.filter((sd) => sd.closestMiles != null && sd.closestMiles <= searchSummary.radiusMiles);
+    }
+
     return sourceDates.sort((a, b) => b.date.localeCompare(a.date));
-  }, [eventFilters.hail, eventFilters.wind, stormDates]);
+  }, [eventFilters.hail, eventFilters.wind, searchSummary, stormDates]);
 
   const sortedDates = useMemo(() => {
     const candidates = [...filteredStormDates];
@@ -2123,8 +2129,9 @@ function StormDateCard({
               <span style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color }} title={sizeClass?.label || 'Unknown'} />
               <span style={{ fontSize: 13, fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stormDate.label}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 18, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>{stormDate.eventCount > 0 ? `${stormDate.eventCount} report${stormDate.eventCount !== 1 ? 's' : ''}` : 'Swath data'}</span>
+              {stormDate.closestMiles != null ? <span style={{ fontSize: 11, color: stormDate.closestMiles <= 1 ? '#86efac' : stormDate.closestMiles <= 5 ? '#fde68a' : '#9ca3af' }}>{stormDate.closestMiles < 0.5 ? 'At property' : `${stormDate.closestMiles.toFixed(1)} mi away`}</span> : null}
               {stormDate.statesAffected.length > 0 ? <span style={{ fontSize: 12, color: '#6b7280' }}>{stormDate.statesAffected.slice(0, 3).join(', ')}</span> : null}
               {stormDate.maxWindMph > 0 ? <span style={{ fontSize: 12, color: '#7dd3fc' }}>{stormDate.maxWindMph.toFixed(0)} mph</span> : null}
             </div>

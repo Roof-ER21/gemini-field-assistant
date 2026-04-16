@@ -28,6 +28,7 @@ export interface StormEvent {
   endLon: number;
   magnitude: number;
   magnitudeType: string;
+  distanceMiles?: number;
   damageProperty: number;
   source: string;
   narrative: string;
@@ -40,6 +41,7 @@ export interface StormDate {
   maxHailInches: number;
   maxWindMph: number;
   statesAffected: string[];
+  closestMiles: number | null;
 }
 
 export interface GpsPosition {
@@ -254,12 +256,16 @@ export async function fetchStormEvents(lat: number, lng: number, months: number,
     const data: Sa21Response = await res.json();
     const events: StormEvent[] = [];
     for (const [i, e] of (data.events || []).entries()) {
-      events.push({ id: `ihm-${e.id || i}`, eventType: 'Hail', state: '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: e.latitude || 0, beginLon: e.longitude || 0, endLat: e.latitude || 0, endLon: e.longitude || 0, magnitude: e.hailSize || 0, magnitudeType: 'inches', damageProperty: 0, source: e.source || 'Storm Database', narrative: `Hail ${e.hailSize}" - ${e.severity || 'unknown'} severity` });
+      const eLat = e.latitude || 0;
+      const eLon = e.longitude || 0;
+      events.push({ id: `ihm-${e.id || i}`, eventType: 'Hail', state: '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: eLat, beginLon: eLon, endLat: eLat, endLon: eLon, magnitude: e.hailSize || 0, magnitudeType: 'inches', damageProperty: 0, source: e.source || 'Storm Database', narrative: `Hail ${e.hailSize}" - ${e.severity || 'unknown'} severity`, distanceMiles: e.distanceMiles ?? (eLat ? haversineDistanceMiles(lat, lng, eLat, eLon) : undefined) });
     }
     for (const [i, e] of (data.noaaEvents || []).entries()) {
       const et = mapNoaaType(e.eventType);
       if (!et) continue;
-      events.push({ id: `noaa-${e.id || i}`, eventType: et, state: e.state || '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: e.latitude || 0, beginLon: e.longitude || 0, endLat: e.latitude || 0, endLon: e.longitude || 0, magnitude: e.magnitude || 0, magnitudeType: et === 'Thunderstorm Wind' ? 'mph' : 'inches', damageProperty: 0, source: e.source || 'NOAA', narrative: e.narrative || `${e.eventType} - ${e.location || ''}` });
+      const eLat = e.latitude || 0;
+      const eLon = e.longitude || 0;
+      events.push({ id: `noaa-${e.id || i}`, eventType: et, state: e.state || '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: eLat, beginLon: eLon, endLat: eLat, endLon: eLon, magnitude: e.magnitude || 0, magnitudeType: et === 'Thunderstorm Wind' ? 'mph' : 'inches', damageProperty: 0, source: e.source || 'NOAA', narrative: e.narrative || `${e.eventType} - ${e.location || ''}`, distanceMiles: e.distanceMiles ?? (eLat ? haversineDistanceMiles(lat, lng, eLat, eLon) : undefined) });
     }
     return events;
   } catch { return []; }
@@ -293,7 +299,7 @@ export async function fetchMeshSwathsByLocation(lat: number, lng: number, months
       let dateStr = '';
       if (epoch) { const d = new Date(epoch); dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
       const mesh = estimateMeshInches(props.MaxWidth__ || 0);
-      return { date: dateStr, label: formatDateLabel(dateStr), eventCount: 0, maxHailInches: mesh, maxWindMph: 0, statesAffected: (props.Province || props.States || '').split(',').map((s: string) => s.trim()).filter(Boolean) };
+      return { date: dateStr, label: formatDateLabel(dateStr), eventCount: 0, maxHailInches: mesh, maxWindMph: 0, statesAffected: (props.Province || props.States || '').split(',').map((s: string) => s.trim()).filter(Boolean), closestMiles: null };
     });
   } catch { return []; }
 }
@@ -324,14 +330,18 @@ export function groupEventsByDate(events: StormEvent[]): StormDate[] {
     g.events.push(e);
     if (e.state) g.states.add(e.state);
   }
-  return Array.from(map.entries()).map(([date, { events: evts, states }]) => ({
-    date,
-    label: formatDateLabel(date),
-    eventCount: evts.length,
-    maxHailInches: Math.max(0, ...evts.filter((e) => e.eventType === 'Hail').map((e) => e.magnitude)),
-    maxWindMph: Math.max(0, ...evts.filter((e) => e.eventType === 'Thunderstorm Wind').map((e) => e.magnitude)),
-    statesAffected: [...states],
-  })).sort((a, b) => b.date.localeCompare(a.date));
+  return Array.from(map.entries()).map(([date, { events: evts, states }]) => {
+    const distances = evts.map((e) => e.distanceMiles).filter((d): d is number => d != null && Number.isFinite(d));
+    return {
+      date,
+      label: formatDateLabel(date),
+      eventCount: evts.length,
+      maxHailInches: Math.max(0, ...evts.filter((e) => e.eventType === 'Hail').map((e) => e.magnitude)),
+      maxWindMph: Math.max(0, ...evts.filter((e) => e.eventType === 'Thunderstorm Wind').map((e) => e.magnitude)),
+      statesAffected: [...states],
+      closestMiles: distances.length > 0 ? Math.min(...distances) : null,
+    };
+  }).sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export function mergeDateLists(eventDates: StormDate[], swathDates: StormDate[]): StormDate[] {
@@ -340,12 +350,15 @@ export function mergeDateLists(eventDates: StormDate[], swathDates: StormDate[])
   for (const sd of swathDates) {
     const dk = getStormDateKey(sd.date);
     if (!dk) continue;
-    const norm = { ...sd, date: dk, label: formatDateLabel(dk) };
+    const norm = { ...sd, date: dk, label: formatDateLabel(dk), closestMiles: sd.closestMiles ?? null };
     const ex = map.get(dk);
     if (ex) {
       ex.maxHailInches = Math.max(ex.maxHailInches, norm.maxHailInches);
       ex.maxWindMph = Math.max(ex.maxWindMph, norm.maxWindMph);
       ex.statesAffected = [...new Set([...ex.statesAffected, ...norm.statesAffected])];
+      if (norm.closestMiles != null) {
+        ex.closestMiles = ex.closestMiles != null ? Math.min(ex.closestMiles, norm.closestMiles) : norm.closestMiles;
+      }
     } else { map.set(dk, norm); }
   }
   return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
