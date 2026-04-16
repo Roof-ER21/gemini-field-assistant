@@ -663,10 +663,11 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
         return (eventFilters.hail && hasHail) || (eventFilters.wind && hasWind);
       });
 
-    // When an address or ZIP is searched, only show dates with events near the property
-    // Address: within search radius. Broader searches (city/state) keep all results.
+    // When an address or ZIP is searched, only show dates with events that actually
+    // affected the property. ≤1mi = direct hit, ≤3mi = nearby, ≤5mi = area impact.
+    // Beyond 5mi is noise — not relevant to this specific property.
     if (searchSummary && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code')) {
-      sourceDates = sourceDates.filter((sd) => sd.closestMiles != null && sd.closestMiles <= searchSummary.radiusMiles);
+      sourceDates = sourceDates.filter((sd) => sd.closestMiles != null && sd.closestMiles <= 5);
     }
 
     return sourceDates.sort((a, b) => b.date.localeCompare(a.date));
@@ -1420,7 +1421,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 >
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{stormDate.label}</p>
                   <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0 0' }}>
-                    {stormDate.eventCount} report{stormDate.eventCount === 1 ? '' : 's'} / {formatStormImpactSummary(stormDate)}
+                    {stormDate.closestMiles != null && stormDate.closestMiles <= 1
+                      ? <span style={{ color: '#4ade80', fontWeight: 600 }}>Direct Hit</span>
+                      : stormDate.closestMiles != null
+                        ? <span>{stormDate.closestMiles.toFixed(1)} mi</span>
+                        : null}
+                    {stormDate.closestMiles != null ? ' · ' : ''}{formatStormImpactSummary(stormDate)}
                   </p>
                 </button>
               ))}
@@ -2131,7 +2137,7 @@ function StormDateCard({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 18, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>{stormDate.eventCount > 0 ? `${stormDate.eventCount} report${stormDate.eventCount !== 1 ? 's' : ''}` : 'Swath data'}</span>
-              {stormDate.closestMiles != null ? <span style={{ fontSize: 11, color: stormDate.closestMiles <= 1 ? '#86efac' : stormDate.closestMiles <= 5 ? '#fde68a' : '#9ca3af' }}>{stormDate.closestMiles < 0.5 ? 'At property' : `${stormDate.closestMiles.toFixed(1)} mi away`}</span> : null}
+              {stormDate.closestMiles != null ? <span style={{ fontSize: 11, fontWeight: stormDate.closestMiles <= 1 ? 600 : 400, color: stormDate.closestMiles <= 1 ? '#4ade80' : stormDate.closestMiles <= 3 ? '#fbbf24' : '#9ca3af' }}>{stormDate.closestMiles <= 1 ? '● Direct Hit' : stormDate.closestMiles <= 3 ? `${stormDate.closestMiles.toFixed(1)} mi` : `${stormDate.closestMiles.toFixed(1)} mi`}</span> : null}
               {stormDate.statesAffected.length > 0 ? <span style={{ fontSize: 12, color: '#6b7280' }}>{stormDate.statesAffected.slice(0, 3).join(', ')}</span> : null}
               {stormDate.maxWindMph > 0 ? <span style={{ fontSize: 12, color: '#7dd3fc' }}>{stormDate.maxWindMph.toFixed(0)} mph</span> : null}
             </div>
