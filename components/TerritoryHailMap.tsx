@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap,
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import MRMSSwathPolygonLayer from './MRMSSwathPolygonLayer';
+import LiveMrmsPolygonLayer from './LiveMrmsPolygonLayer';
 import PropertyImpactPanel from './PropertyImpactPanel';
 import { impactedAssetApi } from '../services/impactedAssetApi';
 import { authService } from '../services/authService';
@@ -605,6 +606,8 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [gpsTracking, setGpsTracking] = useState(false);
   const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
   const [mrmsVisible, setMrmsVisible] = useState(false);
+  const [liveMrmsVisible, setLiveMrmsVisible] = useState(false);
+  const [liveMrmsInfo, setLiveMrmsInfo] = useState<{ hasFeatures: boolean; maxInches: number; refTime: string } | null>(null);
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
   const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
@@ -1752,6 +1755,11 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             anchorTimestamp={selectedStormRadarTimestamp}
             onDataLoaded={setVectorSwathLoaded}
           />
+          <LiveMrmsPolygonLayer
+            visible={liveMrmsVisible}
+            product="mesh60"
+            onDataLoaded={setLiveMrmsInfo}
+          />
           <HailSwathLayer
             visible={swathVisible && !selectedDate}
             selectedDate={selectedDate?.date || null}
@@ -1793,6 +1801,46 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
               }}
             >
               Sat
+            </button>
+            <button
+              onClick={() => setLiveMrmsVisible((v) => !v)}
+              title={
+                liveMrmsVisible
+                  ? 'Hide live radar (NOAA MRMS MESH 60-min max, ~5min latency)'
+                  : 'Show live radar — current hail within the last hour'
+              }
+              style={{
+                width: 52,
+                height: 28,
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.2)',
+                background: liveMrmsVisible
+                  ? (liveMrmsInfo?.hasFeatures ? '#dc2626' : '#475569')
+                  : '#fff',
+                color: liveMrmsVisible ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+                position: 'relative',
+              }}
+            >
+              {liveMrmsVisible && liveMrmsInfo?.hasFeatures && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    boxShadow: '0 0 0 3px rgba(255,255,255,0.35)',
+                  }}
+                />
+              )}
+              LIVE
             </button>
           </div>
             <button

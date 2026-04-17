@@ -53,7 +53,7 @@ interface ArchiveFile {
   url: string;
 }
 
-interface CompositeDecodedMrmsGrib {
+export interface CompositeDecodedMrmsGrib {
   refTime: string;
   refValue: number;
   binaryScale: number;
@@ -69,7 +69,7 @@ interface CompositeDecodedMrmsGrib {
   sourceFiles: string[];
 }
 
-interface DecodedMrmsGrib {
+export interface DecodedMrmsGrib {
   refTime: string;
   refValue: number;
   binaryScale: number;
@@ -385,7 +385,7 @@ function decodeGrayscale16Png(payload: Buffer): { width: number; height: number;
   return { width, height, data: output };
 }
 
-function decodeMrmsGrib2(raw: Buffer): DecodedMrmsGrib {
+export function decodeMrmsGrib2(raw: Buffer): DecodedMrmsGrib {
   if (raw.subarray(0, 4).toString('ascii') !== 'GRIB') {
     throw new Error('Historical MRMS payload is not GRIB2');
   }
@@ -484,7 +484,7 @@ function getValueMillimeters(decoded: DecodedMrmsGrib, rawValue: number): number
  * Returns a CompositeDecodedMrmsGrib whose `mmGrid` contains one float per
  * cell (row-major, same ordering as the GRIB PNG rows).
  */
-function buildCompositeGrid(grids: DecodedMrmsGrib[], sourceFiles: string[]): CompositeDecodedMrmsGrib {
+export function buildCompositeGrid(grids: DecodedMrmsGrib[], sourceFiles: string[]): CompositeDecodedMrmsGrib {
   if (grids.length === 0) {
     throw new Error('Historical MRMS composite requires at least one decoded grid');
   }
