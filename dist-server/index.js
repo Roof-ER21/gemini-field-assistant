@@ -207,7 +207,8 @@ app.use(helmet({
 const allowedOrigins = [
     'https://a21.up.railway.app',
     'https://sa21.up.railway.app',
-    'https://appealing-bravery-production-d7d6.up.railway.app', // Storm Maps standalone app
+    'https://hailyes.up.railway.app', // Hail Yes! (storm-maps) production
+    'https://appealing-bravery-production-d7d6.up.railway.app', // Storm Maps legacy URL
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5176',
