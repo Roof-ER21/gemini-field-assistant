@@ -33,6 +33,7 @@ import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2, type ReportFilter } from '../services/pdfReportServiceV2.js';
 import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons } from '../services/historicalMrmsService.js';
+import { computeStormImpact, type StormImpactPoint } from '../services/stormImpactService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -1604,6 +1605,196 @@ router.get('/mrms-swath-polygons', async (req: Request, res: Response) => {
     res.json(result);
   } catch (error) {
     console.error('MRMS swath polygons error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// POST /api/hail/storm-impact — Point-in-polygon against MRMS vector swaths
+// Body: { date: "YYYY-MM-DD", anchorTimestamp?: string, points: [{id, lat, lng}] }
+// Returns max hail size per point; the answer to "was this address in the storm?"
+router.post('/storm-impact', async (req: Request, res: Response) => {
+  try {
+    const { date, anchorTimestamp, points } = req.body || {};
+
+    if (!date || !Array.isArray(points)) {
+      return res.status(400).json({
+        error: 'date (YYYY-MM-DD) and points array are required',
+      });
+    }
+    if (points.length === 0) {
+      return res.status(400).json({ error: 'points array must not be empty' });
+    }
+    if (points.length > 5000) {
+      return res.status(400).json({ error: 'maximum 5000 points per request' });
+    }
+
+    const normalizedPoints: StormImpactPoint[] = [];
+    for (const raw of points) {
+      const id = String(raw?.id ?? '').trim();
+      const lat = Number(raw?.lat);
+      const lng = Number(raw?.lng);
+      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({
+          error: `invalid point: ${JSON.stringify(raw)} — each point needs id, lat, lng`,
+        });
+      }
+      normalizedPoints.push({ id, lat, lng });
+    }
+
+    const result = await computeStormImpact(
+      {
+        date: String(date),
+        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        points: normalizedPoints,
+      },
+      req.app.get('pool'),
+    );
+
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json(result);
+  } catch (error) {
+    console.error('Storm impact error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/rep-storm-impact — Same as /storm-impact but auto-loads the logged-in
+// rep's customer_properties. The "who got hit in my book?" endpoint.
+// Headers: x-user-email
+// Query: date=YYYY-MM-DD&anchorTimestamp=...
+router.get('/rep-storm-impact', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { date, anchorTimestamp, minHailInches } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: 'date (YYYY-MM-DD) is required' });
+    }
+
+    const pool: import('pg').Pool = req.app.get('pool');
+
+    // Look up the rep's user_id + their active customer_properties.
+    const { rows: userRows } = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email],
+    );
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const userId = userRows[0].id;
+
+    const { rows: propertyRows } = await pool.query(
+      `SELECT id, customer_name, address, city, state, zip_code,
+              latitude, longitude, customer_phone, customer_email,
+              notify_threshold_hail_size, do_not_contact, last_service_date
+         FROM customer_properties
+         WHERE user_id = $1
+           AND is_active = TRUE
+           AND latitude IS NOT NULL
+           AND longitude IS NOT NULL`,
+      [userId],
+    );
+
+    if (propertyRows.length === 0) {
+      return res.json({
+        date: String(date),
+        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        metadata: {
+          stormMaxInches: 0,
+          stormHailCells: 0,
+          stormFeatureCount: 0,
+          pointsChecked: 0,
+          directHits: 0,
+        },
+        properties: [],
+        byBand: [],
+      });
+    }
+
+    const impactResult = await computeStormImpact(
+      {
+        date: String(date),
+        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        points: propertyRows.map((p) => ({
+          id: String(p.id),
+          lat: Number(p.latitude),
+          lng: Number(p.longitude),
+        })),
+      },
+      pool,
+    );
+
+    const impactById = new Map(impactResult.results.map((r) => [r.id, r]));
+    const minThreshold = minHailInches ? Number(minHailInches) : 0;
+
+    // Merge property data with impact results.
+    const enriched = propertyRows
+      .map((prop) => {
+        const impact = impactById.get(String(prop.id));
+        return {
+          id: prop.id,
+          customerName: prop.customer_name,
+          address: prop.address,
+          city: prop.city,
+          state: prop.state,
+          zipCode: prop.zip_code,
+          lat: Number(prop.latitude),
+          lng: Number(prop.longitude),
+          phone: prop.customer_phone,
+          email: prop.customer_email,
+          notifyThresholdHailSize: Number(prop.notify_threshold_hail_size || 0),
+          doNotContact: Boolean(prop.do_not_contact),
+          lastServiceDate: prop.last_service_date,
+          maxHailInches: impact?.maxHailInches ?? null,
+          hailLabel: impact?.label ?? null,
+          hailColor: impact?.color ?? null,
+          hailSeverity: impact?.severity ?? null,
+          level: impact?.level ?? null,
+          directHit: impact?.directHit ?? false,
+          // Flag if the hail at this property crosses the rep's personal notify threshold
+          // (reps set per-property thresholds for notifications, default 1.0")
+          crossesNotifyThreshold:
+            (impact?.maxHailInches ?? 0) >= Number(prop.notify_threshold_hail_size || 0),
+        };
+      })
+      .filter((p) => (p.maxHailInches ?? 0) >= minThreshold)
+      .sort((a, b) => (b.maxHailInches ?? 0) - (a.maxHailInches ?? 0));
+
+    // Aggregate counts per band for quick summary UI.
+    const byBandMap = new Map<number, {
+      sizeInches: number;
+      label: string;
+      color: string;
+      count: number;
+    }>();
+    for (const p of enriched) {
+      if (p.maxHailInches === null || p.level === null) continue;
+      const key = p.level;
+      const existing = byBandMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byBandMap.set(key, {
+          sizeInches: p.maxHailInches,
+          label: p.hailLabel || '',
+          color: p.hailColor || '',
+          count: 1,
+        });
+      }
+    }
+    const byBand = [...byBandMap.values()].sort((a, b) => b.sizeInches - a.sizeInches);
+
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json({
+      date: impactResult.date,
+      anchorTimestamp: impactResult.anchorTimestamp,
+      metadata: impactResult.metadata,
+      properties: enriched,
+      byBand,
+    });
+  } catch (error) {
+    console.error('Rep storm impact error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

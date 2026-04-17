@@ -3,7 +3,9 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap,
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import MRMSSwathPolygonLayer from './MRMSSwathPolygonLayer';
+import PropertyImpactPanel from './PropertyImpactPanel';
 import { impactedAssetApi } from '../services/impactedAssetApi';
+import { authService } from '../services/authService';
 import HailSwathLayer from './HailSwathLayer';
 import HailContourLayer from './HailContourLayer';
 import {
@@ -1586,6 +1588,29 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             >
               Ask Susan About This Storm
             </button>
+          )}
+
+          {selectedDate && (
+            <div style={{ marginTop: 12 }}>
+              <PropertyImpactPanel
+                selectedDate={selectedDate.date}
+                anchorTimestamp={selectedStormRadarTimestamp}
+                userEmail={authService.getCurrentUser()?.email || null}
+                onPropertyClick={(property) => {
+                  setMapCenter([property.lat, property.lng]);
+                  setMapZoom(17);
+                  setFitBoundsRequest({
+                    id: Date.now(),
+                    bounds: {
+                      north: property.lat + 0.005,
+                      south: property.lat - 0.005,
+                      east: property.lng + 0.005,
+                      west: property.lng - 0.005,
+                    },
+                  });
+                }}
+              />
+            </div>
           )}
         </div>
         </div>{/* end scrollable wrapper */}
