@@ -32,6 +32,7 @@ import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
 import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons } from '../services/historicalMrmsService.js';
 import { computeStormImpact } from '../services/stormImpactService.js';
+import { getLiveMrmsSwathPolygons } from '../services/liveMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -1399,6 +1400,39 @@ router.get('/mrms-swath-polygons', async (req, res) => {
     }
     catch (error) {
         console.error('MRMS swath polygons error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// GET /api/hail/mrms-now-polygons — LIVE radar (~5min latency)
+// Pulls the latest MRMS MESH 60-min or 1440-min composite from NCEP and
+// returns it as the same 10-band GeoJSON the historical endpoint emits.
+// Intended for the "LIVE" toggle on the map so reps see hail in progress.
+router.get('/mrms-now-polygons', async (req, res) => {
+    try {
+        const { north, south, east, west, product } = req.query;
+        if (!north || !south || !east || !west) {
+            return res.status(400).json({
+                error: 'north, south, east, and west are required',
+            });
+        }
+        const productParam = product === 'mesh1440' ? 'mesh1440' : 'mesh60';
+        const result = await getLiveMrmsSwathPolygons({
+            north: Number(north),
+            south: Number(south),
+            east: Number(east),
+            west: Number(west),
+            product: productParam,
+        });
+        // Short browser cache since data updates every 2 min upstream.
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        res.setHeader('X-MRMS-Product', productParam);
+        res.setHeader('X-MRMS-Ref-Time', result.refTime);
+        res.setHeader('X-MRMS-Live', 'true');
+        res.setHeader('Access-Control-Expose-Headers', 'X-MRMS-Product, X-MRMS-Ref-Time, X-MRMS-Live');
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Live MRMS polygons error:', error);
         res.status(500).json({ error: error.message });
     }
 });

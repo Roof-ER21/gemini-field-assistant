@@ -256,7 +256,7 @@ function decodeGrayscale16Png(payload) {
     }
     return { width, height, data: output };
 }
-function decodeMrmsGrib2(raw) {
+export function decodeMrmsGrib2(raw) {
     if (raw.subarray(0, 4).toString('ascii') !== 'GRIB') {
         throw new Error('Historical MRMS payload is not GRIB2');
     }
@@ -338,7 +338,7 @@ function getValueMillimeters(decoded, rawValue) {
  * Returns a CompositeDecodedMrmsGrib whose `mmGrid` contains one float per
  * cell (row-major, same ordering as the GRIB PNG rows).
  */
-function buildCompositeGrid(grids, sourceFiles) {
+export function buildCompositeGrid(grids, sourceFiles) {
     if (grids.length === 0) {
         throw new Error('Historical MRMS composite requires at least one decoded grid');
     }
