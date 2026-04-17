@@ -5,16 +5,30 @@
 # than the Ubuntu apt mirrors that Railway's build sandbox occasionally
 # cannot reach (see build failures on 2026-04-17).
 #
-# Package mapping apt → nix:
+# Explicit nodejs_22 + npm-9_x because specifying phases.setup.nixPkgs
+# replaces the Nixpacks auto-detected defaults rather than augmenting
+# them, so we have to re-add the Node runtime here.
+#
+# apt → nix mapping for native image deps:
 #   libcairo2-dev    → cairo
 #   libjpeg-dev      → libjpeg
 #   libpango1.0-dev  → pango
 #   libgif-dev       → giflib
 #   librsvg2-dev     → librsvg
 #   libvips-dev      → vips
-#   build-essential  → (provided by default Node nix profile)
+#   build-essential  → gcc + gnumake (bundled in default nix profile)
 [phases.setup]
-nixPkgs = ["cairo", "libjpeg", "pango", "giflib", "librsvg", "vips", "pkg-config"]
+nixPkgs = [
+  "nodejs_22",
+  "npm-9_x",
+  "cairo",
+  "libjpeg",
+  "pango",
+  "giflib",
+  "librsvg",
+  "vips",
+  "pkg-config",
+]
 
 [start]
 cmd = "node dist-server/index.js"
