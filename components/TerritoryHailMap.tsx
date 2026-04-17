@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import MRMSSwathPolygonLayer from './MRMSSwathPolygonLayer';
 import LiveMrmsPolygonLayer from './LiveMrmsPolygonLayer';
+import HailtraceValidationLayer from './HailtraceValidationLayer';
 import PropertyImpactPanel from './PropertyImpactPanel';
 import { impactedAssetApi } from '../services/impactedAssetApi';
 import { authService } from '../services/authService';
@@ -608,6 +609,16 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [mrmsVisible, setMrmsVisible] = useState(false);
   const [liveMrmsVisible, setLiveMrmsVisible] = useState(false);
   const [liveMrmsInfo, setLiveMrmsInfo] = useState<{ hasFeatures: boolean; maxInches: number; refTime: string } | null>(null);
+  const [hailtraceValidationVisible, setHailtraceValidationVisible] = useState(false);
+  const [hailtraceValidationSummary, setHailtraceValidationSummary] = useState<{
+    totals: {
+      hailtracePoints: number;
+      match: number;
+      close: number;
+      diverge: number;
+      mrmsMiss: number;
+    };
+  } | null>(null);
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
   const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
@@ -1760,6 +1771,15 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             product="mesh60"
             onDataLoaded={setLiveMrmsInfo}
           />
+          <HailtraceValidationLayer
+            visible={hailtraceValidationVisible && !!selectedDate}
+            selectedDate={selectedDate?.date ?? null}
+            stormBounds={selectedStormBounds}
+            anchorTimestamp={selectedStormRadarTimestamp}
+            onDataLoaded={(summary) => {
+              setHailtraceValidationSummary(summary ? { totals: summary.totals } : null);
+            }}
+          />
           <HailSwathLayer
             visible={swathVisible && !selectedDate}
             selectedDate={selectedDate?.date || null}
@@ -1841,6 +1861,47 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 />
               )}
               LIVE
+            </button>
+            <button
+              onClick={() => setHailtraceValidationVisible((v) => !v)}
+              disabled={!selectedDate}
+              title={
+                !selectedDate
+                  ? 'Pick a storm date first to overlay HailTrace meteorologist points'
+                  : hailtraceValidationVisible
+                    ? 'Hide HailTrace meteorologist overlay'
+                    : 'Show HailTrace meteorologist-verified hail points on top of our radar swath'
+              }
+              style={{
+                width: 48,
+                height: 28,
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.2)',
+                background: !selectedDate
+                  ? '#e5e7eb'
+                  : hailtraceValidationVisible
+                    ? (hailtraceValidationSummary && hailtraceValidationSummary.totals.diverge > 0 ? '#dc2626' : '#16a34a')
+                    : '#fff',
+                color: !selectedDate
+                  ? '#9ca3af'
+                  : hailtraceValidationVisible ? '#fff' : '#333',
+                cursor: !selectedDate ? 'not-allowed' : 'pointer',
+                fontSize: 10,
+                fontWeight: 700,
+                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+                position: 'relative',
+              }}
+            >
+              {hailtraceValidationVisible && hailtraceValidationSummary ? (
+                <>
+                  HT{' '}
+                  <span style={{ opacity: 0.85 }}>
+                    {hailtraceValidationSummary.totals.match +
+                     hailtraceValidationSummary.totals.close}
+                    /{hailtraceValidationSummary.totals.hailtracePoints}
+                  </span>
+                </>
+              ) : 'HT'}
             </button>
           </div>
             <button
