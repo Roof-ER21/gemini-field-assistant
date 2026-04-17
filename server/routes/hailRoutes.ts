@@ -1649,6 +1649,120 @@ router.get('/mrms-now-polygons', async (req: Request, res: Response) => {
   }
 });
 
+// Shared core: render a claim-packet PDF into the given response stream.
+// Extracted so it can be called from both the rep-facing endpoint (with
+// x-user-email auth) and the public share-link endpoint (which authenticated
+// itself via a token lookup).
+async function renderClaimPacketToResponse(
+  res: Response,
+  pool: import('pg').Pool,
+  params: {
+    propertyId: string;
+    stormDate: string;
+    anchorTimestamp?: string | null;
+    repName?: string | null;
+    repPhone?: string | null;
+    repEmail?: string | null;
+    /** If true, include a corner watermark on the PDF indicating public share. */
+    sharedExternally?: boolean;
+  },
+): Promise<void> {
+  const { rows: propertyRows } = await pool.query(
+    `SELECT cp.id, cp.user_id, cp.customer_name, cp.address, cp.city, cp.state, cp.zip_code,
+            cp.latitude, cp.longitude
+       FROM customer_properties cp
+       WHERE cp.id = $1 AND cp.is_active = TRUE
+       LIMIT 1`,
+    [params.propertyId],
+  );
+  if (!propertyRows.length) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  const property = propertyRows[0];
+  const lat = Number(property.latitude);
+  const lng = Number(property.longitude);
+  const propertyAddress = [property.address, property.city, property.state]
+    .filter(Boolean)
+    .join(', ');
+
+  const impactResult = await computeStormImpact(
+    {
+      date: params.stormDate,
+      anchorTimestamp: params.anchorTimestamp ?? null,
+      points: [{ id: String(property.id), lat, lng }],
+    },
+    pool,
+  );
+  const impactAtProperty = impactResult.results[0];
+
+  const stormYear = Number(params.stormDate.slice(0, 4));
+  const yearsBack = Math.max(1, new Date().getUTCFullYear() - stormYear + 1);
+  let noaaEvents: any[] = [];
+  try {
+    noaaEvents = await noaaStormService.getStormEvents(lat, lng, 10, yearsBack);
+  } catch (e) {
+    console.warn('[ClaimPacket] NOAA fetch failed:', (e as Error).message);
+  }
+
+  const damageScore = damageScoreService.calculateDamageScore({
+    lat,
+    lng,
+    address: propertyAddress,
+    events: [],
+    noaaEvents: noaaEvents as any,
+  });
+
+  const reportPayload = {
+    address: propertyAddress,
+    city: property.city,
+    state: property.state,
+    lat,
+    lng,
+    radius: 10,
+    events: [],
+    noaaEvents,
+    damageScore,
+    repName: params.repName || 'Roof ER',
+    repPhone: params.repPhone || '(703) 239-3738',
+    repEmail: params.repEmail || 'info@theroofdocs.com',
+    companyName: 'Roof ER The Roof Docs',
+    customerName: property.customer_name,
+    dateOfLoss: params.stormDate,
+    includeNexrad: true,
+    includeMap: true,
+    includeWarnings: true,
+  };
+
+  const safeDate = params.stormDate.replace(/[^0-9-]/g, '');
+  const safeName = property.customer_name.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="ClaimPacket_${safeName}_${safeDate}.pdf"`,
+  );
+  res.setHeader(
+    'X-Storm-Impact',
+    JSON.stringify({
+      maxHailInches: impactAtProperty.maxHailInches,
+      label: impactAtProperty.label,
+      directHit: impactAtProperty.directHit,
+      propertyId: property.id,
+      stormDate: params.stormDate,
+    }),
+  );
+  res.setHeader('Access-Control-Expose-Headers', 'X-Storm-Impact');
+
+  const pdfStream = pdfReportServiceV2.generateReport(reportPayload as any);
+  pdfStream.pipe(res);
+  pdfStream.on('error', (err: Error) => {
+    console.error('[ClaimPacket] PDF stream error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'PDF generation failed' });
+    }
+  });
+}
+
 // POST /api/hail/claim-packet — One-click adjuster-ready PDF for a specific
 // customer property + storm date. Auto-pulls the property from the rep's
 // customer_properties, runs storm-impact, fetches nearby NOAA/SPC events,
@@ -1699,101 +1813,175 @@ router.post('/claim-packet', async (req: Request, res: Response) => {
       });
     }
 
-    const lat = Number(property.latitude);
-    const lng = Number(property.longitude);
-    const propertyAddress = [property.address, property.city, property.state]
-      .filter(Boolean)
-      .join(', ');
-
-    // 2. Storm impact at the property (max hail size from MRMS radar).
-    const impactResult = await computeStormImpact(
-      {
-        date: String(stormDate),
-        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
-        points: [{ id: String(property.id), lat, lng }],
-      },
-      pool,
-    );
-    const impactAtProperty = impactResult.results[0];
-
-    // 3. Nearby NOAA storm events within 10 mile radius, for PDF context.
-    //    Limit to the same calendar year as the storm date to keep PDF focused.
-    const stormYear = Number(String(stormDate).slice(0, 4));
-    const yearsBack = Math.max(1, new Date().getUTCFullYear() - stormYear + 1);
-    let noaaEvents: any[] = [];
-    try {
-      noaaEvents = await noaaStormService.getStormEvents(lat, lng, 10, yearsBack);
-    } catch (e) {
-      console.warn('[ClaimPacket] NOAA fetch failed:', (e as Error).message);
-    }
-
-    // 4. Damage score — existing service handles the math.
-    const damageScore = damageScoreService.calculateDamageScore({
-      lat,
-      lng,
-      address: propertyAddress,
-      events: [],
-      noaaEvents: noaaEvents as any,
-    });
-
-    // 5. Assemble the payload the existing /generate-report endpoint uses
-    //    and hand it off to the same PDF service. The rep gets a PDF stream.
-    const reportPayload = {
-      address: propertyAddress,
-      city: property.city,
-      state: property.state,
-      lat,
-      lng,
-      radius: 10,
-      events: [],
-      noaaEvents,
-      damageScore,
+    await renderClaimPacketToResponse(res, pool, {
+      propertyId: String(propertyId),
+      stormDate: String(stormDate),
+      anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
       repName: user.name,
-      repPhone: user.phone || '(703) 239-3738',
+      repPhone: user.phone,
       repEmail: email,
-      companyName: 'Roof ER The Roof Docs',
-      customerName: property.customer_name,
-      dateOfLoss: String(stormDate),
-      includeNexrad: true,
-      includeMap: true,
-      includeWarnings: true,
-    };
-
-    // Set sensible response headers so the PDF downloads cleanly.
-    const safeDate = String(stormDate).replace(/[^0-9-]/g, '');
-    const safeName = property.customer_name.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `inline; filename="ClaimPacket_${safeName}_${safeDate}.pdf"`,
-    );
-    // Expose the impact summary as a header so UI can show a toast
-    // ('DIRECT HIT 1.75" on this property') alongside the PDF download.
-    res.setHeader(
-      'X-Storm-Impact',
-      JSON.stringify({
-        maxHailInches: impactAtProperty.maxHailInches,
-        label: impactAtProperty.label,
-        directHit: impactAtProperty.directHit,
-        propertyId: property.id,
-        stormDate,
-      }),
-    );
-    res.setHeader('Access-Control-Expose-Headers', 'X-Storm-Impact');
-
-    const pdfStream = pdfReportServiceV2.generateReport(reportPayload as any);
-    pdfStream.pipe(res);
-    pdfStream.on('error', (err: Error) => {
-      console.error('[ClaimPacket] PDF stream error:', err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'PDF generation failed' });
-      }
     });
   } catch (error) {
     console.error('Claim packet error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: (error as Error).message });
     }
+  }
+});
+
+// POST /api/hail/claim-packet-share — generates a shareable URL that adjusters
+// can open (no auth) to download the claim-packet PDF. PDF re-renders on each
+// fetch so upstream data improvements propagate automatically.
+router.post('/claim-packet-share', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { propertyId, stormDate, anchorTimestamp, expiresInDays } = req.body || {};
+    if (!propertyId || !stormDate) {
+      return res.status(400).json({
+        error: 'propertyId and stormDate are required',
+      });
+    }
+
+    const pool: import('pg').Pool = req.app.get('pool');
+
+    const { rows: userRows } = await pool.query(
+      'SELECT id, role FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email],
+    );
+    if (!userRows.length) return res.status(404).json({ error: 'User not found' });
+    const user = userRows[0];
+
+    // Verify rep owns the property (same rule as /claim-packet).
+    const { rows: propertyRows } = await pool.query(
+      `SELECT id, user_id FROM customer_properties
+         WHERE id = $1 AND is_active = TRUE LIMIT 1`,
+      [propertyId],
+    );
+    if (!propertyRows.length) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+    if (propertyRows[0].user_id !== user.id && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Property belongs to another rep' });
+    }
+
+    const crypto = await import('node:crypto');
+    const token = crypto.randomBytes(16).toString('base64url');
+    const days = Math.max(1, Math.min(365, Number(expiresInDays) || 30));
+
+    await pool.query(
+      `INSERT INTO claim_packet_shares
+         (token, created_by_user_id, customer_property_id, storm_date, anchor_timestamp, expires_at)
+         VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' days')::INTERVAL)`,
+      [
+        token,
+        user.id,
+        propertyId,
+        stormDate,
+        anchorTimestamp || null,
+        String(days),
+      ],
+    );
+
+    const host = req.get('host');
+    const protocol = req.header('x-forwarded-proto') || req.protocol;
+    const url = `${protocol}://${host}/api/hail/public-packet/${token}`;
+
+    res.json({
+      token,
+      url,
+      expiresInDays: days,
+    });
+  } catch (error) {
+    console.error('Claim packet share error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/public-packet/:token — public endpoint (no auth). Adjusters
+// open this URL to download the claim packet PDF. Each access is logged.
+router.get('/public-packet/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const pool: import('pg').Pool = req.app.get('pool');
+    const { rows } = await pool.query(
+      `SELECT cps.id, cps.customer_property_id, cps.storm_date, cps.anchor_timestamp,
+              cps.expires_at, cps.revoked_at, u.name AS rep_name, u.phone AS rep_phone,
+              u.email AS rep_email
+         FROM claim_packet_shares cps
+         JOIN users u ON u.id = cps.created_by_user_id
+         WHERE cps.token = $1 LIMIT 1`,
+      [token],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Link not found' });
+    }
+    const share = rows[0];
+    if (share.revoked_at) {
+      return res.status(410).json({ error: 'Link has been revoked' });
+    }
+    if (new Date(share.expires_at).getTime() < Date.now()) {
+      return res.status(410).json({ error: 'Link has expired' });
+    }
+
+    // Audit
+    await pool.query(
+      `UPDATE claim_packet_shares
+         SET access_count = access_count + 1, last_accessed_at = NOW()
+         WHERE id = $1`,
+      [share.id],
+    );
+
+    // Convert Date → YYYY-MM-DD
+    const stormDateStr = share.storm_date instanceof Date
+      ? share.storm_date.toISOString().slice(0, 10)
+      : String(share.storm_date).slice(0, 10);
+
+    await renderClaimPacketToResponse(res, pool, {
+      propertyId: share.customer_property_id,
+      stormDate: stormDateStr,
+      anchorTimestamp: share.anchor_timestamp,
+      repName: share.rep_name,
+      repPhone: share.rep_phone,
+      repEmail: share.rep_email,
+      sharedExternally: true,
+    });
+  } catch (error) {
+    console.error('Public packet error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  }
+});
+
+// POST /api/hail/claim-packet-share/:token/revoke — rep can revoke a link
+router.post('/claim-packet-share/:token/revoke', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+
+    const pool: import('pg').Pool = req.app.get('pool');
+    const { rows } = await pool.query(
+      `UPDATE claim_packet_shares cps
+         SET revoked_at = NOW()
+         FROM users u
+         WHERE u.id = cps.created_by_user_id
+           AND cps.token = $1
+           AND (LOWER(u.email) = LOWER($2) OR u.role = 'admin')
+           AND cps.revoked_at IS NULL
+         RETURNING cps.id`,
+      [req.params.token, email],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Link not found or not owned by you' });
+    }
+    res.json({ revoked: true });
+  } catch (error) {
+    console.error('Revoke share error:', error);
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 

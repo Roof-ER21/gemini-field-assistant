@@ -61,6 +61,31 @@ interface PropertyImpactPanelProps {
   onPropertyClick?: (property: PropertyImpact) => void;
 }
 
+async function createShareableLink(args: {
+  propertyId: string;
+  stormDate: string;
+  anchorTimestamp?: string | null;
+  userEmail: string;
+}): Promise<{ url: string; expiresInDays: number }> {
+  const res = await fetch(`${apiBaseUrl}/api/hail/claim-packet-share`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-email': args.userEmail,
+    },
+    body: JSON.stringify({
+      propertyId: args.propertyId,
+      stormDate: args.stormDate,
+      anchorTimestamp: args.anchorTimestamp || null,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || 'Share link creation failed');
+  }
+  return res.json();
+}
+
 async function downloadClaimPacket(args: {
   propertyId: string;
   stormDate: string;
@@ -328,6 +353,8 @@ function PropertyRow({
 }) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const isHit = property.directHit;
   const severity = property.hailSeverity || '';
   const isHigh = property.maxHailInches !== null && property.maxHailInches >= 1.5;
@@ -350,6 +377,29 @@ function PropertyRow({
       setDownloadError((err as Error).message);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleShareLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedDate || !userEmail) return;
+    setSharing(true);
+    setShareMessage(null);
+    try {
+      const { url, expiresInDays } = await createShareableLink({
+        propertyId: property.id,
+        stormDate: selectedDate,
+        anchorTimestamp,
+        userEmail,
+      });
+      await navigator.clipboard.writeText(url);
+      setShareMessage(`Link copied (${expiresInDays}d expiry)`);
+      setTimeout(() => setShareMessage(null), 4000);
+    } catch (err) {
+      setShareMessage(`Error: ${(err as Error).message}`);
+      setTimeout(() => setShareMessage(null), 6000);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -384,13 +434,26 @@ function PropertyRow({
           </div>
         )}
         {canDownloadPacket && (
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            style={styles.packetBtn}
-          >
-            {downloading ? 'Generating…' : '📄 Claim Packet PDF'}
-          </button>
+          <div style={styles.packetRow}>
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              style={styles.packetBtn}
+            >
+              {downloading ? 'Generating…' : '📄 PDF'}
+            </button>
+            <button
+              onClick={handleShareLink}
+              disabled={sharing}
+              style={styles.shareBtn}
+              title="Copy a 30-day shareable link — adjuster can open the PDF without logging in"
+            >
+              {sharing ? '…' : '🔗 Adjuster Link'}
+            </button>
+            {shareMessage && (
+              <span style={styles.shareMessage}>{shareMessage}</span>
+            )}
+          </div>
         )}
       </button>
       <div style={{ ...styles.rowBadge, background: isHit ? (property.hailColor || '#ef4444') : '#1e293b' }}>
@@ -534,9 +597,14 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'left',
   },
-  packetBtn: {
-    display: 'inline-block',
+  packetRow: {
+    display: 'flex',
+    gap: 6,
     marginTop: 6,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  packetBtn: {
     padding: '4px 8px',
     fontSize: 10,
     fontWeight: 600,
@@ -545,5 +613,20 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 4,
     color: '#fff',
     cursor: 'pointer',
+  },
+  shareBtn: {
+    padding: '4px 8px',
+    fontSize: 10,
+    fontWeight: 600,
+    background: 'rgba(22,163,74,0.85)',
+    border: 'none',
+    borderRadius: 4,
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  shareMessage: {
+    fontSize: 10,
+    color: '#10b981',
+    fontWeight: 600,
   },
 };
