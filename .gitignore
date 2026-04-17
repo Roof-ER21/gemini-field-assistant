@@ -28,6 +28,10 @@ dist-ssr
 # Environment files with secrets
 .env.vercel
 .env.local
+
+# Runtime-uploaded user content — belongs in object storage, not git
+# (videos especially will exceed GitHub's 100MB per-file push limit)
+public/uploads/
 # Vite build output - Railway will build this
 dist/
 

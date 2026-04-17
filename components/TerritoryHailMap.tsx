@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
+import MRMSSwathPolygonLayer from './MRMSSwathPolygonLayer';
 import { impactedAssetApi } from '../services/impactedAssetApi';
 import HailSwathLayer from './HailSwathLayer';
 import HailContourLayer from './HailContourLayer';
@@ -720,7 +721,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   );
 
   const showHistoricalHailOverlay = Boolean(swathVisible && selectedDate && selectedStormBounds);
-  const mrmsLayerVisible = mrmsVisible || showHistoricalHailOverlay;
+  // When vector swath polygons are available, hide the blurry raster overlay beneath them.
+  // While vectors are loading (vectorSwathLoaded=false), the raster stays visible so reps
+  // aren't staring at an empty map for 2-5s during the GRIB decode.
+  const [vectorSwathLoaded, setVectorSwathLoaded] = useState(false);
+  const historicalMrmsLayerVisible = showHistoricalHailOverlay && !vectorSwathLoaded;
+  const mrmsLayerVisible = mrmsVisible || historicalMrmsLayerVisible;
 
   const routeOrigin = useMemo<[number, number] | null>(() => {
     if (gpsPosition) {
@@ -1713,6 +1719,13 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             selectedDate={selectedDate?.date ?? null}
             historicalBounds={selectedStormBounds}
             anchorTimestamp={selectedStormRadarTimestamp}
+          />
+          <MRMSSwathPolygonLayer
+            visible={showHistoricalHailOverlay}
+            selectedDate={selectedDate?.date ?? null}
+            stormBounds={selectedStormBounds}
+            anchorTimestamp={selectedStormRadarTimestamp}
+            onDataLoaded={setVectorSwathLoaded}
           />
           <HailSwathLayer
             visible={swathVisible && !selectedDate}
