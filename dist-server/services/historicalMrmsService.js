@@ -712,3 +712,188 @@ export async function getMrmsHailAtPoint(date, lat, lng) {
         return null;
     }
 }
+// ─── MRMS Composite Grid Export (for vector polygon pipeline) ─────────────
+import { meshGridToPolygons } from './meshVectorService.js';
+/** Cache for pre-computed swath polygon GeoJSON (keyed by date + bounds). */
+const swathPolyCache = new Map();
+/** Round bounds to 2dp so near-identical viewport requests share the cache. */
+function roundBounds(r) {
+    return {
+        north: Number(r.north.toFixed(2)),
+        south: Number(r.south.toFixed(2)),
+        east: Number(r.east.toFixed(2)),
+        west: Number(r.west.toFixed(2)),
+        anchorTimestamp: r.anchorTimestamp || '',
+    };
+}
+/**
+ * Try to load a previously-computed swath polygon collection from the durable
+ * Postgres cache (mrms_swath_cache). Returns null if no live entry exists.
+ * Silently degrades on DB errors — the GRIB pipeline will run instead.
+ */
+async function loadSwathFromDb(pool, date, bounds) {
+    try {
+        const { rows } = await pool.query(`SELECT geojson FROM mrms_swath_cache
+         WHERE storm_date = $1
+           AND north = $2 AND south = $3 AND east = $4 AND west = $5
+           AND anchor_timestamp = $6
+           AND expires_at > NOW()
+         LIMIT 1`, [date, bounds.north, bounds.south, bounds.east, bounds.west, bounds.anchorTimestamp]);
+        if (rows.length === 0)
+            return null;
+        return rows[0].geojson;
+    }
+    catch (err) {
+        console.warn('[MRMS Vector] DB cache read failed:', err.message);
+        return null;
+    }
+}
+/**
+ * Persist a freshly computed swath polygon collection. Upsert by
+ * (date, bounds, anchor) so re-computed results replace stale entries.
+ * Silently degrades on DB errors — the in-memory cache still works.
+ */
+async function saveSwathToDb(pool, date, bounds, result) {
+    try {
+        await pool.query(`INSERT INTO mrms_swath_cache
+         (storm_date, north, south, east, west, anchor_timestamp,
+          geojson, max_mesh_inches, hail_cells, feature_count, source_files, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW() + INTERVAL '6 hours')
+       ON CONFLICT (storm_date, north, south, east, west, anchor_timestamp)
+       DO UPDATE SET
+         geojson = EXCLUDED.geojson,
+         max_mesh_inches = EXCLUDED.max_mesh_inches,
+         hail_cells = EXCLUDED.hail_cells,
+         feature_count = EXCLUDED.feature_count,
+         source_files = EXCLUDED.source_files,
+         expires_at = EXCLUDED.expires_at,
+         created_at = NOW()`, [
+            date,
+            bounds.north,
+            bounds.south,
+            bounds.east,
+            bounds.west,
+            bounds.anchorTimestamp,
+            JSON.stringify(result),
+            result.metadata.maxMeshInches,
+            result.metadata.hailCells,
+            result.features.length,
+            result.metadata.sourceFiles,
+        ]);
+    }
+    catch (err) {
+        console.warn('[MRMS Vector] DB cache write failed:', err.message);
+    }
+}
+/** Periodic cleanup — deletes expired swath cache rows. */
+export async function cleanExpiredSwathCache(pool) {
+    try {
+        const { rowCount } = await pool.query(`DELETE FROM mrms_swath_cache WHERE expires_at <= NOW()`);
+        return rowCount ?? 0;
+    }
+    catch (err) {
+        console.warn('[MRMS Vector] DB cache cleanup failed:', err.message);
+        return 0;
+    }
+}
+/**
+ * Get MRMS hail swath as vector GeoJSON polygons for a given date and bounds.
+ *
+ * This is the key upgrade over the raster PNG overlay — produces crisp, clickable
+ * vector polygons at 10 forensic hail size levels. Same data, better rendering.
+ *
+ * Cache hierarchy: in-memory (~1ms) → Postgres (~20-50ms) → GRIB decode (~2-5s).
+ * Pass `pool` to enable the durable Postgres layer; omit for memory-only cache.
+ */
+export async function getHistoricalMrmsSwathPolygons(input, pool) {
+    const request = normalizeRequest(input);
+    const polyKey = `swath-poly-${request.date}-${request.anchorTimestamp || ''}-${request.north.toFixed(2)},${request.south.toFixed(2)},${request.east.toFixed(2)},${request.west.toFixed(2)}`;
+    const cached = swathPolyCache.get(polyKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.result;
+    }
+    // Try the durable DB cache before hitting GRIB archives.
+    if (pool) {
+        const roundedBounds = roundBounds(request);
+        const dbHit = await loadSwathFromDb(pool, request.date, roundedBounds);
+        if (dbHit) {
+            swathPolyCache.set(polyKey, { expiresAt: Date.now() + CACHE_TTL_MS, result: dbHit });
+            return dbHit;
+        }
+    }
+    // Reuse composite grid cache if available (from point query or image render)
+    const cKey = `mrms-pt-${request.date}`;
+    let composite;
+    const cachedGrid = compositeGridCache.get(cKey);
+    if (cachedGrid && cachedGrid.expiresAt > Date.now()) {
+        composite = cachedGrid.composite;
+    }
+    else {
+        const files = await listArchiveFiles(request.date);
+        const selectedFiles = chooseArchiveFiles(files, request.anchorTimestamp);
+        const downloadResults = await Promise.allSettled(selectedFiles.map((file) => downloadArchiveFile(file).then((compressed) => ({
+            file,
+            raw: zlib.gunzipSync(compressed),
+        }))));
+        const decodedGrids = [];
+        const decodedFileNames = [];
+        for (const outcome of downloadResults) {
+            if (outcome.status === 'fulfilled') {
+                try {
+                    decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
+                    decodedFileNames.push(outcome.value.file.name);
+                }
+                catch (err) {
+                    console.warn(`[MRMS Vector] Decode error: ${err}`);
+                }
+            }
+        }
+        if (decodedGrids.length === 0) {
+            throw new Error('MRMS Vector: all archive files failed to download or decode');
+        }
+        composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+        compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
+    }
+    // Crop the grid to the requested bounds (+ padding) for faster contouring
+    const { rowStart, rowEnd, colStart, colEnd } = gridBoundsToIndices(composite, request);
+    const cropWidth = colEnd - colStart + 1;
+    const cropHeight = rowEnd - rowStart + 1;
+    const croppedGrid = new Float32Array(cropWidth * cropHeight);
+    for (let row = rowStart; row <= rowEnd; row++) {
+        for (let col = colStart; col <= colEnd; col++) {
+            croppedGrid[(row - rowStart) * cropWidth + (col - colStart)] =
+                composite.mmGrid[row * composite.width + col];
+        }
+    }
+    const latStep = (composite.north - composite.south) / (composite.height - 1);
+    const lonStep = (composite.east - composite.west) / (composite.width - 1);
+    const gridInput = {
+        mmGrid: croppedGrid,
+        width: cropWidth,
+        height: cropHeight,
+        north: composite.north - rowStart * latStep,
+        south: composite.north - rowEnd * latStep,
+        east: composite.west + colEnd * lonStep,
+        west: composite.west + colStart * lonStep,
+        sourceFiles: composite.sourceFiles,
+        refTime: composite.refTime,
+    };
+    const result = meshGridToPolygons(gridInput, request.date);
+    // Cache in memory
+    swathPolyCache.set(polyKey, { expiresAt: Date.now() + CACHE_TTL_MS, result });
+    // Persist to DB so the result survives a server restart.
+    if (pool) {
+        const roundedBounds = roundBounds(request);
+        // Fire-and-forget: we already have the result, don't block the response.
+        void saveSwathToDb(pool, request.date, roundedBounds, result);
+    }
+    // Prune expired entries
+    if (swathPolyCache.size > 50) {
+        const now = Date.now();
+        for (const [k, v] of swathPolyCache.entries()) {
+            if (v.expiresAt <= now)
+                swathPolyCache.delete(k);
+        }
+    }
+    return result;
+}

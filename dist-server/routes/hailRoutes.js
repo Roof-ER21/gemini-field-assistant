@@ -30,11 +30,11 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
-import { getHistoricalMrmsOverlay, getMrmsHailAtPoint } from '../services/historicalMrmsService.js';
+import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons } from '../services/historicalMrmsService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
-import { compositeContourOverlay } from '../services/contourOverlayService.js';
+import { compositeContourOverlay, compositeVectorSwathOverlay } from '../services/contourOverlayService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
 const router = Router();
@@ -1027,9 +1027,40 @@ router.post('/generate-report', async (req, res) => {
                 ? assessPropertyRisk({ lat: parsedLat, lng: parsedLng, zip }).catch(() => null)
                 : Promise.resolve(null)
         ]);
-        // Step 1b: Composite organic hail contours onto the map image
+        // Step 1b: Composite hail overlay onto the map image.
+        // Prefer MRMS vector swath polygons (radar-derived, forensic accuracy).
+        // Fall back to convex-hull contours from ground reports when MRMS isn't
+        // available for the storm date (e.g., pre-MRMS dates or decode failure).
         let finalMapImage = mapImage;
-        if (mapImage && (normalizedEvents.length > 0 || normalizedNoaaEvents.length > 0)) {
+        let usedVectorOverlay = false;
+        if (mapImage && primaryStormDate) {
+            try {
+                const stormDateKey = getDateKey(primaryStormDate);
+                if (stormDateKey) {
+                    // ~0.5° bounding box (~35mi radius) around the subject property.
+                    // This is roughly what reps care about for damage boundary disputes.
+                    const pdfBoundsPadding = 0.5;
+                    const vectorCollection = await getHistoricalMrmsSwathPolygons({
+                        date: stormDateKey,
+                        north: parsedLat + pdfBoundsPadding,
+                        south: parsedLat - pdfBoundsPadding,
+                        east: parsedLng + pdfBoundsPadding,
+                        west: parsedLng - pdfBoundsPadding,
+                        anchorTimestamp: primaryStormDate,
+                    }, req.app.get('pool'));
+                    if (vectorCollection.features.length > 0) {
+                        finalMapImage = await compositeVectorSwathOverlay(mapImage, vectorCollection, { lat: parsedLat, lng: parsedLng }, 15);
+                        usedVectorOverlay = true;
+                        console.log(`[PDF] Composited ${vectorCollection.features.length} MRMS vector swaths ` +
+                            `(peak ${vectorCollection.metadata.maxMeshInches.toFixed(2)}") onto map image`);
+                    }
+                }
+            }
+            catch (e) {
+                console.warn('[PDF] MRMS vector overlay failed, falling back:', e.message);
+            }
+        }
+        if (!usedVectorOverlay && mapImage && (normalizedEvents.length > 0 || normalizedNoaaEvents.length > 0)) {
             try {
                 const contourEvents = [...normalizedEvents, ...normalizedNoaaEvents]
                     .filter((e) => e.hailSize > 0 || (e.eventType === 'hail' && e.magnitude > 0))
@@ -1043,7 +1074,7 @@ router.post('/generate-report', async (req, res) => {
                 }));
                 if (contourEvents.length > 0) {
                     finalMapImage = await compositeContourOverlay(mapImage, contourEvents, { lat: parsedLat, lng: parsedLng }, 15);
-                    console.log(`[PDF] Composited ${contourEvents.length} hail contours onto map image`);
+                    console.log(`[PDF] Composited ${contourEvents.length} hail contours onto map image (fallback)`);
                 }
             }
             catch (e) {
@@ -1340,6 +1371,33 @@ router.get('/mrms-historical-image', async (req, res) => {
     }
     catch (error) {
         console.error('Historical MRMS image error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// GET /api/hail/mrms-swath-polygons - Vector GeoJSON polygons for a storm date
+// Returns 10-level hail swath polygons (crisp, clickable, IHM/HailTrace quality)
+router.get('/mrms-swath-polygons', async (req, res) => {
+    try {
+        const { date, north, south, east, west, anchorTimestamp } = req.query;
+        if (!date || !north || !south || !east || !west) {
+            return res.status(400).json({
+                error: 'date, north, south, east, and west are required',
+            });
+        }
+        const pool = req.app.get('pool');
+        const result = await getHistoricalMrmsSwathPolygons({
+            date: String(date),
+            north: Number(north),
+            south: Number(south),
+            east: Number(east),
+            west: Number(west),
+            anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        }, pool);
+        res.setHeader('Cache-Control', 'public, max-age=900');
+        res.json(result);
+    }
+    catch (error) {
+        console.error('MRMS swath polygons error:', error);
         res.status(500).json({ error: error.message });
     }
 });
