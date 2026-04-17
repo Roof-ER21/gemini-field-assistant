@@ -1649,6 +1649,154 @@ router.get('/mrms-now-polygons', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/hail/claim-packet — One-click adjuster-ready PDF for a specific
+// customer property + storm date. Auto-pulls the property from the rep's
+// customer_properties, runs storm-impact, fetches nearby NOAA/SPC events,
+// computes damage score, and streams a PDF via the existing pdfReportServiceV2.
+//
+// Body: { propertyId: string, stormDate: "YYYY-MM-DD", anchorTimestamp?: string }
+// Headers: x-user-email (used for rep-profile auto-fill)
+router.post('/claim-packet', async (req: Request, res: Response) => {
+  try {
+    const email = req.header('x-user-email');
+    if (!email) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { propertyId, stormDate, anchorTimestamp } = req.body || {};
+    if (!propertyId || !stormDate) {
+      return res.status(400).json({
+        error: 'propertyId and stormDate are required',
+      });
+    }
+
+    const pool: import('pg').Pool = req.app.get('pool');
+
+    // 1. Look up the customer property. Require it belong to the requesting rep
+    //    (or that the rep is an admin). This prevents reps from pulling other
+    //    reps' customer details into claim packets.
+    const { rows: userRows } = await pool.query(
+      'SELECT id, role, name, phone FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email],
+    );
+    if (!userRows.length) return res.status(404).json({ error: 'User not found' });
+    const user = userRows[0];
+
+    const { rows: propertyRows } = await pool.query(
+      `SELECT cp.id, cp.user_id, cp.customer_name, cp.customer_phone, cp.customer_email,
+              cp.address, cp.city, cp.state, cp.zip_code, cp.latitude, cp.longitude,
+              cp.property_type, cp.roof_type, cp.roof_age_years
+         FROM customer_properties cp
+         WHERE cp.id = $1 AND cp.is_active = TRUE
+         LIMIT 1`,
+      [propertyId],
+    );
+    if (!propertyRows.length) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+    const property = propertyRows[0];
+    if (property.user_id !== user.id && user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'This property belongs to another rep',
+      });
+    }
+
+    const lat = Number(property.latitude);
+    const lng = Number(property.longitude);
+    const propertyAddress = [property.address, property.city, property.state]
+      .filter(Boolean)
+      .join(', ');
+
+    // 2. Storm impact at the property (max hail size from MRMS radar).
+    const impactResult = await computeStormImpact(
+      {
+        date: String(stormDate),
+        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        points: [{ id: String(property.id), lat, lng }],
+      },
+      pool,
+    );
+    const impactAtProperty = impactResult.results[0];
+
+    // 3. Nearby NOAA storm events within 10 mile radius, for PDF context.
+    //    Limit to the same calendar year as the storm date to keep PDF focused.
+    const stormYear = Number(String(stormDate).slice(0, 4));
+    const yearsBack = Math.max(1, new Date().getUTCFullYear() - stormYear + 1);
+    let noaaEvents: any[] = [];
+    try {
+      noaaEvents = await noaaStormService.getStormEvents(lat, lng, 10, yearsBack);
+    } catch (e) {
+      console.warn('[ClaimPacket] NOAA fetch failed:', (e as Error).message);
+    }
+
+    // 4. Damage score — existing service handles the math.
+    const damageScore = damageScoreService.calculateDamageScore({
+      lat,
+      lng,
+      address: propertyAddress,
+      events: [],
+      noaaEvents: noaaEvents as any,
+    });
+
+    // 5. Assemble the payload the existing /generate-report endpoint uses
+    //    and hand it off to the same PDF service. The rep gets a PDF stream.
+    const reportPayload = {
+      address: propertyAddress,
+      city: property.city,
+      state: property.state,
+      lat,
+      lng,
+      radius: 10,
+      events: [],
+      noaaEvents,
+      damageScore,
+      repName: user.name,
+      repPhone: user.phone || '(703) 239-3738',
+      repEmail: email,
+      companyName: 'Roof ER The Roof Docs',
+      customerName: property.customer_name,
+      dateOfLoss: String(stormDate),
+      includeNexrad: true,
+      includeMap: true,
+      includeWarnings: true,
+    };
+
+    // Set sensible response headers so the PDF downloads cleanly.
+    const safeDate = String(stormDate).replace(/[^0-9-]/g, '');
+    const safeName = property.customer_name.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="ClaimPacket_${safeName}_${safeDate}.pdf"`,
+    );
+    // Expose the impact summary as a header so UI can show a toast
+    // ('DIRECT HIT 1.75" on this property') alongside the PDF download.
+    res.setHeader(
+      'X-Storm-Impact',
+      JSON.stringify({
+        maxHailInches: impactAtProperty.maxHailInches,
+        label: impactAtProperty.label,
+        directHit: impactAtProperty.directHit,
+        propertyId: property.id,
+        stormDate,
+      }),
+    );
+    res.setHeader('Access-Control-Expose-Headers', 'X-Storm-Impact');
+
+    const pdfStream = pdfReportServiceV2.generateReport(reportPayload as any);
+    pdfStream.pipe(res);
+    pdfStream.on('error', (err: Error) => {
+      console.error('[ClaimPacket] PDF stream error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'PDF generation failed' });
+      }
+    });
+  } catch (error) {
+    console.error('Claim packet error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  }
+});
+
 // GET /api/hail/hailtrace-validation — cross-validate MRMS swath vs HailTrace
 // Overlays the rep's imported HailTrace points on our automated polygons and
 // flags disagreements so the rep knows where to double-check.

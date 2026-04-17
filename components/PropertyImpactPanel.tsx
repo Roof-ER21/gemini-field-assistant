@@ -61,6 +61,43 @@ interface PropertyImpactPanelProps {
   onPropertyClick?: (property: PropertyImpact) => void;
 }
 
+async function downloadClaimPacket(args: {
+  propertyId: string;
+  stormDate: string;
+  anchorTimestamp?: string | null;
+  userEmail: string;
+  customerName: string;
+}) {
+  const res = await fetch(`${apiBaseUrl}/api/hail/claim-packet`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-email': args.userEmail,
+    },
+    body: JSON.stringify({
+      propertyId: args.propertyId,
+      stormDate: args.stormDate,
+      anchorTimestamp: args.anchorTimestamp || null,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || 'Claim packet failed');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const safeName = args.customerName.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
+  a.download = `ClaimPacket_${safeName}_${args.stormDate}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
 const apiBaseUrl = getApiBaseUrl();
 
 export default function PropertyImpactPanel({
@@ -182,7 +219,14 @@ export default function PropertyImpactPanel({
           {hits.length > 0 && (
             <div style={styles.list}>
               {hits.map((p) => (
-                <PropertyRow key={p.id} property={p} onClick={onPropertyClick} />
+                <PropertyRow
+                  key={p.id}
+                  property={p}
+                  onClick={onPropertyClick}
+                  selectedDate={selectedDate ?? undefined}
+                  anchorTimestamp={anchorTimestamp}
+                  userEmail={userEmail}
+                />
               ))}
             </div>
           )}
@@ -198,7 +242,15 @@ export default function PropertyImpactPanel({
               {showMissed && (
                 <div style={styles.list}>
                   {misses.map((p) => (
-                    <PropertyRow key={p.id} property={p} onClick={onPropertyClick} muted />
+                    <PropertyRow
+                      key={p.id}
+                      property={p}
+                      onClick={onPropertyClick}
+                      muted
+                      selectedDate={selectedDate ?? undefined}
+                      anchorTimestamp={anchorTimestamp}
+                      userEmail={userEmail}
+                    />
                   ))}
                 </div>
               )}
@@ -263,25 +315,57 @@ function PropertyRow({
   property,
   onClick,
   muted,
+  selectedDate,
+  anchorTimestamp,
+  userEmail,
 }: {
   property: PropertyImpact;
   onClick?: (p: PropertyImpact) => void;
   muted?: boolean;
+  selectedDate?: string;
+  anchorTimestamp?: string | null;
+  userEmail?: string | null;
 }) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const isHit = property.directHit;
   const severity = property.hailSeverity || '';
   const isHigh = property.maxHailInches !== null && property.maxHailInches >= 1.5;
+  const canDownloadPacket = isHit && selectedDate && userEmail;
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedDate || !userEmail) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadClaimPacket({
+        propertyId: property.id,
+        stormDate: selectedDate,
+        anchorTimestamp,
+        userEmail,
+        customerName: property.customerName,
+      });
+    } catch (err) {
+      setDownloadError((err as Error).message);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
-    <button
-      onClick={() => onClick?.(property)}
+    <div
       style={{
         ...styles.row,
         opacity: muted ? 0.55 : 1,
         borderLeftColor: isHit ? property.hailColor || '#ef4444' : '#334155',
+        cursor: 'default',
       }}
     >
-      <div style={styles.rowMain}>
+      <button
+        onClick={() => onClick?.(property)}
+        style={{ ...styles.rowMain, background: 'none', border: 'none', color: 'inherit', textAlign: 'left', padding: 0, cursor: 'pointer' }}
+      >
         <div style={styles.rowName}>{property.customerName}</div>
         <div style={styles.rowAddress}>
           {property.address}, {property.city} {property.zipCode}
@@ -294,7 +378,21 @@ function PropertyRow({
         {property.doNotContact && (
           <div style={styles.dncTag}>DO NOT CONTACT</div>
         )}
-      </div>
+        {downloadError && (
+          <div style={{ ...styles.dncTag, color: '#f87171', fontSize: 9 }}>
+            Packet error: {downloadError}
+          </div>
+        )}
+        {canDownloadPacket && (
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            style={styles.packetBtn}
+          >
+            {downloading ? 'Generating…' : '📄 Claim Packet PDF'}
+          </button>
+        )}
+      </button>
       <div style={{ ...styles.rowBadge, background: isHit ? (property.hailColor || '#ef4444') : '#1e293b' }}>
         {isHit ? (
           <>
@@ -305,7 +403,7 @@ function PropertyRow({
           <div style={styles.rowBadgeMiss}>—</div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -435,5 +533,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
     cursor: 'pointer',
     textAlign: 'left',
+  },
+  packetBtn: {
+    display: 'inline-block',
+    marginTop: 6,
+    padding: '4px 8px',
+    fontSize: 10,
+    fontWeight: 600,
+    background: 'rgba(37,99,235,0.85)',
+    border: 'none',
+    borderRadius: 4,
+    color: '#fff',
+    cursor: 'pointer',
   },
 };
