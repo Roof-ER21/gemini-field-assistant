@@ -33,6 +33,7 @@ import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
 import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons } from '../services/historicalMrmsService.js';
 import { computeStormImpact } from '../services/stormImpactService.js';
 import { getLiveMrmsSwathPolygons } from '../services/liveMrmsService.js';
+import { crossValidateHailtrace } from '../services/hailtraceValidationService.js';
 import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -1433,6 +1434,34 @@ router.get('/mrms-now-polygons', async (req, res) => {
     }
     catch (error) {
         console.error('Live MRMS polygons error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// GET /api/hail/hailtrace-validation — cross-validate MRMS swath vs HailTrace
+// Overlays the rep's imported HailTrace points on our automated polygons and
+// flags disagreements so the rep knows where to double-check.
+router.get('/hailtrace-validation', async (req, res) => {
+    try {
+        const { date, north, south, east, west, anchorTimestamp } = req.query;
+        if (!date || !north || !south || !east || !west) {
+            return res.status(400).json({
+                error: 'date, north, south, east, west required',
+            });
+        }
+        const pool = req.app.get('pool');
+        const result = await crossValidateHailtrace({
+            date: String(date),
+            north: Number(north),
+            south: Number(south),
+            east: Number(east),
+            west: Number(west),
+            anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        }, pool);
+        res.setHeader('Cache-Control', 'public, max-age=600');
+        res.json(result);
+    }
+    catch (error) {
+        console.error('HailTrace validation error:', error);
         res.status(500).json({ error: error.message });
     }
 });
