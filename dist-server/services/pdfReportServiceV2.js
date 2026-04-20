@@ -745,8 +745,8 @@ export class PDFReportServiceV2 {
         // HISTORICAL STORM ACTIVITY
         // =========================================================
         this.drawSectionBanner(doc, 'Historical Storm Activity');
-        const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'Duration', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
-        const histWidths = [62, 70, 48, 38, 44, 58, 54, 54, 54];
+        const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
+        const histWidths = [62, 58, 62, 42, 38, 58, 54, 54, 54];
         const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
             ? input.historyEvents
             : filteredIhm.length > 0
@@ -806,17 +806,71 @@ export class PDFReportServiceV2 {
         const consolidatedDates = Array.from(dateGroups.values())
             .filter(g => g.atLoc > 0 || g.w1 > 0 || g.w3 > 0 || g.w10 > 0)
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
+        // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
+        // for the PDF. Sub-¼" radar signatures exist (sleet/graupel) but listing
+        // them verbatim ("0.13\"") gives adjusters license to dismiss the report.
+        // ¼" is the smallest credible documented hail size (pea). The underlying
+        // map / API data is unaffected — this floor is display-only.
+        const displaySize = (inches) => {
+            if (inches <= 0)
+                return '---';
+            return `${Math.max(0.25, inches).toFixed(2)}"`;
+        };
+        // Direct-hit labeling rules for the "Hit" column:
+        //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable)
+        //   atLoc > 0     → "Direct"     (radar signature at property, sub-½")
+        //   w1 > 0        → "Near-miss"  (nothing at home, but storm inside 1mi)
+        //   w3 > 0        → "Nearby"     (within 3mi)
+        //   else          → "---"
+        const hitLabel = (g) => {
+            if (g.atLoc >= 0.5)
+                return 'DIRECT HIT';
+            if (g.atLoc > 0)
+                return 'Direct';
+            if (g.w1 > 0)
+                return 'Near-miss';
+            if (g.w3 > 0)
+                return 'Nearby';
+            return '---';
+        };
         const histRows = consolidatedDates.map(g => [
-            this.fmtDateET(g.date), this.fmtFullDateTimeET(g.date),
-            g.direction, g.speed ? g.speed.toFixed(1) : '---',
-            g.duration ? g.duration.toFixed(1) : '---',
-            g.atLoc > 0 ? `${g.atLoc.toFixed(2)}"` : '---',
-            g.w1 > 0 ? `${g.w1.toFixed(2)}"` : '---',
-            g.w3 > 0 ? `${g.w3.toFixed(2)}"` : '---',
-            g.w10 > 0 ? `${g.w10.toFixed(2)}"` : '---',
+            this.fmtDateET(g.date),
+            hitLabel(g),
+            this.fmtFullDateTimeET(g.date),
+            g.direction,
+            g.speed ? g.speed.toFixed(1) : '---',
+            displaySize(g.atLoc),
+            displaySize(g.w1),
+            displaySize(g.w3),
+            displaySize(g.w10),
         ]);
+        // Summary line above the table — tells the adjuster at a glance what
+        // category of hits this property has.
+        const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
+        const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
+        const nearMissCount = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 > 0).length;
+        const largestActionable = consolidatedDates.reduce((max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max), { size: 0, date: '' });
+        if (directHitCount > 0 || nearMissCount > 0) {
+            doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
+            const parts = [];
+            if (actionableCount > 0) {
+                parts.push(`${actionableCount} insurance-actionable DIRECT HIT${actionableCount > 1 ? 'S' : ''} (≥½")`);
+            }
+            const subHalf = directHitCount - actionableCount;
+            if (subHalf > 0)
+                parts.push(`${subHalf} sub-½" radar hit${subHalf > 1 ? 's' : ''}`);
+            if (nearMissCount > 0)
+                parts.push(`${nearMissCount} near-miss${nearMissCount > 1 ? 'es' : ''} (within 1mi)`);
+            doc.text(parts.join('  •  '), this.M, doc.y, { width: this.CW });
+            if (largestActionable.size > 0) {
+                doc.moveDown(0.2);
+                doc.fontSize(10).fillColor('#b91c1c').font('Helvetica-Bold')
+                    .text(`🎯 Largest actionable direct hit: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`, this.M, doc.y, { width: this.CW });
+            }
+            doc.moveDown(0.3);
+        }
         if (histRows.length > 0) {
-            this.drawTable(doc, histHeaders, histRows, histWidths, { boldColumns: [0] });
+            this.drawTable(doc, histHeaders, histRows, histWidths, { boldColumns: [0, 1] });
         }
         else {
             doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica-Oblique')
@@ -824,7 +878,11 @@ export class PDFReportServiceV2 {
         }
         doc.moveDown(0.3);
         doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-            .text('* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day.', this.M, doc.y);
+            .text('* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
+            'Hit column: "DIRECT HIT" = hail ≥½" at the property (insurance-actionable); ' +
+            '"Direct" = sub-½" radar signature at the property (canvassing context only); ' +
+            '"Near-miss" = no hail at property but documented within 1 mile. ' +
+            'Sub-¼" radar values are rounded up to ¼" for this report.', this.M, doc.y, { width: this.CW });
         // =========================================================
         // SUPPORTING EVIDENCE
         // =========================================================
