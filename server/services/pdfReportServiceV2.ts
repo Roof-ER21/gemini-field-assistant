@@ -661,11 +661,23 @@ export class PDFReportServiceV2 {
     // =========================================================
     this.drawSectionBanner(doc, 'Storm Impact Narrative');
 
+    // Peak wind speed across the selected wind events — feeds the narrative
+    // so wind-only reports lead with "winds up to X mph" instead of
+    // nonsensical "pea-sized hail measuring up to 0.00 inches".
+    const maxWindMph = filteredSelectedNoaaWind.reduce(
+      (max, e) => {
+        const m = Number((e as { magnitude?: number }).magnitude) || 0;
+        return m > max ? m : max;
+      },
+      0,
+    );
+
     const narrative = generateHailNarrative({
       address: input.address, city: input.city, state: input.state,
       stormDate: primaryStormDate, maxHailSize: selectedMaxHail,
       totalEvents: filteredSelectedIhm.length + filteredSelectedNoaa.length,
       severeCount, windEvents: filteredSelectedNoaaWind.length,
+      maxWindMph,
       nearbyReports: hailEvents.filter(e => (e.distance || 99) < 1).length,
       radiusMiles: input.radius,
       stormDirection: primaryEvent?.direction,
