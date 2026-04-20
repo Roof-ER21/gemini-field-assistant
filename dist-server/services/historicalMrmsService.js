@@ -696,13 +696,16 @@ export async function getMrmsHailAtPoint(date, lat, lng) {
                 }
             }
             const inches = maxMm / 25.4;
-            // Floor at 0.50" — sub-half-inch hail is not actionable for insurance claims.
-            // Round to nearest 0.25" to match industry standard sizes (0.50, 0.75, 1.00, etc.)
-            if (inches < 0.50) {
+            // Floor at 0.13" (⅛"). Sub-½" hail isn't insurance-actionable but reps still
+            // want to see it on the map (canvassing context, leading-edge of a storm).
+            if (inches < 0.13) {
                 result[band.key] = null;
             }
+            else if (inches < 0.50) {
+                result[band.key] = Math.round(inches * 8) / 8; // nearest ⅛" for sub-½"
+            }
             else {
-                result[band.key] = Math.round(inches * 4) / 4; // nearest 0.25"
+                result[band.key] = Math.round(inches * 4) / 4; // nearest ¼" for ≥½"
             }
         }
         return result;
