@@ -2188,12 +2188,30 @@ router.get('/rep-storm-impact', async (req: Request, res: Response) => {
     const pool: import('pg').Pool = req.app.get('pool');
 
     // Look up the rep's user_id + their active customer_properties.
+    // NOTE: return an empty-but-valid result (not 404) when the email isn't
+    // in `users` yet — new reps, SSO identity mismatches, or reps registered
+    // only in `employee_profiles` would otherwise see "Couldn't load property
+    // impact: Server returned 404" on the map. Empty result → "No homes for
+    // this storm" which is the correct UX.
     const { rows: userRows } = await pool.query(
       'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
       [email],
     );
     if (!userRows.length) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.json({
+        date: String(date),
+        anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
+        metadata: {
+          stormMaxInches: 0,
+          stormHailCells: 0,
+          stormFeatureCount: 0,
+          pointsChecked: 0,
+          directHits: 0,
+        },
+        properties: [],
+        byBand: [],
+        note: `No customer properties yet for ${email} — add homes in the Homes tab to see storm impact here.`,
+      });
     }
     const userId = userRows[0].id;
 
