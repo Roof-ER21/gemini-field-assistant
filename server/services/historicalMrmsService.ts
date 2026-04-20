@@ -900,12 +900,14 @@ export async function getMrmsHailAtPoint(
 
     // Distance bands in grid cells.
     // MRMS grid ≈ 0.01° ≈ 1.1km ≈ 0.68mi per cell.
-    // radius 1 cell  → ~0.68mi  (covers "At Location" <0.5mi with margin)
+    // radius 0 cells → the single cell the home sits in (~1km² ≈ 0.4mi²).
+    //                  This is the HONEST "At Location" — tightened from r=1
+    //                  (which sampled ~0.68mi / 9 cells and misled adjusters).
     // radius 2 cells → ~1.36mi  (covers "Within 1mi")
     // radius 5 cells → ~3.4mi   (covers "Within 3mi")
     // radius 16 cells → ~10.9mi (covers "Within 10mi")
     const bands: Array<{ key: keyof MrmsPointResult; radius: number }> = [
-      { key: 'atLocation', radius: 1 },
+      { key: 'atLocation', radius: 0 },
       { key: 'within1mi', radius: 2 },
       { key: 'within3mi', radius: 5 },
       { key: 'within10mi', radius: 16 },
@@ -950,6 +952,58 @@ export async function getMrmsHailAtPoint(
     // MRMS archive doesn't exist for this date — normal for older dates or quiet days
     return null;
   }
+}
+
+export interface MrmsRecentHailDay {
+  date: string;           // YYYY-MM-DD
+  atLocation: number | null;
+  within1mi: number | null;
+  within3mi: number | null;
+  within10mi: number | null;
+  maxInches: number;      // largest non-null band
+}
+
+/**
+ * Probe MRMS for hail at a point over the last N days. Fills the gap where
+ * NOAA Storm Events DB lags 3-14 days behind live weather — reps need to see
+ * yesterday's and today's storms *today*, not next week.
+ *
+ * Runs all day-lookups in parallel. Returns only days where MRMS detected
+ * hail at any band (atLocation through within10mi). Safe to call from
+ * request paths: bounded to <= days * (1 GRIB download ≈ 2-5s), and
+ * compositeGridCache amortizes repeated calls on the same day.
+ */
+export async function getRecentMrmsHailAtPoint(
+  lat: number,
+  lng: number,
+  days: number = 3
+): Promise<MrmsRecentHailDay[]> {
+  const dayStrings: string[] = [];
+  const today = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    dayStrings.push(d.toISOString().slice(0, 10));
+  }
+
+  const results = await Promise.all(
+    dayStrings.map(async (date) => {
+      try {
+        const r = await getMrmsHailAtPoint(date, lat, lng);
+        if (!r) return null;
+        const values = [r.atLocation, r.within1mi, r.within3mi, r.within10mi].filter(
+          (v): v is number => v !== null
+        );
+        if (values.length === 0) return null;
+        const maxInches = Math.max(...values);
+        return { date, ...r, maxInches } satisfies MrmsRecentHailDay;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return results.filter((d): d is MrmsRecentHailDay => d !== null);
 }
 
 // ─── MRMS Composite Grid Export (for vector polygon pipeline) ─────────────
@@ -1159,11 +1213,21 @@ export async function getHistoricalMrmsSwathPolygons(
 
   const result = meshGridToPolygons(gridInput, request.date);
 
-  // Cache in memory
-  swathPolyCache.set(polyKey, { expiresAt: Date.now() + CACHE_TTL_MS, result });
+  // For today and yesterday, use a short TTL on empty results — the 1440-min
+  // product refreshes every 30 min and new hail can appear any tick. Caching
+  // "0 features" for 6h would hide in-progress storms from reps.
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const isRecent = request.date === today || request.date === yesterday;
+  const isEmpty = result.features.length === 0;
+  const ttlMs = isRecent && isEmpty ? 5 * 60 * 1000 : CACHE_TTL_MS;
 
-  // Persist to DB so the result survives a server restart.
-  if (pool) {
+  // Cache in memory
+  swathPolyCache.set(polyKey, { expiresAt: Date.now() + ttlMs, result });
+
+  // Persist to DB so the result survives a server restart. Skip DB persist
+  // for empty-recent results — they'd outlive in-memory TTL and re-poison.
+  if (pool && !(isRecent && isEmpty)) {
     const roundedBounds = roundBounds(request);
     // Fire-and-forget: we already have the result, don't block the response.
     void saveSwathToDb(pool, request.date, roundedBounds, result);

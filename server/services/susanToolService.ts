@@ -6,7 +6,8 @@
  *
  * Tool list:
  *   1. schedule_followup      – Create a task/reminder (stub until agent_tasks exists)
- *   2. lookup_hail_data        – NOAA storm history (hail + wind)
+ *   2. lookup_hail_data        – NOAA storm history (hail + wind, verified, 3-14d lag)
+ *   2b. lookup_mrms_radar      – MRMS radar direct query (today, yesterday, sub-½", ~30m lag)
  *   3. save_client_note        – UPSERT into user_memory table
  *   4. draft_email             – Return structured email metadata for Gemini to fill
  *   5. share_team_intel        – INSERT into agent_network_messages (pending admin approval)
@@ -18,6 +19,7 @@
 import pg from 'pg';
 import { Type, type FunctionDeclaration } from '@google/genai';
 import { noaaStormService } from './noaaStormService.js';
+import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from './historicalMrmsService.js';
 import { createCalendarEvent, checkAvailability, listCalendarEvents } from './googleCalendarService.js';
 import { sendGmailEmail } from './googleGmailService.js';
 
@@ -292,6 +294,187 @@ async function executeLookupHailData(
     return {
       success: false,
       error: `Failed to retrieve hail data: ${message}`,
+      address: { street, city, state, zip }
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tool 2b: lookup_mrms_radar
+// ---------------------------------------------------------------------------
+// Added as a companion to lookup_hail_data (NOT a replacement). NOAA Storm
+// Events DB lags 3-14 days; MRMS radar updates every 30 min. Reps need to
+// answer "was there hail today?" without waiting for federal verification.
+//
+// Use this tool when:
+//   - The rep asks about a RECENT storm (today, yesterday, this week)
+//   - The rep wants to know sub-½" cosmetic hail (not in NOAA's threshold)
+//   - A homeowner reports a storm Susan can't yet find in NOAA records
+//
+// Keep using lookup_hail_data for:
+//   - Historical queries >2 weeks old (NOAA is verified, preferred for claims)
+//   - Insurance-grade evidence (NOAA = federal record, carries more weight)
+// ---------------------------------------------------------------------------
+
+const lookupMrmsRadarDeclaration: FunctionDeclaration = {
+  name: 'lookup_mrms_radar',
+  description:
+    "Query NOAA's MRMS radar grid directly for hail at an address on a specific date. Use this for RECENT storms (today, yesterday, this week) or when a homeowner reports a storm that lookup_hail_data (NOAA Storm Events DB) hasn't yet documented — NOAA publishes on a 3-14 day delay, while MRMS radar updates every 30 minutes. Also use this when the rep asks about sub-½\" cosmetic hail (below NOAA's reporting threshold). Returns radar-detected hail sizes at 4 distance bands: atLocation (the exact grid cell the home sits in), within1mi, within3mi, within10mi. ALWAYS pair this with lookup_hail_data for full picture — they complement each other, they do not replace each other.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      street: {
+        type: Type.STRING,
+        description: 'Street address, e.g. "1234 Oak Lane".'
+      },
+      city: {
+        type: Type.STRING,
+        description: 'City name.'
+      },
+      state: {
+        type: Type.STRING,
+        description: 'Two-letter US state abbreviation, e.g. "VA".'
+      },
+      zip: {
+        type: Type.STRING,
+        description: 'Five-digit ZIP code.'
+      },
+      date: {
+        type: Type.STRING,
+        description: "Specific date in YYYY-MM-DD format. Leave blank to auto-scan the last 3 days (best for 'was there hail this week?' questions)."
+      }
+    },
+    required: ['street', 'city', 'state']
+  }
+};
+
+async function executeLookupMrmsRadar(
+  args: Record<string, unknown>,
+  _ctx: ToolContext
+): Promise<Record<string, unknown>> {
+  const { street, city, state, zip, date } = args as {
+    street: string;
+    city: string;
+    state: string;
+    zip?: string;
+    date?: string;
+  };
+
+  try {
+    // Reuse Census → Nominatim geocode chain from lookup_hail_data
+    const addressLine = `${street}, ${city}, ${state}${zip ? ' ' + zip : ''}`.trim();
+    const params = new URLSearchParams({
+      address: addressLine,
+      benchmark: 'Public_AR_Current',
+      format: 'json'
+    });
+    const geoRes = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    if (geoRes.ok) {
+      const geoData = await geoRes.json();
+      const matches = geoData?.result?.addressMatches;
+      if (matches?.length) {
+        lat = matches[0].coordinates.y;
+        lng = matches[0].coordinates.x;
+      }
+    }
+
+    if (!lat || !lng) {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressLine)}&format=json&limit=1&countrycodes=us`,
+        { headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' } }
+      );
+      const nomData = await nomRes.json();
+      if (Array.isArray(nomData) && nomData.length > 0) {
+        lat = parseFloat(nomData[0].lat);
+        lng = parseFloat(nomData[0].lon);
+      }
+    }
+
+    if (!lat || !lng) {
+      return { success: false, error: 'Could not geocode address', address: { street, city, state, zip } };
+    }
+
+    const actionableFloor = 0.5; // insurance threshold
+
+    // Branch: specific date vs auto-scan last 3 days
+    if (date) {
+      const isoDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? date
+        : new Date(date).toISOString().slice(0, 10);
+      const mrms = await getMrmsHailAtPoint(isoDate, lat, lng);
+      if (!mrms) {
+        return {
+          success: true,
+          address: addressLine,
+          date: isoDate,
+          hail_detected: false,
+          message: `No MRMS radar data available for ${isoDate} at this location — either no hail recorded or MRMS archive is missing for that date.`
+        };
+      }
+      const atLoc = mrms.atLocation ?? 0;
+      return {
+        success: true,
+        address: addressLine,
+        date: isoDate,
+        hail_detected: atLoc > 0 || (mrms.within10mi ?? 0) > 0,
+        at_location_inches: mrms.atLocation,
+        within_1mi_inches: mrms.within1mi,
+        within_3mi_inches: mrms.within3mi,
+        within_10mi_inches: mrms.within10mi,
+        direct_hit: mrms.atLocation !== null,
+        actionable_hit: atLoc >= actionableFloor,
+        source: 'MRMS (NOAA/NSSL radar, IEM MTArchive)',
+        interpretation_hint:
+          atLoc >= actionableFloor
+            ? 'Insurance-actionable direct hit at the home. Pair with lookup_hail_data to check for NOAA verification for maximum carrier credibility.'
+            : atLoc > 0
+            ? 'Radar detected sub-½" hail at the home — cosmetic / not insurance-actionable, but useful for canvassing context.'
+            : (mrms.within10mi ?? 0) > 0
+            ? 'No hail at the exact home location but radar picked up hail nearby — check within1mi/within3mi/within10mi values. The storm may have tracked near but not over the property.'
+            : 'No radar hail detected within 10mi.'
+      };
+    }
+
+    // Auto-scan: last 3 days — best for "any storms this week?" questions
+    const recent = await getRecentMrmsHailAtPoint(lat, lng, 3);
+    if (recent.length === 0) {
+      return {
+        success: true,
+        address: addressLine,
+        scanned: 'last 3 days',
+        hail_detected: false,
+        message: 'MRMS radar shows no hail within 10 miles of this address in the last 3 days.'
+      };
+    }
+    return {
+      success: true,
+      address: addressLine,
+      scanned: 'last 3 days',
+      hail_detected: true,
+      days_with_hail: recent.length,
+      events: recent.map((d) => ({
+        date: d.date,
+        at_location_inches: d.atLocation,
+        within_1mi_inches: d.within1mi,
+        within_3mi_inches: d.within3mi,
+        within_10mi_inches: d.within10mi,
+        max_inches: d.maxInches,
+        direct_hit: d.atLocation !== null,
+        actionable_hit: (d.atLocation ?? 0) >= actionableFloor
+      })),
+      source: 'MRMS (NOAA/NSSL radar, IEM MTArchive)',
+      interpretation_hint:
+        'MRMS fills the 3-14 day gap before NOAA Storm Events Database publishes. For claims documentation, run lookup_hail_data afterward to check for federal verification.'
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[SusanTool:lookup_mrms_radar] Error:', message);
+    return {
+      success: false,
+      error: `Failed to retrieve MRMS radar data: ${message}`,
       address: { street, city, state, zip }
     };
   }
@@ -1655,6 +1838,7 @@ async function executeRecordClaimOutcome(
 export const SUSAN_TOOLS: FunctionDeclaration[] = [
   scheduleFollowupDeclaration,
   lookupHailDataDeclaration,
+  lookupMrmsRadarDeclaration,
   saveClientNoteDeclaration,
   draftEmailDeclaration,
   shareTeamIntelDeclaration,
@@ -1677,6 +1861,7 @@ const TOOL_EXECUTORS: Record<
 > = {
   schedule_followup: executeScheduleFollowup,
   lookup_hail_data: executeLookupHailData,
+  lookup_mrms_radar: executeLookupMrmsRadar,
   save_client_note: executeSaveClientNote,
   draft_email: executeDraftEmail,
   share_team_intel: executeShareTeamIntel,

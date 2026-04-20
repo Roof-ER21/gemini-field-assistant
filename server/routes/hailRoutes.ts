@@ -32,7 +32,7 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2, type ReportFilter } from '../services/pdfReportServiceV2.js';
-import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons } from '../services/historicalMrmsService.js';
+import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { computeStormImpact, type StormImpactPoint } from '../services/stormImpactService.js';
 import { getLiveMrmsSwathPolygons, type LiveMrmsProduct } from '../services/liveMrmsService.js';
 import { crossValidateHailtrace } from '../services/hailtraceValidationService.js';
@@ -404,6 +404,57 @@ router.get('/search', async (req, res) => {
         console.error('[StormAlerts] Local merge error:', (e as Error).message);
       }
 
+      // Fill the NOAA-lag gap (3-14 days) with live MRMS radar for the last 3 days.
+      // NOAA SED publishes on a delay; MRMS updates every 30 min. Without this,
+      // reps searching an address on a storm day see "no events" until NOAA catches up.
+      const dataSource = ['NOAA', 'Local Storm Alerts'];
+      try {
+        const mrmsRecent = await getRecentMrmsHailAtPoint(searchLat, searchLng, 3);
+        if (mrmsRecent.length > 0) {
+          dataSource.push('MRMS Radar');
+          const toDateKeyLocal = (dateVal: any): string => {
+            if (!dateVal) return '';
+            const s = String(dateVal);
+            const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+            return m ? m[1] : s;
+          };
+          const existingMrmsKeys = new Set(noaaData.map((e: any) => toDateKeyLocal(e.date)));
+          for (const day of mrmsRecent) {
+            if (existingMrmsKeys.has(day.date)) continue; // don't dup a NOAA-same-day event
+            noaaData.push({
+              id: `mrms-${day.date}`,
+              eventType: 'Hail',
+              date: day.date,
+              latitude: searchLat,
+              longitude: searchLng,
+              magnitude: day.atLocation ?? day.within1mi ?? day.within3mi ?? day.within10mi,
+              state: '',
+              county: '',
+              location: 'MRMS Radar',
+              narrative:
+                `MRMS radar detected hail at this location: ` +
+                `at_location=${day.atLocation ?? 'none'}", ` +
+                `within1mi=${day.within1mi ?? 'none'}", ` +
+                `within3mi=${day.within3mi ?? 'none'}", ` +
+                `within10mi=${day.within10mi ?? 'none'}". ` +
+                `Sub-½" values are cosmetic / non-insurance-actionable.`,
+              source: 'MRMS Radar',
+              mrms: {
+                atLocation: day.atLocation,
+                within1mi: day.within1mi,
+                within3mi: day.within3mi,
+                within10mi: day.within10mi,
+                directHit: day.atLocation !== null,
+                actionableHit: (day.atLocation ?? 0) >= 0.5,
+              },
+            });
+            existingMrmsKeys.add(day.date);
+          }
+        }
+      } catch (e) {
+        console.error('[MRMS Recent] Error:', (e as Error).message);
+      }
+
       return res.json({
         events: [],
         noaaEvents: noaaData,
@@ -411,8 +462,10 @@ router.get('/search', async (req, res) => {
           center: { lat: searchLat, lng: searchLng },
           radiusMiles: radiusNum
         },
-        dataSource: ['NOAA', 'Local Storm Alerts'],
-        message: 'NOAA Storm Events Database + Local Alerts'
+        dataSource,
+        message: dataSource.includes('MRMS Radar')
+          ? 'NOAA Storm Events DB + Local Alerts + MRMS Radar (fills NOAA lag)'
+          : 'NOAA Storm Events Database + Local Alerts'
       });
     }
 
@@ -569,6 +622,14 @@ router.get('/address-history', async (req: Request, res: Response) => {
       within3mi: string | null;
       within10mi: string | null;
       directHit: boolean;
+      /** True only when atLocation hail >= 0.5" — insurance-actionable threshold */
+      actionableHit: boolean;
+      /** True when severe wind (>=60mph) or any wind report documented within 1mi */
+      windDirectHit: boolean;
+      /** Max wind speed within 1mi in mph (if any wind reports) */
+      windSpeedMph: number | null;
+      /** Evidence-strength signal for the report narrative */
+      evidenceStrength: 'strong' | 'moderate' | 'mrms-only' | 'noaa-only' | 'none';
       reportCount: number;
       maxHailSize: number | null;
       noaaConfirmed: boolean;
@@ -606,12 +667,15 @@ router.get('/address-history', async (req: Request, res: Response) => {
         const radarMax = mrms ? (mrms[band.key as keyof typeof mrms] as number | null) || 0 : 0;
 
         const best = Math.max(groundMax, radarMax);
-        // Floor at 0.50" — no adjuster takes sub-half-inch seriously.
-        // Round to nearest 0.25" to match industry standard (0.50, 0.75, 1.00, 1.25, etc.)
-        if (best < 0.50) {
+        // Floor at 0.13" (⅛"). Sub-½" hail isn't insurance-actionable — the
+        // UI uses `actionableHit` to distinguish — but reps still want to see
+        // leading-edge radar activity for canvassing context.
+        if (best < 0.13) {
           bandValues[band.key] = null;
+        } else if (best < 0.50) {
+          bandValues[band.key] = Math.round(best * 8) / 8; // nearest ⅛" for sub-½"
         } else {
-          bandValues[band.key] = Math.round(best * 4) / 4;
+          bandValues[band.key] = Math.round(best * 4) / 4; // nearest ¼" for ≥½"
         }
       }
 
@@ -656,6 +720,27 @@ router.get('/address-history', async (req: Request, res: Response) => {
         timeZone: 'America/New_York'
       });
 
+      // Wind direct hit — any wind event within 1mi counts. Separate from hail.
+      const windWithin1mi = windEvents.filter((e: any) => (e.distanceMiles || 999) <= 1);
+      const maxWindMph = windWithin1mi.length > 0
+        ? Math.max(...windWithin1mi.map((e: any) => Number(e.magnitude) || 0))
+        : 0;
+      const windDirectHit = windWithin1mi.length > 0;
+
+      // Actionable hail — >= 0.5" at the exact location (insurance threshold).
+      // bandValues.atLocation is already rounded, compare numeric value.
+      const atLocInches = bandValues.atLocation ?? 0;
+      const actionableHit = atLocInches >= 0.5;
+
+      // Evidence-strength signal for narrative tone.
+      const hasMrmsHit = mrms !== null && (mrms.atLocation !== null || mrms.within1mi !== null);
+      const hasNoaaHit = events.some((e: any) => e.noaaReconciled || e.id?.startsWith('noaa-'));
+      let evidenceStrength: 'strong' | 'moderate' | 'mrms-only' | 'noaa-only' | 'none' = 'none';
+      if (hasMrmsHit && hasNoaaHit) evidenceStrength = 'strong';
+      else if (hasMrmsHit && events.length > 1) evidenceStrength = 'moderate';
+      else if (hasMrmsHit) evidenceStrength = 'mrms-only';
+      else if (hasNoaaHit) evidenceStrength = 'noaa-only';
+
       stormDates.push({
         date,
         displayDate,
@@ -669,9 +754,13 @@ router.get('/address-history', async (req: Request, res: Response) => {
         within3mi: bandValues.within3mi ? `${bandValues.within3mi}"` : null,
         within10mi: bandValues.within10mi ? `${bandValues.within10mi}"` : null,
         directHit: bandValues.atLocation !== null,
+        actionableHit,
+        windDirectHit,
+        windSpeedMph: maxWindMph > 0 ? maxWindMph : null,
+        evidenceStrength,
         reportCount: allHailAndWind.length,
         maxHailSize: maxOverall,
-        noaaConfirmed: events.some((e: any) => e.noaaReconciled || e.id?.startsWith('noaa-')),
+        noaaConfirmed: hasNoaaHit,
         observations
       });
     }
@@ -679,8 +768,10 @@ router.get('/address-history', async (req: Request, res: Response) => {
     // Sort storm dates newest first
     stormDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Generate IHM-style narrative for the most recent direct hit
-    const latestHit = stormDates.find(s => s.directHit);
+    // Generate IHM-style narrative — prefer the most recent ACTIONABLE hit
+    // (>=½"), fall back to any direct hit for context-only mention.
+    const latestActionable = stormDates.find(s => s.actionableHit);
+    const latestHit = latestActionable ?? stormDates.find(s => s.directHit);
     let narrative: string | null = null;
     if (latestHit) {
       const addr = resolvedAddress || `${searchLat}, ${searchLng}`;
@@ -688,11 +779,19 @@ router.get('/address-history', async (req: Request, res: Response) => {
       const dir = latestHit.direction ? ` moving ${latestHit.direction}` : '';
       const spd = latestHit.speed ? ` at ${latestHit.speed} miles per hour` : '';
       const time = latestHit.impactTime ? ` at approximately ${latestHit.impactTime}` : '';
-      narrative = `On ${latestHit.displayDate}${time}, the property located at ${addr} was impacted by a storm${dir}${spd}. Hail as large as ${size} was detected near the property. ${latestHit.reportCount} ground observation(s) were recorded within 10 miles.${latestHit.noaaConfirmed ? ' This event has been confirmed by the NOAA Storm Events Database — the official federal record.' : ''}`;
+      const windClause = latestHit.windDirectHit && latestHit.windSpeedMph
+        ? ` Winds up to ${latestHit.windSpeedMph} mph were recorded within 1 mile.`
+        : '';
+      const cosmetic = !latestHit.actionableHit
+        ? ' Note: hail size is sub-½" (cosmetic / non-insurance-actionable) — surfaced for canvassing context.'
+        : '';
+      narrative = `On ${latestHit.displayDate}${time}, the property located at ${addr} was impacted by a storm${dir}${spd}. Hail as large as ${size} was detected near the property.${windClause} ${latestHit.reportCount} ground observation(s) were recorded within 10 miles.${latestHit.noaaConfirmed ? ' This event has been confirmed by the NOAA Storm Events Database — the official federal record.' : ''}${cosmetic}`;
     }
 
     // Summary stats
     const directHitCount = stormDates.filter(s => s.directHit).length;
+    const actionableHitCount = stormDates.filter(s => s.actionableHit).length;
+    const windHitCount = stormDates.filter(s => s.windDirectHit).length;
     const totalDates = stormDates.length;
     const maxHailOverall = stormDates.reduce((max, s) => Math.max(max, s.maxHailSize || 0), 0);
     const noaaCount = stormDates.filter(s => s.noaaConfirmed).length;
@@ -702,7 +801,9 @@ router.get('/address-history', async (req: Request, res: Response) => {
       summary = `No documented storm activity within 10 miles in the last ${yearsBack} years.`;
     } else {
       summary = `${totalDates} storm date${totalDates > 1 ? 's' : ''} within 10 miles in the last ${yearsBack} years.`;
-      if (directHitCount > 0) summary += ` ${directHitCount} direct hit${directHitCount > 1 ? 's' : ''} at the property (largest: ${maxHailOverall}").`;
+      if (actionableHitCount > 0) summary += ` ${actionableHitCount} insurance-actionable hail hit${actionableHitCount > 1 ? 's' : ''} (≥½") at the property (largest: ${maxHailOverall}").`;
+      else if (directHitCount > 0) summary += ` ${directHitCount} sub-½" radar hit${directHitCount > 1 ? 's' : ''} (canvassing context only).`;
+      if (windHitCount > 0) summary += ` ${windHitCount} wind event${windHitCount > 1 ? 's' : ''} within 1mi.`;
       if (noaaCount > 0) summary += ` ${noaaCount} confirmed by NOAA federal records.`;
     }
 
@@ -714,6 +815,8 @@ router.get('/address-history', async (req: Request, res: Response) => {
       summary,
       narrative,
       directHits: directHitCount,
+      actionableHits: actionableHitCount,
+      windHits: windHitCount,
       totalStormDates: totalDates,
       largestHail: maxHailOverall > 0 ? maxHailOverall : null,
       noaaConfirmed: noaaCount,
