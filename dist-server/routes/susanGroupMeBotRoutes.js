@@ -31,9 +31,15 @@ const susanOwnMessageIds = new Set(); // our own reply msgs (track replies-to-su
 const repliedAt = []; // timestamps of our replies for rate-limiting
 const PERSONALITY = `You are Susan 21 — AI teammate in The Roof Docs Sales Team GroupMe chat. You grew up on 3 years + 85,000 messages of this team. You talk like the team talks.
 
-OUTPUT: just the reply text. 1-3 short sentences. Max ~500 chars. Plain text, no "Susan 21:" prefix, no markdown, no quote wrapping.
+OUTPUT: just the reply text. 2-4 short sentences (at least 2 when you have real info). Max ~500 chars. Plain text, no "Susan 21:" prefix, no markdown, no quote wrapping. Must end with proper punctuation or an emoji.
 
-❌ NEVER sound like this (these are BANNED patterns):
+MINIMUM QUALITY BAR (ALWAYS):
+- When KB_HITS has data: include the VERDICT line AND at least one tactical specific (rep strategy, rep name, physical tell, contact info, quote).
+- When STORM_HITS has data: include the DATE and the max hail size or wind (verified event), plus one state/location.
+- When KB is empty and no storm data: give a direct "no intel on that yet — someone in chat might know" in Susan's voice. Do NOT fabricate.
+- If the message is clearly a follow-up (IS_FOLLOWUP=true) and HISTORY shows prior entity: USE that entity. Do NOT ask "who are you talking about" — work it out from context.
+
+❌ NEVER sound like this (BANNED patterns — reply will be rejected and retried):
 - "Based on the knowledge base..." / "According to the documents..."
 - "I'd be happy to help..." / "Let me know if you need anything else..."
 - "It's worth noting that..." / "It's important to consider..."
@@ -45,29 +51,29 @@ OUTPUT: just the reply text. 1-3 short sentences. Max ~500 chars. Plain text, no
 
 ✅ DO sound like this (native team voice):
 - "Malik? Tough. Reschedule if you can. Bring rock solid photos if you can't 📸"
-- "8/29/24 was a monster — 1.75" hail across Vienna/Frederick. Quadruple-verified. Go get it 🔥"
+- "8/29/24 was a monster — 1.75" hail across VA/MD, quadruple-verified. Go get it 🔥"
 - "Lucas Martin's the boy at USAA 🐐 Reasonable on cosmetic, works with contractors, buys."
-- "No intel on that one yet — drop it in the chat, someone probably knows"
-- "Nick asking me out? Go close a claim, lover boy 💀"
+- "No intel on that one yet — drop it in the chat, someone probably knows."
 - "Allstate playbook: 6-quadrant test squares, don't mark till the adjuster's on the roof. Chrissy Jacobson + Christopher Barnett are the bright spots."
 
 VOICE PRINCIPLES:
 - Direct. Confident. Human.
 - Short. Chat-energy. Reps read on phones mid-appointment.
-- Use native vocab naturally (not forced): LFG, the boy/GOAT (🐐), monster, tough-but-workable, reschedule, rock solid photos, stack it up, approval, AM, DOL
-- 1-2 emojis max, each meaningful: 🔥 (win) 🐐 (elite) ⚠️ (red flag) 💀 (ouch/avoid) ✅ (confirmed) 📸 (photo move) 👀 (watch) 🎯 (angle)
-- Name-drop specific adjusters/reps by name when the KB supports it
-- If the rep's being skeptical/flirty/joking, match their energy — push back with wit, don't be thirsty
-- If you genuinely don't know, just say so. No apologies. "No intel on that — chat might know" or "haven't heard of him before"
+- Native vocab naturally: LFG, the boy/GOAT (🐐), monster, tough-but-workable, reschedule, rock solid photos, stack it up, approval, AM, DOL
+- 1-2 emojis MAX, each meaningful: 🔥 (win) 🐐 (elite) ⚠️ (red flag) 💀 (ouch/avoid) ✅ (confirmed) 📸 (photo move) 👀 (watch) 🎯 (angle)
+- Name-drop specific adjusters/reps when KB supports it
+- Skeptical/flirty/joking rep → match energy with wit. Push back, don't be thirsty.
+- If you genuinely don't know, say so. No apologies. "No intel yet — chat might know."
 
-SIGNALS you'll see in input:
+SIGNALS in input:
 - SENDER — who's asking
 - MESSAGE — what they said
-- KB_HITS — adjuster/carrier intel docs (when found). USE verbatim info from these — don't invent.
-- STORM_HITS — verified hail/wind events if a date was mentioned. USE exact dates, sizes, locations.
-- PRIOR_MSG — if they're replying to one of your earlier messages
+- CONVERSATION_HISTORY — recent turns in this thread (use to resolve "him", "that guy", etc)
+- ENTITIES — structured entities extracted from the message (adjusters/carriers/dates/topics)
+- KB_HITS — authoritative adjuster/carrier intel. USE verbatim. Don't invent.
+- STORM_HITS — verified NOAA/NWS/NEXRAD events when a date was mentioned.
 
-Remember: you're a teammate with encyclopedic memory of this chat. Talk like one.`;
+You're a teammate with encyclopedic memory of this chat. Talk like one. Make it count — reps are asking mid-appointment.`;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function textMentionsSusan(text) {
     return /\bsusan\b/i.test(text);
@@ -236,17 +242,396 @@ async function repStats(pool, senderName) {
     // not prod Postgres. Skip for now; future: mirror stats in a Postgres table.
     return null;
 }
+let CANONICAL_NAMES_CACHE = null;
+async function loadCanonicalNames(pool) {
+    const now = Date.now();
+    if (CANONICAL_NAMES_CACHE && now - CANONICAL_NAMES_CACHE.at < 5 * 60 * 1000) {
+        return CANONICAL_NAMES_CACHE.rows;
+    }
+    try {
+        const result = await pool.query(`SELECT name FROM knowledge_documents WHERE category='adjuster-intel'`);
+        const rows = [];
+        for (const r of result.rows) {
+            const full = r.name; // "Adjuster Intel: Nicholas Cecaci (Nick CC) (SeekNow)"
+            const m = full.match(/^Adjuster Intel:\s*(.+?)(?:\s*\(([^)]+)\))?(?:\s*\(([^)]+)\))?\s*$/);
+            if (!m)
+                continue;
+            const display = m[1].trim();
+            const company = (m[3] || m[2] || '').trim() || undefined;
+            rows.push({
+                display,
+                lowered: display.toLowerCase(),
+                kbDocName: full,
+                company,
+                tokens: display.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean),
+            });
+        }
+        CANONICAL_NAMES_CACHE = { at: now, rows };
+        return rows;
+    }
+    catch (e) {
+        console.warn('[SusanBot] canonical names load err:', e);
+        return CANONICAL_NAMES_CACHE?.rows || [];
+    }
+}
+// Levenshtein — O(n*m), adequate for short names
+function lev(a, b) {
+    const n = a.length, m = b.length;
+    if (n === 0)
+        return m;
+    if (m === 0)
+        return n;
+    const dp = new Array(m + 1);
+    for (let j = 0; j <= m; j++)
+        dp[j] = j;
+    for (let i = 1; i <= n; i++) {
+        let prev = dp[0];
+        dp[0] = i;
+        for (let j = 1; j <= m; j++) {
+            const tmp = dp[j];
+            dp[j] = a[i - 1] === b[j - 1]
+                ? prev
+                : 1 + Math.min(prev, dp[j - 1], dp[j]);
+            prev = tmp;
+        }
+    }
+    return dp[m];
+}
+// Simple similarity 0..1 using Levenshtein over max length
+function similarity(a, b) {
+    const al = a.toLowerCase(), bl = b.toLowerCase();
+    if (al === bl)
+        return 1;
+    const maxLen = Math.max(al.length, bl.length);
+    if (maxLen === 0)
+        return 1;
+    return 1 - lev(al, bl) / maxLen;
+}
+// Best canonical-name match. Carrier hint boosts score.
+function findCanonicalName(input, carriers, canonicals) {
+    const inputLower = input.toLowerCase().trim();
+    if (!inputLower || inputLower.length < 2)
+        return null;
+    const inputTokens = inputLower.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
+    if (inputTokens.length === 0)
+        return null;
+    let best = null;
+    for (const c of canonicals) {
+        // 1) exact
+        if (c.lowered === inputLower) {
+            return { canonical: c, score: 1, reason: 'exact' };
+        }
+        let score = 0;
+        let reason = '';
+        // 2) substring (either direction)
+        if (c.lowered.includes(inputLower) || inputLower.includes(c.lowered)) {
+            score = 0.95;
+            reason = 'substring';
+        }
+        else {
+            // 3) token overlap — count tokens in common
+            const overlap = inputTokens.filter((t) => c.tokens.includes(t)).length;
+            if (overlap > 0) {
+                const tokenScore = overlap / Math.max(c.tokens.length, inputTokens.length);
+                if (tokenScore > score) {
+                    score = 0.6 + 0.3 * tokenScore; // 0.6 base + up to 0.3 boost
+                    reason = 'token_overlap';
+                }
+            }
+            // 4) Levenshtein fallback for typos/nicknames
+            const levScore = similarity(inputLower, c.lowered);
+            if (levScore > score) {
+                score = levScore;
+                reason = 'lev';
+            }
+        }
+        // Carrier boost: if input's carrier-hint matches canonical's company, add 0.05
+        if (c.company && carriers.length > 0) {
+            const companyLower = c.company.toLowerCase();
+            for (const car of carriers) {
+                if (companyLower.includes(car.toLowerCase()) || car.toLowerCase().includes(companyLower)) {
+                    score = Math.min(1, score + 0.05);
+                    break;
+                }
+            }
+        }
+        if (!best || score > best.score) {
+            best = { canonical: c, score, reason };
+        }
+    }
+    // Only accept matches above threshold
+    if (best && best.score >= 0.65)
+        return best;
+    return null;
+}
+const ENTITY_EXTRACT_SYSTEM = `You extract structured entities from a single GroupMe message in a roofing sales team chat. The team works insurance claims for hail/wind damage in VA/MD/PA.
+
+Return a STRICT JSON object with keys:
+{
+  "adjusters": [string],     // adjuster/inspector/engineer/IA names mentioned (proper nouns; also keep nicknames like "Nick CC")
+  "carriers": [string],      // insurance carriers (usaa, allstate, state farm, travelers, erie, nationwide, liberty mutual, farmers, progressive, etc) — lowercase, no "insurance" suffix
+  "storm_dates": [string],   // storm/hail/wind dates in ISO YYYY-MM-DD when possible; else the raw phrase ("8/29/24", "last Tuesday")
+  "topics": [string],        // short topic tags like "approval strategy", "reinspection", "codes", "supplement"
+  "is_followup": boolean,    // true if the message uses pronouns/references without restating ("what about him", "that guy", "yesterday's one") — indicates context dependency
+  "intent": "adjuster_intel" | "carrier_intel" | "storm_intel" | "process" | "social" | "other"
+}
+
+Rules:
+- If nothing fits a key, use []
+- Do NOT include "Susan" as an adjuster
+- Do NOT include the rep who is speaking
+- Output ONLY the JSON object, no prose, no markdown fences`;
+async function groqExtract(text, historySnippet) {
+    const key = process.env.GROQ_API_KEY;
+    if (!key)
+        return null;
+    const userContent = historySnippet
+        ? `RECENT CONTEXT (most recent last):\n${historySnippet}\n\nNEW MESSAGE:\n${text}`
+        : `MESSAGE:\n${text}`;
+    try {
+        const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: ENTITY_EXTRACT_SYSTEM },
+                    { role: 'user', content: userContent },
+                ],
+                max_tokens: 400,
+                temperature: 0.2,
+                response_format: { type: 'json_object' },
+            }),
+        });
+        if (!resp.ok) {
+            console.warn('[SusanBot] groq extract failed:', resp.status);
+            return null;
+        }
+        const data = await resp.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content)
+            return null;
+        const parsed = JSON.parse(content);
+        return {
+            adjusters: Array.isArray(parsed.adjusters) ? parsed.adjusters : [],
+            carriers: Array.isArray(parsed.carriers) ? parsed.carriers.map((c) => c.toLowerCase()) : [],
+            storm_dates: Array.isArray(parsed.storm_dates) ? parsed.storm_dates : [],
+            topics: Array.isArray(parsed.topics) ? parsed.topics : [],
+            is_followup: Boolean(parsed.is_followup),
+            intent: typeof parsed.intent === 'string' ? parsed.intent : 'other',
+        };
+    }
+    catch (e) {
+        console.warn('[SusanBot] groq extract err:', e);
+        return null;
+    }
+}
+// Heuristic fallback — quick regex-based extraction if Groq unavailable
+function heuristicExtract(text) {
+    const carriers = [];
+    const carrierPat = /\b(allstate|usaa|state\s*farm|nationwide|travelers|liberty\s*mutual|erie|progressive|farmers|geico|encompass|chubb|amica|hartford|cincinnati|hanover|kemper|metlife|safeco)\b/gi;
+    let m;
+    while ((m = carrierPat.exec(text)) !== null) {
+        carriers.push(m[1].toLowerCase().replace(/\s+/g, '_'));
+    }
+    // Proper-noun-ish words (capitalized, 3+ chars, not sentence-initial only)
+    const adjusters = [];
+    const properPat = /\b([A-Z][a-zA-Z'\-]{2,}(?:\s+[A-Z][a-zA-Z'\-]+){0,2})\b/g;
+    while ((m = properPat.exec(text)) !== null) {
+        const name = m[1];
+        if (/^(Susan|Susan\s+21|I|The|This|That|My|Your|Hey|Hi|Hello|Yes|No|Ok|Okay|Allstate|USAA|State|Travelers|Nationwide|Erie|Liberty|Mutual|Progressive|Farmers|Geico|Hartford|Cincinnati|Hanover|Amica|Chubb|Safeco|Kemper|Metlife|DMV|VA|MD|PA|NOAA|NWS|MRMS)$/i.test(name))
+            continue;
+        adjusters.push(name);
+    }
+    const storm_dates = extractStormDates(text);
+    const hasStorm = mentionsStorm(text) || storm_dates.length > 0;
+    return {
+        adjusters,
+        carriers: [...new Set(carriers)],
+        storm_dates,
+        topics: [],
+        is_followup: /\b(him|her|them|that\s+guy|yesterday|earlier|before|the\s+one)\b/i.test(text),
+        intent: hasStorm ? 'storm_intel'
+            : adjusters.length > 0 ? 'adjuster_intel'
+                : carriers.length > 0 ? 'carrier_intel'
+                    : 'other',
+        raw_fallback: true,
+    };
+}
+async function extractEntities(text, historySnippet) {
+    const groqResult = await groqExtract(text, historySnippet);
+    if (groqResult)
+        return groqResult;
+    return heuristicExtract(text);
+}
+// Derive a thread_id: the reply-chain root. If the message replies to another
+// message, we follow the chain. For a top-level message we use its own id.
+function deriveThreadId(msg) {
+    if (msg.attachments) {
+        for (const a of msg.attachments) {
+            if (a?.type === 'reply') {
+                const rid = a.base_reply_id || a.reply_id;
+                if (rid)
+                    return String(rid);
+            }
+        }
+    }
+    return String(msg.id);
+}
+async function saveUserTurn(pool, msg, entities) {
+    try {
+        await pool.query(`INSERT INTO bot_conversation_turns
+         (group_id, thread_id, message_id, role, sender_user_id, sender_name, text, entities)
+       VALUES ($1, $2, $3, 'user', $4, $5, $6, $7)
+       ON CONFLICT (message_id) DO NOTHING`, [
+            String(msg.group_id || SALES_GROUP_ID),
+            deriveThreadId(msg),
+            String(msg.id),
+            String(msg.user_id || msg.sender_id || ''),
+            msg.name || null,
+            String(msg.text || ''),
+            JSON.stringify(entities),
+        ]);
+    }
+    catch (e) {
+        console.warn('[SusanBot] save user turn err:', e);
+    }
+}
+async function saveBotTurn(pool, repliedToMsg, botMessageId, reply, kbHits, stormHits, provider, latencyMs, qualityFlags) {
+    try {
+        await pool.query(`INSERT INTO bot_conversation_turns
+         (group_id, thread_id, message_id, role, sender_user_id, sender_name,
+          text, kb_hits, storm_hits, provider, latency_ms, quality_flags)
+       VALUES ($1, $2, $3, 'bot', NULL, 'Susan 21', $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (message_id) DO NOTHING`, [
+            String(repliedToMsg.group_id || SALES_GROUP_ID),
+            deriveThreadId(repliedToMsg),
+            botMessageId || `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            reply,
+            JSON.stringify(kbHits.map((h) => ({ name: h.name, rank: h.rank }))),
+            JSON.stringify(stormHits.map((s) => ({
+                date: s.event_date, state: s.state, hail: s.hail_size_inches, wind: s.wind_mph,
+            }))),
+            provider,
+            latencyMs,
+            JSON.stringify(qualityFlags),
+        ]);
+    }
+    catch (e) {
+        console.warn('[SusanBot] save bot turn err:', e);
+    }
+}
+async function getThreadHistory(pool, threadId, limit = 6) {
+    try {
+        const result = await pool.query(`SELECT message_id, role, sender_name, text, entities, created_at
+       FROM bot_conversation_turns
+       WHERE thread_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`, [threadId, limit]);
+        return result.rows
+            .map((r) => ({
+            message_id: r.message_id,
+            role: r.role,
+            sender_name: r.sender_name,
+            text: r.text,
+            entities: r.entities,
+            created_at: r.created_at,
+        }))
+            .reverse(); // chronological
+    }
+    catch {
+        return [];
+    }
+}
+function historySnippet(turns) {
+    if (turns.length === 0)
+        return null;
+    return turns
+        .slice(-5)
+        .map((t) => `[${t.role === 'bot' ? 'Susan' : t.sender_name || 'rep'}] ${t.text}`)
+        .join('\n');
+}
+// ─── Quality gate ────────────────────────────────────────────────────────────
+const BANNED_PHRASES = [
+    'based on the knowledge base',
+    'according to the documents',
+    'according to the knowledge base',
+    "i'd be happy to help",
+    'let me know if you need',
+    "it's worth noting that",
+    "it's important to consider",
+    'i can tell you that',
+    'i can help with',
+    'as an ai',
+    "i'm an ai",
+    'as an assistant',
+    'great question',
+    'that is a great question',
+    'absolutely!',
+    'certainly!',
+    'hope this helps',
+];
+function qualityCheck(reply) {
+    const flags = {};
+    if (!reply)
+        return { ok: false, flags: { empty: true } };
+    const trimmed = reply.trim();
+    if (trimmed.length < 20)
+        flags.too_short = true;
+    if (trimmed.length > 900)
+        flags.too_long = true;
+    const low = trimmed.toLowerCase();
+    for (const p of BANNED_PHRASES) {
+        if (low.includes(p)) {
+            flags.banned_phrase = p;
+            break;
+        }
+    }
+    // Truncation heuristic: ends mid-word (no sentence-ending punctuation, no emoji, ends in a letter)
+    if (trimmed.length > 30) {
+        const last = trimmed.slice(-1);
+        const looksTruncated = /[a-z]/i.test(last) && !/[.!?)\]"']/.test(trimmed.slice(-3));
+        if (looksTruncated)
+            flags.maybe_truncated = true;
+    }
+    // "Susan 21:" or similar prefix
+    if (/^susan\s*21\s*[:\-]/i.test(trimmed))
+        flags.susan_prefix = true;
+    const ok = !flags.empty && !flags.too_short && !flags.banned_phrase && !flags.maybe_truncated;
+    return { ok, flags };
+}
 // ─── Multi-provider reply generation ─────────────────────────────────────────
 // Primary: Gemini 2.5 Flash (FREE, 1500 req/day free tier)
 // Fallback: Groq Llama 3.3 70B (FREE, very fast)
 // Last resort: Claude Haiku 4.5 (paid, reliable)
-function buildPromptLines(message, kbHits, stormHits, priorMsg) {
+function buildPromptLines(message, kbHits, stormHits, entities, history) {
     const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
-    if (priorMsg)
-        lines.push(`PRIOR_MSG: ${priorMsg.slice(0, 300)}`);
+    if (history.length > 0) {
+        lines.push('\nCONVERSATION_HISTORY (most recent last — use to resolve "him"/"that guy"/follow-ups):');
+        for (const t of history.slice(-5)) {
+            const who = t.role === 'bot' ? 'Susan' : t.sender_name || 'rep';
+            lines.push(`  [${who}] ${t.text.slice(0, 220)}`);
+        }
+    }
+    if (entities) {
+        const parts = [];
+        if (entities.adjusters.length)
+            parts.push(`adjusters: ${entities.adjusters.join(', ')}`);
+        if (entities.carriers.length)
+            parts.push(`carriers: ${entities.carriers.join(', ')}`);
+        if (entities.storm_dates.length)
+            parts.push(`storm_dates: ${entities.storm_dates.join(', ')}`);
+        if (entities.topics.length)
+            parts.push(`topics: ${entities.topics.join(', ')}`);
+        if (entities.is_followup)
+            parts.push(`IS_FOLLOWUP: true (the rep is referring back to something in history)`);
+        parts.push(`intent: ${entities.intent}`);
+        if (parts.length > 0)
+            lines.push(`\nENTITIES: ${parts.join(' · ')}`);
+    }
     if (kbHits.length > 0) {
-        lines.push('\nKB_HITS (adjuster/carrier intel from Roof Docs knowledge base — use verbatim):');
-        for (const h of kbHits.slice(0, 2)) {
+        lines.push('\nKB_HITS (authoritative — USE verbatim, don\'t invent):');
+        for (const h of kbHits.slice(0, 3)) {
             lines.push(`  [${h.category}] ${h.name}`);
             lines.push(`    ${(h.content || '').slice(0, 1400)}`);
         }
@@ -258,6 +643,47 @@ function buildPromptLines(message, kbHits, stormHits, priorMsg) {
         }
     }
     return lines.join('\n');
+}
+// Run the KB search using entity-driven tsquery, with fallback to raw tokens.
+async function smartKbSearch(pool, text, entities, canonicals) {
+    // 1) For each extracted adjuster, fuzzy-match to canonical name and query by that doc name
+    const hitsByDoc = new Map();
+    for (const raw of entities.adjusters) {
+        const match = findCanonicalName(raw, entities.carriers, canonicals);
+        if (match) {
+            try {
+                const r = await pool.query(`SELECT name, category, content, ts_rank(search_vector, to_tsquery('english', $1)) AS rank
+           FROM knowledge_documents
+           WHERE name = $2
+           LIMIT 1`, [match.canonical.lowered.split(/\s+/).map((t) => `${t}:*`).join(' | ') || 'a:*', match.canonical.kbDocName]);
+                for (const row of r.rows) {
+                    row.rank = Math.max(row.rank || 0, 0.5 * match.score);
+                    hitsByDoc.set(row.name, row);
+                }
+            }
+            catch { }
+        }
+    }
+    // 2) Carrier-intel docs for each detected carrier
+    for (const carrier of entities.carriers) {
+        try {
+            const carrierUpper = carrier.replace(/_/g, ' ').toUpperCase();
+            const r = await pool.query(`SELECT name, category, content, 0.5::float AS rank
+         FROM knowledge_documents
+         WHERE category='carrier-intel' AND name ILIKE $1
+         LIMIT 1`, [`%${carrierUpper}%`]);
+            for (const row of r.rows)
+                hitsByDoc.set(row.name, row);
+        }
+        catch { }
+    }
+    // 3) Fallback: run the existing token FTS search and merge
+    const tokenHits = await kbSearch(pool, text);
+    for (const h of tokenHits) {
+        if (!hitsByDoc.has(h.name))
+            hitsByDoc.set(h.name, h);
+    }
+    return Array.from(hitsByDoc.values()).slice(0, 4);
 }
 async function tryGemini(prompt) {
     const key = process.env.GEMINI_API_KEY;
@@ -363,23 +789,36 @@ async function tryClaude(prompt) {
         return { reply: null, error: `claude_fetch:${e?.name || 'err'}` };
     }
 }
-async function generateReply(message, kbHits, stormHits, priorMsg) {
-    const prompt = buildPromptLines(message, kbHits, stormHits, priorMsg);
+async function generateReply(message, kbHits, stormHits, entities, history) {
+    const prompt = buildPromptLines(message, kbHits, stormHits, entities, history);
     const providers = [
         ['gemini', tryGemini],
         ['groq', tryGroq],
         ['claude', tryClaude],
     ];
     const errors = [];
+    let retries = 0;
+    let lastFlags = {};
     for (const [name, fn] of providers) {
         const r = await fn(prompt);
-        if (r.reply) {
-            return { reply: r.reply, provider: name };
+        if (!r.reply) {
+            errors.push(`${name}=${r.error || 'empty'}`);
+            console.warn(`[SusanBot] ${name} failed: ${r.error}`);
+            retries++;
+            continue;
         }
-        errors.push(`${name}=${r.error || 'empty'}`);
-        console.warn(`[SusanBot] ${name} failed: ${r.error}`);
+        // Quality gate — reject banned phrases / truncation / too-short
+        const q = qualityCheck(r.reply);
+        if (!q.ok) {
+            errors.push(`${name}=quality:${JSON.stringify(q.flags)}`);
+            console.warn(`[SusanBot] ${name} failed quality gate:`, q.flags);
+            lastFlags = q.flags;
+            retries++;
+            continue;
+        }
+        return { reply: r.reply, provider: name, qualityFlags: q.flags, retries };
     }
-    return { reply: null, error: errors.join(' | ') };
+    return { reply: null, error: errors.join(' | '), qualityFlags: lastFlags, retries };
 }
 async function postToGroupMe(text, replyToId) {
     if (!BOT_ID) {
@@ -495,22 +934,37 @@ export function createSusanGroupMeBotRoutes(pool) {
             }
             return;
         }
-        // Generate + post
+        // Generate + post — Phase 5.1 pipeline with entity extraction + conversation memory
+        const startMs = Date.now();
         try {
+            const threadId = deriveThreadId(msg);
+            // Parallel: load canonicals, pull conversation history
+            const [canonicals, history] = await Promise.all([
+                loadCanonicalNames(pool),
+                getThreadHistory(pool, threadId, 6),
+            ]);
+            const histSnippet = historySnippet(history);
+            // Entity extraction (Groq) — uses history as context
+            const entities = await extractEntities(text, histSnippet);
+            // Save user turn eagerly (don't block on this)
+            saveUserTurn(pool, msg, entities).catch(() => { });
+            // Prefer entity-driven KB search; fall back to token FTS
             const [kbHits, stormHits] = await Promise.all([
-                kbSearch(pool, text),
+                smartKbSearch(pool, text, entities, canonicals),
                 stormSearch(pool, text),
             ]);
-            const priorMsg = isReply ? '(this is a reply to one of your prior messages)' : null;
-            const { reply, error, provider } = await generateReply({ name: msg.name, text }, kbHits, stormHits, priorMsg);
+            const { reply, error, provider, qualityFlags, retries } = await generateReply({ name: msg.name, text }, kbHits, stormHits, entities, history);
+            const latencyMs = Date.now() - startMs;
             if (!reply || error) {
-                console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'}`);
+                console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'} (retries=${retries})`);
+                await saveBotTurn(pool, msg, null, `(rejected — ${error || 'empty'})`, kbHits, stormHits, provider || 'none', latencyMs, { ...qualityFlags, rejected: true, retries });
                 return;
             }
             const posted = await postToGroupMe(reply, String(msg.id));
             if (posted) {
                 repliedAt.push(Date.now());
-                console.log(`[SusanBot] REPLIED via ${provider} (kb=${kbHits.length}, storm=${stormHits.length}) to ${msg.name}: ${reply.slice(0, 100)}`);
+                console.log(`[SusanBot] REPLIED via ${provider} kb=${kbHits.length} storm=${stormHits.length} ents=${(entities.adjusters.length + entities.carriers.length + entities.storm_dates.length)} retries=${retries} latency=${latencyMs}ms — ${reply.slice(0, 80)}`);
+                await saveBotTurn(pool, msg, null, reply, kbHits, stormHits, provider || 'unknown', latencyMs, { ...qualityFlags, retries });
             }
         }
         catch (err) {
@@ -522,5 +976,44 @@ export function createSusanGroupMeBotRoutes(pool) {
     // - /api/susan/groupme-webhook (legacy alias, matches the bot's registered callback_url)
     router.post('/webhook', webhookHandler);
     router.post('/', webhookHandler);
+    // Audit endpoint — last N bot turns with KB hits + quality flags
+    router.get('/audit', async (req, res) => {
+        const limit = Math.min(parseInt(String(req.query.limit || '30'), 10) || 30, 200);
+        const role = String(req.query.role || '');
+        try {
+            const params = [limit];
+            let whereClause = '';
+            if (role === 'bot' || role === 'user') {
+                whereClause = 'WHERE role = $2';
+                params.splice(1, 0, role);
+            }
+            const { rows } = await pool.query(`SELECT id, created_at, group_id, thread_id, message_id, role,
+                sender_name, substring(text, 1, 400) AS text,
+                entities, kb_hits, storm_hits, provider, latency_ms, quality_flags
+         FROM bot_conversation_turns
+         ${whereClause}
+         ORDER BY created_at DESC LIMIT $1`, params.length === 1 ? params : [params[1], params[0]]);
+            res.json({ count: rows.length, turns: rows });
+        }
+        catch (e) {
+            res.status(500).json({ error: e?.message || 'audit failed' });
+        }
+    });
+    // Feedback endpoint — reps can 👍/👎 a reply via a POST
+    router.post('/feedback', async (req, res) => {
+        const { message_id, vote, user_id } = req.body || {};
+        if (!message_id || !['up', 'down'].includes(String(vote))) {
+            return res.status(400).json({ error: 'message_id + vote=up|down required' });
+        }
+        try {
+            await pool.query(`UPDATE bot_conversation_turns
+         SET quality_flags = quality_flags || jsonb_build_object('feedback_' || $2, COALESCE((quality_flags->>('feedback_' || $2))::int, 0) + 1, 'feedback_user', $3)
+         WHERE message_id = $1`, [String(message_id), String(vote), user_id ? String(user_id) : null]);
+            res.json({ ok: true });
+        }
+        catch (e) {
+            res.status(500).json({ error: e?.message || 'feedback failed' });
+        }
+    });
     return router;
 }
