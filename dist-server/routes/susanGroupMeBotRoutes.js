@@ -29,29 +29,45 @@ const MAX_REPLIES_PER_DAY = 100;
 const seenMessageIds = new Set(); // dedup: ids we've already processed
 const susanOwnMessageIds = new Set(); // our own reply msgs (track replies-to-susan)
 const repliedAt = []; // timestamps of our replies for rate-limiting
-const PERSONALITY = `You are Susan 21, an AI teammate in The Roof Docs sales team GroupMe chat.
+const PERSONALITY = `You are Susan 21 — AI teammate in The Roof Docs Sales Team GroupMe chat. You grew up on 3 years + 85,000 messages of this team. You talk like the team talks.
 
-You just got a message. Reply in Susan's voice (1-3 SHORT sentences max, max 500 chars).
+OUTPUT: just the reply text. 1-3 short sentences. Max ~500 chars. Plain text, no "Susan 21:" prefix, no markdown, no quote wrapping.
 
-CRITICAL VOICE:
-- Never say "As an AI" or "I'm an AI assistant"
-- You ARE a teammate — direct, confident, playful when earned
-- You've read 3 years of this team's 85,000 chat messages and know the vibe
-- Native vocab: LFG, 🔥, 🐐, "the boy", "rock solid photos", "tough but workable", "reschedule", "monster", "stack it up"
-- Use 1-2 emojis MAX, each meaningful (🔥🐐💀⚠️✅📸)
-- Chat energy only. Never corporate/formal.
-- If they ask about an adjuster/carrier you have intel on, LEAD with verdict, 1 tactical line
-- If they're being playful/skeptical/flirty, match with wit — push back, don't be thirsty
-- If you don't know, say "no intel yet — chat might know"
-- Don't restate their question. Don't say "Susan 21:" prefix.
+❌ NEVER sound like this (these are BANNED patterns):
+- "Based on the knowledge base..." / "According to the documents..."
+- "I'd be happy to help..." / "Let me know if you need anything else..."
+- "It's worth noting that..." / "It's important to consider..."
+- "I can tell you that..." / "I can help with..."
+- "As an AI..." / "I'm an AI assistant..."
+- "Great question!" / "Absolutely!"
+- Bullet points or numbered lists in a short reply
+- Full paragraphs — this is chat, not email
 
-SIGNALS in input:
-- SENDER — who's talking
+✅ DO sound like this (native team voice):
+- "Malik? Tough. Reschedule if you can. Bring rock solid photos if you can't 📸"
+- "8/29/24 was a monster — 1.75" hail across Vienna/Frederick. Quadruple-verified. Go get it 🔥"
+- "Lucas Martin's the boy at USAA 🐐 Reasonable on cosmetic, works with contractors, buys."
+- "No intel on that one yet — drop it in the chat, someone probably knows"
+- "Nick asking me out? Go close a claim, lover boy 💀"
+- "Allstate playbook: 6-quadrant test squares, don't mark till the adjuster's on the roof. Chrissy Jacobson + Christopher Barnett are the bright spots."
+
+VOICE PRINCIPLES:
+- Direct. Confident. Human.
+- Short. Chat-energy. Reps read on phones mid-appointment.
+- Use native vocab naturally (not forced): LFG, the boy/GOAT (🐐), monster, tough-but-workable, reschedule, rock solid photos, stack it up, approval, AM, DOL
+- 1-2 emojis max, each meaningful: 🔥 (win) 🐐 (elite) ⚠️ (red flag) 💀 (ouch/avoid) ✅ (confirmed) 📸 (photo move) 👀 (watch) 🎯 (angle)
+- Name-drop specific adjusters/reps by name when the KB supports it
+- If the rep's being skeptical/flirty/joking, match their energy — push back with wit, don't be thirsty
+- If you genuinely don't know, just say so. No apologies. "No intel on that — chat might know" or "haven't heard of him before"
+
+SIGNALS you'll see in input:
+- SENDER — who's asking
 - MESSAGE — what they said
-- KB_HITS — knowledge base intel if relevant (USE these verbatim)
-- REP_STATS — their chat stats if they're a known heavy poster
+- KB_HITS — adjuster/carrier intel docs (when found). USE verbatim info from these — don't invent.
+- STORM_HITS — verified hail/wind events if a date was mentioned. USE exact dates, sizes, locations.
+- PRIOR_MSG — if they're replying to one of your earlier messages
 
-Output: just the reply text. Plain. No prefix.`;
+Remember: you're a teammate with encyclopedic memory of this chat. Talk like one.`;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function textMentionsSusan(text) {
     return /\bsusan\b/i.test(text);
@@ -85,6 +101,85 @@ function withinRate() {
         return { ok: false, reason: `hour_cap_${MAX_REPLIES_PER_HOUR}` };
     }
     return { ok: true, reason: 'ok' };
+}
+// ─── Storm search — detect dates/storm keywords and query verified_hail_events_public ─
+function extractStormDates(text) {
+    const dates = [];
+    // M/D/YYYY or M/D/YY
+    const slashRe = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g;
+    let m;
+    while ((m = slashRe.exec(text)) !== null) {
+        let [, mo, d, y] = m;
+        if (y.length === 2)
+            y = `20${y}`;
+        const moN = mo.padStart(2, '0');
+        const dN = d.padStart(2, '0');
+        const iso = `${y}-${moN}-${dN}`;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso))
+            dates.push(iso);
+    }
+    // M/D without year — assume current year based on context
+    const slashNoYearRe = /\b(\d{1,2})\/(\d{1,2})\b(?!\/)/g;
+    while ((m = slashNoYearRe.exec(text)) !== null) {
+        const [, mo, d] = m;
+        const now = new Date();
+        const iso = `${now.getFullYear()}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso))
+            dates.push(iso);
+    }
+    // Month name + day
+    const months = {
+        january: '01', jan: '01', february: '02', feb: '02', march: '03', mar: '03',
+        april: '04', apr: '04', may: '05', june: '06', jun: '06', july: '07', jul: '07',
+        august: '08', aug: '08', september: '09', sept: '09', sep: '09',
+        october: '10', oct: '10', november: '11', nov: '11', december: '12', dec: '12',
+    };
+    const monthRe = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{4}))?\b/gi;
+    while ((m = monthRe.exec(text)) !== null) {
+        const moName = m[1].toLowerCase();
+        const mo = months[moName];
+        if (!mo)
+            continue;
+        const d = m[2].padStart(2, '0');
+        const y = m[3] || String(new Date().getFullYear());
+        dates.push(`${y}-${mo}-${d}`);
+    }
+    return [...new Set(dates)];
+}
+function mentionsStorm(text) {
+    return /\b(hail|storm|wind|tornado|dol|date\s+of\s+loss|severe|damaged?|claim)\b/i.test(text);
+}
+async function stormSearch(pool, text) {
+    const dates = extractStormDates(text);
+    if (dates.length === 0 && !mentionsStorm(text))
+        return [];
+    try {
+        if (dates.length > 0) {
+            // Specific date lookup — give top events that day in VA/MD/PA
+            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, verification_count
+         FROM verified_hail_events_public
+         WHERE event_date = ANY($1::date[])
+           AND state IN ('VA','MD','PA','DC','WV','DE')
+         ORDER BY hail_size_inches DESC NULLS LAST, wind_mph DESC NULLS LAST
+         LIMIT 10`, [dates]);
+            return result.rows;
+        }
+        // General storm ask without a date — return top recent events in region
+        if (mentionsStorm(text)) {
+            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, verification_count
+         FROM verified_hail_events_public
+         WHERE event_date >= CURRENT_DATE - INTERVAL '14 days'
+           AND state IN ('VA','MD','PA','DC','WV','DE')
+           AND (hail_size_inches >= 0.5 OR wind_mph >= 58)
+         ORDER BY event_date DESC, hail_size_inches DESC NULLS LAST
+         LIMIT 10`);
+            return result.rows;
+        }
+    }
+    catch (e) {
+        console.warn('[SusanBot] storm search err:', e);
+    }
+    return [];
 }
 async function kbSearch(pool, text) {
     const cleaned = text.toLowerCase().replace(/[^\w\s]/g, ' ');
@@ -120,49 +215,147 @@ async function repStats(pool, senderName) {
     // not prod Postgres. Skip for now; future: mirror stats in a Postgres table.
     return null;
 }
-async function generateReply(message, kbHits, priorMsg) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey)
-        return { reply: null, error: 'no_api_key' };
+// ─── Multi-provider reply generation ─────────────────────────────────────────
+// Primary: Gemini 2.5 Flash (FREE, 1500 req/day free tier)
+// Fallback: Groq Llama 3.3 70B (FREE, very fast)
+// Last resort: Claude Haiku 4.5 (paid, reliable)
+function buildPromptLines(message, kbHits, stormHits, priorMsg) {
     const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
     if (priorMsg)
         lines.push(`PRIOR_MSG: ${priorMsg.slice(0, 300)}`);
     if (kbHits.length > 0) {
-        lines.push('\nKB_HITS (use these as authoritative intel):');
+        lines.push('\nKB_HITS (adjuster/carrier intel from Roof Docs knowledge base — use verbatim):');
         for (const h of kbHits.slice(0, 2)) {
             lines.push(`  [${h.category}] ${h.name}`);
             lines.push(`    ${(h.content || '').slice(0, 1400)}`);
         }
     }
+    if (stormHits.length > 0) {
+        lines.push('\nSTORM_HITS (verified hail/wind events from NOAA/NWS/NEXRAD/MRMS):');
+        for (const s of stormHits.slice(0, 10)) {
+            lines.push(`  ${s.event_date} ${s.state || '?'} — hail ${s.hail_size_inches || '-'}", wind ${s.wind_mph || '-'}mph, ${s.verification_count}x verified`);
+        }
+    }
+    return lines.join('\n');
+}
+async function tryGemini(prompt) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key)
+        return { reply: null, error: 'no_gemini_key' };
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+        const body = {
+            systemInstruction: { parts: [{ text: PERSONALITY }] },
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 250, temperature: 0.8 },
+        };
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+            const t = await resp.text();
+            return { reply: null, error: `gemini_${resp.status}:${t.slice(0, 150)}` };
+        }
+        const data = await resp.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof text === 'string' && text.trim().length > 0) {
+            return { reply: text.trim().slice(0, 900) };
+        }
+        return { reply: null, error: 'gemini_empty' };
+    }
+    catch (e) {
+        return { reply: null, error: `gemini_fetch:${e?.name || 'err'}` };
+    }
+}
+async function tryGroq(prompt) {
+    const key = process.env.GROQ_API_KEY;
+    if (!key)
+        return { reply: null, error: 'no_groq_key' };
+    try {
+        const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: PERSONALITY },
+                    { role: 'user', content: prompt },
+                ],
+                max_tokens: 250,
+                temperature: 0.8,
+            }),
+        });
+        if (!resp.ok) {
+            const t = await resp.text();
+            return { reply: null, error: `groq_${resp.status}:${t.slice(0, 150)}` };
+        }
+        const data = await resp.json();
+        const text = data?.choices?.[0]?.message?.content;
+        if (typeof text === 'string' && text.trim().length > 0) {
+            return { reply: text.trim().slice(0, 900) };
+        }
+        return { reply: null, error: 'groq_empty' };
+    }
+    catch (e) {
+        return { reply: null, error: `groq_fetch:${e?.name || 'err'}` };
+    }
+}
+async function tryClaude(prompt) {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key)
+        return { reply: null, error: 'no_anthropic_key' };
     try {
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': apiKey,
+                'x-api-key': key,
                 'anthropic-version': '2023-06-01',
             },
             body: JSON.stringify({
                 model: 'claude-haiku-4-5-20251001',
                 max_tokens: 250,
                 system: [{ type: 'text', text: PERSONALITY, cache_control: { type: 'ephemeral' } }],
-                messages: [{ role: 'user', content: lines.join('\n') }],
+                messages: [{ role: 'user', content: prompt }],
             }),
         });
         if (!resp.ok) {
-            const body = await resp.text();
-            return { reply: null, error: `anthropic_${resp.status}:${body.slice(0, 200)}` };
+            const t = await resp.text();
+            return { reply: null, error: `anthropic_${resp.status}:${t.slice(0, 150)}` };
         }
         const data = await resp.json();
         const block = data?.content?.[0];
         if (block?.type === 'text' && typeof block.text === 'string') {
             return { reply: block.text.trim().slice(0, 900) };
         }
-        return { reply: null, error: 'empty_block' };
+        return { reply: null, error: 'claude_empty' };
     }
     catch (e) {
-        return { reply: null, error: `fetch:${e?.name || 'err'}` };
+        return { reply: null, error: `claude_fetch:${e?.name || 'err'}` };
     }
+}
+async function generateReply(message, kbHits, stormHits, priorMsg) {
+    const prompt = buildPromptLines(message, kbHits, stormHits, priorMsg);
+    const providers = [
+        ['gemini', tryGemini],
+        ['groq', tryGroq],
+        ['claude', tryClaude],
+    ];
+    const errors = [];
+    for (const [name, fn] of providers) {
+        const r = await fn(prompt);
+        if (r.reply) {
+            return { reply: r.reply, provider: name };
+        }
+        errors.push(`${name}=${r.error || 'empty'}`);
+        console.warn(`[SusanBot] ${name} failed: ${r.error}`);
+    }
+    return { reply: null, error: errors.join(' | ') };
 }
 async function postToGroupMe(text, replyToId) {
     if (!BOT_ID) {
@@ -210,6 +403,12 @@ export function createSusanGroupMeBotRoutes(pool) {
             replies_today: repliedAt.length,
             max_hour: MAX_REPLIES_PER_HOUR,
             max_day: MAX_REPLIES_PER_DAY,
+            providers: {
+                gemini: !!process.env.GEMINI_API_KEY,
+                groq: !!process.env.GROQ_API_KEY,
+                claude: !!process.env.ANTHROPIC_API_KEY,
+            },
+            storm_lookup: true,
         });
     });
     // GroupMe webhook — called for every message in Sales Team
@@ -253,9 +452,12 @@ export function createSusanGroupMeBotRoutes(pool) {
         console.log(`[SusanBot] trigger=${mentioned ? 'mention' : 'reply_to_susan'} from ${msg.name}: ${text.slice(0, 80)}`);
         // Generate + post
         try {
-            const kbHits = await kbSearch(pool, text);
+            const [kbHits, stormHits] = await Promise.all([
+                kbSearch(pool, text),
+                stormSearch(pool, text),
+            ]);
             const priorMsg = isReply ? '(this is a reply to one of your prior messages)' : null;
-            const { reply, error } = await generateReply({ name: msg.name, text }, kbHits, priorMsg);
+            const { reply, error, provider } = await generateReply({ name: msg.name, text }, kbHits, stormHits, priorMsg);
             if (!reply || error) {
                 console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'}`);
                 return;
@@ -263,7 +465,7 @@ export function createSusanGroupMeBotRoutes(pool) {
             const posted = await postToGroupMe(reply, String(msg.id));
             if (posted) {
                 repliedAt.push(Date.now());
-                console.log(`[SusanBot] REPLIED to ${msg.name}: ${reply.slice(0, 100)}`);
+                console.log(`[SusanBot] REPLIED via ${provider} (kb=${kbHits.length}, storm=${stormHits.length}) to ${msg.name}: ${reply.slice(0, 100)}`);
             }
         }
         catch (err) {
