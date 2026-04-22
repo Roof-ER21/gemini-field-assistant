@@ -279,6 +279,87 @@ export function createSusanAgentRoutes(pool) {
             catch (e) {
                 // storm_alerts table may not exist yet — silently skip
             }
+        // ---- 4b. AUTO-INJECT KNOWLEDGE BASE for person/adjuster/carrier lookups ----
+        // Gemini Flash unreliably calls search_knowledge_base on its own, so we detect
+        // name-lookup patterns in the user's last message and pre-inject FTS results
+        // as context. This prevents hallucination (e.g. "Sarah Sowers the football QB").
+        try {
+            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+            const lastText = (lastUserMsg?.content || '').trim();
+            if (lastText && lastText.length <= 400) {
+                // Patterns that trigger a pre-search. Capture group = entity name/term.
+                const patterns = [
+                    /\btell\s+me\s+about\s+(.+?)[.?!\s]*$/i,
+                    /\bwho\s+(?:is|are)\s+(.+?)[.?!\s]*$/i,
+                    /\bwhat\s+(?:about|do\s+you\s+know\s+about)\s+(.+?)[.?!\s]*$/i,
+                    /\b(?:have|has)\s+anyone\s+worked\s+with\s+(.+?)[.?!\s]*$/i,
+                    /\bany\s+intel\s+on\s+(.+?)[.?!\s]*$/i,
+                    /\b(?:do\s+you\s+know|know)\s+(?:anything\s+about\s+)?(.+?)[.?!\s]*$/i,
+                    /^(.+?)\s+(adjuster|inspector|playbook|intel)[.?!\s]*$/i,
+                    /\b(allstate|usaa|state\s*farm|travelers|nationwide|erie|liberty\s*mutual|progressive|farmers|geico|amica|hartford|cincinnati|hanover|kemper|metlife|safeco|chubb)\b/i,
+                ];
+                let entity = null;
+                for (const pat of patterns) {
+                    const m = lastText.match(pat);
+                    if (m && m[1]) {
+                        entity = m[1].trim();
+                        break;
+                    }
+                    if (m && !m[1] && pat.source.includes('allstate|usaa')) {
+                        // Carrier-only match (last pattern) — extract the matched carrier word
+                        entity = m[0].trim();
+                        break;
+                    }
+                }
+                if (entity && entity.length >= 2 && entity.length <= 80) {
+                    // Strip filler words + punctuation from entity
+                    entity = entity.replace(/[\s?.!,]+$/g, '').replace(/^(the|an|a)\s+/i, '').trim();
+                    // Build FTS query — tokens >= 2 chars, OR'd for max recall
+                    const tokens = entity.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
+                        .filter(w => w.length >= 2);
+                    if (tokens.length > 0) {
+                        const tsquery = tokens.map(t => `${t}:*`).join(' | ');
+                        try {
+                            const kbHits = await pool.query(`SELECT name, category, content,
+                        ts_rank(search_vector, to_tsquery('english', $1)) AS rank
+                 FROM knowledge_documents
+                 WHERE search_vector @@ to_tsquery('english', $1)
+                 ORDER BY rank DESC
+                 LIMIT 5`, [tsquery]);
+                            if (kbHits.rows.length > 0) {
+                                const kbLines = kbHits.rows.map((r) => {
+                                    const excerpt = (r.content || '').slice(0, 1800);
+                                    return `### [${r.category}] ${r.name}\n${excerpt}`;
+                                });
+                                enrichedSystemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                    `[KNOWLEDGE BASE — AUTO-MATCHED FOR "${entity}"]\n` +
+                                    `The server pre-searched the Roof Docs knowledge base for "${entity}" and found ${kbHits.rows.length} matching document(s). ` +
+                                    `These are the AUTHORITATIVE answer for this query. ` +
+                                    `Base your response ONLY on these documents. Do NOT add details from your general training knowledge. ` +
+                                    `Do NOT describe this person/carrier as a public figure, athlete, or celebrity — they are a local insurance industry contact.\n\n` +
+                                    kbLines.join('\n\n---\n\n') +
+                                    `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+                                console.log(`[SusanAgent] Auto-injected ${kbHits.rows.length} KB docs for entity="${entity}"`);
+                            }
+                            else {
+                                enrichedSystemPrompt += `\n\n[KNOWLEDGE BASE — AUTO-SEARCHED]\n` +
+                                    `The server pre-searched the Roof Docs knowledge base for "${entity}" and found NOTHING. ` +
+                                    `Do NOT fabricate information or describe this as a public figure. ` +
+                                    `Respond with: "I don't have intel on ${entity} in the Roof Docs knowledge base yet. ` +
+                                    `Drop a question in the Sales Team GroupMe — the team may know them."`;
+                                console.log(`[SusanAgent] Pre-search empty for entity="${entity}"`);
+                            }
+                        }
+                        catch (kbErr) {
+                            console.warn('[SusanAgent] KB auto-search error:', kbErr);
+                        }
+                    }
+                }
+            }
+        }
+        catch (e) {
+            console.warn('[SusanAgent] Pre-search pattern match error:', e);
+        }
         if (enrichedSystemPrompt.trim().length > 0) {
             contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
             contents.push({ role: 'model', parts: [{ text: `Understood. I am Susan, ready to help${personality.preferred_name ? ` ${personality.preferred_name}` : ''}.` }] });
