@@ -949,7 +949,7 @@ export class PDFReportServiceV2 {
     // =========================================================
     this.drawSectionBanner(doc, 'Historical Storm Activity');
 
-    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 5mi', 'Within 10mi'];
+    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Property', 'Within 1mi', 'Within 3mi', 'Within 5mi', 'Within 10mi'];
     const histWidths = [58, 56, 58, 38, 34, 52, 48, 48, 48, 48];
 
     const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
@@ -1001,7 +1001,11 @@ export class PDFReportServiceV2 {
       if (g.direction === '---' && e.direction !== '---') g.direction = e.direction;
       if (!g.speed && e.speed) g.speed = e.speed;
       if (!g.duration && e.duration) g.duration = e.duration;
-      if (dist <= 0.1 && size > g.atLoc) g.atLoc = size;
+      // Distance thresholds tuned to match industry hail-report standards
+      // (HailTrace, Interactive Hail Maps):
+      //   ≤0.5mi = "at property" — one MRMS radar pixel (~1km) or closer
+      //   1/3/5/10mi = progressive nearby-storm bands
+      if (dist <= 0.5 && size > g.atLoc) g.atLoc = size;
       if (dist <= 1 && size > g.w1) g.w1 = size;
       if (dist <= 3 && size > g.w3) g.w3 = size;
       if (dist <= 5 && size > g.w5) g.w5 = size;
@@ -1101,6 +1105,8 @@ export class PDFReportServiceV2 {
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text(
          '* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
+         '"At Property" = storm cell (MRMS radar pixel or ground report) within ½ mile of the property — ' +
+         'one pixel covers ~1km so this is effectively the same storm system hitting the home. ' +
          'Hit column: "DIRECT HIT" = hail ≥½" at the property (insurance-actionable); ' +
          '"Direct" = sub-½" radar signature at the property (canvassing context only); ' +
          '"Within 1mi / 3mi / 5mi / 10mi" = closest documented hail relative to the property. ' +
