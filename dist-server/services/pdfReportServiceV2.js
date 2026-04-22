@@ -794,18 +794,22 @@ export class PDFReportServiceV2 {
         const dataSourceLabel = (sourceStr, comments) => {
             const s = `${sourceStr || ''} ${comments || ''}`;
             const codes = [];
-            // Radar-derived (SWDI NX3HAIL) → show as NEXRAD
-            if (/\bNCEI-SWDI\b|\bSWDI\b/.test(s))
+            // Radar-derived (SWDI NX3HAIL) → show as NEXRAD. Matches raw ingest tags
+            // AND the user-friendly "NEXRAD" label we emit from /hail/search.
+            if (/\bNCEI-SWDI\b|\bSWDI\b|\bNEXRAD\b/.test(s))
                 codes.push('NEXRAD');
-            // Ground-reported Storm Events → NOAA (excludes the SWDI case above)
-            if (/\bNOAA\b/.test(s) && !/\bNCEI-SWDI\b|\bSWDI\b/.test(s))
+            // Ground-reported NCEI Storm Events → NOAA. Excludes the SWDI case above.
+            if (/\bNOAA\b/.test(s) && !/\bNCEI-SWDI\b|\bSWDI\b|\bNEXRAD\b/.test(s))
                 codes.push('NOAA');
             // SPC archive
             if (/\bSPC\b/.test(s))
                 codes.push('SPC');
-            // NWS Local Storm Reports
-            if (/\bNWS-LSR\b|\bIEM LSR\b/.test(s))
+            // NWS Local Storm Reports — raw "NWS-LSR"/"IEM LSR" OR user-facing "NWS LSR"/bare "NWS"
+            if (/\bNWS-LSR\b|\bIEM LSR\b|\bNWS LSR\b|(?:^|\s)NWS(?:\s|$)/.test(s))
                 codes.push('NWS');
+            // MRMS multi-radar composite
+            if (/\bMRMS\b/.test(s))
+                codes.push('MRMS');
             // CoCoRaHS observer
             if (/\bCoCoRaHS\b/.test(s))
                 codes.push('CoCoRaHS');

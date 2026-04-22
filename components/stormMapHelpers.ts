@@ -32,6 +32,14 @@ export interface StormEvent {
   damageProperty: number;
   source: string;
   narrative: string;
+  // Optional traceability + machine-readable tags the PDF needs.
+  comments?: string;                 // source-tag string for PDF regex matching
+  noaaEventId?: string;
+  spcOmId?: string;
+  radarSite?: string;
+  nwsForecastOffice?: string;
+  cocorahsStation?: string;
+  verificationCount?: number;
 }
 
 export interface StormDate {
@@ -277,7 +285,16 @@ export async function reverseGeocodeLatLng(lat: number, lng: number): Promise<st
 
 interface Sa21Response {
   events?: Array<{ id?: string | number; date?: string; latitude?: number; longitude?: number; hailSize?: number; severity?: string; source?: string }>;
-  noaaEvents?: Array<{ id?: string | number; eventType?: string; date?: string; latitude?: number; longitude?: number; magnitude?: number; state?: string; source?: string; narrative?: string; location?: string }>;
+  noaaEvents?: Array<{
+    id?: string | number; eventType?: string; date?: string;
+    latitude?: number; longitude?: number; magnitude?: number;
+    state?: string; source?: string; narrative?: string; location?: string;
+    distanceMiles?: number;
+    comments?: string;
+    noaaEventId?: string; spcOmId?: string; radarSite?: string;
+    nwsForecastOffice?: string; cocorahsStation?: string;
+    verificationCount?: number;
+  }>;
 }
 
 function mapNoaaType(t?: string): StormEvent['eventType'] | null {
@@ -309,7 +326,29 @@ export async function fetchStormEvents(lat: number, lng: number, months: number,
       if (!et) continue;
       const eLat = e.latitude || 0;
       const eLon = e.longitude || 0;
-      events.push({ id: `noaa-${e.id || i}`, eventType: et, state: e.state || '', county: '', beginDate: e.date || '', endDate: e.date || '', beginLat: eLat, beginLon: eLon, endLat: eLat, endLon: eLon, magnitude: e.magnitude || 0, magnitudeType: et === 'Thunderstorm Wind' ? 'mph' : 'inches', damageProperty: 0, source: e.source || 'NOAA', narrative: e.narrative || `${e.eventType} - ${e.location || ''}`, distanceMiles: e.distanceMiles ?? (eLat ? haversineDistanceMiles(lat, lng, eLat, eLon) : undefined) });
+      events.push({
+        id: `noaa-${e.id || i}`,
+        eventType: et,
+        state: e.state || '',
+        county: '',
+        beginDate: e.date || '',
+        endDate: e.date || '',
+        beginLat: eLat, beginLon: eLon, endLat: eLat, endLon: eLon,
+        magnitude: e.magnitude || 0,
+        magnitudeType: et === 'Thunderstorm Wind' ? 'mph' : 'inches',
+        damageProperty: 0,
+        source: e.source || 'NOAA',
+        narrative: e.narrative || `${e.eventType} - ${e.location || ''}`,
+        distanceMiles: e.distanceMiles ?? (eLat ? haversineDistanceMiles(lat, lng, eLat, eLon) : undefined),
+        // Preserve traceability IDs + machine-tags through the client boundary.
+        comments: e.comments,
+        noaaEventId: e.noaaEventId,
+        spcOmId: e.spcOmId,
+        radarSite: e.radarSite,
+        nwsForecastOffice: e.nwsForecastOffice,
+        cocorahsStation: e.cocorahsStation,
+        verificationCount: e.verificationCount,
+      });
     }
     return events;
   } catch { return []; }
@@ -557,8 +596,11 @@ export async function generateStormReport(
 
   const toRE = (e: StormEvent) => {
     const distanceMiles = getDistanceMiles(e);
-    const location = [e.county, e.state].filter(Boolean).join(', ');
-    const comments = e.narrative || undefined;
+    // When source tags are present (e.comments), prefer them over county/state
+    // for the PDF's "Data Source" column — the dataSourceLabel regex matches
+    // on tag codes (NOAA, NEXRAD, SPC, etc.). Fall back to county/state.
+    const tagString = e.comments || '';
+    const location = tagString || [e.county, e.state].filter(Boolean).join(', ');
     const c = {
       id: e.id,
       date: e.beginDate,
@@ -566,8 +608,16 @@ export async function generateStormReport(
       longitude: e.beginLon,
       distanceMiles,
       location,
-      comments,
+      // `comments` carries the machine tags the PDF regex reads.
+      comments: tagString || e.narrative || undefined,
       source: e.source,
+      // Traceability IDs — preserved through client boundary for PDF rendering.
+      noaaEventId: e.noaaEventId,
+      spcOmId: e.spcOmId,
+      radarSite: e.radarSite,
+      nwsForecastOffice: e.nwsForecastOffice,
+      cocorahsStation: e.cocorahsStation,
+      verificationCount: e.verificationCount,
     };
 
     if (e.eventType === 'Hail') {

@@ -353,7 +353,8 @@ router.get('/search', async (req, res) => {
              public_verification_count,
              source_noaa_ncei, source_iem_lsr, source_ncei_swdi, source_mrms,
              source_nws_alert, source_iem_vtec, source_cocorahs, source_spc_wcm,
-             source_hailtrace, source_ihm, source_rep_report
+             source_hailtrace, source_ihm, source_rep_report,
+             source_details
            FROM verified_hail_events_public
            WHERE event_date >= $1::date
              AND latitude  BETWEEN $2 AND $3
@@ -414,6 +415,30 @@ router.get('/search', async (req, res) => {
                         srcLabels.push('Rep Report');
                     const primarySource = srcLabels[0] || 'Verified Event';
                     const sourceAttribution = srcLabels.length > 1 ? `${primarySource} (+${srcLabels.length - 1} more)` : primarySource;
+                    // Extract traceability IDs from source_details so the PDF can render them
+                    // in the "Traceability ID" column. Without this the PDF prints "No IDs available"
+                    // and the whole credibility story collapses.
+                    const sd = (r.source_details || {});
+                    const noaaEventId = sd.noaa_ncei?.event_id ? String(sd.noaa_ncei.event_id) : undefined;
+                    const spcOmId = sd.spc_wcm?.om_id ? String(sd.spc_wcm.om_id) : undefined;
+                    const radarSite = sd.ncei_swdi?.wsr_id ? String(sd.ncei_swdi.wsr_id) : undefined;
+                    const nwsForecastOffice = sd.iem_lsr?.wfo ? String(sd.iem_lsr.wfo) : undefined;
+                    const cocorahsStation = sd.cocorahs?.station_number
+                        ? String(sd.cocorahs.station_number).trim()
+                        : undefined;
+                    // source_tags = machine-readable codes for the PDF's dataSourceLabel regex.
+                    // sourceAttribution = human-readable; both live side by side so narrative and
+                    // table stay consistent.
+                    const sourceTags = [
+                        r.source_noaa_ncei && 'NOAA',
+                        r.source_spc_wcm && 'SPC',
+                        r.source_iem_lsr && 'NWS-LSR',
+                        r.source_ncei_swdi && 'NCEI-SWDI',
+                        r.source_mrms && 'MRMS',
+                        r.source_cocorahs && 'CoCoRaHS',
+                        r.source_hailtrace && 'HailTrace',
+                        r.source_rep_report && 'Rep Report',
+                    ].filter(Boolean).join(' ');
                     // Emit up to two event rows per db row: one for hail, one for wind,
                     // so the frontend filter (Hail/Wind) shows each where appropriate.
                     if (hail && hail > 0) {
@@ -431,7 +456,12 @@ router.get('/search', async (req, res) => {
                                 location: sourceAttribution,
                                 narrative: `${hail}" hail verified by ${srcLabels.join(', ') || 'multi-source'} (${r.public_verification_count || 1} source${(r.public_verification_count || 1) === 1 ? '' : 's'}) at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
                                 source: sourceAttribution,
+                                // Machine-tag field the PDF regex matches on (independent of user-friendly label).
+                                comments: sourceTags,
                                 distanceMiles: dist,
+                                // Traceability IDs — rendered verbatim in the PDF column.
+                                noaaEventId, spcOmId, radarSite, nwsForecastOffice, cocorahsStation,
+                                verificationCount: Number(r.public_verification_count) || 1,
                             });
                             seenKeys.add(key);
                             verifiedAdded++;
@@ -452,7 +482,10 @@ router.get('/search', async (req, res) => {
                                 location: sourceAttribution,
                                 narrative: `${wind} mph wind verified by ${srcLabels.join(', ') || 'multi-source'} (${r.public_verification_count || 1} source${(r.public_verification_count || 1) === 1 ? '' : 's'}) at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
                                 source: sourceAttribution,
+                                comments: sourceTags,
                                 distanceMiles: dist,
+                                noaaEventId, spcOmId, radarSite, nwsForecastOffice, cocorahsStation,
+                                verificationCount: Number(r.public_verification_count) || 1,
                             });
                             seenKeys.add(key);
                             verifiedAdded++;
@@ -1378,9 +1411,21 @@ router.post('/generate-report', async (req, res) => {
         const alertsToProcess = realAlerts.length > 0 ? realAlerts : syntheticAlerts;
         let nwsAlertImages = [];
         let nexradResult = null;
+        // Fix: bare "YYYY-MM-DD" → new Date() = midnight UTC = 8 PM ET prior day,
+        // which is BEFORE the storm. Shift to 20:00 UTC (~4 PM ET) when severe
+        // weather typically peaks. Alerts with a real ISO timestamp are unchanged.
+        const normalizeRadarDatetime = (ts) => {
+            const fallback = `${primaryStormDate.slice(0, 10)}T20:00:00Z`;
+            if (!ts)
+                return fallback;
+            const bare = /^\d{4}-\d{2}-\d{2}$/.test(ts);
+            if (bare)
+                return `${ts}T20:00:00Z`;
+            return ts;
+        };
         if (includeNexrad && alertsToProcess.length > 0) {
             nwsAlertImages = await Promise.all(alertsToProcess.map(async (alert) => {
-                const radarTs = alert.onset || primaryStormDate;
+                const radarTs = normalizeRadarDatetime(alert.onset);
                 const result = await fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: radarTs })
                     .catch(e => { console.warn(`NEXRAD fetch failed for alert ${alert.event}:`, e.message); return null; });
                 return {
@@ -1393,7 +1438,7 @@ router.post('/generate-report', async (req, res) => {
         }
         else if (includeNexrad) {
             // No alerts and no events — fetch single NEXRAD for the primary storm date
-            nexradResult = await fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: primaryStormDate })
+            nexradResult = await fetchNexradImage({ lat: parsedLat, lng: parsedLng, datetime: normalizeRadarDatetime(primaryStormDate) })
                 .catch(e => { console.warn('NEXRAD fetch failed:', e.message); return null; });
         }
         console.log(`📊 Supplemental data: NEXRAD=${nwsAlertImages.length > 0 ? `${nwsAlertImages.length} per-alert` : (nexradResult ? 'single' : 'no')}, NWS=${(nwsAlerts || []).length} alerts, Map=${mapImage ? 'yes' : 'no'}`);
