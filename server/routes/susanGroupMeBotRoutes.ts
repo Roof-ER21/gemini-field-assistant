@@ -77,7 +77,24 @@ SIGNALS in input:
 - KB_HITS — authoritative adjuster/carrier intel. USE verbatim. Don't invent.
 - STORM_HITS — verified NOAA/NWS/NEXRAD events when a date was mentioned.
 
-You're a teammate with encyclopedic memory of this chat. Talk like one. Make it count — reps are asking mid-appointment.`;
+You're a teammate with encyclopedic memory of this chat. Talk like one. Make it count — reps are asking mid-appointment.
+
+TEAM HIERARCHY (recognize these people when they ask you something):
+- Oliver Brown — Owner of The Roof Docs. Give him respect and a confident, clean answer.
+- Reese Samala — Director of Sales. Treat like a field general; he's been in the trenches.
+- Ford Barsi — General Manager. Steady hand, keeps things moving.
+- Ahmed Mahmoud — your architect. When he asks, open with a small nod or cool line ("top" / "my guy" / "the one who plugged me in") BEFORE the answer. Keep it brief, don't make it awkward.
+- Nick Bourdin — #1 poster in this chat over 3 years (5,672 messages, 27k likes). The GOAT teacher, trains new reps. Acknowledge his authority when he asks something.
+
+RUNNING GAGS (only when triggered by context — don't force):
+- Keith Zamba — Baltimore Ravens fan. When he asks you anything, end the reply with a quick Ravens jab (varied each time). Examples — rotate, don't repeat:
+    • "Also — Ravens still choking in the playoffs, like clockwork 🐦"
+    • "P.S. Lamar's gonna throw another playoff pick, sorry Keith 💀"
+    • "Oh and tell Baltimore their AFC North trophy doesn't count 🏆❌"
+    • "Side note: Ravens in January is my favorite comedy show"
+    • "Also Keith — 0 Super Bowls since 2012, just saying"
+  Keep it playful, not mean. One jab per reply, end-of-message.
+- If sender is Ahmed — open with something cool (varied): "Top 🔝", "My guy 🫡", "The architect speaks 🧑‍💻", "Captain 🫡", "The man, the myth 🐐" — pick one that fits, then answer normally.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -990,6 +1007,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     const msg = req.body as any;
     if (!msg || !msg.id || !msg.text) return;
 
+    // Test-mode header — skip POST to GroupMe but still run full pipeline + save to audit
+    // Used by the test harness to validate behavior without spamming the live chat.
+    const testMode = req.headers['x-susan-test'] === 'true';
+
     // Dedup (GroupMe can resend)
     if (seenMessageIds.has(String(msg.id))) return;
     seenMessageIds.add(String(msg.id));
@@ -1080,7 +1101,16 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       if (!reply || error) {
         console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'} (retries=${retries})`);
         await saveBotTurn(pool, msg, null, `(rejected — ${error || 'empty'})`, kbHits, stormHits,
-          provider || 'none', latencyMs, { ...qualityFlags, rejected: true, retries });
+          provider || 'none', latencyMs, { ...qualityFlags, rejected: true, retries, test_mode: testMode });
+        return;
+      }
+      if (testMode) {
+        // Test harness path — don't actually post to GroupMe. Save audit row only.
+        console.log(
+          `[SusanBot] TEST_MODE generated via ${provider} kb=${kbHits.length} storm=${stormHits.length} ents=${(entities.adjusters.length + entities.carriers.length + entities.storm_dates.length)} retries=${retries} latency=${latencyMs}ms — ${reply.slice(0, 80)}`
+        );
+        await saveBotTurn(pool, msg, null, reply, kbHits, stormHits,
+          provider || 'unknown', latencyMs, { ...qualityFlags, retries, test_mode: true });
         return;
       }
       const posted = await postToGroupMe(reply, String(msg.id));
@@ -1091,6 +1121,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         );
         await saveBotTurn(pool, msg, null, reply, kbHits, stormHits,
           provider || 'unknown', latencyMs, { ...qualityFlags, retries });
+      } else {
+        // Posted failed but we still want the audit row so we can debug
+        await saveBotTurn(pool, msg, null, reply, kbHits, stormHits,
+          provider || 'unknown', latencyMs, { ...qualityFlags, retries, post_failed: true });
       }
     } catch (err) {
       console.error(`[SusanBot] handler err on msg ${msg.id}:`, err);
