@@ -632,8 +632,35 @@ export class PDFReportServiceV2 {
       doc.rect(x, cardY, cardW, cardH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
     };
 
+    // NWS hail-size reference (neutral, factual — adjusters recognize these terms)
+    const hailClass = (s: number): string => {
+      if (s >= 4.5) return 'Softball';
+      if (s >= 2.75) return 'Baseball';
+      if (s >= 1.75) return 'Golf ball';
+      if (s >= 1.5) return 'Ping pong';
+      if (s >= 1.25) return 'Half dollar';
+      if (s >= 1.0) return 'Quarter';
+      if (s >= 0.88) return 'Nickel';
+      if (s >= 0.75) return 'Penny';
+      if (s >= 0.5) return 'Marble';
+      if (s > 0) return 'Pea';
+      return '';
+    };
+    const windClass = (mph: number): string => {
+      if (mph >= 74) return 'Hurricane-force';
+      if (mph >= 58) return 'NWS severe (>=58 mph)';
+      if (mph >= 40) return 'Strong';
+      return '';
+    };
+    const verifiedLabel = (n: number): string => {
+      if (n >= 4) return 'Quadruple-verified';
+      if (n === 3) return 'Triple-verified';
+      if (n === 2) return 'Cross-verified';
+      if (n === 1) return 'Single-source';
+      return 'No data';
+    };
+
     if (dashMode === 'date-specific') {
-      // Single-storm report: show properties OF the storm, not cumulative counts
       const directHitOnDate = directHitDates.size > 0;
       drawStatCard(
         0,
@@ -644,51 +671,50 @@ export class PDFReportServiceV2 {
       );
       drawStatCard(
         1,
-        'Max Hail (day)',
+        'Max Hail (Day)',
         dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
         dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-        dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : dashHailMax > 0 ? 'Pea-Marble' : '',
+        hailClass(dashHailMax),
       );
       drawStatCard(
         2,
-        'Peak Wind (day)',
+        'Peak Wind (Day)',
         dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
         dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
-        dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
+        windClass(dashWindMax),
       );
       drawStatCard(
         3,
-        'Sources Confirmed',
+        'Sources',
         String(dashSources.length),
         dashSources.length >= 3 ? '#0f766e' : dashSources.length >= 2 ? this.C.sectionText : this.C.mutedText,
-        dashSources.length >= 3 ? 'Triple-verified' : dashSources.length === 2 ? 'Cross-verified' : dashSources.length === 1 ? 'Single-source' : 'No data',
+        verifiedLabel(dashSources.length),
       );
     } else {
-      // Lifetime report: show cumulative counts
       drawStatCard(
         0,
         'Direct Hits',
         String(dashDirectHits),
         dashDirectHits > 0 ? '#b91c1c' : this.C.mutedText,
-        dashDirectHits > 0 ? 'Hail 1/2" or larger within 1 mi' : 'No direct hits on file',
+        dashDirectHits > 0 ? 'Hail 1/2"+ within 1 mi of property' : 'None on file',
       );
       drawStatCard(
         1,
         'Largest Hail',
         dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
         dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-        dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : '',
+        hailClass(dashHailMax),
       );
       drawStatCard(
         2,
         'Peak Wind',
         dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
         dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
-        dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
+        windClass(dashWindMax),
       );
       drawStatCard(
         3,
-        'Storm Dates',
+        'Storm Days',
         String(dashUniqueDates),
         this.C.sectionText,
         `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
@@ -701,11 +727,20 @@ export class PDFReportServiceV2 {
     if (dashSources.length > 0) {
       doc.fontSize(7.5).fillColor(this.C.mutedText).font('Helvetica')
          .text(
-           `Verified against: ${dashSources.join(' • ')}`,
+           `Cross-referenced against: ${dashSources.join(' • ')}`,
            this.M, doc.y, { width: this.CW, align: 'center' },
          );
-      doc.moveDown(0.6);
+      doc.moveDown(0.3);
     }
+
+    // Chain-of-custody line — factual, neutral, adjuster-ready
+    doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
+       .text(
+         `Report ID: ${reportId} • Generated: ${this.fmtFullDateTimeET(new Date().toISOString())} • ` +
+         `Pipeline: Roof-ER Weather Intelligence (multi-source federal data ingest)`,
+         this.M, doc.y, { width: this.CW, align: 'center' },
+       );
+    doc.moveDown(0.6);
 
     // =========================================================
     // DATA SOURCES & METHODOLOGY — the credibility section
@@ -714,25 +749,38 @@ export class PDFReportServiceV2 {
 
     doc.fontSize(8.5).fillColor(this.C.text).font('Helvetica')
        .text(
-         'This report is compiled from the following federally maintained data sources:',
-         this.M + 10, doc.y, { width: this.CW - 20 }
+         'This report aggregates storm event records from multiple independent federal and scientific-network data sources. ' +
+         'No commercial or proprietary data is used. All sources are publicly accessible and independently verifiable.',
+         this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1.5 }
        );
     doc.moveDown(0.4);
 
     // Source list with descriptions
     const sources = [
       {
-        name: 'NOAA Storm Events Database',
-        desc: 'Official record of significant weather events maintained by the National Oceanic and Atmospheric Administration (NOAA). Events are verified by National Weather Service (NWS) meteorologists and include trained spotter reports, law enforcement reports, and ASOS (Automated Surface Observing System) measurements.'
+        name: 'NOAA NCEI Storm Events Database',
+        desc: 'Official severe-weather event record maintained by the National Oceanic and Atmospheric Administration, National Centers for Environmental Information. Events reviewed by National Weather Service meteorologists. (ncei.noaa.gov)'
+      },
+      {
+        name: 'NCEI Severe Weather Data Inventory (SWDI) — NX3HAIL',
+        desc: 'NEXRAD-derived hail signatures produced by the NOAA/NSSL Hail Detection Algorithm, archived by NCEI. Each record is an independent radar observation with timestamp, maximum expected hail size, and reporting WSR-88D radar site.'
+      },
+      {
+        name: 'NOAA Storm Prediction Center (SPC) WCM Archive',
+        desc: 'Severe weather database curated by the Warning Coordination Meteorologist at the NOAA Storm Prediction Center (Norman, OK). Separate observation pipeline from NCEI; provides independent cross-check.'
+      },
+      {
+        name: 'NWS Local Storm Reports via Iowa Environmental Mesonet',
+        desc: 'Real-time ground-observer reports filed with NWS Forecast Offices and archived by IEM at Iowa State University. Fills the 45-day review cycle before NCEI Storm Events is finalized.'
+      },
+      {
+        name: 'CoCoRaHS — Community Collaborative Rain, Hail & Snow Network',
+        desc: 'Citizen-scientist precipitation observer network operated by the Colorado Climate Center at Colorado State University with support from the National Science Foundation. Observer-measured hail stone size, duration, and consistency.'
       },
       {
         name: 'NEXRAD WSR-88D Doppler Radar Network',
-        desc: 'The Next-Generation Radar network operated jointly by the NWS, FAA, and U.S. Air Force. Provides Level-II base reflectivity data used to detect hail signatures, storm cells, and precipitation intensity. Radar imagery sourced via Iowa Environmental Mesonet (IEM) archive.'
+        desc: 'Next-Generation Radar network operated jointly by NWS, FAA, and U.S. Air Force. Radar imagery embedded in this report is sourced from the IEM NEXRAD archive.'
       },
-      {
-        name: 'National Weather Service (NWS) Alerts',
-        desc: 'Official severe weather warnings, watches, and advisories issued by NWS forecast offices. Includes storm-specific parameters such as observed hail size, wind speed, and storm tracking data.'
-      }
     ];
 
     sources.forEach(src => {
@@ -744,12 +792,13 @@ export class PDFReportServiceV2 {
       doc.moveDown(0.3);
     });
 
-    // CCM-grade statement
+    // Source-independence statement — emphasizes triangulation, not authority-borrow
     doc.moveDown(0.2);
     doc.fontSize(8).fillColor(this.C.sourceGreen).font('Helvetica-Oblique')
        .text(
-         'These are the same federally maintained data sources referenced by Certified Consulting Meteorologists (CCM) ' +
-         'in professional storm damage assessments and insurance documentation.',
+         'The sources above are operated by distinct federal agencies and scientific institutions and do not share a common observation pipeline. ' +
+         'Independent confirmation of the same event across multiple sources provides higher confidence than any single source alone. ' +
+         'Original event identifiers are retained for independent verification by the reader.',
          this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1 }
        );
 
@@ -1182,19 +1231,19 @@ export class PDFReportServiceV2 {
       doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
       const parts: string[] = [];
       if (actionableCount > 0) {
-        parts.push(`${actionableCount} insurance-actionable DIRECT HIT${actionableCount > 1 ? 'S' : ''} (1/2" or larger)`);
+        parts.push(`${actionableCount} day${actionableCount > 1 ? 's' : ''} with hail 1/2" or larger at property`);
       }
       const subHalf = directHitCount - actionableCount;
-      if (subHalf > 0) parts.push(`${subHalf} sub-1/2" radar hit${subHalf > 1 ? 's' : ''}`);
-      if (within3Count > 0) parts.push(`${within3Count} within 1-3 mi`);
-      if (within5Count > 0) parts.push(`${within5Count} within 3-5 mi`);
-      if (within10Count > 0) parts.push(`${within10Count} within 5-10 mi`);
+      if (subHalf > 0) parts.push(`${subHalf} day${subHalf > 1 ? 's' : ''} with sub-1/2" hail at property`);
+      if (within3Count > 0) parts.push(`${within3Count} day${within3Count > 1 ? 's' : ''} with hail 1-3 mi away`);
+      if (within5Count > 0) parts.push(`${within5Count} day${within5Count > 1 ? 's' : ''} with hail 3-5 mi away`);
+      if (within10Count > 0) parts.push(`${within10Count} day${within10Count > 1 ? 's' : ''} with hail 5-10 mi away`);
       doc.text(parts.join('  •  '), this.M, doc.y, { width: this.CW });
       if (largestActionable.size > 0) {
         doc.moveDown(0.2);
         doc.fontSize(10).fillColor('#b91c1c').font('Helvetica-Bold')
            .text(
-             `Largest actionable direct hit: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
+             `Largest hail documented at property: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
              this.M, doc.y, { width: this.CW }
            );
       }
@@ -1218,8 +1267,8 @@ export class PDFReportServiceV2 {
          'Distance columns (1-3 mi, 3-5 mi, 5-10 mi) are MUTUALLY EXCLUSIVE — each observation is ' +
          'assigned to exactly one distance band based on proximity to the property, showing max hail ' +
          'in that band. ' +
-         'Hit column: "DIRECT HIT" = hail 1/2" or larger at property (insurance-actionable); ' +
-         '"Direct" = sub-1/2" radar signature at property (canvassing context only). ' +
+         'Hit column: "DIRECT HIT" = hail 1/2" or larger documented at property; ' +
+         '"Direct" = sub-1/2" radar signature documented at property. ' +
          'Sub-1/4" radar values are rounded up to 1/4" for this report. ' +
          'Data sources: NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
          'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
