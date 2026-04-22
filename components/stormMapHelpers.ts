@@ -50,6 +50,13 @@ export interface StormDate {
   maxWindMph: number;
   statesAffected: string[];
   closestMiles: number | null;
+  /**
+   * Closest hail observation (miles). Use this for "Direct Hit" labeling —
+   * wind proximity shouldn't trigger a hail-framed badge.
+   */
+  closestHailMiles?: number | null;
+  /** Closest wind observation — kept for future wind-specific UI. */
+  closestWindMiles?: number | null;
 }
 
 export interface GpsPosition {
@@ -416,7 +423,21 @@ export function groupEventsByDate(events: StormEvent[]): StormDate[] {
     if (e.state) g.states.add(e.state);
   }
   return Array.from(map.entries()).map(([date, { events: evts, states }]) => {
-    const distances = evts.map((e) => e.distanceMiles).filter((d): d is number => d != null && Number.isFinite(d));
+    // closestMiles must reflect HAIL proximity only. If we mix wind in, a wind
+    // gust within 1mi ends up labeled "Direct Hit" even when the closest hail
+    // was 2+mi — confusing for roofing reps because wind-only events don't
+    // sell roofs the way hail damage does. Kept "closestWindMiles" available
+    // separately if we ever need it in the UI.
+    const hailDistances = evts
+      .filter((e) => e.eventType === 'Hail')
+      .map((e) => e.distanceMiles)
+      .filter((d): d is number => d != null && Number.isFinite(d));
+    const windDistances = evts
+      .filter((e) => e.eventType === 'Thunderstorm Wind')
+      .map((e) => e.distanceMiles)
+      .filter((d): d is number => d != null && Number.isFinite(d));
+    const closestHailMiles = hailDistances.length > 0 ? Math.min(...hailDistances) : null;
+    const closestWindMiles = windDistances.length > 0 ? Math.min(...windDistances) : null;
     return {
       date,
       label: formatDateLabel(date),
@@ -424,7 +445,11 @@ export function groupEventsByDate(events: StormEvent[]): StormDate[] {
       maxHailInches: Math.max(0, ...evts.filter((e) => e.eventType === 'Hail').map((e) => e.magnitude)),
       maxWindMph: Math.max(0, ...evts.filter((e) => e.eventType === 'Thunderstorm Wind').map((e) => e.magnitude)),
       statesAffected: [...states],
-      closestMiles: distances.length > 0 ? Math.min(...distances) : null,
+      // For backwards-compat, closestMiles prefers hail (the direct-hit label).
+      // Falls back to wind only when a day is wind-only (rare).
+      closestMiles: closestHailMiles ?? closestWindMiles,
+      closestHailMiles,
+      closestWindMiles,
     };
   }).sort((a, b) => b.date.localeCompare(a.date));
 }

@@ -1474,12 +1474,14 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 >
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{stormDate.label}</p>
                   <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0 0' }}>
-                    {stormDate.closestMiles != null && stormDate.closestMiles <= 1
+                    {stormDate.closestHailMiles != null && stormDate.closestHailMiles <= 1
                       ? <span style={{ color: '#4ade80', fontWeight: 600 }}>Direct Hit</span>
-                      : stormDate.closestMiles != null
-                        ? <span>{stormDate.closestMiles.toFixed(1)} mi</span>
-                        : null}
-                    {stormDate.closestMiles != null ? ' · ' : ''}{formatStormImpactSummary(stormDate)}
+                      : stormDate.closestHailMiles != null
+                        ? <span>{stormDate.closestHailMiles.toFixed(1)} mi</span>
+                        : stormDate.closestMiles != null
+                          ? <span>{stormDate.closestMiles.toFixed(1)} mi</span>
+                          : null}
+                    {(stormDate.closestHailMiles ?? stormDate.closestMiles) != null ? ' · ' : ''}{formatStormImpactSummary(stormDate)}
                   </p>
                 </button>
               ))}
@@ -2399,7 +2401,23 @@ function StormDateCard({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 18, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>{stormDate.eventCount > 0 ? `${stormDate.eventCount} report${stormDate.eventCount !== 1 ? 's' : ''}` : 'Swath data'}</span>
-              {stormDate.closestMiles != null ? <span style={{ fontSize: 11, fontWeight: stormDate.closestMiles <= 1 ? 600 : 400, color: stormDate.closestMiles <= 1 ? '#4ade80' : stormDate.closestMiles <= 3 ? '#fbbf24' : '#9ca3af' }}>{stormDate.closestMiles <= 1 ? '● Direct Hit' : stormDate.closestMiles <= 3 ? `${stormDate.closestMiles.toFixed(1)} mi` : `${stormDate.closestMiles.toFixed(1)} mi`}</span> : null}
+              {(() => {
+                // Direct-hit badge anchored to HAIL proximity specifically —
+                // a wind event 0.8mi away shouldn't tag a storm date "Direct
+                // Hit" when the closest hail is 2mi away (the user was right
+                // to call that out as misleading).
+                const hailMi = stormDate.closestHailMiles;
+                const fallbackMi = stormDate.closestMiles;
+                if (hailMi != null) {
+                  const color = hailMi <= 1 ? '#4ade80' : hailMi <= 3 ? '#fbbf24' : '#9ca3af';
+                  const label = hailMi <= 1 ? '● Direct Hit' : `${hailMi.toFixed(1)} mi`;
+                  return <span style={{ fontSize: 11, fontWeight: hailMi <= 1 ? 600 : 400, color }}>{label}</span>;
+                }
+                if (fallbackMi != null) {
+                  return <span style={{ fontSize: 11, color: '#9ca3af' }}>{fallbackMi.toFixed(1)} mi</span>;
+                }
+                return null;
+              })()}
               {stormDate.statesAffected.length > 0 ? <span style={{ fontSize: 12, color: '#6b7280' }}>{stormDate.statesAffected.slice(0, 3).join(', ')}</span> : null}
               {stormDate.maxWindMph > 0 ? <span style={{ fontSize: 12, color: '#7dd3fc' }}>{stormDate.maxWindMph.toFixed(0)} mph</span> : null}
             </div>
