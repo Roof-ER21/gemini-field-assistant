@@ -542,6 +542,8 @@ export class PDFReportServiceV2 {
     // Otherwise shows full history (5-year cumulative).
     // =========================================================
     doc.moveDown(0.4);
+    // Dashboard height = ~20 (title) + 62 (cards) + 30 (citation+chain) = 112
+    this.checkPageBreak(doc, 130);
 
     const dashMode = input.dateOfLoss ? 'date-specific' : 'lifetime';
     const dashDate = input.dateOfLoss ? this.fmtDateET(input.dateOfLoss) : 'Last 5 years';
@@ -816,6 +818,8 @@ export class PDFReportServiceV2 {
     // =========================================================
     // PROPERTY INFORMATION
     // =========================================================
+    // Reserve space for map + address block (~130) + section banner
+    this.checkPageBreak(doc, 180);
     this.drawSectionBanner(doc, 'Property Information');
 
     const propY = doc.y;
@@ -864,6 +868,9 @@ export class PDFReportServiceV2 {
     // =========================================================
     // STORM IMPACT SUMMARY (was "Hail Impact Details")
     // =========================================================
+    // Reserve enough space for banner (48) + 4-row grid (77) + padding.
+    // Prevents absolute-y grid cells from overflowing and cascading page breaks.
+    this.checkPageBreak(doc, 140);
     this.drawSectionBanner(doc, 'Storm Impact Summary');
 
     if (primaryEvent || hailEvents.length > 0) {
