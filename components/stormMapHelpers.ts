@@ -103,15 +103,23 @@ export interface HailSizeClass {
 // Constants
 // ============================================================
 
-export const HAIL_SIZE_CLASSES: HailSizeClass[] = [
-  { minInches: 0.25, maxInches: 0.75, label: 'Pea to Penny', reference: 'pea', color: '#00FF00', damageSeverity: 0 },
-  { minInches: 0.75, maxInches: 1.0, label: 'Penny to Quarter', reference: 'penny', color: '#FFFF00', damageSeverity: 1 },
-  { minInches: 1.0, maxInches: 1.5, label: 'Quarter to Ping Pong', reference: 'quarter', color: '#FFA500', damageSeverity: 2 },
-  { minInches: 1.5, maxInches: 1.75, label: 'Ping Pong to Golf Ball', reference: 'ping-pong', color: '#FF6600', damageSeverity: 3 },
-  { minInches: 1.75, maxInches: 2.5, label: 'Golf Ball to Tennis Ball', reference: 'golf-ball', color: '#FF0000', damageSeverity: 4 },
-  { minInches: 2.5, maxInches: 4.5, label: 'Tennis Ball to Softball', reference: 'tennis-ball', color: '#8B0000', damageSeverity: 5 },
-  { minInches: 4.5, maxInches: 99, label: 'Softball+', reference: 'softball', color: '#800080', damageSeverity: 5 },
-];
+// HAIL_SIZE_CLASSES is now derived from the canonical palette (hailPalette.ts).
+// Kept as an exported alias so every call site that imports HAIL_SIZE_CLASSES
+// (legend, storm cards, markers) continues to work unchanged.
+import { HAIL_LEVELS as CANONICAL_HAIL_LEVELS } from './hailPalette';
+
+const SEVERITY_TO_SCORE: Record<string, number> = {
+  trace: 0, minor: 1, moderate: 2, severe: 3, very_severe: 4, extreme: 5,
+};
+
+export const HAIL_SIZE_CLASSES: HailSizeClass[] = CANONICAL_HAIL_LEVELS.map((l) => ({
+  minInches: l.minInches,
+  maxInches: l.maxInches,
+  label: l.longLabel,
+  reference: l.reference,
+  color: l.color,
+  damageSeverity: SEVERITY_TO_SCORE[l.severity] ?? 0,
+}));
 
 export const DEFAULT_CENTER: [number, number] = [39.0, -77.0];
 export const DEFAULT_ZOOM = 8;
@@ -135,26 +143,62 @@ export function haversineDistanceMiles(lat1: number, lon1: number, lat2: number,
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * All storm dates in the UI are bucketed and displayed in Eastern Time.
+ * Why: reps and adjusters in DMV/PA think in ET; NOAA archives use UTC, which
+ * shifts late-evening ET storms into the next day and confuses "which storm"
+ * conversations. The server's verified_hail_events.event_date is already
+ * ET-bucketed, but client-side event payloads still arrive with UTC timestamps
+ * (NOAA /search, IEM, MRMS) — we bucket those to ET here.
+ */
+const ET_ZONE = 'America/New_York';
+
+/**
+ * Return a YYYY-MM-DD string representing the ET local day that contains the
+ * given instant. Accepts either a bare YYYY-MM-DD (assumed already ET-bucketed)
+ * or a full ISO timestamp (converted to ET).
+ */
 export function getStormDateKey(dateStr: string): string | null {
   if (!dateStr) return null;
-  const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (!match) return null;
-  const parsed = new Date(`${match[1]}T12:00:00Z`);
-  return Number.isNaN(parsed.getTime()) ? null : match[1];
+  // Bare date strings — already in ET calendar by convention.
+  const dateOnly = dateStr.match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (dateOnly) return dateOnly[1];
+  // Anything else: parse and convert to ET local date.
+  const ms = Date.parse(dateStr);
+  if (Number.isNaN(ms)) {
+    // Fall back to first 10 chars if the string looks date-ish.
+    const fallback = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+    return fallback ? fallback[1] : null;
+  }
+  return etLocalDateOf(new Date(ms));
+}
+
+/** YYYY-MM-DD for the ET local day the given Date instant falls in. */
+function etLocalDateOf(d: Date): string {
+  // Intl produces localized parts; pick year/month/day for ET.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 export function formatDateLabel(dateStr: string): string {
   const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
   if (!match) return dateStr;
-  const d = new Date(`${match[1]}T12:00:00Z`);
+  // Noon ET on the given day — guarantees we display the date the rep expects.
+  const d = new Date(`${match[1]}T17:00:00Z`);  // 17:00 UTC = 1 PM EDT / noon EST
   if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: ET_ZONE });
 }
 
 export function formatHistoryRangeLabel(range: HistoryRangePreset, sinceDate: string): string {
   if (range === 'since' && sinceDate) {
-    const p = new Date(`${sinceDate}T12:00:00Z`);
-    const label = Number.isNaN(p.getTime()) ? sinceDate : p.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    const p = new Date(`${sinceDate}T17:00:00Z`);
+    const label = Number.isNaN(p.getTime())
+      ? sinceDate
+      : p.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: ET_ZONE });
     return `since ${label}`;
   }
   const map: Record<string, string> = { '10y': 'the last 10 years', '5y': 'the last 5 years', '2y': 'the last 2 years', '1y': 'the last year' };
@@ -297,7 +341,9 @@ export async function fetchMeshSwathsByLocation(lat: number, lng: number, months
       const props = f.properties || {};
       const epoch = props.Start_Date ? Number(props.Start_Date) : null;
       let dateStr = '';
-      if (epoch) { const d = new Date(epoch); dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+      // NHP feature server returns epoch ms; bucket to ET local date so DMV reps
+      // see the calendar day they expect (not browser locale / UTC day).
+      if (epoch) dateStr = etLocalDateOf(new Date(epoch));
       const mesh = estimateMeshInches(props.MaxWidth__ || 0);
       return { date: dateStr, label: formatDateLabel(dateStr), eventCount: 0, maxHailInches: mesh, maxWindMph: 0, statesAffected: (props.Province || props.States || '').split(',').map((s: string) => s.trim()).filter(Boolean), closestMiles: null };
     });
@@ -383,7 +429,7 @@ export function computeCanvassingAlert(position: GpsPosition | null, events: Sto
   const sd = closestEvent.beginDate.slice(0, 10);
   const sc = getHailSizeClass(closestEvent.magnitude);
   let dl = sd;
-  try { const d = new Date(sd + 'T12:00:00Z'); dl = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); } catch { /* keep raw */ }
+  try { const d = new Date(sd + 'T17:00:00Z'); dl = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: ET_ZONE }); } catch { /* keep raw */ }
   const pts = [`This area was hit by ${closestEvent.magnitude}" hail on ${dl}.`];
   if (sc) pts.push(`That's ${sc.label} size -- damage severity level ${sc.damageSeverity}/5.`);
   if (closestEvent.magnitude >= 1.0) { pts.push('Hail this size commonly damages shingles, gutters, and siding.'); pts.push('Most homeowner insurance policies cover hail damage with no out-of-pocket cost.'); }

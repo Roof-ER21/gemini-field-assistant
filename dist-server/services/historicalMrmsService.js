@@ -1,20 +1,15 @@
 import sharp from 'sharp';
 import zlib from 'zlib';
+// Canonical palette lives in hailPalette.ts. We adapt its HAIL_LEVELS into the
+// (minInches, maxInches, rgba) shape this service used historically so the
+// raster-tile encoder still gets what it expects.
+import { HAIL_LEVELS as CANONICAL_HAIL_LEVELS } from './hailPalette.js';
 const ARCHIVE_BASE = 'https://mtarchive.geol.iastate.edu';
 const PRODUCT_PATH = 'MESH_Max_1440min';
 const PRODUCT_PREFIX = 'MESH_Max_1440min_00.50_';
 const USER_AGENT = 'RoofER-StormMaps/1.0';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const HAIL_COLORS = [
-    { minInches: 0.05, maxInches: 0.25, rgba: [144, 238, 144, 160] },
-    { minInches: 0.25, maxInches: 0.75, rgba: [0, 255, 0, 210] },
-    { minInches: 0.75, maxInches: 1.0, rgba: [255, 255, 0, 220] },
-    { minInches: 1.0, maxInches: 1.5, rgba: [255, 165, 0, 230] },
-    { minInches: 1.5, maxInches: 1.75, rgba: [255, 102, 0, 235] },
-    { minInches: 1.75, maxInches: 2.5, rgba: [255, 0, 0, 240] },
-    { minInches: 2.5, maxInches: 4.5, rgba: [139, 0, 0, 245] },
-    { minInches: 4.5, maxInches: Infinity, rgba: [128, 0, 128, 250] },
-];
+const HAIL_COLORS = CANONICAL_HAIL_LEVELS.map((l) => ({ minInches: l.minInches, maxInches: l.maxInches, rgba: l.rgba }));
 const cache = new Map();
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));

@@ -12,6 +12,7 @@
 import { useMemo } from 'react';
 import { Polygon } from 'react-leaflet';
 import type { LatLngExpression } from 'leaflet';
+import { getHailColor } from './hailPalette';
 
 interface StormEvent {
   id: string;
@@ -49,17 +50,9 @@ function getRadiusMiles(magnitudeInches: number): number {
   return 3;
 }
 
-// Hail size → color (matches existing HAIL_SIZE_CLASSES)
-function getHailColor(magnitudeInches: number): string {
-  if (magnitudeInches >= 4.5) return '#800080';  // purple — softball+
-  if (magnitudeInches >= 2.5) return '#8B0000';  // dark red — baseball+
-  if (magnitudeInches >= 1.75) return '#FF0000'; // red — golf ball+
-  if (magnitudeInches >= 1.5) return '#FF6600';  // dark orange
-  if (magnitudeInches >= 1.0) return '#FF9900';  // orange — quarter+
-  if (magnitudeInches >= 0.75) return '#FFFF00'; // yellow
-  if (magnitudeInches >= 0.25) return '#00FF00'; // green
-  return '#90EE90'; // light green — trace
-}
+// Hail size → color. getHailColor imported at top; sourced from the canonical
+// palette so contour fills, vector-swath polygons, raster tiles, and legend
+// all agree on bin boundaries and colors.
 
 function getDistanceMiles(a: StormEvent, b: StormEvent): number {
   const meanLat = ((a.beginLat + b.beginLat) / 2) * (Math.PI / 180);

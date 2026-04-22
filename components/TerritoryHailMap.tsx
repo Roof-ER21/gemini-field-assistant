@@ -1674,10 +1674,14 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           <MapInteractionHandler routeMode={routeMode} onMapClick={handleMapInteraction} />
           <TileLayer url={mapTileUrl} subdomains={['0', '1', '2', '3']} maxZoom={21} />
 
-          {/* Hail Swath Contours — clustered convex hull polygons from ground reports */}
-          {/* Rendered BEHIND event markers. Matches IHM/HailTrace visual style. */}
+          {/* Hail Swath Contours — clustered convex hull polygons from ground reports.
+              Shown ONLY when the vector swath polygons haven't loaded yet OR when
+              we have no MRMS data for the selected date. Prevents the old "two
+              overlapping differently-colored blobs" look. Palette now shared with
+              the vector layer via hailPalette.ts so when contours and polygons do
+              briefly co-exist, they agree on colors. */}
           <HailContourLayer
-            visible={!!selectedDate}
+            visible={!!selectedDate && !vectorSwathLoaded}
             events={visibleEvents}
           />
 
