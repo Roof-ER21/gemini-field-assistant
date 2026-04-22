@@ -264,11 +264,14 @@ async function tryGemini(prompt) {
     if (!key)
         return { reply: null, error: 'no_gemini_key' };
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+        // NB: Gemini 2.5 Flash enables "thinking" tokens by default which eat into
+        // maxOutputTokens budget and truncate replies mid-sentence. We use 2.0-flash
+        // (which has no thinking mode) so our budget is dedicated to real output.
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
         const body = {
             systemInstruction: { parts: [{ text: PERSONALITY }] },
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 250, temperature: 0.8 },
+            generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
         };
         const resp = await fetch(url, {
             method: 'POST',
