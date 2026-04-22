@@ -82,7 +82,11 @@ interface ReportInput {
   address: string;
   city?: string;
   state?: string;
-  dateOfLoss?: string;
+  // Date filters — use one of these, or omit all for lifetime (5-year) report:
+  dateOfLoss?: string;              // single storm (YYYY-MM-DD in ET)
+  datesOfLoss?: string[];           // multiple specific storms (YYYY-MM-DD[])
+  fromDate?: string;                // range start (YYYY-MM-DD)
+  toDate?: string;                  // range end (YYYY-MM-DD)
   lat: number;
   lng: number;
   radius: number;
@@ -421,9 +425,20 @@ export class PDFReportServiceV2 {
     const stream = new PassThrough();
     doc.pipe(stream);
 
-    // ===== COMPUTE STATS =====
+    // ===== DATE FILTER — supports single/multi/range/lifetime modes =====
+    const dateSet =
+      input.datesOfLoss && input.datesOfLoss.length > 0
+        ? new Set(input.datesOfLoss)
+        : input.dateOfLoss
+          ? new Set([input.dateOfLoss])
+          : null;
     const dateMatchesLoss = (value: string): boolean => {
-      return !input.dateOfLoss || this.getDateKey(value) === input.dateOfLoss;
+      const key = this.getDateKey(value);
+      if (!key) return true;
+      if (input.fromDate && key < input.fromDate) return false;
+      if (input.toDate && key > input.toDate) return false;
+      if (dateSet) return dateSet.has(key);
+      return true;
     };
 
     const selectedEvents = input.events.filter(e => dateMatchesLoss(e.date));
@@ -545,19 +560,35 @@ export class PDFReportServiceV2 {
     // Dashboard height = ~20 (title) + 62 (cards) + 30 (citation+chain) = 112
     this.checkPageBreak(doc, 130);
 
-    const dashMode = input.dateOfLoss ? 'date-specific' : 'lifetime';
-    const dashDate = input.dateOfLoss ? this.fmtDateET(input.dateOfLoss) : 'Last 5 years';
+    // Dashboard has 4 modes based on which date filter is set
+    const hasSingleDate = !!input.dateOfLoss && !input.datesOfLoss;
+    const hasMultiDate = !!input.datesOfLoss && input.datesOfLoss.length > 1;
+    const hasRange = !!input.fromDate || !!input.toDate;
+    const dashMode: 'single' | 'multi' | 'range' | 'lifetime' =
+      hasSingleDate ? 'single'
+      : hasMultiDate ? 'multi'
+      : hasRange ? 'range'
+      : 'lifetime';
 
-    // Filter events based on mode
+    const dashTitleSuffix =
+      dashMode === 'single'
+        ? this.fmtDateET(input.dateOfLoss!)
+        : dashMode === 'multi'
+          ? `${input.datesOfLoss!.length} storms selected`
+          : dashMode === 'range'
+            ? `${input.fromDate ? this.fmtDateET(input.fromDate) : '...'} to ${input.toDate ? this.fmtDateET(input.toDate) : 'today'}`
+            : 'Last 5 years';
+
+    // Filter events using the unified dateMatchesLoss predicate above
     const allHistoryEvents = input.historyEvents && input.historyEvents.length > 0
       ? input.historyEvents
       : input.events;
-    const dashEvents = dashMode === 'date-specific'
-      ? allHistoryEvents.filter((e) => this.getDateKey(e.date) === input.dateOfLoss)
-      : allHistoryEvents;
+    const dashEvents = dashMode === 'lifetime'
+      ? allHistoryEvents
+      : allHistoryEvents.filter((e) => dateMatchesLoss(e.date));
     const dashWindEvents = input.noaaEvents
       .filter((e) => e.eventType === 'wind')
-      .filter((e) => dashMode === 'lifetime' || this.getDateKey(e.date) === input.dateOfLoss);
+      .filter((e) => dashMode === 'lifetime' || dateMatchesLoss(e.date));
 
     const dashHailMax = dashEvents.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
     const dashWindMax = dashWindEvents.reduce(
@@ -612,13 +643,13 @@ export class PDFReportServiceV2 {
     const dashSources: string[] = Array.from(normalizedSet).sort();
 
     // Dashboard title banner — tells the reader what these numbers represent
+    const dashHeader =
+      dashMode === 'single' ? `Storm Summary — ${dashTitleSuffix}`
+      : dashMode === 'multi' ? `Combined Storm Summary — ${dashTitleSuffix}`
+      : dashMode === 'range' ? `Storm Activity — ${dashTitleSuffix}`
+      : `Property Storm History — ${dashTitleSuffix}`;
     doc.fontSize(8.5).fillColor(this.C.lightText).font('Helvetica')
-       .text(
-         dashMode === 'date-specific'
-           ? `Storm Summary — ${dashDate}`
-           : `Property Storm History — ${dashDate}`,
-         this.M, doc.y, { width: this.CW, align: 'center' },
-       );
+       .text(dashHeader, this.M, doc.y, { width: this.CW, align: 'center' });
     doc.moveDown(0.3);
 
     const cardY = doc.y;
@@ -680,7 +711,7 @@ export class PDFReportServiceV2 {
       return 'No data';
     };
 
-    if (dashMode === 'date-specific') {
+    if (dashMode === 'single') {
       const directHitOnDate = directHitDates.size > 0;
       drawStatCard(
         0,
