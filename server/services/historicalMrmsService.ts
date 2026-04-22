@@ -90,7 +90,10 @@ import { HAIL_LEVELS as CANONICAL_HAIL_LEVELS } from './hailPalette.js';
 
 const ARCHIVE_BASE = 'https://mtarchive.geol.iastate.edu';
 const PRODUCT_PATH = 'MESH_Max_1440min';
-const PRODUCT_PREFIX = 'MESH_Max_1440min_00.50_';
+// NOTE: two historical filename prefixes share this product inside that
+// directory — MESH_Max_* (2023+) and MRMS_Max_* (2020-01 through ~2022-12).
+// The parseArchiveFiles regex below accepts both so backfill covers the
+// whole archive window.
 const USER_AGENT = 'RoofER-StormMaps/1.0';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -147,7 +150,9 @@ function buildArchiveDirectory(date: string): string {
 }
 
 function parseArchiveFiles(html: string, directoryUrl: string): ArchiveFile[] {
-  const pattern = new RegExp(`href="(${PRODUCT_PREFIX}(\\d{8}-\\d{6})\\.grib2\\.gz)"`, 'g');
+  // Matches either MESH_Max_1440min_00.50_YYYYMMDD-HHMMSS.grib2.gz
+  // or MRMS_Max_1440min_00.50_YYYYMMDD-HHMMSS.grib2.gz (pre-2023 filename).
+  const pattern = /href="((?:MESH|MRMS)_Max_1440min_00\.50_(\d{8}-\d{6})\.grib2\.gz)"/g;
   const files = new Map<string, ArchiveFile>();
 
   for (const match of html.matchAll(pattern)) {
