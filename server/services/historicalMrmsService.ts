@@ -801,6 +801,70 @@ export async function getHistoricalMrmsOverlay(
 /** Separate cache for composite grids used in point queries (keyed by date only). */
 const compositeGridCache = new Map<string, { expiresAt: number; composite: CompositeDecodedMrmsGrib }>();
 
+/**
+ * Load the daily MRMS MESH composite grid for a given date.
+ *
+ * Internal helpers (listArchiveFiles / chooseArchiveFiles / downloadArchiveFile)
+ * are not exported, so this is the single bridge for tools that need grid-level
+ * access — specifically the MRMS backfill runner, which scans cells to emit
+ * discrete hail records into verified_hail_events.
+ *
+ * Returns null when:
+ *   - the archive has no MRMS files for the date (older than IEM's archive
+ *     window, or a quiet day with no product generated), or
+ *   - all downloaded files fail to decode (rare; usually transient IEM hiccup).
+ *
+ * Caching: shared with getMrmsHailAtPoint, so a backfill day that's already
+ * been loaded for a property lookup is free on the second access.
+ */
+export async function loadMrmsDailyComposite(date: string): Promise<CompositeDecodedMrmsGrib | null> {
+  try {
+    assertValidDate(date);
+    const cKey = `mrms-pt-${date}`;
+    const cached = compositeGridCache.get(cKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.composite;
+
+    const files = await listArchiveFiles(date);
+    const selectedFiles = chooseArchiveFiles(files);
+
+    const downloadResults = await Promise.allSettled(
+      selectedFiles.map((file) =>
+        downloadArchiveFile(file).then((compressed) => ({
+          file,
+          raw: zlib.gunzipSync(compressed),
+        }))
+      )
+    );
+
+    const decodedGrids: DecodedMrmsGrib[] = [];
+    const decodedFileNames: string[] = [];
+    for (const outcome of downloadResults) {
+      if (outcome.status === 'fulfilled') {
+        try {
+          decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
+          decodedFileNames.push(outcome.value.file.name);
+        } catch { /* ignore per-file decode error; others may succeed */ }
+      }
+    }
+    if (decodedGrids.length === 0) return null;
+
+    const composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+    compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
+
+    // Prune old cache entries opportunistically (don't let this grow unbounded
+    // during a long-running backfill).
+    if (compositeGridCache.size > 30) {
+      const now = Date.now();
+      for (const [k, v] of compositeGridCache.entries()) {
+        if (v.expiresAt <= now) compositeGridCache.delete(k);
+      }
+    }
+    return composite;
+  } catch {
+    return null;
+  }
+}
+
 export interface MrmsPointResult {
   /** Max radar-detected hail (inches) within ~0.5mi of property — the "At Location" value. */
   atLocation: number | null;

@@ -241,6 +241,7 @@ export async function registerAllRunners() {
   const { cocorahsBackfill } = await import('./backfill/cocorahsBackfill.js');
   const { spcWcmBackfill } = await import('./backfill/spcWcmBackfill.js');
   const { iemVtecBackfill } = await import('./backfill/iemVtecBackfill.js');
+  const { mrmsBackfill } = await import('./backfill/mrmsBackfill.js');
 
   backfillOrchestrator.register(noaaNceiBackfill);
   backfillOrchestrator.register(iemLsrBackfill);
@@ -248,4 +249,5 @@ export async function registerAllRunners() {
   backfillOrchestrator.register(cocorahsBackfill);
   backfillOrchestrator.register(spcWcmBackfill);
   backfillOrchestrator.register(iemVtecBackfill);
+  backfillOrchestrator.register(mrmsBackfill);
 }
