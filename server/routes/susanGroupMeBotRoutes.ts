@@ -1047,7 +1047,8 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
 
     // REBUILD MODE — reply with a scripted "being upgraded" message per rep (not spam).
     // Set SUSAN_REBUILD_MODE=true in Railway env while we're rewiring her internals.
-    if (process.env.SUSAN_REBUILD_MODE === 'true') {
+    // Test-mode header bypasses rebuild mode so the harness can exercise the full pipeline.
+    if (process.env.SUSAN_REBUILD_MODE === 'true' && !testMode) {
       const senderKey = `${msg.user_id || msg.sender_id || msg.name}`;
       // @ts-ignore — we hang a rebuildGreeted set on globalThis; survives function calls, resets on redeploy
       const greeted: Set<string> = (globalThis as any).__susanRebuildGreeted ||
