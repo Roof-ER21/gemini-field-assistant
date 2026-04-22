@@ -68,7 +68,10 @@ const MRMSSwathPolygonLayer: React.FC<MRMSSwathPolygonLayerProps> = ({
   selectedDate,
   stormBounds,
   anchorTimestamp,
-  opacity = 0.55,
+  // Default lifted from 0.55 → 0.7. At 0.55 the light-trace colors vanished
+  // against tan/grey basemap tiles; 0.7 keeps roads legible while making the
+  // swath unmistakable.
+  opacity = 0.7,
   onDataLoaded,
 }) => {
   const map = useMap();

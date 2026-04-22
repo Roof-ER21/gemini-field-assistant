@@ -38,75 +38,86 @@ export interface HailLevel {
   severity: 'trace' | 'minor' | 'moderate' | 'severe' | 'very_severe' | 'extreme';
 }
 
+/**
+ * Palette tuned for readability over basemap:
+ *  - Avoid pure web primaries (#00FF00, #FFFF00, #FF0000) — look electric/amateur
+ *    and hurt fidelity at 55-75% fill opacity over grey/tan roads.
+ *  - Warm-biased yellows and saturated-but-not-maxed oranges/reds read clearly
+ *    at 70% fill.
+ *  - Consistent rgba alpha (220) for raster; layers apply their own fill-opacity
+ *    on top so fills stay visible without drowning the basemap.
+ *  - Inspired by NWS hail-analysis coloring and meteorologist conventions;
+ *    tweaked for roof-sales context (punchier mid-range so "quarter" jumps out).
+ */
 export const HAIL_LEVELS: HailLevel[] = [
   {
     minInches: 0.25, maxInches: 0.5,
     label: '1/4"', reference: 'pea', longLabel: 'Pea (1/4")',
-    color: '#90EE90',
-    rgba: [144, 238, 144, 180],
+    color: '#A8D98A',
+    rgba: [168, 217, 138, 210],
     severity: 'trace',
   },
   {
     minInches: 0.5, maxInches: 0.75,
     label: '1/2"', reference: 'marble', longLabel: 'Marble (1/2")',
-    color: '#00FF00',
-    rgba: [0, 255, 0, 200],
+    color: '#6DC04F',
+    rgba: [109, 192, 79, 215],
     severity: 'trace',
   },
   {
     minInches: 0.75, maxInches: 1.0,
     label: '3/4"', reference: 'penny', longLabel: 'Penny (3/4")',
-    color: '#FFFF00',
-    rgba: [255, 255, 0, 210],
+    color: '#F2D530',
+    rgba: [242, 213, 48, 220],
     severity: 'minor',
   },
   {
     minInches: 1.0, maxInches: 1.25,
     label: '1"', reference: 'quarter', longLabel: 'Quarter (1")',
-    color: '#FFA500',
-    rgba: [255, 165, 0, 220],
+    color: '#F5A623',
+    rgba: [245, 166, 35, 225],
     severity: 'moderate',
   },
   {
     minInches: 1.25, maxInches: 1.5,
     label: '1 1/4"', reference: 'half-dollar', longLabel: 'Half-Dollar (1 1/4")',
-    color: '#FF8C00',
-    rgba: [255, 140, 0, 225],
+    color: '#F07A1B',
+    rgba: [240, 122, 27, 228],
     severity: 'moderate',
   },
   {
     minInches: 1.5, maxInches: 1.75,
     label: '1 1/2"', reference: 'ping-pong', longLabel: 'Ping-Pong (1 1/2")',
-    color: '#FF6600',
-    rgba: [255, 102, 0, 230],
+    color: '#E3511A',
+    rgba: [227, 81, 26, 232],
     severity: 'severe',
   },
   {
     minInches: 1.75, maxInches: 2.0,
     label: '1 3/4"', reference: 'golf-ball', longLabel: 'Golf Ball (1 3/4")',
-    color: '#FF0000',
-    rgba: [255, 0, 0, 235],
+    color: '#D0021B',
+    rgba: [208, 2, 27, 236],
     severity: 'severe',
   },
   {
     minInches: 2.0, maxInches: 2.5,
     label: '2"', reference: 'lime', longLabel: 'Lime (2")',
-    color: '#CC0000',
-    rgba: [204, 0, 0, 240],
+    color: '#A50E1A',
+    rgba: [165, 14, 26, 240],
     severity: 'very_severe',
   },
   {
     minInches: 2.5, maxInches: 3.0,
     label: '2 1/2"', reference: 'tennis-ball', longLabel: 'Tennis Ball (2 1/2")',
-    color: '#8B0000',
-    rgba: [139, 0, 0, 245],
+    color: '#7A0917',
+    rgba: [122, 9, 23, 244],
     severity: 'very_severe',
   },
   {
     minInches: 3.0, maxInches: Infinity,
     label: '3"+', reference: 'softball', longLabel: 'Softball (3"+)',
-    color: '#800080',
-    rgba: [128, 0, 128, 250],
+    color: '#6B2D9B',
+    rgba: [107, 45, 155, 248],
     severity: 'extreme',
   },
 ];
