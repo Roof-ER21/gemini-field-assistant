@@ -1434,6 +1434,19 @@ router.post('/generate-report', async (req, res) => {
                     radarTimestamp: radarTs
                 };
             }));
+            // PDF's "Storm Radar Evidence" section reads `nexradImage` (single buffer).
+            // Lift the first non-null per-alert image into that field so the section
+            // renders. Without this the radar was fetched but never shown — the
+            // warnings card copy says "radar already shown in Storm Radar Evidence"
+            // but that section was gated on input.nexradImage which nothing was
+            // setting when synthetic alerts ran.
+            const firstWithImage = nwsAlertImages.find((a) => a.radarImage);
+            if (firstWithImage && firstWithImage.radarImage) {
+                nexradResult = {
+                    imageBuffer: firstWithImage.radarImage,
+                    timestamp: firstWithImage.radarTimestamp,
+                };
+            }
             console.log(`📡 Fetched ${nwsAlertImages.filter(a => a.radarImage).length}/${alertsToProcess.length} per-alert NEXRAD images (${realAlerts.length > 0 ? 'real NWS' : 'synthetic from events'})`);
         }
         else if (includeNexrad) {

@@ -1061,7 +1061,7 @@ export class PDFReportServiceV2 {
 
     doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
        .text(
-         `Each row is one storm day. Distance is the closest confirmed hail to the property. IDs (NCEI/SPC/Radar site/WFO) can be independently verified.`,
+         `Each row is one storm day, consolidated across all sources. Max Hail is the largest verified size for that day; Closest is the distance to the nearest confirmed observation; Obs is how many source records confirm the day. IDs (NCEI/SPC/Radar site/WFO) can be independently verified.`,
          this.M, doc.y, { width: this.CW }
        );
     doc.moveDown(0.4);
@@ -1111,32 +1111,64 @@ export class PDFReportServiceV2 {
       return codes.join(' + ');
     };
 
-    const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Traceability ID'];
-    const hailWidths = [68, 68, 48, 56, this.CW - 240];
+    const hailHeaders = ['Storm Date', 'Sources', 'Max Hail', 'Closest', 'Obs', 'Traceability ID'];
+    const hailWidths = [70, 80, 48, 48, 32, this.CW - 278];
 
-    const hailRows: string[][] = [];
-    filteredSelectedIhm.forEach(e => {
-      const trace = buildTraceability(e as any);
-      hailRows.push([
-        this.fmtDateTimeET(e.date),
-        dataSourceLabel(e.source, e.comments),
-        e.hailSize ? `${e.hailSize.toFixed(2)}"` : '---',
-        e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        trace || 'No IDs available',
-      ]);
-    });
-    filteredSelectedNoaaHail.forEach(e => {
-      const trace = buildTraceability(e as any);
-      hailRows.push([
-        this.fmtDateTimeET(e.date),
-        dataSourceLabel(e.location, e.comments),
-        e.magnitude ? `${e.magnitude.toFixed(2)}"` : '---',
-        e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        trace || 'No IDs available',
-      ]);
-    });
+    // Consolidate by storm day — one row per date instead of one row per
+    // verified_hail_events record. Prior version emitted 8+ identical-timestamp
+    // rows for a single storm (one per MRMS bucket), causing multi-page runoff.
+    interface HailDayAgg {
+      date: string; maxSize: number; minDist: number; obs: number;
+      sourceCodes: Set<string>;
+      traceBits: Set<string>;
+    }
+    const hailByDay = new Map<string, HailDayAgg>();
 
-    hailRows.sort((a, b) => new Date(b[0].split('\n')[0]).getTime() - new Date(a[0].split('\n')[0]).getTime());
+    const addHail = (
+      rawDate: string | undefined,
+      size: number | undefined,
+      dist: number | undefined,
+      srcLabel: string,
+      e: any,
+    ) => {
+      if (!rawDate) return;
+      const dk = this.getDateKey(rawDate) || rawDate.slice(0, 10);
+      let g = hailByDay.get(dk);
+      if (!g) {
+        g = { date: rawDate, maxSize: 0, minDist: 99, obs: 0, sourceCodes: new Set(), traceBits: new Set() };
+        hailByDay.set(dk, g);
+      }
+      if (size && size > g.maxSize) g.maxSize = size;
+      if (dist != null && dist < g.minDist) g.minDist = dist;
+      g.obs += 1;
+      // Merge source codes from dataSourceLabel on every observation.
+      for (const c of srcLabel.split(' + ')) g.sourceCodes.add(c);
+      // Collect traceability tokens (bits).
+      const bits = buildTraceability(e).split(' • ').filter(Boolean);
+      for (const b of bits) g.traceBits.add(b);
+    };
+
+    filteredSelectedIhm.forEach((e) =>
+      addHail(e.date, e.hailSize, e.distanceMiles, dataSourceLabel(e.source, e.comments), e));
+    filteredSelectedNoaaHail.forEach((e) =>
+      addHail(e.date, e.magnitude, e.distanceMiles, dataSourceLabel(e.location, e.comments), e));
+
+    const hailRows: string[][] = Array.from(hailByDay.values())
+      .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0))
+      .map((g) => {
+        const sources = Array.from(g.sourceCodes).join(' + ') || 'NOAA';
+        // Cap ID list at ~2 per day to keep rows tight; rest of IDs still
+        // auditable via the same sources.
+        const traceList = Array.from(g.traceBits).slice(0, 2).join(' • ');
+        return [
+          this.fmtDateET(g.date),
+          sources,
+          g.maxSize > 0 ? `${g.maxSize.toFixed(2)}"` : '---',
+          g.minDist < 99 ? `${g.minDist.toFixed(1)} mi` : '---',
+          String(g.obs),
+          traceList || 'No IDs available',
+        ];
+      });
 
     if (hailRows.length > 0) {
       this.drawTable(doc, hailHeaders, hailRows, hailWidths, { boldColumns: [2] });
@@ -1155,24 +1187,45 @@ export class PDFReportServiceV2 {
 
       doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
          .text(
-           `Each row is one storm day. Ground-reported wind events from NWS/NOAA spotters and ASOS stations.`,
+           `Each row is one storm day, consolidated across ground-report sources (NWS/NOAA spotters, ASOS stations). Peak Wind is the highest verified gust that day; Closest is the nearest observation; Obs counts confirming records.`,
            this.M, doc.y, { width: this.CW }
          );
       doc.moveDown(0.4);
 
-      const windHeaders = ['Date / Time', 'Data Source', 'Wind Speed', 'Distance', 'Traceability ID'];
-      const windWidths = [68, 68, 52, 56, this.CW - 244];
+      const windHeaders = ['Storm Date', 'Sources', 'Peak Wind', 'Closest', 'Obs', 'Traceability ID'];
+      const windWidths = [70, 80, 52, 48, 32, this.CW - 282];
 
-      const windRows: string[][] = windObsNoaa.map(e => {
-        const trace = buildTraceability(e as any);
-        return [
-          this.fmtDateTimeET(e.date),
-          dataSourceLabel(e.location, e.comments),
-          e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
-          e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-          trace || 'No IDs available',
-        ];
+      interface WindDayAgg {
+        date: string; maxKts: number; minDist: number; obs: number;
+        sourceCodes: Set<string>; traceBits: Set<string>;
+      }
+      const windByDay = new Map<string, WindDayAgg>();
+      windObsNoaa.forEach((e) => {
+        if (!e.date) return;
+        const dk = this.getDateKey(e.date) || e.date.slice(0, 10);
+        let g = windByDay.get(dk);
+        if (!g) {
+          g = { date: e.date, maxKts: 0, minDist: 99, obs: 0, sourceCodes: new Set(), traceBits: new Set() };
+          windByDay.set(dk, g);
+        }
+        const kts = Number(e.magnitude) || 0;
+        if (kts > g.maxKts) g.maxKts = kts;
+        if (e.distanceMiles != null && e.distanceMiles < g.minDist) g.minDist = e.distanceMiles;
+        g.obs += 1;
+        for (const c of dataSourceLabel(e.location, e.comments).split(' + ')) g.sourceCodes.add(c);
+        for (const b of buildTraceability(e as any).split(' • ').filter(Boolean)) g.traceBits.add(b);
       });
+
+      const windRows: string[][] = Array.from(windByDay.values())
+        .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0))
+        .map((g) => [
+          this.fmtDateET(g.date),
+          Array.from(g.sourceCodes).join(' + ') || 'NOAA',
+          g.maxKts > 0 ? `${Math.round(g.maxKts)} kts` : '---',
+          g.minDist < 99 ? `${g.minDist.toFixed(1)} mi` : '---',
+          String(g.obs),
+          Array.from(g.traceBits).slice(0, 2).join(' • ') || 'No IDs available',
+        ]);
 
       this.drawTable(doc, windHeaders, windRows, windWidths, { boldColumns: [2] });
     }
