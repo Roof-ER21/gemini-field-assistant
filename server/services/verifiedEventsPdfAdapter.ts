@@ -23,6 +23,11 @@ interface HailEvent {
   source: string;
   distanceMiles?: number;
   comments?: string;
+  noaaEventId?: string;
+  spcOmId?: string;
+  radarSite?: string;
+  nwsForecastOffice?: string;
+  cocorahsStation?: string;
 }
 
 interface NOAAEvent {
@@ -35,6 +40,49 @@ interface NOAAEvent {
   location: string;
   distanceMiles?: number;
   comments?: string;
+  noaaEventId?: string;
+  spcOmId?: string;
+  radarSite?: string;
+  nwsForecastOffice?: string;
+  cocorahsStation?: string;
+}
+
+/**
+ * Infer NWS Forecast Office from a radar site (WSR_ID). Only maps the ones
+ * relevant to our VA/MD/PA/neighbors coverage.
+ */
+function wfoFromRadarSite(wsrId: string | null | undefined): string | undefined {
+  if (!wsrId) return undefined;
+  const site = wsrId.toUpperCase().trim();
+  const map: Record<string, string> = {
+    KLWX: 'LWX',  // Sterling VA — Baltimore/Washington WFO
+    KAKQ: 'AKQ',  // Wakefield VA — Wakefield WFO
+    KFCX: 'RNK',  // Blacksburg VA — Blacksburg/Roanoke WFO
+    KMHX: 'MHX',  // Morehead City NC
+    KDIX: 'PHI',  // Philadelphia/Mt Holly NJ WFO
+    KCCX: 'CTP',  // State College PA
+    KPBZ: 'PBZ',  // Pittsburgh PA
+    KDOX: 'LWX',  // Dover DE (covered by LWX or PHI depending on area)
+    KRLX: 'RLX',  // Charleston WV
+    KBGM: 'BGM',  // Binghamton NY
+    KCLE: 'CLE',  // Cleveland OH
+  };
+  return map[site];
+}
+
+function extractSourceIds(row: any): {
+  noaaEventId?: string; spcOmId?: string; radarSite?: string;
+  nwsForecastOffice?: string; cocorahsStation?: string;
+} {
+  const sd = row.source_details || {};
+  const noaaEventId = sd.noaa_ncei?.event_id ? String(sd.noaa_ncei.event_id) : undefined;
+  const spcOmId = sd.spc_wcm?.om_id ? String(sd.spc_wcm.om_id) : undefined;
+  const radarSite = sd.ncei_swdi?.wsr_id ? String(sd.ncei_swdi.wsr_id) : undefined;
+  const cocorahsStation = sd.cocorahs?.station_number ? String(sd.cocorahs.station_number) : undefined;
+  // WFO: prefer IEM LSR's wfo field, fall back to radar-site mapping
+  const nwsForecastOffice = (sd.iem_lsr?.wfo && String(sd.iem_lsr.wfo))
+    || wfoFromRadarSite(radarSite);
+  return { noaaEventId, spcOmId, radarSite, nwsForecastOffice, cocorahsStation };
 }
 
 function severityFor(hailInches: number | null): 'minor' | 'moderate' | 'severe' {
@@ -101,6 +149,7 @@ export class VerifiedEventsPdfAdapter {
         hail_size_inches, wind_mph, tornado_ef_rank, state,
         source_noaa_ncei, source_spc_wcm, source_ncei_swdi, source_iem_lsr,
         source_cocorahs, source_rep_report, source_customer_report, source_hailtrace, source_ihm,
+        source_details,
         ${haversine} AS distance_miles
       FROM ${table}
       WHERE ${haversine} <= $3
@@ -134,6 +183,11 @@ export class VerifiedEventsPdfAdapter {
       location: string;
       distanceMiles: number;
       sources: string;
+      noaaEventId?: string;
+      spcOmId?: string;
+      radarSite?: string;
+      nwsForecastOffice?: string;
+      cocorahsStation?: string;
     }>();
 
     for (const row of result.rows) {
@@ -145,6 +199,7 @@ export class VerifiedEventsPdfAdapter {
       if (row.hail_size_inches != null && Number(row.hail_size_inches) > 0) {
         const hailSize = Number(row.hail_size_inches);
         const dist = Number(row.distance_miles);
+        const ids = extractSourceIds(row);
         const e: HailEvent = {
           id: row.id,
           date: eventDateIso,
@@ -155,6 +210,7 @@ export class VerifiedEventsPdfAdapter {
           source: sources,
           distanceMiles: dist,
           comments: `${hailSize.toFixed(2)}" hail at ${dist.toFixed(1)}mi — ${sources}`,
+          ...ids,
         };
 
         // Keep every observation for the Historical table (it buckets by distance)
@@ -181,6 +237,7 @@ export class VerifiedEventsPdfAdapter {
         ? row.event_date
         : new Date(row.event_date).toISOString().slice(0, 10);
 
+      const ids = extractSourceIds(row);
       const addOrMax = (
         type: 'hail' | 'wind' | 'tornado',
         mag: number,
@@ -201,9 +258,9 @@ export class VerifiedEventsPdfAdapter {
             location: row.state ?? 'Event',
             distanceMiles: existing && existing.distanceMiles < distance ? existing.distanceMiles : distance,
             sources,
+            ...ids,
           });
         } else if (existing && distance < existing.distanceMiles) {
-          // Not bigger, but closer — keep the closer distance for display
           existing.distanceMiles = distance;
         }
       };
@@ -232,6 +289,11 @@ export class VerifiedEventsPdfAdapter {
           : a.eventType === 'wind'
             ? `${a.magnitude} mph max wind (${a.location}) — ${a.sources}`
             : `Tornado EF${a.magnitude} (${a.location}) — ${a.sources}`,
+      noaaEventId: a.noaaEventId,
+      spcOmId: a.spcOmId,
+      radarSite: a.radarSite,
+      nwsForecastOffice: a.nwsForecastOffice,
+      cocorahsStation: a.cocorahsStation,
     }));
 
     // Sort: most recent first, then largest magnitude first

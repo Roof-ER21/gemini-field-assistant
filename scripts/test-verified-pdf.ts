@@ -74,11 +74,14 @@ async function main() {
     }).catch((e) => { console.log(`    map failed: ${e.message}`); return null; });
 
     console.log(`  Fetching NEXRAD radar…`);
-    // Find most recent actionable storm date for this property and pull radar for it
+    // For dated reports, always pull radar for the target storm date.
+    // Otherwise pick the most recent big storm at the property for context.
     const latestBigStorm = events
       .filter((e) => (e.hailSize || 0) >= 1.0 && (e.distanceMiles ?? 99) <= 5)
       .sort((a, b) => b.date.localeCompare(a.date))[0];
-    const nexradDate = latestBigStorm?.date || new Date().toISOString().slice(0, 10);
+    const nexradDate = target.dateOfLoss
+      || latestBigStorm?.date
+      || new Date().toISOString().slice(0, 10);
     const nexrad = await fetchNexradImage({
       lat: target.lat,
       lng: target.lng,

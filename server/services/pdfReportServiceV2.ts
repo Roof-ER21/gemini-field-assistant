@@ -45,6 +45,12 @@ interface HailEvent {
   stormSpeed?: number;
   duration?: number;
   comments?: string;
+  // Adjuster-facing traceability IDs (optional)
+  noaaEventId?: string;              // NOAA NCEI Storm Events EVENT_ID
+  spcOmId?: string;                  // SPC Omega ID
+  radarSite?: string;                // NEXRAD WSR-88D radar site (e.g., KLWX)
+  nwsForecastOffice?: string;        // NWS WFO code (e.g., LWX, AKQ, PHI)
+  cocorahsStation?: string;          // CoCoRaHS station number
 }
 
 interface NOAAEvent {
@@ -57,6 +63,11 @@ interface NOAAEvent {
   location: string;
   distanceMiles?: number;
   comments?: string;
+  noaaEventId?: string;
+  spcOmId?: string;
+  radarSite?: string;
+  nwsForecastOffice?: string;
+  cocorahsStation?: string;
 }
 
 export type ReportFilter = 'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only';
@@ -933,26 +944,42 @@ export class PDFReportServiceV2 {
        );
     doc.moveDown(0.4);
 
-    const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Observation Details'];
-    const hailWidths = [75, 70, 50, 65, this.CW - 260];
+    // Helper to build the traceability string (Event ID / Radar / WFO / Station)
+    const buildTraceability = (e: {
+      noaaEventId?: string; spcOmId?: string; radarSite?: string;
+      nwsForecastOffice?: string; cocorahsStation?: string;
+    }): string => {
+      const bits: string[] = [];
+      if (e.noaaEventId) bits.push(`NCEI ID ${e.noaaEventId}`);
+      if (e.spcOmId) bits.push(`SPC #${e.spcOmId}`);
+      if (e.cocorahsStation) bits.push(`Station ${e.cocorahsStation}`);
+      if (e.radarSite) bits.push(`Radar ${e.radarSite}`);
+      if (e.nwsForecastOffice) bits.push(`WFO ${e.nwsForecastOffice}`);
+      return bits.join(' • ');
+    };
+
+    const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Traceability ID'];
+    const hailWidths = [68, 68, 48, 56, this.CW - 240];
 
     const hailRows: string[][] = [];
     filteredSelectedIhm.forEach(e => {
+      const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
         'NEXRAD WSR-88D',
         e.hailSize ? `${e.hailSize.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || 'Radar-detected hail signature'
+        trace || 'Radar-detected hail signature',
       ]);
     });
     filteredSelectedNoaaHail.forEach(e => {
+      const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
         'NOAA Storm Events',
         e.magnitude ? `${e.magnitude.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || e.location || 'Ground observation'
+        trace || 'Ground observation',
       ]);
     });
 
@@ -980,16 +1007,19 @@ export class PDFReportServiceV2 {
          );
       doc.moveDown(0.4);
 
-      const windHeaders = ['Date / Time', 'Data Source', 'Wind Speed', 'Distance', 'Observation Details'];
-      const windWidths = [75, 70, 55, 65, this.CW - 265];
+      const windHeaders = ['Date / Time', 'Data Source', 'Wind Speed', 'Distance', 'Traceability ID'];
+      const windWidths = [68, 68, 52, 56, this.CW - 244];
 
-      const windRows: string[][] = windObsNoaa.map(e => [
-        this.fmtDateTimeET(e.date),
-        'NOAA Storm Events',
-        e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
-        e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || e.location || 'Ground observation'
-      ]);
+      const windRows: string[][] = windObsNoaa.map(e => {
+        const trace = buildTraceability(e as any);
+        return [
+          this.fmtDateTimeET(e.date),
+          'NOAA Storm Events',
+          e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
+          e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
+          trace || 'Ground observation',
+        ];
+      });
 
       this.drawTable(doc, windHeaders, windRows, windWidths, { boldColumns: [2] });
     }
