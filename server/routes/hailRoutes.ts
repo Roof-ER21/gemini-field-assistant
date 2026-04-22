@@ -39,9 +39,7 @@ import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPol
 import { computeStormImpact, type StormImpactPoint } from '../services/stormImpactService.js';
 import { getLiveMrmsSwathPolygons, type LiveMrmsProduct } from '../services/liveMrmsService.js';
 import { crossValidateHailtrace } from '../services/hailtraceValidationService.js';
-import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
-import { fetchMapImage } from '../services/mapImageService.js';
 import { compositeContourOverlay, compositeVectorSwathOverlay } from '../services/contourOverlayService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
