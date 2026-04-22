@@ -351,6 +351,133 @@ router.get('/search', async (req, res) => {
         console.error('NOAA search error:', e);
       }
 
+      // Merge in verified_hail_events_public (324K+ rows, multi-source backfill 2015→today).
+      // This is the primary historical source — NOAA NCEI, SPC WCM, IEM LSR, NCEI SWDI,
+      // MRMS, CoCoRaHS all unified. Bounding-box prefilter uses lat_bucket/lng_bucket
+      // indexes; app-layer haversine does final radius filtering.
+      try {
+        const pool: import('pg').Pool = req.app.get('pool');
+        const degPad = (radiusNum / 69) * 1.05; // 5% margin for bbox
+        const lonDegPad = degPad / Math.max(0.15, Math.cos((searchLat * Math.PI) / 180));
+        const sinceDateStr = new Date(Date.now() - yearsNum * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        const verifiedRows = await pool.query(
+          `SELECT
+             id, TO_CHAR(event_date, 'YYYY-MM-DD') AS date_str,
+             latitude, longitude, state,
+             hail_size_inches, wind_mph, tornado_ef_rank,
+             public_verification_count,
+             source_noaa_ncei, source_iem_lsr, source_ncei_swdi, source_mrms,
+             source_nws_alert, source_iem_vtec, source_cocorahs, source_spc_wcm,
+             source_hailtrace, source_ihm, source_rep_report
+           FROM verified_hail_events_public
+           WHERE event_date >= $1::date
+             AND latitude  BETWEEN $2 AND $3
+             AND longitude BETWEEN $4 AND $5
+             AND (hail_size_inches IS NOT NULL OR wind_mph IS NOT NULL OR tornado_ef_rank IS NOT NULL)
+           ORDER BY event_date DESC
+           LIMIT 2000`,
+          [
+            sinceDateStr,
+            searchLat - degPad,
+            searchLat + degPad,
+            searchLng - lonDegPad,
+            searchLng + lonDegPad,
+          ],
+        );
+
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const haversineMi = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+          const R = 3958.8;
+          const dLat = toRad(bLat - aLat);
+          const dLng = toRad(bLng - aLng);
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+          return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+        };
+
+        // noaaData keyed by date+lat-rounded+type so the frontend's date-based grouping is clean.
+        const seenKeys = new Set(
+          noaaData.map((e: any) => {
+            const d = String(e.date || '').slice(0, 10);
+            const lat2 = (Number(e.latitude) || 0).toFixed(2);
+            return `${d}|${lat2}|${(e.eventType || '').toLowerCase()}`;
+          })
+        );
+
+        let verifiedAdded = 0;
+        for (const r of verifiedRows.rows) {
+          const eLat = Number(r.latitude);
+          const eLng = Number(r.longitude);
+          const dist = haversineMi(searchLat, searchLng, eLat, eLng);
+          if (dist > radiusNum) continue;
+
+          const hail = r.hail_size_inches != null ? Number(r.hail_size_inches) : null;
+          const wind = r.wind_mph != null ? Number(r.wind_mph) : null;
+          const srcLabels: string[] = [];
+          if (r.source_noaa_ncei) srcLabels.push('NOAA');
+          if (r.source_spc_wcm) srcLabels.push('SPC');
+          if (r.source_iem_lsr) srcLabels.push('NWS LSR');
+          if (r.source_ncei_swdi) srcLabels.push('NEXRAD');
+          if (r.source_mrms) srcLabels.push('MRMS');
+          if (r.source_cocorahs) srcLabels.push('CoCoRaHS');
+          if (r.source_nws_alert || r.source_iem_vtec) srcLabels.push('NWS Warning');
+          if (r.source_hailtrace) srcLabels.push('HailTrace');
+          if (r.source_ihm) srcLabels.push('IHM');
+          if (r.source_rep_report) srcLabels.push('Rep Report');
+          const primarySource = srcLabels[0] || 'Verified Event';
+          const sourceAttribution = srcLabels.length > 1 ? `${primarySource} (+${srcLabels.length - 1} more)` : primarySource;
+
+          // Emit up to two event rows per db row: one for hail, one for wind,
+          // so the frontend filter (Hail/Wind) shows each where appropriate.
+          if (hail && hail > 0) {
+            const key = `${r.date_str}|${eLat.toFixed(2)}|hail`;
+            if (!seenKeys.has(key)) {
+              noaaData.push({
+                id: `verified-${r.id}-h`,
+                eventType: 'Hail',
+                date: r.date_str,
+                latitude: eLat,
+                longitude: eLng,
+                magnitude: hail,
+                state: r.state || '',
+                county: '',
+                location: sourceAttribution,
+                narrative: `${hail}" hail verified by ${srcLabels.join(', ') || 'multi-source'} (${r.public_verification_count || 1} source${(r.public_verification_count || 1) === 1 ? '' : 's'}) at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
+                source: sourceAttribution,
+                distanceMiles: dist,
+              });
+              seenKeys.add(key);
+              verifiedAdded++;
+            }
+          }
+          if (wind && wind > 0) {
+            const key = `${r.date_str}|${eLat.toFixed(2)}|thunderstorm wind`;
+            if (!seenKeys.has(key)) {
+              noaaData.push({
+                id: `verified-${r.id}-w`,
+                eventType: 'Thunderstorm Wind',
+                date: r.date_str,
+                latitude: eLat,
+                longitude: eLng,
+                magnitude: wind,
+                state: r.state || '',
+                county: '',
+                location: sourceAttribution,
+                narrative: `${wind} mph wind verified by ${srcLabels.join(', ') || 'multi-source'} (${r.public_verification_count || 1} source${(r.public_verification_count || 1) === 1 ? '' : 's'}) at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
+                source: sourceAttribution,
+                distanceMiles: dist,
+              });
+              seenKeys.add(key);
+              verifiedAdded++;
+            }
+          }
+        }
+        console.log(`[verified_hail_events] Merged ${verifiedAdded} events (bbox=${verifiedRows.rows.length}) for search at (${searchLat.toFixed(3)},${searchLng.toFixed(3)}) radius=${radiusNum}mi years=${yearsNum}`);
+      } catch (e) {
+        console.error('[verified_hail_events] Merge error:', (e as Error).message);
+      }
+
       // Also query local storm_alerts to fill the SPC→NOAA gap (days 8-30+)
       try {
         const pool: import('pg').Pool = req.app.get('pool');
@@ -408,7 +535,7 @@ router.get('/search', async (req, res) => {
       // Fill the NOAA-lag gap (3-14 days) with live MRMS radar for the last 3 days.
       // NOAA SED publishes on a delay; MRMS updates every 30 min. Without this,
       // reps searching an address on a storm day see "no events" until NOAA catches up.
-      const dataSource = ['NOAA', 'Local Storm Alerts'];
+      const dataSource = ['NOAA', 'Verified Hail Events (2015→today)', 'Local Storm Alerts'];
       try {
         const mrmsRecent = await getRecentMrmsHailAtPoint(searchLat, searchLng, 3);
         if (mrmsRecent.length > 0) {
