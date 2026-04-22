@@ -63,6 +63,7 @@ import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
+import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
@@ -9357,6 +9358,7 @@ app.use('/api/susan', susanRoutes);
 
 // Register Susan Agent routes (ReAct loop with Gemini function calling)
 app.use('/api/susan/agent', createSusanAgentRoutes(pool));
+app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
