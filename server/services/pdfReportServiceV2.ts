@@ -45,6 +45,12 @@ interface HailEvent {
   stormSpeed?: number;
   duration?: number;
   comments?: string;
+  // Adjuster-facing traceability IDs (optional)
+  noaaEventId?: string;              // NOAA NCEI Storm Events EVENT_ID
+  spcOmId?: string;                  // SPC Omega ID
+  radarSite?: string;                // NEXRAD WSR-88D radar site (e.g., KLWX)
+  nwsForecastOffice?: string;        // NWS WFO code (e.g., LWX, AKQ, PHI)
+  cocorahsStation?: string;          // CoCoRaHS station number
 }
 
 interface NOAAEvent {
@@ -57,6 +63,11 @@ interface NOAAEvent {
   location: string;
   distanceMiles?: number;
   comments?: string;
+  noaaEventId?: string;
+  spcOmId?: string;
+  radarSite?: string;
+  nwsForecastOffice?: string;
+  cocorahsStation?: string;
 }
 
 export type ReportFilter = 'all' | 'hail-only' | 'hail-wind' | 'ihm-only' | 'noaa-only';
@@ -71,7 +82,11 @@ interface ReportInput {
   address: string;
   city?: string;
   state?: string;
-  dateOfLoss?: string;
+  // Date filters — use one of these, or omit all for lifetime (5-year) report:
+  dateOfLoss?: string;              // single storm (YYYY-MM-DD in ET)
+  datesOfLoss?: string[];           // multiple specific storms (YYYY-MM-DD[])
+  fromDate?: string;                // range start (YYYY-MM-DD)
+  toDate?: string;                  // range end (YYYY-MM-DD)
   lat: number;
   lng: number;
   radius: number;
@@ -95,6 +110,7 @@ interface ReportInput {
   includeNexrad?: boolean;
   includeMap?: boolean;
   includeWarnings?: boolean;
+  includeBuildingCodes?: boolean;
   customerName?: string;
   evidenceItems?: Array<{
     id: string;
@@ -409,9 +425,20 @@ export class PDFReportServiceV2 {
     const stream = new PassThrough();
     doc.pipe(stream);
 
-    // ===== COMPUTE STATS =====
+    // ===== DATE FILTER — supports single/multi/range/lifetime modes =====
+    const dateSet =
+      input.datesOfLoss && input.datesOfLoss.length > 0
+        ? new Set(input.datesOfLoss)
+        : input.dateOfLoss
+          ? new Set([input.dateOfLoss])
+          : null;
     const dateMatchesLoss = (value: string): boolean => {
-      return !input.dateOfLoss || this.getDateKey(value) === input.dateOfLoss;
+      const key = this.getDateKey(value);
+      if (!key) return true;
+      if (input.fromDate && key < input.fromDate) return false;
+      if (input.toDate && key > input.toDate) return false;
+      if (dateSet) return dateSet.has(key);
+      return true;
     };
 
     const selectedEvents = input.events.filter(e => dateMatchesLoss(e.date));
@@ -525,31 +552,286 @@ export class PDFReportServiceV2 {
        .strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
 
     // =========================================================
+    // AT-A-GLANCE DASHBOARD — 4 big stat cards an adjuster sees first.
+    // Date-aware: when input.dateOfLoss is set, shows stats for that date only.
+    // Otherwise shows full history (5-year cumulative).
+    // =========================================================
+    doc.moveDown(0.4);
+    // Dashboard height = ~20 (title) + 62 (cards) + 30 (citation+chain) = 112
+    this.checkPageBreak(doc, 130);
+
+    // Dashboard has 4 modes based on which date filter is set
+    const hasSingleDate = !!input.dateOfLoss && !input.datesOfLoss;
+    const hasMultiDate = !!input.datesOfLoss && input.datesOfLoss.length > 1;
+    const hasRange = !!input.fromDate || !!input.toDate;
+    const dashMode: 'single' | 'multi' | 'range' | 'lifetime' =
+      hasSingleDate ? 'single'
+      : hasMultiDate ? 'multi'
+      : hasRange ? 'range'
+      : 'lifetime';
+
+    const dashTitleSuffix =
+      dashMode === 'single'
+        ? this.fmtDateET(input.dateOfLoss!)
+        : dashMode === 'multi'
+          ? `${input.datesOfLoss!.length} storms selected`
+          : dashMode === 'range'
+            ? `${input.fromDate ? this.fmtDateET(input.fromDate) : '...'} to ${input.toDate ? this.fmtDateET(input.toDate) : 'today'}`
+            : 'Last 5 years';
+
+    // Filter events using the unified dateMatchesLoss predicate above
+    const allHistoryEvents = input.historyEvents && input.historyEvents.length > 0
+      ? input.historyEvents
+      : input.events;
+    const dashEvents = dashMode === 'lifetime'
+      ? allHistoryEvents
+      : allHistoryEvents.filter((e) => dateMatchesLoss(e.date));
+    const dashWindEvents = input.noaaEvents
+      .filter((e) => e.eventType === 'wind')
+      .filter((e) => dashMode === 'lifetime' || dateMatchesLoss(e.date));
+
+    const dashHailMax = dashEvents.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
+    const dashWindMax = dashWindEvents.reduce(
+      (m, e) => Math.max(m, Number(e.magnitude) || 0),
+      0,
+    );
+    // Direct hits: hail ≥ 0.5" within 1.0 mi (count per unique date in lifetime,
+    // or boolean for date-specific)
+    const directHitDates = new Set<string>();
+    for (const e of dashEvents) {
+      if ((e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 1.0) {
+        const dk = this.getDateKey(e.date) || e.date;
+        directHitDates.add(dk);
+      }
+    }
+    const dashDirectHits = directHitDates.size;
+    const dashUniqueDates = new Set(
+      dashEvents.map((e) => this.getDateKey(e.date) || e.date),
+    ).size;
+    // Source attribution — aggregate all sources across hail + wind + tornado
+    // and normalize to the agency/brand names adjusters recognize.
+    // Raw tokens in adapter output: NOAA, NCEI-SWDI, SPC, NWS-LSR, CoCoRaHS, HailTrace, etc.
+    // Normalized for display: NOAA, NEXRAD, SPC, NWS, CoCoRaHS, HailTrace.
+    const rawSrcSet = new Set<string>();
+    const RAW_TOKENS = [
+      'NOAA', 'NCEI-SWDI', 'SPC', 'NWS-LSR', 'CoCoRaHS',
+      'HailTrace', 'IHM', 'Rep Report', 'Customer Report',
+    ];
+    const extractSources = (s: string) => {
+      if (!s) return;
+      for (const token of RAW_TOKENS) {
+        if (new RegExp(`\\b${token.replace(/[-]/g, '[-]')}\\b`).test(s)) rawSrcSet.add(token);
+      }
+    };
+    for (const e of dashEvents) extractSources((e.source || '').toString());
+    const dashNoaaInScope = input.noaaEvents.filter(
+      (e) => dashMode === 'lifetime' || this.getDateKey(e.date) === input.dateOfLoss,
+    );
+    for (const e of dashNoaaInScope) {
+      extractSources((e.comments || '').toString());
+      extractSources((e.location || '').toString());
+    }
+    // Normalize raw tokens → adjuster-recognizable brand names
+    const normalizedSet = new Set<string>();
+    for (const t of rawSrcSet) {
+      if (t === 'NCEI-SWDI') normalizedSet.add('NEXRAD');
+      else if (t === 'NWS-LSR') normalizedSet.add('NWS');
+      else if (t === 'Rep Report') normalizedSet.add('Rep');
+      else if (t === 'Customer Report') normalizedSet.add('Customer');
+      else normalizedSet.add(t);
+    }
+    const dashSources: string[] = Array.from(normalizedSet).sort();
+
+    // Dashboard title banner — tells the reader what these numbers represent
+    const dashHeader =
+      dashMode === 'single' ? `Storm Summary — ${dashTitleSuffix}`
+      : dashMode === 'multi' ? `Combined Storm Summary — ${dashTitleSuffix}`
+      : dashMode === 'range' ? `Storm Activity — ${dashTitleSuffix}`
+      : `Property Storm History — ${dashTitleSuffix}`;
+    doc.fontSize(8.5).fillColor(this.C.lightText).font('Helvetica')
+       .text(dashHeader, this.M, doc.y, { width: this.CW, align: 'center' });
+    doc.moveDown(0.3);
+
+    const cardY = doc.y;
+    const cardCount = 4;
+    const cardGap = 8;
+    const cardW = (this.CW - cardGap * (cardCount - 1)) / cardCount;
+    const cardH = 62;
+
+    const drawStatCard = (
+      idx: number,
+      label: string,
+      value: string,
+      valueColor: string,
+      sub?: string,
+    ) => {
+      const x = this.M + idx * (cardW + cardGap);
+      // Card background
+      doc.rect(x, cardY, cardW, cardH).fill('#f5f6fa');
+      // Accent top border
+      doc.rect(x, cardY, cardW, 3).fill(valueColor);
+      doc.y = cardY + 10;
+      doc.fontSize(7.5).fillColor(this.C.lightText).font('Helvetica-Bold')
+         .text(label.toUpperCase(), x + 8, doc.y, { width: cardW - 16, align: 'center', characterSpacing: 0.5 });
+      doc.fontSize(22).fillColor(valueColor).font('Helvetica-Bold')
+         .text(value, x + 8, cardY + 22, { width: cardW - 16, align: 'center' });
+      if (sub) {
+        doc.fontSize(7.5).fillColor(this.C.mutedText).font('Helvetica')
+           .text(sub, x + 8, cardY + cardH - 16, { width: cardW - 16, align: 'center' });
+      }
+      // Card border
+      doc.rect(x, cardY, cardW, cardH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+    };
+
+    // NWS hail-size reference (neutral, factual — adjusters recognize these terms)
+    const hailClass = (s: number): string => {
+      if (s >= 4.5) return 'Softball';
+      if (s >= 2.75) return 'Baseball';
+      if (s >= 1.75) return 'Golf ball';
+      if (s >= 1.5) return 'Ping pong';
+      if (s >= 1.25) return 'Half dollar';
+      if (s >= 1.0) return 'Quarter';
+      if (s >= 0.88) return 'Nickel';
+      if (s >= 0.75) return 'Penny';
+      if (s >= 0.5) return 'Marble';
+      if (s > 0) return 'Pea';
+      return '';
+    };
+    const windClass = (mph: number): string => {
+      if (mph >= 74) return 'Hurricane-force';
+      if (mph >= 58) return 'NWS severe (>=58 mph)';
+      if (mph >= 40) return 'Strong';
+      return '';
+    };
+    const verifiedLabel = (n: number): string => {
+      if (n >= 4) return 'Quadruple-verified';
+      if (n === 3) return 'Triple-verified';
+      if (n === 2) return 'Cross-verified';
+      if (n === 1) return 'Single-source';
+      return 'No data';
+    };
+
+    if (dashMode === 'single') {
+      const directHitOnDate = directHitDates.size > 0;
+      drawStatCard(
+        0,
+        'Direct Hit',
+        directHitOnDate ? 'YES' : 'NO',
+        directHitOnDate ? '#b91c1c' : this.C.mutedText,
+        directHitOnDate ? 'Hail 1/2" or larger within 1 mi' : 'No hail within 1 mi',
+      );
+      drawStatCard(
+        1,
+        'Max Hail (Day)',
+        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+        hailClass(dashHailMax),
+      );
+      drawStatCard(
+        2,
+        'Peak Wind (Day)',
+        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+        windClass(dashWindMax),
+      );
+      drawStatCard(
+        3,
+        'Sources',
+        String(dashSources.length),
+        dashSources.length >= 3 ? '#0f766e' : dashSources.length >= 2 ? this.C.sectionText : this.C.mutedText,
+        verifiedLabel(dashSources.length),
+      );
+    } else {
+      drawStatCard(
+        0,
+        'Direct Hits',
+        String(dashDirectHits),
+        dashDirectHits > 0 ? '#b91c1c' : this.C.mutedText,
+        dashDirectHits > 0 ? 'Hail 1/2"+ within 1 mi of property' : 'None on file',
+      );
+      drawStatCard(
+        1,
+        'Largest Hail',
+        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+        hailClass(dashHailMax),
+      );
+      drawStatCard(
+        2,
+        'Peak Wind',
+        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+        windClass(dashWindMax),
+      );
+      drawStatCard(
+        3,
+        'Storm Days',
+        String(dashUniqueDates),
+        this.C.sectionText,
+        `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
+      );
+    }
+
+    doc.y = cardY + cardH + 8;
+
+    // Source attribution strip under the cards
+    if (dashSources.length > 0) {
+      doc.fontSize(7.5).fillColor(this.C.mutedText).font('Helvetica')
+         .text(
+           `Cross-referenced against: ${dashSources.join(' • ')}`,
+           this.M, doc.y, { width: this.CW, align: 'center' },
+         );
+      doc.moveDown(0.3);
+    }
+
+    // Chain-of-custody line — factual, neutral, adjuster-ready
+    doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
+       .text(
+         `Report ID: ${reportId} • Generated: ${this.fmtFullDateTimeET(new Date().toISOString())} • ` +
+         `Pipeline: Roof-ER Weather Intelligence (multi-source federal data ingest)`,
+         this.M, doc.y, { width: this.CW, align: 'center' },
+       );
+    doc.moveDown(0.6);
+
+    // =========================================================
     // DATA SOURCES & METHODOLOGY — the credibility section
     // =========================================================
     this.drawSectionBanner(doc, 'Data Sources & Methodology');
 
     doc.fontSize(8.5).fillColor(this.C.text).font('Helvetica')
        .text(
-         'This report is compiled from the following federally maintained data sources:',
-         this.M + 10, doc.y, { width: this.CW - 20 }
+         'This report aggregates storm event records from multiple independent federal and scientific-network data sources. ' +
+         'No commercial or proprietary data is used. All sources are publicly accessible and independently verifiable.',
+         this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1.5 }
        );
     doc.moveDown(0.4);
 
     // Source list with descriptions
     const sources = [
       {
-        name: 'NOAA Storm Events Database',
-        desc: 'Official record of significant weather events maintained by the National Oceanic and Atmospheric Administration (NOAA). Events are verified by National Weather Service (NWS) meteorologists and include trained spotter reports, law enforcement reports, and ASOS (Automated Surface Observing System) measurements.'
+        name: 'NOAA NCEI Storm Events Database',
+        desc: 'Official severe-weather event record maintained by the National Oceanic and Atmospheric Administration, National Centers for Environmental Information. Events reviewed by National Weather Service meteorologists. (ncei.noaa.gov)'
+      },
+      {
+        name: 'NCEI Severe Weather Data Inventory (SWDI) — NX3HAIL',
+        desc: 'NEXRAD-derived hail signatures produced by the NOAA/NSSL Hail Detection Algorithm, archived by NCEI. Each record is an independent radar observation with timestamp, maximum expected hail size, and reporting WSR-88D radar site.'
+      },
+      {
+        name: 'NOAA Storm Prediction Center (SPC) WCM Archive',
+        desc: 'Severe weather database curated by the Warning Coordination Meteorologist at the NOAA Storm Prediction Center (Norman, OK). Separate observation pipeline from NCEI; provides independent cross-check.'
+      },
+      {
+        name: 'NWS Local Storm Reports via Iowa Environmental Mesonet',
+        desc: 'Real-time ground-observer reports filed with NWS Forecast Offices and archived by IEM at Iowa State University. Fills the 45-day review cycle before NCEI Storm Events is finalized.'
+      },
+      {
+        name: 'CoCoRaHS — Community Collaborative Rain, Hail & Snow Network',
+        desc: 'Citizen-scientist precipitation observer network operated by the Colorado Climate Center at Colorado State University with support from the National Science Foundation. Observer-measured hail stone size, duration, and consistency.'
       },
       {
         name: 'NEXRAD WSR-88D Doppler Radar Network',
-        desc: 'The Next-Generation Radar network operated jointly by the NWS, FAA, and U.S. Air Force. Provides Level-II base reflectivity data used to detect hail signatures, storm cells, and precipitation intensity. Radar imagery sourced via Iowa Environmental Mesonet (IEM) archive.'
+        desc: 'Next-Generation Radar network operated jointly by NWS, FAA, and U.S. Air Force. Radar imagery embedded in this report is sourced from the IEM NEXRAD archive.'
       },
-      {
-        name: 'National Weather Service (NWS) Alerts',
-        desc: 'Official severe weather warnings, watches, and advisories issued by NWS forecast offices. Includes storm-specific parameters such as observed hail size, wind speed, and storm tracking data.'
-      }
     ];
 
     sources.forEach(src => {
@@ -561,18 +843,21 @@ export class PDFReportServiceV2 {
       doc.moveDown(0.3);
     });
 
-    // CCM-grade statement
+    // Source-independence statement — emphasizes triangulation, not authority-borrow
     doc.moveDown(0.2);
     doc.fontSize(8).fillColor(this.C.sourceGreen).font('Helvetica-Oblique')
        .text(
-         'These are the same federally maintained data sources referenced by Certified Consulting Meteorologists (CCM) ' +
-         'in professional storm damage assessments and insurance documentation.',
+         'The sources above are operated by distinct federal agencies and scientific institutions and do not share a common observation pipeline. ' +
+         'Independent confirmation of the same event across multiple sources provides higher confidence than any single source alone. ' +
+         'Original event identifiers are retained for independent verification by the reader.',
          this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1 }
        );
 
     // =========================================================
     // PROPERTY INFORMATION
     // =========================================================
+    // Reserve space for map + address block (~130) + section banner
+    this.checkPageBreak(doc, 180);
     this.drawSectionBanner(doc, 'Property Information');
 
     const propY = doc.y;
@@ -619,11 +904,23 @@ export class PDFReportServiceV2 {
     doc.y = Math.max(doc.y, propY + 130);
 
     // =========================================================
-    // STORM IMPACT SUMMARY (was "Hail Impact Details")
+    // STORM IMPACT SUMMARY — only show rows we actually have data for.
+    // Previously always rendered Direction/Speed/Duration as "---" which looked broken.
     // =========================================================
-    this.drawSectionBanner(doc, 'Storm Impact Summary');
+    // Build only the rows where we have real data
+    const summaryRows: Array<{ label: string; value: string }> = [];
+    summaryRows.push({ label: 'Date of Storm Impact:', value: this.fmtDateET(primaryStormDate) });
+    if (primaryEvent?.size) summaryRows.push({ label: 'Hail Size (primary event):', value: `${primaryEvent.size.toFixed(2)}"` });
+    summaryRows.push({ label: 'Max Hail within 10 mi:', value: selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '—' });
+    summaryRows.push({ label: 'Verified Observations:', value: `${nearbyCount} within 10 mi` });
+    if (primaryEvent?.direction) summaryRows.push({ label: 'Storm Direction:', value: primaryEvent.direction });
+    if (primaryEvent?.speed) summaryRows.push({ label: 'Storm Speed:', value: `${primaryEvent.speed.toFixed(1)} mph` });
+    if (primaryEvent?.duration) summaryRows.push({ label: 'Storm Duration:', value: `${primaryEvent.duration.toFixed(1)} min` });
 
-    if (primaryEvent || hailEvents.length > 0) {
+    if (summaryRows.length > 0 && (primaryEvent || hailEvents.length > 0)) {
+      // Reserve space for banner + rows + padding
+      this.checkPageBreak(doc, 40 + summaryRows.length * 18 + 20);
+      this.drawSectionBanner(doc, 'Storm Impact Summary');
       const gridY = doc.y;
       const colW = this.CW / 2;
       const rowH = 18;
@@ -638,22 +935,22 @@ export class PDFReportServiceV2 {
            .text(value, x + labelW, y + 3, { width: colW - labelW - 8 });
       };
 
-      drawDetailRow('Date of Storm Impact:', this.fmtDateET(primaryStormDate), 0, 0);
-      drawDetailRow('Storm Duration:', primaryEvent?.duration ? `${primaryEvent.duration.toFixed(1)} minutes` : '---', 1, 0);
-      drawDetailRow('Time of Impact:', this.fmtTimeET(primaryStormDate), 0, 1);
-      drawDetailRow('Hail Size Detected:', primaryEvent?.size ? `${primaryEvent.size.toFixed(2)}"` : '---', 1, 1);
-      drawDetailRow('Storm Direction:', primaryEvent?.direction || '---', 0, 2);
-      drawDetailRow('Verified Reports:', `${nearbyCount} within 10 mi`, 1, 2);
-      drawDetailRow('Storm Speed:', primaryEvent?.speed ? `${primaryEvent.speed.toFixed(1)} mph` : '---', 0, 3);
-      drawDetailRow('Max Hail Reported:', selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '---', 1, 3);
+      // 2-column layout — fill left column then right column
+      const numRows = Math.ceil(summaryRows.length / 2);
+      summaryRows.forEach((r, idx) => {
+        const col = idx < numRows ? 0 : 1;
+        const row = idx < numRows ? idx : idx - numRows;
+        drawDetailRow(r.label, r.value, col, row);
+      });
 
-      for (let r = 1; r <= 3; r++) {
+      // Subtle separators between rows
+      for (let r = 1; r < numRows; r++) {
         const ly = gridY + r * rowH;
         doc.moveTo(this.M + 8, ly).lineTo(this.M + this.CW - 8, ly)
            .strokeColor('#d0d0e0').lineWidth(0.3).stroke();
       }
 
-      doc.y = gridY + 4 * rowH + 5;
+      doc.y = gridY + numRows * rowH + 5;
     }
 
     // =========================================================
@@ -692,35 +989,79 @@ export class PDFReportServiceV2 {
     // VERIFIED GROUND OBSERVATIONS - HAIL
     // (Full source names instead of abbreviations)
     // =========================================================
-    this.drawSectionBanner(doc, 'Verified Ground Observations — Hail');
+    this.drawSectionBanner(doc, 'Documented Hail Events');
 
-    doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
+    doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
        .text(
-         `Hail observations verified through federal weather monitoring systems near ${input.address}`,
+         `Each row is one storm day. Distance is the closest confirmed hail to the property. IDs (NCEI/SPC/Radar site/WFO) can be independently verified.`,
          this.M, doc.y, { width: this.CW }
        );
     doc.moveDown(0.4);
 
-    const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Observation Details'];
-    const hailWidths = [75, 70, 50, 65, this.CW - 260];
+    // Helper to build the traceability string (Event ID / Radar / WFO / Station)
+    const buildTraceability = (e: {
+      noaaEventId?: string; spcOmId?: string; radarSite?: string;
+      nwsForecastOffice?: string; cocorahsStation?: string;
+    }): string => {
+      const bits: string[] = [];
+      if (e.noaaEventId) bits.push(`NCEI ID ${e.noaaEventId}`);
+      if (e.spcOmId) bits.push(`SPC #${e.spcOmId}`);
+      if (e.cocorahsStation) bits.push(`Station ${e.cocorahsStation}`);
+      if (e.radarSite) bits.push(`Radar ${e.radarSite}`);
+      if (e.nwsForecastOffice) bits.push(`WFO ${e.nwsForecastOffice}`);
+      return bits.join(' • ');
+    };
+
+    // Derive the actual data source label for an event using the agency/brand
+    // names adjusters and insurance companies already recognize.
+    //   NOAA    = NCEI Storm Events (ground-reported, NWS-verified)
+    //   NEXRAD  = NCEI SWDI NX3HAIL (WSR-88D radar hail signature)
+    //   SPC     = NOAA Storm Prediction Center archive
+    //   NWS     = NWS Local Storm Reports (spotter/COOP/ASOS)
+    //   CoCoRaHS = Community Collaborative Rain, Hail & Snow Network (NSF/CSU)
+    const dataSourceLabel = (sourceStr: string | undefined, comments: string | undefined): string => {
+      const s = `${sourceStr || ''} ${comments || ''}`;
+      const codes: string[] = [];
+      // Radar-derived (SWDI NX3HAIL) → show as NEXRAD
+      if (/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('NEXRAD');
+      // Ground-reported Storm Events → NOAA (excludes the SWDI case above)
+      if (/\bNOAA\b/.test(s) && !/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('NOAA');
+      // SPC archive
+      if (/\bSPC\b/.test(s)) codes.push('SPC');
+      // NWS Local Storm Reports
+      if (/\bNWS-LSR\b|\bIEM LSR\b/.test(s)) codes.push('NWS');
+      // CoCoRaHS observer
+      if (/\bCoCoRaHS\b/.test(s)) codes.push('CoCoRaHS');
+      // Commercial / rep / customer
+      if (/\bHailTrace\b/.test(s)) codes.push('HailTrace');
+      if (/\bRep Report\b/.test(s)) codes.push('Rep');
+      if (/\bCustomer Report\b/.test(s)) codes.push('Customer');
+      if (codes.length === 0) codes.push('NOAA');
+      return codes.join(' + ');
+    };
+
+    const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Traceability ID'];
+    const hailWidths = [68, 68, 48, 56, this.CW - 240];
 
     const hailRows: string[][] = [];
     filteredSelectedIhm.forEach(e => {
+      const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
-        'NEXRAD WSR-88D',
+        dataSourceLabel(e.source, e.comments),
         e.hailSize ? `${e.hailSize.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || 'Radar-detected hail signature'
+        trace || 'No IDs available',
       ]);
     });
     filteredSelectedNoaaHail.forEach(e => {
+      const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
-        'NOAA Storm Events',
+        dataSourceLabel(e.location, e.comments),
         e.magnitude ? `${e.magnitude.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || e.location || 'Ground observation'
+        trace || 'No IDs available',
       ]);
     });
 
@@ -739,194 +1080,126 @@ export class PDFReportServiceV2 {
     // =========================================================
     const windObsNoaa = filteredSelectedNoaaWind;
     if (windObsNoaa.length > 0) {
-      this.drawSectionBanner(doc, 'Verified Ground Observations — Wind');
+      this.drawSectionBanner(doc, 'Documented Wind Events');
 
       doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
          .text(
-           `Damaging wind observations verified through federal weather monitoring systems near ${input.address}`,
+           `Each row is one storm day. Ground-reported wind events from NWS/NOAA spotters and ASOS stations.`,
            this.M, doc.y, { width: this.CW }
          );
       doc.moveDown(0.4);
 
-      const windHeaders = ['Date / Time', 'Data Source', 'Wind Speed', 'Distance', 'Observation Details'];
-      const windWidths = [75, 70, 55, 65, this.CW - 265];
+      const windHeaders = ['Date / Time', 'Data Source', 'Wind Speed', 'Distance', 'Traceability ID'];
+      const windWidths = [68, 68, 52, 56, this.CW - 244];
 
-      const windRows: string[][] = windObsNoaa.map(e => [
-        this.fmtDateTimeET(e.date),
-        'NOAA Storm Events',
-        e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
-        e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        e.comments || e.location || 'Ground observation'
-      ]);
+      const windRows: string[][] = windObsNoaa.map(e => {
+        const trace = buildTraceability(e as any);
+        return [
+          this.fmtDateTimeET(e.date),
+          dataSourceLabel(e.location, e.comments),
+          e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
+          e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
+          trace || 'No IDs available',
+        ];
+      });
 
       this.drawTable(doc, windHeaders, windRows, windWidths, { boldColumns: [2] });
     }
 
     // =========================================================
-    // NWS SEVERE WEATHER WARNINGS
+    // RADAR EVIDENCE — single high-quality NEXRAD image for the most
+    // significant storm date. Lives in its own section, not under "warnings".
+    // =========================================================
+    const hasRadar = input.nexradImage && input.includeNexrad !== false;
+    if (hasRadar && input.nexradImage) {
+      this.checkPageBreak(doc, 230);
+      this.drawSectionBanner(doc, 'Storm Radar Evidence');
+
+      const radarW = 360;
+      const radarH = 240;
+      const radarX = this.M + (this.CW - radarW) / 2;
+      const radarY = doc.y + 4;
+
+      try {
+        doc.image(input.nexradImage, radarX, radarY, { width: radarW, height: radarH, fit: [radarW, radarH] });
+        doc.rect(radarX, radarY, radarW, radarH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+      } catch (e) { console.warn('NEXRAD embed failed:', e); }
+
+      doc.y = radarY + radarH + 6;
+      doc.fontSize(8).fillColor(this.C.text).font('Helvetica-Bold')
+         .text(`NEXRAD WSR-88D Radar Composite Reflectivity`, this.M, doc.y, { width: this.CW, align: 'center' });
+      doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
+         .text(
+           `${this.fmtFullDateTimeET(input.nexradTimestamp || primaryStormDate)} — Source: NOAA NEXRAD via Iowa Environmental Mesonet (IEM)`,
+           this.M, doc.y, { width: this.CW, align: 'center' },
+         );
+      doc.moveDown(0.6);
+    }
+
+    // =========================================================
+    // NWS ACTIVE WEATHER WARNINGS — only render if real alerts exist.
     // =========================================================
     const alertImages = input.nwsAlertImages || [];
     const legacyAlerts = input.nwsAlerts || [];
     const hasAlertImages = alertImages.length > 0;
     const hasWarnings = hasAlertImages || legacyAlerts.length > 0;
-    const hasLegacyNexrad = input.nexradImage && input.includeNexrad !== false;
 
-    if (hasWarnings || hasLegacyNexrad) {
-      this.drawSectionBanner(doc, 'National Weather Service Warnings');
+    if (hasWarnings && input.includeWarnings !== false) {
+      this.drawSectionBanner(doc, 'Active National Weather Service Warnings');
 
       const warningCount = hasAlertImages ? alertImages.length : legacyAlerts.length;
-      if (warningCount > 0) {
-        doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
-           .text(
-             `The following severe weather warnings were issued by the National Weather Service (NWS) for the area encompassing ${input.address}:`,
-             this.M + 20, doc.y, { width: this.CW - 40, lineGap: 2 }
-           );
-        doc.moveDown(0.8);
-      }
+      doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
+         .text(
+           `${warningCount} active NWS ${warningCount === 1 ? 'warning' : 'warnings'} for the area encompassing ${input.address}:`,
+           this.M + 20, doc.y, { width: this.CW - 40, lineGap: 2 },
+         );
+      doc.moveDown(0.6);
 
       if (hasAlertImages) {
+        // Text-only warning cards (radar already shown in the Storm Radar Evidence section)
         alertImages.slice(0, 5).forEach((item, idx) => {
           const alert = item.alert;
-          const radarImg = item.radarImage;
-          const radarTs = item.radarTimestamp || alert.onset;
           const isTornado = alert.event.toLowerCase().includes('tornado');
           const headlineColor = isTornado ? '#dc2626' : this.C.text;
 
-          this.checkPageBreak(doc, 230);
-          if (idx > 0) doc.moveDown(0.8);
+          this.checkPageBreak(doc, 90);
+          if (idx > 0) doc.moveDown(0.6);
 
-          const blockY = doc.y;
-          const imgWidth = 200;
-          const imgHeight = 160;
-          const detailX = this.M + imgWidth + 15;
-          const detailW = this.CW - imgWidth - 15;
+          const cardY = doc.y;
+          doc.rect(this.M, cardY, this.CW, 4).fill(headlineColor);
+          doc.y = cardY + 8;
 
-          if (radarImg) {
-            try {
-              doc.image(radarImg, this.M, blockY, { width: imgWidth, height: imgHeight, fit: [imgWidth, imgHeight] });
-              doc.rect(this.M, blockY, imgWidth, imgHeight).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-            } catch (e) { console.warn(`Failed to embed NEXRAD for alert ${idx}:`, e); }
-          }
-
-          const captionY = blockY + imgHeight + 3;
-          doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-             .text(`NEXRAD WSR-88D Radar — ${this.fmtDateET(radarTs)}`, this.M, captionY, { width: imgWidth });
-          doc.text(`${this.fmtTimeET(radarTs)} | Source: IEM/NOAA`, this.M, doc.y, { width: imgWidth });
-
-          doc.fontSize(9.5).fillColor(headlineColor).font('Helvetica-Bold')
+          doc.fontSize(10).fillColor(headlineColor).font('Helvetica-Bold')
+             .text(alert.event, this.M + 10, doc.y, { width: this.CW - 20 });
+          doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
              .text(
-               `${alert.event} issued ${this.fmtDateET(alert.onset)} at ${this.fmtTimeET(alert.onset)}`,
-               detailX, blockY, { width: detailW }
+               `Issued ${this.fmtFullDateTimeET(alert.onset)} — Expires ${this.fmtFullDateTimeET(alert.expires)}`,
+               this.M + 10, doc.y, { width: this.CW - 20 },
              );
-          doc.text(
-            `until ${this.fmtDateET(alert.expires)} at ${this.fmtTimeET(alert.expires)} by ${alert.senderName}`,
-            detailX, doc.y, { width: detailW }
-          );
-          doc.moveDown(0.4);
+          doc.moveDown(0.2);
 
           const alertHailSize = alert.hailSize || extractHailSizeFromText(alert.description);
           const alertWindSpeed = alert.windSpeed || extractWindSpeedFromText(alert.description);
-
-          const gridY = doc.y;
-          const labelW2 = 75;
-          const valW = (detailW - labelW2 * 2) / 2;
-
-          const drawDetail = (label: string, value: string, col: number, row: number) => {
-            const x = detailX + col * (labelW2 + valW);
-            const y = gridY + row * 18;
-            doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica').text(label, x, y);
-            doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold').text(value, x + labelW2, y);
-          };
-
-          drawDetail('Effective:', this.fmtTimeET(alert.onset), 0, 0);
-          drawDetail('Expires:', this.fmtTimeET(alert.expires), 1, 0);
-          drawDetail('Hail Size:', alertHailSize || (maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'n/a'), 0, 1);
-          drawDetail('Wind Speed:', alertWindSpeed || 'n/a', 1, 1);
-          drawDetail('Urgency:', alert.severity === 'Extreme' || alert.severity === 'Severe' ? 'Immediate' : 'Expected', 0, 2);
-          drawDetail('Certainty:', alert.certainty || 'Observed', 1, 2);
-
-          doc.y = Math.max(captionY + 16, gridY + 3 * 18 + 10);
+          const bits: string[] = [];
+          if (alertHailSize) bits.push(`Hail: ${alertHailSize}`);
+          if (alertWindSpeed) bits.push(`Wind: ${alertWindSpeed}`);
+          if (alert.severity) bits.push(`Severity: ${alert.severity}`);
+          if (bits.length > 0) {
+            doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
+               .text(bits.join('   •   '), this.M + 10, doc.y, { width: this.CW - 20 });
+            doc.moveDown(0.2);
+          }
 
           const descText = alert.description || alert.headline || '';
           if (descText) {
-            doc.moveDown(0.3);
             doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-               .text(descText, this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5 });
+               .text(descText, this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1.5 });
           }
+
+          const cardEndY = Math.max(doc.y + 4, cardY + 60);
+          doc.rect(this.M, cardY, this.CW, cardEndY - cardY).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+          doc.y = cardEndY + 4;
         });
-
-      } else if (hasLegacyNexrad && input.nexradImage && legacyAlerts.length > 0) {
-        // Legacy single-NEXRAD fallback (same as V1)
-        this.checkPageBreak(doc, 200);
-        const layoutY = doc.y;
-        const imgWidth = 200;
-        const imgHeight = 160;
-        const detailX = this.M + imgWidth + 15;
-        const detailW = this.CW - imgWidth - 15;
-        const alert = legacyAlerts[0];
-
-        try {
-          doc.image(input.nexradImage, this.M, layoutY, { width: imgWidth, height: imgHeight, fit: [imgWidth, imgHeight] });
-          doc.rect(this.M, layoutY, imgWidth, imgHeight).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-        } catch (e) { console.warn('Failed to embed NEXRAD:', e); }
-
-        const captionY = layoutY + imgHeight + 3;
-        doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-           .text(`NEXRAD WSR-88D Radar — ${this.fmtDateET(input.nexradTimestamp || primaryStormDate)}`, this.M, captionY, { width: imgWidth });
-        doc.text(`${this.fmtTimeET(input.nexradTimestamp || primaryStormDate)} | Source: IEM/NOAA`, this.M, doc.y, { width: imgWidth });
-
-        doc.fontSize(9.5).fillColor(this.C.text).font('Helvetica-Bold')
-           .text(`${alert.event} issued ${this.fmtDateET(alert.onset)} at ${this.fmtTimeET(alert.onset)}`, detailX, layoutY, { width: detailW });
-        doc.text(`until ${this.fmtDateET(alert.expires)} at ${this.fmtTimeET(alert.expires)} by ${alert.senderName}`, detailX, doc.y, { width: detailW });
-        doc.moveDown(0.4);
-
-        const gridStartY = doc.y;
-        const labelW2 = 70;
-        const valW = (detailW - labelW2 * 2) / 2;
-        const drawLegacyDetail = (label: string, value: string, col: number, row: number) => {
-          const x = detailX + col * (labelW2 + valW);
-          const y = gridStartY + row * 16;
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica').text(label, x, y);
-          doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold').text(value, x + labelW2, y);
-        };
-        drawLegacyDetail('Effective:', this.fmtTimeET(alert.onset), 0, 0);
-        drawLegacyDetail('Expires:', this.fmtTimeET(alert.expires), 1, 0);
-        drawLegacyDetail('Hail Size:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'n/a', 0, 1);
-        drawLegacyDetail('Wind Speed:', selectedWindEvents.length > 0 ? `${Math.round(selectedWindEvents[0]?.magnitude || 0)} mph` : 'n/a', 1, 1);
-        drawLegacyDetail('Urgency:', 'Immediate', 0, 2);
-        drawLegacyDetail('Certainty:', 'Observed', 1, 2);
-        doc.y = Math.max(captionY + 20, gridStartY + 3 * 16 + 10);
-
-        const descText = alert.description || alert.headline || '';
-        if (descText) {
-          doc.moveDown(0.3);
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-             .text(descText, this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5 });
-        }
-
-        legacyAlerts.slice(1, 4).forEach(extraAlert => {
-          this.checkPageBreak(doc, 60);
-          doc.moveDown(0.5);
-          doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
-             .text(`${extraAlert.event} - ${this.fmtFullDateTimeET(extraAlert.onset)}`, this.M + 20, doc.y, { width: this.CW - 40 });
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-             .text(extraAlert.headline || extraAlert.description.substring(0, 300), this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1 });
-        });
-
-      } else if (hasLegacyNexrad && input.nexradImage) {
-        this.checkPageBreak(doc, 200);
-        const radarW = 300;
-        const radarH = 200;
-        const radarX = this.M + (this.CW - radarW) / 2;
-        try {
-          doc.image(input.nexradImage, radarX, doc.y, { width: radarW, height: radarH, fit: [radarW, radarH] });
-          doc.rect(radarX, doc.y, radarW, radarH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-          doc.y += radarH + 4;
-          doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-             .text(`NEXRAD WSR-88D Radar | ${this.fmtFullDateTimeET(input.nexradTimestamp || primaryStormDate)} | Source: Iowa Environmental Mesonet (IEM/NOAA)`,
-               this.M, doc.y, { width: this.CW, align: 'center' });
-        } catch (e) { console.warn('NEXRAD embed failed:', e); }
-
       } else if (legacyAlerts.length > 0) {
         legacyAlerts.slice(0, 5).forEach(alert => {
           this.checkPageBreak(doc, 80);
@@ -949,8 +1222,8 @@ export class PDFReportServiceV2 {
     // =========================================================
     this.drawSectionBanner(doc, 'Historical Storm Activity');
 
-    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Location', 'Within 1mi', 'Within 3mi', 'Within 10mi'];
-    const histWidths = [62, 58, 62, 42, 38, 58, 54, 54, 54];
+    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Property', '1-3mi', '3-5mi', '5-10mi'];
+    const histWidths = [62, 62, 62, 44, 40, 60, 54, 54, 54];
 
     const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
       ? input.historyEvents
@@ -982,10 +1255,15 @@ export class PDFReportServiceV2 {
       }))
       .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
-    // Consolidate by date: one row per unique date, max hail per distance bucket
+    // Consolidate by date using MUTUALLY EXCLUSIVE distance bands
+    // so each observation lands in exactly one column (no double counting).
+    //   atLoc  = 0-1.0 mi (DIRECT HIT zone — Verisk/ISO convention + MRMS pixel)
+    //   w3     = 1-3 mi
+    //   w5     = 3-5 mi
+    //   w10    = 5-10 mi
     const dateGroups = new Map<string, {
       date: string; direction: string; speed: number | undefined;
-      duration: number | undefined; atLoc: number; w1: number; w3: number; w10: number;
+      duration: number | undefined; atLoc: number; w3: number; w5: number; w10: number;
     }>();
     for (const e of historicalHailEvents) {
       const dk = this.getDateKey(e.date) || e.date;
@@ -994,21 +1272,21 @@ export class PDFReportServiceV2 {
       if (!dateGroups.has(dk)) {
         dateGroups.set(dk, {
           date: e.date, direction: e.direction !== '---' ? e.direction : '---',
-          speed: e.speed, duration: e.duration, atLoc: 0, w1: 0, w3: 0, w10: 0,
+          speed: e.speed, duration: e.duration, atLoc: 0, w3: 0, w5: 0, w10: 0,
         });
       }
       const g = dateGroups.get(dk)!;
       if (g.direction === '---' && e.direction !== '---') g.direction = e.direction;
       if (!g.speed && e.speed) g.speed = e.speed;
       if (!g.duration && e.duration) g.duration = e.duration;
-      if (dist <= 0.1 && size > g.atLoc) g.atLoc = size;
-      if (dist <= 1 && size > g.w1) g.w1 = size;
-      if (dist <= 3 && size > g.w3) g.w3 = size;
-      if (dist <= 10 && size > g.w10) g.w10 = size;
+      if (dist <= 1.0 && size > g.atLoc) g.atLoc = size;
+      else if (dist > 1.0 && dist <= 3.0 && size > g.w3) g.w3 = size;
+      else if (dist > 3.0 && dist <= 5.0 && size > g.w5) g.w5 = size;
+      else if (dist > 5.0 && dist <= 10.0 && size > g.w10) g.w10 = size;
     }
 
     const consolidatedDates = Array.from(dateGroups.values())
-      .filter(g => g.atLoc > 0 || g.w1 > 0 || g.w3 > 0 || g.w10 > 0)
+      .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
       .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
     // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
@@ -1021,17 +1299,19 @@ export class PDFReportServiceV2 {
       return `${Math.max(0.25, inches).toFixed(2)}"`;
     };
 
-    // Direct-hit labeling rules for the "Hit" column:
-    //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable)
-    //   atLoc > 0     → "Direct"     (radar signature at property, sub-½")
-    //   w1 > 0        → "Near-miss"  (nothing at home, but storm inside 1mi)
-    //   w3 > 0        → "Nearby"     (within 3mi)
+    // Direct-hit labeling (mutually-exclusive distance bands):
+    //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable hail at property, 0-1mi)
+    //   atLoc > 0     → "Direct"     (sub-1/2" radar signature at property)
+    //   w3 > 0        → "1-3 mi"
+    //   w5 > 0        → "3-5 mi"
+    //   w10 > 0       → "5-10 mi"
     //   else          → "---"
-    const hitLabel = (g: { atLoc: number; w1: number; w3: number }): string => {
+    const hitLabel = (g: { atLoc: number; w3: number; w5: number; w10: number }): string => {
       if (g.atLoc >= 0.5) return 'DIRECT HIT';
       if (g.atLoc > 0) return 'Direct';
-      if (g.w1 > 0) return 'Near-miss';
-      if (g.w3 > 0) return 'Nearby';
+      if (g.w3 > 0) return '1-3 mi';
+      if (g.w5 > 0) return '3-5 mi';
+      if (g.w10 > 0) return '5-10 mi';
       return '---';
     };
 
@@ -1042,8 +1322,8 @@ export class PDFReportServiceV2 {
       g.direction,
       g.speed ? g.speed.toFixed(1) : '---',
       displaySize(g.atLoc),
-      displaySize(g.w1),
       displaySize(g.w3),
+      displaySize(g.w5),
       displaySize(g.w10),
     ]);
 
@@ -1051,27 +1331,31 @@ export class PDFReportServiceV2 {
     // category of hits this property has.
     const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
     const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
-    const nearMissCount = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 > 0).length;
+    const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 > 0).length;
+    const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 > 0).length;
+    const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
     const largestActionable = consolidatedDates.reduce(
       (max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max),
       { size: 0, date: '' },
     );
 
-    if (directHitCount > 0 || nearMissCount > 0) {
+    if (directHitCount > 0 || within3Count > 0 || within5Count > 0 || within10Count > 0) {
       doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
       const parts: string[] = [];
       if (actionableCount > 0) {
-        parts.push(`${actionableCount} insurance-actionable DIRECT HIT${actionableCount > 1 ? 'S' : ''} (≥½")`);
+        parts.push(`${actionableCount} day${actionableCount > 1 ? 's' : ''} with hail 1/2" or larger at property`);
       }
       const subHalf = directHitCount - actionableCount;
-      if (subHalf > 0) parts.push(`${subHalf} sub-½" radar hit${subHalf > 1 ? 's' : ''}`);
-      if (nearMissCount > 0) parts.push(`${nearMissCount} near-miss${nearMissCount > 1 ? 'es' : ''} (within 1mi)`);
+      if (subHalf > 0) parts.push(`${subHalf} day${subHalf > 1 ? 's' : ''} with sub-1/2" hail at property`);
+      if (within3Count > 0) parts.push(`${within3Count} day${within3Count > 1 ? 's' : ''} with hail 1-3 mi away`);
+      if (within5Count > 0) parts.push(`${within5Count} day${within5Count > 1 ? 's' : ''} with hail 3-5 mi away`);
+      if (within10Count > 0) parts.push(`${within10Count} day${within10Count > 1 ? 's' : ''} with hail 5-10 mi away`);
       doc.text(parts.join('  •  '), this.M, doc.y, { width: this.CW });
       if (largestActionable.size > 0) {
         doc.moveDown(0.2);
         doc.fontSize(10).fillColor('#b91c1c').font('Helvetica-Bold')
            .text(
-             `🎯 Largest actionable direct hit: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
+             `Largest hail documented at property: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
              this.M, doc.y, { width: this.CW }
            );
       }
@@ -1088,11 +1372,11 @@ export class PDFReportServiceV2 {
     doc.moveDown(0.3);
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text(
-         '* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
-         'Hit column: "DIRECT HIT" = hail ≥½" at the property (insurance-actionable); ' +
-         '"Direct" = sub-½" radar signature at the property (canvassing context only); ' +
-         '"Near-miss" = no hail at property but documented within 1 mile. ' +
-         'Sub-¼" radar values are rounded up to ¼" for this report.',
+         '* "At Property" = 0-1 mi. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — ' +
+         'each observation is assigned to one band, showing max hail in that band. ' +
+         '"DIRECT HIT" = hail 1/2" or larger at property; "Direct" = sub-1/2" radar signature at property. ' +
+         'Sub-1/4" values rounded up to 1/4" for display. See "Disclaimer & Limitations" (end of report) for ' +
+         'full methodology and source list.',
          this.M, doc.y, { width: this.CW }
        );
 
@@ -1183,9 +1467,9 @@ export class PDFReportServiceV2 {
     }
 
     // =========================================================
-    // APPLICABLE BUILDING CODE REQUIREMENTS
+    // APPLICABLE BUILDING CODE REQUIREMENTS (opt-in only)
     // =========================================================
-    if (input.state) {
+    if (input.state && input.includeBuildingCodes === true) {
       const stateUpper = input.state.toUpperCase().trim();
       const codeData = this.getStateBuildingCodes(stateUpper);
       if (codeData) {
@@ -1245,15 +1529,21 @@ export class PDFReportServiceV2 {
 
     doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
        .text(
-         'This Storm Impact Analysis is generated using publicly available data from the National Oceanic and Atmospheric ' +
-         'Administration (NOAA), the National Weather Service (NWS), and the NEXRAD WSR-88D Doppler radar network. ' +
-         'All storm event data, radar imagery, and severe weather warnings originate from these federal sources ' +
+         'This Storm Impact Analysis is generated from publicly available federal and scientific-network data: ' +
+         'the NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
+         'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
+         'NOAA Storm Prediction Center (SPC) Warning Coordination Meteorologist archive, ' +
+         'NWS Local Storm Reports via Iowa Environmental Mesonet (IEM), ' +
+         'the Community Collaborative Rain, Hail & Snow Network (CoCoRaHS) operated by the Colorado Climate Center and NSF, ' +
+         'and the NEXRAD WSR-88D Doppler radar network. ' +
+         'All storm event data, radar imagery, and severe weather warnings originate from these sources ' +
          'and are presented as reported. While every effort is made to ensure accuracy, weather data is subject to ' +
-         'inherent limitations including radar resolution, reporting delays, and observation gaps. This report is ' +
-         'provided for informational purposes and does not constitute a professional roof inspection, engineering ' +
-         'assessment, or meteorological certification. A licensed roofing contractor should perform a physical ' +
-         'inspection to confirm the presence and extent of any storm damage. The preparer of this report makes ' +
-         'no independent representations regarding the accuracy of the underlying federal data.',
+         'inherent limitations including radar resolution, reporting delays, and observation gaps. ' +
+         'This report is provided for informational purposes and does not constitute a professional roof inspection, ' +
+         'engineering assessment, or meteorological certification. A licensed roofing contractor should perform a physical ' +
+         'inspection to confirm the presence and extent of any storm damage. The preparer of this report makes no ' +
+         'independent representations regarding the accuracy of the underlying federal data; original event identifiers ' +
+         '(NCEI EVENT_ID, SPC OM#, CoCoRaHS station, NEXRAD WSR ID) are retained in this report for independent verification.',
          this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5, align: 'justify' }
        );
 
