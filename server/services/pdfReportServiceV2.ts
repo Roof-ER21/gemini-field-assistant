@@ -577,21 +577,19 @@ export class PDFReportServiceV2 {
     const dashUniqueDates = new Set(
       dashEvents.map((e) => this.getDateKey(e.date) || e.date),
     ).size;
-    // Source attribution — union of all sources across hail + wind + tornado.
-    // Whitelist known source tokens so stray text (state codes, etc) doesn't leak in.
-    const KNOWN_SOURCES = new Set([
+    // Source attribution — aggregate all sources across hail + wind + tornado
+    // and normalize to the agency/brand names adjusters recognize.
+    // Raw tokens in adapter output: NOAA, NCEI-SWDI, SPC, NWS-LSR, CoCoRaHS, HailTrace, etc.
+    // Normalized for display: NOAA, NEXRAD, SPC, NWS, CoCoRaHS, HailTrace.
+    const rawSrcSet = new Set<string>();
+    const RAW_TOKENS = [
       'NOAA', 'NCEI-SWDI', 'SPC', 'NWS-LSR', 'CoCoRaHS',
-      'Rep Report', 'Customer Report', 'HailTrace', 'IHM',
-      'NOAA NCEI', 'IEM LSR', 'NCEI SWDI', 'SPC WCM',
-    ]);
-    const srcSet = new Set<string>();
+      'HailTrace', 'IHM', 'Rep Report', 'Customer Report',
+    ];
     const extractSources = (s: string) => {
       if (!s) return;
-      for (const token of KNOWN_SOURCES) {
-        // Word-boundary match — avoids matching "MD" inside "NOAA Maryland"
-        if (new RegExp(`\\b${token.replace(/[-]/g, '[-]')}\\b`).test(s)) {
-          srcSet.add(token);
-        }
+      for (const token of RAW_TOKENS) {
+        if (new RegExp(`\\b${token.replace(/[-]/g, '[-]')}\\b`).test(s)) rawSrcSet.add(token);
       }
     };
     for (const e of dashEvents) extractSources((e.source || '').toString());
@@ -602,7 +600,16 @@ export class PDFReportServiceV2 {
       extractSources((e.comments || '').toString());
       extractSources((e.location || '').toString());
     }
-    const dashSources: string[] = Array.from(srcSet).sort();
+    // Normalize raw tokens → adjuster-recognizable brand names
+    const normalizedSet = new Set<string>();
+    for (const t of rawSrcSet) {
+      if (t === 'NCEI-SWDI') normalizedSet.add('NEXRAD');
+      else if (t === 'NWS-LSR') normalizedSet.add('NWS');
+      else if (t === 'Rep Report') normalizedSet.add('Rep');
+      else if (t === 'Customer Report') normalizedSet.add('Customer');
+      else normalizedSet.add(t);
+    }
+    const dashSources: string[] = Array.from(normalizedSet).sort();
 
     // Dashboard title banner — tells the reader what these numbers represent
     doc.fontSize(8.5).fillColor(this.C.lightText).font('Helvetica')
@@ -974,17 +981,27 @@ export class PDFReportServiceV2 {
       return bits.join(' • ');
     };
 
-    // Derive the actual data source label for an event from its raw `source` string
-    // (formatted by the adapter as "NCEI-SWDI + NOAA + SPC" etc). Compresses to 1-3
-    // letter codes adjusters recognize.
+    // Derive the actual data source label for an event using the agency/brand
+    // names adjusters and insurance companies already recognize.
+    //   NOAA    = NCEI Storm Events (ground-reported, NWS-verified)
+    //   NEXRAD  = NCEI SWDI NX3HAIL (WSR-88D radar hail signature)
+    //   SPC     = NOAA Storm Prediction Center archive
+    //   NWS     = NWS Local Storm Reports (spotter/COOP/ASOS)
+    //   CoCoRaHS = Community Collaborative Rain, Hail & Snow Network (NSF/CSU)
     const dataSourceLabel = (sourceStr: string | undefined, comments: string | undefined): string => {
       const s = `${sourceStr || ''} ${comments || ''}`;
       const codes: string[] = [];
-      if (/\bNOAA\b/.test(s) || /\bNCEI\b(?!-SWDI)/.test(s)) codes.push('NCEI');
-      if (/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('SWDI');
+      // Radar-derived (SWDI NX3HAIL) → show as NEXRAD
+      if (/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('NEXRAD');
+      // Ground-reported Storm Events → NOAA (excludes the SWDI case above)
+      if (/\bNOAA\b/.test(s) && !/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('NOAA');
+      // SPC archive
       if (/\bSPC\b/.test(s)) codes.push('SPC');
-      if (/\bNWS-LSR\b|\bLSR\b/.test(s)) codes.push('NWS-LSR');
+      // NWS Local Storm Reports
+      if (/\bNWS-LSR\b|\bIEM LSR\b/.test(s)) codes.push('NWS');
+      // CoCoRaHS observer
       if (/\bCoCoRaHS\b/.test(s)) codes.push('CoCoRaHS');
+      // Commercial / rep / customer
       if (/\bHailTrace\b/.test(s)) codes.push('HailTrace');
       if (/\bRep Report\b/.test(s)) codes.push('Rep');
       if (/\bCustomer Report\b/.test(s)) codes.push('Customer');
