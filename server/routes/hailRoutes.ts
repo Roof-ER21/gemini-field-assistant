@@ -1278,6 +1278,11 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       includeWarnings = true,
       customerName,
       dateOfLoss,
+      // Multi-date modes — mirror /claim-packet's accepted shapes. PdfReportServiceV2
+      // already knows how to consume these (see pdfReportServiceV2.ts:86-90).
+      datesOfLoss,        // string[] — multiple discrete storm dates
+      fromDate,           // string — range start (YYYY-MM-DD)
+      toDate,             // string — range end (YYYY-MM-DD)
       template = 'standard',
       evidenceItems = [],
     } = req.body;
@@ -1590,6 +1595,9 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       noaaEvents: normalizedNoaaEvents,
       historyEvents: normalizedHistoryEvents,
       dateOfLoss,
+      datesOfLoss: Array.isArray(datesOfLoss) && datesOfLoss.length > 0 ? datesOfLoss : undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
       events: normalizedEvents,
       damageScore,
       repName: resolvedRepName,

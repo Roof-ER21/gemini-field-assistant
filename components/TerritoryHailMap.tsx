@@ -4,7 +4,6 @@ import 'leaflet/dist/leaflet.css';
 import MRMSHailOverlay from './MRMSHailOverlay';
 import MRMSSwathPolygonLayer from './MRMSSwathPolygonLayer';
 import LiveMrmsPolygonLayer from './LiveMrmsPolygonLayer';
-import HailtraceValidationLayer from './HailtraceValidationLayer';
 import PropertyImpactPanel from './PropertyImpactPanel';
 import { impactedAssetApi } from '../services/impactedAssetApi';
 import { authService } from '../services/authService';
@@ -607,18 +606,10 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [gpsTracking, setGpsTracking] = useState(false);
   const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
   const [mrmsVisible, setMrmsVisible] = useState(false);
-  const [liveMrmsVisible, setLiveMrmsVisible] = useState(false);
+  // Live MRMS radar is always ON — reps always want current hail visibility.
+  // Previously a toggle; user feedback: "live should not be a button, it should just be on."
+  const [liveMrmsVisible] = useState(true);
   const [liveMrmsInfo, setLiveMrmsInfo] = useState<{ hasFeatures: boolean; maxInches: number; refTime: string } | null>(null);
-  const [hailtraceValidationVisible, setHailtraceValidationVisible] = useState(false);
-  const [hailtraceValidationSummary, setHailtraceValidationSummary] = useState<{
-    totals: {
-      hailtracePoints: number;
-      match: number;
-      close: number;
-      diverge: number;
-      mrmsMiss: number;
-    };
-  } | null>(null);
   const [swathVisible, setSwathVisible] = useState(true);
   const [routeMode, setRouteMode] = useState(false);
   const [mapClickInsight, setMapClickInsight] = useState<MapClickInsight | null>(null);
@@ -629,8 +620,16 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [showDolModal, setShowDolModal] = useState(false);
+  // Legacy single-date state kept for back-compat with places that still read it.
   const [selectedDol, setSelectedDol] = useState('');
   const [customerNameInput, setCustomerNameInput] = useState('');
+  // Multi-date report mode: 'single' | 'multi' | 'range' | 'lifetime'.
+  // Wired to the backend /hail/generate-report which accepts any of
+  // { dateOfLoss } | { datesOfLoss[] } | { fromDate, toDate } | {} (lifetime).
+  const [reportMode, setReportMode] = useState<'single' | 'multi' | 'range' | 'lifetime'>('single');
+  const [selectedDolMulti, setSelectedDolMulti] = useState<string[]>([]);
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -989,8 +988,32 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   }, [canvassingAlert]);
 
   const handleGenerateReport = useCallback(async () => {
-    if (!selectedDol || searchLat === null || searchLng === null) {
+    if (searchLat === null || searchLng === null) {
       return;
+    }
+
+    // Translate mode state → a single options object the helper understands.
+    const reportOptions: import('./stormMapHelpers').GenerateStormReportOptions = { customerName: customerNameInput };
+    if (reportMode === 'single') {
+      if (!selectedDol) return;
+      reportOptions.dateOfLoss = selectedDol;
+    } else if (reportMode === 'multi') {
+      if (selectedDolMulti.length === 0) return;
+      if (selectedDolMulti.length === 1) {
+        reportOptions.dateOfLoss = selectedDolMulti[0];
+      } else {
+        reportOptions.datesOfLoss = selectedDolMulti.slice().sort();
+      }
+    } else if (reportMode === 'range') {
+      if (!rangeFrom || !rangeTo) return;
+      if (rangeFrom > rangeTo) {
+        setError('Range start must be before end.');
+        return;
+      }
+      reportOptions.fromDate = rangeFrom;
+      reportOptions.toDate = rangeTo;
+    } else if (reportMode === 'lifetime') {
+      reportOptions.lifetime = true;
     }
 
     const reportAddress = activeSearchLabel || searchSummary?.locationLabel || 'DMV Region';
@@ -1005,8 +1028,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
         searchLng,
         activeRadiusMiles,
         events,
-        selectedDol,
-        customerNameInput,
+        reportOptions,
       );
       setReportMessage('PDF ready. Check your browser downloads if it did not open automatically.');
       setShowDolModal(false);
@@ -1016,11 +1038,20 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     } finally {
       setGeneratingReport(false);
     }
-  }, [activeRadiusMiles, activeSearchLabel, customerNameInput, events, searchLat, searchLng, searchSummary?.locationLabel, selectedDol]);
+  }, [
+    activeRadiusMiles, activeSearchLabel, customerNameInput, events,
+    rangeFrom, rangeTo, reportMode, searchLat, searchLng,
+    searchSummary?.locationLabel, selectedDol, selectedDolMulti,
+  ]);
 
   const openDolModal = useCallback(() => {
     setReportMessage(null);
-    setSelectedDol(selectedDate?.date || latestStorms[0]?.date || '');
+    const primary = selectedDate?.date || latestStorms[0]?.date || '';
+    setSelectedDol(primary);
+    setSelectedDolMulti(primary ? [primary] : []);
+    setReportMode('single');
+    setRangeFrom('');
+    setRangeTo('');
     setCustomerNameInput('');
     setShowDolModal(true);
   }, [latestStorms, selectedDate]);
@@ -1771,15 +1802,9 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             product="mesh60"
             onDataLoaded={setLiveMrmsInfo}
           />
-          <HailtraceValidationLayer
-            visible={hailtraceValidationVisible && !!selectedDate}
-            selectedDate={selectedDate?.date ?? null}
-            stormBounds={selectedStormBounds}
-            anchorTimestamp={selectedStormRadarTimestamp}
-            onDataLoaded={(summary) => {
-              setHailtraceValidationSummary(summary ? { totals: summary.totals } : null);
-            }}
-          />
+          {/* HailtraceValidationLayer removed per feedback — HT button was adding clutter
+              without enough value. Swath + multi-source verification now comes from the
+              backend verified_hail_events pipeline instead. */}
           <HailSwathLayer
             visible={swathVisible && !selectedDate}
             selectedDate={selectedDate?.date || null}
@@ -1788,121 +1813,66 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
 
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', gap: 6 }}>
+            {/*
+              Single toggle: basemap cycles Map ↔ Sat. Button labels show the
+              mode you'd switch TO, mirroring Google Maps' layer pill.
+              LIVE radar is always on (see liveMrmsVisible default). HT removed.
+            */}
             <button
-              onClick={() => setBaseMap('map')}
+              onClick={() => setBaseMap(baseMap === 'map' ? 'satellite' : 'map')}
+              title={baseMap === 'map' ? 'Switch to satellite view' : 'Switch to map view'}
               style={{
-                width: 44,
+                width: 56,
                 height: 28,
                 borderRadius: 6,
                 border: '2px solid rgba(0,0,0,0.2)',
-                background: baseMap === 'map' ? '#2563eb' : '#fff',
-                color: baseMap === 'map' ? '#fff' : '#333',
+                background: '#2563eb',
+                color: '#fff',
                 cursor: 'pointer',
                 fontSize: 11,
                 fontWeight: 700,
                 boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
               }}
             >
-              Map
+              {baseMap === 'map' ? 'Sat' : 'Map'}
             </button>
-            <button
-              onClick={() => setBaseMap('satellite')}
-              style={{
-                width: 44,
-                height: 28,
-                borderRadius: 6,
-                border: '2px solid rgba(0,0,0,0.2)',
-                background: baseMap === 'satellite' ? '#2563eb' : '#fff',
-                color: baseMap === 'satellite' ? '#fff' : '#333',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: 700,
-                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
-              }}
-            >
-              Sat
-            </button>
-            <button
-              onClick={() => setLiveMrmsVisible((v) => !v)}
+            {/*
+              LIVE indicator pill — not a toggle. Shows green when quiet and
+              red-pulsing when active hail is falling within ~5min of now.
+            */}
+            <div
               title={
-                liveMrmsVisible
-                  ? 'Hide live radar (NOAA MRMS MESH 60-min max, ~5min latency)'
-                  : 'Show live radar — current hail within the last hour'
+                liveMrmsInfo?.hasFeatures
+                  ? `Live radar: ${liveMrmsInfo.maxInches.toFixed(2)}" max hail detected`
+                  : 'Live radar: monitoring (no active hail)'
               }
               style={{
-                width: 52,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
                 height: 28,
+                padding: '0 8px',
                 borderRadius: 6,
                 border: '2px solid rgba(0,0,0,0.2)',
-                background: liveMrmsVisible
-                  ? (liveMrmsInfo?.hasFeatures ? '#dc2626' : '#475569')
-                  : '#fff',
-                color: liveMrmsVisible ? '#fff' : '#333',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: 700,
-                boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
-                position: 'relative',
-              }}
-            >
-              {liveMrmsVisible && liveMrmsInfo?.hasFeatures && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    boxShadow: '0 0 0 3px rgba(255,255,255,0.35)',
-                  }}
-                />
-              )}
-              LIVE
-            </button>
-            <button
-              onClick={() => setHailtraceValidationVisible((v) => !v)}
-              disabled={!selectedDate}
-              title={
-                !selectedDate
-                  ? 'Pick a storm date first to overlay HailTrace meteorologist points'
-                  : hailtraceValidationVisible
-                    ? 'Hide HailTrace meteorologist overlay'
-                    : 'Show HailTrace meteorologist-verified hail points on top of our radar swath'
-              }
-              style={{
-                width: 48,
-                height: 28,
-                borderRadius: 6,
-                border: '2px solid rgba(0,0,0,0.2)',
-                background: !selectedDate
-                  ? '#e5e7eb'
-                  : hailtraceValidationVisible
-                    ? (hailtraceValidationSummary && hailtraceValidationSummary.totals.diverge > 0 ? '#dc2626' : '#16a34a')
-                    : '#fff',
-                color: !selectedDate
-                  ? '#9ca3af'
-                  : hailtraceValidationVisible ? '#fff' : '#333',
-                cursor: !selectedDate ? 'not-allowed' : 'pointer',
+                background: liveMrmsInfo?.hasFeatures ? '#dc2626' : '#475569',
+                color: '#fff',
                 fontSize: 10,
                 fontWeight: 700,
                 boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
-                position: 'relative',
               }}
             >
-              {hailtraceValidationVisible && hailtraceValidationSummary ? (
-                <>
-                  HT{' '}
-                  <span style={{ opacity: 0.85 }}>
-                    {hailtraceValidationSummary.totals.match +
-                     hailtraceValidationSummary.totals.close}
-                    /{hailtraceValidationSummary.totals.hailtracePoints}
-                  </span>
-                </>
-              ) : 'HT'}
-            </button>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  animation: liveMrmsInfo?.hasFeatures ? 'pulse 1.2s ease-in-out infinite' : 'none',
+                }}
+              />
+              LIVE
+            </div>
           </div>
             <button
               onClick={() => {
@@ -2145,43 +2115,168 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             onClick={(event) => event.stopPropagation()}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Select Date of Loss</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Generate PDF Report</h3>
               <button onClick={() => setShowDolModal(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, padding: 4 }}>x</button>
             </div>
-            <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>Choose the storm date to include as the Date of Loss in the PDF report.</p>
-            <div
-              style={{
-                marginTop: 16,
-                maxHeight: 320,
-                overflowY: 'auto',
-                borderRadius: 14,
-                border: '1px solid #1f2937',
-                background: 'rgba(17,24,39,0.55)',
-              }}
-            >
-              {stormDates.map((stormDate, index) => (
+            <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>Pick one date, multiple dates, a range, or the full history.</p>
+
+            {/* Mode selector: 4 pills mirror the 4 backend filter shapes. */}
+            <div style={{ marginTop: 12, display: 'flex', gap: 6, padding: 4, background: 'rgba(17,24,39,0.55)', border: '1px solid #1f2937', borderRadius: 10 }}>
+              {([
+                { key: 'single',   label: 'One Date' },
+                { key: 'multi',    label: 'Multi' },
+                { key: 'range',    label: 'Range' },
+                { key: 'lifetime', label: 'All' },
+              ] as const).map((tab) => (
                 <button
-                  key={`dol-${stormDate.date}`}
-                  onClick={() => setSelectedDol(stormDate.date)}
+                  key={tab.key}
+                  onClick={() => setReportMode(tab.key)}
                   style={{
-                    width: '100%',
-                    borderRadius: 0,
+                    flex: 1,
+                    padding: '6px 4px',
+                    borderRadius: 6,
                     border: 'none',
-                    borderBottom: index === stormDates.length - 1 ? 'none' : '1px solid rgba(31,41,55,0.9)',
-                    background: selectedDol === stormDate.date ? 'rgba(239,68,68,0.12)' : 'transparent',
-                    boxShadow: selectedDol === stormDate.date ? 'inset 3px 0 0 #ef4444' : 'none',
-                    padding: 12,
-                    textAlign: 'left',
+                    background: reportMode === tab.key ? '#ef4444' : 'transparent',
+                    color: reportMode === tab.key ? '#fff' : '#9ca3af',
+                    fontSize: 12,
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    color: '#fff',
-                    display: 'block',
                   }}
                 >
-                  <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{stormDate.label}</p>
-                  <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, margin: 0 }}>{stormDate.eventCount} event{stormDate.eventCount === 1 ? '' : 's'} / {formatStormImpactSummary(stormDate)}</p>
+                  {tab.label}
                 </button>
               ))}
             </div>
+
+            {/* Body: different UI per mode */}
+            {reportMode === 'single' && (
+              <div style={{ marginTop: 12, maxHeight: 280, overflowY: 'auto', borderRadius: 14, border: '1px solid #1f2937', background: 'rgba(17,24,39,0.55)' }}>
+                {stormDates.length === 0 ? (
+                  <p style={{ padding: 16, fontSize: 13, color: '#6b7280', textAlign: 'center' }}>No storm dates loaded. Search an address first.</p>
+                ) : stormDates.map((stormDate, index) => (
+                  <button
+                    key={`dol-${stormDate.date}`}
+                    onClick={() => setSelectedDol(stormDate.date)}
+                    style={{
+                      width: '100%', borderRadius: 0, border: 'none',
+                      borderBottom: index === stormDates.length - 1 ? 'none' : '1px solid rgba(31,41,55,0.9)',
+                      background: selectedDol === stormDate.date ? 'rgba(239,68,68,0.12)' : 'transparent',
+                      boxShadow: selectedDol === stormDate.date ? 'inset 3px 0 0 #ef4444' : 'none',
+                      padding: 12, textAlign: 'left', cursor: 'pointer', color: '#fff', display: 'block',
+                    }}
+                  >
+                    <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{stormDate.label}</p>
+                    <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, margin: 0 }}>{stormDate.eventCount} event{stormDate.eventCount === 1 ? '' : 's'} / {formatStormImpactSummary(stormDate)}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {reportMode === 'multi' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, padding: '0 2px' }}>
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                    {selectedDolMulti.length} selected
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => setSelectedDolMulti(stormDates.map((s) => s.date))}
+                      disabled={stormDates.length === 0}
+                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: 'transparent', color: '#d1d5db', cursor: stormDates.length === 0 ? 'not-allowed' : 'pointer' }}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      onClick={() => setSelectedDolMulti([])}
+                      disabled={selectedDolMulti.length === 0}
+                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: 'transparent', color: '#d1d5db', cursor: selectedDolMulti.length === 0 ? 'not-allowed' : 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div style={{ marginTop: 6, maxHeight: 260, overflowY: 'auto', borderRadius: 14, border: '1px solid #1f2937', background: 'rgba(17,24,39,0.55)' }}>
+                  {stormDates.length === 0 ? (
+                    <p style={{ padding: 16, fontSize: 13, color: '#6b7280', textAlign: 'center' }}>No storm dates loaded. Search an address first.</p>
+                  ) : stormDates.map((stormDate, index) => {
+                    const checked = selectedDolMulti.includes(stormDate.date);
+                    return (
+                      <button
+                        key={`dolm-${stormDate.date}`}
+                        onClick={() => setSelectedDolMulti((prev) => (
+                          prev.includes(stormDate.date)
+                            ? prev.filter((d) => d !== stormDate.date)
+                            : [...prev, stormDate.date]
+                        ))}
+                        style={{
+                          width: '100%', borderRadius: 0, border: 'none',
+                          borderBottom: index === stormDates.length - 1 ? 'none' : '1px solid rgba(31,41,55,0.9)',
+                          background: checked ? 'rgba(239,68,68,0.12)' : 'transparent',
+                          padding: 12, textAlign: 'left', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: 10,
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 16, height: 16, borderRadius: 4,
+                            border: checked ? 'none' : '2px solid #4b5563',
+                            background: checked ? '#ef4444' : 'transparent',
+                            flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: 11, fontWeight: 900,
+                          }}
+                        >
+                          {checked ? 'x' : ''}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{stormDate.label}</p>
+                          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, margin: 0 }}>{stormDate.eventCount} event{stormDate.eventCount === 1 ? '' : 's'} / {formatStormImpactSummary(stormDate)}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {reportMode === 'range' && (
+              <div style={{ marginTop: 12, padding: 14, borderRadius: 14, border: '1px solid #1f2937', background: 'rgba(17,24,39,0.55)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>From</label>
+                    <input
+                      type="date"
+                      value={rangeFrom}
+                      onChange={(e) => setRangeFrom(e.target.value)}
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #374151', background: '#111827', padding: '8px 10px', fontSize: 13, color: '#fff', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>To</label>
+                    <input
+                      type="date"
+                      value={rangeTo}
+                      onChange={(e) => setRangeTo(e.target.value)}
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #374151', background: '#111827', padding: '8px 10px', fontSize: 13, color: '#fff', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <p style={{ marginTop: 10, fontSize: 11, color: '#6b7280' }}>
+                  PDF will include every verified hail/wind event at this address between these dates.
+                </p>
+              </div>
+            )}
+
+            {reportMode === 'lifetime' && (
+              <div style={{ marginTop: 12, padding: 14, borderRadius: 14, border: '1px solid #1f2937', background: 'rgba(17,24,39,0.55)' }}>
+                <p style={{ fontSize: 13, color: '#e5e7eb', margin: 0 }}>
+                  Full history report — every verified hail/wind event at this address from 2015 to today.
+                </p>
+                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 6, marginBottom: 0 }}>
+                  Best for re-roof sales where you want to show repeated storm exposure over years.
+                </p>
+              </div>
+            )}
             <div style={{ marginTop: 14 }}>
               <label htmlFor="customer-name-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#d1d5db', marginBottom: 6 }}>
                 Homeowner Info
@@ -2208,22 +2303,37 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             </div>
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setShowDolModal(false)} style={{ borderRadius: 8, border: '1px solid #374151', background: 'transparent', padding: '8px 12px', fontSize: 13, color: '#d1d5db', cursor: 'pointer' }}>Cancel</button>
-              <button
-                onClick={handleGenerateReport}
-                disabled={!selectedDol || generatingReport}
-                style={{
-                  borderRadius: 8,
-                  border: 'none',
-                  background: !selectedDol || generatingReport ? '#374151' : '#ef4444',
-                  padding: '8px 12px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#fff',
-                  cursor: !selectedDol || generatingReport ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {generatingReport ? 'Generating...' : 'Generate PDF Report'}
-              </button>
+              {(() => {
+                // Generate button enabled only when the current mode has valid input.
+                const modeReady =
+                  (reportMode === 'single' && !!selectedDol) ||
+                  (reportMode === 'multi' && selectedDolMulti.length > 0) ||
+                  (reportMode === 'range' && !!rangeFrom && !!rangeTo) ||
+                  (reportMode === 'lifetime');
+                const disabled = !modeReady || generatingReport;
+                return (
+                  <button
+                    onClick={handleGenerateReport}
+                    disabled={disabled}
+                    style={{
+                      borderRadius: 8, border: 'none',
+                      background: disabled ? '#374151' : '#ef4444',
+                      padding: '8px 12px', fontSize: 13, fontWeight: 600, color: '#fff',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {generatingReport
+                      ? 'Generating...'
+                      : reportMode === 'lifetime'
+                        ? 'Generate Full-History PDF'
+                        : reportMode === 'multi' && selectedDolMulti.length > 1
+                          ? `Generate Multi-Storm PDF (${selectedDolMulti.length})`
+                          : reportMode === 'range'
+                            ? 'Generate Range PDF'
+                            : 'Generate PDF Report'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>

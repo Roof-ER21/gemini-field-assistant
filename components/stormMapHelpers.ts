@@ -432,21 +432,71 @@ function downloadBlob(blob: Blob, filename: string): void {
   }, 60_000);
 }
 
-export async function generateStormReport(address: string, lat: number, lng: number, radiusMiles: number, events: StormEvent[], dateOfLoss: string, customerName?: string): Promise<void> {
+/**
+ * Four date-filter modes (pick one — rest are ignored):
+ *  - dateOfLoss: "YYYY-MM-DD"             → single-storm PDF
+ *  - datesOfLoss: string[]                → multi-storm combined PDF
+ *  - fromDate + toDate: "YYYY-MM-DD"      → range PDF
+ *  - lifetime: true                       → all-history PDF (no date filter)
+ * The server accepts the same shapes on /hail/generate-report.
+ */
+export interface GenerateStormReportOptions {
+  dateOfLoss?: string;
+  datesOfLoss?: string[];
+  fromDate?: string;
+  toDate?: string;
+  lifetime?: boolean;
+  customerName?: string;
+}
+
+export async function generateStormReport(
+  address: string,
+  lat: number,
+  lng: number,
+  radiusMiles: number,
+  events: StormEvent[],
+  dateOfLossOrOptions: string | GenerateStormReportOptions,
+  customerNameLegacy?: string,
+): Promise<void> {
+  // Back-compat: legacy callers pass (address, lat, lng, radius, events, "YYYY-MM-DD", customerName)
+  const opts: GenerateStormReportOptions =
+    typeof dateOfLossOrOptions === 'string'
+      ? { dateOfLoss: dateOfLossOrOptions, customerName: customerNameLegacy }
+      : dateOfLossOrOptions;
+
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';
+
+  // Build the set of date keys the PDF should include events for.
+  // (Lifetime/range mode: server will re-query its own data so we send all we have locally.)
+  const wantedDates: Set<string> | null = opts.lifetime
+    ? null
+    : opts.datesOfLoss && opts.datesOfLoss.length > 0
+      ? new Set(opts.datesOfLoss)
+      : opts.dateOfLoss
+        ? new Set([opts.dateOfLoss])
+        : null; // range or lifetime → let server filter
+  const inWantedRange = (dateKey: string) => {
+    if (wantedDates) return wantedDates.has(dateKey);
+    if (opts.fromDate && dateKey < opts.fromDate) return false;
+    if (opts.toDate && dateKey > opts.toDate) return false;
+    return true;
+  };
+
   // Split by source: IHM events → payload.events (NEXRAD), NOAA → payload.noaaEvents
   const ihmAll = events.filter(e => e.id.startsWith('ihm-'));
   const noaaAll = events.filter(e => !e.id.startsWith('ihm-'));
-  const ihmDated = ihmAll.filter(e => getStormDateKey(e.beginDate) === dateOfLoss);
-  const noaaDated = noaaAll.filter(e => getStormDateKey(e.beginDate) === dateOfLoss);
+  const ihmDated = ihmAll.filter(e => inWantedRange(getStormDateKey(e.beginDate) || ''));
+  const noaaDated = noaaAll.filter(e => inWantedRange(getStormDateKey(e.beginDate) || ''));
   const ihmHail = ihmDated.filter(e => e.eventType === 'Hail');
   const noaaHail = noaaDated.filter(e => e.eventType === 'Hail');
   const windEvts = noaaDated.filter(e => e.eventType === 'Thunderstorm Wind');
   const hailEvts = [...ihmHail, ...noaaHail];
   const datedEvents = [...ihmDated, ...noaaDated];
   const historyHailEvents = [...ihmAll, ...noaaAll].filter(e => e.eventType === 'Hail');
-  if (!hailEvts.length && !windEvts.length) throw new Error('No events for the selected date of loss.');
+  if (!hailEvts.length && !windEvts.length && !opts.lifetime) {
+    throw new Error('No events in the selected date window.');
+  }
   let maxHailSize = 0;
   for (const e of hailEvts) if (e.magnitude > maxHailSize) maxHailSize = e.magnitude;
   const cumulative = hailEvts.reduce((s, e) => s + e.magnitude, 0);
@@ -500,13 +550,24 @@ export async function generateStormReport(address: string, lat: number, lng: num
     noaaEvents: [...noaaHail, ...windEvts].map(toRE),
     historyEvents: historyHailEvents.map(toRE),
     damageScore: { score, riskLevel, summary: score >= 60 ? 'Documented storm activity supports a high-likelihood roof damage conversation.' : score >= 30 ? 'Documented storm history supports a moderate damage review.' : 'Limited storm history was found for this loss date.', color: riskColor, factors: { eventCount: datedEvents.length, stormSystemCount: 1, maxHailSize, recentActivity: datedEvents.length, cumulativeExposure: cumulative, severityDistribution: { severe: hailEvts.filter((e) => e.magnitude >= 1.75).length, moderate: hailEvts.filter((e) => e.magnitude >= 1 && e.magnitude < 1.75).length, minor: hailEvts.filter((e) => e.magnitude < 1).length }, recencyScore: 0, documentedDamage: 0, windEvents: windEvts.length } },
-    filter: 'hail-wind', includeNexrad: true, includeMap: true, includeWarnings: true, dateOfLoss, template: 'noaa-forward',
-    customerName: customerName?.trim() || undefined,
+    filter: 'hail-wind', includeNexrad: true, includeMap: true, includeWarnings: true,
+    // Date-filter: send whichever mode was selected. Server uses the first non-empty.
+    dateOfLoss: opts.dateOfLoss,
+    datesOfLoss: opts.datesOfLoss && opts.datesOfLoss.length > 0 ? opts.datesOfLoss : undefined,
+    fromDate: opts.fromDate,
+    toDate: opts.toDate,
+    template: 'noaa-forward',
+    customerName: opts.customerName?.trim() || undefined,
   };
 
   const response = await fetch(`${apiBase}/hail/generate-report`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-email': email }, body: JSON.stringify(payload) });
   if (!response.ok) throw new Error(`Report API returned ${response.status}`);
   const blob = await response.blob();
-  const fallbackFilename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateOfLoss}.pdf`;
+  // Build a filename hint from the mode — multi/range/lifetime shouldn't end in "undefined"
+  const dateTag = opts.dateOfLoss
+    || (opts.datesOfLoss && opts.datesOfLoss.length > 0 ? `multi_${opts.datesOfLoss.length}_dates` : '')
+    || (opts.fromDate && opts.toDate ? `${opts.fromDate}_to_${opts.toDate}` : '')
+    || (opts.lifetime ? 'all-history' : 'report');
+  const fallbackFilename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateTag}.pdf`;
   downloadBlob(blob, getResponseFilename(response, fallbackFilename));
 }
