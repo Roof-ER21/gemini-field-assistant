@@ -576,7 +576,7 @@ export class PDFReportServiceV2 {
         // Slot 1 = Peak Wind. Labels adapt slightly for single-storm vs multi/
         // lifetime, but the visual layout is identical.
         const isSingle = dashMode === 'single';
-        drawStatCard(0, isSingle ? 'Largest Hail (Day)' : 'Largest Hail', dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A', dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText, hailClass(dashHailMax));
+        drawStatCard(0, isSingle ? 'Largest Hail (Day)' : 'Largest Hail', dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A', dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText);
         drawStatCard(1, isSingle ? 'Peak Wind (Day)' : 'Peak Wind', dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A', dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText, windClass(dashWindMax));
         doc.y = cardY + cardH + 8;
         // Source attribution strip under the cards

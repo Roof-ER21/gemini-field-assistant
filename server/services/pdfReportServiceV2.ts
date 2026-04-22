@@ -724,7 +724,9 @@ export class PDFReportServiceV2 {
       isSingle ? 'Largest Hail (Day)' : 'Largest Hail',
       dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
       dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-      hailClass(dashHailMax),
+      // Sub-label ("Quarter", "Ping pong", etc.) removed — the number alone
+      // is clearer and avoids adjuster-side pushback over non-NWS wording
+      // or rep-side confusion reading a single coin name.
     );
     drawStatCard(
       1,
