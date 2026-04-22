@@ -204,16 +204,34 @@ async function kbSearch(
 ): Promise<Array<{ name: string; category: string; content: string; rank: number }>> {
   const cleaned = text.toLowerCase().replace(/[^\w\s]/g, ' ');
   const stop = new Set([
-    'susan', 'the', 'and', 'for', 'with', 'that', 'this', 'but', 'not',
+    // pronouns / articles / aux
+    'the', 'and', 'for', 'with', 'that', 'this', 'but', 'not',
     'from', 'have', 'was', 'were', 'has', 'had', 'are', 'you', 'your',
-    'what', 'who', 'why', 'where', 'when', 'how', 'is', 'about', 'work',
-    'think', 'know', 'hey', 'yeah', 'just', 'now', 'can', 'some', 'will',
-    'i', 'a', 'an', 'of', 'to', 'in', 'on', 'at', 'by',
+    'i', 'a', 'an', 'of', 'to', 'in', 'on', 'at', 'by', 'us', 'we',
+    // question words
+    'what', 'who', 'why', 'where', 'when', 'how', 'is', 'about',
+    'which', 'whom', 'whose',
+    // filler / chat words
+    'susan', 'hey', 'yo', 'yeah', 'yep', 'yup', 'nah', 'just', 'now',
+    'can', 'some', 'will', 'would', 'could', 'should', 'please',
+    'thanks', 'thank', 'thx', 'cheers', 'btw', 'also', 'like', 'know',
+    'think', 'want', 'need', 'say', 'said', 'got', 'get', 'tell', 'told',
+    'give', 'made', 'make', 'made', 'see', 'saw', 'show', 'sent', 'send',
+    // "tell me about" framing
+    'information', 'info', 'intel', 'details', 'detail', 'opinion', 'opinions',
+    'thoughts', 'comments', 'comment', 'stuff', 'thing', 'things', 'something',
+    'anyone', 'anybody', 'everyone', 'everybody', 'someone', 'somebody',
+    // roofing chat filler (NOT entity-y)
+    'rep', 'reps', 'work', 'works', 'worked', 'working', 'please', 'better',
+    'known', 'heard', 'dealing', 'dealt',
+    // numbers-as-words
+    'one', 'two', 'three', 'four', 'five', 'first', 'second',
   ]);
-  const tokens = cleaned
+  const rawTokens = cleaned
     .split(/\s+/)
-    .filter((w) => w.length >= 3 && !stop.has(w))
-    .slice(0, 8);
+    .filter((w) => w.length >= 3 && !stop.has(w));
+  // Cap at 20 (was 8) — enough room for multi-word entity names that trail in long questions.
+  const tokens = rawTokens.slice(0, 20);
   if (tokens.length === 0) return [];
   const tsquery = tokens.map((t) => `${t}:*`).join(' | ');
   try {
