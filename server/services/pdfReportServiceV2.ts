@@ -526,6 +526,112 @@ export class PDFReportServiceV2 {
        .strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
 
     // =========================================================
+    // AT-A-GLANCE DASHBOARD — 4 big stat cards an adjuster sees first
+    // =========================================================
+    doc.moveDown(0.4);
+
+    // Pre-compute dashboard stats
+    const allEventsForDashboard = input.historyEvents && input.historyEvents.length > 0
+      ? input.historyEvents
+      : input.events;
+    const dashHailMax = allEventsForDashboard.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
+    const dashWindMax = input.noaaEvents
+      .filter((e) => e.eventType === 'wind')
+      .reduce((m, e) => Math.max(m, Number(e.magnitude) || 0), 0);
+    // Count direct hits = unique dates with hail ≥ 0.5" within 1.0 mi
+    const directHitDates = new Set<string>();
+    for (const e of allEventsForDashboard) {
+      if ((e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 1.0) {
+        const dk = this.getDateKey(e.date) || e.date;
+        directHitDates.add(dk);
+      }
+    }
+    const dashDirectHits = directHitDates.size;
+    const dashUniqueDates = new Set(
+      allEventsForDashboard.map((e) => this.getDateKey(e.date) || e.date),
+    ).size;
+    const dashSources: string[] = [];
+    const srcSet = new Set<string>();
+    for (const e of allEventsForDashboard) {
+      const s = (e.source || '').toString();
+      // Pull source tokens like NOAA, SPC, NCEI-SWDI, CoCoRaHS out of the formatted source string
+      s.split(/\s*\+\s*/).forEach((tok) => { if (tok.trim()) srcSet.add(tok.trim()); });
+    }
+    srcSet.forEach((s) => dashSources.push(s));
+
+    const cardY = doc.y;
+    const cardCount = 4;
+    const cardGap = 8;
+    const cardW = (this.CW - cardGap * (cardCount - 1)) / cardCount;
+    const cardH = 62;
+
+    const drawStatCard = (
+      idx: number,
+      label: string,
+      value: string,
+      valueColor: string,
+      sub?: string,
+    ) => {
+      const x = this.M + idx * (cardW + cardGap);
+      // Card background
+      doc.rect(x, cardY, cardW, cardH).fill('#f5f6fa');
+      // Accent top border
+      doc.rect(x, cardY, cardW, 3).fill(valueColor);
+      doc.y = cardY + 10;
+      doc.fontSize(7.5).fillColor(this.C.lightText).font('Helvetica-Bold')
+         .text(label.toUpperCase(), x + 8, doc.y, { width: cardW - 16, align: 'center', characterSpacing: 0.5 });
+      doc.fontSize(22).fillColor(valueColor).font('Helvetica-Bold')
+         .text(value, x + 8, cardY + 22, { width: cardW - 16, align: 'center' });
+      if (sub) {
+        doc.fontSize(7.5).fillColor(this.C.mutedText).font('Helvetica')
+           .text(sub, x + 8, cardY + cardH - 16, { width: cardW - 16, align: 'center' });
+      }
+      // Card border
+      doc.rect(x, cardY, cardW, cardH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+    };
+
+    drawStatCard(
+      0,
+      'Direct Hits',
+      String(dashDirectHits),
+      dashDirectHits > 0 ? '#b91c1c' : this.C.mutedText,
+      dashDirectHits > 0 ? 'Hail 1/2" or larger within 1 mi' : 'No direct hits on file',
+    );
+    drawStatCard(
+      1,
+      'Largest Hail',
+      dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+      dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+      dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : '',
+    );
+    drawStatCard(
+      2,
+      'Peak Wind',
+      dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+      dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+      dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
+    );
+    drawStatCard(
+      3,
+      'Storm Dates',
+      String(dashUniqueDates),
+      this.C.sectionText,
+      `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
+    );
+
+    doc.y = cardY + cardH + 8;
+
+    // Source attribution strip under the cards
+    if (dashSources.length > 0) {
+      doc.fontSize(7.5).fillColor(this.C.mutedText).font('Helvetica')
+         .text(
+           `Verified against: ${dashSources.join(' • ')}`,
+           this.M, doc.y, { width: this.CW, align: 'center' },
+         );
+      doc.moveDown(0.6);
+    }
+
+    // =========================================================
     // DATA SOURCES & METHODOLOGY — the credibility section
     // =========================================================
     this.drawSectionBanner(doc, 'Data Sources & Methodology');
@@ -764,170 +870,99 @@ export class PDFReportServiceV2 {
     }
 
     // =========================================================
-    // NWS SEVERE WEATHER WARNINGS
+    // RADAR EVIDENCE — single high-quality NEXRAD image for the most
+    // significant storm date. Lives in its own section, not under "warnings".
+    // =========================================================
+    const hasRadar = input.nexradImage && input.includeNexrad !== false;
+    if (hasRadar && input.nexradImage) {
+      this.checkPageBreak(doc, 230);
+      this.drawSectionBanner(doc, 'Storm Radar Evidence');
+
+      const radarW = 360;
+      const radarH = 240;
+      const radarX = this.M + (this.CW - radarW) / 2;
+      const radarY = doc.y + 4;
+
+      try {
+        doc.image(input.nexradImage, radarX, radarY, { width: radarW, height: radarH, fit: [radarW, radarH] });
+        doc.rect(radarX, radarY, radarW, radarH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+      } catch (e) { console.warn('NEXRAD embed failed:', e); }
+
+      doc.y = radarY + radarH + 6;
+      doc.fontSize(8).fillColor(this.C.text).font('Helvetica-Bold')
+         .text(`NEXRAD WSR-88D Radar Composite Reflectivity`, this.M, doc.y, { width: this.CW, align: 'center' });
+      doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
+         .text(
+           `${this.fmtFullDateTimeET(input.nexradTimestamp || primaryStormDate)} — Source: NOAA NEXRAD via Iowa Environmental Mesonet (IEM)`,
+           this.M, doc.y, { width: this.CW, align: 'center' },
+         );
+      doc.moveDown(0.6);
+    }
+
+    // =========================================================
+    // NWS ACTIVE WEATHER WARNINGS — only render if real alerts exist.
     // =========================================================
     const alertImages = input.nwsAlertImages || [];
     const legacyAlerts = input.nwsAlerts || [];
     const hasAlertImages = alertImages.length > 0;
     const hasWarnings = hasAlertImages || legacyAlerts.length > 0;
-    const hasLegacyNexrad = input.nexradImage && input.includeNexrad !== false;
 
-    if (hasWarnings || hasLegacyNexrad) {
-      this.drawSectionBanner(doc, 'National Weather Service Warnings');
+    if (hasWarnings && input.includeWarnings !== false) {
+      this.drawSectionBanner(doc, 'Active National Weather Service Warnings');
 
       const warningCount = hasAlertImages ? alertImages.length : legacyAlerts.length;
-      if (warningCount > 0) {
-        doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
-           .text(
-             `The following severe weather warnings were issued by the National Weather Service (NWS) for the area encompassing ${input.address}:`,
-             this.M + 20, doc.y, { width: this.CW - 40, lineGap: 2 }
-           );
-        doc.moveDown(0.8);
-      }
+      doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
+         .text(
+           `${warningCount} active NWS ${warningCount === 1 ? 'warning' : 'warnings'} for the area encompassing ${input.address}:`,
+           this.M + 20, doc.y, { width: this.CW - 40, lineGap: 2 },
+         );
+      doc.moveDown(0.6);
 
       if (hasAlertImages) {
+        // Text-only warning cards (radar already shown in the Storm Radar Evidence section)
         alertImages.slice(0, 5).forEach((item, idx) => {
           const alert = item.alert;
-          const radarImg = item.radarImage;
-          const radarTs = item.radarTimestamp || alert.onset;
           const isTornado = alert.event.toLowerCase().includes('tornado');
           const headlineColor = isTornado ? '#dc2626' : this.C.text;
 
-          this.checkPageBreak(doc, 230);
-          if (idx > 0) doc.moveDown(0.8);
+          this.checkPageBreak(doc, 90);
+          if (idx > 0) doc.moveDown(0.6);
 
-          const blockY = doc.y;
-          const imgWidth = 200;
-          const imgHeight = 160;
-          const detailX = this.M + imgWidth + 15;
-          const detailW = this.CW - imgWidth - 15;
+          const cardY = doc.y;
+          doc.rect(this.M, cardY, this.CW, 4).fill(headlineColor);
+          doc.y = cardY + 8;
 
-          if (radarImg) {
-            try {
-              doc.image(radarImg, this.M, blockY, { width: imgWidth, height: imgHeight, fit: [imgWidth, imgHeight] });
-              doc.rect(this.M, blockY, imgWidth, imgHeight).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-            } catch (e) { console.warn(`Failed to embed NEXRAD for alert ${idx}:`, e); }
-          }
-
-          const captionY = blockY + imgHeight + 3;
-          doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-             .text(`NEXRAD WSR-88D Radar — ${this.fmtDateET(radarTs)}`, this.M, captionY, { width: imgWidth });
-          doc.text(`${this.fmtTimeET(radarTs)} | Source: IEM/NOAA`, this.M, doc.y, { width: imgWidth });
-
-          doc.fontSize(9.5).fillColor(headlineColor).font('Helvetica-Bold')
+          doc.fontSize(10).fillColor(headlineColor).font('Helvetica-Bold')
+             .text(alert.event, this.M + 10, doc.y, { width: this.CW - 20 });
+          doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
              .text(
-               `${alert.event} issued ${this.fmtDateET(alert.onset)} at ${this.fmtTimeET(alert.onset)}`,
-               detailX, blockY, { width: detailW }
+               `Issued ${this.fmtFullDateTimeET(alert.onset)} — Expires ${this.fmtFullDateTimeET(alert.expires)}`,
+               this.M + 10, doc.y, { width: this.CW - 20 },
              );
-          doc.text(
-            `until ${this.fmtDateET(alert.expires)} at ${this.fmtTimeET(alert.expires)} by ${alert.senderName}`,
-            detailX, doc.y, { width: detailW }
-          );
-          doc.moveDown(0.4);
+          doc.moveDown(0.2);
 
           const alertHailSize = alert.hailSize || extractHailSizeFromText(alert.description);
           const alertWindSpeed = alert.windSpeed || extractWindSpeedFromText(alert.description);
-
-          const gridY = doc.y;
-          const labelW2 = 75;
-          const valW = (detailW - labelW2 * 2) / 2;
-
-          const drawDetail = (label: string, value: string, col: number, row: number) => {
-            const x = detailX + col * (labelW2 + valW);
-            const y = gridY + row * 18;
-            doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica').text(label, x, y);
-            doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold').text(value, x + labelW2, y);
-          };
-
-          drawDetail('Effective:', this.fmtTimeET(alert.onset), 0, 0);
-          drawDetail('Expires:', this.fmtTimeET(alert.expires), 1, 0);
-          drawDetail('Hail Size:', alertHailSize || (maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'n/a'), 0, 1);
-          drawDetail('Wind Speed:', alertWindSpeed || 'n/a', 1, 1);
-          drawDetail('Urgency:', alert.severity === 'Extreme' || alert.severity === 'Severe' ? 'Immediate' : 'Expected', 0, 2);
-          drawDetail('Certainty:', alert.certainty || 'Observed', 1, 2);
-
-          doc.y = Math.max(captionY + 16, gridY + 3 * 18 + 10);
+          const bits: string[] = [];
+          if (alertHailSize) bits.push(`Hail: ${alertHailSize}`);
+          if (alertWindSpeed) bits.push(`Wind: ${alertWindSpeed}`);
+          if (alert.severity) bits.push(`Severity: ${alert.severity}`);
+          if (bits.length > 0) {
+            doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
+               .text(bits.join('   •   '), this.M + 10, doc.y, { width: this.CW - 20 });
+            doc.moveDown(0.2);
+          }
 
           const descText = alert.description || alert.headline || '';
           if (descText) {
-            doc.moveDown(0.3);
             doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-               .text(descText, this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5 });
+               .text(descText, this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1.5 });
           }
+
+          const cardEndY = Math.max(doc.y + 4, cardY + 60);
+          doc.rect(this.M, cardY, this.CW, cardEndY - cardY).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+          doc.y = cardEndY + 4;
         });
-
-      } else if (hasLegacyNexrad && input.nexradImage && legacyAlerts.length > 0) {
-        // Legacy single-NEXRAD fallback (same as V1)
-        this.checkPageBreak(doc, 200);
-        const layoutY = doc.y;
-        const imgWidth = 200;
-        const imgHeight = 160;
-        const detailX = this.M + imgWidth + 15;
-        const detailW = this.CW - imgWidth - 15;
-        const alert = legacyAlerts[0];
-
-        try {
-          doc.image(input.nexradImage, this.M, layoutY, { width: imgWidth, height: imgHeight, fit: [imgWidth, imgHeight] });
-          doc.rect(this.M, layoutY, imgWidth, imgHeight).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-        } catch (e) { console.warn('Failed to embed NEXRAD:', e); }
-
-        const captionY = layoutY + imgHeight + 3;
-        doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-           .text(`NEXRAD WSR-88D Radar — ${this.fmtDateET(input.nexradTimestamp || primaryStormDate)}`, this.M, captionY, { width: imgWidth });
-        doc.text(`${this.fmtTimeET(input.nexradTimestamp || primaryStormDate)} | Source: IEM/NOAA`, this.M, doc.y, { width: imgWidth });
-
-        doc.fontSize(9.5).fillColor(this.C.text).font('Helvetica-Bold')
-           .text(`${alert.event} issued ${this.fmtDateET(alert.onset)} at ${this.fmtTimeET(alert.onset)}`, detailX, layoutY, { width: detailW });
-        doc.text(`until ${this.fmtDateET(alert.expires)} at ${this.fmtTimeET(alert.expires)} by ${alert.senderName}`, detailX, doc.y, { width: detailW });
-        doc.moveDown(0.4);
-
-        const gridStartY = doc.y;
-        const labelW2 = 70;
-        const valW = (detailW - labelW2 * 2) / 2;
-        const drawLegacyDetail = (label: string, value: string, col: number, row: number) => {
-          const x = detailX + col * (labelW2 + valW);
-          const y = gridStartY + row * 16;
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica').text(label, x, y);
-          doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold').text(value, x + labelW2, y);
-        };
-        drawLegacyDetail('Effective:', this.fmtTimeET(alert.onset), 0, 0);
-        drawLegacyDetail('Expires:', this.fmtTimeET(alert.expires), 1, 0);
-        drawLegacyDetail('Hail Size:', maxHail > 0 ? `${maxHail.toFixed(2)}"` : 'n/a', 0, 1);
-        drawLegacyDetail('Wind Speed:', selectedWindEvents.length > 0 ? `${Math.round(selectedWindEvents[0]?.magnitude || 0)} mph` : 'n/a', 1, 1);
-        drawLegacyDetail('Urgency:', 'Immediate', 0, 2);
-        drawLegacyDetail('Certainty:', 'Observed', 1, 2);
-        doc.y = Math.max(captionY + 20, gridStartY + 3 * 16 + 10);
-
-        const descText = alert.description || alert.headline || '';
-        if (descText) {
-          doc.moveDown(0.3);
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-             .text(descText, this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5 });
-        }
-
-        legacyAlerts.slice(1, 4).forEach(extraAlert => {
-          this.checkPageBreak(doc, 60);
-          doc.moveDown(0.5);
-          doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
-             .text(`${extraAlert.event} - ${this.fmtFullDateTimeET(extraAlert.onset)}`, this.M + 20, doc.y, { width: this.CW - 40 });
-          doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-             .text(extraAlert.headline || extraAlert.description.substring(0, 300), this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1 });
-        });
-
-      } else if (hasLegacyNexrad && input.nexradImage) {
-        this.checkPageBreak(doc, 200);
-        const radarW = 300;
-        const radarH = 200;
-        const radarX = this.M + (this.CW - radarW) / 2;
-        try {
-          doc.image(input.nexradImage, radarX, doc.y, { width: radarW, height: radarH, fit: [radarW, radarH] });
-          doc.rect(radarX, doc.y, radarW, radarH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-          doc.y += radarH + 4;
-          doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-             .text(`NEXRAD WSR-88D Radar | ${this.fmtFullDateTimeET(input.nexradTimestamp || primaryStormDate)} | Source: Iowa Environmental Mesonet (IEM/NOAA)`,
-               this.M, doc.y, { width: this.CW, align: 'center' });
-        } catch (e) { console.warn('NEXRAD embed failed:', e); }
-
       } else if (legacyAlerts.length > 0) {
         legacyAlerts.slice(0, 5).forEach(alert => {
           this.checkPageBreak(doc, 80);
