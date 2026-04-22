@@ -653,8 +653,12 @@ export class PDFReportServiceV2 {
     doc.moveDown(0.3);
 
     const cardY = doc.y;
-    const cardCount = 4;
-    const cardGap = 8;
+    // Simplified dashboard per rep request: two cards only — "Largest Hail"
+    // and "Peak Wind". "Direct Hits" removed (discouraging in no-hit case)
+    // and "Storm Days"/"Sources" removed (noise). Kept cards span half width
+    // each with a comfortable gap.
+    const cardCount = 2;
+    const cardGap = 12;
     const cardW = (this.CW - cardGap * (cardCount - 1)) / cardCount;
     const cardH = 62;
 
@@ -711,135 +715,24 @@ export class PDFReportServiceV2 {
       return 'No data';
     };
 
-    if (dashMode === 'single') {
-      // "Closest Hail" card replaces the old Direct Hit YES/NO.
-      // Why: a big "NO" at the top of a report killed the pitch before the rep
-      // could explain neighborhood-scale storm exposure. Reps asked for a card
-      // that always communicates something constructive. The card now shows:
-      //   direct hit (≤1mi) → red   "DIRECT HIT" + distance + size
-      //   within 3mi        → amber "NEARBY"     + distance + size
-      //   within 10mi       → slate "IN AREA"    + distance + size
-      //   nothing ≤10mi     → slate "Limited"    + honest note
-      const hailOnDate = dashEvents.filter((e) => (e.hailSize || 0) > 0 && (e.distanceMiles ?? 99) < 99);
-      const closest = hailOnDate.reduce<{ miles: number; size: number } | null>((best, e) => {
-        const miles = e.distanceMiles ?? 99;
-        const size = e.hailSize || 0;
-        if (!best || miles < best.miles) return { miles, size };
-        return best;
-      }, null);
-      const directHitOnDate = directHitDates.size > 0;
-
-      let title = 'Closest Hail';
-      let value: string;
-      let color: string;
-      let sub: string;
-      if (directHitOnDate && closest) {
-        value = `${closest.size.toFixed(2)}"`;
-        color = '#b91c1c';
-        sub = `DIRECT HIT — ${closest.miles.toFixed(1)} mi from property`;
-      } else if (closest && closest.miles <= 3) {
-        value = `${closest.size.toFixed(2)}"`;
-        color = '#d97706';
-        sub = `Nearby — ${closest.miles.toFixed(1)} mi from property`;
-      } else if (closest && closest.miles <= 10) {
-        value = `${closest.size.toFixed(2)}"`;
-        color = this.C.sectionText;
-        sub = `In area — ${closest.miles.toFixed(1)} mi from property`;
-      } else {
-        title = 'Nearest Activity';
-        value = '> 10 mi';
-        color = this.C.mutedText;
-        sub = 'No hail documented within 10 mi on this date';
-      }
-      drawStatCard(0, title, value, color, sub);
-      drawStatCard(
-        1,
-        'Max Hail (Day)',
-        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
-        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-        hailClass(dashHailMax),
-      );
-      drawStatCard(
-        2,
-        'Peak Wind (Day)',
-        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
-        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
-        windClass(dashWindMax),
-      );
-      drawStatCard(
-        3,
-        'Sources',
-        String(dashSources.length),
-        dashSources.length >= 3 ? '#0f766e' : dashSources.length >= 2 ? this.C.sectionText : this.C.mutedText,
-        verifiedLabel(dashSources.length),
-      );
-    } else {
-      // Multi / range / lifetime — same philosophy: don't lead with a zero.
-      // If there are direct hits, show the count. Otherwise show the closest
-      // neighborhood-scale exposure across all dates in scope.
-      const allHail = dashEvents.filter((e) => (e.hailSize || 0) > 0 && (e.distanceMiles ?? 99) < 99);
-      const closestLifetime = allHail.reduce<{ miles: number; size: number } | null>((best, e) => {
-        const miles = e.distanceMiles ?? 99;
-        const size = e.hailSize || 0;
-        if (!best || miles < best.miles) return { miles, size };
-        return best;
-      }, null);
-      if (dashDirectHits > 0) {
-        drawStatCard(
-          0,
-          'Direct Hits',
-          String(dashDirectHits),
-          '#b91c1c',
-          `Hail 1/2"+ within 1 mi of property (${dashDirectHits} day${dashDirectHits === 1 ? '' : 's'})`,
-        );
-      } else if (closestLifetime && closestLifetime.miles <= 3) {
-        drawStatCard(
-          0,
-          'Closest Hail',
-          `${closestLifetime.size.toFixed(2)}"`,
-          '#d97706',
-          `Nearby — ${closestLifetime.miles.toFixed(1)} mi from property`,
-        );
-      } else if (closestLifetime && closestLifetime.miles <= 10) {
-        drawStatCard(
-          0,
-          'Closest Hail',
-          `${closestLifetime.size.toFixed(2)}"`,
-          this.C.sectionText,
-          `In area — ${closestLifetime.miles.toFixed(1)} mi from property`,
-        );
-      } else {
-        drawStatCard(
-          0,
-          'Nearest Activity',
-          '> 10 mi',
-          this.C.mutedText,
-          'No hail documented within 10 mi during this window',
-        );
-      }
-      drawStatCard(
-        1,
-        'Largest Hail',
-        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
-        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-        hailClass(dashHailMax),
-      );
-      drawStatCard(
-        2,
-        'Peak Wind',
-        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
-        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
-        windClass(dashWindMax),
-      );
-      drawStatCard(
-        3,
-        'Storm Days',
-        String(dashUniqueDates),
-        this.C.sectionText,
-        `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
-      );
-    }
-
+    // Two cards total, same layout for every mode. Slot 0 = Largest Hail,
+    // Slot 1 = Peak Wind. Labels adapt slightly for single-storm vs multi/
+    // lifetime, but the visual layout is identical.
+    const isSingle = dashMode === 'single';
+    drawStatCard(
+      0,
+      isSingle ? 'Largest Hail (Day)' : 'Largest Hail',
+      dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+      dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+      hailClass(dashHailMax),
+    );
+    drawStatCard(
+      1,
+      isSingle ? 'Peak Wind (Day)' : 'Peak Wind',
+      dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+      dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+      windClass(dashWindMax),
+    );
     doc.y = cardY + cardH + 8;
 
     // Source attribution strip under the cards
