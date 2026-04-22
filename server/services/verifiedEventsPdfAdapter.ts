@@ -161,16 +161,34 @@ export class VerifiedEventsPdfAdapter {
 
     const result = await this.pool.query(query, [lat, lng, radiusMiles, fromStr]);
 
-    // ONE row per date for the Verified Hail Observations section.
-    // Pick the biggest hail observation of the day AND remember its distance.
-    // Historical Storm Activity table does its own per-band consolidation
-    // using the full distance data separately.
+    // One row per (date, primary source) so adjusters see NOAA, NEXRAD,
+    // SPC, CoCoRaHS as independent confirming sources when each exists for
+    // a date — not just the single max observation.
     //
-    // We feed two things:
-    //  1. `eventsMaxPerDate` — one-row-per-date, max hail (for the Observations list)
-    //  2. `allHailEvents`    — every hail pixel (for the Historical table's distance banding)
+    // Why: NOAA hail ground-reports are ~100x rarer than radar hail signatures
+    // in verified_hail_events, and they rarely share a dedup bucket with
+    // radar detections (different geocoding granularity). So "max per date"
+    // almost always picks SWDI and loses NOAA attribution.
+    //
+    // Feeds:
+    //  1. `eventsPerDateBySrc` — max hail per (date, primary source) for Documented Hail Events
+    //  2. `allHailEvents`      — every radar pixel/report for Historical Storm Activity
     const allHailEvents: HailEvent[] = [];
-    const eventsMaxPerDate = new Map<string, HailEvent>();
+    const eventsPerDateBySrc = new Map<string, HailEvent>();
+
+    // Pick the "primary" source of a DB row — the most prestigious flag set.
+    // Order matters: NOAA ground-verified > SPC > radar > observer.
+    const primarySourceOf = (row: any): string => {
+      if (row.source_noaa_ncei) return 'NOAA';
+      if (row.source_spc_wcm) return 'SPC';
+      if (row.source_iem_lsr) return 'NWS';
+      if (row.source_cocorahs) return 'CoCoRaHS';
+      if (row.source_ncei_swdi) return 'NEXRAD';
+      if (row.source_hailtrace) return 'HailTrace';
+      if (row.source_rep_report) return 'Rep';
+      if (row.source_customer_report) return 'Customer';
+      return 'other';
+    };
 
     // Consolidated NOAA events for Verified Ground Observations (Wind + Tornado)
     const noaaAgg = new Map<string, {
@@ -213,20 +231,26 @@ export class VerifiedEventsPdfAdapter {
           ...ids,
         };
 
-        // Keep every observation for the Historical table (it buckets by distance)
         allHailEvents.push(e);
 
-        // Keep only the max per date for the observation list
-        const existing = eventsMaxPerDate.get(eventDateIso);
+        // Key by (date, primary_source) so each source contributes its best row per date
+        const primary = primarySourceOf(row);
+        const key = `${eventDateIso}::${primary}`;
+        const existing = eventsPerDateBySrc.get(key);
         if (!existing || hailSize > (existing.hailSize ?? 0)) {
-          eventsMaxPerDate.set(eventDateIso, e);
+          eventsPerDateBySrc.set(key, e);
         }
       }
     }
 
-    // events = ONE row per date (max hail) for the Verified Hail Observations section
+    // events = one row per (date, primary source) for the Documented Hail Events table
     // historyEvents = every radar pixel for the Historical Storm Activity table's distance banding
-    const events: HailEvent[] = Array.from(eventsMaxPerDate.values());
+    const events: HailEvent[] = Array.from(eventsPerDateBySrc.values()).sort((a, b) => {
+      // Sort: most recent date first, then biggest hail first within a date
+      const dcmp = b.date.localeCompare(a.date);
+      if (dcmp !== 0) return dcmp;
+      return (b.hailSize ?? 0) - (a.hailSize ?? 0);
+    });
     const historyEvents: HailEvent[] = allHailEvents;
 
     // One row per (date, event_type) — max magnitude of the day,
