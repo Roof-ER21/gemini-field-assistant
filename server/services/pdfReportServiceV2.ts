@@ -866,14 +866,23 @@ export class PDFReportServiceV2 {
     doc.y = Math.max(doc.y, propY + 130);
 
     // =========================================================
-    // STORM IMPACT SUMMARY (was "Hail Impact Details")
+    // STORM IMPACT SUMMARY — only show rows we actually have data for.
+    // Previously always rendered Direction/Speed/Duration as "---" which looked broken.
     // =========================================================
-    // Reserve enough space for banner (48) + 4-row grid (77) + padding.
-    // Prevents absolute-y grid cells from overflowing and cascading page breaks.
-    this.checkPageBreak(doc, 140);
-    this.drawSectionBanner(doc, 'Storm Impact Summary');
+    // Build only the rows where we have real data
+    const summaryRows: Array<{ label: string; value: string }> = [];
+    summaryRows.push({ label: 'Date of Storm Impact:', value: this.fmtDateET(primaryStormDate) });
+    if (primaryEvent?.size) summaryRows.push({ label: 'Hail Size (primary event):', value: `${primaryEvent.size.toFixed(2)}"` });
+    summaryRows.push({ label: 'Max Hail within 10 mi:', value: selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '—' });
+    summaryRows.push({ label: 'Verified Observations:', value: `${nearbyCount} within 10 mi` });
+    if (primaryEvent?.direction) summaryRows.push({ label: 'Storm Direction:', value: primaryEvent.direction });
+    if (primaryEvent?.speed) summaryRows.push({ label: 'Storm Speed:', value: `${primaryEvent.speed.toFixed(1)} mph` });
+    if (primaryEvent?.duration) summaryRows.push({ label: 'Storm Duration:', value: `${primaryEvent.duration.toFixed(1)} min` });
 
-    if (primaryEvent || hailEvents.length > 0) {
+    if (summaryRows.length > 0 && (primaryEvent || hailEvents.length > 0)) {
+      // Reserve space for banner + rows + padding
+      this.checkPageBreak(doc, 40 + summaryRows.length * 18 + 20);
+      this.drawSectionBanner(doc, 'Storm Impact Summary');
       const gridY = doc.y;
       const colW = this.CW / 2;
       const rowH = 18;
@@ -888,22 +897,22 @@ export class PDFReportServiceV2 {
            .text(value, x + labelW, y + 3, { width: colW - labelW - 8 });
       };
 
-      drawDetailRow('Date of Storm Impact:', this.fmtDateET(primaryStormDate), 0, 0);
-      drawDetailRow('Storm Duration:', primaryEvent?.duration ? `${primaryEvent.duration.toFixed(1)} minutes` : '---', 1, 0);
-      drawDetailRow('Time of Impact:', this.fmtTimeET(primaryStormDate), 0, 1);
-      drawDetailRow('Hail Size Detected:', primaryEvent?.size ? `${primaryEvent.size.toFixed(2)}"` : '---', 1, 1);
-      drawDetailRow('Storm Direction:', primaryEvent?.direction || '---', 0, 2);
-      drawDetailRow('Verified Reports:', `${nearbyCount} within 10 mi`, 1, 2);
-      drawDetailRow('Storm Speed:', primaryEvent?.speed ? `${primaryEvent.speed.toFixed(1)} mph` : '---', 0, 3);
-      drawDetailRow('Max Hail Reported:', selectedMaxHail > 0 ? `${selectedMaxHail.toFixed(2)}"` : '---', 1, 3);
+      // 2-column layout — fill left column then right column
+      const numRows = Math.ceil(summaryRows.length / 2);
+      summaryRows.forEach((r, idx) => {
+        const col = idx < numRows ? 0 : 1;
+        const row = idx < numRows ? idx : idx - numRows;
+        drawDetailRow(r.label, r.value, col, row);
+      });
 
-      for (let r = 1; r <= 3; r++) {
+      // Subtle separators between rows
+      for (let r = 1; r < numRows; r++) {
         const ly = gridY + r * rowH;
         doc.moveTo(this.M + 8, ly).lineTo(this.M + this.CW - 8, ly)
            .strokeColor('#d0d0e0').lineWidth(0.3).stroke();
       }
 
-      doc.y = gridY + 4 * rowH + 5;
+      doc.y = gridY + numRows * rowH + 5;
     }
 
     // =========================================================
@@ -942,11 +951,11 @@ export class PDFReportServiceV2 {
     // VERIFIED GROUND OBSERVATIONS - HAIL
     // (Full source names instead of abbreviations)
     // =========================================================
-    this.drawSectionBanner(doc, 'Verified Ground Observations — Hail');
+    this.drawSectionBanner(doc, 'Documented Hail Events');
 
-    doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
+    doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
        .text(
-         `Hail observations verified through federal weather monitoring systems near ${input.address}`,
+         `Each row is one storm day. Distance is the closest confirmed hail to the property. IDs (NCEI/SPC/Radar site/WFO) can be independently verified.`,
          this.M, doc.y, { width: this.CW }
        );
     doc.moveDown(0.4);
@@ -973,7 +982,7 @@ export class PDFReportServiceV2 {
       const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
-        'NEXRAD WSR-88D',
+        'NEXRAD Radar',
         e.hailSize ? `${e.hailSize.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
         trace || 'Radar-detected hail signature',
@@ -1005,11 +1014,11 @@ export class PDFReportServiceV2 {
     // =========================================================
     const windObsNoaa = filteredSelectedNoaaWind;
     if (windObsNoaa.length > 0) {
-      this.drawSectionBanner(doc, 'Verified Ground Observations — Wind');
+      this.drawSectionBanner(doc, 'Documented Wind Events');
 
       doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
          .text(
-           `Damaging wind observations verified through federal weather monitoring systems near ${input.address}`,
+           `Each row is one storm day. Ground-reported wind events from NWS/NOAA spotters and ASOS stations.`,
            this.M, doc.y, { width: this.CW }
          );
       doc.moveDown(0.4);
@@ -1297,21 +1306,11 @@ export class PDFReportServiceV2 {
     doc.moveDown(0.3);
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text(
-         '* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
-         '"At Property" = 0-1 mile — storm cell documented within 1 mile of the address, ' +
-         'aligned with Verisk/ISO property-fingerprinting convention. A NEXRAD radar pixel is ~1km ' +
-         '(0.62mi) wide, so a detection within 1 mile is effectively the same storm cell hitting the home. ' +
-         'Distance columns (1-3 mi, 3-5 mi, 5-10 mi) are MUTUALLY EXCLUSIVE — each observation is ' +
-         'assigned to exactly one distance band based on proximity to the property, showing max hail ' +
-         'in that band. ' +
-         'Hit column: "DIRECT HIT" = hail 1/2" or larger documented at property; ' +
-         '"Direct" = sub-1/2" radar signature documented at property. ' +
-         'Sub-1/4" radar values are rounded up to 1/4" for this report. ' +
-         'Data sources: NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
-         'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
-         'NOAA Storm Prediction Center (SPC) Warning Coordination Meteorologist archive, ' +
-         'NWS Local Storm Reports via Iowa Environmental Mesonet, and the Community Collaborative ' +
-         'Rain, Hail & Snow Network (CoCoRaHS) operated by the Colorado Climate Center and NSF.',
+         '* "At Property" = 0-1 mi. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — ' +
+         'each observation is assigned to one band, showing max hail in that band. ' +
+         '"DIRECT HIT" = hail 1/2" or larger at property; "Direct" = sub-1/2" radar signature at property. ' +
+         'Sub-1/4" values rounded up to 1/4" for display. See "Disclaimer & Limitations" (end of report) for ' +
+         'full methodology and source list.',
          this.M, doc.y, { width: this.CW }
        );
 
@@ -1464,15 +1463,21 @@ export class PDFReportServiceV2 {
 
     doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
        .text(
-         'This Storm Impact Analysis is generated using publicly available data from the National Oceanic and Atmospheric ' +
-         'Administration (NOAA), the National Weather Service (NWS), and the NEXRAD WSR-88D Doppler radar network. ' +
-         'All storm event data, radar imagery, and severe weather warnings originate from these federal sources ' +
+         'This Storm Impact Analysis is generated from publicly available federal and scientific-network data: ' +
+         'the NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
+         'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
+         'NOAA Storm Prediction Center (SPC) Warning Coordination Meteorologist archive, ' +
+         'NWS Local Storm Reports via Iowa Environmental Mesonet (IEM), ' +
+         'the Community Collaborative Rain, Hail & Snow Network (CoCoRaHS) operated by the Colorado Climate Center and NSF, ' +
+         'and the NEXRAD WSR-88D Doppler radar network. ' +
+         'All storm event data, radar imagery, and severe weather warnings originate from these sources ' +
          'and are presented as reported. While every effort is made to ensure accuracy, weather data is subject to ' +
-         'inherent limitations including radar resolution, reporting delays, and observation gaps. This report is ' +
-         'provided for informational purposes and does not constitute a professional roof inspection, engineering ' +
-         'assessment, or meteorological certification. A licensed roofing contractor should perform a physical ' +
-         'inspection to confirm the presence and extent of any storm damage. The preparer of this report makes ' +
-         'no independent representations regarding the accuracy of the underlying federal data.',
+         'inherent limitations including radar resolution, reporting delays, and observation gaps. ' +
+         'This report is provided for informational purposes and does not constitute a professional roof inspection, ' +
+         'engineering assessment, or meteorological certification. A licensed roofing contractor should perform a physical ' +
+         'inspection to confirm the presence and extent of any storm damage. The preparer of this report makes no ' +
+         'independent representations regarding the accuracy of the underlying federal data; original event identifiers ' +
+         '(NCEI EVENT_ID, SPC OM#, CoCoRaHS station, NEXRAD WSR ID) are retained in this report for independent verification.',
          this.M + 20, doc.y, { width: this.CW - 40, lineGap: 1.5, align: 'justify' }
        );
 
