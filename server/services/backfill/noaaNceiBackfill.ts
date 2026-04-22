@@ -50,8 +50,11 @@ const RELEVANT_EVENT_TYPES = new Set([
  * Filenames include a compilation-date suffix that changes (e.g., c20250416 for the 2024 file).
  */
 async function resolveYearFile(year: number): Promise<string | null> {
+  // Directory listing is small but NCEI can be slow — generous timeout
   const resp = await slowFetch(NCEI_BASE, {
     headers: { 'User-Agent': 'CC21-storm-backfill/1.0 (ahmed@theroofdocs.com)' },
+    timeoutMs: 300_000,
+    connectTimeoutMs: 90_000,
   });
   if (!resp.ok) throw new Error(`NCEI directory listing HTTP ${resp.status}`);
   const html = await resp.text();

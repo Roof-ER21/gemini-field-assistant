@@ -38,8 +38,8 @@ export async function slowFetch(
     method = 'GET',
     headers = {},
     body,
-    timeoutMs = 180_000,          // 3 min total
-    connectTimeoutMs = 60_000,    // 1 min connect
+    timeoutMs = 300_000,          // 5 min total (NCEI can be slow)
+    connectTimeoutMs = 90_000,    // 1.5 min connect (IPv4 handshake)
     maxRedirects = 5,
   } = opts;
 

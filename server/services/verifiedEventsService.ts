@@ -189,10 +189,14 @@ export class VerifiedEventsService {
             COALESCE(EXCLUDED.wind_mph, 0)
           )
         END,
-        tornado_ef_rank = GREATEST(
-          COALESCE(verified_hail_events.tornado_ef_rank, -99),
-          COALESCE(EXCLUDED.tornado_ef_rank, -99)
-        ),
+        tornado_ef_rank = CASE
+          WHEN verified_hail_events.tornado_ef_rank IS NULL AND EXCLUDED.tornado_ef_rank IS NULL
+            THEN NULL
+          ELSE GREATEST(
+            COALESCE(verified_hail_events.tornado_ef_rank, -1),
+            COALESCE(EXCLUDED.tornado_ef_rank, -1)
+          )
+        END,
 
         -- Merge audit trail JSONB (later keys overwrite earlier for same source, which is what we want)
         source_details = verified_hail_events.source_details || $8::jsonb,
