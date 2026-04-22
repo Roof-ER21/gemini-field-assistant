@@ -974,6 +974,24 @@ export class PDFReportServiceV2 {
       return bits.join(' • ');
     };
 
+    // Derive the actual data source label for an event from its raw `source` string
+    // (formatted by the adapter as "NCEI-SWDI + NOAA + SPC" etc). Compresses to 1-3
+    // letter codes adjusters recognize.
+    const dataSourceLabel = (sourceStr: string | undefined, comments: string | undefined): string => {
+      const s = `${sourceStr || ''} ${comments || ''}`;
+      const codes: string[] = [];
+      if (/\bNOAA\b/.test(s) || /\bNCEI\b(?!-SWDI)/.test(s)) codes.push('NCEI');
+      if (/\bNCEI-SWDI\b|\bSWDI\b/.test(s)) codes.push('SWDI');
+      if (/\bSPC\b/.test(s)) codes.push('SPC');
+      if (/\bNWS-LSR\b|\bLSR\b/.test(s)) codes.push('NWS-LSR');
+      if (/\bCoCoRaHS\b/.test(s)) codes.push('CoCoRaHS');
+      if (/\bHailTrace\b/.test(s)) codes.push('HailTrace');
+      if (/\bRep Report\b/.test(s)) codes.push('Rep');
+      if (/\bCustomer Report\b/.test(s)) codes.push('Customer');
+      if (codes.length === 0) codes.push('NOAA');
+      return codes.join(' + ');
+    };
+
     const hailHeaders = ['Date / Time', 'Data Source', 'Hail Size', 'Distance', 'Traceability ID'];
     const hailWidths = [68, 68, 48, 56, this.CW - 240];
 
@@ -982,20 +1000,20 @@ export class PDFReportServiceV2 {
       const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
-        'NEXRAD Radar',
+        dataSourceLabel(e.source, e.comments),
         e.hailSize ? `${e.hailSize.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        trace || 'Radar-detected hail signature',
+        trace || 'No IDs available',
       ]);
     });
     filteredSelectedNoaaHail.forEach(e => {
       const trace = buildTraceability(e as any);
       hailRows.push([
         this.fmtDateTimeET(e.date),
-        'NOAA Storm Events',
+        dataSourceLabel(e.location, e.comments),
         e.magnitude ? `${e.magnitude.toFixed(2)}"` : '---',
         e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-        trace || 'Ground observation',
+        trace || 'No IDs available',
       ]);
     });
 
@@ -1030,10 +1048,10 @@ export class PDFReportServiceV2 {
         const trace = buildTraceability(e as any);
         return [
           this.fmtDateTimeET(e.date),
-          'NOAA Storm Events',
+          dataSourceLabel(e.location, e.comments),
           e.magnitude ? `${Math.round(e.magnitude)} kts` : '---',
           e.distanceMiles ? `${e.distanceMiles.toFixed(1)} mi` : '---',
-          trace || 'Ground observation',
+          trace || 'No IDs available',
         ];
       });
 
