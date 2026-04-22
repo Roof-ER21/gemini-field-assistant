@@ -156,7 +156,7 @@ async function stormSearch(pool, text) {
     try {
         if (dates.length > 0) {
             // Specific date lookup — give top events that day in VA/MD/PA
-            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, verification_count
+            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
          FROM verified_hail_events_public
          WHERE event_date = ANY($1::date[])
            AND state IN ('VA','MD','PA','DC','WV','DE')
@@ -166,7 +166,7 @@ async function stormSearch(pool, text) {
         }
         // General storm ask without a date — return top recent events in region
         if (mentionsStorm(text)) {
-            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, verification_count
+            const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
          FROM verified_hail_events_public
          WHERE event_date >= CURRENT_DATE - INTERVAL '14 days'
            AND state IN ('VA','MD','PA','DC','WV','DE')
@@ -203,7 +203,10 @@ async function kbSearch(pool, text) {
        FROM knowledge_documents
        WHERE search_vector @@ to_tsquery('english', $1)
        ORDER BY rank DESC LIMIT 3`, [tsquery]);
-        return result.rows.filter((r) => Number(r.rank) >= 0.1);
+        // FTS @@ already filters non-matches; keep everything it returns.
+        // (Previously filtered rank>=0.1 but real hits score 0.05-0.09 — that cutoff
+        //  was eating nearly every adjuster hit and making Susan hallucinate.)
+        return result.rows;
     }
     catch (err) {
         console.warn('[SusanBot] kb search error:', err);
@@ -233,7 +236,7 @@ function buildPromptLines(message, kbHits, stormHits, priorMsg) {
     if (stormHits.length > 0) {
         lines.push('\nSTORM_HITS (verified hail/wind events from NOAA/NWS/NEXRAD/MRMS):');
         for (const s of stormHits.slice(0, 10)) {
-            lines.push(`  ${s.event_date} ${s.state || '?'} — hail ${s.hail_size_inches || '-'}", wind ${s.wind_mph || '-'}mph, ${s.verification_count}x verified`);
+            lines.push(`  ${s.event_date} ${s.state || '?'} — hail ${s.hail_size_inches || '-'}", wind ${s.wind_mph || '-'}mph, ${s.public_verification_count}x verified`);
         }
     }
     return lines.join('\n');
