@@ -11,12 +11,11 @@
  */
 
 import { Pool } from 'pg';
-import { createGunzip } from 'zlib';
-import { pipeline } from 'stream/promises';
-import { Readable } from 'stream';
+import { gunzipSync } from 'zlib';
 import { randomUUID } from 'crypto';
 import { BackfillRunner, BackfillResult, markWindowStart, markWindowComplete, markWindowFailed, isWindowComplete } from '../backfillOrchestrator.js';
 import { VerifiedEventsService, SourceName } from '../verifiedEventsService.js';
+import { slowFetch, downloadBuffer } from './httpHelper.js';
 
 const NCEI_BASE = 'https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/';
 const STATE_FULL_NAMES: Record<string, string> = {
@@ -51,7 +50,9 @@ const RELEVANT_EVENT_TYPES = new Set([
  * Filenames include a compilation-date suffix that changes (e.g., c20250416 for the 2024 file).
  */
 async function resolveYearFile(year: number): Promise<string | null> {
-  const resp = await fetch(NCEI_BASE, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0 (ahmed@theroofdocs.com)' } });
+  const resp = await slowFetch(NCEI_BASE, {
+    headers: { 'User-Agent': 'CC21-storm-backfill/1.0 (ahmed@theroofdocs.com)' },
+  });
   if (!resp.ok) throw new Error(`NCEI directory listing HTTP ${resp.status}`);
   const html = await resp.text();
   // File pattern: StormEvents_details-ftp_v1.0_dYYYY_cYYYYMMDD.csv.gz
@@ -73,21 +74,12 @@ async function fetchAndParseYear(year: number): Promise<Record<string, string>[]
   const url = NCEI_BASE + filename;
   console.log(`[noaa_ncei] Fetching ${filename}...`);
 
-  const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
-  if (!resp.ok) throw new Error(`NCEI ${year} HTTP ${resp.status}`);
-  if (!resp.body) throw new Error(`NCEI ${year} empty body`);
-
-  const chunks: Buffer[] = [];
-  const gunzip = createGunzip();
-  const readable = Readable.fromWeb(resp.body as any);
-  readable.pipe(gunzip);
-  gunzip.on('data', (c: Buffer) => chunks.push(c));
-  await new Promise((res, rej) => {
-    gunzip.on('end', res);
-    gunzip.on('error', rej);
+  const gzipped = await downloadBuffer(url, {
+    headers: { 'User-Agent': 'CC21-storm-backfill/1.0' },
+    timeoutMs: 600_000,    // 10 min for large year files
   });
 
-  const csvText = Buffer.concat(chunks).toString('utf-8');
+  const csvText = gunzipSync(gzipped).toString('utf-8');
   return parseCsv(csvText);
 }
 
@@ -211,8 +203,9 @@ export const noaaNceiBackfill: BackfillRunner = {
   async run({ pool, verifiedSvc, states, fromDate, toDate, dryRun, onProgress }) {
     const startedAt = new Date().toISOString();
     const runId = randomUUID();
-    const startYear = new Date(fromDate).getFullYear();
-    const endYear = new Date(toDate).getFullYear();
+    // Parse YYYY from ISO date string directly to avoid timezone off-by-one
+    const startYear = parseInt(fromDate.slice(0, 4), 10);
+    const endYear = parseInt(toDate.slice(0, 4), 10);
 
     const result: BackfillResult = {
       source: 'noaa_ncei' as SourceName,

@@ -24,7 +24,6 @@
  *   npx tsx scripts/run-backfill.ts --summary
  */
 
-import 'dotenv/config';
 import pg from 'pg';
 import { backfillOrchestrator, registerAllRunners } from '../server/services/backfillOrchestrator.js';
 import { SourceName } from '../server/services/verifiedEventsService.js';
@@ -55,7 +54,8 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
+  // Prefer DATABASE_PUBLIC_URL (works from outside Railway) over DATABASE_URL (internal only)
+  const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error('ERROR: DATABASE_URL or DATABASE_PUBLIC_URL env var required');
     process.exit(1);
@@ -64,6 +64,16 @@ async function main() {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     ssl: databaseUrl.includes('railway') || databaseUrl.includes('amazonaws') ? { rejectUnauthorized: false } : false,
+    max: 5,
+    idleTimeoutMillis: 60_000,
+    connectionTimeoutMillis: 30_000,
+    // Keepalive helps with Railway proxy staleness
+    keepAlive: true,
+  });
+
+  // Survive transient connection losses — don't crash the process
+  pool.on('error', (err) => {
+    console.error('[pg pool] Idle client error (non-fatal):', err.message);
   });
 
   // Test connection

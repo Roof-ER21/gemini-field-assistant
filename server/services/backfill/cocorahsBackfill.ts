@@ -13,6 +13,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { BackfillRunner, BackfillResult, markWindowStart, markWindowComplete, markWindowFailed } from '../backfillOrchestrator.js';
 import { SourceName } from '../verifiedEventsService.js';
+import { slowFetch } from './httpHelper.js';
 
 function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
@@ -51,18 +52,20 @@ export const cocorahsBackfill: BackfillRunner = {
       startedAt, finishedAt: '', durationSec: 0,
     };
 
-    const startYear = new Date(fromDate).getFullYear();
-    const endYear = new Date(toDate).getFullYear();
+    const startYear = parseInt(fromDate.slice(0, 4), 10);
+    const endYear = parseInt(toDate.slice(0, 4), 10);
 
-    // One window per (state, year)
+    // One window per (state, year) — use dtf=3 (date range) since Year filter returns empty
     for (const state of states) {
       for (let year = startYear; year <= endYear; year++) {
         const label = `COCORAHS:${state}:${year}`;
         await markWindowStart(pool, 'cocorahs', runId, label);
 
         try {
-          // Hail reports export — dtf=2 uses Year filter
-          const url = `https://data.cocorahs.org/cocorahs/export/exportreports.aspx?ReportType=Hail&dtf=2&Format=CSV&State=${state}&Year=${year}`;
+          // dtf=3 = date range filter; dtf=2 (Year) returns only header rows
+          const startDate = `01/01/${year}`;
+          const endDate = year === endYear ? toDate.slice(5,7) + '/' + toDate.slice(8,10) + '/' + year : `12/31/${year}`;
+          const url = `https://data.cocorahs.org/cocorahs/export/exportreports.aspx?ReportType=Hail&dtf=3&Format=CSV&State=${state}&ReportDateType=Observation&StartDate=${encodeURIComponent(startDate)}&EndDate=${encodeURIComponent(endDate)}`;
 
           onProgress?.({
             source: 'cocorahs' as SourceName, phase: 'fetching',
@@ -70,7 +73,7 @@ export const cocorahsBackfill: BackfillRunner = {
             currentWindow: label,
           });
 
-          const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
+          const resp = await slowFetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
           if (!resp.ok) throw new Error(`CoCoRaHS ${state}/${year} HTTP ${resp.status}`);
           const text = await resp.text();
           const rows = parseCsv(text);
@@ -98,9 +101,10 @@ export const cocorahsBackfill: BackfillRunner = {
             const obsDate = r.ObservationDate || r.observationdate || r['Observation Date'];
             if (!obsDate) continue;
 
-            // Parse hail stone sizes (reported in inches)
-            const largest = parseFloat(r.LargestHailStone || r.largesthailstone || r['Largest Hail Stone'] || '');
-            const avg = parseFloat(r.AvgHailStone || r.avghailstone || r['Avg Hail Stone'] || '');
+            // Parse hail stone sizes — actual CoCoRaHS columns: SmallestSize, AverageSize, LargestSize
+            const largest = parseFloat(r.LargestSize || '');
+            const avg = parseFloat(r.AverageSize || '');
+            const smallest = parseFloat(r.SmallestSize || '');
             const hailSize = !isNaN(largest) && largest > 0 ? largest
                            : !isNaN(avg) && avg > 0 ? avg
                            : null;
@@ -116,19 +120,24 @@ export const cocorahsBackfill: BackfillRunner = {
               tornadoEfRank: null,
               source: 'cocorahs' as SourceName,
               sourcePayload: {
-                station_number: r.StationNumber || r.stationnumber,
-                station_name: r.StationName || r.stationname,
+                station_number: r.StationNumber,
+                station_name: r.StationName,
                 observation_date: obsDate,
-                observation_time: r.ObservationTime || r.observationtime,
+                observation_time: r.ObservationTime,
                 latitude: lat,
                 longitude: lng,
-                largest_hailstone: largest || null,
-                avg_hailstone: avg || null,
-                smallest_hailstone: parseFloat(r.SmallestHailStone || r.smallesthailstone || '') || null,
-                hail_accum_depth: r.HailAccumDepth || null,
-                hail_accum_duration: r.HailAccumDuration || null,
-                hail_consistency: r.HailConsistency || null,
-                comments: (r.Comments || r.comments || '').slice(0, 500),
+                smallest_size: isNaN(smallest) ? null : smallest,
+                average_size: isNaN(avg) ? null : avg,
+                largest_size: isNaN(largest) ? null : largest,
+                duration_minutes: r.DurationMinutes,
+                duration_accuracy: r.DurationAccuracy,
+                timing: r.Timing,
+                stone_consistency: r.StoneConsistency,
+                more_rain_than_hail: r.MoreRainThanHail,
+                depth_on_ground: r.DepthOnGround,
+                damage: r.Damage,
+                angle_of_impact: r.AngleOfImpact,
+                entry_datetime: r.EntryDateTime,
               },
             });
           }

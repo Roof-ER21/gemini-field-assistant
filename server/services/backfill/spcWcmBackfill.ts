@@ -13,6 +13,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { BackfillRunner, BackfillResult, markWindowStart, markWindowComplete, markWindowFailed } from '../backfillOrchestrator.js';
 import { SourceName } from '../verifiedEventsService.js';
+import { slowFetch } from './httpHelper.js';
 
 function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
@@ -41,19 +42,17 @@ function parseCsv(text: string): Record<string, string>[] {
 const STATE_ABBREV = new Set(['VA', 'MD', 'PA', 'DC', 'WV', 'DE', 'NJ', 'NY', 'OH', 'NC', 'KY', 'TN']);
 
 /**
- * Try common SPC filenames. Files are named like:
- *   - 1950-2023_hail.csv
- *   - 1950-2023_torn.csv
- *   - 1950-2023_wind.csv
- * The endYear in filename changes each year.
+ * SPC WCM publishes per-year CSVs at /wcm/data/{YEAR}_{type}.csv (type = hail|wind|torn).
+ * Returns URL or null if file doesn't exist for that year.
  */
-async function resolveFile(type: 'hail' | 'torn' | 'wind', guesses: number[] = [2024, 2023, 2022]): Promise<string | null> {
-  for (const endY of guesses) {
-    const url = `https://www.spc.noaa.gov/wcm/data/1950-${endY}_${type}.csv`;
-    const resp = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
-    if (resp.ok) return url;
-  }
-  return null;
+async function resolveYearFile(type: 'hail' | 'torn' | 'wind', year: number): Promise<string | null> {
+  const url = `https://www.spc.noaa.gov/wcm/data/${year}_${type}.csv`;
+  const resp = await slowFetch(url, {
+    method: 'HEAD',
+    headers: { 'User-Agent': 'CC21-storm-backfill/1.0' },
+    timeoutMs: 30_000,
+  });
+  return resp.ok ? url : null;
 }
 
 export const spcWcmBackfill: BackfillRunner = {
@@ -71,57 +70,56 @@ export const spcWcmBackfill: BackfillRunner = {
     };
 
     const allowedStates = new Set(states.filter((s) => STATE_ABBREV.has(s)));
-    const startYear = new Date(fromDate).getFullYear();
-    const endYear = new Date(toDate).getFullYear();
+    const startYear = parseInt(fromDate.slice(0, 4), 10);
+    const endYear = parseInt(toDate.slice(0, 4), 10);
 
     const types: Array<'hail' | 'torn' | 'wind'> = ['hail', 'wind', 'torn'];
 
+    // One window per (type, year)
     for (const t of types) {
-      const label = `SPC-WCM:${t}:${fromDate}:${toDate}`;
-      await markWindowStart(pool, 'spc_wcm', runId, label);
+      for (let year = startYear; year <= endYear; year++) {
+        const label = `SPC-WCM:${t}:${year}`;
+        await markWindowStart(pool, 'spc_wcm', runId, label);
 
-      try {
-        const url = await resolveFile(t);
-        if (!url) {
-          console.warn(`[spc_wcm] Could not resolve ${t} file`);
-          await markWindowComplete(pool, 'spc_wcm', runId, label, {
-            rowsInput: 0, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: 0, errorCount: 1,
+        try {
+          const url = await resolveYearFile(t, year);
+          if (!url) {
+            console.warn(`[spc_wcm] ${year}_${t}.csv not found (SPC may not have published yet)`);
+            await markWindowComplete(pool, 'spc_wcm', runId, label, {
+              rowsInput: 0, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: 0, errorCount: 0,
+            });
+            continue;
+          }
+
+          onProgress?.({
+            source: 'spc_wcm' as SourceName, phase: 'fetching',
+            rowsInput: 0, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: 0, errors: 0,
+            currentWindow: label,
           });
-          continue;
-        }
 
-        onProgress?.({
-          source: 'spc_wcm' as SourceName, phase: 'fetching',
-          rowsInput: 0, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: 0, errors: 0,
-          currentWindow: label,
-        });
+          const resp = await slowFetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
+          if (!resp.ok) throw new Error(`SPC ${t} ${year} HTTP ${resp.status}`);
+          const text = await resp.text();
+          const rows = parseCsv(text);
 
-        const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
-        if (!resp.ok) throw new Error(`SPC ${t} HTTP ${resp.status}`);
-        const text = await resp.text();
-        const rows = parseCsv(text);
-
-        // SPC WCM columns (consistent across types):
-        // om, yr, mo, dy, date, time, tz, st, stf, stn, mag, inj, fat, loss, closs,
-        // slat, slon, elat, elon, len, wid, ns, sn, sg, f1, f2, f3, f4, fc
-        const filtered = rows.filter((r) => {
-          const yr = parseInt(r.yr || '', 10);
-          const st = (r.st || '').toUpperCase().trim();
-          return yr >= startYear && yr <= endYear && allowedStates.has(st);
-        });
-
-        result.rowsInput += filtered.length;
-        console.log(`[spc_wcm] ${t}: ${filtered.length} rows in scope from ${rows.length} total`);
-
-        if (dryRun) {
-          await markWindowComplete(pool, 'spc_wcm', runId, label, {
-            rowsInput: filtered.length, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: filtered.length, errorCount: 0,
+          // SPC WCM columns: om, yr, mo, dy, date, time, tz, st, stf, stn, mag, inj, fat, loss, closs, slat, slon, elat, elon, len, wid, ns, sn, sg, f1, f2, f3, f4, fc
+          const filtered = rows.filter((r) => {
+            const st = (r.st || '').toUpperCase().trim();
+            return allowedStates.has(st);
           });
-          continue;
-        }
 
-        const batch = [];
-        for (const r of filtered) {
+          result.rowsInput += filtered.length;
+          console.log(`[spc_wcm] ${year}_${t}: ${filtered.length} rows in scope from ${rows.length} total`);
+
+          if (dryRun) {
+            await markWindowComplete(pool, 'spc_wcm', runId, label, {
+              rowsInput: filtered.length, rowsInserted: 0, rowsUpdated: 0, rowsSkipped: filtered.length, errorCount: 0,
+            });
+            continue;
+          }
+
+          const batch = [];
+          for (const r of filtered) {
           const lat = parseFloat(r.slat || '');
           const lng = parseFloat(r.slon || '');
           if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) continue;
@@ -177,25 +175,28 @@ export const spcWcmBackfill: BackfillRunner = {
           });
         }
 
-        const CHUNK = 500;
-        let wInserted = 0, wUpdated = 0, wErrors = 0;
-        for (let i = 0; i < batch.length; i += CHUNK) {
-          const slice = batch.slice(i, i + CHUNK);
-          const res = await verifiedSvc.upsertBatch(slice);
-          wInserted += res.inserted; wUpdated += res.updated; wErrors += res.errors.length;
-          result.errors.push(...res.errors.map((e) => ({ reason: e.error, sample: e.params })));
-        }
-        result.rowsInserted += wInserted;
-        result.rowsUpdated += wUpdated;
+          const CHUNK = 500;
+          let wInserted = 0, wUpdated = 0, wErrors = 0;
+          for (let i = 0; i < batch.length; i += CHUNK) {
+            const slice = batch.slice(i, i + CHUNK);
+            const res = await verifiedSvc.upsertBatch(slice);
+            wInserted += res.inserted; wUpdated += res.updated; wErrors += res.errors.length;
+            result.errors.push(...res.errors.map((e) => ({ reason: e.error, sample: e.params })));
+          }
+          result.rowsInserted += wInserted;
+          result.rowsUpdated += wUpdated;
 
-        await markWindowComplete(pool, 'spc_wcm', runId, label, {
-          rowsInput: filtered.length, rowsInserted: wInserted, rowsUpdated: wUpdated,
-          rowsSkipped: 0, errorCount: wErrors,
-        });
-      } catch (err: any) {
-        await markWindowFailed(pool, 'spc_wcm', runId, label, err.message);
-        result.errors.push({ reason: `${label} failed: ${err.message}` });
-        console.error(`[spc_wcm] ${label} failed:`, err.message);
+          await markWindowComplete(pool, 'spc_wcm', runId, label, {
+            rowsInput: filtered.length, rowsInserted: wInserted, rowsUpdated: wUpdated,
+            rowsSkipped: 0, errorCount: wErrors,
+          });
+        } catch (err: any) {
+          await markWindowFailed(pool, 'spc_wcm', runId, label, err.message);
+          result.errors.push({ reason: `${label} failed: ${err.message}` });
+          console.error(`[spc_wcm] ${label} failed:`, err.message);
+        }
+        // polite pause between fetches
+        await new Promise((r) => setTimeout(r, 200));
       }
     }
 

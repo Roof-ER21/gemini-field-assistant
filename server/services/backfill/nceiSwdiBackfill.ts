@@ -14,6 +14,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { BackfillRunner, BackfillResult, markWindowStart, markWindowComplete, markWindowFailed } from '../backfillOrchestrator.js';
 import { SourceName } from '../verifiedEventsService.js';
+import { slowFetch } from './httpHelper.js';
 
 const SWDI_BASE = 'https://www.ncei.noaa.gov/swdiws/csv';
 
@@ -115,7 +116,7 @@ export const nceiSwdiBackfill: BackfillRunner = {
             currentWindow: label,
           });
 
-          const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
+          const resp = await slowFetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
           if (!resp.ok) {
             if (resp.status === 404) {
               // 404 often means no data in this window — normal

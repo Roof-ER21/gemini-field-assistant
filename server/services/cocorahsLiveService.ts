@@ -95,8 +95,8 @@ export class CocorahsLiveService {
             const obsDate = r.ObservationDate || r['Observation Date'];
             if (!obsDate) continue;
 
-            const largest = parseFloat(r.LargestHailStone || r['Largest Hail Stone'] || '');
-            const avg = parseFloat(r.AvgHailStone || r['Avg Hail Stone'] || '');
+            const largest = parseFloat(r.LargestSize || '');
+            const avg = parseFloat(r.AverageSize || '');
             const hailSize = !isNaN(largest) && largest > 0 ? largest
                            : !isNaN(avg) && avg > 0 ? avg
                            : null;
@@ -113,9 +113,10 @@ export class CocorahsLiveService {
                 station_number: r.StationNumber,
                 station_name: r.StationName,
                 observation_time: r.ObservationTime,
-                largest: largest || null,
-                avg: avg || null,
-                comments: (r.Comments || '').slice(0, 500),
+                largest_size: isNaN(largest) ? null : largest,
+                average_size: isNaN(avg) ? null : avg,
+                damage: r.Damage,
+                stone_consistency: r.StoneConsistency,
                 ingested_via: 'live-daily',
               },
             });

@@ -112,9 +112,17 @@ export class IemLsrLiveService {
 
         const validTime = r.VALID || r.valid;
         if (!validTime) continue;
+        let iso: string;
+        if (/^\d{12}$/.test(validTime)) {
+          iso = `${validTime.slice(0,4)}-${validTime.slice(4,6)}-${validTime.slice(6,8)}T${validTime.slice(8,10)}:${validTime.slice(10,12)}:00Z`;
+        } else {
+          const d = new Date(validTime);
+          if (isNaN(d.getTime())) continue;
+          iso = d.toISOString();
+        }
 
         batch.push({
-          eventDate: new Date(validTime).toISOString(),
+          eventDate: iso,
           latitude: lat,
           longitude: lng,
           state,

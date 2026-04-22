@@ -12,6 +12,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { BackfillRunner, BackfillResult, markWindowStart, markWindowComplete, markWindowFailed } from '../backfillOrchestrator.js';
 import { SourceName } from '../verifiedEventsService.js';
+import { slowFetch } from './httpHelper.js';
 
 // Parse CSV helper (same shape as NCEI parser)
 function parseCsv(text: string): Record<string, string>[] {
@@ -89,7 +90,10 @@ export const iemLsrBackfill: BackfillRunner = {
           currentWindow: w.label,
         });
 
-        const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-backfill/1.0' } });
+        const resp = await slowFetch(url, {
+          headers: { 'User-Agent': 'CC21-storm-backfill/1.0' },
+          timeoutMs: 300_000,
+        });
         if (!resp.ok) throw new Error(`IEM LSR HTTP ${resp.status}`);
         const text = await resp.text();
         const rows = parseCsv(text);
@@ -134,11 +138,22 @@ export const iemLsrBackfill: BackfillRunner = {
 
           if (hail == null && wind == null && tornadoEf == null) continue;
 
+          // IEM VALID format: YYYYMMDDHHMM (compact)
           const validTime = r.VALID || r.valid;
           if (!validTime) continue;
+          let iso: string;
+          if (/^\d{12}$/.test(validTime)) {
+            // Parse YYYYMMDDHHMM → ISO
+            iso = `${validTime.slice(0,4)}-${validTime.slice(4,6)}-${validTime.slice(6,8)}T${validTime.slice(8,10)}:${validTime.slice(10,12)}:00Z`;
+          } else {
+            // Fallback: try standard parsers
+            const d = new Date(validTime);
+            if (isNaN(d.getTime())) continue;
+            iso = d.toISOString();
+          }
 
           batch.push({
-            eventDate: new Date(validTime).toISOString(),
+            eventDate: iso,
             latitude: lat,
             longitude: lng,
             state,

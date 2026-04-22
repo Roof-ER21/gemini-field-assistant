@@ -256,8 +256,42 @@ export class VerifiedEventsService {
   /**
    * Bulk upsert within a transaction. Used by backfill orchestrators for throughput.
    * Returns aggregate stats; individual errors are collected but don't abort the batch.
+   *
+   * Retries the entire batch on transient connection errors (ENOTFOUND, ECONNRESET,
+   * Connection terminated). Idempotent at the DB level thanks to dedup UNIQUE index,
+   * so re-running a batch is safe.
    */
   async upsertBatch(batch: UpsertParams[]): Promise<{
+    inserted: number;
+    updated: number;
+    errors: Array<{ index: number; error: string; params: UpsertParams }>;
+  }> {
+    const TRANSIENT_ERRORS = ['ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNREFUSED', 'EPIPE'];
+    const MAX_RETRIES = 4;
+    let attempt = 0;
+    let lastErr: any;
+
+    while (attempt < MAX_RETRIES) {
+      attempt++;
+      try {
+        return await this._upsertBatchOnce(batch);
+      } catch (err: any) {
+        const isTransient =
+          TRANSIENT_ERRORS.includes(err?.code) ||
+          /connection terminated|Connection lost|server closed the connection/i.test(err?.message || '');
+        if (!isTransient || attempt >= MAX_RETRIES) {
+          throw err;
+        }
+        lastErr = err;
+        const backoff = Math.min(30_000, 2000 * Math.pow(2, attempt - 1)); // 2s, 4s, 8s, 16s, cap 30s
+        console.warn(`[verifiedEventsService] Transient DB error (attempt ${attempt}/${MAX_RETRIES}): ${err.message} — retrying in ${backoff}ms`);
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+    throw lastErr;
+  }
+
+  private async _upsertBatchOnce(batch: UpsertParams[]): Promise<{
     inserted: number;
     updated: number;
     errors: Array<{ index: number; error: string; params: UpsertParams }>;
@@ -276,12 +310,16 @@ export class VerifiedEventsService {
           if (result.wasInserted) inserted++;
           else updated++;
         } catch (err: any) {
+          // Transient errors bubble up to trigger batch retry
+          if (err?.code === 'ECONNRESET' || err?.code === 'ENOTFOUND' ||
+              /connection terminated/i.test(err?.message || '')) {
+            throw err;
+          }
           errors.push({
             index: i,
             error: err.message,
             params: batch[i],
           });
-          // Continue batch on individual error (not using savepoint to keep throughput high)
         }
       }
 
