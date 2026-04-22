@@ -515,6 +515,29 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       `[SusanBot] trigger=${mentioned ? 'mention' : 'reply_to_susan'} from ${msg.name}: ${text.slice(0, 80)}`
     );
 
+    // REBUILD MODE — reply with a scripted "being upgraded" message per rep (not spam).
+    // Set SUSAN_REBUILD_MODE=true in Railway env while we're rewiring her internals.
+    if (process.env.SUSAN_REBUILD_MODE === 'true') {
+      const senderKey = `${msg.user_id || msg.sender_id || msg.name}`;
+      // @ts-ignore — we hang a rebuildGreeted set on globalThis; survives function calls, resets on redeploy
+      const greeted: Set<string> = (globalThis as any).__susanRebuildGreeted ||
+        ((globalThis as any).__susanRebuildGreeted = new Set<string>());
+      if (greeted.has(senderKey)) {
+        console.log(`[SusanBot] rebuild_mode already_greeted skip for ${senderKey}`);
+        return;
+      }
+      greeted.add(senderKey);
+      const rebuildReply =
+        "🔧 Getting upgraded right now team — full knowledge base + context memory comes online by end of day. " +
+        "Swing back in a bit and I'll be way sharper. Appreciate the patience 🙏";
+      const posted = await postToGroupMe(rebuildReply, String(msg.id));
+      if (posted) {
+        repliedAt.push(Date.now());
+        console.log(`[SusanBot] rebuild_mode REPLIED to ${msg.name}`);
+      }
+      return;
+    }
+
     // Generate + post
     try {
       const [kbHits, stormHits] = await Promise.all([
