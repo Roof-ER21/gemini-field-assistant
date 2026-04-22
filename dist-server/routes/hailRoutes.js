@@ -30,13 +30,14 @@ import { noaaStormService } from '../services/noaaStormService.js';
 import { damageScoreService } from '../services/damageScoreService.js';
 import { hotZoneService } from '../services/hotZoneService.js';
 import { pdfReportServiceV2 } from '../services/pdfReportServiceV2.js';
+import { VerifiedEventsPdfAdapter } from '../services/verifiedEventsPdfAdapter.js';
+import { fetchMapImage } from '../services/mapImageService.js';
+import { fetchNexradImage } from '../services/nexradService.js';
 import { getHistoricalMrmsOverlay, getMrmsHailAtPoint, getHistoricalMrmsSwathPolygons, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { computeStormImpact } from '../services/stormImpactService.js';
 import { getLiveMrmsSwathPolygons } from '../services/liveMrmsService.js';
 import { crossValidateHailtrace } from '../services/hailtraceValidationService.js';
-import { fetchNexradImage } from '../services/nexradService.js';
 import { fetchNWSAlerts } from '../services/nwsAlertService.js';
-import { fetchMapImage } from '../services/mapImageService.js';
 import { compositeContourOverlay, compositeVectorSwathOverlay } from '../services/contourOverlayService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
@@ -1541,6 +1542,12 @@ router.get('/mrms-now-polygons', async (req, res) => {
 // Extracted so it can be called from both the rep-facing endpoint (with
 // x-user-email auth) and the public share-link endpoint (which authenticated
 // itself via a token lookup).
+//
+// Date filter modes (pick one; all optional → lifetime 5yr report):
+//  - stormDate: single "YYYY-MM-DD"              → single-storm report
+//  - stormDates: ["YYYY-MM-DD", ...]             → multi-storm combined
+//  - fromDate + toDate: "YYYY-MM-DD"             → date range
+//  - (none)                                       → 5-year lifetime
 async function renderClaimPacketToResponse(res, pool, params) {
     const { rows: propertyRows } = await pool.query(`SELECT cp.id, cp.user_id, cp.customer_name, cp.address, cp.city, cp.state, cp.zip_code,
             cp.latitude, cp.longitude
@@ -1557,27 +1564,64 @@ async function renderClaimPacketToResponse(res, pool, params) {
     const propertyAddress = [property.address, property.city, property.state]
         .filter(Boolean)
         .join(', ');
+    // Determine date-filter mode + compute the appropriate window for the DB query
+    const singleDate = params.stormDate && !params.stormDates?.length ? params.stormDate : null;
+    const multiDates = params.stormDates && params.stormDates.length > 0 ? params.stormDates : null;
+    const fromDate = params.fromDate ?? null;
+    const toDate = params.toDate ?? null;
+    const isLifetime = !singleDate && !multiDates && !fromDate && !toDate;
+    // For the DB pull, widen the year window enough to cover the oldest requested date
+    let queryYearsBack = 5;
+    if (singleDate) {
+        queryYearsBack = Math.max(1, new Date().getUTCFullYear() - Number(singleDate.slice(0, 4)) + 1);
+    }
+    else if (multiDates) {
+        const oldest = multiDates.reduce((m, d) => (d < m ? d : m), '9999-99-99');
+        queryYearsBack = Math.max(1, new Date().getUTCFullYear() - Number(oldest.slice(0, 4)) + 1);
+    }
+    else if (fromDate) {
+        queryYearsBack = Math.max(1, new Date().getUTCFullYear() - Number(fromDate.slice(0, 4)) + 1);
+    }
+    // Pull events from verified_hail_events via the adapter (multi-source pipeline).
+    // Replaces the old on-demand noaaStormService call which only returned 1 source.
+    const adapter = new VerifiedEventsPdfAdapter(pool);
+    let adapterEvents = [];
+    let adapterHistoryEvents = [];
+    let adapterNoaaEvents = [];
+    try {
+        const result = await adapter.getEventsForProperty(lat, lng, 10, queryYearsBack, true);
+        adapterEvents = result.events;
+        adapterHistoryEvents = result.historyEvents;
+        adapterNoaaEvents = result.noaaEvents;
+    }
+    catch (e) {
+        console.warn('[ClaimPacket] Adapter fetch failed:', e.message);
+    }
+    // Pick a representative storm date for NEXRAD radar + storm-impact lookup
+    const representativeDate = singleDate
+        || (multiDates && multiDates.length > 0 ? multiDates[0] : null)
+        || toDate
+        || new Date().toISOString().slice(0, 10);
     const impactResult = await computeStormImpact({
-        date: params.stormDate,
+        date: representativeDate,
         anchorTimestamp: params.anchorTimestamp ?? null,
         points: [{ id: String(property.id), lat, lng }],
     }, pool);
     const impactAtProperty = impactResult.results[0];
-    const stormYear = Number(params.stormDate.slice(0, 4));
-    const yearsBack = Math.max(1, new Date().getUTCFullYear() - stormYear + 1);
-    let noaaEvents = [];
-    try {
-        noaaEvents = await noaaStormService.getStormEvents(lat, lng, 10, yearsBack);
-    }
-    catch (e) {
-        console.warn('[ClaimPacket] NOAA fetch failed:', e.message);
-    }
+    // Fetch map + NEXRAD radar images (existing helpers)
+    const mapImage = await fetchMapImage({ lat, lng, zoom: 11, width: 640, height: 360 })
+        .catch(() => null);
+    const nexradResult = await fetchNexradImage({
+        lat, lng,
+        datetime: representativeDate + 'T20:00:00Z',
+        width: 640, height: 400,
+    }).catch(() => null);
     const damageScore = damageScoreService.calculateDamageScore({
         lat,
         lng,
         address: propertyAddress,
-        events: [],
-        noaaEvents: noaaEvents,
+        events: adapterEvents,
+        noaaEvents: adapterNoaaEvents,
     });
     const reportPayload = {
         address: propertyAddress,
@@ -1586,20 +1630,36 @@ async function renderClaimPacketToResponse(res, pool, params) {
         lat,
         lng,
         radius: 10,
-        events: [],
-        noaaEvents,
+        events: adapterEvents,
+        historyEvents: adapterHistoryEvents,
+        noaaEvents: adapterNoaaEvents,
         damageScore,
         repName: params.repName || 'Roof ER',
         repPhone: params.repPhone || '(703) 239-3738',
         repEmail: params.repEmail || 'info@theroofdocs.com',
         companyName: 'Roof ER The Roof Docs',
         customerName: property.customer_name,
-        dateOfLoss: params.stormDate,
-        includeNexrad: true,
-        includeMap: true,
-        includeWarnings: true,
+        // Date-filter — PDF service picks the right mode
+        dateOfLoss: singleDate || undefined,
+        datesOfLoss: multiDates || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        mapImage,
+        nexradImage: nexradResult?.imageBuffer || null,
+        nexradTimestamp: nexradResult?.timestamp,
+        includeNexrad: !!nexradResult?.imageBuffer,
+        includeMap: !!mapImage,
+        includeWarnings: false, // only show if real alerts attached
     };
-    const safeDate = params.stormDate.replace(/[^0-9-]/g, '');
+    // Build filename-safe date tag
+    const dateTag = singleDate
+        ? singleDate.replace(/[^0-9-]/g, '')
+        : multiDates && multiDates.length > 0
+            ? `${multiDates.length}storms`
+            : fromDate && toDate
+                ? `${fromDate}_to_${toDate}`.replace(/[^0-9_-]/g, '')
+                : 'lifetime';
+    const safeDate = dateTag;
     const safeName = property.customer_name.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="ClaimPacket_${safeName}_${safeDate}.pdf"`);
@@ -1620,22 +1680,35 @@ async function renderClaimPacketToResponse(res, pool, params) {
         }
     });
 }
-// POST /api/hail/claim-packet — One-click adjuster-ready PDF for a specific
-// customer property + storm date. Auto-pulls the property from the rep's
-// customer_properties, runs storm-impact, fetches nearby NOAA/SPC events,
-// computes damage score, and streams a PDF via the existing pdfReportServiceV2.
+// POST /api/hail/claim-packet — Adjuster-ready PDF from verified_hail_events
+// (multi-source: NOAA + NEXRAD + SPC + NWS + CoCoRaHS).
 //
-// Body: { propertyId: string, stormDate: "YYYY-MM-DD", anchorTimestamp?: string }
+// Body accepts ANY of these date-filter modes:
+//   { propertyId, stormDate: "YYYY-MM-DD" }                      → single-storm
+//   { propertyId, stormDates: ["YYYY-MM-DD", ...] }              → multi-storm (combined)
+//   { propertyId, fromDate: "YYYY-MM-DD", toDate: "YYYY-MM-DD" } → date range
+//   { propertyId }                                                → lifetime (5-yr)
+//
+// Optional: anchorTimestamp (used for storm-impact + radar scan selection).
 // Headers: x-user-email (used for rep-profile auto-fill)
 router.post('/claim-packet', async (req, res) => {
     try {
         const email = req.header('x-user-email');
         if (!email)
             return res.status(401).json({ error: 'Not authenticated' });
-        const { propertyId, stormDate, anchorTimestamp } = req.body || {};
-        if (!propertyId || !stormDate) {
+        const { propertyId, stormDate, stormDates, fromDate, toDate, anchorTimestamp } = req.body || {};
+        if (!propertyId) {
+            return res.status(400).json({ error: 'propertyId is required' });
+        }
+        // Validate only one mode is specified
+        const modesSet = [
+            !!stormDate,
+            Array.isArray(stormDates) && stormDates.length > 0,
+            !!fromDate || !!toDate,
+        ].filter(Boolean).length;
+        if (modesSet > 1) {
             return res.status(400).json({
-                error: 'propertyId and stormDate are required',
+                error: 'Specify only ONE of: stormDate (single), stormDates (multi), or fromDate/toDate (range). Omit all for lifetime report.',
             });
         }
         const pool = req.app.get('pool');
@@ -1663,7 +1736,10 @@ router.post('/claim-packet', async (req, res) => {
         }
         await renderClaimPacketToResponse(res, pool, {
             propertyId: String(propertyId),
-            stormDate: String(stormDate),
+            stormDate: stormDate ? String(stormDate) : null,
+            stormDates: Array.isArray(stormDates) ? stormDates.map(String) : undefined,
+            fromDate: fromDate ? String(fromDate) : null,
+            toDate: toDate ? String(toDate) : null,
             anchorTimestamp: anchorTimestamp ? String(anchorTimestamp) : null,
             repName: user.name,
             repPhone: user.phone,

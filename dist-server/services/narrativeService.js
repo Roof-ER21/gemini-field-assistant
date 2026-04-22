@@ -118,7 +118,16 @@ function getWindDamagePotential(mph) {
         return 'damage to older or already-compromised roof surfaces, loose shingles, and exposed soft exterior components';
     return 'progressive wear to exterior components over the course of the event';
 }
-function getStateCodeClause(state) {
+/**
+ * Deprecated for adjuster-facing narrative — prescriptive code language
+ * ("roof replacement shall include removal...") was flagged as adversarial.
+ * Kept available for opt-in use (e.g., when a rep explicitly requests a
+ * code-referenced narrative). Default narrative now returns empty string.
+ */
+function getStateCodeClause(_state) {
+    return '';
+}
+function _getStateCodeClause_legacy(state) {
     if (!state)
         return '';
     const s = state.toUpperCase().trim();
