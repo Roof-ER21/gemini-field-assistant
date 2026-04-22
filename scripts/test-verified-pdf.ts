@@ -18,9 +18,14 @@ import { fetchNWSAlerts } from '../server/services/nwsAlertService.js';
 
 const OUT_DIR = '/tmp/pdf-test';
 
-const TARGETS = [
+const TARGETS: Array<{
+  address: string; city: string; state: string; lat: number; lng: number; slug: string; dateOfLoss?: string;
+}> = [
   { address: '7820 Amherst Dr, Manassas, VA 20111', city: 'Manassas', state: 'VA', lat: 38.7868, lng: -77.4795, slug: 'amherst-manassas' },
   { address: '5221 Scenic Dr, Perry Hall, MD 21128', city: 'Perry Hall', state: 'MD', lat: 39.3990, lng: -76.4368, slug: 'scenic-perryhall' },
+  // Dated reports — one specific storm each
+  { address: '5221 Scenic Dr, Perry Hall, MD 21128', city: 'Perry Hall', state: 'MD', lat: 39.3990, lng: -76.4368, slug: 'scenic-perryhall-DATED-7-8-2025', dateOfLoss: '2025-07-08' },
+  { address: '7820 Amherst Dr, Manassas, VA 20111', city: 'Manassas', state: 'VA', lat: 38.7868, lng: -77.4795, slug: 'amherst-manassas-DATED-5-16-2022', dateOfLoss: '2022-05-16' },
 ];
 
 async function main() {
@@ -93,7 +98,7 @@ async function main() {
       endDate: now.toISOString(),
     }).catch((e) => { console.log(`    alerts failed: ${e.message}`); return []; });
 
-    console.log(`  Generating PDF…`);
+    console.log(`  Generating PDF…${target.dateOfLoss ? ` [dateOfLoss=${target.dateOfLoss}]` : ''}`);
     const stream = pdfService.generateReport({
       address: target.address,
       city: target.city,
@@ -101,6 +106,7 @@ async function main() {
       lat: target.lat,
       lng: target.lng,
       radius: 10,
+      dateOfLoss: target.dateOfLoss,
       events,
       noaaEvents,
       historyEvents,           // full distance-banded observations

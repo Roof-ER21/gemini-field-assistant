@@ -526,21 +526,35 @@ export class PDFReportServiceV2 {
        .strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
 
     // =========================================================
-    // AT-A-GLANCE DASHBOARD — 4 big stat cards an adjuster sees first
+    // AT-A-GLANCE DASHBOARD — 4 big stat cards an adjuster sees first.
+    // Date-aware: when input.dateOfLoss is set, shows stats for that date only.
+    // Otherwise shows full history (5-year cumulative).
     // =========================================================
     doc.moveDown(0.4);
 
-    // Pre-compute dashboard stats
-    const allEventsForDashboard = input.historyEvents && input.historyEvents.length > 0
+    const dashMode = input.dateOfLoss ? 'date-specific' : 'lifetime';
+    const dashDate = input.dateOfLoss ? this.fmtDateET(input.dateOfLoss) : 'Last 5 years';
+
+    // Filter events based on mode
+    const allHistoryEvents = input.historyEvents && input.historyEvents.length > 0
       ? input.historyEvents
       : input.events;
-    const dashHailMax = allEventsForDashboard.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
-    const dashWindMax = input.noaaEvents
+    const dashEvents = dashMode === 'date-specific'
+      ? allHistoryEvents.filter((e) => this.getDateKey(e.date) === input.dateOfLoss)
+      : allHistoryEvents;
+    const dashWindEvents = input.noaaEvents
       .filter((e) => e.eventType === 'wind')
-      .reduce((m, e) => Math.max(m, Number(e.magnitude) || 0), 0);
-    // Count direct hits = unique dates with hail ≥ 0.5" within 1.0 mi
+      .filter((e) => dashMode === 'lifetime' || this.getDateKey(e.date) === input.dateOfLoss);
+
+    const dashHailMax = dashEvents.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
+    const dashWindMax = dashWindEvents.reduce(
+      (m, e) => Math.max(m, Number(e.magnitude) || 0),
+      0,
+    );
+    // Direct hits: hail ≥ 0.5" within 1.0 mi (count per unique date in lifetime,
+    // or boolean for date-specific)
     const directHitDates = new Set<string>();
-    for (const e of allEventsForDashboard) {
+    for (const e of dashEvents) {
       if ((e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 1.0) {
         const dk = this.getDateKey(e.date) || e.date;
         directHitDates.add(dk);
@@ -548,16 +562,44 @@ export class PDFReportServiceV2 {
     }
     const dashDirectHits = directHitDates.size;
     const dashUniqueDates = new Set(
-      allEventsForDashboard.map((e) => this.getDateKey(e.date) || e.date),
+      dashEvents.map((e) => this.getDateKey(e.date) || e.date),
     ).size;
-    const dashSources: string[] = [];
+    // Source attribution — union of all sources across hail + wind + tornado.
+    // Whitelist known source tokens so stray text (state codes, etc) doesn't leak in.
+    const KNOWN_SOURCES = new Set([
+      'NOAA', 'NCEI-SWDI', 'SPC', 'NWS-LSR', 'CoCoRaHS',
+      'Rep Report', 'Customer Report', 'HailTrace', 'IHM',
+      'NOAA NCEI', 'IEM LSR', 'NCEI SWDI', 'SPC WCM',
+    ]);
     const srcSet = new Set<string>();
-    for (const e of allEventsForDashboard) {
-      const s = (e.source || '').toString();
-      // Pull source tokens like NOAA, SPC, NCEI-SWDI, CoCoRaHS out of the formatted source string
-      s.split(/\s*\+\s*/).forEach((tok) => { if (tok.trim()) srcSet.add(tok.trim()); });
+    const extractSources = (s: string) => {
+      if (!s) return;
+      for (const token of KNOWN_SOURCES) {
+        // Word-boundary match — avoids matching "MD" inside "NOAA Maryland"
+        if (new RegExp(`\\b${token.replace(/[-]/g, '[-]')}\\b`).test(s)) {
+          srcSet.add(token);
+        }
+      }
+    };
+    for (const e of dashEvents) extractSources((e.source || '').toString());
+    const dashNoaaInScope = input.noaaEvents.filter(
+      (e) => dashMode === 'lifetime' || this.getDateKey(e.date) === input.dateOfLoss,
+    );
+    for (const e of dashNoaaInScope) {
+      extractSources((e.comments || '').toString());
+      extractSources((e.location || '').toString());
     }
-    srcSet.forEach((s) => dashSources.push(s));
+    const dashSources: string[] = Array.from(srcSet).sort();
+
+    // Dashboard title banner — tells the reader what these numbers represent
+    doc.fontSize(8.5).fillColor(this.C.lightText).font('Helvetica')
+       .text(
+         dashMode === 'date-specific'
+           ? `Storm Summary — ${dashDate}`
+           : `Property Storm History — ${dashDate}`,
+         this.M, doc.y, { width: this.CW, align: 'center' },
+       );
+    doc.moveDown(0.3);
 
     const cardY = doc.y;
     const cardCount = 4;
@@ -590,34 +632,68 @@ export class PDFReportServiceV2 {
       doc.rect(x, cardY, cardW, cardH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
     };
 
-    drawStatCard(
-      0,
-      'Direct Hits',
-      String(dashDirectHits),
-      dashDirectHits > 0 ? '#b91c1c' : this.C.mutedText,
-      dashDirectHits > 0 ? 'Hail 1/2" or larger within 1 mi' : 'No direct hits on file',
-    );
-    drawStatCard(
-      1,
-      'Largest Hail',
-      dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
-      dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
-      dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : '',
-    );
-    drawStatCard(
-      2,
-      'Peak Wind',
-      dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
-      dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
-      dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
-    );
-    drawStatCard(
-      3,
-      'Storm Dates',
-      String(dashUniqueDates),
-      this.C.sectionText,
-      `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
-    );
+    if (dashMode === 'date-specific') {
+      // Single-storm report: show properties OF the storm, not cumulative counts
+      const directHitOnDate = directHitDates.size > 0;
+      drawStatCard(
+        0,
+        'Direct Hit',
+        directHitOnDate ? 'YES' : 'NO',
+        directHitOnDate ? '#b91c1c' : this.C.mutedText,
+        directHitOnDate ? 'Hail 1/2" or larger within 1 mi' : 'No hail within 1 mi',
+      );
+      drawStatCard(
+        1,
+        'Max Hail (day)',
+        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+        dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : dashHailMax > 0 ? 'Pea-Marble' : '',
+      );
+      drawStatCard(
+        2,
+        'Peak Wind (day)',
+        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+        dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
+      );
+      drawStatCard(
+        3,
+        'Sources Confirmed',
+        String(dashSources.length),
+        dashSources.length >= 3 ? '#0f766e' : dashSources.length >= 2 ? this.C.sectionText : this.C.mutedText,
+        dashSources.length >= 3 ? 'Triple-verified' : dashSources.length === 2 ? 'Cross-verified' : dashSources.length === 1 ? 'Single-source' : 'No data',
+      );
+    } else {
+      // Lifetime report: show cumulative counts
+      drawStatCard(
+        0,
+        'Direct Hits',
+        String(dashDirectHits),
+        dashDirectHits > 0 ? '#b91c1c' : this.C.mutedText,
+        dashDirectHits > 0 ? 'Hail 1/2" or larger within 1 mi' : 'No direct hits on file',
+      );
+      drawStatCard(
+        1,
+        'Largest Hail',
+        dashHailMax > 0 ? `${dashHailMax.toFixed(2)}"` : 'N/A',
+        dashHailMax >= 2 ? '#b91c1c' : dashHailMax >= 1 ? '#d97706' : this.C.sectionText,
+        dashHailMax >= 2 ? 'Baseball+ (severe)' : dashHailMax >= 1.25 ? 'Quarter+' : dashHailMax >= 0.75 ? 'Dime-Nickel' : '',
+      );
+      drawStatCard(
+        2,
+        'Peak Wind',
+        dashWindMax > 0 ? `${Math.round(dashWindMax)} mph` : 'N/A',
+        dashWindMax >= 70 ? '#b91c1c' : dashWindMax >= 58 ? '#d97706' : this.C.sectionText,
+        dashWindMax >= 70 ? 'Major damaging' : dashWindMax >= 58 ? 'Severe threshold' : '',
+      );
+      drawStatCard(
+        3,
+        'Storm Dates',
+        String(dashUniqueDates),
+        this.C.sectionText,
+        `${dashSources.length} independent source${dashSources.length !== 1 ? 's' : ''}`,
+      );
+    }
 
     doc.y = cardY + cardH + 8;
 
