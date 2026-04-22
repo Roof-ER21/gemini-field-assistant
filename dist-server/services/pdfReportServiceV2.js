@@ -984,9 +984,11 @@ export class PDFReportServiceV2 {
         }
         // =========================================================
         // RADAR EVIDENCE — single high-quality NEXRAD image for the most
-        // significant storm date. Lives in its own section, not under "warnings".
+        // significant storm date. Skipped when per-warning radar cards below
+        // will render the same images inline (avoids duplication).
         // =========================================================
-        const hasRadar = input.nexradImage && input.includeNexrad !== false;
+        const willRenderPerAlertRadar = (input.nwsAlertImages || []).some((a) => a.radarImage) && input.includeWarnings !== false;
+        const hasRadar = input.nexradImage && input.includeNexrad !== false && !willRenderPerAlertRadar;
         if (hasRadar && input.nexradImage) {
             this.checkPageBreak(doc, 230);
             this.drawSectionBanner(doc, 'Storm Radar Evidence');
@@ -1022,44 +1024,84 @@ export class PDFReportServiceV2 {
                 .text(`${warningCount} active NWS ${warningCount === 1 ? 'warning' : 'warnings'} for the area encompassing ${input.address}:`, this.M + 20, doc.y, { width: this.CW - 40, lineGap: 2 });
             doc.moveDown(0.6);
             if (hasAlertImages) {
-                // Text-only warning cards (radar already shown in the Storm Radar Evidence section)
+                // Two-column warning cards: NEXRAD radar on the left, warning details on
+                // the right. Restored from the pre-consolidation design — per-warning
+                // radar imagery is the adjuster-facing "show your work" evidence and
+                // was lost when the radar section was deduped earlier.
+                const cardGap = 10;
+                const radarW = 240; // left column — radar image
+                const radarH = 180; // radar aspect
+                const detailsX = this.M + radarW + 14;
+                const detailsW = this.CW - radarW - 14;
+                const cardH = radarH + 40; // room for bottom attribution text
                 alertImages.slice(0, 5).forEach((item, idx) => {
                     const alert = item.alert;
                     const isTornado = alert.event.toLowerCase().includes('tornado');
                     const headlineColor = isTornado ? '#dc2626' : this.C.text;
-                    this.checkPageBreak(doc, 90);
+                    this.checkPageBreak(doc, cardH + 20);
                     if (idx > 0)
                         doc.moveDown(0.6);
                     const cardY = doc.y;
-                    doc.rect(this.M, cardY, this.CW, 4).fill(headlineColor);
-                    doc.y = cardY + 8;
-                    doc.fontSize(10).fillColor(headlineColor).font('Helvetica-Bold')
-                        .text(alert.event, this.M + 10, doc.y, { width: this.CW - 20 });
-                    doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
-                        .text(`Issued ${this.fmtFullDateTimeET(alert.onset)} — Expires ${this.fmtFullDateTimeET(alert.expires)}`, this.M + 10, doc.y, { width: this.CW - 20 });
-                    doc.moveDown(0.2);
+                    // top accent bar
+                    doc.rect(this.M, cardY, this.CW, 3).fill(headlineColor);
+                    // ── Left column: NEXRAD radar image ─────────────────────
+                    const imgY = cardY + 8;
+                    if (item.radarImage) {
+                        try {
+                            doc.image(item.radarImage, this.M, imgY, { width: radarW, height: radarH, fit: [radarW, radarH] });
+                            doc.rect(this.M, imgY, radarW, radarH).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
+                        }
+                        catch (e) {
+                            console.warn('NEXRAD per-alert embed failed:', e.message);
+                        }
+                    }
+                    else {
+                        // Radar missing → placeholder so the layout doesn't collapse.
+                        doc.rect(this.M, imgY, radarW, radarH).fill('#f3f4f6');
+                        doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica-Oblique')
+                            .text('NEXRAD radar unavailable', this.M, imgY + radarH / 2 - 5, { width: radarW, align: 'center' });
+                    }
+                    // Radar attribution
+                    const attribY = imgY + radarH + 4;
+                    doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
+                        .text(`NEXRAD WSR-88D Radar — ${this.fmtDateET(item.radarTimestamp)}  |  Source: IEM/NOAA`, this.M, attribY, { width: radarW });
+                    // ── Right column: warning title + details table ─────────
+                    let rY = imgY;
+                    doc.fontSize(10.5).fillColor(headlineColor).font('Helvetica-Bold')
+                        .text(`${alert.event} issued ${this.fmtFullDateTimeET(alert.onset)}`, detailsX, rY, { width: detailsW, lineGap: 1 });
+                    rY = doc.y + 6;
+                    // Build 2-column label/value grid:
+                    //    Effective / Expires     Hail / Wind     Urgency / Certainty
                     const alertHailSize = alert.hailSize || extractHailSizeFromText(alert.description);
                     const alertWindSpeed = alert.windSpeed || extractWindSpeedFromText(alert.description);
-                    const bits = [];
-                    if (alertHailSize)
-                        bits.push(`Hail: ${alertHailSize}`);
-                    if (alertWindSpeed)
-                        bits.push(`Wind: ${alertWindSpeed}`);
-                    if (alert.severity)
-                        bits.push(`Severity: ${alert.severity}`);
-                    if (bits.length > 0) {
+                    const gridPairs = [
+                        ['Effective:', this.fmtTimeET(alert.onset) + ' EDT', 'Expires:', this.fmtTimeET(alert.expires) + ' EDT'],
+                        ['Hail Size:', alertHailSize || 'n/a', 'Wind Speed:', alertWindSpeed || 'n/a'],
+                        ['Urgency:', alert.certainty || 'Observed', 'Certainty:', alert.severity || 'Moderate'],
+                    ];
+                    const colW = detailsW / 2;
+                    const labelW = 72;
+                    for (const [lA, vA, lB, vB] of gridPairs) {
+                        doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica')
+                            .text(lA, detailsX, rY, { width: labelW });
                         doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
-                            .text(bits.join('   •   '), this.M + 10, doc.y, { width: this.CW - 20 });
-                        doc.moveDown(0.2);
+                            .text(vA, detailsX + labelW, rY, { width: colW - labelW - 6 });
+                        doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica')
+                            .text(lB, detailsX + colW, rY, { width: labelW });
+                        doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold')
+                            .text(vB, detailsX + colW + labelW, rY, { width: colW - labelW - 6 });
+                        rY += 18;
                     }
+                    // Optional 1-liner description below the grid
                     const descText = alert.description || alert.headline || '';
-                    if (descText) {
-                        doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica')
-                            .text(descText, this.M + 10, doc.y, { width: this.CW - 20, lineGap: 1.5 });
+                    if (descText && rY + 24 < cardY + cardH) {
+                        doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
+                            .text(descText, detailsX, rY + 6, { width: detailsW, lineGap: 1, height: cardY + cardH - rY - 12 });
                     }
-                    const cardEndY = Math.max(doc.y + 4, cardY + 60);
+                    // Card outline
+                    const cardEndY = cardY + cardH;
                     doc.rect(this.M, cardY, this.CW, cardEndY - cardY).strokeColor(this.C.tableBorder).lineWidth(0.5).stroke();
-                    doc.y = cardEndY + 4;
+                    doc.y = cardEndY + cardGap;
                 });
             }
             else if (legacyAlerts.length > 0) {
