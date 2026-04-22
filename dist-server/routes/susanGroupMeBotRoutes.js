@@ -411,8 +411,8 @@ export function createSusanGroupMeBotRoutes(pool) {
             storm_lookup: true,
         });
     });
-    // GroupMe webhook — called for every message in Sales Team
-    router.post('/webhook', async (req, res) => {
+    // Handler for GroupMe callback — receives every message in Sales Team
+    const webhookHandler = async (req, res) => {
         // ACK fast so GroupMe doesn't retry
         res.status(200).json({ ok: true });
         const msg = req.body;
@@ -471,6 +471,11 @@ export function createSusanGroupMeBotRoutes(pool) {
         catch (err) {
             console.error(`[SusanBot] handler err on msg ${msg.id}:`, err);
         }
-    });
+    };
+    // Register handler at both /webhook and root '/' so it's reachable from either
+    // - /api/susan/groupme/webhook (new)
+    // - /api/susan/groupme-webhook (legacy alias, matches the bot's registered callback_url)
+    router.post('/webhook', webhookHandler);
+    router.post('/', webhookHandler);
     return router;
 }
