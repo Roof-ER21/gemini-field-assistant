@@ -1415,14 +1415,11 @@ export class PDFReportServiceV2 {
       if (within5Count > 0) parts.push(`${within5Count} day${within5Count > 1 ? 's' : ''} with hail 3-5 mi away`);
       if (within10Count > 0) parts.push(`${within10Count} day${within10Count > 1 ? 's' : ''} with hail 5-10 mi away`);
       doc.text(parts.join('  •  '), this.M, doc.y, { width: this.CW });
-      if (largestActionable.size > 0) {
-        doc.moveDown(0.2);
-        doc.fontSize(10).fillColor('#b91c1c').font('Helvetica-Bold')
-           .text(
-             `Largest hail documented at property: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
-             this.M, doc.y, { width: this.CW }
-           );
-      }
+      // Removed red "Largest hail documented at property: X.XX" line.
+      // Reps reported adjusters were using the "at property" figure to argue
+      // the storm was smaller than what hit the neighborhood. The day-count
+      // summary line above already conveys impact without pinning a single
+      // small number to the parcel.
       doc.moveDown(0.3);
     }
 
