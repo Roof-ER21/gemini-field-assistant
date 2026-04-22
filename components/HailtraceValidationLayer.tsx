@@ -102,7 +102,7 @@ export default function HailtraceValidationLayer({
         ...(anchorTimestamp ? { anchorTimestamp } : {}),
       });
       const res = await fetch(
-        `${apiBaseUrl}/api/hail/hailtrace-validation?${params}`,
+        `${apiBaseUrl}/hail/hailtrace-validation?${params}`,
         { signal: AbortSignal.timeout(45000) },
       );
       if (!res.ok) throw new Error(`HT validation ${res.status}`);

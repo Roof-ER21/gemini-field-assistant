@@ -67,7 +67,7 @@ async function createShareableLink(args: {
   anchorTimestamp?: string | null;
   userEmail: string;
 }): Promise<{ url: string; expiresInDays: number }> {
-  const res = await fetch(`${apiBaseUrl}/api/hail/claim-packet-share`, {
+  const res = await fetch(`${apiBaseUrl}/hail/claim-packet-share`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ async function downloadClaimPacket(args: {
   userEmail: string;
   customerName: string;
 }) {
-  const res = await fetch(`${apiBaseUrl}/api/hail/claim-packet`, {
+  const res = await fetch(`${apiBaseUrl}/hail/claim-packet`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -151,7 +151,7 @@ export default function PropertyImpactPanel({
     const params = new URLSearchParams({ date: selectedDate });
     if (anchorTimestamp) params.set('anchorTimestamp', anchorTimestamp);
 
-    fetch(`${apiBaseUrl}/api/hail/rep-storm-impact?${params}`, {
+    fetch(`${apiBaseUrl}/hail/rep-storm-impact?${params}`, {
       headers: { 'x-user-email': userEmail },
       signal: AbortSignal.timeout(60000),
     })

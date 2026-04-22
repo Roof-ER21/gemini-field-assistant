@@ -101,7 +101,7 @@ const MRMSSwathPolygonLayer: React.FC<MRMSSwathPolygonLayerProps> = ({
         ...(anchorTimestamp ? { anchorTimestamp } : {}),
       });
 
-      const res = await fetch(`${apiBaseUrl}/api/hail/mrms-swath-polygons?${params}`, {
+      const res = await fetch(`${apiBaseUrl}/hail/mrms-swath-polygons?${params}`, {
         signal: AbortSignal.timeout(30000),
       });
 

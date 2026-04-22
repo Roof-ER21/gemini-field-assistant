@@ -98,7 +98,7 @@ export default function LiveMrmsPolygonLayer({
         west: String(mapBounds.getWest()),
         product,
       });
-      const res = await fetch(`${apiBaseUrl}/api/hail/mrms-now-polygons?${params}`, {
+      const res = await fetch(`${apiBaseUrl}/hail/mrms-now-polygons?${params}`, {
         signal: AbortSignal.timeout(30000),
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
