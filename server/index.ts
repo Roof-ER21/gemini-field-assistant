@@ -9359,6 +9359,9 @@ app.use('/api/susan', susanRoutes);
 // Register Susan Agent routes (ReAct loop with Gemini function calling)
 app.use('/api/susan/agent', createSusanAgentRoutes(pool));
 app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
+// Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
+// POST / inside the router catches the bare /api/susan/groupme-webhook URL
+app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
