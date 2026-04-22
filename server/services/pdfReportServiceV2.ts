@@ -95,6 +95,7 @@ interface ReportInput {
   includeNexrad?: boolean;
   includeMap?: boolean;
   includeWarnings?: boolean;
+  includeBuildingCodes?: boolean;
   customerName?: string;
   evidenceItems?: Array<{
     id: string;
@@ -949,8 +950,8 @@ export class PDFReportServiceV2 {
     // =========================================================
     this.drawSectionBanner(doc, 'Historical Storm Activity');
 
-    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Property', 'Within 1mi', 'Within 3mi', 'Within 5mi', 'Within 10mi'];
-    const histWidths = [58, 56, 58, 38, 34, 52, 48, 48, 48, 48];
+    const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Property', '1-3mi', '3-5mi', '5-10mi'];
+    const histWidths = [62, 62, 62, 44, 40, 60, 54, 54, 54];
 
     const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
       ? input.historyEvents
@@ -982,10 +983,15 @@ export class PDFReportServiceV2 {
       }))
       .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
-    // Consolidate by date: one row per unique date, max hail per distance bucket
+    // Consolidate by date using MUTUALLY EXCLUSIVE distance bands
+    // so each observation lands in exactly one column (no double counting).
+    //   atLoc  = 0-1.0 mi (DIRECT HIT zone — Verisk/ISO convention + MRMS pixel)
+    //   w3     = 1-3 mi
+    //   w5     = 3-5 mi
+    //   w10    = 5-10 mi
     const dateGroups = new Map<string, {
       date: string; direction: string; speed: number | undefined;
-      duration: number | undefined; atLoc: number; w1: number; w3: number; w5: number; w10: number;
+      duration: number | undefined; atLoc: number; w3: number; w5: number; w10: number;
     }>();
     for (const e of historicalHailEvents) {
       const dk = this.getDateKey(e.date) || e.date;
@@ -994,27 +1000,21 @@ export class PDFReportServiceV2 {
       if (!dateGroups.has(dk)) {
         dateGroups.set(dk, {
           date: e.date, direction: e.direction !== '---' ? e.direction : '---',
-          speed: e.speed, duration: e.duration, atLoc: 0, w1: 0, w3: 0, w5: 0, w10: 0,
+          speed: e.speed, duration: e.duration, atLoc: 0, w3: 0, w5: 0, w10: 0,
         });
       }
       const g = dateGroups.get(dk)!;
       if (g.direction === '---' && e.direction !== '---') g.direction = e.direction;
       if (!g.speed && e.speed) g.speed = e.speed;
       if (!g.duration && e.duration) g.duration = e.duration;
-      // Distance thresholds aligned with insurance-industry convention:
-      //   ≤1.0mi = "at property" — matches Verisk/ISO property fingerprinting
-      //     and covers the full width of a typical HailTrace hand-drawn swath.
-      //   One MRMS pixel (~1km) centered within 1mi = same storm cell.
-      //   1/3/5/10mi = progressive nearby-storm bands for context.
       if (dist <= 1.0 && size > g.atLoc) g.atLoc = size;
-      if (dist <= 1 && size > g.w1) g.w1 = size;
-      if (dist <= 3 && size > g.w3) g.w3 = size;
-      if (dist <= 5 && size > g.w5) g.w5 = size;
-      if (dist <= 10 && size > g.w10) g.w10 = size;
+      else if (dist > 1.0 && dist <= 3.0 && size > g.w3) g.w3 = size;
+      else if (dist > 3.0 && dist <= 5.0 && size > g.w5) g.w5 = size;
+      else if (dist > 5.0 && dist <= 10.0 && size > g.w10) g.w10 = size;
     }
 
     const consolidatedDates = Array.from(dateGroups.values())
-      .filter(g => g.atLoc > 0 || g.w1 > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
+      .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
       .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
     // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
@@ -1027,21 +1027,19 @@ export class PDFReportServiceV2 {
       return `${Math.max(0.25, inches).toFixed(2)}"`;
     };
 
-    // Direct-hit labeling rules for the "Hit" column:
-    //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable hail at property)
-    //   atLoc > 0     → "Direct"     (radar signature at property, sub-½")
-    //   w1 > 0        → "Within 1mi"
-    //   w3 > 0        → "Within 3mi"
-    //   w5 > 0        → "Within 5mi"
-    //   w10 > 0       → "Within 10mi"
+    // Direct-hit labeling (mutually-exclusive distance bands):
+    //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable hail at property, 0-1mi)
+    //   atLoc > 0     → "Direct"     (sub-1/2" radar signature at property)
+    //   w3 > 0        → "1-3 mi"
+    //   w5 > 0        → "3-5 mi"
+    //   w10 > 0       → "5-10 mi"
     //   else          → "---"
-    const hitLabel = (g: { atLoc: number; w1: number; w3: number; w5: number; w10: number }): string => {
+    const hitLabel = (g: { atLoc: number; w3: number; w5: number; w10: number }): string => {
       if (g.atLoc >= 0.5) return 'DIRECT HIT';
       if (g.atLoc > 0) return 'Direct';
-      if (g.w1 > 0) return 'Within 1mi';
-      if (g.w3 > 0) return 'Within 3mi';
-      if (g.w5 > 0) return 'Within 5mi';
-      if (g.w10 > 0) return 'Within 10mi';
+      if (g.w3 > 0) return '1-3 mi';
+      if (g.w5 > 0) return '3-5 mi';
+      if (g.w10 > 0) return '5-10 mi';
       return '---';
     };
 
@@ -1052,7 +1050,6 @@ export class PDFReportServiceV2 {
       g.direction,
       g.speed ? g.speed.toFixed(1) : '---',
       displaySize(g.atLoc),
-      displaySize(g.w1),
       displaySize(g.w3),
       displaySize(g.w5),
       displaySize(g.w10),
@@ -1062,33 +1059,31 @@ export class PDFReportServiceV2 {
     // category of hits this property has.
     const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
     const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
-    const nearMissCount = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 > 0).length;
-    const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 === 0 && g.w3 > 0).length;
-    const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 === 0 && g.w3 === 0 && g.w5 > 0).length;
-    const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w1 === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
+    const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 > 0).length;
+    const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 > 0).length;
+    const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
     const largestActionable = consolidatedDates.reduce(
       (max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max),
       { size: 0, date: '' },
     );
 
-    if (directHitCount > 0 || nearMissCount > 0 || within3Count > 0 || within5Count > 0 || within10Count > 0) {
+    if (directHitCount > 0 || within3Count > 0 || within5Count > 0 || within10Count > 0) {
       doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
       const parts: string[] = [];
       if (actionableCount > 0) {
-        parts.push(`${actionableCount} insurance-actionable DIRECT HIT${actionableCount > 1 ? 'S' : ''} (≥½")`);
+        parts.push(`${actionableCount} insurance-actionable DIRECT HIT${actionableCount > 1 ? 'S' : ''} (1/2" or larger)`);
       }
       const subHalf = directHitCount - actionableCount;
-      if (subHalf > 0) parts.push(`${subHalf} sub-½" radar hit${subHalf > 1 ? 's' : ''}`);
-      if (nearMissCount > 0) parts.push(`${nearMissCount} within 1mi`);
-      if (within3Count > 0) parts.push(`${within3Count} within 3mi`);
-      if (within5Count > 0) parts.push(`${within5Count} within 5mi`);
-      if (within10Count > 0) parts.push(`${within10Count} within 10mi`);
+      if (subHalf > 0) parts.push(`${subHalf} sub-1/2" radar hit${subHalf > 1 ? 's' : ''}`);
+      if (within3Count > 0) parts.push(`${within3Count} within 1-3 mi`);
+      if (within5Count > 0) parts.push(`${within5Count} within 3-5 mi`);
+      if (within10Count > 0) parts.push(`${within10Count} within 5-10 mi`);
       doc.text(parts.join('  •  '), this.M, doc.y, { width: this.CW });
       if (largestActionable.size > 0) {
         doc.moveDown(0.2);
         doc.fontSize(10).fillColor('#b91c1c').font('Helvetica-Bold')
            .text(
-             `🎯 Largest actionable direct hit: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
+             `Largest actionable direct hit: ${largestActionable.size.toFixed(2)}" on ${this.fmtDateET(largestActionable.date)}`,
              this.M, doc.y, { width: this.CW }
            );
       }
@@ -1106,14 +1101,15 @@ export class PDFReportServiceV2 {
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text(
          '* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
-         '"At Property" = storm cell documented within 1.0 mile of the address — aligned with Verisk/ISO ' +
-         'property-fingerprinting convention. A NEXRAD radar pixel is ~1km (0.62mi) wide, so a detection ' +
-         'within 1 mile is effectively inside the same storm cell hitting the home. ' +
-         'Hit column: "DIRECT HIT" = hail ≥½" at the property (insurance-actionable); ' +
-         '"Direct" = sub-½" radar signature at the property (canvassing context only); ' +
-         '"Within 3mi / 5mi / 10mi" = closest documented hail relative to the property. ' +
-         'Distance columns show max hail observed within each radius. ' +
-         'Sub-¼" radar values are rounded up to ¼" for this report. ' +
+         '"At Property" = 0-1 mile — storm cell documented within 1 mile of the address, ' +
+         'aligned with Verisk/ISO property-fingerprinting convention. A NEXRAD radar pixel is ~1km ' +
+         '(0.62mi) wide, so a detection within 1 mile is effectively the same storm cell hitting the home. ' +
+         'Distance columns (1-3 mi, 3-5 mi, 5-10 mi) are MUTUALLY EXCLUSIVE — each observation is ' +
+         'assigned to exactly one distance band based on proximity to the property, showing max hail ' +
+         'in that band. ' +
+         'Hit column: "DIRECT HIT" = hail 1/2" or larger at property (insurance-actionable); ' +
+         '"Direct" = sub-1/2" radar signature at property (canvassing context only). ' +
+         'Sub-1/4" radar values are rounded up to 1/4" for this report. ' +
          'Data sources: NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
          'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
          'NOAA Storm Prediction Center (SPC) Warning Coordination Meteorologist archive, ' +
@@ -1209,9 +1205,9 @@ export class PDFReportServiceV2 {
     }
 
     // =========================================================
-    // APPLICABLE BUILDING CODE REQUIREMENTS
+    // APPLICABLE BUILDING CODE REQUIREMENTS (opt-in only)
     // =========================================================
-    if (input.state) {
+    if (input.state && input.includeBuildingCodes === true) {
       const stateUpper = input.state.toUpperCase().trim();
       const codeData = this.getStateBuildingCodes(stateUpper);
       if (codeData) {

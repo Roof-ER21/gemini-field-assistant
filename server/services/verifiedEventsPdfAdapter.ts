@@ -76,7 +76,12 @@ export class VerifiedEventsPdfAdapter {
     radiusMiles: number = 10,
     yearsBack: number = 5,
     publicOnly: boolean = true,
-  ): Promise<{ events: HailEvent[]; noaaEvents: NOAAEvent[]; totalInDb: number }> {
+  ): Promise<{
+    events: HailEvent[];       // 1 row per date (biggest hail that day) — for Verified Hail Observations
+    historyEvents: HailEvent[]; // every radar pixel — for Historical Storm Activity distance-band table
+    noaaEvents: NOAAEvent[];   // consolidated wind + tornado per distance band
+    totalInDb: number;
+  }> {
     const fromDate = new Date();
     fromDate.setFullYear(fromDate.getFullYear() - yearsBack);
     const fromStr = fromDate.toISOString().slice(0, 10);
@@ -107,16 +112,16 @@ export class VerifiedEventsPdfAdapter {
 
     const result = await this.pool.query(query, [lat, lng, radiusMiles, fromStr]);
 
-    // BOTH arrays get consolidated so the PDF never shows 20 near-identical
-    // radar cells for one storm. Consolidation keys on (date, distance_band) for
-    // events and (date, type, distance_band) for noaaEvents.
+    // ONE row per date for the Verified Hail Observations section.
+    // Pick the biggest hail observation of the day AND remember its distance.
+    // Historical Storm Activity table does its own per-band consolidation
+    // using the full distance data separately.
     //
-    // Distance bands for both: 0-1mi, 1-3mi, 3-5mi, 5-10mi.
-    const distBand = (d: number): string =>
-      d <= 1 ? '0-1mi' : d <= 3 ? '1-3mi' : d <= 5 ? '3-5mi' : '5-10mi';
-
-    // Consolidated hail events for Historical Storm Activity + Verified Hail Observations
-    const eventsAgg = new Map<string, HailEvent>();
+    // We feed two things:
+    //  1. `eventsMaxPerDate` — one-row-per-date, max hail (for the Observations list)
+    //  2. `allHailEvents`    — every hail pixel (for the Historical table's distance banding)
+    const allHailEvents: HailEvent[] = [];
+    const eventsMaxPerDate = new Map<string, HailEvent>();
 
     // Consolidated NOAA events for Verified Ground Observations (Wind + Tornado)
     const noaaAgg = new Map<string, {
@@ -137,33 +142,39 @@ export class VerifiedEventsPdfAdapter {
         ? row.event_date
         : new Date(row.event_date).toISOString().slice(0, 10);
 
-      // Consolidate hail into `events` — 1 record per (date, distance_band)
-      // keeping max hail size. Result: ~4 rows max per storm date instead of 20+.
       if (row.hail_size_inches != null && Number(row.hail_size_inches) > 0) {
         const hailSize = Number(row.hail_size_inches);
         const dist = Number(row.distance_miles);
-        const band = distBand(dist);
-        const key = `${eventDateIso}::${band}`;
-        const existing = eventsAgg.get(key);
+        const e: HailEvent = {
+          id: row.id,
+          date: eventDateIso,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          hailSize,
+          severity: severityFor(hailSize),
+          source: sources,
+          distanceMiles: dist,
+          comments: `${hailSize.toFixed(2)}" hail at ${dist.toFixed(1)}mi — ${sources}`,
+        };
+
+        // Keep every observation for the Historical table (it buckets by distance)
+        allHailEvents.push(e);
+
+        // Keep only the max per date for the observation list
+        const existing = eventsMaxPerDate.get(eventDateIso);
         if (!existing || hailSize > (existing.hailSize ?? 0)) {
-          eventsAgg.set(key, {
-            id: row.id,
-            date: eventDateIso,
-            latitude: row.latitude,
-            longitude: row.longitude,
-            hailSize,
-            severity: severityFor(hailSize),
-            source: sources,
-            distanceMiles: dist,
-            comments: `Max ${hailSize.toFixed(2)}" hail in ${band} band — ${sources}`,
-          });
+          eventsMaxPerDate.set(eventDateIso, e);
         }
       }
     }
 
-    const events: HailEvent[] = Array.from(eventsAgg.values());
+    // events = ONE row per date (max hail) for the Verified Hail Observations section
+    // historyEvents = every radar pixel for the Historical Storm Activity table's distance banding
+    const events: HailEvent[] = Array.from(eventsMaxPerDate.values());
+    const historyEvents: HailEvent[] = allHailEvents;
 
-    // Re-process for NOAA section (wind + tornado only; hail handled above)
+    // One row per (date, event_type) — max magnitude of the day,
+    // with the CLOSEST occurrence's distance for adjuster reference.
     for (const row of result.rows) {
       const sources = buildSourceList(row);
       const eventDateIso = typeof row.event_date === 'string'
@@ -177,8 +188,7 @@ export class VerifiedEventsPdfAdapter {
         distance: number,
       ) => {
         if (mag == null || mag <= 0) return;
-        const band = distBand(distance);
-        const key = `${eventDateIso}::${type}::${band}`;
+        const key = `${eventDateIso}::${type}`;
         const existing = noaaAgg.get(key);
         if (!existing || mag > existing.magnitude) {
           noaaAgg.set(key, {
@@ -188,10 +198,13 @@ export class VerifiedEventsPdfAdapter {
             longitude: row.longitude,
             magnitude: mag,
             eventType: type,
-            location: `${row.state ?? 'Event'} (${band})`,
-            distanceMiles: distance,
+            location: row.state ?? 'Event',
+            distanceMiles: existing && existing.distanceMiles < distance ? existing.distanceMiles : distance,
             sources,
           });
+        } else if (existing && distance < existing.distanceMiles) {
+          // Not bigger, but closer — keep the closer distance for display
+          existing.distanceMiles = distance;
         }
       };
 
@@ -230,6 +243,7 @@ export class VerifiedEventsPdfAdapter {
 
     return {
       events,
+      historyEvents,
       noaaEvents,
       totalInDb: result.rows.length,
     };

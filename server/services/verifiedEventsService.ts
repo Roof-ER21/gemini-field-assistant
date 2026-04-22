@@ -301,6 +301,17 @@ export class VerifiedEventsService {
     errors: Array<{ index: number; error: string; params: UpsertParams }>;
   }> {
     const client = await this.pool.connect();
+    // Defensive: Railway proxy sometimes drops connections mid-transaction.
+    // Without this listener, the async 'error' event from pg's Client
+    // propagates as an unhandled exception and crashes the process even
+    // though our try/catch on the query would otherwise catch it.
+    const clientErrorHandler = (e: Error) => {
+      // Swallowed — the query/release path below will surface any
+      // actionable error with proper try/catch.
+      console.warn(`[verifiedEventsService] pg client error (swallowed): ${e.message}`);
+    };
+    client.on('error', clientErrorHandler);
+
     const errors: Array<{ index: number; error: string; params: UpsertParams }> = [];
     let inserted = 0;
     let updated = 0;
@@ -332,7 +343,9 @@ export class VerifiedEventsService {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
     } finally {
-      client.release();
+      client.removeListener('error', clientErrorHandler);
+      // If the connection is in a bad state, release(err) destroys it so pool doesn't reuse
+      try { client.release(); } catch { /* ignore */ }
     }
 
     return { inserted, updated, errors };

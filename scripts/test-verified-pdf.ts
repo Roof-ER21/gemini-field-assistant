@@ -39,10 +39,10 @@ async function main() {
 
   for (const target of TARGETS) {
     console.log(`\n[${target.slug}] Fetching events from verified_hail_events…`);
-    const { events, noaaEvents, totalInDb } = await adapter.getEventsForProperty(
+    const { events, historyEvents, noaaEvents, totalInDb } = await adapter.getEventsForProperty(
       target.lat, target.lng, 10, 5, true,
     );
-    console.log(`  Found ${totalInDb} raw events → ${events.length} hail, ${noaaEvents.length} total NOAA-format`);
+    console.log(`  Found ${totalInDb} raw events → ${events.length} days, ${historyEvents.length} banded obs, ${noaaEvents.length} NOAA`);
 
     // Compute damage score (simple heuristic from new events)
     const maxHail = events.reduce((m, e) => Math.max(m, e.hailSize || 0), 0);
@@ -103,7 +103,7 @@ async function main() {
       radius: 10,
       events,
       noaaEvents,
-      historyEvents: events,   // explicitly seed history
+      historyEvents,           // full distance-banded observations
       damageScore,
       companyName: 'The Roof Docs',
       companyAddress: '12345 Main St, Chantilly, VA',
