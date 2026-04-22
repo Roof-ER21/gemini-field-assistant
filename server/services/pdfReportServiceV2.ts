@@ -1001,11 +1001,12 @@ export class PDFReportServiceV2 {
       if (g.direction === '---' && e.direction !== '---') g.direction = e.direction;
       if (!g.speed && e.speed) g.speed = e.speed;
       if (!g.duration && e.duration) g.duration = e.duration;
-      // Distance thresholds tuned to match industry hail-report standards
-      // (HailTrace, Interactive Hail Maps):
-      //   ≤0.5mi = "at property" — one MRMS radar pixel (~1km) or closer
-      //   1/3/5/10mi = progressive nearby-storm bands
-      if (dist <= 0.5 && size > g.atLoc) g.atLoc = size;
+      // Distance thresholds aligned with insurance-industry convention:
+      //   ≤1.0mi = "at property" — matches Verisk/ISO property fingerprinting
+      //     and covers the full width of a typical HailTrace hand-drawn swath.
+      //   One MRMS pixel (~1km) centered within 1mi = same storm cell.
+      //   1/3/5/10mi = progressive nearby-storm bands for context.
+      if (dist <= 1.0 && size > g.atLoc) g.atLoc = size;
       if (dist <= 1 && size > g.w1) g.w1 = size;
       if (dist <= 3 && size > g.w3) g.w3 = size;
       if (dist <= 5 && size > g.w5) g.w5 = size;
@@ -1105,15 +1106,19 @@ export class PDFReportServiceV2 {
     doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
        .text(
          '* Map dates begin at 6:00 a.m. CST on the indicated day and end at 6:00 a.m. CST the following day. ' +
-         '"At Property" = storm cell (MRMS radar pixel or ground report) within ½ mile of the property — ' +
-         'one pixel covers ~1km so this is effectively the same storm system hitting the home. ' +
+         '"At Property" = storm cell documented within 1.0 mile of the address — aligned with Verisk/ISO ' +
+         'property-fingerprinting convention. A NEXRAD radar pixel is ~1km (0.62mi) wide, so a detection ' +
+         'within 1 mile is effectively inside the same storm cell hitting the home. ' +
          'Hit column: "DIRECT HIT" = hail ≥½" at the property (insurance-actionable); ' +
          '"Direct" = sub-½" radar signature at the property (canvassing context only); ' +
-         '"Within 1mi / 3mi / 5mi / 10mi" = closest documented hail relative to the property. ' +
+         '"Within 3mi / 5mi / 10mi" = closest documented hail relative to the property. ' +
          'Distance columns show max hail observed within each radius. ' +
          'Sub-¼" radar values are rounded up to ¼" for this report. ' +
-         'Data sources: NOAA NCEI Storm Events, SPC Severe Weather Database, NCEI SWDI radar signatures, ' +
-         'NWS Local Storm Reports, CoCoRaHS observer network.',
+         'Data sources: NOAA National Centers for Environmental Information (NCEI) Storm Events Database, ' +
+         'NCEI Severe Weather Data Inventory (SWDI) NEXRAD WSR-88D radar hail signatures, ' +
+         'NOAA Storm Prediction Center (SPC) Warning Coordination Meteorologist archive, ' +
+         'NWS Local Storm Reports via Iowa Environmental Mesonet, and the Community Collaborative ' +
+         'Rain, Hail & Snow Network (CoCoRaHS) operated by the Colorado Climate Center and NSF.',
          this.M, doc.y, { width: this.CW }
        );
 

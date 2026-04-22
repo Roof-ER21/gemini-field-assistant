@@ -12,6 +12,9 @@ import fs from 'fs';
 import path from 'path';
 import { VerifiedEventsPdfAdapter } from '../server/services/verifiedEventsPdfAdapter.js';
 import { PDFReportServiceV2 } from '../server/services/pdfReportServiceV2.js';
+import { fetchMapImage } from '../server/services/mapImageService.js';
+import { fetchNexradImage } from '../server/services/nexradService.js';
+import { fetchNWSAlerts } from '../server/services/nwsAlertService.js';
 
 const OUT_DIR = '/tmp/pdf-test';
 
@@ -55,6 +58,41 @@ async function main() {
       confidence: events.length > 20 ? 'high' as const : 'medium' as const,
     };
 
+    // Build visual assets — map, NEXRAD radar image, active warnings
+    console.log(`  Fetching map image…`);
+    const mapImage = await fetchMapImage({
+      lat: target.lat,
+      lng: target.lng,
+      zoom: 11,
+      width: 640,
+      height: 360,
+    }).catch((e) => { console.log(`    map failed: ${e.message}`); return null; });
+
+    console.log(`  Fetching NEXRAD radar…`);
+    // Find most recent actionable storm date for this property and pull radar for it
+    const latestBigStorm = events
+      .filter((e) => (e.hailSize || 0) >= 1.0 && (e.distanceMiles ?? 99) <= 5)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    const nexradDate = latestBigStorm?.date || new Date().toISOString().slice(0, 10);
+    const nexrad = await fetchNexradImage({
+      lat: target.lat,
+      lng: target.lng,
+      datetime: nexradDate + 'T20:00:00Z',
+      width: 640,
+      height: 400,
+    }).catch((e) => { console.log(`    nexrad failed: ${e.message}`); return null; });
+
+    console.log(`  Fetching NWS alerts…`);
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setHours(now.getHours() - 6);
+    const alerts = await fetchNWSAlerts({
+      lat: target.lat,
+      lng: target.lng,
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+    }).catch((e) => { console.log(`    alerts failed: ${e.message}`); return []; });
+
     console.log(`  Generating PDF…`);
     const stream = pdfService.generateReport({
       address: target.address,
@@ -72,9 +110,13 @@ async function main() {
       companyPhone: '(703) 555-0100',
       companyWebsite: 'theroofdocs.com',
       filter: 'all',
-      includeMap: false,
-      includeNexrad: false,
-      includeWarnings: false,
+      mapImage: mapImage,
+      nexradImage: nexrad?.imageBuffer || null,
+      nexradTimestamp: nexrad?.timestamp,
+      nwsAlerts: alerts,
+      includeMap: !!mapImage,
+      includeNexrad: !!nexrad?.imageBuffer,
+      includeWarnings: alerts.length > 0,
     });
 
     const outPath = path.join(OUT_DIR, `${target.slug}-verified.pdf`);

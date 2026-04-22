@@ -107,8 +107,29 @@ export class VerifiedEventsPdfAdapter {
 
     const result = await this.pool.query(query, [lat, lng, radiusMiles, fromStr]);
 
-    const events: HailEvent[] = [];
-    const noaaEvents: NOAAEvent[] = [];
+    // BOTH arrays get consolidated so the PDF never shows 20 near-identical
+    // radar cells for one storm. Consolidation keys on (date, distance_band) for
+    // events and (date, type, distance_band) for noaaEvents.
+    //
+    // Distance bands for both: 0-1mi, 1-3mi, 3-5mi, 5-10mi.
+    const distBand = (d: number): string =>
+      d <= 1 ? '0-1mi' : d <= 3 ? '1-3mi' : d <= 5 ? '3-5mi' : '5-10mi';
+
+    // Consolidated hail events for Historical Storm Activity + Verified Hail Observations
+    const eventsAgg = new Map<string, HailEvent>();
+
+    // Consolidated NOAA events for Verified Ground Observations (Wind + Tornado)
+    const noaaAgg = new Map<string, {
+      id: string;
+      eventDateIso: string;
+      latitude: number;
+      longitude: number;
+      magnitude: number;
+      eventType: 'hail' | 'wind' | 'tornado';
+      location: string;
+      distanceMiles: number;
+      sources: string;
+    }>();
 
     for (const row of result.rows) {
       const sources = buildSourceList(row);
@@ -116,65 +137,96 @@ export class VerifiedEventsPdfAdapter {
         ? row.event_date
         : new Date(row.event_date).toISOString().slice(0, 10);
 
-      // Map hail events into the HailEvent format consumed by the PDF's historical table
+      // Consolidate hail into `events` — 1 record per (date, distance_band)
+      // keeping max hail size. Result: ~4 rows max per storm date instead of 20+.
       if (row.hail_size_inches != null && Number(row.hail_size_inches) > 0) {
-        events.push({
-          id: row.id,
-          date: eventDateIso,
-          latitude: row.latitude,
-          longitude: row.longitude,
-          hailSize: Number(row.hail_size_inches),
-          severity: severityFor(Number(row.hail_size_inches)),
-          source: sources,
-          distanceMiles: Number(row.distance_miles),
-          comments: `Hail ${Number(row.hail_size_inches).toFixed(2)}" — ${sources}`,
-        });
-      }
-
-      // Map wind and tornado events into the NOAAEvent format
-      if (row.wind_mph != null && Number(row.wind_mph) > 0) {
-        noaaEvents.push({
-          id: row.id + '_wind',
-          date: eventDateIso,
-          latitude: row.latitude,
-          longitude: row.longitude,
-          magnitude: Number(row.wind_mph),
-          eventType: 'wind',
-          location: `${row.state ?? 'Event'} (${sources})`,
-          distanceMiles: Number(row.distance_miles),
-          comments: `Wind ${row.wind_mph} mph — ${sources}`,
-        });
-      }
-
-      if (row.tornado_ef_rank != null) {
-        noaaEvents.push({
-          id: row.id + '_torn',
-          date: eventDateIso,
-          latitude: row.latitude,
-          longitude: row.longitude,
-          magnitude: Number(row.tornado_ef_rank),
-          eventType: 'tornado',
-          location: `${row.state ?? 'Event'} EF${row.tornado_ef_rank} (${sources})`,
-          distanceMiles: Number(row.distance_miles),
-          comments: `Tornado EF${row.tornado_ef_rank} — ${sources}`,
-        });
-      }
-
-      // ALSO add hail events into noaaEvents so the "noaa section" in the PDF shows them
-      if (row.hail_size_inches != null && Number(row.hail_size_inches) > 0) {
-        noaaEvents.push({
-          id: row.id + '_hail',
-          date: eventDateIso,
-          latitude: row.latitude,
-          longitude: row.longitude,
-          magnitude: Number(row.hail_size_inches),
-          eventType: 'hail',
-          location: `${row.state ?? 'Event'} (${sources})`,
-          distanceMiles: Number(row.distance_miles),
-          comments: `Hail ${Number(row.hail_size_inches).toFixed(2)}" — ${sources}`,
-        });
+        const hailSize = Number(row.hail_size_inches);
+        const dist = Number(row.distance_miles);
+        const band = distBand(dist);
+        const key = `${eventDateIso}::${band}`;
+        const existing = eventsAgg.get(key);
+        if (!existing || hailSize > (existing.hailSize ?? 0)) {
+          eventsAgg.set(key, {
+            id: row.id,
+            date: eventDateIso,
+            latitude: row.latitude,
+            longitude: row.longitude,
+            hailSize,
+            severity: severityFor(hailSize),
+            source: sources,
+            distanceMiles: dist,
+            comments: `Max ${hailSize.toFixed(2)}" hail in ${band} band — ${sources}`,
+          });
+        }
       }
     }
+
+    const events: HailEvent[] = Array.from(eventsAgg.values());
+
+    // Re-process for NOAA section (wind + tornado only; hail handled above)
+    for (const row of result.rows) {
+      const sources = buildSourceList(row);
+      const eventDateIso = typeof row.event_date === 'string'
+        ? row.event_date
+        : new Date(row.event_date).toISOString().slice(0, 10);
+
+      const addOrMax = (
+        type: 'hail' | 'wind' | 'tornado',
+        mag: number,
+        idSuffix: string,
+        distance: number,
+      ) => {
+        if (mag == null || mag <= 0) return;
+        const band = distBand(distance);
+        const key = `${eventDateIso}::${type}::${band}`;
+        const existing = noaaAgg.get(key);
+        if (!existing || mag > existing.magnitude) {
+          noaaAgg.set(key, {
+            id: row.id + idSuffix,
+            eventDateIso,
+            latitude: row.latitude,
+            longitude: row.longitude,
+            magnitude: mag,
+            eventType: type,
+            location: `${row.state ?? 'Event'} (${band})`,
+            distanceMiles: distance,
+            sources,
+          });
+        }
+      };
+
+      if (row.wind_mph != null) {
+        addOrMax('wind', Number(row.wind_mph), '_wind', Number(row.distance_miles));
+      }
+      if (row.tornado_ef_rank != null) {
+        addOrMax('tornado', Number(row.tornado_ef_rank), '_torn', Number(row.distance_miles));
+      }
+    }
+
+    // Flatten consolidated NOAA aggregations into the expected shape
+    const noaaEvents: NOAAEvent[] = Array.from(noaaAgg.values()).map((a) => ({
+      id: a.id,
+      date: a.eventDateIso,
+      latitude: a.latitude,
+      longitude: a.longitude,
+      magnitude: a.magnitude,
+      eventType: a.eventType,
+      location: a.location,
+      distanceMiles: a.distanceMiles,
+      comments:
+        a.eventType === 'hail'
+          ? `${a.magnitude.toFixed(2)}" max hail (${a.location}) — ${a.sources}`
+          : a.eventType === 'wind'
+            ? `${a.magnitude} mph max wind (${a.location}) — ${a.sources}`
+            : `Tornado EF${a.magnitude} (${a.location}) — ${a.sources}`,
+    }));
+
+    // Sort: most recent first, then largest magnitude first
+    noaaEvents.sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      if (dateCmp !== 0) return dateCmp;
+      return (b.magnitude || 0) - (a.magnitude || 0);
+    });
 
     return {
       events,
