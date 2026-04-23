@@ -754,9 +754,9 @@ const CARRIER_PATTERNS: Array<[RegExp, string]> = [
   [/\bstillwater\b/i, 'Stillwater'],
 ];
 
-const SIGNUP_PREFIX = /^\s*[🦅🔥💪✅🎯⚡️\s]*(sign\s*up|esign|e-sign|signup)\b/i;
+export const SIGNUP_PREFIX = /^\s*[🦅🔥💪✅🎯⚡️\s]*(sign\s*up|esign|e-sign|signup)\b/i;
 
-interface ParsedSignup {
+export interface ParsedSignup {
   rep: string;
   items: string[];
   carrier: string | null;
@@ -765,7 +765,7 @@ interface ParsedSignup {
   ts: number;
 }
 
-function parseSignupPost(text: string, senderName: string, ts: number): ParsedSignup | null {
+export function parseSignupPost(text: string, senderName: string, ts: number): ParsedSignup | null {
   if (!SIGNUP_PREFIX.test(text)) return null;
   // Normalize separators (slashes + dashes) to pipes, then split
   // Strip leading emoji + "sign up" prefix first
@@ -830,13 +830,128 @@ function parseDailySignups(
   return out;
 }
 
-function startOfTodayEDT(): number {
+export function startOfTodayEDT(): number {
   // Approximate "today" in Eastern time (UTC-4). For simplicity use -4h shift;
   // accuracy within 1 hour is fine for "today's signups".
   const now = new Date();
   const edt = new Date(now.getTime() - 4 * 3600 * 1000);
   edt.setUTCHours(0, 0, 0, 0);
   return Math.floor((edt.getTime() + 4 * 3600 * 1000) / 1000);
+}
+
+// ─── Signup log persistence ──────────────────────────────────────────────────
+// Every incoming chat message that matches SIGNUP_PREFIX gets persisted here
+// so the scheduler / leader queries / late-signup watcher can all read a
+// single source of truth instead of re-scanning GroupMe each time.
+export async function saveSignupToLog(
+  pool: pg.Pool,
+  msg: any,
+  parsed: ParsedSignup
+): Promise<boolean> {
+  try {
+    const r = await pool.query(
+      `INSERT INTO bot_signup_log
+         (message_id, group_id, rep_user_id, rep_name, raw_text, items, carrier, customer, posted_ts)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+       ON CONFLICT (message_id) DO NOTHING
+       RETURNING id`,
+      [
+        String(msg.id),
+        String(msg.group_id || SALES_GROUP_ID),
+        String(msg.user_id || ''),
+        String(msg.name || parsed.rep || ''),
+        String(msg.text || '').slice(0, 2000),
+        JSON.stringify(parsed.items.slice(0, 10)),
+        parsed.carrier,
+        parsed.customer,
+        msg.created_at || Math.floor(Date.now() / 1000),
+      ]
+    );
+    return (r.rowCount || 0) > 0;
+  } catch (e) {
+    console.warn('[SusanBot] saveSignupToLog err:', e);
+    return false;
+  }
+}
+
+// Today's signup rollup — used by evening recap, leader queries, late-sigup follow-ups
+export async function getTodaySignupRollup(pool: pg.Pool): Promise<{
+  count: number;
+  by_rep: Array<{ rep_name: string; count: number; carriers: string[] }>;
+  by_carrier: Array<{ carrier: string; count: number }>;
+  rows: Array<{ rep_name: string; carrier: string | null; customer: string | null; items: string[]; posted_ts: number }>;
+}> {
+  const todayStart = startOfTodayEDT();
+  try {
+    const r = await pool.query(
+      `SELECT rep_name, rep_user_id, carrier, customer, items, posted_ts
+       FROM bot_signup_log
+       WHERE posted_ts >= $1
+       ORDER BY posted_ts ASC`,
+      [todayStart]
+    );
+    const rows = r.rows.map((x: any) => ({
+      rep_name: x.rep_name,
+      carrier: x.carrier,
+      customer: x.customer,
+      items: Array.isArray(x.items) ? x.items : [],
+      posted_ts: Number(x.posted_ts),
+    }));
+    const byRepMap = new Map<string, { count: number; carriers: Set<string> }>();
+    const byCarMap = new Map<string, number>();
+    for (const row of rows) {
+      const rep = row.rep_name || 'Unknown';
+      if (!byRepMap.has(rep)) byRepMap.set(rep, { count: 0, carriers: new Set() });
+      const e = byRepMap.get(rep)!;
+      e.count += 1;
+      if (row.carrier) e.carriers.add(row.carrier);
+      const car = row.carrier || 'Unknown';
+      byCarMap.set(car, (byCarMap.get(car) || 0) + 1);
+    }
+    const by_rep = [...byRepMap.entries()]
+      .map(([rep_name, v]) => ({ rep_name, count: v.count, carriers: [...v.carriers] }))
+      .sort((a, b) => b.count - a.count);
+    const by_carrier = [...byCarMap.entries()]
+      .map(([carrier, count]) => ({ carrier, count }))
+      .sort((a, b) => b.count - a.count);
+    return { count: rows.length, by_rep, by_carrier, rows };
+  } catch (e) {
+    console.warn('[SusanBot] getTodaySignupRollup err:', e);
+    return { count: 0, by_rep: [], by_carrier: [], rows: [] };
+  }
+}
+
+// ─── Leader-query detection ──────────────────────────────────────────────────
+// Leaders can ask Susan for the day's numbers in chat. The 5 leaders on the
+// allow-list (Ross/Reese/Luis/Oliver/Ford) + Ahmed can query. Other senders
+// get the normal LLM path, not the rollup dump.
+export const RECAP_QUERY_LEADERS: Record<string, string> = {
+  '122568603': 'Ross Renzi',
+  '113016266': 'Reese Samala',
+  '20076092':  'Luis Esteves',
+  '18949479':  'Oliver Brown',
+  '86283554':  'Ford Barsi',
+  '115896304': 'Ahmed Mahmoud',
+};
+
+export function isSignupRecapQuery(text: string): boolean {
+  const t = text.toLowerCase();
+  if (!/\b(susan)\b/i.test(text) && !/^\s*@?susan\b/i.test(text)) {
+    // The webhook gate already ensures Susan is addressed, but be explicit.
+  }
+  return (
+    /\b(signups?\s+(so\s+far|today|for\s+today|count|total|numbers?|update)|daily\s+(signups?|numbers?|total|count)|day'?s\s+(count|signups?|numbers?)|who'?s\s+on\s+the\s+board|board\s+so\s+far|recap\s+(today|the\s+day)?|today'?s\s+(recap|signups?|numbers?)|signup\s+count)\b/i.test(t)
+  );
+}
+
+export function formatSignupRecapForChat(rollup: { count: number; by_rep: Array<{ rep_name: string; count: number; carriers: string[] }> }): string {
+  if (rollup.count === 0) {
+    return "No signups on the board yet today — still time to change that 💪";
+  }
+  const top = rollup.by_rep.slice(0, 6);
+  const names = top.map((r) => `${r.rep_name.split(' ')[0]} ${r.count > 1 ? `×${r.count}` : ''}`).join(', ');
+  const more = rollup.by_rep.length > 6 ? ` + ${rollup.by_rep.length - 6} more` : '';
+  return `${rollup.count} on the board so far — ${names}${more}. Let's keep stacking 🔥`;
 }
 
 async function fetchRecentChatMessages(limit: number = 40): Promise<Array<{name: string; text: string; created_at: number; sender_type: string}>> {
@@ -1847,6 +1962,47 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     const mentioned = textMentionsSusan(text);
     const isReply = isReplyToSusan(msg.attachments || []);
 
+    // SIGNUP LOGGING — every signup post gets saved to bot_signup_log regardless
+    // of whether Susan is addressed. Powers evening recap, leader queries, and
+    // late-signup follow-ups.
+    if (SIGNUP_PREFIX.test(text)) {
+      const parsed = parseSignupPost(text, msg.name || '', msg.created_at || Math.floor(Date.now() / 1000));
+      if (parsed) {
+        const saved = await saveSignupToLog(pool, msg, parsed);
+        // LATE-SIGNUP FOLLOW-UP — if today's recap was already posted (within
+        // last ~3 hours), Susan replies to the new signup acknowledging the
+        // late add and updating the day's total. Runs at most once per signup.
+        if (saved) {
+          try {
+            const recapRes = await pool.query(
+              `SELECT recap_date, posted_at, signup_count_at_post, late_updates
+               FROM bot_recap_state
+               WHERE recap_date = (NOW() AT TIME ZONE 'America/New_York')::date
+                 AND posted_at > NOW() - INTERVAL '3 hours'
+               ORDER BY posted_at DESC LIMIT 1`
+            );
+            const recap = recapRes.rows[0];
+            if (recap) {
+              const rollup = await getTodaySignupRollup(pool);
+              const repFirst = (msg.name || '').split(' ')[0] || 'chief';
+              const lateText = `Late add from @${msg.name || 'rep'} 🔥 Updated count: ${rollup.count} on the board today. Nice, ${repFirst}.`;
+              await postToGroupMe(lateText, String(msg.id));
+              await pool.query(
+                `UPDATE bot_recap_state SET late_updates = late_updates + 1 WHERE recap_date = $1`,
+                [recap.recap_date]
+              );
+              console.log(`[SusanBot] late-signup follow-up posted — new_count=${rollup.count}`);
+            }
+          } catch (e) {
+            console.warn('[SusanBot] late-signup watcher err:', e);
+          }
+        }
+      }
+      // Signups don't trigger a normal reply — they're operational, not questions.
+      // (Unless the signup post ALSO @-mentions Susan, in which case we still want
+      // to respond below. For now, keep them pass-through to the normal flow.)
+    }
+
     // PASSIVE INTEL LEARNING — runs BEFORE the trigger check so we capture
     // intel even when reps are talking to each other (not to Susan). This
     // queues candidates for admin review; nothing is auto-written to KB here.
@@ -1862,6 +2018,22 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         }
       }
       return; // no reply — we just observed
+    }
+
+    // LEADER RECAP QUERY — Ross/Reese/Luis/Oliver/Ford/Ahmed can ask Susan for
+    // the day's signup count in chat and get an immediate factual rollup.
+    // Non-leaders hit the normal LLM path so we don't expose ops data broadly.
+    const querySenderId = String(msg.user_id || msg.sender_id || '');
+    const queryLeaderName = RECAP_QUERY_LEADERS[querySenderId];
+    if (queryLeaderName && isSignupRecapQuery(text)) {
+      const rollup = await getTodaySignupRollup(pool);
+      const reply = formatSignupRecapForChat(rollup);
+      if (!testMode) {
+        await postToGroupMe(reply, String(msg.id));
+        repliedAt.push(Date.now());
+      }
+      console.log(`[SusanBot] leader recap query from ${queryLeaderName} — count=${rollup.count}`);
+      return;
     }
 
     // TEACHING DIRECTIVE — "Susan remember that X"
@@ -2246,6 +2418,36 @@ Output JSON with:
       res.json({ ok: true, sent_to: process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com' });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'digest failed' });
+    }
+  });
+  // Get today's signup rollup — what Susan would reply to a leader "@susan signups today" query.
+  router.get('/scheduled/signups/today', async (_req: Request, res: Response) => {
+    try {
+      const { triggerSignupRollup } = await import('../services/susanScheduledPosts.js');
+      const r = await triggerSignupRollup(pool);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'signups rollup failed' });
+    }
+  });
+  // Force-send the 8 PM recap-preview email to the 5 leaders NOW (test).
+  router.post('/scheduled/recap/preview-email', async (_req: Request, res: Response) => {
+    try {
+      const { triggerRecapPreviewEmail } = await import('../services/susanScheduledPosts.js');
+      const r = await triggerRecapPreviewEmail(pool);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'preview email failed' });
+    }
+  });
+  // Dry-run the 8:30 PM public recap (no post, just the text + Ross check).
+  router.get('/scheduled/recap/dry-run', async (_req: Request, res: Response) => {
+    try {
+      const { triggerEveningRecapNow } = await import('../services/susanScheduledPosts.js');
+      const r = await triggerEveningRecapNow(pool);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'dry-run failed' });
     }
   });
 

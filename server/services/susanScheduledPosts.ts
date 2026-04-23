@@ -17,12 +17,26 @@
 import cron from 'node-cron';
 import type pg from 'pg';
 import { emailService } from './emailService.js';
-import { postToGroupMe } from '../routes/susanGroupMeBotRoutes.js';
+import { postToGroupMe, getTodaySignupRollup } from '../routes/susanGroupMeBotRoutes.js';
 
 const TZ = 'America/New_York';
 const ADMIN_EMAIL = process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com';
 const SALES_GROUP_ID = process.env.GROUPME_SUSAN_GROUP_ID || '93177620';
 const GROUPME_TOKEN = process.env.GROUPME_TOKEN || '';
+
+// Leadership email allow-list for recap preview (8 PM EDT)
+const RECAP_PREVIEW_LEADERS: Array<{ email: string; name: string }> = [
+  { email: 'ross.renzi@theroofdocs.com',     name: 'Ross Renzi' },
+  { email: 'reese@theroofdocs.com',          name: 'Reese Samala' },
+  { email: 'luis.esteves@theroofdocs.com',   name: 'Luis Esteves' },
+  { email: 'oliver.brown@theroofdocs.com',   name: 'Oliver Brown' },
+  { email: 'ford.barsi@theroofdocs.com',     name: 'Ford Barsi' },
+];
+
+// Ross's daily-sales recap gate — if he posted one in the last 60 min we skip
+// Susan's 8:30 PM public recap so she doesn't step on him.
+const ROSS_USER_ID = '122568603';
+const ROSS_RECAP_RE = /^\s*(daily\s+sales|signup\s+total|total\s+for\s+(the\s+)?day|\d+\s+(for|signups?|on\s+the\s+board))/i;
 
 type Phase = 'morning' | 'midday' | 'afternoon' | 'evening';
 
@@ -278,6 +292,184 @@ async function postScheduledMotivation(pool: pg.Pool, phase: Phase): Promise<voi
   }
 }
 
+// ─── Evening recap coordination ──────────────────────────────────────────────
+// 8:00 PM EDT — email 5 leaders a preview draft ("any adds/corrections?")
+// 8:30 PM EDT — public recap post, SKIPPED if Ross posted his daily-sales
+//              recap in the last 60 min (we never step on Ross)
+// After 8:30 — writes bot_recap_state; webhook handler then runs late-signup
+//              follow-ups on any new signup in the next 3 hours.
+
+async function rossPostedDailyRecapRecently(): Promise<boolean> {
+  if (!GROUPME_TOKEN) return false;
+  try {
+    const r = await fetch(
+      `https://api.groupme.com/v3/groups/${SALES_GROUP_ID}/messages?limit=40&token=${GROUPME_TOKEN}`,
+      { method: 'GET' }
+    );
+    if (!r.ok) return false;
+    const d: any = await r.json();
+    const msgs = d?.response?.messages || [];
+    const nowSec = Math.floor(Date.now() / 1000);
+    for (const m of msgs) {
+      if (String(m.user_id) !== ROSS_USER_ID) continue;
+      if (nowSec - Number(m.created_at) > 3600) continue; // older than 1 hour
+      const t = String(m.text || '');
+      if (ROSS_RECAP_RE.test(t) || /\b(signups?|total|for the day|on the board)\b/i.test(t)) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function formatRecapForEmail(rollup: Awaited<ReturnType<typeof getTodaySignupRollup>>): {
+  html: string; text: string;
+} {
+  const esc = (s: string) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as any)[c]);
+  const repRows = rollup.by_rep.length === 0
+    ? '<tr><td style="padding:10px;color:#64748b">No signups visible yet</td></tr>'
+    : rollup.by_rep.map((r) => `
+      <tr><td style="padding:6px 10px;border-bottom:1px solid #f1f5f9">
+        <strong>${esc(r.rep_name)}</strong>
+        <span style="color:#3b82f6">×${r.count}</span>
+        ${r.carriers.length ? `<span style="color:#64748b;font-size:12px"> — ${esc(r.carriers.join(', '))}</span>` : ''}
+      </td></tr>`).join('');
+  const carrierPairs = rollup.by_carrier.length
+    ? rollup.by_carrier.map((c) => `${esc(c.carrier)}: ${c.count}`).join(', ')
+    : '—';
+  const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:680px;margin:20px auto;background:#f4f4f7">
+  <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:22px;border-radius:8px 8px 0 0">
+    <div style="font-size:12px;opacity:.85;letter-spacing:1.5px;text-transform:uppercase">Susan 21 · Preview</div>
+    <h1 style="margin:6px 0 0;font-size:22px">Daily Recap Draft — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: TZ })}</h1>
+    <p style="margin:8px 0 0;opacity:.9;font-size:13px">Posting to Sales Team at 8:30 PM EDT unless you say otherwise.</p>
+  </div>
+  <div style="background:#fff;padding:20px;border:1px solid #e5e7eb;border-top:none">
+    <div style="font-size:48px;font-weight:800;color:#0f172a;line-height:1">${rollup.count}</div>
+    <div style="color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1.5px">signups on the board today</div>
+    <h3 style="margin:20px 0 6px;font-size:15px">Breakdown by rep</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">${repRows}</table>
+    <div style="margin-top:16px;font-size:12px;color:#64748b"><strong>By carrier:</strong> ${carrierPairs}</div>
+    <div style="margin-top:20px;padding:12px;background:#eff6ff;border-radius:6px;font-size:13px;color:#1e40af">
+      <strong>Want to correct before Susan posts?</strong> Reply to this email with notes or drop a signup in the chat — she'll pick up the latest count at 8:30.
+    </div>
+    <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:12px;color:#64748b;font-family:monospace;white-space:pre-wrap">Planned chat post:
+"${rollup.count} on the board today — ${rollup.by_rep.slice(0,6).map(r => r.rep_name.split(' ')[0] + (r.count > 1 ? ' ×' + r.count : '')).join(', ')}${rollup.by_rep.length > 6 ? ' + ' + (rollup.by_rep.length - 6) + ' more' : ''}. 🔥"</div>
+  </div>
+</body></html>`;
+  const text = [
+    `Susan 21 — Daily Recap Draft (posting to Sales Team at 8:30 PM EDT)`,
+    ``,
+    `${rollup.count} signups on the board today.`,
+    ``,
+    `By rep:`,
+    ...rollup.by_rep.map((r) => `  ${r.rep_name} ×${r.count}${r.carriers.length ? ` (${r.carriers.join(', ')})` : ''}`),
+    ``,
+    `By carrier: ${rollup.by_carrier.map((c) => `${c.carrier}: ${c.count}`).join(', ') || '—'}`,
+    ``,
+    `Reply with any adds/corrections before 8:30 PM or drop the signup in chat.`,
+  ].join('\n');
+  return { html, text };
+}
+
+async function sendRecapPreviewToLeaders(pool: pg.Pool): Promise<void> {
+  try {
+    const rollup = await getTodaySignupRollup(pool);
+    const { html, text } = formatRecapForEmail(rollup);
+    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ });
+    const subject = `🧾 Daily Recap Preview — ${date} (Susan posts at 8:30 PM)`;
+    for (const leader of RECAP_PREVIEW_LEADERS) {
+      try {
+        await emailService.sendCustomEmail(leader.email, { subject, html, text });
+        console.log(`[ScheduledPosts] recap preview → ${leader.email}`);
+      } catch (e) {
+        console.warn(`[ScheduledPosts] preview email fail ${leader.email}:`, e);
+      }
+    }
+  } catch (e) {
+    console.error('[ScheduledPosts] sendRecapPreviewToLeaders err:', e);
+  }
+}
+
+async function postEveningRecap(pool: pg.Pool): Promise<void> {
+  try {
+    // Gate: don't step on Ross if he posted his daily-sales recap within the last hour.
+    if (await rossPostedDailyRecapRecently()) {
+      console.log('[ScheduledPosts] evening_recap SKIPPED — Ross posted his recap in last 60min');
+      return;
+    }
+    const rollup = await getTodaySignupRollup(pool);
+    let text: string;
+    if (rollup.count === 0) {
+      // Neutral / forward-looking — do NOT call it a "rough day"
+      text = "That's a wrap. Tomorrow we run it back 🌙";
+    } else {
+      const top = rollup.by_rep.slice(0, 6);
+      const names = top
+        .map((r) => `${r.rep_name.split(' ')[0]}${r.count > 1 ? ` ×${r.count}` : ''}`)
+        .join(', ');
+      const more = rollup.by_rep.length > 6 ? ` + ${rollup.by_rep.length - 6} more` : '';
+      text = `${rollup.count} on the board today — ${names}${more}. Solid day, team 🔥 Tomorrow we stack again.`;
+    }
+    const result = await postToGroupMe(text);
+    if (result === 'ok') {
+      // Mark recap as posted so late-signup follow-ups can fire
+      await pool.query(
+        `INSERT INTO bot_recap_state (recap_date, signup_count_at_post)
+         VALUES ((NOW() AT TIME ZONE 'America/New_York')::date, $1)
+         ON CONFLICT (recap_date) DO UPDATE SET posted_at = NOW(), signup_count_at_post = EXCLUDED.signup_count_at_post, late_updates = 0`,
+        [rollup.count]
+      );
+      console.log(`[ScheduledPosts] evening_recap posted — count=${rollup.count}`);
+    }
+  } catch (e) {
+    console.error('[ScheduledPosts] postEveningRecap err:', e);
+  }
+}
+
+// ─── Real-time storm alerts (every 30 min, 8 AM - 8 PM EDT) ──────────────────
+// Polls verified_hail_events_public for new verified events in DMV with hail
+// ≥ 1" in the last 90 min. Dedup via bot_storm_alerts_sent (created inline).
+const alertedEventKeys = new Set<string>(); // memory dedup (per instance)
+
+async function checkStormAlerts(pool: pg.Pool): Promise<void> {
+  if (process.env.SUSAN_STORM_ALERTS !== 'true') return;
+  try {
+    const r = await pool.query(`
+      SELECT id, event_date, state, latitude, longitude,
+             ROUND(hail_size_inches::numeric, 2) AS hail_in,
+             wind_mph,
+             public_verification_count AS vcount
+      FROM verified_hail_events_public
+      WHERE event_date >= (CURRENT_DATE - INTERVAL '2 days')::date
+        AND state IN ('VA','MD','DC','PA','WV','DE')
+        AND hail_size_inches >= 1.0
+        AND public_verification_count >= 1
+      ORDER BY event_date DESC, hail_size_inches DESC
+      LIMIT 10
+    `);
+    for (const evt of r.rows) {
+      const key = `${evt.id}`;
+      if (alertedEventKeys.has(key)) continue;
+      // Only alert on events from the last 90 min (avoid backlog spam at startup)
+      // We use event_date only — real-time actual event timestamp isn't in view.
+      // So we rely on memory dedup to prevent re-alerts within instance lifetime.
+      alertedEventKeys.add(key);
+      if (alertedEventKeys.size > 500) {
+        const first = alertedEventKeys.values().next().value;
+        if (first) alertedEventKeys.delete(first);
+      }
+    }
+    // For actual alerting we'd want a persistent "seen" table — skipping real
+    // post for now. Real-time alerts are wired-in gated, default OFF, so no
+    // noise until we validate the real-time ingest is tight enough.
+    console.log(`[ScheduledPosts] storm_alert_check — ${r.rows.length} candidate events, ${alertedEventKeys.size} tracked`);
+  } catch (e) {
+    console.warn('[ScheduledPosts] checkStormAlerts err:', e);
+  }
+}
+
 // ─── Daily digest email (6 PM EDT) ───────────────────────────────────────────
 
 async function sendDailyDigest(pool: pg.Pool): Promise<void> {
@@ -410,9 +602,10 @@ export function startSusanScheduler(pool: pg.Pool): void {
   const postsOn = process.env.SUSAN_SCHEDULED_POSTS === 'true';
   const eveningOn = process.env.SUSAN_EVENING_POST === 'true';
   const digestOn = process.env.SUSAN_DIGEST_EMAIL === 'true';
+  const stormsOn = process.env.SUSAN_STORM_ALERTS === 'true';
 
-  if (!postsOn && !digestOn) {
-    console.log('[SusanScheduler] all features disabled (set SUSAN_SCHEDULED_POSTS / SUSAN_DIGEST_EMAIL = true to enable)');
+  if (!postsOn && !digestOn && !stormsOn) {
+    console.log('[SusanScheduler] all features disabled');
     return;
   }
 
@@ -421,13 +614,19 @@ export function startSusanScheduler(pool: pg.Pool): void {
     cron.schedule('15 12 * * *', () => postScheduledMotivation(pool, 'midday'), { timezone: TZ });
     cron.schedule('30 15 * * *', () => postScheduledMotivation(pool, 'afternoon'), { timezone: TZ });
     if (eveningOn) {
-      cron.schedule('30 20 * * *', () => postScheduledMotivation(pool, 'evening'), { timezone: TZ });
+      // Evening flow — 8:00 PM leader email preview, 8:30 PM public recap.
+      cron.schedule('0 20 * * *',  () => sendRecapPreviewToLeaders(pool), { timezone: TZ });
+      cron.schedule('30 20 * * *', () => postEveningRecap(pool),          { timezone: TZ });
     }
   }
   if (digestOn) {
     cron.schedule('0 18 * * *', () => sendDailyDigest(pool), { timezone: TZ });
   }
-  console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} tz=${TZ}`);
+  if (stormsOn) {
+    // Every 30 min, 8 AM - 8 PM EDT
+    cron.schedule('*/30 8-19 * * *', () => checkStormAlerts(pool), { timezone: TZ });
+  }
+  console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} tz=${TZ}`);
 }
 
 // Manual triggers for testing (exposed via router in susanGroupMeBotRoutes)
@@ -452,4 +651,26 @@ export async function triggerMotivationPostNow(pool: pg.Pool, phase: Phase): Pro
 
 export async function triggerDailyDigest(pool: pg.Pool): Promise<void> {
   return sendDailyDigest(pool);
+}
+
+export async function triggerRecapPreviewEmail(pool: pg.Pool): Promise<{ ok: boolean; leaders: string[]; rollup_count: number }> {
+  const rollup = await getTodaySignupRollup(pool);
+  await sendRecapPreviewToLeaders(pool);
+  return { ok: true, leaders: RECAP_PREVIEW_LEADERS.map((l) => l.email), rollup_count: rollup.count };
+}
+
+export async function triggerEveningRecapNow(pool: pg.Pool): Promise<{ ok: boolean; posted: boolean; ross_blocked: boolean; text_or_reason: string }> {
+  const rossBlock = await rossPostedDailyRecapRecently();
+  if (rossBlock) {
+    return { ok: true, posted: false, ross_blocked: true, text_or_reason: 'Ross posted daily-sales recap in last 60min — skipped to avoid stepping on him.' };
+  }
+  const rollup = await getTodaySignupRollup(pool);
+  const text = rollup.count === 0
+    ? "That's a wrap. Tomorrow we run it back 🌙"
+    : `${rollup.count} on the board today — ${rollup.by_rep.slice(0, 6).map((r) => `${r.rep_name.split(' ')[0]}${r.count > 1 ? ` ×${r.count}` : ''}`).join(', ')}${rollup.by_rep.length > 6 ? ` + ${rollup.by_rep.length - 6} more` : ''}. Solid day, team 🔥 Tomorrow we stack again.`;
+  return { ok: true, posted: false, ross_blocked: false, text_or_reason: `PREVIEW (not posted): ${text}` };
+}
+
+export async function triggerSignupRollup(pool: pg.Pool): Promise<{ count: number; by_rep: any[]; by_carrier: any[]; rows: any[] }> {
+  return getTodaySignupRollup(pool);
 }
