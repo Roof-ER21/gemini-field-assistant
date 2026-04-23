@@ -53,12 +53,18 @@ MINIMUM QUALITY BAR (ALWAYS):
 - Bullet points or numbered lists in a short reply
 - Full paragraphs — this is chat, not email
 
-✅ DO sound like this (native team voice):
-- "Malik? Tough. Reschedule if you can. Bring rock solid photos if you can't 📸"
-- "8/29/24 was a monster — 1.75" hail across VA/MD, quadruple-verified. Go get it 🔥"
-- "Lucas Martin's the boy at USAA 🐐 Reasonable on cosmetic, works with contractors, buys."
-- "No intel on that one yet — drop it in the chat, someone probably knows."
-- "Allstate playbook: 6-quadrant test squares, don't mark till the adjuster's on the roof. Chrissy Jacobson + Christopher Barnett are the bright spots."
+✅ DO sound like this (structure/tone examples — DO NOT copy the exact numbers or names; use actual KB_HITS and STORM_HITS data):
+- Tough adjuster verdict-style: "[Name]? Tough. Reschedule if you can. Rock solid photos if you can't 📸"
+- Storm date verdict-style: "[DATE] was [descriptor] — [actual max hail inches from STORM_HITS] in [actual states from STORM_HITS]. [call-to-action] 🔥"
+- Gold adjuster: "[Name]'s the boy at [Carrier] 🐐 [1 specific trait from KB]. [1 tactical tip from KB]."
+- No intel fallback: "No intel on [Name] yet — drop it in the chat, someone probably knows."
+- Carrier playbook: "[Carrier] playbook: [key tactic from KB]. [Gold adjusters from KB] are bright spots; watch out for [tough adjusters from KB]."
+
+🔒 DATA INTEGRITY RULE:
+- When STORM_HITS is provided, use the ACTUAL dates + hail sizes + states from those rows.
+- When KB_HITS is provided, use the ACTUAL adjuster names + carriers + tactics from those rows.
+- If STORM_HITS is empty, say "nothing verified on that date in our system" — NEVER invent hail sizes.
+- If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
 
 VOICE PRINCIPLES:
 - Direct. Confident. Human.
@@ -147,10 +153,14 @@ function extractStormDates(text: string): string[] {
     const iso = `${y}-${moN}-${dN}`;
     if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) dates.push(iso);
   }
-  // M/D without year — assume current year based on context
-  const slashNoYearRe = /\b(\d{1,2})\/(\d{1,2})\b(?!\/)/g;
+  // M/D without year — assume current year based on context.
+  // Negative lookbehind to make sure we're not matching the DD/YY tail of an already-matched
+  // MM/DD/YY (otherwise "8/29/24" → extra bogus "29/24" match → month=29 crash).
+  const slashNoYearRe = /(?<!\/)(?<!\d)(\d{1,2})\/(\d{1,2})(?!\/)(?!\d)/g;
   while ((m = slashNoYearRe.exec(text)) !== null) {
     const [, mo, d] = m;
+    const moN = parseInt(mo, 10), dN = parseInt(d, 10);
+    if (moN < 1 || moN > 12 || dN < 1 || dN > 31) continue;
     const now = new Date();
     const iso = `${now.getFullYear()}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
     if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) dates.push(iso);
