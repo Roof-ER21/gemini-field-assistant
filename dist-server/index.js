@@ -66,6 +66,8 @@ import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
 import { ensurePdfJobsSchema, startPdfJobWorker } from './services/pdfJobQueue.js';
+import { ensureStormDaysSchema } from './services/stormDaysService.js';
+import { ensureWorkerHeartbeatSchema } from './routes/adminRoutes.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
@@ -8165,11 +8167,20 @@ if (process.env.RUN_SCHEDULERS !== 'false') {
 else {
     console.log('[web] RUN_SCHEDULERS=false — schedulers deferred to sa21-worker service');
 }
-// Phase 4: make sure pdf_jobs exists before the first /generate-report
-// request tries to enqueue. ensurePdfJobsSchema is idempotent (CREATE
-// TABLE IF NOT EXISTS + indexes) so it's safe to run every boot. This
-// also covers the case where the worker service isn't up yet.
-ensurePdfJobsSchema(pool).then(() => {
+// Phase 2-4: bootstrap every piece of schema the new services require.
+// Sandbox prevents applying migrations via psql from the builder, so each
+// service self-creates its tables/MVs on startup. All statements are
+// idempotent (IF NOT EXISTS).
+(async () => {
+    try {
+        await ensurePdfJobsSchema(pool);
+        await ensureWorkerHeartbeatSchema(pool);
+        await ensureStormDaysSchema(pool);
+        console.log('[web] schema bootstrap complete (pdf_jobs + worker_heartbeat + storm_days_public)');
+    }
+    catch (e) {
+        console.error('[web] schema bootstrap failed:', e.message);
+    }
     // Run the PDF consumer in the web container too, until sa21-worker is
     // up on Railway. Without this, enqueued rows would never be rendered
     // and the UI would time out polling. RUN_SCHEDULERS=false on the web
@@ -8177,9 +8188,7 @@ ensurePdfJobsSchema(pool).then(() => {
     if (process.env.RUN_SCHEDULERS !== 'false') {
         startPdfJobWorker(pool);
     }
-}).catch((e) => {
-    console.error('[web] ensurePdfJobsSchema failed:', e.message);
-});
+})();
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
