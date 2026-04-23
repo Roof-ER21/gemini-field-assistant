@@ -928,11 +928,15 @@ export class PDFReportServiceV2 {
         }
         // =========================================================
         // RADAR EVIDENCE — single high-quality NEXRAD image for the most
-        // significant storm date. Skipped when per-warning radar cards below
-        // will render the same images inline (avoids duplication).
+        // significant storm date. Rendered whenever we have a nexradImage
+        // buffer and includeNexrad isn't explicitly off. Previously gated
+        // behind `!willRenderPerAlertRadar` to avoid duplication with the
+        // smaller per-warning thumbnails, but reps want the big radar panel
+        // front and centre regardless — the warnings section's thumbnails
+        // are supplementary. The large version lands a clearer visual story
+        // when handing the report to adjusters.
         // =========================================================
-        const willRenderPerAlertRadar = (input.nwsAlertImages || []).some((a) => a.radarImage) && input.includeWarnings !== false;
-        const hasRadar = input.nexradImage && input.includeNexrad !== false && !willRenderPerAlertRadar;
+        const hasRadar = input.nexradImage && input.includeNexrad !== false;
         if (hasRadar && input.nexradImage) {
             this.checkPageBreak(doc, 230);
             this.drawSectionBanner(doc, 'Storm Radar Evidence');
