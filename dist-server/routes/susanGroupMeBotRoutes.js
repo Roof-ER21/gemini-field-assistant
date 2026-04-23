@@ -64,6 +64,14 @@ MINIMUM QUALITY BAR (ALWAYS):
 - If ADDRESS_LOOKUP shows "no events", tell the rep straight: "no verified hail within 15mi at that address in 24 months. NOAA/NWS/NEXRAD all clean."
 - If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
 
+📻 CHAT_CONTEXT — team-flow questions:
+- When CHAT_CONTEXT is provided, the rep is asking about the recent chat itself (recap, signups, what happened today, team wins).
+- READ the messages, extract real facts (sales counts, wins, approvals, shoutouts, sign-up posts), and summarize.
+- Format: "[#] signups today 🔥 Joe M 🦅🦅, Royce/Eric/Nick/Kevin each 1..." — use actual names + numbers from the messages.
+- If the question is "who got signups" or "team count", count sign-up posts in CHAT_CONTEXT (look for 'sign up', 'signup', 'e-sign', 'esign', claim-type emojis like 🦅🔥💪).
+- NEVER make up numbers — only count what's visible in CHAT_CONTEXT.
+- If nothing relevant is in CHAT_CONTEXT, say "no sign-ups posted in the last N messages — the board might be elsewhere".
+
 🏠 ADDRESS QUERIES — when ADDRESS_LOOKUP is present:
 - Reps say "was there hail at 1234 Oak Ln" expecting you to look it up. You get that data in ADDRESS_LOOKUP.
 - Reply format: "[Address] → [X] verified hail events in last 24mo. Most recent: [date], [size]" hail, [distance]mi away 🔥"
@@ -381,6 +389,44 @@ async function geocodeAddress(addr) {
         console.warn('[SusanBot] nominatim geocode err:', e);
     }
     return null;
+}
+// ─── Chat context — for recap / team / "today" style questions ───────────────
+function needsChatContext(text) {
+    return /\b(recap|today|yesterday|summary|summarize|catch\s+me\s+up|catch\s+up|what\s+happened|what\s+did|wins|signups?|sign\s+ups?|total|team\s+did|team\s+hit|day|week|what's\s+new|whats\s+new)\b/i.test(text);
+}
+async function fetchRecentChatMessages(limit = 40) {
+    const token = process.env.GROUPME_TOKEN || (await (async () => {
+        try {
+            const { readFileSync } = await import('fs');
+            const { homedir } = await import('os');
+            return readFileSync(`${homedir()}/.groupme-token`, 'utf-8').trim();
+        }
+        catch {
+            return '';
+        }
+    })());
+    if (!token)
+        return [];
+    try {
+        const r = await fetch(`https://api.groupme.com/v3/groups/${SALES_GROUP_ID}/messages?limit=${limit}&token=${token}`);
+        if (!r.ok)
+            return [];
+        const data = await r.json();
+        const msgs = data?.response?.messages || [];
+        return msgs
+            .map((m) => ({
+            name: m.name || 'unknown',
+            text: String(m.text || '').slice(0, 400),
+            created_at: m.created_at,
+            sender_type: m.sender_type || 'user',
+        }))
+            .filter((m) => m.text.length > 0)
+            .reverse(); // chronological
+    }
+    catch (e) {
+        console.warn('[SusanBot] fetchRecentChatMessages err:', e);
+        return [];
+    }
 }
 async function hailAtAddress(pool, lat, lng, monthsBack = 24) {
     // Query verified_hail_events_public within 15 miles over last N months
@@ -772,7 +818,7 @@ function qualityCheck(reply) {
 // Primary: Gemini 2.5 Flash (FREE, 1500 req/day free tier)
 // Fallback: Groq Llama 3.3 70B (FREE, very fast)
 // Last resort: Claude Haiku 4.5 (paid, reliable)
-function buildPromptLines(message, kbHits, stormHits, entities, history, addressHail) {
+function buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext) {
     const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
     if (history.length > 0) {
         lines.push('\nCONVERSATION_HISTORY (most recent last — use to resolve "him"/"that guy"/follow-ups):');
@@ -808,6 +854,14 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
         lines.push('\nSTORM_HITS (verified hail/wind events from NOAA/NWS/NEXRAD/MRMS):');
         for (const s of stormHits.slice(0, 10)) {
             lines.push(`  ${s.event_date} ${s.state || '?'} — hail ${s.hail_size_inches || '-'}", wind ${s.wind_mph || '-'}mph, ${s.public_verification_count}x verified`);
+        }
+    }
+    if (chatContext && chatContext.length > 0) {
+        lines.push(`\nCHAT_CONTEXT (last ${chatContext.length} messages in the Sales Team chat, chronological — use to answer "recap the day" / "team signups" / "what happened" style questions):`);
+        for (const c of chatContext.slice(-30)) {
+            const ts = new Date(c.created_at * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
+            const who = c.sender_type === 'bot' ? 'Susan' : c.name;
+            lines.push(`  [${ts}] ${who}: ${c.text.slice(0, 280)}`);
         }
     }
     if (addressHail && addressHail.address) {
@@ -1025,8 +1079,8 @@ async function tryClaude(prompt) {
         return { reply: null, error: `claude_fetch:${e?.name || 'err'}` };
     }
 }
-async function generateReply(message, kbHits, stormHits, entities, history, addressHail) {
-    const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail);
+async function generateReply(message, kbHits, stormHits, entities, history, addressHail, chatContext) {
+    const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext);
     const providers = [
         ['gemini', tryGemini],
         ['groq', tryGroq],
@@ -1199,13 +1253,18 @@ export function createSusanGroupMeBotRoutes(pool) {
                     return { address: addr, geo, events };
                 })()
                 : Promise.resolve(null);
+            // Pull recent chat context for recap / team-flow style questions
+            const chatContextPromise = needsChatContext(text)
+                ? fetchRecentChatMessages(40)
+                : Promise.resolve([]);
             // Prefer entity-driven KB search; fall back to token FTS
-            const [kbHits, stormHits, addressHail] = await Promise.all([
+            const [kbHits, stormHits, addressHail, chatContext] = await Promise.all([
                 smartKbSearch(pool, text, entities, canonicals),
                 stormSearch(pool, text),
                 addressLookupPromise,
+                chatContextPromise,
             ]);
-            const { reply, error, provider, qualityFlags, retries } = await generateReply({ name: msg.name, text }, kbHits, stormHits, entities, history, addressHail);
+            const { reply, error, provider, qualityFlags, retries } = await generateReply({ name: msg.name, text }, kbHits, stormHits, entities, history, addressHail, chatContext);
             const latencyMs = Date.now() - startMs;
             if (!reply || error) {
                 console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'} (retries=${retries})`);
