@@ -16,6 +16,43 @@ import type pg from 'pg';
 const POLL_INTERVAL_MS = 3_000;
 const STALE_RUNNING_MS = 5 * 60 * 1000; // 5 min — if a row is still 'running' longer, reset to 'pending'
 
+/**
+ * Idempotent schema bootstrap. Runs the 078 migration body on worker
+ * startup so pdf_jobs exists before the poll loop's first iteration,
+ * even if the ops path skipped psql-based migration application. Every
+ * statement is `IF NOT EXISTS` so a re-run on an existing schema is
+ * a no-op.
+ *
+ * Exported so the web container can call it at boot too (pdf_jobs needs
+ * to exist before the first POST /generate-report enqueues a row).
+ */
+export async function ensurePdfJobsSchema(pool: pg.Pool): Promise<void> {
+  return ensureSchema(pool);
+}
+
+async function ensureSchema(pool: pg.Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pdf_jobs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      status TEXT NOT NULL CHECK (status IN ('pending','running','done','error'))
+        DEFAULT 'pending',
+      payload JSONB NOT NULL,
+      result_bytes BYTEA,
+      result_mime TEXT DEFAULT 'application/pdf',
+      result_url TEXT,
+      error TEXT,
+      requested_by_email TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS pdf_jobs_pending_idx
+      ON pdf_jobs (created_at ASC) WHERE status = 'pending';
+    CREATE INDEX IF NOT EXISTS pdf_jobs_completed_age_idx
+      ON pdf_jobs (completed_at) WHERE status IN ('done', 'error');
+  `);
+}
+
 async function claimOne(pool: pg.Pool): Promise<{ id: string; payload: any } | null> {
   const r = await pool.query(
     `UPDATE pdf_jobs
@@ -81,6 +118,8 @@ async function renderOne(job: { id: string; payload: any }): Promise<Buffer> {
 export function startPdfJobWorker(pool: pg.Pool): void {
   let stopped = false;
   async function loop(): Promise<void> {
+    try { await ensureSchema(pool); console.log('[pdf-queue] schema ready'); }
+    catch (e) { console.error('[pdf-queue] ensureSchema failed:', (e as Error).message); }
     while (!stopped) {
       try {
         await recoverStaleRunning(pool);

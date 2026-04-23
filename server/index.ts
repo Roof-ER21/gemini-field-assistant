@@ -67,6 +67,7 @@ import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
+import { ensurePdfJobsSchema, startPdfJobWorker } from './services/pdfJobQueue.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
@@ -9387,6 +9388,22 @@ if (process.env.RUN_SCHEDULERS !== 'false') {
 } else {
   console.log('[web] RUN_SCHEDULERS=false — schedulers deferred to sa21-worker service');
 }
+
+// Phase 4: make sure pdf_jobs exists before the first /generate-report
+// request tries to enqueue. ensurePdfJobsSchema is idempotent (CREATE
+// TABLE IF NOT EXISTS + indexes) so it's safe to run every boot. This
+// also covers the case where the worker service isn't up yet.
+ensurePdfJobsSchema(pool).then(() => {
+  // Run the PDF consumer in the web container too, until sa21-worker is
+  // up on Railway. Without this, enqueued rows would never be rendered
+  // and the UI would time out polling. RUN_SCHEDULERS=false on the web
+  // service after sa21-worker is healthy to stop doubled-up consumers.
+  if (process.env.RUN_SCHEDULERS !== 'false') {
+    startPdfJobWorker(pool);
+  }
+}).catch((e) => {
+  console.error('[web] ensurePdfJobsSchema failed:', (e as Error).message);
+});
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
