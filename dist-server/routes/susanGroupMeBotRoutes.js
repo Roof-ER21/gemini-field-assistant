@@ -179,12 +179,15 @@ async function stormSearch(pool, text) {
     try {
         if (dates.length > 0) {
             // Specific date lookup — give top events that day in VA/MD/PA
+            // Use IN list with positional placeholders (more reliable than ANY($1::date[]))
+            const placeholders = dates.map((_, i) => `$${i + 1}::date`).join(',');
             const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
          FROM verified_hail_events_public
-         WHERE event_date = ANY($1::date[])
+         WHERE event_date IN (${placeholders})
            AND state IN ('VA','MD','PA','DC','WV','DE')
          ORDER BY hail_size_inches DESC NULLS LAST, wind_mph DESC NULLS LAST
-         LIMIT 10`, [dates]);
+         LIMIT 10`, dates);
+            console.log(`[SusanBot] stormSearch dates=[${dates.join(',')}] hits=${result.rows.length}`);
             return result.rows;
         }
         // General storm ask without a date — return top recent events in region
