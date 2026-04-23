@@ -97,7 +97,7 @@ THREE TIERS, in order of authority:
      Multiple dates: if rep asked about a specific date and it's in DIRECT HITS, lead with THAT date. Otherwise lead with the biggest size + mention most recent.
      NEVER say "X miles away" for a direct-hit date. The swath covers the property — there IS no distance.
 
-  2. NEAR MISS (≤3mi from a verified point report, not in a swath) — still claim-worthy. "Nearest verified hit: [date] at [distance]mi, [size]" hail."
+  2. AT LOCATION (≤3mi from a verified point report, not in a swath) — still claim-worthy. "At location on [date], up to [size]" hail [distance]mi from the house." Use adjuster-friendly size fractions (1/2", 3/4", 1", 1 1/4") not raw decimals.
 
   3. AREA IMPACT (3-15mi) — context only, never the headline.
 
@@ -1666,7 +1666,7 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
                     }
                 }
                 if (nm.length > 0) {
-                    lines.push(`  NEAR MISS (not in a swath but ≤3mi from a verified point report):`);
+                    lines.push(`  AT LOCATION (not in a swath but ≤3mi from a verified point report):`);
                     for (const n of nm.slice(0, 4)) {
                         lines.push(`    ${n.date} — up to ${n.maxHailInches || '-'}" at ${Number(n.nearestMiles).toFixed(1)}mi${n.noaaConfirmed ? ' · NOAA-confirmed' : ''}`);
                     }
