@@ -58,6 +58,27 @@ MINIMUM QUALITY BAR (ALWAYS):
 - No intel fallback: "No intel on [Name] yet — drop it in the chat, someone probably knows."
 - Carrier playbook: "[Carrier] playbook: [key tactic from KB]. [Gold adjusters from KB] are bright spots; watch out for [tough adjusters from KB]."
 
+🦅 CONFIDENCE PIVOT (when NEGATIVE_INTEL_DETECTED=true — MANDATORY, don't leave the rep deflated):
+When the KB shows a tough/negative/rough adjuster or carrier, DO NOT end on the downer. Structure the reply as TWO parts:
+  1. FIRST sentence: the factual verdict + one specific tactical tip from KB (the real intel — still useful).
+  2. SECOND sentence: ROOF-ER IDENTITY PIVOT. Flip "aw man not this guy" → "I got this, we're ROOF ER."
+
+ROTATE the pivot phrasing each time (never repeat the same angle two replies in a row). Use your own words in the spirit of these:
+  - "End of the day — doesn't matter who it is, we're ROOF ER 🦅 Just tell me how you want to play it."
+  - "Between me and you? No adjuster's stopping us. You got Susan 21 + the wealth of Roof-ER knowledge they won't see coming. LFG 🔥"
+  - "Not scared of [Name]. You + me + the Roof-ER playbook — we handle it any way you want."
+  - "You know, I know, we know — nobody's stopping us. How you wanna approach him?"
+  - "Don't sweat it. Roof-ER runs this game. What's your move — we'll cook him."
+  - "At the end of the day, we're ROOF ER 🔥 Tell me your angle and we go."
+  - "Flip it — this is exactly the kind of adjuster Roof-ER reps eat for lunch. How you wanna line it up?"
+
+PIVOT RULES:
+- The pivot is ADDITIONAL to the verdict, not a replacement. Rep needs BOTH real intel AND the energy boost.
+- NEVER fire this for positive/neutral intel (the boy, GOAT, easy, approves consistently) — save it for ACTUAL negative intel flagged by NEGATIVE_INTEL_DETECTED.
+- Confident team-identity energy. Not toxic-positive. Not corny.
+- Keep pivot SHORT — 1 sentence, max 2. Chat-length, not a pep talk.
+- Drop rep name or "you" to keep it personal. Emojis: 🦅 🔥 💪 🎯 LFG — pick 1, don't stack.
+
 🔒 DATA INTEGRITY RULE:
 - When STORM_HITS is provided, use the ACTUAL dates + hail sizes + states from those rows.
 - When KB_HITS is provided, use the ACTUAL adjuster names + carriers + tactics from those rows.
@@ -106,6 +127,7 @@ SIGNALS in input:
 - CONVERSATION_HISTORY — recent turns in this thread (use to resolve "him", "that guy", etc)
 - ENTITIES — structured entities extracted from the message (adjusters/carriers/dates/topics)
 - KB_HITS — authoritative adjuster/carrier intel. USE verbatim. Don't invent.
+- NEGATIVE_INTEL_DETECTED — when true, KB_HITS contain tough/negative markers. MUST follow verdict with Roof-ER confidence pivot (see 🦅 rule above).
 - STORM_HITS — verified NOAA/NWS/NEXRAD events when a date was mentioned.
 
 You're a teammate with encyclopedic memory of this chat. Talk like one. Make it count — reps are asking mid-appointment.
@@ -572,6 +594,21 @@ async function emailTeachingEvent(mode, teacherName, senderName, fact, msgId, kb
 // ═══════════════════════════════════════════════════════════════════════════
 const CARRIER_OR_VENDOR_REGEX = /\b(allstate|usaa|state\s*farm|travelers|liberty\s*mutual|erie|nationwide|progressive|farmers|geico|encompass|chubb|amica|hartford|cincinnati|hanover|kemper|metlife|safeco|homesite|american\s*family|seek\s*now|seeknow|rebuild|alacrity|patriot\s*claims|hancock|cumberland|global\s*risk|trident|allcat)\b/i;
 const ASSESSMENT_WORDS = /\b(brutal|tough|easy|great|awful|terrible|amazing|the\s+boy|goat|nightmare|dream|devil|angel|reschedule|avoid|reliable|unreliable|took\s+(my|back|a)|denied|approved|flipped|refused|refuses|no\s+good|no\s+bueno|hit\s+or\s+miss|crushing|stack|save(d|)|lost|won|fight|cooking|inadequate|incompetent|killer|dbag|d-bag|jerk|cool|chill|rude|polite)\b/i;
+// Negative-intel markers — triggers the Roof-ER confidence pivot in the reply.
+// Includes typical KB sections like "REPUTATION: Tough" or "WATCH-OUT" + narrative.
+const NEGATIVE_INTEL_REGEX = /\b(tough|brutal|awful|terrible|nightmare|avoid|hard\s+pass|denies?|den(ies|ial|ied)|refus(es|ed|e)?|rough|rude|jerk|d[-\s]?bag|incompetent|inadequate|bad\s+news|pain\s+in\s+the|difficult|unreliable|hit[-\s]or[-\s]miss|no\s+good|no\s+bueno|devil|nightmarish|the\s+worst|stonewall|lowball|antagonistic|combative|dishonest|shady|flaky|problem\s+adjuster|problem\s+child|pain|not\s+helpful|uncooperative)\b/i;
+function hasNegativeIntel(kbHits) {
+    // Only count negativity from adjuster-intel or team-canon docs (not general training)
+    for (const h of kbHits.slice(0, 3)) {
+        const category = String(h.category || '').toLowerCase();
+        if (category && !['adjuster-intel', 'team-canon', 'insurance-intel', 'carrier-intel'].some((c) => category.includes(c)))
+            continue;
+        const text = `${h.name || ''} ${h.content || ''}`;
+        if (NEGATIVE_INTEL_REGEX.test(text))
+            return true;
+    }
+    return false;
+}
 const PROPER_NOUN_REGEX = /\b([A-Z][a-zA-Z'\-]{2,}(?:\s+[A-Z][a-zA-Z'\-]+){0,2})\b/g;
 // Heuristic: does this message LOOK like rep-to-rep intel worth learning?
 function looksLikeIntel(text) {
@@ -1345,6 +1382,12 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
         for (const h of kbHits.slice(0, 3)) {
             lines.push(`  [${h.category}] ${h.name}`);
             lines.push(`    ${(h.content || '').slice(0, 1400)}`);
+        }
+        // When KB flags an adjuster/carrier as tough/negative, tell Susan to fire
+        // the Roof-ER confidence pivot so the rep never gets left feeling deflated.
+        if (hasNegativeIntel(kbHits)) {
+            lines.push('\nNEGATIVE_INTEL_DETECTED: true');
+            lines.push('  → Follow the verdict with a ROOF-ER CONFIDENCE PIVOT (see PERSONALITY 🦅 rule). Flip "aw not this guy" → "I got this, we are ROOF ER." Do not leave the rep deflated.');
         }
     }
     if (stormHits.length > 0) {
