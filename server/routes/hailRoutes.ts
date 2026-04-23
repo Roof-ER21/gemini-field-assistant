@@ -2719,6 +2719,107 @@ router.get('/admin/ingest-stats', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/hail/admin/noaa-historical-backfill
+// Kick off a 2015–2022 historical backfill from NOAA NCEI Storm Events (CSV) and
+// NCEI SWDI (radar-derived hail signatures) for the DMV + PA/WV/DE target states.
+//
+// Body: { yearFrom?: number, yearTo?: number, sources?: string[], dryRun?: boolean }
+//   yearFrom  — first year to backfill (default 2015, min 2010)
+//   yearTo    — last year to backfill  (default 2022, max current year - 1)
+//   sources   — subset of ['noaa_ncei','ncei_swdi'] (default: both)
+//   dryRun    — if true, count rows without writing (default false)
+//
+// Returns immediately with { ok, status: 'started', ... }. Watch server logs for
+// per-year progress. A full 7-year dual-source run typically takes 30–90 minutes.
+//
+// MRMS swath backfill is intentionally excluded: MRMS resolution only reaches ~2016
+// and a full swath backfill is a separate 40+ GB project. The NOAA NCEI CSV source
+// already covers the same physical events at county/point level for the historical window.
+//
+// Auth: same open-but-internal pattern as the other /admin/* endpoints in this file.
+router.post('/admin/noaa-historical-backfill', async (req: Request, res: Response) => {
+  try {
+    const ALLOWED_STATES = ['VA', 'MD', 'DC', 'PA', 'WV', 'DE'];
+    const ALLOWED_SOURCES = ['noaa_ncei', 'ncei_swdi'];
+
+    const currentYear = new Date().getFullYear();
+    const rawYearFrom = Number(req.body?.yearFrom ?? 2015);
+    const rawYearTo = Number(req.body?.yearTo ?? 2022);
+    const dryRun = req.body?.dryRun === true;
+
+    // Clamp year range to safe bounds
+    const yearFrom = Math.max(2010, Math.min(rawYearFrom, currentYear - 1));
+    const yearTo = Math.max(yearFrom, Math.min(rawYearTo, currentYear - 1));
+
+    // Validate requested sources
+    const requestedSources: string[] = Array.isArray(req.body?.sources)
+      ? req.body.sources.filter((s: any) => ALLOWED_SOURCES.includes(s))
+      : ALLOWED_SOURCES;
+
+    if (requestedSources.length === 0) {
+      return res.status(400).json({
+        error: `sources must be a non-empty subset of [${ALLOWED_SOURCES.join(', ')}]`,
+      });
+    }
+
+    const fromDate = `${yearFrom}-01-01`;
+    const toDate = `${yearTo}-12-31`;
+
+    const pool = req.app.get('pool') as Pool;
+
+    // Respond immediately — the backfill is fire-and-forget.
+    // A 7-year dual-source run can take 30–90 minutes on NCEI's servers.
+    res.json({
+      ok: true,
+      status: 'started',
+      yearFrom,
+      yearTo,
+      fromDate,
+      toDate,
+      sources: requestedSources,
+      states: ALLOWED_STATES,
+      dryRun,
+      note: 'Running in background — check server logs for per-year progress. MRMS swath backfill is excluded (separate 40 GB project; documented in server/services/backfill/mrmsBackfill.ts).',
+    });
+
+    // Lazy-import and register runners so the main server startup path is unaffected
+    const { backfillOrchestrator, registerAllRunners } = await import('../services/backfillOrchestrator.js');
+    await registerAllRunners();
+
+    backfillOrchestrator
+      .run(pool, {
+        sources: requestedSources as any[],
+        states: ALLOWED_STATES,
+        fromDate,
+        toDate,
+        dryRun,
+        onProgress: (p) => {
+          console.log(
+            `[admin/noaa-historical-backfill] ${p.source} ${p.phase} window=${p.currentWindow ?? '-'} ` +
+            `in=${p.rowsInput} ins=${p.rowsInserted} upd=${p.rowsUpdated} err=${p.errors}`,
+          );
+        },
+      })
+      .then((results) => {
+        const summary = results.map((r) => ({
+          source: r.source,
+          inserted: r.rowsInserted,
+          updated: r.rowsUpdated,
+          errors: r.errors.length,
+          durationSec: r.durationSec,
+          success: r.success,
+        }));
+        console.log('[admin/noaa-historical-backfill] COMPLETE', JSON.stringify(summary));
+      })
+      .catch((err: Error) => {
+        console.error('[admin/noaa-historical-backfill] FATAL', err.message);
+      });
+  } catch (err) {
+    console.error('[admin/noaa-historical-backfill] setup err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // GET /api/hail/admin/backfill-stats
 // How many DMV storm days are missing from the swath cache? Quick metric.
 router.get('/admin/backfill-stats', async (req: Request, res: Response) => {
