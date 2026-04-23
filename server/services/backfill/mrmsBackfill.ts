@@ -117,6 +117,22 @@ export const mrmsBackfill: BackfillRunner = {
 
     for (const ym of Array.from(yearMonthsToProcess).sort()) {
       const label = `MRMS:MESH:${ym}`;
+
+      // Skip-complete: if ANY previous run completed this month with rows,
+      // don't re-process. Makes the backfill resumable across process restarts.
+      // An upsert is idempotent so re-running isn't dangerous, just slow.
+      const prior = await pool.query(
+        `SELECT 1 FROM backfill_progress
+         WHERE source = 'mrms' AND window_key = $1 AND status = 'completed'
+           AND (rows_inserted > 0 OR rows_input = 0)
+         LIMIT 1`,
+        [label],
+      );
+      if (prior.rows.length > 0) {
+        console.log(`[mrms] skip ${label} (already completed in prior run)`);
+        continue;
+      }
+
       await markWindowStart(pool, 'mrms', runId, label);
 
       const year = parseInt(ym.slice(0, 4), 10);
@@ -144,8 +160,15 @@ export const mrmsBackfill: BackfillRunner = {
             currentWindow: `${label} day=${date}`,
           });
 
-          const composite = await loadMrmsDailyComposite(date);
-          if (!composite) continue;                     // quiet day / archive miss — normal
+          // Hard cap of 90s per day — without this, an IEM-side TCP hang that
+          // outlasts the inner AbortSignal deadlines wedged the whole backfill
+          // for hours during a prior run. Timing out just this day lets the
+          // outer loop advance.
+          const composite = await Promise.race<Awaited<ReturnType<typeof loadMrmsDailyComposite>>>([
+            loadMrmsDailyComposite(date),
+            new Promise((resolve) => setTimeout(() => resolve(null), 90_000)),
+          ]);
+          if (!composite) continue;                     // quiet day / archive miss / timeout — normal
 
           // Subgrid index range for the territory bounding box
           const latStep = (composite.north - composite.south) / (composite.height - 1);
