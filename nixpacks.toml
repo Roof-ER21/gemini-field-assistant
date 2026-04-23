@@ -36,4 +36,4 @@ nixPkgs = [
 # isolate memory spikes instead. Node's V8 default on a Railway container
 # is ~1.5-2GB which is enough for web-only traffic once the cron
 # schedulers move off this service.
-cmd = "node dist-server/index.js"
+cmd = "node dist-server/start.js"
