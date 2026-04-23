@@ -337,6 +337,9 @@ router.get('/search', async (req, res) => {
             catch (e) {
                 console.error('NOAA search error:', e);
             }
+            // Hoisted so the response at the bottom of this block can report
+            // whether the SQL page filled (the paginationHint flag).
+            let hitSearchCap = false;
             // Merge in verified_hail_events_public (324K+ rows, multi-source backfill 2015→today).
             // This is the primary historical source — NOAA NCEI, SPC WCM, IEM LSR, NCEI SWDI,
             // MRMS, CoCoRaHS all unified. Bounding-box prefilter uses lat_bucket/lng_bucket
@@ -375,7 +378,7 @@ router.get('/search', async (req, res) => {
                     searchLng - lonDegPad,
                     searchLng + lonDegPad,
                 ]);
-                const hitSearchCap = verifiedRows.rows.length >= SEARCH_PAGE_LIMIT;
+                hitSearchCap = verifiedRows.rows.length >= SEARCH_PAGE_LIMIT;
                 const toRad = (d) => (d * Math.PI) / 180;
                 const haversineMi = (aLat, aLng, bLat, bLng) => {
                     const R = 3958.8;
@@ -621,7 +624,7 @@ router.get('/search', async (req, res) => {
                 // Tells the client whether the raw-event page was capped. For a
                 // full 5-10 year view without capping, call /api/hail/storm-days
                 // which returns aggregated day rows that always fit in one page.
-                paginationHint: typeof hitSearchCap !== 'undefined' && hitSearchCap
+                paginationHint: hitSearchCap
                     ? { capped: true, message: 'Showing most recent 5000 events — use /api/hail/storm-days for longer windows.' }
                     : { capped: false },
             });
