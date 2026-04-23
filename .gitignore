@@ -40,3 +40,6 @@ ios/
 android/
 
 .env
+
+# Agent worktrees (never commit — they're ephemeral)
+.claude/worktrees/
