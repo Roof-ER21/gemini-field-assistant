@@ -64,9 +64,18 @@ export interface AddressImpactReport {
   };
 }
 
-// Cap cold GRIB fetches per request to keep p95 latency bounded — first 5
-// uncached dates get the round-trip, the rest fall back to point-report only.
-const COLD_FETCH_CAP = 5;
+// Swath coverage — we want as many dates as possible classified by swath-
+// intersection (authoritative) rather than distance (fuzzy). Strategy:
+//   - Cached dates: free, always checked
+//   - Uncached dates with point reports ≥ 0.5": cold-fetch until time budget exhausted
+//   - Uncached dates < 0.5" hail: skipped (not worth paying cold-fetch latency)
+//
+// Budget caps total request latency so reps don't wait forever on deep history.
+// Anything skipped shows up in cacheStats.swathSkippedDueToCap so the UI can
+// tell the rep "N more dates pending — refresh in a minute".
+const COLD_FETCH_TIME_BUDGET_MS = 45_000; // 45s total across all cold fetches
+const COLD_FETCH_MIN_HAIL = 0.5;          // skip cold-fetch for trace-only days
+const PER_FETCH_TIMEOUT_MS = 15_000;      // per-date, so slow ones don't eat budget
 
 // Standard search window — can be overridden per caller.
 const DEFAULT_RADIUS_MI = 15;
@@ -236,27 +245,56 @@ export async function getAddressHailImpact(
   let swathColdFetches = 0;
   let swathSkippedDueToCap = 0;
 
-  // Prefer dates with cached swaths first — they're free and always tested.
-  const sorted = [...candidates].sort((a, b) => {
-    if (a.has_swath_cache !== b.has_swath_cache) return a.has_swath_cache ? -1 : 1;
-    return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
-  });
+  // Two-phase ordering so we maximize direct-hit coverage under a time budget:
+  //   Phase A — cached dates (free, always checked), ranked recent first
+  //   Phase B — uncached dates, ranked BY HAIL SIZE DESC (biggest first so the
+  //             most important dates get swath-checked before budget exhausts)
+  const cachedSorted = candidates
+    .filter((c) => c.has_swath_cache)
+    .sort((a, b) => isoDate(b.event_date).localeCompare(isoDate(a.event_date)));
+  const uncachedSorted = candidates
+    .filter((c) => !c.has_swath_cache)
+    .sort((a, b) => {
+      const aHail = Number(a.max_hail_inches || 0);
+      const bHail = Number(b.max_hail_inches || 0);
+      if (aHail !== bHail) return bHail - aHail;
+      return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
+    });
+  const sorted = [...cachedSorted, ...uncachedSorted];
+
+  const timeBudgetExpires = started + COLD_FETCH_TIME_BUDGET_MS;
 
   for (const c of sorted) {
     const dateIso = isoDate(c.event_date);
-    const canAttemptSwath = c.has_swath_cache || swathColdFetches < COLD_FETCH_CAP;
+    const maxHailForThisDate = Number(c.max_hail_inches || 0);
+    let canAttemptSwath = c.has_swath_cache;
+    // For uncached: only cold-fetch dates with meaningful hail AND only while
+    // within our time budget. Trace days (≤0.5") don't justify ~3-5s latency.
+    if (!canAttemptSwath) {
+      const budgetRemaining = timeBudgetExpires - Date.now() > 0;
+      const hailWorthFetching = maxHailForThisDate >= COLD_FETCH_MIN_HAIL || (c.point_reports_within_15mi || 0) >= 3;
+      canAttemptSwath = budgetRemaining && hailWorthFetching;
+    }
+
     let directHit = false;
     let tier: AddressImpactTier | null = null;
 
     if (canAttemptSwath) {
       try {
-        const impact = await computeStormImpact(
+        const impactPromise = computeStormImpact(
           {
             date: dateIso,
             points: [{ id: 'addr', lat, lng } as StormImpactPoint],
           },
           pool,
         );
+        // Per-fetch timeout so one slow date doesn't eat the whole budget
+        const impact = await Promise.race([
+          impactPromise,
+          new Promise<never>((_, rej) =>
+            setTimeout(() => rej(new Error('per-fetch timeout')), PER_FETCH_TIMEOUT_MS),
+          ),
+        ]);
         if (c.has_swath_cache) swathCacheHits++; else swathColdFetches++;
 
         const r = impact.results[0];
@@ -281,7 +319,7 @@ export async function getAddressHailImpact(
         if (!c.has_swath_cache) swathColdFetches++;
         console.warn(`[AddressImpact] swath check failed for ${dateIso}: ${(err as Error).message}`);
       }
-    } else {
+    } else if (!c.has_swath_cache) {
       swathSkippedDueToCap++;
     }
 

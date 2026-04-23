@@ -1401,11 +1401,29 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                   ? `${filteredStormDates.length} ${getFilterSummaryLabel(eventFilters, filteredStormDates.length)} within ${searchSummary.radiusMiles} mi for ${formatHistoryRangeLabel(historyRange, sinceDate)}.`
                   : `No ${getFilterSummaryLabel(eventFilters, 0)} found within ${searchSummary.radiusMiles} mi for ${formatHistoryRangeLabel(historyRange, sinceDate)}.`}
             </p>
-            {!loading && latestStorms[0] && (
-              <p style={{ marginTop: 4, fontSize: 12, color: '#86efac' }}>
-                Last hit {latestStorms[0].label} with {formatStormImpactSummary(latestStorms[0])}
-              </p>
-            )}
+            {!loading && (() => {
+              // Prefer DIRECT HIT from swath-based tiered impact over nearest-point
+              // distance. Reps need the authoritative "property got hit" signal
+              // first — the old "Last hit X mi away" was losing claims.
+              const bestDirectHit = addressImpact?.directHits?.[0];
+              if (bestDirectHit) {
+                const dateLabel = formatDateLabel(bestDirectHit.date);
+                return (
+                  <p style={{ marginTop: 4, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+                    🎯 DIRECT HIT {dateLabel} · {bestDirectHit.maxHailInches}" {bestDirectHit.sizeLabel ? `(${bestDirectHit.sizeLabel})` : ''} MRMS swath
+                    {bestDirectHit.noaaConfirmed ? ' · NOAA ✓' : ''}
+                  </p>
+                );
+              }
+              if (latestStorms[0]) {
+                return (
+                  <p style={{ marginTop: 4, fontSize: 12, color: '#fcd34d' }}>
+                    Nearest verified: {latestStorms[0].label} · {formatStormImpactSummary(latestStorms[0])}
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
 
@@ -1585,43 +1603,108 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           </div>
         )}
 
-        {latestStorms.length > 0 && (
-          <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#6b7280' }}>Latest Two Hits</p>
-              <span style={{ fontSize: 10, color: '#4b5563' }}>newest first</span>
-            </div>
-            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-              {latestStorms.map((stormDate) => (
-                <button
-                  key={`latest-${stormDate.date}`}
-                  type="button"
-                  onClick={() => setSelectedDate((previous) => previous?.date === stormDate.date ? null : stormDate)}
-                  style={{
-                    borderRadius: 12,
-                    border: selectedDate?.date === stormDate.date ? '1px solid #ef4444' : '1px solid #1f2937',
-                    background: selectedDate?.date === stormDate.date ? 'rgba(239,68,68,0.1)' : 'rgba(17,24,39,0.7)',
-                    padding: '10px 12px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{stormDate.label}</p>
-                  <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0 0' }}>
-                    {stormDate.closestHailMiles != null && stormDate.closestHailMiles <= 1
-                      ? <span style={{ color: '#4ade80', fontWeight: 600 }}>Direct Hit</span>
-                      : stormDate.closestHailMiles != null
-                        ? <span>{stormDate.closestHailMiles.toFixed(1)} mi</span>
-                        : stormDate.closestMiles != null
-                          ? <span>{stormDate.closestMiles.toFixed(1)} mi</span>
-                          : null}
-                    {(stormDate.closestHailMiles ?? stormDate.closestMiles) != null ? ' · ' : ''}{formatStormImpactSummary(stormDate)}
+        {(() => {
+          // Priority: DIRECT HITS (swath-based, largest first) > near-miss ≤3mi
+          // from the old distance-based latestStorms list > nothing.
+          // 3-15mi events are relegated to the full storm-date list below; they
+          // are NOT the headline for the property.
+          const direct = addressImpact?.directHits || [];
+          const topDirect = [...direct]
+            .sort((a, b) => (b.maxHailInches || 0) - (a.maxHailInches || 0))
+            .slice(0, 2);
+
+          if (topDirect.length > 0) {
+            return (
+              <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#10b981' }}>🎯 Direct Hits at Property</p>
+                  <span style={{ fontSize: 10, color: '#4b5563' }}>biggest first</span>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  {topDirect.map((d) => {
+                    const key = getStormDateKey(d.date);
+                    const matchingStormDate = stormDates.find((sd) => getStormDateKey(sd.date) === key);
+                    const isSelected = selectedDate?.date === matchingStormDate?.date;
+                    return (
+                      <button
+                        key={`dh-main-${d.date}`}
+                        type="button"
+                        onClick={() => {
+                          if (matchingStormDate) {
+                            setSelectedDate(isSelected ? null : matchingStormDate);
+                          }
+                        }}
+                        style={{
+                          borderRadius: 12,
+                          border: isSelected ? '1px solid #10b981' : '1px solid rgba(16,185,129,0.4)',
+                          background: isSelected ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.06)',
+                          padding: '10px 12px',
+                          textAlign: 'left',
+                          cursor: matchingStormDate ? 'pointer' : 'default',
+                        }}
+                      >
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{formatDateLabel(d.date)}</p>
+                        <p style={{ fontSize: 12, color: '#86efac', margin: '4px 0 0 0' }}>
+                          <span style={{ fontWeight: 600 }}>DIRECT HIT</span> · {d.maxHailInches}" {d.sizeLabel ? d.sizeLabel : ''} MRMS swath · {d.confirmingReportCount} confirming{d.confirmingReportCount === 1 ? '' : 's'}
+                          {d.noaaConfirmed ? ' · NOAA ✓' : ''}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {direct.length > 2 && (
+                  <p style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>
+                    +{direct.length - 2} more direct hit{direct.length - 2 === 1 ? '' : 's'} — see full list below
                   </p>
-                </button>
-              ))}
+                )}
+              </div>
+            );
+          }
+
+          // Fallback: show nearest-point "latest two" only if they're meaningfully close (≤3mi)
+          const meaningfulLatest = latestStorms.filter((s) => {
+            const m = s.closestHailMiles ?? s.closestMiles;
+            return m != null && m <= 3;
+          });
+          if (meaningfulLatest.length === 0) return null;
+          return (
+            <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#fcd34d' }}>Nearby Hits (≤3 mi)</p>
+                <span style={{ fontSize: 10, color: '#4b5563' }}>no swath hit</span>
+              </div>
+              <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                {meaningfulLatest.map((stormDate) => (
+                  <button
+                    key={`latest-${stormDate.date}`}
+                    type="button"
+                    onClick={() => setSelectedDate((previous) => previous?.date === stormDate.date ? null : stormDate)}
+                    style={{
+                      borderRadius: 12,
+                      border: selectedDate?.date === stormDate.date ? '1px solid #ef4444' : '1px solid #1f2937',
+                      background: selectedDate?.date === stormDate.date ? 'rgba(239,68,68,0.1)' : 'rgba(17,24,39,0.7)',
+                      padding: '10px 12px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{stormDate.label}</p>
+                    <p style={{ fontSize: 12, color: '#fcd34d', margin: '4px 0 0 0' }}>
+                      {stormDate.closestHailMiles != null && stormDate.closestHailMiles <= 1
+                        ? <span style={{ fontWeight: 600 }}>Direct Hit (point)</span>
+                        : stormDate.closestHailMiles != null
+                          ? <span>{stormDate.closestHailMiles.toFixed(1)} mi</span>
+                          : stormDate.closestMiles != null
+                            ? <span>{stormDate.closestMiles.toFixed(1)} mi</span>
+                            : null}
+                      {(stormDate.closestHailMiles ?? stormDate.closestMiles) != null ? ' · ' : ''}{formatStormImpactSummary(stormDate)}
+                    </p>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
