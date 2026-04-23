@@ -20,6 +20,7 @@
 
 import pg from 'pg';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
+import { startStormDaysRefresh } from './services/stormDaysService.js';
 
 const { Pool } = pg;
 
@@ -139,6 +140,12 @@ async function main(): Promise<void> {
   // MPING_LIVE_ENABLED) are all honoured exactly as before — we haven't changed
   // any handler logic, only where the scheduler is registered.
   startSusanScheduler(pool);
+
+  // Phase 3: storm-days materialized view refresh (every hour at :10).
+  // Powers the paginated /api/hail/storm-days endpoint that lets the UI
+  // show 5-10 years of history without loading hundreds of thousands of
+  // raw events into the web container.
+  startStormDaysRefresh(pool);
 
   // Keep the process alive. node-cron installs its own setIntervals, but if
   // every cron job is disabled the event loop would drain and the worker would

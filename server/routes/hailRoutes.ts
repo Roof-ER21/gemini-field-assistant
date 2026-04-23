@@ -3152,4 +3152,299 @@ router.get('/evidence-search', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Shared helpers for storm-days endpoints ─────────────────────────────────
+
+const toRad = (d: number) => (d * Math.PI) / 180;
+const haversineMiles = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+  const R = 3958.8;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+};
+
+/**
+ * Build a lat/lng bounding box in degrees given a centre and radius in miles.
+ * Returns { degPad, lonDegPad } — add/subtract from centre to get bbox corners.
+ */
+function bboxDegPad(lat: number, radiusMiles: number): { degPad: number; lonDegPad: number } {
+  const degPad = (radiusMiles / 69) * 1.05; // 5% margin
+  const lonDegPad = degPad / Math.max(0.15, Math.cos(toRad(lat)));
+  return { degPad, lonDegPad };
+}
+
+/**
+ * Build the human-readable source labels array from a storm_days_public row.
+ */
+function buildSourceLabels(row: {
+  has_noaa: boolean;
+  has_mrms: boolean;
+  has_nexrad_l2: boolean;
+  has_ihm: boolean;
+  has_cocorahs: boolean;
+  has_iem_lsr: boolean;
+  has_nws_alert: boolean;
+}): string[] {
+  const labels: string[] = [];
+  if (row.has_noaa)      labels.push('NOAA NCEI');
+  if (row.has_mrms)      labels.push('MRMS');
+  if (row.has_nexrad_l2) labels.push('NEXRAD L2');
+  if (row.has_ihm)       labels.push('IHM');
+  if (row.has_cocorahs)  labels.push('CoCoRaHS');
+  if (row.has_iem_lsr)   labels.push('NWS LSR');
+  if (row.has_nws_alert) labels.push('NWS Warning');
+  return labels;
+}
+
+// ─── GET /api/hail/storm-days ────────────────────────────────────────────────
+// Returns aggregate storm-day rows from the storm_days_public materialized view.
+// Query params:
+//   lat      (required) — search centre latitude
+//   lng      (required) — search centre longitude
+//   radius   (optional, default 25) — radius in miles
+//   months   (optional, default 24) — history window in months
+//   state    (optional) — restrict to a single US state abbreviation
+//
+// Response shape (under 100 KB for 10 years × 25 mi DMV):
+//   {
+//     storm_days: [{ date, state, max_hail, max_wind, report_count, sources, has_direct_hit }],
+//     count: N,
+//     truncated: boolean
+//   }
+//
+// has_direct_hit is always false in v1. A future patch will add a single
+// batch lookup against mrms_swath_cache to set it per day.
+//
+// Hard cap: 10 000 rows (day-level aggregation never hits this even for 10
+// years across the full DMV region).
+router.get('/storm-days', async (req: Request, res: Response) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusMiles = Number(req.query.radius ?? 25);
+    const months = Number(req.query.months ?? 24);
+    const stateFilter = typeof req.query.state === 'string' ? req.query.state.toUpperCase() : null;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: 'lat and lng are required numeric parameters' });
+    }
+    if (radiusMiles <= 0 || radiusMiles > 500) {
+      return res.status(400).json({ error: 'radius must be between 1 and 500 miles' });
+    }
+    if (months <= 0 || months > 600) {
+      return res.status(400).json({ error: 'months must be between 1 and 600 (50 years)' });
+    }
+
+    const HARD_CAP = 10_000;
+    const pool: Pool = req.app.get('pool');
+    const { degPad, lonDegPad } = bboxDegPad(lat, radiusMiles);
+
+    // lat_bucket and lng_bucket are integer-rounded degrees (×10 or ×100 depending
+    // on when they were written). We derive bbox bounds from the raw lat/lng degree
+    // padding and cast to the bucket scale used in the MV (same integer truncation
+    // applied by the ingest pipeline: FLOOR(latitude * 10) etc.).
+    // To stay safe we expand by ±1 bucket unit on each side.
+    const latBucketMin = Math.floor((lat - degPad) * 10) - 1;
+    const latBucketMax = Math.ceil((lat + degPad) * 10) + 1;
+    const lngBucketMin = Math.floor((lng - lonDegPad) * 10) - 1;
+    const lngBucketMax = Math.ceil((lng + lonDegPad) * 10) + 1;
+
+    const sinceDate = new Date();
+    sinceDate.setMonth(sinceDate.getMonth() - months);
+    const sinceDateStr = sinceDate.toISOString().slice(0, 10);
+
+    const params: (string | number)[] = [
+      sinceDateStr,
+      latBucketMin,
+      latBucketMax,
+      lngBucketMin,
+      lngBucketMax,
+    ];
+    let stateClause = '';
+    if (stateFilter) {
+      params.push(stateFilter);
+      stateClause = `AND state = $${params.length}`;
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+         TO_CHAR(event_date, 'YYYY-MM-DD') AS date,
+         state,
+         lat_bucket,
+         lng_bucket,
+         report_count,
+         max_hail,
+         max_wind,
+         has_noaa,
+         has_mrms,
+         has_nexrad_l2,
+         has_ihm,
+         has_cocorahs,
+         has_iem_lsr,
+         has_nws_alert,
+         total_verifications
+       FROM storm_days_public
+       WHERE event_date >= $1::date
+         AND lat_bucket BETWEEN $2 AND $3
+         AND lng_bucket BETWEEN $4 AND $5
+         ${stateClause}
+       ORDER BY event_date DESC
+       LIMIT ${HARD_CAP + 1}`,
+      params,
+    );
+
+    // App-layer haversine filter: lat_bucket/lng_bucket represent 0.1° grid cells.
+    // Centre of each bucket = (bucket / 10 + 0.05, bucket / 10 + 0.05).
+    // We keep rows whose bucket centre is within the requested radius.
+    const filtered = rows.filter((r: any) => {
+      const bucketLat = r.lat_bucket / 10 + 0.05;
+      const bucketLng = r.lng_bucket / 10 + 0.05;
+      return haversineMiles(lat, lng, bucketLat, bucketLng) <= radiusMiles;
+    });
+
+    const truncated = filtered.length > HARD_CAP;
+    const output = (truncated ? filtered.slice(0, HARD_CAP) : filtered).map((r: any) => ({
+      date: r.date,
+      state: r.state,
+      max_hail: r.max_hail != null ? Number(r.max_hail) : null,
+      max_wind: r.max_wind != null ? Number(r.max_wind) : null,
+      report_count: Number(r.report_count),
+      sources: buildSourceLabels(r),
+      // v1: has_direct_hit is not computed here to keep the endpoint fast.
+      // A future patch will batch-query mrms_swath_cache for the returned dates
+      // and set this flag per day before responding.
+      has_direct_hit: false,
+    }));
+
+    return res.json({ storm_days: output, count: output.length, truncated });
+  } catch (error) {
+    console.error('[storm-days] Error:', error);
+    return res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ─── GET /api/hail/storm-day-events ──────────────────────────────────────────
+// Returns raw verified_hail_events_public_sane rows for a single storm day.
+// Called when the user clicks a day in the storm-days calendar UI.
+// Query params:
+//   date     (required) — YYYY-MM-DD
+//   lat      (required) — search centre latitude
+//   lng      (required) — search centre longitude
+//   radius   (optional, default 25) — radius in miles
+//
+// Response shape matches the noaaEvents array shape used by /api/hail/search
+// so the front-end can reuse the same renderer.
+router.get('/storm-day-events', async (req: Request, res: Response) => {
+  try {
+    const dateParam = String(req.query.date ?? '').trim();
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusMiles = Number(req.query.radius ?? 25);
+
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return res.status(400).json({ error: 'date is required and must be YYYY-MM-DD' });
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: 'lat and lng are required numeric parameters' });
+    }
+
+    const pool: Pool = req.app.get('pool');
+    const { degPad, lonDegPad } = bboxDegPad(lat, radiusMiles);
+
+    const { rows } = await pool.query(
+      `SELECT
+         id,
+         TO_CHAR(event_date, 'YYYY-MM-DD') AS date_str,
+         latitude, longitude, state,
+         hail_size_inches, wind_mph, tornado_ef_rank,
+         public_verification_count,
+         source_noaa_ncei, source_iem_lsr, source_ncei_swdi, source_mrms,
+         source_nws_alert, source_iem_vtec, source_cocorahs, source_spc_wcm,
+         source_hailtrace, source_ihm, source_rep_report,
+         source_details
+       FROM verified_hail_events_public_sane
+       WHERE event_date = $1::date
+         AND latitude  BETWEEN $2 AND $3
+         AND longitude BETWEEN $4 AND $5
+       ORDER BY hail_size_inches DESC NULLS LAST, wind_mph DESC NULLS LAST
+       LIMIT 2000`,
+      [
+        dateParam,
+        lat - degPad,
+        lat + degPad,
+        lng - lonDegPad,
+        lng + lonDegPad,
+      ],
+    );
+
+    // App-layer haversine filter (same pattern as /search)
+    const events: any[] = [];
+    for (const r of rows) {
+      const eLat = Number(r.latitude);
+      const eLng = Number(r.longitude);
+      if (haversineMiles(lat, lng, eLat, eLng) > radiusMiles) continue;
+
+      const hail = r.hail_size_inches != null ? Number(r.hail_size_inches) : null;
+      const wind = r.wind_mph != null ? Number(r.wind_mph) : null;
+
+      const srcLabels: string[] = [];
+      if (r.source_noaa_ncei)                        srcLabels.push('NOAA');
+      if (r.source_spc_wcm)                          srcLabels.push('SPC');
+      if (r.source_iem_lsr)                          srcLabels.push('NWS LSR');
+      if (r.source_ncei_swdi)                        srcLabels.push('NEXRAD');
+      if (r.source_mrms)                             srcLabels.push('MRMS');
+      if (r.source_cocorahs)                         srcLabels.push('CoCoRaHS');
+      if (r.source_nws_alert || r.source_iem_vtec)   srcLabels.push('NWS Warning');
+      if (r.source_hailtrace)                        srcLabels.push('HailTrace');
+      if (r.source_ihm)                              srcLabels.push('IHM');
+      if (r.source_rep_report)                       srcLabels.push('Rep Report');
+
+      const primarySource = srcLabels[0] || 'Verified Event';
+      const dist = haversineMiles(lat, lng, eLat, eLng);
+
+      if (hail && hail > 0) {
+        events.push({
+          id: `verified-${r.id}-h`,
+          eventType: 'Hail',
+          date: r.date_str,
+          latitude: eLat,
+          longitude: eLng,
+          magnitude: hail,
+          state: r.state || '',
+          county: '',
+          location: primarySource,
+          narrative: `${hail}" hail verified by ${srcLabels.join(', ') || 'multi-source'} at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
+          source: primarySource,
+          distanceMiles: dist,
+          verificationCount: Number(r.public_verification_count) || 1,
+        });
+      }
+      if (wind && wind > 0) {
+        events.push({
+          id: `verified-${r.id}-w`,
+          eventType: 'Thunderstorm Wind',
+          date: r.date_str,
+          latitude: eLat,
+          longitude: eLng,
+          magnitude: wind,
+          state: r.state || '',
+          county: '',
+          location: primarySource,
+          narrative: `${wind} mph wind verified by ${srcLabels.join(', ') || 'multi-source'} at ${eLat.toFixed(4)}, ${eLng.toFixed(4)} — ${dist.toFixed(1)}mi from search.`,
+          source: primarySource,
+          distanceMiles: dist,
+          verificationCount: Number(r.public_verification_count) || 1,
+        });
+      }
+    }
+
+    return res.json({ date: dateParam, events, count: events.length });
+  } catch (error) {
+    console.error('[storm-day-events] Error:', error);
+    return res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 export default router;

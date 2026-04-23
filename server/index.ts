@@ -65,6 +65,7 @@ import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
+import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
@@ -9371,7 +9372,7 @@ app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
 app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
-// Susan 21 scheduled posts (motivation + digest email).
+// Susan 21 scheduled posts + storm-days refresh.
 // Phase 2 worker split: cron schedulers now run in the dedicated sa21-worker
 // service (server/worker.ts). They are OFF here by default so the web container
 // is not burdened with background ingest work.
@@ -9380,7 +9381,8 @@ app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
 // service is healthy). See docs/PHASE2_RAILWAY_SETUP.md.
 if (process.env.RUN_SCHEDULERS === 'true') {
   startSusanScheduler(pool);
-  console.log('[web] RUN_SCHEDULERS=true — susan scheduler started in web container');
+  startStormDaysRefresh(pool);
+  console.log('[web] RUN_SCHEDULERS=true — susan scheduler + storm-days refresh started in web container');
 } else {
   console.log('[web] RUN_SCHEDULERS not set — schedulers deferred to sa21-worker service');
 }
