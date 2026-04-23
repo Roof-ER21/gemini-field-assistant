@@ -274,7 +274,7 @@ async function stormSearch(pool, text) {
             // Use IN list with positional placeholders (more reliable than ANY($1::date[]))
             const placeholders = dates.map((_, i) => `$${i + 1}::date`).join(',');
             const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
-         FROM verified_hail_events_public
+         FROM verified_hail_events_public_sane
          WHERE event_date IN (${placeholders})
            AND state IN ('VA','MD','PA','DC','WV','DE')
          ORDER BY hail_size_inches DESC NULLS LAST, wind_mph DESC NULLS LAST
@@ -285,7 +285,7 @@ async function stormSearch(pool, text) {
         // General storm ask without a date — return top recent events in region
         if (mentionsStorm(text)) {
             const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
-         FROM verified_hail_events_public
+         FROM verified_hail_events_public_sane
          WHERE event_date >= CURRENT_DATE - INTERVAL '14 days'
            AND state IN ('VA','MD','PA','DC','WV','DE')
            AND (hail_size_inches >= 0.5 OR wind_mph >= 58)
@@ -462,7 +462,7 @@ async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
               hail_size_inches, wind_mph,
               public_verification_count,
               (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) AS distance_miles
-       FROM verified_hail_events_public
+       FROM verified_hail_events_public_sane
        WHERE event_date >= (CURRENT_DATE - ($3 || ' months')::interval)::date
          AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
          AND hail_size_inches >= 0.75
@@ -490,7 +490,7 @@ async function hailAtCityOnDates(pool, lat, lng, cityName, dates // ISO YYYY-MM-
               hail_size_inches, wind_mph,
               public_verification_count,
               (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) AS distance_miles
-       FROM verified_hail_events_public
+       FROM verified_hail_events_public_sane
        WHERE event_date IN (${placeholders})
          AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
        ORDER BY hail_size_inches DESC NULLS LAST, distance_miles
@@ -1151,7 +1151,7 @@ async function hailAtAddress(pool, lat, lng, monthsBack = 24) {
                  cos(radians(longitude) - radians($2)) +
                  sin(radians($1)) * sin(radians(latitude))
               )) AS distance_miles
-       FROM verified_hail_events_public
+       FROM verified_hail_events_public_sane
        WHERE event_date >= CURRENT_DATE - ($3::int * INTERVAL '30 days')
          AND (hail_size_inches >= 0.25 OR wind_mph >= 40)
          AND (3959 * acos(
