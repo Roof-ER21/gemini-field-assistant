@@ -143,4 +143,84 @@ export class CocorahsLiveService {
 
     return { fetched: totalFetched, inserted: totalInserted, updated: totalUpdated, errors: totalErrors };
   }
+
+  /**
+   * Historical backfill — walks every day in the requested window. CoCoRaHS
+   * has reports back to ~2005, so monthsBack can reasonably go up to 24+.
+   * Runs serially with the same 500ms politeness delay.
+   */
+  async ingestHistorical(
+    monthsBack: number,
+    opts: { forceEnabled?: boolean; maxDays?: number } = {},
+  ): Promise<{ fetched: number; inserted: number; updated: number; errors: number; daysProcessed: number }> {
+    if (!this.enabled && !opts.forceEnabled) {
+      console.log('[cocorahs-live] ingestHistorical — disabled via env (override with forceEnabled=true)');
+      return { fetched: 0, inserted: 0, updated: 0, errors: 0, daysProcessed: 0 };
+    }
+    let fetched = 0, inserted = 0, updated = 0, errors = 0;
+    const totalDays = Math.min(opts.maxDays ?? 99999, Math.ceil(monthsBack * 30.5));
+    const today = new Date();
+    let daysProcessed = 0;
+    console.log(`[cocorahs-live] historical backfill starting — ${totalDays} days, states=${this.states.join(',')}`);
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - i);
+      const dateStr = mdY(d);
+      for (const state of this.states) {
+        try {
+          const url = `${COCORAHS_EXPORT_URL}?ReportType=Hail&dtf=1&Format=CSV&State=${state}&Date=${encodeURIComponent(dateStr)}`;
+          const resp = await fetch(url, { headers: { 'User-Agent': 'CC21-storm-live/1.0' } });
+          if (!resp.ok) { errors++; continue; }
+          const text = await resp.text();
+          const rows = parseCsv(text);
+          fetched += rows.length;
+          const batch: any[] = [];
+          for (const r of rows) {
+            const lat = parseFloat(r.Latitude || r.latitude || '');
+            const lng = parseFloat(r.Longitude || r.longitude || '');
+            if (isNaN(lat) || isNaN(lng)) continue;
+            const obsDate = r.ObservationDate || r['Observation Date'];
+            if (!obsDate) continue;
+            const largest = parseFloat(r.LargestSize || '');
+            const avg = parseFloat(r.AverageSize || '');
+            const hailSize = !isNaN(largest) && largest > 0 ? largest
+                           : !isNaN(avg) && avg > 0 ? avg
+                           : null;
+            if (hailSize == null) continue;
+            batch.push({
+              eventDate: obsDate, latitude: lat, longitude: lng, state,
+              hailSizeInches: hailSize,
+              source: 'cocorahs' as SourceName,
+              sourcePayload: {
+                station_number: r.StationNumber,
+                station_name: r.StationName,
+                observation_time: r.ObservationTime,
+                largest_size: isNaN(largest) ? null : largest,
+                average_size: isNaN(avg) ? null : avg,
+                damage: r.Damage,
+                stone_consistency: r.StoneConsistency,
+                ingested_via: 'historical-backfill',
+              },
+            });
+          }
+          if (batch.length > 0) {
+            const res = await this.svc.upsertBatch(batch);
+            inserted += res.inserted;
+            updated += res.updated;
+            errors += res.errors.length;
+          }
+        } catch (err: any) {
+          errors++;
+          console.warn(`[cocorahs-live] backfill err ${state} ${dateStr}: ${err.message}`);
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      daysProcessed++;
+      if (daysProcessed % 10 === 0) {
+        console.log(`[cocorahs-live] backfill progress — ${daysProcessed}/${totalDays} days, +${inserted} new, +${updated} upd, ${errors} errors`);
+      }
+    }
+    console.log(`[cocorahs-live] backfill done — ${daysProcessed} days, +${inserted} new, +${updated} upd`);
+    return { fetched, inserted, updated, errors, daysProcessed };
+  }
 }
