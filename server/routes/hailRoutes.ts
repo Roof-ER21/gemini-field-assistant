@@ -2401,6 +2401,7 @@ router.get('/hailtrace-validation', async (req: Request, res: Response) => {
 // of the legacy /search endpoint when you need Direct Hit / Near Miss /
 // Area Impact classification. Shipped 2026-04-23 after Cub Stream Dr
 // "1.7 miles away" bug — the property was actually in a swath band.
+console.log('[hailRoutes] registering GET /address-impact (swath-first tiered lookup)');
 router.get('/address-impact', async (req: Request, res: Response) => {
   try {
     const lat = Number(req.query.lat);
