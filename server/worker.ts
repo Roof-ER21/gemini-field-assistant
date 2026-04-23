@@ -1,0 +1,156 @@
+/**
+ * sa21-worker — Background worker entry point
+ *
+ * NOT an HTTP server. This process owns every cron scheduler so the web
+ * container (server/index.ts) can run rep-facing traffic without memory
+ * pressure from scheduled ingest jobs.
+ *
+ * Railway service name: "sa21-worker"
+ * Start command: node --max-old-space-size=1024 dist-server/worker.js
+ *
+ * Environment: same variables as the "Susan 21" web service. Both services
+ * point at the same Postgres instance. The worker does NOT listen on any port.
+ *
+ * The web container has RUN_SCHEDULERS unset (defaults to false).
+ * This worker runs with RUN_SCHEDULERS=true.
+ *
+ * See docs/PHASE2_RAILWAY_SETUP.md for the Railway UI / CLI setup steps.
+ * See docs/PRODUCTION_STABILITY_HANDOFF.md Phase 2 for the full design rationale.
+ */
+
+import pg from 'pg';
+import { startSusanScheduler } from './services/susanScheduledPosts.js';
+
+const { Pool } = pg;
+
+// ─── Database pool ────────────────────────────────────────────────────────────
+// Mirrors the pool config in server/index.ts. Worker does mostly writes
+// (heartbeat) and the same queries as cron handlers — keep pool small so we
+// don't starve the web container's connections.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 5,                        // worker runs background work; 5 is plenty
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+});
+
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('[worker] DB connection error:', err.message);
+  } else {
+    console.log('[worker] DB connected at', res.rows[0].now);
+  }
+});
+
+// ─── Memory heartbeat (mirrors the web container's startMemoryHeartbeat) ─────
+const MB = 1024 * 1024;
+function fmtMB(bytes: number): string {
+  return `${Math.round(bytes / MB)}MB`;
+}
+
+function startWorkerMemoryLog(intervalMs = 60_000): NodeJS.Timeout {
+  const timer = setInterval(() => {
+    const u = process.memoryUsage();
+    console.log(
+      `[mem] worker rss=${fmtMB(u.rss)} heap=${fmtMB(u.heapUsed)}/${fmtMB(u.heapTotal)} ext=${fmtMB(u.external)}`,
+    );
+  }, intervalMs);
+  timer.unref();
+  return timer;
+}
+
+// ─── Worker heartbeat (written to Postgres every 60 s) ────────────────────────
+// Web container reads this via GET /api/admin/worker-status. If age > 10 min
+// the admin panel shows "dead" and someone should investigate.
+async function startWorkerHeartbeat(heartbeatPool: pg.Pool): Promise<NodeJS.Timeout> {
+  async function beat(): Promise<void> {
+    try {
+      await heartbeatPool.query(
+        `INSERT INTO worker_heartbeat (service, last_beat_at)
+         VALUES ('sa21-worker', NOW())
+         ON CONFLICT (service)
+         DO UPDATE SET last_beat_at = EXCLUDED.last_beat_at`,
+      );
+    } catch (e) {
+      // Non-fatal: log and continue. The stale/dead status will surface on the
+      // admin page — we don't want a transient DB hiccup to crash the worker.
+      console.warn('[worker] heartbeat write failed:', (e as Error).message);
+    }
+  }
+
+  // Fire immediately on startup so the admin page goes green right away.
+  await beat();
+
+  const timer = setInterval(beat, 60_000);
+  timer.unref();
+  return timer;
+}
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+// node-cron tasks continue running until the process exits; Railway sends
+// SIGTERM before force-killing. We give in-flight handlers a brief window
+// to finish before we pull the pool.
+let shuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[worker] received ${signal} — shutting down gracefully`);
+  // Give in-flight cron handlers up to 10 s to finish.
+  await new Promise<void>((resolve) => setTimeout(resolve, 10_000));
+  await pool.end();
+  console.log('[worker] pool closed, exiting');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+  console.error('[worker] uncaughtException:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[worker] unhandledRejection:', err);
+});
+
+// ─── Bootstrap ────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  console.log('[worker] sa21-worker starting — pid', process.pid);
+  console.log('[worker] node', process.version, '| env', process.env.NODE_ENV || 'development');
+
+  // Memory observability
+  startWorkerMemoryLog(60_000);
+
+  // Write a heartbeat row immediately and every 60 s thereafter
+  await startWorkerHeartbeat(pool);
+
+  // Start ALL Susan 21 scheduled jobs.
+  //
+  // startSusanScheduler reads the same SUSAN_SCHEDULED_POSTS / SUSAN_STORM_ALERTS /
+  // etc. env vars it always has — the worker service in Railway should have these
+  // set to 'true' (or whatever values the web service had before). The web
+  // container now has RUN_SCHEDULERS unset so it won't call startSusanScheduler.
+  //
+  // Individual feature flags (SUSAN_SCHEDULED_POSTS, SUSAN_EVENING_POST,
+  // SUSAN_DIGEST_EMAIL, SUSAN_STORM_ALERTS, SUSAN_SWATH_BACKFILL,
+  // COCORAHS_LIVE_ENABLED, IEM_LSR_LIVE_ENABLED, NWS_ALERTS_LIVE_ENABLED,
+  // MPING_LIVE_ENABLED) are all honoured exactly as before — we haven't changed
+  // any handler logic, only where the scheduler is registered.
+  startSusanScheduler(pool);
+
+  // Keep the process alive. node-cron installs its own setIntervals, but if
+  // every cron job is disabled the event loop would drain and the worker would
+  // exit. The heartbeat interval above keeps the loop alive anyway, but this
+  // explicit daemon loop makes the intent obvious.
+  console.log('[worker] all schedulers registered — running');
+  setInterval(() => {
+    // intentional no-op daemon tick
+  }, 60_000 * 60); // once per hour — just to document the daemon intent
+}
+
+main().catch((err) => {
+  console.error('[worker] fatal startup error:', err);
+  process.exit(1);
+});
