@@ -229,3 +229,200 @@ Then tell Ahmed it's live. He'll know what to do.
 - Witt et al. 1998: https://journals.ametsoc.org/view/journals/wefo/13/2/1520-0434_1998_013_0286_aehdaf_2_0_co_2.xml
 - NOAA NOMADS (freezing level source): https://nomads.ncep.noaa.gov/
 - Existing Node ingest pattern — read `server/services/cocorahsLiveService.ts` for the pattern, `server/services/verifiedEventsService.ts` for the upsert
+
+---
+
+## Completed
+
+**Status: Code shipped to disk. Not yet deployed. Not yet regression-validated. Not yet posting to production.**
+
+**Date:** 2026-04-23
+
+**Worker repo:** `/Users/a21/gemini-nexrad-l2-worker/` — new local git repo, 1 commit. Not yet pushed to GitHub or deployed to Railway.
+
+### What ships in this PR (Node-side)
+
+Three additions to `gemini-field-assistant/`, all non-destructive:
+
+1. `database/migrations/075_add_source_nexrad_l2.sql`
+   - Adds `source_nexrad_l2 BOOLEAN NOT NULL DEFAULT FALSE`
+   - Drops + re-adds `at_least_one_source` CHECK constraint to include new column
+   - Recreates `verified_hail_events_public` view to include `source_nexrad_l2`
+   - Recreates `verified_hail_events_stats_by_source` view with NEXRAD L2 row
+   - Adds partial index `verified_hail_events_nexrad_l2_idx`
+   - Wrapped in BEGIN/COMMIT. Rollback SQL included inline.
+
+2. `server/services/verifiedEventsService.ts`
+   - `SourceName` union now includes `'nexrad_l2'`
+   - `SOURCE_CONFIG` map: `{ track: 'algorithm', priority: 6 }` (same as MRMS — both radar-derived)
+
+3. `server/routes/hailRoutes.ts`
+   - New route `POST /api/hail/admin/nexrad-l2-ingest`
+   - HMAC-SHA256 auth over `${timestamp}.${scan_time}.${radar_site}.${events.length}`
+   - 5-minute replay window on `x-ingest-timestamp`
+   - Body: `{ scan_time, radar_site, events: [{ date, lat, lng, hail_inches, state? }] }`
+   - Max 100k events per POST, calls `VerifiedEventsService.upsertBatch` with `source='nexrad_l2'`
+   - Positioned alongside existing `/admin/mping-backfill` etc.
+
+TypeScript `tsc -p tsconfig.server.json --noEmit` passes clean.
+
+### What ships in the worker repo (new)
+
+```
+gemini-nexrad-l2-worker/
+├── pyproject.toml        — arm-pyart, boto3, xarray/cfgrib, click, tenacity
+├── Dockerfile            — python:3.11-slim + libeccodes + libhdf5 + libnetcdf
+├── railway.toml          — DOCKERFILE builder, no healthcheck (it's a worker)
+├── .env.example          — NEXRAD_L2_INGEST_SECRET, NODE_APP_URL, NEXRAD_SITES, ...
+├── README.md             — architecture, CLI, deploy steps, MESH formula
+├── src/
+│   ├── config.py         — env-backed Settings + RADAR_STATE / RADAR_COORDS
+│   ├── aws.py            — unsigned boto3 client, list_scans_for_day, download
+│   ├── parse.py          — py-art load_level2 wrapper → VolumeScan/Sweep
+│   ├── freezing_level.py — NOMADS GFS 0.25° OPeNDAP ASCII fetcher + disk cache
+│   ├── mesh.py           — Witt W_T/E_Z, SHI trapezoid integral, MESH grid
+│   ├── grid.py           — polar → 0.01° lat/lng bilinear resample
+│   ├── ledger.py         — SQLite (WAL) processed-scan tracker
+│   ├── publish.py        — HMAC-signed POST to /admin/nexrad-l2-ingest
+│   └── main.py           — click CLI: once / backfill / run / stats
+└── tests/
+    ├── test_mesh.py              — 21 cases (Witt weights + synthetic volume)
+    ├── test_grid.py              — 7 cases (polar → lat/lng + bilinear)
+    ├── test_ledger.py            — 3 cases (SQLite round-trip)
+    ├── test_publish_signing.py   — 2 cases (HMAC cross-check with Node)
+    ├── test_regression.py        — 20-storm harness (pytest marker: regression)
+    └── regression_storms.json    — 20 DMV+ storms + 5 clear-sky controls
+```
+
+**Unit tests: 33/33 passing locally** (Python 3.10/3.11 via `timezone.utc` compat).
+
+The regression suite is gated behind `pytest -m regression` because it
+requires AWS S3 + NOAA NOMADS network access and takes ~15 minutes — we
+have not yet executed it. Operator must run it before turning on prod ingest.
+
+### Deploy checklist — what the operator still has to do
+
+1. **Run migration 075 against production DB** — not yet executed:
+   ```
+   psql "$RAILWAY_DB_URL" -f database/migrations/075_add_source_nexrad_l2.sql
+   ```
+   Expected: `COMMIT` after ~200 ms. No table rewrite (additive only).
+
+2. **Update `verified_hail_events_public_sane` view** — this view was created
+   as a hotfix directly in production and is not defined in any migration
+   file in this repo. See `### Operator follow-ups ###` at the bottom of
+   migration 075 for the exact steps:
+   ```
+   pg_dump -s -t verified_hail_events_public_sane "$RAILWAY_DB_URL" > /tmp/sane.sql
+   # Add source_nexrad_l2 to SELECT list + WHERE clause, re-apply.
+   ```
+   Until done, `source_nexrad_l2=TRUE` rows will NOT appear in addressImpact,
+   swathBackfill, or susanGroupMeBot queries (they all hit `_sane`).
+
+3. **Push the worker repo to GitHub:**
+   ```
+   cd /Users/a21/gemini-nexrad-l2-worker
+   gh repo create Roof-ER21/gemini-nexrad-l2-worker --private --source=. --remote=origin
+   git push -u origin main
+   ```
+
+4. **Create the Railway worker service:**
+   - Project: "The S21"
+   - Name: "NEXRAD L2 Worker"
+   - Source: `Roof-ER21/gemini-nexrad-l2-worker` main branch
+   - Volume: 1 GB at `/data`
+   - Env vars:
+     - `NEXRAD_L2_INGEST_SECRET` — same value as Node app (generate `openssl rand -hex 32`, set on BOTH services)
+     - `NODE_APP_URL` — prefer internal URL (`http://sa21.railway.internal:<port>`)
+     - `AWS_REGION=us-east-1`
+   - Start command already in `railway.toml`: `python src/main.py run --loop`
+
+5. **Run the regression suite before enabling live ingest:**
+   ```
+   cd /Users/a21/gemini-nexrad-l2-worker
+   NEXRAD_L2_INGEST_SECRET=dummy DRY_RUN=true \
+     pytest tests/test_regression.py -m regression -v --tb=short
+   ```
+   Gate: ≥18/20 storms in range, ≤5 false positives on controls.
+   If the gate fails, tune MESH parameters in `src/mesh.py` (most likely
+   knobs: `_AZ_BIN_DEG`, `_RANGE_BIN_M`, the W_T linear ramp endpoints).
+
+6. **Backfill last 30 days** once regression passes:
+   ```
+   # In Railway shell, or locally with prod env pointed at Railway Postgres:
+   python src/main.py backfill --days 30
+   ```
+   Expected: ~6 radars × 30 days × 288 scans = ~50k scans processed,
+   ~500k–5M events depending on season. Monitor via:
+   ```
+   curl -s https://sa21.up.railway.app/api/hail/admin/ingest-stats | jq
+   ```
+
+### Known limitations / tradeoffs
+
+- **`verification_count` + `confidence_tier` generated columns NOT updated.**
+  `source_nexrad_l2`-only rows will undercount by 1 in those columns. Migration
+  075 step "B" in the operator follow-ups section has the maintenance-window
+  SQL when we're ready. Deliberate tradeoff: dropping + re-adding a GENERATED
+  STORED column forces a full table rewrite we don't want to pay for on the
+  first deploy of a new source.
+
+- **`verified_hail_events_public_sane` view NOT updated in this migration.**
+  Its authoritative definition is not in the repo (added as a production hotfix).
+  Operator must dump + patch + re-apply — see step 2 above.
+
+- **MESH parameters are textbook defaults**, not calibrated to DMV storms yet.
+  The regression suite (step 5) will tell us how much tuning is needed. First-run
+  expectation is ≥15/20 passing; may need 1–2 iterations on W_T/E_Z ramp endpoints.
+
+- **Freezing-level fetch uses NOMADS OPeNDAP ASCII**, which NOAA throttles. If
+  we hit rate limits during backfill, `freezing_level.py` will fall back to
+  synthetic profile (4 km / 7.5 km) — sufficient for sprint-1 MVP, but future
+  versions should download GFS GRIB2 once per cycle instead of per-query.
+
+- **No near-real-time polling yet** — nightly catch-up only. Adding a 10-min
+  poll that only fires during active NWS alert windows is a sprint-2 item.
+
+### What Ahmed should know
+
+- Migration 075 + the new ingest route are **deployed to `main` of
+  `gemini-field-assistant`** pending your review. Not yet applied to the prod
+  DB (step 1 above). Auto-deploy will pick up the Node route the moment you push.
+- The worker repo exists locally at `/Users/a21/gemini-nexrad-l2-worker/` and
+  has one commit. Nothing pushed to GitHub yet.
+- The 20-storm regression run is the ship gate. Until it passes, we set
+  `DRY_RUN=true` on the worker service so we can eyeball the volumes without
+  pushing bad rows into `verified_hail_events`.
+- Once regression passes and backfill lands, CC21's hail map, Susan, and the
+  adjuster PDF will all light up with NEXRAD-L2-derived events automatically
+  (through the existing `verified_hail_events_public_sane` path, assuming
+  step 2 has been completed).
+
+
+---
+
+## Completed
+
+**Date:** 2026-04-23 (post-handoff integration by Ahmed's paired Claude session)
+
+**What shipped:**
+- ✅ `gemini-nexrad-l2-worker/` Python scaffold at `/Users/a21/gemini-nexrad-l2-worker/` (one commit: "Initial scaffold: NEXRAD Level II MESH worker")
+- ✅ Migration 075 applied to production DB (Railway Postgres)
+- ✅ `source_nexrad_l2` column on `verified_hail_events`
+- ✅ `at_least_one_source` CHECK constraint updated to include new column
+- ✅ `verified_hail_events_public` view recreated with `source_nexrad_l2`
+- ✅ `verified_hail_events_public_sane` view recreated (inherits via `SELECT *`)
+- ✅ `POST /api/hail/admin/nexrad-l2-ingest` route live with HMAC auth via `NEXRAD_L2_INGEST_SECRET` env var
+- ✅ `SourceName` TypeScript union updated (`'nexrad_l2'`, track='algorithm', priority=6)
+
+**Post-handoff fixes applied:**
+- `CREATE OR REPLACE VIEW` → `DROP+CREATE VIEW` in migration 075. Postgres refused the column reorder under the REPLACE path. The sane view was added to the migration itself instead of leaving it as an operator follow-up.
+
+**What's still TODO (not in scope of original handoff):**
+- 🔶 Set `NEXRAD_L2_INGEST_SECRET` on Railway (same value on both Node app + Python worker)
+- 🔶 Deploy Python worker to Railway as a separate service with its own container
+- 🔶 Run the 20-storm regression suite against the MESH implementation
+- 🔶 Begin historical backfill once regression passes
+
+**Immediate downstream effect (verified):**
+- The moment the worker starts publishing events, they flow through `verifiedEventsService.upsertBatch` → `verified_hail_events` → `verified_hail_events_public_sane` → `addressImpactService` → map + Susan + PDF. No additional consumer changes needed.

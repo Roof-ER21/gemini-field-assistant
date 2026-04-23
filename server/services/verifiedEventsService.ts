@@ -26,7 +26,8 @@ export type SourceName =
   | 'customer_report'
   | 'groupme'
   | 'hailtrace'
-  | 'ihm';
+  | 'ihm'
+  | 'nexrad_l2';
 
 export type SourceTrack = 'algorithm' | 'verified';
 
@@ -44,6 +45,7 @@ const SOURCE_CONFIG: Record<SourceName, { track: SourceTrack; priority: number }
   synoptic:        { track: 'algorithm', priority: 5 }, // Instrument gust readings
   mrms:            { track: 'algorithm', priority: 6 }, // Radar-derived, multi-sensor
   ncei_swdi:       { track: 'algorithm', priority: 6 }, // NEXRAD hail signatures
+  nexrad_l2:       { track: 'algorithm', priority: 6 }, // Live NEXRAD Level II MESH (Witt 1998) — our own worker
   ihm:             { track: 'algorithm', priority: 7 }, // Third-party radar-derived
   nws_alert:       { track: 'algorithm', priority: 8 }, // Alert polygon — no size/wind data
   iem_vtec:        { track: 'algorithm', priority: 8 }, // Historical warning polygons
