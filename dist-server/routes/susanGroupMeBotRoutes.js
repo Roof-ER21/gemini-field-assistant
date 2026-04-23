@@ -104,7 +104,7 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
     • If rep says "BIGGEST"/"best"/"strongest" → lead with BIGGEST, then drop "most recent was [date] [size]" for freshness.
     • Reps pitching old claims need recency (claim window). Reps pitching damage need size (strongest angle). BOTH matter.
 
-- 📋 ALWAYS acknowledge alternates — if there are more dates than you cited, say "${N} total dates in last 24mo — want the full list?". Never let rep think the one date you mentioned is the only one.
+- 📋 ALWAYS acknowledge alternates — if there are more dates than you cited, say "[N] total dates in last 24mo — want the full list?" (use the actual number from CITY_RECENT_HAIL's total count). Never let rep think the one date you mentioned is the only one.
 
 - Examples (DON'T copy verbatim — use actual data from CITY_RECENT_HAIL):
     (ambiguous) "Manassas VA — biggest was 8/29/24 at 3.25"; most recent was 4/1/26 at 1.25". Which angle you pitching — biggest or freshest? 🎯 4 total dates on file."
