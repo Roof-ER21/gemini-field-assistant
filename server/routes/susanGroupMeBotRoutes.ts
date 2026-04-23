@@ -445,9 +445,10 @@ function extractAddress(text: string): ExtractedAddress | null {
 const DMV_STATES_RE_STRICT = /(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)/;
 function extractCityState(text: string): { city: string; state: string } | null {
   // Pattern 1: "[City], [State]" (comma-separated, preferred)
-  const commaRe = /\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+){0,3})[,]\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
-  // Pattern 2: "[City] [State]" (space-separated)
-  const spaceRe = /\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+){0,2})\s+(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|West\s+Virginia)\b/;
+  const commaRe = /\b([a-z][a-zA-Z.\-]+(?:\s+[a-zA-Z][a-zA-Z.\-]+){0,3})[,]\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
+  // Pattern 2: "[City] [State]" (space-separated) — also case-insensitive so
+  // "manassas Va" / "herndon va" etc match (reps type however they want).
+  const spaceRe = /\b([a-z][a-zA-Z.\-]+(?:\s+[a-zA-Z][a-zA-Z.\-]+){0,2})\s+(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|West\s+Virginia)\b/i;
   const stateMap: Record<string, string> = {
     va: 'VA', md: 'MD', pa: 'PA', dc: 'DC', wv: 'WV', de: 'DE',
     virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
@@ -797,6 +798,61 @@ function hasNegativeIntel(kbHits: Array<{ name?: string; content?: string; categ
   if (posMatches.length === 0) return true;
   // Both present → only pivot if negative strongly outweighs positive (2x+)
   return negMatches.length >= posMatches.length * 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//   MILESTONE ENGAGEMENT — Susan celebrates team wins
+//   When a rep posts a big signup, approval, revenue number, or shoutout,
+//   Susan drops a quick celebratory reply (like a verbal 🔥). Rate-limited
+//   to avoid spamming — max 1 milestone reply per 10 minutes, and skipped
+//   if Susan already replied to the same thread via another path.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Strong signals — high-confidence milestone. Fires a celebration.
+const MILESTONE_STRONG = /(\balert\b.*?🚨|\$\s*\d{2,}\s*k\b|\$\s*\d{1,3}[,.]?\d{3}\b|\b\d{2,3}k\s+(in\s+)?revenue\b|\bfull\s+approval\b|\bpre[\s\-]?sup(p)?\s+full\b|\bfirst\s+(approval|signup|sale|deal|esign|e\-sign)\b|\bbanger\b|\b(crushed|crushing)\s+it\b|\bbig\s+day\b|\bboom\b|🚨🚨🚨|🦅🦅)/i;
+// Soft signals — positive but common (LFG, 🔥, signup). Only celebrate if paired with proper-noun shoutout.
+const MILESTONE_SOFT_HYPE = /(\blfg\b|🔥{2,}|💪{2,}|🦅{1,}|\bfor\s+the\s+board\b)/i;
+
+let __lastMilestoneReplyTs = 0;
+const MILESTONE_COOLDOWN_MS = 10 * 60 * 1000; // 10 min between celebration posts
+
+const MILESTONE_BANK = [
+  "LFG that's a banger 🔥",
+  "Day just got bigger 📈",
+  "Stack 'em up 💪",
+  "That's how we cook 🍳",
+  "Big energy — keep it rolling 🦅",
+  "Replay worthy 🎯 LFG",
+  "ROOF-ER shit right there 🔥",
+  "Board's heating up 📊",
+];
+let __lastMilestoneBankIdx = -1;
+function nextMilestonePhrase(): string {
+  let i = Math.floor(Math.random() * MILESTONE_BANK.length);
+  if (i === __lastMilestoneBankIdx) i = (i + 1) % MILESTONE_BANK.length;
+  __lastMilestoneBankIdx = i;
+  return MILESTONE_BANK[i];
+}
+
+function isMilestonePost(text: string, senderName: string): { match: boolean; reason: string } {
+  if (!text || text.length < 12) return { match: false, reason: 'short' };
+  // Skip the bot's own messages / system messages
+  if (senderName === 'Susan 21' || senderName === 'GroupMe') return { match: false, reason: 'bot_or_system' };
+  // Strong signals → celebrate
+  if (MILESTONE_STRONG.test(text)) return { match: true, reason: 'strong' };
+  // Soft hype + signup post → celebrate (signups with "LFG" or 🔥)
+  if (SIGNUP_PREFIX.test(text) && MILESTONE_SOFT_HYPE.test(text)) return { match: true, reason: 'signup+hype' };
+  return { match: false, reason: 'no_trigger' };
+}
+
+function shouldCelebrateNow(): boolean {
+  const now = Date.now();
+  if (now - __lastMilestoneReplyTs < MILESTONE_COOLDOWN_MS) return false;
+  return true;
+}
+
+function markCelebrated(): void {
+  __lastMilestoneReplyTs = Date.now();
 }
 
 const PROPER_NOUN_REGEX = /\b([A-Z][a-zA-Z'\-]{2,}(?:\s+[A-Z][a-zA-Z'\-]+){0,2})\b/g;
@@ -2237,6 +2293,23 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       // Signups don't trigger a normal reply — they're operational, not questions.
       // (Unless the signup post ALSO @-mentions Susan, in which case we still want
       // to respond below. For now, keep them pass-through to the normal flow.)
+    }
+
+    // MILESTONE ENGAGEMENT — celebrate big wins / alerts / signups with hype.
+    // Fires regardless of whether rep addressed Susan. Rate-limited to
+    // prevent spam — max 1 celebration per 10 min. Short, single-sentence.
+    const milestone = isMilestonePost(text, msg.name || '');
+    if (milestone.match && shouldCelebrateNow()) {
+      const phrase = nextMilestonePhrase();
+      if (!testMode) {
+        await postToGroupMe(phrase, String(msg.id));
+        markCelebrated();
+        repliedAt.push(Date.now());
+      }
+      console.log(`[SusanBot] milestone=${milestone.reason} celebrated with: "${phrase}"`);
+      // Don't return — milestone celebration is a SIDE effect; we still let
+      // the normal flow run in case the rep also addressed Susan or the
+      // passive-intel path needs to capture something.
     }
 
     // PASSIVE INTEL LEARNING — runs BEFORE the trigger check so we capture
