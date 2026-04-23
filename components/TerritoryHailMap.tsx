@@ -1556,7 +1556,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 {filteredAddressImpact.nearMiss.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em' }}>NEAR MISS</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em' }}>AT LOCATION</span>
                       <span style={{ fontSize: 11, color: '#6b7280' }}>({filteredAddressImpact.nearMiss.length})</span>
                       <span style={{ fontSize: 10, color: '#6b7280' }}>≤{maxDistanceMi}mi, no swath</span>
                     </div>
@@ -1766,16 +1766,17 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             );
           }
 
-          // Fallback: show nearest-point "latest two" only if they're meaningfully close (≤3mi)
+          // Fallback: show nearest-point "latest two" only when they're within the
+          // user's distance-slider setting (default 3mi, up to 15).
           const meaningfulLatest = latestStorms.filter((s) => {
             const m = s.closestHailMiles ?? s.closestMiles;
-            return m != null && m <= 3;
+            return m != null && m <= maxDistanceMi;
           });
           if (meaningfulLatest.length === 0) return null;
           return (
             <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#fcd34d' }}>Nearby Hits (≤3 mi)</p>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#fcd34d' }}>At Location (≤{maxDistanceMi} mi)</p>
                 <span style={{ fontSize: 10, color: '#4b5563' }}>no swath hit</span>
               </div>
               <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
@@ -1892,20 +1893,39 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
               </p>
             </div>
           )}
-          {sortedDates.map((stormDate) => (
-            <StormDateCard
-              key={stormDate.date}
-              stormDate={stormDate}
-              isSelected={selectedDate?.date === stormDate.date}
-              isExpanded={expandedDate === stormDate.date}
-              events={filteredEvents.filter((event) => getStormDateKey(event.beginDate) === stormDate.date)}
-              onClick={() => setSelectedDate((previous) => previous?.date === stormDate.date ? null : stormDate)}
-              onToggleExpand={(event) => {
-                event.stopPropagation();
-                setExpandedDate((previous) => previous === stormDate.date ? null : stormDate.date);
-              }}
-            />
-          ))}
+          {sortedDates.map((stormDate) => {
+            // Cross-reference this date against the swath-first tiered impact
+            // so the card shows "🎯 Direct Hit" when the property sits inside
+            // the swath polygon for that date — regardless of what the
+            // nearest point-report distance is saying.
+            const sdKey = getStormDateKey(stormDate.date);
+            const matchDirect = addressImpact?.directHits.find((d) => getStormDateKey(d.date) === sdKey);
+            const matchNear = addressImpact?.nearMiss.find((n) => getStormDateKey(n.date) === sdKey);
+            const matchArea = addressImpact?.areaImpact.find((a) => getStormDateKey(a.date) === sdKey);
+            const impactTier: StormDateImpactTier = matchDirect
+              ? 'direct-hit'
+              : matchNear
+                ? 'at-location'
+                : matchArea
+                  ? 'area'
+                  : null;
+            return (
+              <StormDateCard
+                key={stormDate.date}
+                stormDate={stormDate}
+                isSelected={selectedDate?.date === stormDate.date}
+                isExpanded={expandedDate === stormDate.date}
+                events={filteredEvents.filter((event) => getStormDateKey(event.beginDate) === stormDate.date)}
+                impactTier={impactTier}
+                swathSizeInches={matchDirect?.maxHailInches ?? null}
+                onClick={() => setSelectedDate((previous) => previous?.date === stormDate.date ? null : stormDate)}
+                onToggleExpand={(event) => {
+                  event.stopPropagation();
+                  setExpandedDate((previous) => previous === stormDate.date ? null : stormDate.date);
+                }}
+              />
+            );
+          })}
         </div>
 
         <div style={{ borderTop: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
@@ -2676,11 +2696,18 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   );
 }
 
+// Swath-authoritative impact tier for a storm date at the searched property.
+// When set, overrides the raw point-distance badge in the card footer —
+// "3.3 mi" becomes "🎯 Direct Hit" if the property sits inside the swath.
+type StormDateImpactTier = 'direct-hit' | 'at-location' | 'area' | null;
+
 function StormDateCard({
   stormDate,
   isSelected,
   isExpanded,
   events: dateEvents,
+  impactTier,
+  swathSizeInches,
   onClick,
   onToggleExpand,
 }: {
@@ -2688,6 +2715,9 @@ function StormDateCard({
   isSelected: boolean;
   isExpanded: boolean;
   events: StormEvent[];
+  impactTier?: StormDateImpactTier;
+  /** If impactTier === 'direct-hit', this is the swath band size that contains the property */
+  swathSizeInches?: number | null;
   onClick: () => void;
   onToggleExpand: (event: React.MouseEvent) => void;
 }) {
@@ -2724,16 +2754,26 @@ function StormDateCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 18, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>{stormDate.eventCount > 0 ? `${stormDate.eventCount} report${stormDate.eventCount !== 1 ? 's' : ''}` : 'Swath data'}</span>
               {(() => {
-                // Direct-hit badge anchored to HAIL proximity specifically —
-                // a wind event 0.8mi away shouldn't tag a storm date "Direct
-                // Hit" when the closest hail is 2mi away (the user was right
-                // to call that out as misleading).
+                // Swath-authoritative tier FIRST — if the property sits in the
+                // swath polygon for this date, that's a direct hit regardless
+                // of what the nearest point report's distance says. Otherwise
+                // fall back to hail proximity (what was here before).
+                if (impactTier === 'direct-hit') {
+                  return <span style={{ fontSize: 11, fontWeight: 600, color: '#10b981' }}>🎯 Direct Hit</span>;
+                }
+                if (impactTier === 'at-location') {
+                  const hailMi = stormDate.closestHailMiles;
+                  return <span style={{ fontSize: 11, fontWeight: 600, color: '#fbbf24' }}>
+                    At Location{hailMi != null ? ` (${hailMi.toFixed(1)} mi)` : ''}
+                  </span>;
+                }
+                // Legacy point-distance path (no address-impact data available)
                 const hailMi = stormDate.closestHailMiles;
                 const fallbackMi = stormDate.closestMiles;
                 if (hailMi != null) {
-                  const color = hailMi <= 1 ? '#4ade80' : hailMi <= 3 ? '#fbbf24' : '#9ca3af';
+                  const c = hailMi <= 1 ? '#4ade80' : hailMi <= 3 ? '#fbbf24' : '#9ca3af';
                   const label = hailMi <= 1 ? '● Direct Hit' : `${hailMi.toFixed(1)} mi`;
-                  return <span style={{ fontSize: 11, fontWeight: hailMi <= 1 ? 600 : 400, color }}>{label}</span>;
+                  return <span style={{ fontSize: 11, fontWeight: hailMi <= 1 ? 600 : 400, color: c }}>{label}</span>;
                 }
                 if (fallbackMi != null) {
                   return <span style={{ fontSize: 11, color: '#9ca3af' }}>{fallbackMi.toFixed(1)} mi</span>;
@@ -2745,7 +2785,18 @@ function StormDateCard({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 12, fontWeight: 700, background: `${color}20`, color }}>{stormDate.maxHailInches > 0 ? `${stormDate.maxHailInches}"` : '--'}</span>
+            <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 12, fontWeight: 700, background: `${color}20`, color }}>
+              {(() => {
+                // Prefer the swath band size when the property is inside the
+                // swath — that's the authoritative reading "at the house".
+                // Otherwise fall back to the maxHailInches from the storm
+                // date's aggregated reports, rounded to an adjuster tier.
+                if (impactTier === 'direct-hit' && (swathSizeInches ?? 0) > 0) {
+                  return formatHailTier(swathSizeInches);
+                }
+                return stormDate.maxHailInches > 0 ? formatHailTier(stormDate.maxHailInches) : '--';
+              })()}
+            </span>
             <button
               onClick={onToggleExpand}
               aria-label={isExpanded ? 'Collapse' : 'Expand'}
