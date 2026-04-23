@@ -31,9 +31,9 @@ nixPkgs = [
 ]
 
 [start]
-# --max-old-space-size=1536 caps V8's old-generation heap at 1.5 GB so Node
-# GCs aggressively and fails fast with a "JavaScript heap out of memory"
-# error we can see in logs, rather than the Linux OOM killer SIGKILLing
-# the container silently. Must be on the start command, NOT in
-# NODE_OPTIONS — that would also apply to the tsc build step and OOM it.
-cmd = "node --max-old-space-size=1536 dist-server/index.js"
+# Heap cap removed — Railway's start-command parser didn't like the extra
+# flag and rejected the deploy. We rely on the Phase 2 worker split to
+# isolate memory spikes instead. Node's V8 default on a Railway container
+# is ~1.5-2GB which is enough for web-only traffic once the cron
+# schedulers move off this service.
+cmd = "node dist-server/index.js"
