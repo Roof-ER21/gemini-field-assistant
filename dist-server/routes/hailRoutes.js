@@ -2265,6 +2265,108 @@ router.post('/admin/mping-backfill', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// POST /api/hail/admin/nexrad-l2-ingest — ingest MESH-derived events from the NEXRAD L2 worker.
+//
+// Auth: HMAC-SHA256 over a deterministic metadata tuple using NEXRAD_L2_INGEST_SECRET.
+// Signature avoids JSON canonicalization pitfalls (Python json.dumps vs JS JSON.stringify
+// produce different strings for floats, Unicode, etc). HTTPS + shared secret guard the
+// events array itself; the HMAC binds timestamp + scan identity + batch shape.
+//
+// Worker sends:
+//   headers: {
+//     'x-ingest-token': HMAC_SHA256(secret, `${timestamp}.${scan_time}.${radar_site}.${events.length}`),
+//     'x-ingest-timestamp': <unix-seconds>,
+//   }
+//   body: { scan_time, radar_site, events: [{ date, lat, lng, hail_inches, state? }, ...] }
+//
+// 5-minute replay window on timestamp. Events upserted via VerifiedEventsService(source='nexrad_l2').
+router.post('/admin/nexrad-l2-ingest', async (req, res) => {
+    const secret = process.env.NEXRAD_L2_INGEST_SECRET;
+    if (!secret) {
+        console.error('[admin/nexrad-l2-ingest] NEXRAD_L2_INGEST_SECRET not configured');
+        return res.status(503).json({ error: 'ingest endpoint not configured' });
+    }
+    const token = String(req.header('x-ingest-token') || '');
+    const timestamp = String(req.header('x-ingest-timestamp') || '');
+    if (!token || !timestamp) {
+        return res.status(401).json({ error: 'missing x-ingest-token or x-ingest-timestamp' });
+    }
+    const tsNum = Number(timestamp);
+    if (!Number.isFinite(tsNum)) {
+        return res.status(401).json({ error: 'invalid timestamp' });
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSec - tsNum) > 300) {
+        return res.status(401).json({ error: 'timestamp outside 5-minute window' });
+    }
+    // Body shape needed for signature — pull out now and validate structure.
+    const { scan_time, radar_site, events } = req.body ?? {};
+    if (typeof scan_time !== 'string' || typeof radar_site !== 'string' || !Array.isArray(events)) {
+        return res.status(400).json({ error: 'body must have scan_time, radar_site, events[]' });
+    }
+    // HMAC over deterministic metadata tuple. Worker must construct the identical string.
+    const crypto = await import('crypto');
+    const signingString = `${timestamp}.${scan_time}.${radar_site}.${events.length}`;
+    const expected = crypto.createHmac('sha256', secret).update(signingString).digest('hex');
+    const tokenBuf = Buffer.from(token, 'hex');
+    const expectedBuf = Buffer.from(expected, 'hex');
+    if (tokenBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
+        return res.status(401).json({ error: 'invalid signature' });
+    }
+    if (events.length === 0) {
+        return res.json({ ok: true, inserted: 0, updated: 0, skipped: 0, errors: [] });
+    }
+    if (events.length > 100_000) {
+        return res.status(413).json({ error: 'batch too large (max 100k events per POST)' });
+    }
+    try {
+        const { VerifiedEventsService } = await import('../services/verifiedEventsService.js');
+        const pool = req.app.get('pool');
+        const svc = new VerifiedEventsService(pool);
+        let skipped = 0;
+        const batch = events
+            .map((e, idx) => {
+            const date = typeof e?.date === 'string' ? e.date : null;
+            const lat = Number(e?.lat);
+            const lng = Number(e?.lng);
+            const hail = Number(e?.hail_inches);
+            if (!date || !Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(hail)) {
+                skipped++;
+                return null;
+            }
+            return {
+                eventDate: date,
+                latitude: lat,
+                longitude: lng,
+                state: typeof e?.state === 'string' ? e.state : null,
+                hailSizeInches: hail,
+                source: 'nexrad_l2',
+                sourcePayload: {
+                    scan_time,
+                    radar_site,
+                    hail_inches: hail,
+                    event_index: idx,
+                },
+            };
+        })
+            .filter((b) => b !== null);
+        const result = await svc.upsertBatch(batch);
+        console.log(`[admin/nexrad-l2-ingest] ${radar_site} @ ${scan_time}: inserted=${result.inserted}, updated=${result.updated}, skipped=${skipped}, errors=${result.errors.length}`);
+        res.json({
+            ok: true,
+            scan_time,
+            radar_site,
+            inserted: result.inserted,
+            updated: result.updated,
+            skipped,
+            errors: result.errors.slice(0, 10), // cap so the response stays small
+        });
+    }
+    catch (err) {
+        console.error('[admin/nexrad-l2-ingest] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 // GET /api/hail/admin/ingest-stats — live counts per source, current state.
 router.get('/admin/ingest-stats', async (req, res) => {
     try {
