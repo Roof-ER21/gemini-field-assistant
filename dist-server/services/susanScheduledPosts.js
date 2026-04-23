@@ -40,8 +40,12 @@ async function getStormContext(pool) {
     `);
         if (r.rows.length === 0)
             return '';
-        // Format dates as "Apr 22" (short, chat-friendly)
-        const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ });
+        // Format dates as "Apr 22" (short, chat-friendly). event_date can be a JS
+        // Date or an ISO string depending on pg driver settings — coerce to Date.
+        const fmt = (d) => {
+            const dt = d instanceof Date ? d : new Date(String(d));
+            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ });
+        };
         return r.rows
             .map((x) => {
             const size = x.max_hail ? `${x.max_hail}" hail` : (x.max_wind ? `${x.max_wind}mph wind` : '');
