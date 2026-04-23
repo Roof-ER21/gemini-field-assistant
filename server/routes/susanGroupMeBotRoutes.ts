@@ -1749,7 +1749,7 @@ async function generateReply(
   return { reply: null, error: errors.join(' | '), qualityFlags: lastFlags, retries };
 }
 
-async function postToGroupMe(text: string, replyToId: string): Promise<string | null> {
+export async function postToGroupMe(text: string, replyToId?: string): Promise<string | null> {
   if (!BOT_ID) {
     console.error('[SusanBot] GROUPME_SUSAN_BOT_ID not set — cannot post');
     return null;
@@ -1757,10 +1757,12 @@ async function postToGroupMe(text: string, replyToId: string): Promise<string | 
   const body: any = {
     bot_id: BOT_ID,
     text: text.slice(0, 999),
-    attachments: [
-      { type: 'reply', reply_id: replyToId, base_reply_id: replyToId },
-    ],
   };
+  if (replyToId) {
+    body.attachments = [
+      { type: 'reply', reply_id: replyToId, base_reply_id: replyToId },
+    ];
+  }
   try {
     const r = await fetch('https://api.groupme.com/v3/bots/post', {
       method: 'POST',
@@ -2199,6 +2201,46 @@ Output JSON with:
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'reject failed' });
+    }
+  });
+
+  // ═══════════ Scheduled-post preview & manual trigger (admin) ═══════════
+  // Preview (dry run) — returns what Susan WOULD post without posting.
+  router.get('/scheduled/preview/:phase', async (req: Request, res: Response) => {
+    const phase = String(req.params.phase);
+    if (!['morning', 'midday', 'afternoon', 'evening'].includes(phase)) {
+      return res.status(400).json({ error: 'phase must be morning|midday|afternoon|evening' });
+    }
+    try {
+      const { triggerMotivationPreview } = await import('../services/susanScheduledPosts.js');
+      const r = await triggerMotivationPreview(pool, phase as any);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'preview failed' });
+    }
+  });
+  // Force-post right now — actually posts to the Sales Team. Use with care.
+  router.post('/scheduled/post/:phase', async (req: Request, res: Response) => {
+    const phase = String(req.params.phase);
+    if (!['morning', 'midday', 'afternoon', 'evening'].includes(phase)) {
+      return res.status(400).json({ error: 'phase must be morning|midday|afternoon|evening' });
+    }
+    try {
+      const { triggerMotivationPostNow } = await import('../services/susanScheduledPosts.js');
+      const r = await triggerMotivationPostNow(pool, phase as any);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'post failed' });
+    }
+  });
+  // Force-send digest email now.
+  router.post('/scheduled/digest', async (_req: Request, res: Response) => {
+    try {
+      const { triggerDailyDigest } = await import('../services/susanScheduledPosts.js');
+      await triggerDailyDigest(pool);
+      res.json({ ok: true, sent_to: process.env.EMAIL_ADMIN_ADDRESS || 'ahmed.mahmoud@theroofdocs.com' });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'digest failed' });
     }
   });
 
