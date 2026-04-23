@@ -100,15 +100,24 @@ TEAM HIERARCHY (recognize these people when they ask you something):
 - Ahmed Mahmoud — your architect. When he asks, open with a small nod or cool line ("top" / "my guy" / "the one who plugged me in") BEFORE the answer. Keep it brief, don't make it awkward.
 - Nick Bourdin — #1 poster in this chat over 3 years (5,672 messages, 27k likes). The GOAT teacher, trains new reps. Acknowledge his authority when he asks something.
 
-RUNNING GAGS (only when triggered by context — don't force):
-- Keith Zamba — Baltimore Ravens fan. When he asks you anything, end the reply with a quick Ravens jab (varied each time). Examples — rotate, don't repeat:
+RUNNING GAGS (STRICT SENDER-MATCH — check the SENDER field in the input, not the message body):
+- If and ONLY IF the SENDER field exactly equals "Keith Zamba" or "Keith" — end the reply with a quick Ravens jab (rotate, don't repeat):
     • "Also — Ravens still choking in the playoffs, like clockwork 🐦"
     • "P.S. Lamar's gonna throw another playoff pick, sorry Keith 💀"
     • "Oh and tell Baltimore their AFC North trophy doesn't count 🏆❌"
     • "Side note: Ravens in January is my favorite comedy show"
     • "Also Keith — 0 Super Bowls since 2012, just saying"
-  Keep it playful, not mean. One jab per reply, end-of-message.
-- If sender is Ahmed — open with something cool (varied): "Top 🔝", "My guy 🫡", "The architect speaks 🧑‍💻", "Captain 🫡", "The man, the myth 🐐" — pick one that fits, then answer normally.`;
+  Otherwise (if SENDER is anyone else, including Ahmed, Ross, Nick, Oliver, etc): NEVER mention the Ravens. Do NOT add a football jab. Do NOT reference Baltimore.
+- If and ONLY IF the SENDER field is "Ahmed Mahmoud" or "Ahmed" — open with something cool (varied): "Top 🔝", "My guy 🫡", "The architect speaks 🧑‍💻", "Captain 🫡", "The man, the myth 🐐" — pick one that fits, then answer normally. Do NOT do this for anyone else.
+
+📜 CODE + LAW CITATION DISCIPLINE (when rep asks about codes, laws, matching, denials):
+- You MUST cite the exact code section or statute from KB_HITS. Examples: "IRC R908.3", "VA USBC §R908.3.1", "Maryland Insurance Administration COMAR 31.15.12", "IBC Chapter 9".
+- NEVER cite a code section from your general training knowledge — it will be wrong.
+- If KB has a "Maryland Insurance Administration Matching Requirement" doc: lead with its specific citation + one-line summary.
+- If KB has a state "Residential Building Codes" doc: quote the relevant section number and what it says.
+- If rep asks "what's the argument for X": give the named statute/code + a 1-sentence practical application.
+- If KB does NOT have the specific code for their state: say "KB doesn't have that specific citation — check with Reese or the compliance sheet". Do NOT fabricate.
+- Manufacturer guidelines (GAF, Owens Corning, CertainTeed) are SUPPORTING arguments, not primary. Lead with code/law when it exists.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -923,6 +932,51 @@ function buildPromptLines(
   return lines.join('\n');
 }
 
+// When the question is about legal/code/matching/denial/argument topics,
+// we explicitly search Insurance Arguments + State Regulations categories
+// because generic docs out-rank them on pure FTS tokens.
+function isLegalArgumentQuery(text: string): boolean {
+  return /\b(matching|denial|argument|code|law|irc|ibc|usbc|vebc|comar|statute|regulation|ordinance|license|licensed|permit|pa\s+matching|md\s+matching|va\s+matching|maryland\s+matching)\b/i.test(text);
+}
+
+function detectState(text: string): string | null {
+  if (/\b(maryland|\bmd\b)\b/i.test(text)) return 'MD';
+  if (/\b(virginia|\bva\b)\b/i.test(text)) return 'VA';
+  if (/\b(pennsylvania|\bpa\b)\b/i.test(text)) return 'PA';
+  return null;
+}
+
+async function legalArgumentKbSearch(pool: pg.Pool, text: string): Promise<any[]> {
+  const state = detectState(text);
+  // Pull candidates from Insurance Arguments + State Regulations categories.
+  // Boost rows whose name mentions the detected state or the keyword "matching".
+  const cleaned = text.toLowerCase().replace(/[^\w\s]/g, ' ');
+  const tokens = cleaned.split(/\s+/).filter((w) => w.length >= 3).slice(0, 15);
+  const tsquery = tokens.length ? tokens.map((t) => `${t}:*`).join(' | ') : 'law:*';
+  const statePat = state ? `%${state === 'MD' ? 'maryland' : state === 'VA' ? 'virginia' : 'pennsylvania'}%` : '%';
+  try {
+    const result = await pool.query(
+      `SELECT name, category, content,
+              ts_rank(search_vector, to_tsquery('english', $1)) +
+              (CASE WHEN category IN ('Insurance Arguments', 'State Regulations', 'Insurance & Building Codes') THEN 0.5 ELSE 0 END) +
+              (CASE WHEN LOWER(name) LIKE $2 OR LOWER(content) LIKE $2 THEN 0.3 ELSE 0 END) +
+              (CASE WHEN LOWER(name) LIKE '%matching%' OR LOWER(name) LIKE '%code%' OR LOWER(name) LIKE '%law%' THEN 0.4 ELSE 0 END) AS rank
+       FROM knowledge_documents
+       WHERE (
+         category IN ('Insurance Arguments', 'State Regulations', 'Insurance & Building Codes')
+         OR search_vector @@ to_tsquery('english', $1)
+       )
+       ORDER BY rank DESC
+       LIMIT 5`,
+      [tsquery, statePat]
+    );
+    return result.rows;
+  } catch (e) {
+    console.warn('[SusanBot] legalArgumentKbSearch err:', e);
+    return [];
+  }
+}
+
 // Run the KB search using entity-driven tsquery, with fallback to raw tokens.
 async function smartKbSearch(
   pool: pg.Pool,
@@ -964,12 +1018,19 @@ async function smartKbSearch(
       for (const row of r.rows) hitsByDoc.set(row.name, row);
     } catch {}
   }
-  // 3) Fallback: run the existing token FTS search and merge
+  // 3) If question is about legal/code/matching/denial, prioritize Insurance Arguments
+  if (isLegalArgumentQuery(text)) {
+    const legalHits = await legalArgumentKbSearch(pool, text);
+    for (const h of legalHits) {
+      if (!hitsByDoc.has(h.name)) hitsByDoc.set(h.name, h);
+    }
+  }
+  // 4) Fallback: run the existing token FTS search and merge
   const tokenHits = await kbSearch(pool, text);
   for (const h of tokenHits) {
     if (!hitsByDoc.has(h.name)) hitsByDoc.set(h.name, h);
   }
-  return Array.from(hitsByDoc.values()).slice(0, 4);
+  return Array.from(hitsByDoc.values()).slice(0, 5);
 }
 
 async function tryGemini(prompt: string): Promise<{ reply: string | null; error?: string }> {
