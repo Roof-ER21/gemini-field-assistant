@@ -1,11 +1,25 @@
 # Susan 21 Production Stability — Root Cause & Fix Plan
 
-**Status:** Hand-off doc for Codex / next engineer
-**Written:** 2026-04-23 EDT
-**Context:** Ahmed has been getting repeated "Susan crashing and back on" emails.
-Quick patches (bigger LIMIT, staggered cron, NODE_OPTIONS caps) have not fixed
-the underlying problem. This document is the deep analysis and a production
-plan — not another patch.
+**Status:** Phases 1-5 implemented 2026-04-23. Pending operator step below.
+**Context:** Ahmed has been getting repeated "Susan crashing and back on"
+emails. Quick patches (bigger LIMIT, staggered cron, NODE_OPTIONS caps) were
+addressing symptoms, not the cause. This document is the deep analysis and
+the production fix plan that's now shipped.
+
+## Phase status (2026-04-23 EDT)
+
+- **Phase 1** (memory logger, bounded /search, opt-in enrichment) — **LIVE** in deploy 7d617bce. `[mem]` heartbeat visible in Railway logs every 60 s.
+- **Phase 2** (worker service split) — **CODE MERGED**, service creation on Railway **PENDING**. See `docs/PHASE2_RAILWAY_SETUP.md`. Web container has `RUN_SCHEDULERS=true` by default until you create sa21-worker and flip the flag.
+- **Phase 3** (storm_days_public MV + `/api/hail/storm-days` endpoint) — **LIVE**. Refreshed hourly at :10 by whichever service has `RUN_SCHEDULERS` on. Enables the 5-10 year history window.
+- **Phase 4** (PDF job queue) — **LIVE**. `/api/hail/generate-report` returns 202 with jobId; worker renders; poll `/api/hail/report/:id` until `done`, download from `/api/hail/report/:id/download`. Consumer runs in the web container today until sa21-worker is up.
+- **Phase 5** (10-year historical backfill endpoint) — **LIVE as an admin trigger**. `POST /api/hail/admin/noaa-historical-backfill` body `{yearFrom:2015, yearTo:2022}` runs in the background. Apply migration 078 is automatic. **Operator still needs to trigger the backfill run.**
+
+## Pending operator steps
+
+1. Create Railway service "sa21-worker" from same repo, set `RUN_SCHEDULERS=true`, start cmd `node dist-server/worker.js`. See `docs/PHASE2_RAILWAY_SETUP.md` for the exact commands.
+2. Confirm worker healthy via `GET /api/admin/worker-status` (age < 2 min).
+3. Flip `RUN_SCHEDULERS=false` on the Susan 21 web service to migrate cron work off it.
+4. Trigger the 10-year backfill with the curl in Phase 5 section.
 
 ---
 
