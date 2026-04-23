@@ -178,7 +178,7 @@ async function tryGroq(prompt) {
         return null;
     }
 }
-export async function generateMotivationPost(pool, phase) {
+export async function generateMotivationPost(pool, phase, debug) {
     const storms = phase === 'morning' ? await getStormContext(pool) : '';
     const signups = phase !== 'morning' ? await getTodaySignupCount() : 0;
     const dow = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: TZ });
@@ -213,7 +213,13 @@ BRIEF: ${PHASE_BRIEFS[phase]}
 CONTEXT:
 ${contextLines.join('\n')}
 
+STRICT FORMAT RULES:
+- Use dates EXACTLY as written in context. If context says "Apr 22", write "Apr 22". NEVER "2026-04-22", NEVER "4/22", NEVER "April 22nd, 2026".
+- No year. No ISO dates. Calendar chat format only.
+
 Write the post. Just the text, no quotes, no prefix.`;
+    if (debug?.contextOut)
+        debug.contextOut.value = contextLines.join('\n');
     return (await tryGemini(prompt)) ?? (await tryGroq(prompt));
 }
 // ─── Fallbacks ──────────────────────────────────────────────────────────────
@@ -399,10 +405,11 @@ export function startSusanScheduler(pool) {
 }
 // Manual triggers for testing (exposed via router in susanGroupMeBotRoutes)
 export async function triggerMotivationPreview(pool, phase) {
-    const generated = await generateMotivationPost(pool, phase);
+    const ctxHolder = { value: '' };
+    const generated = await generateMotivationPost(pool, phase, { contextOut: ctxHolder });
     const fb = fallback(phase);
     const would = generated ?? fb;
-    return { generated, fallback: fb, would_post: would };
+    return { generated, fallback: fb, would_post: would, raw_context: ctxHolder.value };
 }
 export async function triggerMotivationPostNow(pool, phase) {
     const text = (await generateMotivationPost(pool, phase)) ?? fallback(phase);
