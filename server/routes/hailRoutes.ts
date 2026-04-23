@@ -2795,7 +2795,18 @@ router.post('/verify-date', async (req: Request, res: Response) => {
 
     const maxPointHail = points.reduce((m: number, r: any) =>
       Math.max(m, Number(r.hail_size_inches || 0)), 0);
-    const closestMi = points.length > 0 ? Number(points[0].distance_miles) : null;
+    // `points` is sorted by hail-size DESC (so the biggest hail bubbles up first);
+    // closest-distance is a separate reduction — points[0] is the biggest, not
+    // the nearest. Prior to this fix, verify-date reported "4.7mi" when a 0.75"
+    // report sat 1.56mi away, wrongly bucketing Silverstone-Dr 5/30/25 as
+    // AREA IMPACT instead of AT LOCATION.
+    const closestMi = points.length > 0
+      ? points.reduce((m: number, r: any) => {
+          const d = Number(r.distance_miles);
+          return Number.isFinite(d) && d < m ? d : m;
+        }, Infinity)
+      : null;
+    const safeClosestMi = closestMi === Infinity ? null : closestMi;
     const sourceSet = new Set<string>();
     for (const r of points) {
       if (r.source_noaa_ncei)  sourceSet.add('NOAA NCEI');
@@ -2818,11 +2829,11 @@ router.post('/verify-date', async (req: Request, res: Response) => {
     if (swathHit.directHit) {
       verdict = `DIRECT HIT — property sits inside MRMS swath on ${date}, band ${swathHit.label || swathHit.maxInches + '"'}${points.length > 0 ? ` (${points.length} corroborating report${points.length === 1 ? '' : 's'} within 15mi)` : ''}.`;
       confidence = 'high';
-    } else if (closestMi !== null && closestMi <= 3 && maxPointHail >= 0.75) {
-      verdict = `AT LOCATION — not in swath polygon, but verified ${maxPointHail}" hail just ${closestMi.toFixed(1)}mi from the property on ${date}.`;
+    } else if (safeClosestMi !== null && safeClosestMi <= 3 && maxPointHail >= 0.75) {
+      verdict = `AT LOCATION — not in swath polygon, but verified ${maxPointHail}" hail just ${safeClosestMi.toFixed(1)}mi from the property on ${date}.`;
       confidence = 'medium';
     } else if (points.length > 0) {
-      verdict = `AREA IMPACT — ${points.length} verified report(s) within 15mi on ${date}, closest is ${closestMi?.toFixed(1)}mi at ${maxPointHail}".`;
+      verdict = `AREA IMPACT — ${points.length} verified report(s) within 15mi on ${date}, closest is ${safeClosestMi?.toFixed(1)}mi at ${maxPointHail}".`;
       confidence = 'low';
     } else {
       verdict = `Nothing verified for ${date} within 15mi of this property in any of our sources. If HailTrace/Hail Recon show a hit, they may be using proprietary radar processing we don't ingest yet.`;
@@ -2837,7 +2848,7 @@ router.post('/verify-date', async (req: Request, res: Response) => {
       confidence,
       swathHit,
       pointReportCount: points.length,
-      closestDistanceMi: closestMi,
+      closestDistanceMi: safeClosestMi,
       maxHailInches: Math.max(maxPointHail, swathHit.maxInches || 0) || null,
       sources,
       topPointReports: points.slice(0, 5).map((r: any) => ({
