@@ -45,10 +45,12 @@ async function getStormContext(pool: pg.Pool): Promise<string> {
       LIMIT 4
     `);
     if (r.rows.length === 0) return '';
+    // Format dates as "Apr 22" (short, chat-friendly)
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ });
     return r.rows
       .map((x: any) => {
-        const size = x.max_hail ? `${x.max_hail}"` : (x.max_wind ? `${x.max_wind}mph wind` : '');
-        return `${x.event_date.toISOString().slice(0, 10)} ${x.state} ${size} (${x.events} events)`;
+        const size = x.max_hail ? `${x.max_hail}" hail` : (x.max_wind ? `${x.max_wind}mph wind` : '');
+        return `${fmt(x.event_date)} ${x.state}: ${size} (${x.events} events)`;
       })
       .join('; ');
   } catch (e) {
@@ -107,10 +109,10 @@ async function getRecentChatVibes(): Promise<string> {
 // ─── LLM generation ──────────────────────────────────────────────────────────
 
 const PHASE_BRIEFS: Record<Phase, string> = {
-  morning: `It's morning. Fire up the team. If verified storms hit in the last 36 hours, LEAD with storm date + state + size. Otherwise set the day's tone briefly.`,
-  midday: `Midday check. Quick pulse — acknowledge today's signups on the board if any. Keep the energy up for the afternoon.`,
-  afternoon: `4-7 PM is the prime close window. Push the team to lock signups before end of day.`,
-  evening: `Day's wrapping. Nod to any real wins, short. Don't fabricate a leaderboard. Never step on Ross's daily recap if he already posted it.`,
+  morning: `It's morning. Fire up the team. If verified storms hit last 36 hours, LEAD with the date (use month/day format like "Apr 22", NEVER "2026-04-22") + state + size. Otherwise set the day's tone briefly — no filler.`,
+  midday: `Midday check. Quick pulse — if signups are on the board today, acknowledge the count honestly. If zero, keep it forward-looking ("let's get the first one up") — don't scold or assume the day is bad.`,
+  afternoon: `4-7 PM is prime close time. Push the team to lock signups before end of day. Keep it punchy.`,
+  evening: `Day's wrapping. IF signups posted today, nod to the count. IF zero so far and it's end of day, stay NEUTRAL and forward — DO NOT call it "rough" / "tough" / "bad day". Maybe Ross hasn't posted the recap yet, maybe deals closed we can't see. Default to "tomorrow we run it back" energy. Never fabricate a leaderboard.`,
 };
 
 const BANNED_OPENERS = [
@@ -182,11 +184,18 @@ export async function generateMotivationPost(pool: pg.Pool, phase: Phase): Promi
   const storms = phase === 'morning' ? await getStormContext(pool) : '';
   const signups = phase !== 'morning' ? await getTodaySignupCount() : 0;
   const dow = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: TZ });
+  const monthDay = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ });
 
-  const contextLines: string[] = [`Day: ${dow}`, `Phase: ${phase}`];
+  const contextLines: string[] = [`Today: ${dow} ${monthDay}`, `Phase: ${phase}`];
   if (storms) contextLines.push(`Verified storms last 36hr: ${storms}`);
   if (!storms && phase === 'morning') contextLines.push('No verified storms last 36hr.');
-  if (phase !== 'morning') contextLines.push(`Signups on the board today: ${signups}`);
+  if (phase !== 'morning') {
+    if (signups > 0) {
+      contextLines.push(`Signup posts counted in chat today: ${signups}. (May undercount — reps sometimes post later.)`);
+    } else {
+      contextLines.push(`No signup posts visible in chat yet today. (Does NOT mean zero deals — reps often post late or in DMs.)`);
+    }
+  }
 
   const prompt = `You are Susan 21 — AI teammate in The Roof Docs Sales Team GroupMe chat. You grew up on 3 years of this team's chat.
 
@@ -232,9 +241,10 @@ const FALLBACKS: Record<Phase, string[]> = {
     "4-7 is money time. Who's closing?",
   ],
   evening: [
-    "Day's a wrap. Rest up — tomorrow we go again 🌙",
-    "Solid day on the books. Repeat tomorrow.",
-    "Night team. Back at it in the morning.",
+    "Day's a wrap. Tomorrow we run it back 🌙",
+    "That's a wrap. Back at it in the morning 🔥",
+    "Night team. Rest up — fresh board tomorrow.",
+    "Locking in for the night. Tomorrow we go again.",
   ],
 };
 
