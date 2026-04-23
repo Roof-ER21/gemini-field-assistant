@@ -614,7 +614,40 @@ export function startSusanScheduler(pool) {
             }
         }, { timezone: TZ });
     }
-    console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} backfill=${backfillOn} tz=${TZ}`);
+    // CoCoRaHS ingest — 4:30 AM EDT daily. Pulls last 3 days to cover the 72h
+    // observer reporting lag. Gated by COCORAHS_LIVE_ENABLED.
+    if (process.env.COCORAHS_LIVE_ENABLED === 'true') {
+        cron.schedule('30 4 * * *', async () => {
+            try {
+                const { CocorahsLiveService } = await import('./cocorahsLiveService.js');
+                const svc = new CocorahsLiveService(pool);
+                const r = await svc.ingestRecent(3);
+                console.log(`[cocorahs-live] daily — fetched=${r.fetched} +${r.inserted} new +${r.updated} upd (${r.errors} errors)`);
+            }
+            catch (e) {
+                console.error('[cocorahs-live] daily err:', e);
+            }
+        }, { timezone: TZ });
+    }
+    // IEM LSR ingest — every 30 min during daylight (8 AM - 10 PM EDT). NWS
+    // Local Storm Reports flow in near real-time; tighter cadence catches
+    // severe weather as it happens. Gated by IEM_LSR_LIVE_ENABLED.
+    if (process.env.IEM_LSR_LIVE_ENABLED === 'true') {
+        cron.schedule('*/30 8-21 * * *', async () => {
+            try {
+                const { IemLsrLiveService } = await import('./iemLsrLiveService.js');
+                const svc = new IemLsrLiveService(pool);
+                const r = await svc.ingestRecent(6);
+                if (r.inserted > 0 || r.updated > 0) {
+                    console.log(`[iem-lsr-live] 30min — fetched=${r.fetched} +${r.inserted} new +${r.updated} upd (${r.errors} errors)`);
+                }
+            }
+            catch (e) {
+                console.error('[iem-lsr-live] 30min err:', e);
+            }
+        }, { timezone: TZ });
+    }
+    console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} backfill=${backfillOn} cocorahs=${process.env.COCORAHS_LIVE_ENABLED === 'true'} iem_lsr=${process.env.IEM_LSR_LIVE_ENABLED === 'true'} tz=${TZ}`);
 }
 // Manual triggers for testing (exposed via router in susanGroupMeBotRoutes)
 export async function triggerMotivationPreview(pool, phase) {

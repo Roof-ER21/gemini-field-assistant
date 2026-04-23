@@ -2195,6 +2195,74 @@ router.post('/admin/backfill-catchup', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// POST /api/hail/admin/cocorahs-backfill { monthsBack?, maxDays? }
+// Fire-and-forget CoCoRaHS historical ingest. Runs serially at 500ms/req.
+// 24 months ≈ 730 days × 3 states = ~18 min. Returns immediately with a
+// background-running status so the admin can navigate away.
+router.post('/admin/cocorahs-backfill', async (req, res) => {
+    try {
+        const { CocorahsLiveService } = await import('../services/cocorahsLiveService.js');
+        const svc = new CocorahsLiveService(req.app.get('pool'));
+        const monthsBack = Number(req.body?.monthsBack ?? 24);
+        const maxDays = Number(req.body?.maxDays ?? 9999);
+        // Fire and forget so the HTTP response returns immediately
+        svc.ingestHistorical(monthsBack, { forceEnabled: true, maxDays }).then((r) => {
+            console.log(`[admin/cocorahs-backfill] done:`, r);
+        }).catch((err) => {
+            console.error(`[admin/cocorahs-backfill] err:`, err);
+        });
+        res.json({ ok: true, status: 'started', monthsBack, maxDays, note: 'Running in background — check server logs for progress.' });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/hail/admin/iem-lsr-backfill { monthsBack?, chunkDays? }
+router.post('/admin/iem-lsr-backfill', async (req, res) => {
+    try {
+        const { IemLsrLiveService } = await import('../services/iemLsrLiveService.js');
+        const svc = new IemLsrLiveService(req.app.get('pool'));
+        const monthsBack = Number(req.body?.monthsBack ?? 24);
+        const chunkDays = Number(req.body?.chunkDays ?? 7);
+        svc.ingestHistorical(monthsBack, { forceEnabled: true, chunkDays }).then((r) => {
+            console.log(`[admin/iem-lsr-backfill] done:`, r);
+        }).catch((err) => {
+            console.error(`[admin/iem-lsr-backfill] err:`, err);
+        });
+        res.json({ ok: true, status: 'started', monthsBack, chunkDays, note: 'Running in background — check server logs for progress.' });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// GET /api/hail/admin/ingest-stats — live counts per source, current state.
+router.get('/admin/ingest-stats', async (req, res) => {
+    try {
+        const pool = req.app.get('pool');
+        const { rows } = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE source_noaa_ncei)  AS noaa_ncei,
+        COUNT(*) FILTER (WHERE source_iem_lsr)    AS iem_lsr,
+        COUNT(*) FILTER (WHERE source_ncei_swdi)  AS ncei_swdi,
+        COUNT(*) FILTER (WHERE source_mrms)       AS mrms,
+        COUNT(*) FILTER (WHERE source_nws_alert)  AS nws_alert,
+        COUNT(*) FILTER (WHERE source_cocorahs)   AS cocorahs,
+        COUNT(*) FILTER (WHERE source_iem_vtec)   AS iem_vtec,
+        COUNT(*) FILTER (WHERE source_mping)      AS mping,
+        COUNT(*) FILTER (WHERE source_synoptic)   AS synoptic,
+        COUNT(*) FILTER (WHERE source_spc_wcm)    AS spc_wcm,
+        COUNT(*) AS total
+      FROM verified_hail_events_public_sane
+      WHERE event_date >= (CURRENT_DATE - INTERVAL '24 months')
+        AND state IN ('VA','MD','DC','PA','WV','DE')
+        AND hail_size_inches >= 0.5
+    `);
+        res.json({ window: 'dmv_24mo_hail_gte_half_inch', counts: rows[0] });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // GET /api/hail/admin/backfill-stats
 // How many DMV storm days are missing from the swath cache? Quick metric.
 router.get('/admin/backfill-stats', async (req, res) => {
