@@ -647,6 +647,42 @@ export function startSusanScheduler(pool) {
             }
         }, { timezone: TZ });
     }
+    // NWS Active Alerts — every 5 min, always-on. Hail-bearing warnings are
+    // real-time signals that complement the slower LSR/CoCoRaHS reporting
+    // cadence. Gated by NWS_ALERTS_LIVE_ENABLED.
+    if (process.env.NWS_ALERTS_LIVE_ENABLED === 'true') {
+        cron.schedule('*/5 * * * *', async () => {
+            try {
+                const { NwsAlertsLiveService } = await import('./nwsAlertsService.js');
+                const svc = new NwsAlertsLiveService(pool);
+                const r = await svc.ingestActive();
+                if (r.inserted > 0 || r.updated > 0) {
+                    console.log(`[nws-alerts-live] 5min — fetched=${r.fetched} relevant=${r.relevant} +${r.inserted} new +${r.updated} upd (${r.errors} errors)`);
+                }
+            }
+            catch (e) {
+                console.error('[nws-alerts-live] 5min err:', e);
+            }
+        }, { timezone: TZ });
+    }
+    // mPING (crowd-sourced NWS reports) — hourly during daylight (8 AM - 9 PM EDT).
+    // Fills observer gaps where CoCoRaHS volunteers are thin. Gated by
+    // MPING_LIVE_ENABLED + MPING_API_TOKEN (free signup at mping.ou.edu).
+    if (process.env.MPING_LIVE_ENABLED === 'true' && process.env.MPING_API_TOKEN) {
+        cron.schedule('0 8-21 * * *', async () => {
+            try {
+                const { MpingLiveService } = await import('./mpingLiveService.js');
+                const svc = new MpingLiveService(pool);
+                const r = await svc.ingestRecent(12);
+                if (r.inserted > 0 || r.updated > 0) {
+                    console.log(`[mping-live] hourly — fetched=${r.fetched} +${r.inserted} new +${r.updated} upd (${r.errors} errors)`);
+                }
+            }
+            catch (e) {
+                console.error('[mping-live] hourly err:', e);
+            }
+        }, { timezone: TZ });
+    }
     console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} backfill=${backfillOn} cocorahs=${process.env.COCORAHS_LIVE_ENABLED === 'true'} iem_lsr=${process.env.IEM_LSR_LIVE_ENABLED === 'true'} tz=${TZ}`);
 }
 // Manual triggers for testing (exposed via router in susanGroupMeBotRoutes)

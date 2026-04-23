@@ -2235,6 +2235,36 @@ router.post('/admin/iem-lsr-backfill', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// POST /api/hail/admin/nws-alerts-poll — trigger a one-shot NWS alerts poll.
+router.post('/admin/nws-alerts-poll', async (req, res) => {
+    try {
+        const { NwsAlertsLiveService } = await import('../services/nwsAlertsService.js');
+        const svc = new NwsAlertsLiveService(req.app.get('pool'));
+        const r = await svc.ingestActive();
+        res.json(r);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/hail/admin/mping-backfill { monthsBack?, chunkDays? }
+router.post('/admin/mping-backfill', async (req, res) => {
+    try {
+        const { MpingLiveService } = await import('../services/mpingLiveService.js');
+        const svc = new MpingLiveService(req.app.get('pool'));
+        const monthsBack = Number(req.body?.monthsBack ?? 24);
+        const chunkDays = Number(req.body?.chunkDays ?? 7);
+        svc.ingestHistorical(monthsBack, { forceEnabled: true, chunkDays }).then((r) => {
+            console.log('[admin/mping-backfill] done:', r);
+        }).catch((err) => {
+            console.error('[admin/mping-backfill] err:', err);
+        });
+        res.json({ ok: true, status: 'started', monthsBack, chunkDays, note: 'Running in background.' });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // GET /api/hail/admin/ingest-stats — live counts per source, current state.
 router.get('/admin/ingest-stats', async (req, res) => {
     try {
