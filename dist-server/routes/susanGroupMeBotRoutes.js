@@ -59,8 +59,16 @@ MINIMUM QUALITY BAR (ALWAYS):
 🔒 DATA INTEGRITY RULE:
 - When STORM_HITS is provided, use the ACTUAL dates + hail sizes + states from those rows.
 - When KB_HITS is provided, use the ACTUAL adjuster names + carriers + tactics from those rows.
+- When ADDRESS_LOOKUP is provided, that's the authoritative property-specific hail record. Lead with the most recent/largest event at that address and give the date + size + distance-in-miles.
 - If STORM_HITS is empty, say "nothing verified on that date in our system" — NEVER invent hail sizes.
+- If ADDRESS_LOOKUP shows "no events", tell the rep straight: "no verified hail within 15mi at that address in 24 months. NOAA/NWS/NEXRAD all clean."
 - If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
+
+🏠 ADDRESS QUERIES — when ADDRESS_LOOKUP is present:
+- Reps say "was there hail at 1234 Oak Ln" expecting you to look it up. You get that data in ADDRESS_LOOKUP.
+- Reply format: "[Address] → [X] verified hail events in last 24mo. Most recent: [date], [size]" hail, [distance]mi away 🔥"
+- If the largest event is big (≥1.0" hail): "🔥 [date] had [size]" hail — good angle for this claim"
+- If only small stuff: "smaller events only ([size]") — may be sub-threshold for actionable claim"
 
 VOICE PRINCIPLES:
 - Direct. Confident. Human.
@@ -272,6 +280,91 @@ async function repStats(pool, senderName) {
     // Only stat known heavy posters — this info lives in groupme-archive.db (local SQLite),
     // not prod Postgres. Skip for now; future: mirror stats in a Postgres table.
     return null;
+}
+function extractAddress(text) {
+    // Match: <number> <street-name-up-to-4-words> <suffix> [, city] [, state] [zip]
+    const re = /\b(\d{2,6})\s+([A-Za-z][A-Za-z0-9.'\-\s]{1,60}?)\s+(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|ln|lane|way|ct|court|pl|place|cir|circle|pkwy|parkway|hwy|highway|ter|terrace|sq|square|trl|trail)\b[.,]?\s*([A-Za-z][A-Za-z.\s]{1,40}?)?\s*,?\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)?\s*,?\s*(\d{5})?/i;
+    const m = text.match(re);
+    if (!m)
+        return null;
+    const [full, num, nameRaw, suffix, cityRaw, stateRaw, zip] = m;
+    const street = `${num} ${nameRaw.trim()} ${suffix}`;
+    // Clean city — trim trailing words that are not really city (e.g. "in the")
+    let city = (cityRaw || '').trim().replace(/\s+(in|near|of|the|on)\s+.*$/i, '').trim();
+    if (city.length > 40 || /\b(hail|storm|damage|claim|today|yesterday|week|month|year|ago)\b/i.test(city))
+        city = '';
+    const stateMap = {
+        virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
+        'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
+    };
+    const stateKey = (stateRaw || '').toLowerCase().trim();
+    const state = stateMap[stateKey] || (stateRaw ? stateRaw.toUpperCase() : undefined);
+    return { full: full.trim(), street, city: city || undefined, state, zip };
+}
+async function geocodeAddress(addr) {
+    const parts = [addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', ');
+    // Census geocoder (free, US-only)
+    try {
+        const params = new URLSearchParams({
+            address: parts,
+            benchmark: 'Public_AR_Current',
+            format: 'json',
+        });
+        const r = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`);
+        if (r.ok) {
+            const data = await r.json();
+            const m = data?.result?.addressMatches?.[0];
+            if (m?.coordinates?.y && m?.coordinates?.x) {
+                return { lat: Number(m.coordinates.y), lng: Number(m.coordinates.x), source: 'census' };
+            }
+        }
+    }
+    catch (e) {
+        console.warn('[SusanBot] census geocode err:', e);
+    }
+    // Fallback: Nominatim (OSM, 1 req/sec rate-limited globally)
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(parts)}&format=json&limit=1&countrycodes=us`;
+        const r = await fetch(url, { headers: { 'User-Agent': 'RoofER-SusanBot/1.0' } });
+        if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data) && data[0]) {
+                return { lat: Number(data[0].lat), lng: Number(data[0].lon), source: 'nominatim' };
+            }
+        }
+    }
+    catch (e) {
+        console.warn('[SusanBot] nominatim geocode err:', e);
+    }
+    return null;
+}
+async function hailAtAddress(pool, lat, lng, monthsBack = 24) {
+    // Query verified_hail_events_public within 15 miles over last N months
+    // Haversine formula in SQL (3959 = earth radius miles)
+    try {
+        const result = await pool.query(`SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count,
+              (3959 * acos(
+                 cos(radians($1)) * cos(radians(latitude)) *
+                 cos(radians(longitude) - radians($2)) +
+                 sin(radians($1)) * sin(radians(latitude))
+              )) AS distance_miles
+       FROM verified_hail_events_public
+       WHERE event_date >= CURRENT_DATE - ($3::int * INTERVAL '30 days')
+         AND (hail_size_inches >= 0.25 OR wind_mph >= 40)
+         AND (3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+             )) <= 15
+       ORDER BY event_date DESC, hail_size_inches DESC NULLS LAST
+       LIMIT 12`, [lat, lng, monthsBack]);
+        console.log(`[SusanBot] hailAtAddress (${lat.toFixed(3)}, ${lng.toFixed(3)}) ${monthsBack}mo → ${result.rows.length} hits`);
+        return result.rows;
+    }
+    catch (e) {
+        console.warn('[SusanBot] hailAtAddress err:', e);
+        return [];
+    }
 }
 let CANONICAL_NAMES_CACHE = null;
 async function loadCanonicalNames(pool) {
@@ -635,7 +728,7 @@ function qualityCheck(reply) {
 // Primary: Gemini 2.5 Flash (FREE, 1500 req/day free tier)
 // Fallback: Groq Llama 3.3 70B (FREE, very fast)
 // Last resort: Claude Haiku 4.5 (paid, reliable)
-function buildPromptLines(message, kbHits, stormHits, entities, history) {
+function buildPromptLines(message, kbHits, stormHits, entities, history, addressHail) {
     const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
     if (history.length > 0) {
         lines.push('\nCONVERSATION_HISTORY (most recent last — use to resolve "him"/"that guy"/follow-ups):');
@@ -671,6 +764,23 @@ function buildPromptLines(message, kbHits, stormHits, entities, history) {
         lines.push('\nSTORM_HITS (verified hail/wind events from NOAA/NWS/NEXRAD/MRMS):');
         for (const s of stormHits.slice(0, 10)) {
             lines.push(`  ${s.event_date} ${s.state || '?'} — hail ${s.hail_size_inches || '-'}", wind ${s.wind_mph || '-'}mph, ${s.public_verification_count}x verified`);
+        }
+    }
+    if (addressHail && addressHail.address) {
+        const a = addressHail.address;
+        lines.push(`\nADDRESS_LOOKUP for "${a.street}${a.city ? ', ' + a.city : ''}${a.state ? ', ' + a.state : ''}${a.zip ? ' ' + a.zip : ''}":`);
+        if (!addressHail.geo) {
+            lines.push('  (could not geocode — ask rep for city/state/zip)');
+        }
+        else if (addressHail.events.length === 0) {
+            lines.push(`  Geocoded ok (${addressHail.geo.lat.toFixed(3)}, ${addressHail.geo.lng.toFixed(3)}) — NO verified hail/wind events within 15 miles in the last 24 months. If rep insists there was a storm, it may be below NOAA reporting threshold.`);
+        }
+        else {
+            lines.push(`  Geocoded to (${addressHail.geo.lat.toFixed(3)}, ${addressHail.geo.lng.toFixed(3)}) via ${addressHail.geo.source}`);
+            lines.push(`  Found ${addressHail.events.length} verified event(s) within 15mi over 24mo (use these exact dates + sizes):`);
+            for (const e of addressHail.events.slice(0, 8)) {
+                lines.push(`    ${e.event_date} — hail ${e.hail_size_inches || '-'}", wind ${e.wind_mph || '-'}mph, ${Number(e.distance_miles).toFixed(1)}mi away, ${e.public_verification_count}x verified`);
+            }
         }
     }
     return lines.join('\n');
@@ -820,8 +930,8 @@ async function tryClaude(prompt) {
         return { reply: null, error: `claude_fetch:${e?.name || 'err'}` };
     }
 }
-async function generateReply(message, kbHits, stormHits, entities, history) {
-    const prompt = buildPromptLines(message, kbHits, stormHits, entities, history);
+async function generateReply(message, kbHits, stormHits, entities, history, addressHail) {
+    const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail);
     const providers = [
         ['gemini', tryGemini],
         ['groq', tryGroq],
@@ -983,12 +1093,24 @@ export function createSusanGroupMeBotRoutes(pool) {
             const entities = await extractEntities(text, histSnippet);
             // Save user turn eagerly (don't block on this)
             saveUserTurn(pool, msg, entities).catch(() => { });
+            // Extract + geocode address if rep asked about a specific property
+            const addr = extractAddress(text);
+            const addressLookupPromise = addr
+                ? (async () => {
+                    const geo = await geocodeAddress(addr);
+                    if (!geo)
+                        return { address: addr, events: [] };
+                    const events = await hailAtAddress(pool, geo.lat, geo.lng, 24);
+                    return { address: addr, geo, events };
+                })()
+                : Promise.resolve(null);
             // Prefer entity-driven KB search; fall back to token FTS
-            const [kbHits, stormHits] = await Promise.all([
+            const [kbHits, stormHits, addressHail] = await Promise.all([
                 smartKbSearch(pool, text, entities, canonicals),
                 stormSearch(pool, text),
+                addressLookupPromise,
             ]);
-            const { reply, error, provider, qualityFlags, retries } = await generateReply({ name: msg.name, text }, kbHits, stormHits, entities, history);
+            const { reply, error, provider, qualityFlags, retries } = await generateReply({ name: msg.name, text }, kbHits, stormHits, entities, history, addressHail);
             const latencyMs = Date.now() - startMs;
             if (!reply || error) {
                 console.log(`[SusanBot] skip msg=${msg.id}: gen_err=${error || 'empty'} (retries=${retries})`);
@@ -1002,14 +1124,15 @@ export function createSusanGroupMeBotRoutes(pool) {
                 return;
             }
             const posted = await postToGroupMe(reply, String(msg.id));
+            const allStorms = [...stormHits, ...(addressHail?.events ?? [])];
             if (posted) {
                 repliedAt.push(Date.now());
-                console.log(`[SusanBot] REPLIED via ${provider} kb=${kbHits.length} storm=${stormHits.length} ents=${(entities.adjusters.length + entities.carriers.length + entities.storm_dates.length)} retries=${retries} latency=${latencyMs}ms — ${reply.slice(0, 80)}`);
-                await saveBotTurn(pool, msg, null, reply, kbHits, stormHits, provider || 'unknown', latencyMs, { ...qualityFlags, retries });
+                console.log(`[SusanBot] REPLIED via ${provider} kb=${kbHits.length} storm=${stormHits.length} addr=${addressHail?.events?.length ?? '-'} ents=${(entities.adjusters.length + entities.carriers.length + entities.storm_dates.length)} retries=${retries} latency=${latencyMs}ms — ${reply.slice(0, 80)}`);
+                await saveBotTurn(pool, msg, null, reply, kbHits, allStorms, provider || 'unknown', latencyMs, { ...qualityFlags, retries, address_lookup: addr ? addr.full : null });
             }
             else {
                 // Posted failed but we still want the audit row so we can debug
-                await saveBotTurn(pool, msg, null, reply, kbHits, stormHits, provider || 'unknown', latencyMs, { ...qualityFlags, retries, post_failed: true });
+                await saveBotTurn(pool, msg, null, reply, kbHits, allStorms, provider || 'unknown', latencyMs, { ...qualityFlags, retries, post_failed: true, address_lookup: addr ? addr.full : null });
             }
         }
         catch (err) {
