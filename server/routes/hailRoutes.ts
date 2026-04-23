@@ -3464,15 +3464,17 @@ router.get('/storm-days', async (req: Request, res: Response) => {
     const pool: Pool = req.app.get('pool');
     const { degPad, lonDegPad } = bboxDegPad(lat, radiusMiles);
 
-    // lat_bucket and lng_bucket are integer-rounded degrees (×10 or ×100 depending
-    // on when they were written). We derive bbox bounds from the raw lat/lng degree
-    // padding and cast to the bucket scale used in the MV (same integer truncation
-    // applied by the ingest pipeline: FLOOR(latitude * 10) etc.).
-    // To stay safe we expand by ±1 bucket unit on each side.
-    const latBucketMin = Math.floor((lat - degPad) * 10) - 1;
-    const latBucketMax = Math.ceil((lat + degPad) * 10) + 1;
-    const lngBucketMin = Math.floor((lng - lonDegPad) * 10) - 1;
-    const lngBucketMax = Math.ceil((lng + lonDegPad) * 10) + 1;
+    // lat_bucket/lng_bucket in verified_hail_events are DECIMAL(6,3) columns
+    // generated as ROUND(latitude, 3) — i.e. raw degrees to 3 decimal places,
+    // NOT integer-scaled (×10 or ×100). They collapse to the same value for
+    // events at the same ~111m × 77m cell which is exactly the dedup grain.
+    // Bbox filter is therefore the raw degree range, padded by the request
+    // radius in degrees (+1 decimal cell on each side for safety).
+    const bucketCell = 0.001; // one decimal place at 3-digit precision
+    const latBucketMin = lat - degPad - bucketCell;
+    const latBucketMax = lat + degPad + bucketCell;
+    const lngBucketMin = lng - lonDegPad - bucketCell;
+    const lngBucketMax = lng + lonDegPad + bucketCell;
 
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - months);
@@ -3518,12 +3520,13 @@ router.get('/storm-days', async (req: Request, res: Response) => {
       params,
     );
 
-    // App-layer haversine filter: lat_bucket/lng_bucket represent 0.1° grid cells.
-    // Centre of each bucket = (bucket / 10 + 0.05, bucket / 10 + 0.05).
-    // We keep rows whose bucket centre is within the requested radius.
+    // App-layer haversine filter: lat_bucket/lng_bucket are already raw degrees
+    // (rounded to 3 decimal places in the ingest pipeline). Use them directly
+    // as the centre of each cell and keep rows within the requested radius.
     const filtered = rows.filter((r: any) => {
-      const bucketLat = r.lat_bucket / 10 + 0.05;
-      const bucketLng = r.lng_bucket / 10 + 0.05;
+      const bucketLat = Number(r.lat_bucket);
+      const bucketLng = Number(r.lng_bucket);
+      if (!Number.isFinite(bucketLat) || !Number.isFinite(bucketLng)) return false;
       return haversineMiles(lat, lng, bucketLat, bucketLng) <= radiusMiles;
     });
 
