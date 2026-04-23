@@ -2383,6 +2383,7 @@ router.get('/admin/ingest-stats', async (req, res) => {
         COUNT(*) FILTER (WHERE source_mping)      AS mping,
         COUNT(*) FILTER (WHERE source_synoptic)   AS synoptic,
         COUNT(*) FILTER (WHERE source_spc_wcm)    AS spc_wcm,
+        COUNT(*) FILTER (WHERE source_nexrad_l2)  AS nexrad_l2,
         COUNT(*) AS total
       FROM verified_hail_events_public_sane
       WHERE event_date >= (CURRENT_DATE - INTERVAL '24 months')
