@@ -1871,6 +1871,38 @@ async function tryClaude(prompt: string): Promise<{ reply: string | null; error?
   }
 }
 
+// ─── Roof-ER confidence pivot — server-side safety net ─────────────────────
+// The LLM sometimes skips the pivot even when the prompt demands it. This
+// post-processor guarantees a pivot sentence gets appended to replies where
+// NEGATIVE_INTEL_DETECTED=true was signaled and no pivot marker is present.
+const PIVOT_BANK = [
+  "End of the day — doesn't matter who it is, we're ROOF ER 🦅 just tell me how you wanna play it.",
+  "Between me and you? No adjuster's stopping us. You got Susan 21 + the wealth of Roof-ER knowledge they won't see coming. LFG 🔥",
+  "Not scared of this one. You + me + the Roof-ER playbook — we handle it any way you want.",
+  "You know, I know, we know — nobody's stopping us. How you wanna approach him?",
+  "Don't sweat it. Roof-ER runs this game. What's your move — we'll cook him.",
+  "At the end of the day, we're ROOF ER 🔥 Tell me your angle and we go.",
+  "Flip it — this is exactly the kind of adjuster Roof-ER reps eat for lunch. How you wanna line it up?",
+];
+let __lastPivotIdx = -1;
+function nextPivot(): string {
+  let i = Math.floor(Math.random() * PIVOT_BANK.length);
+  if (i === __lastPivotIdx) i = (i + 1) % PIVOT_BANK.length; // avoid back-to-back repeat
+  __lastPivotIdx = i;
+  return PIVOT_BANK[i];
+}
+
+const PIVOT_MARKER_REGEX = /(roof[-\s]?er|lfg|stopping us|stopping you|not scared|not worried|got you|got this|we handle|we got|we run|cook him|cook em|cook 'em|wealth of|playbook|eat for lunch|run it back|we go|flip it|game over|game on|my guy,? we|you.?re good|not sweating)/i;
+
+function applyPivotIfNeeded(reply: string, negativeIntelDetected: boolean): string {
+  if (!reply || !negativeIntelDetected) return reply;
+  if (PIVOT_MARKER_REGEX.test(reply)) return reply; // LLM already pivoted — leave it
+  // Need to append a pivot. Keep total under ~700 chars (GroupMe 1000 hard cap).
+  const pivot = nextPivot();
+  const combined = `${reply.trim()} ${pivot}`;
+  return combined.length > 900 ? combined.slice(0, 897).replace(/\s+\S*$/, '') + '…' : combined;
+}
+
 async function generateReply(
   message: { name: string; text: string },
   kbHits: any[],
@@ -1882,6 +1914,7 @@ async function generateReply(
   insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>
 ): Promise<{ reply: string | null; error?: string; provider?: string; qualityFlags: Record<string, any>; retries: number }> {
   const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext, insuranceDir);
+  const negativeIntelDetected = hasNegativeIntel(kbHits || []);
   const providers: [string, (p: string) => Promise<{ reply: string | null; error?: string }>][] = [
     ['gemini', tryGemini],
     ['groq', tryGroq],
@@ -1907,7 +1940,13 @@ async function generateReply(
       retries++;
       continue;
     }
-    return { reply: r.reply, provider: name, qualityFlags: q.flags, retries };
+    // Server-side pivot safety net — guarantee the rep never feels deflated
+    const finalReply = applyPivotIfNeeded(r.reply, negativeIntelDetected);
+    if (finalReply !== r.reply) {
+      console.log(`[SusanBot] pivot appended (negative intel, LLM skipped it)`);
+      q.flags.pivot_appended = true;
+    }
+    return { reply: finalReply, provider: name, qualityFlags: q.flags, retries };
   }
   return { reply: null, error: errors.join(' | '), qualityFlags: lastFlags, retries };
 }
