@@ -2813,6 +2813,43 @@ router.post('/admin/nexrad-l2-ingest', async (req: Request, res: Response) => {
 });
 
 // GET /api/hail/admin/ingest-stats — live counts per source, current state.
+// GET /api/hail/admin/db-size
+// Emergency triage: what's eating Postgres disk? Returns db size + top
+// tables by total_relation_size + index sizes + MV size. Called after the
+// 95%-full Railway alert fired during the historical backfill.
+router.get('/admin/db-size', async (req: Request, res: Response) => {
+  try {
+    const pool = req.app.get('pool');
+    const [db, tables, activity] = await Promise.all([
+      pool.query(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size,
+                         pg_database_size(current_database())::bigint AS db_bytes`),
+      pool.query(`
+        SELECT
+          schemaname || '.' || relname AS table,
+          pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size,
+          pg_size_pretty(pg_relation_size(c.oid))       AS data_size,
+          pg_size_pretty(pg_total_relation_size(c.oid) - pg_relation_size(c.oid)) AS index_size,
+          (SELECT reltuples::bigint FROM pg_class WHERE oid = c.oid) AS row_estimate
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','m')
+          AND n.nspname NOT IN ('pg_catalog','information_schema')
+        ORDER BY pg_total_relation_size(c.oid) DESC
+        LIMIT 20
+      `),
+      pool.query(`SELECT COUNT(*)::int AS active_queries FROM pg_stat_activity WHERE state='active'`),
+    ]);
+    res.json({
+      db_size: db.rows[0].db_size,
+      db_bytes: Number(db.rows[0].db_bytes),
+      top_tables: tables.rows,
+      active_queries: activity.rows[0].active_queries,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.get('/admin/ingest-stats', async (req: Request, res: Response) => {
   try {
     const pool = req.app.get('pool');
