@@ -2296,6 +2296,131 @@ router.get('/admin/backfill-stats', async (req, res) => {
 // Area Impact classification. Shipped 2026-04-23 after Cub Stream Dr
 // "1.7 miles away" bug — the property was actually in a swath band.
 console.log('[hailRoutes] registering GET /address-impact (swath-first tiered lookup)');
+// POST /api/hail/verify-date — "Rep brings me a HailTrace date we don't have"
+// Takes an address (lat/lng) + a specific date, returns authoritative answer
+// from every source we've got. If the swath isn't cached for that date, this
+// triggers an on-demand cache fill (30-60s). Designed for the rep-in-the-field
+// case: "HailTrace says 5/20/24 at 1234 Oak Ln — can we confirm?"
+router.post('/verify-date', async (req, res) => {
+    try {
+        const { lat, lng, date } = req.body || {};
+        const latNum = Number(lat);
+        const lngNum = Number(lng);
+        if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+            return res.status(400).json({ error: 'lat and lng required' });
+        }
+        if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ error: 'date required (YYYY-MM-DD)' });
+        }
+        const pool = req.app.get('pool');
+        // 1. Check the swath: is the property inside the MRMS polygon for that date?
+        //    This triggers an on-demand cache fill if missing.
+        let swathHit = {
+            directHit: false, maxInches: null, label: null,
+        };
+        try {
+            const { computeStormImpact } = await import('../services/stormImpactService.js');
+            const impact = await computeStormImpact({ date, points: [{ id: 'addr', lat: latNum, lng: lngNum }] }, pool);
+            const r = impact.results[0];
+            if (r && r.directHit) {
+                swathHit = {
+                    directHit: true,
+                    maxInches: r.maxHailInches ?? null,
+                    label: r.label ?? null,
+                };
+            }
+        }
+        catch (err) {
+            console.warn(`[verify-date] swath check failed for ${date}: ${err.message}`);
+        }
+        // 2. Point reports within 15mi on that date — gives confirming evidence
+        //    regardless of swath membership.
+        const { rows: points } = await pool.query(`SELECT state, hail_size_inches, wind_mph,
+              source_noaa_ncei, source_mrms, source_ncei_swdi, source_iem_lsr,
+              source_cocorahs, source_nws_alert, source_iem_vtec, source_mping,
+              source_synoptic, source_spc_wcm,
+              (3959 * acos(cos(radians($1)) * cos(radians(latitude)) *
+                 cos(radians(longitude) - radians($2)) +
+                 sin(radians($1)) * sin(radians(latitude)))) AS distance_miles
+       FROM verified_hail_events_public_sane
+       WHERE event_date = $3::date
+         AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) *
+               cos(radians(longitude) - radians($2)) +
+               sin(radians($1)) * sin(radians(latitude)))) <= 15
+         AND (hail_size_inches IS NOT NULL OR wind_mph IS NOT NULL)
+       ORDER BY hail_size_inches DESC NULLS LAST, distance_miles ASC
+       LIMIT 30`, [latNum, lngNum, date]);
+        const maxPointHail = points.reduce((m, r) => Math.max(m, Number(r.hail_size_inches || 0)), 0);
+        const closestMi = points.length > 0 ? Number(points[0].distance_miles) : null;
+        const sourceSet = new Set();
+        for (const r of points) {
+            if (r.source_noaa_ncei)
+                sourceSet.add('NOAA NCEI');
+            if (r.source_mrms)
+                sourceSet.add('MRMS');
+            if (r.source_ncei_swdi)
+                sourceSet.add('NCEI SWDI');
+            if (r.source_iem_lsr)
+                sourceSet.add('IEM LSR');
+            if (r.source_cocorahs)
+                sourceSet.add('CoCoRaHS');
+            if (r.source_nws_alert)
+                sourceSet.add('NWS Alert');
+            if (r.source_iem_vtec)
+                sourceSet.add('IEM VTEC');
+            if (r.source_mping)
+                sourceSet.add('mPING');
+            if (r.source_synoptic)
+                sourceSet.add('Synoptic');
+            if (r.source_spc_wcm)
+                sourceSet.add('SPC WCM');
+        }
+        if (swathHit.directHit)
+            sourceSet.add('MRMS Swath');
+        const sources = [...sourceSet].sort();
+        // 3. Build a rep-facing narrative
+        let verdict;
+        let confidence;
+        if (swathHit.directHit) {
+            verdict = `DIRECT HIT — property sits inside MRMS swath on ${date}, band ${swathHit.label || swathHit.maxInches + '"'}${points.length > 0 ? ` (${points.length} corroborating report${points.length === 1 ? '' : 's'} within 15mi)` : ''}.`;
+            confidence = 'high';
+        }
+        else if (closestMi !== null && closestMi <= 3 && maxPointHail >= 0.75) {
+            verdict = `AT LOCATION — not in swath polygon, but verified ${maxPointHail}" hail just ${closestMi.toFixed(1)}mi from the property on ${date}.`;
+            confidence = 'medium';
+        }
+        else if (points.length > 0) {
+            verdict = `AREA IMPACT — ${points.length} verified report(s) within 15mi on ${date}, closest is ${closestMi?.toFixed(1)}mi at ${maxPointHail}".`;
+            confidence = 'low';
+        }
+        else {
+            verdict = `Nothing verified for ${date} within 15mi of this property in any of our sources. If HailTrace/Hail Recon show a hit, they may be using proprietary radar processing we don't ingest yet.`;
+            confidence = 'none';
+        }
+        res.json({
+            date,
+            lat: latNum,
+            lng: lngNum,
+            verdict,
+            confidence,
+            swathHit,
+            pointReportCount: points.length,
+            closestDistanceMi: closestMi,
+            maxHailInches: Math.max(maxPointHail, swathHit.maxInches || 0) || null,
+            sources,
+            topPointReports: points.slice(0, 5).map((r) => ({
+                distanceMi: Number(r.distance_miles).toFixed(1),
+                hail: r.hail_size_inches,
+                wind: r.wind_mph,
+                state: r.state,
+            })),
+        });
+    }
+    catch (err) {
+        console.error('[verify-date] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 router.get('/address-impact', async (req, res) => {
     try {
         const lat = Number(req.query.lat);
