@@ -19,6 +19,7 @@
  */
 import { Router, Request, Response } from 'express';
 import type pg from 'pg';
+import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
@@ -85,6 +86,13 @@ MINIMUM QUALITY BAR (ALWAYS):
 - Reply format: "[Address] → [X] verified hail events in last 24mo. Most recent: [date], [size]" hail, [distance]mi away 🔥"
 - If the largest event is big (≥1.0" hail): "🔥 [date] had [size]" hail — good angle for this claim"
 - If only small stuff: "smaller events only ([size]") — may be sub-threshold for actionable claim"
+- When MRMS_RADAR is present: lead with the AT-THE-PROPERTY size if any (most precise). Say "radar shows X\" AT the house" vs "X\" within 1/3/10 miles" — reps love this specificity.
+
+☎️ INSURANCE_DIRECTORY — when present:
+- Rep is asking how to contact a carrier, file a claim, get a phone/email/portal.
+- USE the exact phone/email/portal from INSURANCE_DIRECTORY verbatim. Never invent numbers.
+- Reply format: "[Carrier]: claims [phone], [email]. Portal: [website]. [1-line note from notes field if notable]."
+- If INSURANCE_DIRECTORY is empty but rep asked for contact info: say "no entry for [carrier] in our directory yet — check the Insurance tab in the sa21 app".
 
 VOICE PRINCIPLES:
 - Direct. Confident. Human.
@@ -666,6 +674,68 @@ async function fetchRecentChatMessages(limit: number = 40): Promise<Array<{name:
   }
 }
 
+// ─── MRMS radar at-address-on-date (precise point lookup) ───────────────────
+// Complements hailAtAddress (which searches verified_hail_events within 15mi).
+// MRMS is the 30-min radar grid — tells us hail AT THE PROPERTY vs only near it.
+
+async function mrmsAtAddressDate(
+  addr: ExtractedAddress,
+  geo: { lat: number; lng: number; source: string },
+  isoDate: string
+): Promise<any | null> {
+  try {
+    const result = await getMrmsHailAtPoint(isoDate, geo.lat, geo.lng);
+    console.log(`[SusanBot] MRMS ${isoDate} @ (${geo.lat.toFixed(3)},${geo.lng.toFixed(3)}) → atPoint=${result?.atLocation?.hailSizeInches || '-'}`);
+    return result;
+  } catch (e) {
+    console.warn('[SusanBot] mrmsAtAddressDate err:', e);
+    return null;
+  }
+}
+
+async function mrmsRecentAtAddress(
+  geo: { lat: number; lng: number },
+  daysBack: number = 3
+): Promise<any | null> {
+  try {
+    const result = await getRecentMrmsHailAtPoint(geo.lat, geo.lng, daysBack);
+    return result;
+  } catch (e) {
+    console.warn('[SusanBot] mrmsRecentAtAddress err:', e);
+    return null;
+  }
+}
+
+// ─── Insurance company directory lookup ────────────────────────────────────
+
+async function insuranceDirectoryLookup(
+  pool: pg.Pool,
+  carriers: string[]
+): Promise<Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>> {
+  if (carriers.length === 0) return [];
+  try {
+    const patterns = carriers.map((c) => `%${c.toLowerCase().replace(/_/g, ' ')}%`);
+    const placeholders = patterns.map((_, i) => `LOWER(name) LIKE $${i + 1}`).join(' OR ');
+    const result = await pool.query(
+      `SELECT name, phone, email, category, website, notes
+       FROM insurance_companies
+       WHERE ${placeholders}
+       ORDER BY name ASC LIMIT 10`,
+      patterns
+    );
+    return result.rows;
+  } catch (e: any) {
+    if (e?.message?.includes('does not exist')) return [];
+    console.warn('[SusanBot] insuranceDirectoryLookup err:', e);
+    return [];
+  }
+}
+
+function needsInsuranceDirectory(text: string, carriers: string[]): boolean {
+  if (carriers.length === 0) return false;
+  return /\b(phone|fax|email|number|contact|claim\s*number|file\s*a\s*claim|portal|login|how\s+to\s+file|how\s+do\s+i\s+file|where\s+do\s+i|submit|who\s+do\s+i\s+call|website|app)\b/i.test(text);
+}
+
 async function hailAtAddress(
   pool: pg.Pool,
   lat: number,
@@ -1136,8 +1206,9 @@ function buildPromptLines(
   stormHits: any[],
   entities: ExtractedEntities | null,
   history: Turn[],
-  addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[] } | null,
-  chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>
+  addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[]; mrms?: any } | null,
+  chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>,
+  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>
 ): string {
   const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
   if (history.length > 0) {
@@ -1208,6 +1279,37 @@ function buildPromptLines(
       for (const e of addressHail.events.slice(0, 8)) {
         lines.push(`    ${e.event_date} — hail ${e.hail_size_inches || '-'}", wind ${e.wind_mph || '-'}mph, ${Number(e.distance_miles).toFixed(1)}mi away, ${e.public_verification_count}x verified`);
       }
+    }
+    // MRMS radar-at-point (exact property, more precise than "within 15mi").
+    // MRMS service returns numbers-or-null at each radius band (atLocation, within1mi, etc).
+    if (addressHail.mrms) {
+      const m: any = addressHail.mrms;
+      lines.push(`\n  MRMS_RADAR (direct radar grid at the property, 30-min resolution):`);
+      if (typeof m.atLocation === 'number' && m.atLocation > 0) {
+        lines.push(`    AT the property: ${m.atLocation.toFixed(2)}" max hail${m.date ? ' on ' + m.date : ''}`);
+      }
+      if (typeof m.within1mi === 'number' && m.within1mi > 0) lines.push(`    within 1mi: ${m.within1mi.toFixed(2)}"`);
+      if (typeof m.within3mi === 'number' && m.within3mi > 0) lines.push(`    within 3mi: ${m.within3mi.toFixed(2)}"`);
+      if (typeof m.within10mi === 'number' && m.within10mi > 0) lines.push(`    within 10mi: ${m.within10mi.toFixed(2)}"`);
+      if (Array.isArray(m.events) && m.events.length > 0) {
+        lines.push(`    Recent 3-day MRMS events at the property:`);
+        for (const ev of m.events.slice(0, 5)) {
+          const size = ev.atLocation ?? ev.within1mi ?? ev.within3mi ?? ev.within10mi;
+          lines.push(`      ${ev.date} — ${typeof size === 'number' ? size.toFixed(2) : '-'}" max`);
+        }
+      }
+    }
+  }
+  if (insuranceDir && insuranceDir.length > 0) {
+    lines.push(`\nINSURANCE_DIRECTORY (from internal carrier directory — use these exact contacts, don't invent):`);
+    for (const c of insuranceDir.slice(0, 5)) {
+      const bits = [c.name];
+      if (c.phone) bits.push(`phone: ${c.phone}`);
+      if (c.email) bits.push(`email: ${c.email}`);
+      if (c.category) bits.push(`app: ${c.category}`);
+      if (c.website) bits.push(`portal: ${c.website}`);
+      lines.push(`  ${bits.join(' | ')}`);
+      if (c.notes) lines.push(`    notes: ${String(c.notes).slice(0, 300)}`);
     }
   }
   return lines.join('\n');
@@ -1421,10 +1523,11 @@ async function generateReply(
   stormHits: any[],
   entities: ExtractedEntities | null,
   history: Turn[],
-  addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[] } | null,
-  chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>
+  addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[]; mrms?: any } | null,
+  chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>,
+  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>
 ): Promise<{ reply: string | null; error?: string; provider?: string; qualityFlags: Record<string, any>; retries: number }> {
-  const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext);
+  const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext, insuranceDir);
   const providers: [string, (p: string) => Promise<{ reply: string | null; error?: string }>][] = [
     ['gemini', tryGemini],
     ['groq', tryGroq],
@@ -1613,14 +1716,21 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       // Save user turn eagerly (don't block on this)
       saveUserTurn(pool, msg, entities).catch(() => {});
 
-      // Extract + geocode address if rep asked about a specific property
+      // Extract + geocode address if rep asked about a specific property.
+      // Also runs MRMS point-radar check if a specific date is mentioned.
       const addr = extractAddress(text);
+      const dates = extractStormDates(text);
       const addressLookupPromise = addr
         ? (async () => {
             const geo = await geocodeAddress(addr);
-            if (!geo) return { address: addr, events: [] as any[] };
-            const events = await hailAtAddress(pool, geo.lat, geo.lng, 24);
-            return { address: addr, geo, events };
+            if (!geo) return { address: addr, events: [] as any[], mrms: null as any };
+            const eventsP = hailAtAddress(pool, geo.lat, geo.lng, 24);
+            // If rep named a specific date, run MRMS point-radar; otherwise recent 3-day scan
+            const mrmsP = dates.length > 0
+              ? mrmsAtAddressDate(addr, geo, dates[0])
+              : mrmsRecentAtAddress(geo, 3);
+            const [events, mrms] = await Promise.all([eventsP, mrmsP]);
+            return { address: addr, geo, events, mrms };
           })()
         : Promise.resolve(null as any);
 
@@ -1630,12 +1740,18 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         ? fetchRecentChatMessages(100)
         : Promise.resolve([]);
 
+      // Insurance company directory lookup if rep is asking about carrier contact/portal/etc
+      const insuranceDirPromise = needsInsuranceDirectory(text, entities.carriers)
+        ? insuranceDirectoryLookup(pool, entities.carriers)
+        : Promise.resolve([]);
+
       // Prefer entity-driven KB search; fall back to token FTS
-      const [kbHits, stormHits, addressHail, chatContext] = await Promise.all([
+      const [kbHits, stormHits, addressHail, chatContext, insuranceDir] = await Promise.all([
         smartKbSearch(pool, text, entities, canonicals),
         stormSearch(pool, text),
         addressLookupPromise,
         chatContextPromise,
+        insuranceDirPromise,
       ]);
 
       const { reply, error, provider, qualityFlags, retries } = await generateReply(
@@ -1645,7 +1761,8 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         entities,
         history,
         addressHail,
-        chatContext
+        chatContext,
+        insuranceDir
       );
       const latencyMs = Date.now() - startMs;
 
