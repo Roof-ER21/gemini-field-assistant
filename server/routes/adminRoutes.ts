@@ -15,6 +15,20 @@
 import { Router, type Request, type Response } from 'express';
 import type pg from 'pg';
 
+/**
+ * Idempotent schema bootstrap for the worker_heartbeat table (migration 076).
+ * Web startup calls this so /api/admin/worker-status doesn't 500 when the
+ * psql-based migration application hasn't been done.
+ */
+export async function ensureWorkerHeartbeatSchema(pool: pg.Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS worker_heartbeat (
+      service TEXT PRIMARY KEY,
+      last_beat_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 export function createAdminRoutes(pool: pg.Pool): Router {
   const router = Router();
 
