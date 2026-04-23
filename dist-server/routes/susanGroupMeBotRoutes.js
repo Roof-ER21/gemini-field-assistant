@@ -19,6 +19,7 @@
  */
 import { Router } from 'express';
 import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
+import { emailService } from '../services/emailService.js';
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
 const SALES_GROUP_ID = process.env.GROUPME_SUSAN_GROUP_ID || '93177620';
@@ -401,6 +402,164 @@ async function geocodeAddress(addr) {
         console.warn('[SusanBot] nominatim geocode err:', e);
     }
     return null;
+}
+// ═══════════════════════════════════════════════════════════════════════════
+//   TEACHING DIRECTIVES — "Susan remember that X"
+//   Trusted leaders can save canon facts directly. Non-trusted reps get queued
+//   for leadership review. Either way, Ahmed is emailed for audit.
+//   Reference: Reese's 2026-04-23 correction — "Don't let the guys teach Susan
+//   stupid shit." Trust tiers enforce that rule.
+// ═══════════════════════════════════════════════════════════════════════════
+// Tier 1 = can auto-save canon. Ahmed = final authority (can also edit/remove anything).
+// Future Tier 2 (Luis Esteves 20076092, Ross Renzi 122568603) — to enable, add below.
+const TRUSTED_TEACHERS = {
+    '18949479': 'Oliver Brown', // Owner
+    '86283554': 'Ford Barsi', // GM
+    '113016266': 'Reese Samala', // Director of Sales
+    '115896304': 'Ahmed Mahmoud', // Creator / final authority
+};
+// Teaching trigger. Requires "remember/learn/save/note" + fact-inducing syntax.
+// Accepts both "susan remember that X" and (when replying to Susan) just "remember that X".
+const REMEMBER_RE = /^\s*(?:@?\s*susan[,\s]+)?(?:please[,\s]+)?(?:remember|learn|save|note)(?:\s+(?:that|this)\s+|[:,]\s+|\s+)(.+)$/i;
+function detectRememberDirective(text) {
+    // Strip leading @mention (e.g., "@Susan 21 remember that...")
+    const stripped = text.replace(/^@\S+(?:\s+\S+)?\s+/i, '').trim();
+    const m = stripped.match(REMEMBER_RE);
+    if (!m || !m[1])
+        return null;
+    const fact = m[1].trim().replace(/^[,.:;\-\s]+/, '').replace(/[,.:;\-\s]+$/, '');
+    if (fact.length < 8 || fact.length > 1500)
+        return null;
+    // Reject obvious question forms ("remember when X?", "remember who Y")
+    if (/^(when|who|what|why|how|where|if)\b/i.test(fact) && fact.endsWith('?'))
+        return null;
+    return fact;
+}
+async function writeTrustedTeaching(pool, msg, teacherName, fact) {
+    try {
+        // Audit row in candidates table (status=approved)
+        const candRes = await pool.query(`INSERT INTO kb_learning_candidates
+         (source_message_id, sender_user_id, sender_name, group_id, raw_text,
+          detected_entity_type, trigger_reason, status, reviewed_by, reviewed_at)
+       VALUES ($1, $2, $3, $4, $5, 'teaching', 'trusted-teacher-directive',
+               'approved', $6, NOW())
+       ON CONFLICT (source_message_id) DO NOTHING
+       RETURNING id`, [
+            String(msg.id),
+            String(msg.user_id || ''),
+            String(msg.name || teacherName),
+            String(msg.group_id || SALES_GROUP_ID),
+            String(msg.text).slice(0, 2000),
+            `trusted:${teacherName}`,
+        ]);
+        // Write authoritative KB doc
+        const date = new Date().toISOString().slice(0, 10);
+        const slug = fact.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48).replace(/^-|-$/g, '');
+        const filePath = `groupme-teaching://${slug || 'fact'}-${Date.now()}`;
+        const nameSnippet = fact.slice(0, 72).replace(/\s+$/, '') + (fact.length > 72 ? '…' : '');
+        const docName = `Team Canon: ${nameSnippet}`;
+        const docContent = [
+            `CANONICAL FACT (taught by ${teacherName} on ${date})`,
+            '',
+            fact,
+            '',
+            '---',
+            `Source: GroupMe Sales Team chat, message ${msg.id}`,
+            `Taught by: ${teacherName} (user_id ${msg.user_id})`,
+            `Date: ${date}`,
+        ].join('\n');
+        const docRes = await pool.query(`INSERT INTO knowledge_documents (name, category, state, content, file_path)
+       VALUES ($1, 'team-canon', NULL, $2, $3)
+       RETURNING id`, [docName, docContent, filePath]);
+        const docId = docRes.rows[0]?.id ?? null;
+        if (candRes.rows[0]?.id && docId) {
+            await pool.query(`UPDATE kb_learning_candidates
+           SET applied_at=NOW(), applied_kb_doc_id=$1,
+               proposed_kb_doc_name=$2, proposed_kb_doc_content=$3
+         WHERE id=$4`, [docId, docName, docContent, candRes.rows[0].id]);
+        }
+        console.log(`[SusanBot] TRUSTED_TEACHING saved doc=${docId} teacher=${teacherName} fact="${fact.slice(0, 80)}"`);
+        return docId;
+    }
+    catch (e) {
+        console.warn('[SusanBot] writeTrustedTeaching err:', e);
+        return null;
+    }
+}
+async function queuePendingTeaching(pool, msg, fact) {
+    try {
+        const r = await pool.query(`INSERT INTO kb_learning_candidates
+         (source_message_id, sender_user_id, sender_name, group_id, raw_text,
+          detected_entity_type, trigger_reason, status,
+          proposed_kb_doc_name, proposed_kb_doc_content)
+       VALUES ($1, $2, $3, $4, $5, 'teaching', 'rep-directive', 'pending', $6, $7)
+       ON CONFLICT (source_message_id) DO NOTHING
+       RETURNING id`, [
+            String(msg.id),
+            String(msg.user_id || ''),
+            String(msg.name || ''),
+            String(msg.group_id || SALES_GROUP_ID),
+            String(msg.text).slice(0, 2000),
+            `Proposed by ${msg.name}: ${fact.slice(0, 72)}`,
+            fact,
+        ]);
+        const id = r.rows[0]?.id ?? null;
+        console.log(`[SusanBot] PENDING_TEACHING queued id=${id} from=${msg.name} fact="${fact.slice(0, 80)}"`);
+        return id;
+    }
+    catch (e) {
+        console.warn('[SusanBot] queuePendingTeaching err:', e);
+        return null;
+    }
+}
+async function emailTeachingEvent(mode, teacherName, senderName, fact, msgId, kbDocOrCandId) {
+    try {
+        const subject = mode === 'trusted'
+            ? `🧠 Susan learned (trusted: ${teacherName})`
+            : `🧠 Susan teaching pending review — from ${senderName}`;
+        const statusLine = mode === 'trusted'
+            ? `✅ Auto-applied to knowledge base (KB doc #${kbDocOrCandId ?? '—'}). Teacher has trusted status.`
+            : `⏳ Queued for leadership review (candidate #${kbDocOrCandId ?? '—'}). Approve at POST /api/susan/groupme/learnings/${kbDocOrCandId}/approve`;
+        const factEsc = fact.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+        const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:20px auto;padding:0;background:#f4f4f7">
+  <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:24px;border-radius:8px 8px 0 0">
+    <div style="font-size:32px">🧠</div>
+    <h2 style="margin:6px 0 0;font-size:22px">Susan Teaching Event</h2>
+    <p style="margin:4px 0 0;opacity:.9;font-size:13px">GroupMe Sales Team → Susan 21 knowledge base</p>
+  </div>
+  <div style="background:#fff;padding:20px;border:1px solid #e5e7eb;border-top:none">
+    <table style="width:100%;font-size:14px;color:#1e293b">
+      <tr><td style="padding:6px 0;color:#64748b;width:120px">Teacher:</td><td><strong>${teacherName}</strong>${senderName !== teacherName ? ` <span style="color:#64748b">(posted as ${senderName})</span>` : ''}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">Mode:</td><td>${mode === 'trusted' ? '<span style="color:#059669;font-weight:600">✅ Trusted leader — auto-saved</span>' : '<span style="color:#d97706;font-weight:600">⏳ Rep — pending leadership approval</span>'}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">Message ID:</td><td style="font-family:monospace;font-size:12px">${msgId}</td></tr>
+    </table>
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:14px 18px;margin:16px 0;border-radius:4px">
+      <div style="font-size:11px;color:#92400e;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-weight:600">Fact taught</div>
+      <div style="font-size:15px;color:#1e293b;line-height:1.5">${factEsc}</div>
+    </div>
+    <div style="background:${mode === 'trusted' ? '#ecfdf5' : '#fef2f2'};padding:12px 16px;border-radius:6px;font-size:13px;color:${mode === 'trusted' ? '#065f46' : '#991b1b'}">${statusLine}</div>
+  </div>
+  <div style="text-align:center;padding:16px;font-size:12px;color:#64748b">Susan 21 · The Roof Docs · ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EDT</div>
+</body></html>`;
+        const text = [
+            `Susan Teaching Event`,
+            ``,
+            `Teacher: ${teacherName}${senderName !== teacherName ? ` (posted as ${senderName})` : ''}`,
+            `Mode: ${mode === 'trusted' ? 'Trusted — auto-saved' : 'Pending — leadership approval needed'}`,
+            `Message ID: ${msgId}`,
+            ``,
+            `FACT:`,
+            fact,
+            ``,
+            statusLine,
+        ].join('\n');
+        await emailService.sendCustomEmail('ahmed.mahmoud@theroofdocs.com', {
+            subject, html, text,
+        });
+    }
+    catch (e) {
+        console.warn('[SusanBot] emailTeachingEvent err:', e);
+    }
 }
 // ═══════════════════════════════════════════════════════════════════════════
 //   PASSIVE INTEL LEARNING — watch chat for new adjuster/carrier intel,
@@ -1504,6 +1663,36 @@ export function createSusanGroupMeBotRoutes(pool) {
                 }
             }
             return; // no reply — we just observed
+        }
+        // TEACHING DIRECTIVE — "Susan remember that X"
+        // Trusted leaders (Oliver/Ford/Reese/Ahmed) → auto-save as canon
+        // Reps → queued for leadership review. Either way Ahmed is emailed.
+        // This fires BEFORE rate limits because teaching is admin work.
+        const teachingFact = detectRememberDirective(text);
+        if (teachingFact) {
+            const senderId = String(msg.user_id || msg.sender_id || '');
+            const trustedName = TRUSTED_TEACHERS[senderId];
+            const isTrusted = !!trustedName;
+            const senderName = String(msg.name || 'rep');
+            let confirmReply;
+            if (isTrusted) {
+                const docId = await writeTrustedTeaching(pool, msg, trustedName, teachingFact);
+                emailTeachingEvent('trusted', trustedName, senderName, teachingFact, String(msg.id), docId)
+                    .catch(() => { });
+                confirmReply = `Locked in. Saved as team canon from @${trustedName}. Ahmed's been notified 📝`;
+            }
+            else {
+                const candId = await queuePendingTeaching(pool, msg, teachingFact);
+                emailTeachingEvent('pending', senderName, senderName, teachingFact, String(msg.id), candId)
+                    .catch(() => { });
+                confirmReply = `Heard you @${senderName} — saving canon is leadership-only. Queued it for Ahmed / Reese / Oliver / Ford to confirm before it becomes part of my knowledge 🙏`;
+            }
+            if (!testMode) {
+                await postToGroupMe(confirmReply, String(msg.id));
+                repliedAt.push(Date.now());
+            }
+            console.log(`[SusanBot] teaching mode=${isTrusted ? 'trusted' : 'pending'} sender=${senderName} fact="${teachingFact.slice(0, 80)}"`);
+            return; // skip normal LLM reply — this was a command, not a question
         }
         // Rate limits
         const rate = withinRate();
