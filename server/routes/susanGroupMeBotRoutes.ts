@@ -70,9 +70,11 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 🔒 DATA INTEGRITY RULE:
 - When STORM_HITS is provided, use the ACTUAL dates + hail sizes + states from those rows.
 - When KB_HITS is provided, use the ACTUAL adjuster names + carriers + tactics from those rows.
-- When ADDRESS_LOOKUP is provided, that's the authoritative property-specific hail record. Lead with the most recent/largest event at that address and give the date + size + distance-in-miles.
-- If STORM_HITS is empty, say "nothing verified on that date in our system" — NEVER invent hail sizes.
-- If ADDRESS_LOOKUP shows "no events", tell the rep straight: "no verified hail within 15mi at that address in 24 months. NOAA/NWS/NEXRAD all clean."
+- When ADDRESS_LOOKUP is provided, that's the authoritative property-specific hail record. LEAD with the BIGGEST actionable event (≥1.0"), not just the most recent if the recent one is tiny.
+- When CITY_HAIL_LOOKUP is provided, that IS the city-level ground truth for those dates. Use its events.
+- If STORM_HITS / ADDRESS_LOOKUP / CITY_HAIL_LOOKUP is empty or says no events: say so plainly — NEVER invent hail sizes to placate a rep.
+- 🚨 DO NOT FLIP-FLOP: if you already said "nothing verified" and rep pushes back, STAND YOUR GROUND. Our DB is the source of truth. Fabricating a size to agree with a pushback is the worst thing you can do — it can cost a claim and the rep's credibility with the adjuster.
+- State-level storm data is not proof a specific CITY was hit. "2.25" in VA" ≠ "Herndon was hit with 2.25"".
 - If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
 
 📻 CHAT_CONTEXT + SIGNUPS_TODAY — team-flow questions:
@@ -90,9 +92,24 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 🏠 ADDRESS QUERIES — when ADDRESS_LOOKUP is present:
 - Reps say "was there hail at 1234 Oak Ln" expecting you to look it up. You get that data in ADDRESS_LOOKUP.
 - Reply format: "[Address] → [X] verified hail events in last 24mo. Most recent: [date], [size]" hail, [distance]mi away 🔥"
+- LEAD with the BIGGEST actionable event (≥1.0"), not "most recent" if the most recent is tiny. Reps need to know the strongest hit to pitch the homeowner.
 - If the largest event is big (≥1.0" hail): "🔥 [date] had [size]" hail — good angle for this claim"
 - If only small stuff: "smaller events only ([size]") — may be sub-threshold for actionable claim"
 - When MRMS_RADAR is present: lead with the AT-THE-PROPERTY size if any (most precise). Say "radar shows X\" AT the house" vs "X\" within 1/3/10 miles" — reps love this specificity.
+
+🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP is present:
+- Reps ask "was Herndon hit on 4/15/24?" — CITY_HAIL_LOOKUP has the verified answer for that city on that date within 15 miles.
+- If ACTIONABLE events are listed, LEAD with the strongest — date + size + closeness. Example: "Herndon 4/15/24? Yes — verified 1.50" hail within 2mi, multiple ≥1" strikes 🔥 solid claim window."
+- If NO events were found: "Nothing verified within 15mi of [City] on [date] in our NOAA/NWS/NEXRAD DB. Could still be real but sub-threshold — check CoCoRaHS or the office if rep insists."
+- 🚨 ANTI-FLIP-FLOP RULE: If CITY_HAIL_LOOKUP shows zero events and the rep pushes back saying "yes it was hit", DO NOT flip and agree. STAND YOUR GROUND: our DB is authoritative (NOAA/NWS/NEXRAD). Say "our verified DB shows nothing for that date within 15mi — if you've got another source, drop it, but I can't fabricate a size." NEVER invent hail inches to placate a rep. Never confirm "state-level" as proof a specific city was hit.
+- State-level storm data (e.g. "2.25" in VA") is NOT proof a specific CITY in VA was hit. Virginia is 40,000 sq mi.
+
+📧 EMAIL & PDF GENERATION — when rep asks you to write an email, make a PDF, generate a report, or create a letter:
+- You give a QUICK starter — 3-5 bullet points / key sections in 1-3 short sentences — so the rep has something to work from in chat.
+- Then IMMEDIATELY redirect to the full generators at sa21: "Full template + send is at sa21.up.railway.app → Email Generator / PDF Generator / Storm Report tab."
+- Example: "Quick draft: intro, damage summary, photos, request for reinspection, sign-off. Full sendable version is at sa21.up.railway.app → Email Generator tab 📧"
+- Do NOT try to write the full email inline — too long for chat, and the app has templates + auto-fill.
+- Same rule for storm reports, repair-attempt letters, invoices, estimates — sa21 owns the generator; you give the starter.
 
 ☎️ INSURANCE_DIRECTORY — when present:
 - Rep is asking how to contact a carrier, file a claim, get a phone/email/portal.
@@ -117,6 +134,9 @@ SIGNALS in input:
 - KB_HITS — authoritative adjuster/carrier intel. USE verbatim. Don't invent.
 - NEGATIVE_INTEL_DETECTED — when true, KB_HITS contain tough/negative markers. MUST follow verdict with Roof-ER confidence pivot (see 🦅 rule above).
 - STORM_HITS — verified NOAA/NWS/NEXRAD events when a date was mentioned.
+- ADDRESS_LOOKUP — property-specific hail search when rep gave a full street address.
+- CITY_HAIL_LOOKUP — city-level hail search when rep named a city + storm date but no street address. AUTHORITATIVE for that city + date within 15 miles.
+- MRMS_RADAR — direct radar grid readings at a specific point (property).
 
 You're a teammate with encyclopedic memory of this chat. Talk like one. Make it count — reps are asking mid-appointment.
 
@@ -411,6 +431,70 @@ function extractAddress(text: string): ExtractedAddress | null {
   if (state) fullParts.push(state);
   if (zip) fullParts.push(zip);
   return { full: fullParts.join(', '), street, city, state, zip };
+}
+
+// City-level extraction — for queries like "was Herndon VA hit on 4/15/2024" where
+// no street address is provided. Requires a DMV state anchor (either abbreviation
+// or full name) so we don't guess wildly from random capitalized words.
+const DMV_STATES_RE_STRICT = /(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)/;
+function extractCityState(text: string): { city: string; state: string } | null {
+  // Pattern 1: "[City], [State]" (comma-separated, preferred)
+  const commaRe = /\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+){0,3})[,]\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
+  // Pattern 2: "[City] [State]" (space-separated)
+  const spaceRe = /\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+){0,2})\s+(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|West\s+Virginia)\b/;
+  const stateMap: Record<string, string> = {
+    va: 'VA', md: 'MD', pa: 'PA', dc: 'DC', wv: 'WV', de: 'DE',
+    virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
+    'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
+  };
+  const NOISE_WORDS = /^(hail|storm|damage|claim|today|yesterday|last|past|this|the|a|an|it|there|here|roof|date|day|weather|rain|wind|verified|approved|tough|bad|is|was|are|were|on|in|for|about|around|near|hit|any|from|some|know|got|saw|did|had|have|been|being|will|can|did)$/i;
+  for (const re of [commaRe, spaceRe]) {
+    const m = text.match(re);
+    if (m) {
+      const rawCity = m[1].trim();
+      // Filter out obvious non-city leading words (e.g. "past Virginia")
+      const firstWord = rawCity.split(/\s+/)[0];
+      if (NOISE_WORDS.test(firstWord)) continue;
+      if (rawCity.length < 3 || rawCity.length > 42) continue;
+      const stateKey = m[2].toLowerCase();
+      return { city: rawCity, state: stateMap[stateKey] || m[2].toUpperCase() };
+    }
+  }
+  return null;
+}
+
+async function hailAtCityOnDates(
+  pool: pg.Pool,
+  lat: number,
+  lng: number,
+  cityName: string,
+  dates: string[] // ISO YYYY-MM-DD
+): Promise<Array<any>> {
+  if (dates.length === 0) return [];
+  try {
+    // Radius = 15 miles around city centroid. We show the storm events filtered
+    // by date(s) so Susan has ground-truth per the rep's claim.
+    const placeholders = dates.map((_, i) => `$${i + 3}::date`).join(',');
+    const params: any[] = [lat, lng, ...dates];
+    const result = await pool.query(
+      `SELECT event_date, state,
+              latitude, longitude,
+              hail_size_inches, wind_mph,
+              public_verification_count,
+              (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) AS distance_miles
+       FROM verified_hail_events_public
+       WHERE event_date IN (${placeholders})
+         AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
+       ORDER BY hail_size_inches DESC NULLS LAST, distance_miles
+       LIMIT 20`,
+      params
+    );
+    console.log(`[SusanBot] hailAtCityOnDates city=${cityName} dates=${dates.join(',')} → ${result.rows.length} hits`);
+    return result.rows;
+  } catch (e) {
+    console.warn('[SusanBot] hailAtCityOnDates err:', e);
+    return [];
+  }
 }
 
 async function geocodeAddress(addr: ExtractedAddress): Promise<{ lat: number; lng: number; source: string } | null> {
@@ -1553,7 +1637,8 @@ function buildPromptLines(
   history: Turn[],
   addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[]; mrms?: any } | null,
   chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>,
-  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>
+  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>,
+  cityHail?: { city: string; state: string; geo: { lat: number; lng: number; source: string }; dates: string[]; events: any[] } | null
 ): string {
   const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
   if (history.length > 0) {
@@ -1661,6 +1746,31 @@ function buildPromptLines(
       if (c.website) bits.push(`portal: ${c.website}`);
       lines.push(`  ${bits.join(' | ')}`);
       if (c.notes) lines.push(`    notes: ${String(c.notes).slice(0, 300)}`);
+    }
+  }
+  if (cityHail && cityHail.geo) {
+    // Sort + categorize events so the LLM can lead with the strongest.
+    const events = (cityHail.events || []).slice().sort((a, b) =>
+      (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0)
+    );
+    const actionable = events.filter((e) => Number(e.hail_size_inches) >= 1.0);
+    const subThreshold = events.filter((e) => Number(e.hail_size_inches) < 1.0);
+    lines.push(`\nCITY_HAIL_LOOKUP for "${cityHail.city}, ${cityHail.state}" on dates [${cityHail.dates.join(', ')}]:`);
+    lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles. Found ${events.length} verified event(s).`);
+    if (actionable.length > 0) {
+      lines.push(`  ACTIONABLE (≥1.0" hail — good for claim narrative):`);
+      for (const e of actionable.slice(0, 6)) {
+        lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from ${cityHail.city} center, ${e.public_verification_count}x verified, ${e.state}`);
+      }
+    }
+    if (subThreshold.length > 0) {
+      lines.push(`  SUB-THRESHOLD (<1.0" — mention only as context, not the headline):`);
+      for (const e of subThreshold.slice(0, 3)) {
+        lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi away`);
+      }
+    }
+    if (events.length === 0) {
+      lines.push(`  NO verified events within 15mi on those date(s). Stand your ground — if rep insists, say our NOAA/NWS/NEXRAD DB is clean for that day, suggest checking the office or CoCoRaHS. DO NOT fabricate a hail size to agree with the rep.`);
     }
   }
   return lines.join('\n');
@@ -1908,9 +2018,10 @@ async function generateReply(
   history: Turn[],
   addressHail?: { address: ExtractedAddress; geo?: { lat: number; lng: number; source: string }; events: any[]; mrms?: any } | null,
   chatContext?: Array<{ name: string; text: string; created_at: number; sender_type: string }>,
-  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>
+  insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>,
+  cityHail?: { city: string; state: string; geo: { lat: number; lng: number; source: string }; dates: string[]; events: any[] } | null
 ): Promise<{ reply: string | null; error?: string; provider?: string; qualityFlags: Record<string, any>; retries: number }> {
-  const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext, insuranceDir);
+  const prompt = buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext, insuranceDir, cityHail);
   const negativeIntelDetected = hasNegativeIntel(kbHits || []);
   const providers: [string, (p: string) => Promise<{ reply: string | null; error?: string }>][] = [
     ['gemini', tryGemini],
@@ -2215,6 +2326,26 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
           })()
         : Promise.resolve(null as any);
 
+      // CITY-LEVEL hail lookup — fires when rep asks "was [City], [State] hit on [date]"
+      // WITHOUT a street address. Fixes the "Herndon on 4/15/2024" case where Susan
+      // previously said "nothing verified" because there was no street address to
+      // anchor the radius query on.
+      const cityQuery = (!addr && dates.length > 0) ? extractCityState(text) : null;
+      const cityHailPromise = cityQuery
+        ? (async () => {
+            // Reuse geocodeAddress by faking a minimal address from city+state
+            const geo = await geocodeAddress({
+              full: `${cityQuery.city}, ${cityQuery.state}`,
+              street: cityQuery.city,
+              city: cityQuery.city,
+              state: cityQuery.state,
+            } as ExtractedAddress);
+            if (!geo) return null;
+            const events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cityQuery.city, dates);
+            return { city: cityQuery.city, state: cityQuery.state, geo, dates, events };
+          })()
+        : Promise.resolve(null as any);
+
       // Pull recent chat context for recap / team-flow style questions.
       // We pull 100 so daily recaps can span the whole day (multiple hours).
       const chatContextPromise = needsChatContext(text)
@@ -2227,10 +2358,11 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         : Promise.resolve([]);
 
       // Prefer entity-driven KB search; fall back to token FTS
-      const [kbHits, stormHits, addressHail, chatContext, insuranceDir] = await Promise.all([
+      const [kbHits, stormHits, addressHail, cityHail, chatContext, insuranceDir] = await Promise.all([
         smartKbSearch(pool, text, entities, canonicals),
         stormSearch(pool, text),
         addressLookupPromise,
+        cityHailPromise,
         chatContextPromise,
         insuranceDirPromise,
       ]);
@@ -2243,7 +2375,8 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         history,
         addressHail,
         chatContext,
-        insuranceDir
+        insuranceDir,
+        cityHail
       );
       const latencyMs = Date.now() - startMs;
 
