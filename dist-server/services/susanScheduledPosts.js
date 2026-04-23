@@ -575,7 +575,10 @@ export function startSusanScheduler(pool) {
     const eveningOn = process.env.SUSAN_EVENING_POST === 'true';
     const digestOn = process.env.SUSAN_DIGEST_EMAIL === 'true';
     const stormsOn = process.env.SUSAN_STORM_ALERTS === 'true';
-    if (!postsOn && !digestOn && !stormsOn) {
+    // MRMS swath backfill — defaults ON so cache coverage grows automatically.
+    // Disable with SUSAN_SWATH_BACKFILL=false if IEM archive rate-limits us.
+    const backfillOn = process.env.SUSAN_SWATH_BACKFILL !== 'false';
+    if (!postsOn && !digestOn && !stormsOn && !backfillOn) {
         console.log('[SusanScheduler] all features disabled');
         return;
     }
@@ -596,7 +599,22 @@ export function startSusanScheduler(pool) {
         // Every 30 min, 8 AM - 8 PM EDT
         cron.schedule('*/30 8-19 * * *', () => checkStormAlerts(pool), { timezone: TZ });
     }
-    console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} tz=${TZ}`);
+    if (backfillOn) {
+        // Nightly MRMS swath backfill — 3 AM EDT. Catches up to 60 missing storm
+        // days per run; 331 days currently missing → full catch-up in ~6 nights.
+        // Can run manually via POST /api/hail/admin/backfill-swaths.
+        cron.schedule('0 3 * * *', async () => {
+            try {
+                const { backfillSwathCache } = await import('./swathBackfillService.js');
+                const r = await backfillSwathCache(pool, { monthsBack: 24, maxPerRun: 60 });
+                console.log(`[SwathBackfill] nightly run done — ${r.succeeded} cached, ${r.failed} failed, ${r.daysRemaining} remaining, ${(r.durationMs / 1000).toFixed(1)}s`);
+            }
+            catch (e) {
+                console.error('[SwathBackfill] nightly run err:', e);
+            }
+        }, { timezone: TZ });
+    }
+    console.log(`[SusanScheduler] started — posts=${postsOn} evening=${eveningOn} digest=${digestOn} storms=${stormsOn} backfill=${backfillOn} tz=${TZ}`);
 }
 // Manual triggers for testing (exposed via router in susanGroupMeBotRoutes)
 export async function triggerMotivationPreview(pool, phase) {

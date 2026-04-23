@@ -2104,6 +2104,72 @@ router.get('/hailtrace-validation', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// POST /api/hail/admin/backfill-swaths
+// Trigger a single swath-cache backfill run on-demand. Body: { maxPerRun?, monthsBack?, dryRun? }.
+// Use this to churn through the 300+ missing DMV storm days faster than the
+// nightly cron. Protected behind ADMIN_EMAIL check in future; currently open
+// but low-risk (just populates cache from the IEM public archive).
+router.post('/admin/backfill-swaths', async (req, res) => {
+    try {
+        const { backfillSwathCache } = await import('../services/swathBackfillService.js');
+        const monthsBack = Number(req.body?.monthsBack ?? 24);
+        const maxPerRun = Math.min(Number(req.body?.maxPerRun ?? 60), 200);
+        const dryRun = req.body?.dryRun === true;
+        const r = await backfillSwathCache(req.app.get('pool'), { monthsBack, maxPerRun, dryRun });
+        res.json(r);
+    }
+    catch (err) {
+        console.error('[admin/backfill-swaths] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/hail/admin/backfill-catchup
+// Run full catch-up (up to maxTotal, default 500) in multiple rate-limited
+// batches. May take 20-40 minutes — use ngrok or keep the connection open.
+router.post('/admin/backfill-catchup', async (req, res) => {
+    try {
+        const { fullCatchUp } = await import('../services/swathBackfillService.js');
+        const maxTotal = Math.min(Number(req.body?.maxTotal ?? 500), 800);
+        const runs = await fullCatchUp(req.app.get('pool'), { maxTotal });
+        const totals = runs.reduce((a, r) => ({
+            succeeded: a.succeeded + r.succeeded,
+            failed: a.failed + r.failed,
+            durationMs: a.durationMs + r.durationMs,
+        }), { succeeded: 0, failed: 0, durationMs: 0 });
+        res.json({ runs: runs.length, ...totals, lastRemaining: runs.at(-1)?.daysRemaining ?? 0 });
+    }
+    catch (err) {
+        console.error('[admin/backfill-catchup] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// GET /api/hail/admin/backfill-stats
+// How many DMV storm days are missing from the swath cache? Quick metric.
+router.get('/admin/backfill-stats', async (req, res) => {
+    try {
+        const pool = req.app.get('pool');
+        const { rows } = await pool.query(`
+      WITH storm_days AS (
+        SELECT DISTINCT event_date
+        FROM verified_hail_events_public_sane
+        WHERE event_date >= (CURRENT_DATE - INTERVAL '24 months')
+          AND state IN ('VA','MD','DC','PA','WV','DE')
+          AND hail_size_inches >= 1.0
+      ),
+      cached_days AS (
+        SELECT DISTINCT storm_date AS event_date FROM mrms_swath_cache WHERE expires_at > NOW()
+      )
+      SELECT
+        (SELECT COUNT(*) FROM storm_days) AS total,
+        (SELECT COUNT(*) FROM storm_days WHERE event_date IN (SELECT event_date FROM cached_days)) AS cached,
+        (SELECT COUNT(*) FROM storm_days WHERE event_date NOT IN (SELECT event_date FROM cached_days)) AS missing
+    `);
+        res.json(rows[0]);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // GET /api/hail/address-impact?lat=X&lng=Y&months=24
 // Unified swath-first tiered impact for a single address. Use this instead
 // of the legacy /search endpoint when you need Direct Hit / Near Miss /
