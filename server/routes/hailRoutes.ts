@@ -361,11 +361,13 @@ router.get('/search', async (req, res) => {
         const lonDegPad = degPad / Math.max(0.15, Math.cos((searchLat * Math.PI) / 180));
         const sinceDateStr = new Date(Date.now() - yearsNum * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-        // LIMIT was 2000 — too small for dense metros like DMV at 24mo × 25mi
-        // radius. Silver Spring / Montgomery Co. returned 333 hail events across
-        // 818 rows and truncated at 2025-07-27, dropping the entire May/June
-        // 2025 storm season. Raised to 20000 so 24mo × 25mi covers the whole
-        // window; deduplication downstream keeps the response tight.
+        // Bounded pagination. A single request returns at most
+        // `SEARCH_PAGE_LIMIT` rows. Clients fetching a longer window (e.g.
+        // the 10-year history goal) should use the new /api/hail/storm-days
+        // endpoint which returns aggregate day rows instead. Keeping this
+        // hard cap at 5000 prevents a single web request from allocating
+        // the ~20-50 MB working set that was contributing to OOM kills.
+        const SEARCH_PAGE_LIMIT = 5000;
         const verifiedRows = await pool.query(
           `SELECT
              id, TO_CHAR(event_date, 'YYYY-MM-DD') AS date_str,
@@ -382,7 +384,7 @@ router.get('/search', async (req, res) => {
              AND longitude BETWEEN $4 AND $5
              AND (hail_size_inches IS NOT NULL OR wind_mph IS NOT NULL OR tornado_ef_rank IS NOT NULL)
            ORDER BY event_date DESC
-           LIMIT 20000`,
+           LIMIT ${SEARCH_PAGE_LIMIT}`,
           [
             sinceDateStr,
             searchLat - degPad,
@@ -391,6 +393,7 @@ router.get('/search', async (req, res) => {
             searchLng + lonDegPad,
           ],
         );
+        const hitSearchCap = verifiedRows.rows.length >= SEARCH_PAGE_LIMIT;
 
         const toRad = (d: number) => (d * Math.PI) / 180;
         const haversineMi = (aLat: number, aLng: number, bLat: number, bLng: number) => {
@@ -632,7 +635,14 @@ router.get('/search', async (req, res) => {
         dataSource,
         message: dataSource.includes('MRMS Radar')
           ? 'NOAA Storm Events DB + Local Alerts + MRMS Radar (fills NOAA lag)'
-          : 'NOAA Storm Events Database + Local Alerts'
+          : 'NOAA Storm Events Database + Local Alerts',
+        // Tells the client whether the raw-event page was capped. For a
+        // full 5-10 year view without capping, call /api/hail/storm-days
+        // which returns aggregated day rows that always fit in one page.
+        paginationHint:
+          typeof hitSearchCap !== 'undefined' && hitSearchCap
+            ? { capped: true, message: 'Showing most recent 5000 events — use /api/hail/storm-days for longer windows.' }
+            : { capped: false },
       });
     }
 
@@ -1296,17 +1306,16 @@ router.get('/hot-zones', async (req: Request, res: Response) => {
 // POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req: Request, res: Response) => {
   try {
-    // SWATH ENRICHMENT — before destructuring, inject synthetic "at-property"
-    // events for every date the property sits inside an MRMS swath polygon.
-    // Fixes the Cub Stream Dr / Silver Charm Pl case where the app map showed
-    // the swath covering the house but the PDF said nothing. Runs for any
-    // request with a valid lat+lng. Silently degrades on error.
+    // SWATH ENRICHMENT — inject synthetic "at-property" events for every date
+    // the property sits inside an MRMS swath polygon. The walk is expensive:
+    // 100+ swath polygon reads and potential cold cache fills. It pushed
+    // response time past Railway's 300s gateway and was causing 502s, so it
+    // is now OPT-IN via `enrichSwath: true`. Callers who want it (the map
+    // address-search flow that already expects a 30-60s response) pass the
+    // flag; adjuster PDF generation with hand-crafted events does not.
     //
-    // `skipEnrichment: true` in the body opts out — useful when the caller
-    // has already hand-crafted the event set (adjuster-ready reports where
-    // we want exact control over the events shown) and the 24-mo swath
-    // lookup would just add latency + risk 502 gateway timeouts.
-    if (req.body?.skipEnrichment !== true) try {
+    // Backwards compat: `skipEnrichment: true` still forces skip.
+    if (req.body?.enrichSwath === true && req.body?.skipEnrichment !== true) try {
       const pool: import('pg').Pool = req.app.get('pool');
       const latNum = Number(req.body?.lat);
       const lngNum = Number(req.body?.lng);

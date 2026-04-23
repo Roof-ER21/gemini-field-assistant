@@ -31,4 +31,9 @@ nixPkgs = [
 ]
 
 [start]
-cmd = "node dist-server/index.js"
+# --max-old-space-size=1536 caps V8's old-generation heap at 1.5 GB so Node
+# GCs aggressively and fails fast with a "JavaScript heap out of memory"
+# error we can see in logs, rather than the Linux OOM killer SIGKILLing
+# the container silently. Must be on the start command, NOT in
+# NODE_OPTIONS — that would also apply to the tsc build step and OOM it.
+cmd = "node --max-old-space-size=1536 dist-server/index.js"

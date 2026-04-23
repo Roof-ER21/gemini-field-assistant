@@ -65,6 +65,7 @@ import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
+import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
@@ -99,6 +100,12 @@ const HOST = '0.0.0.0';
 
 // Railway runs behind a proxy/load balancer
 app.set('trust proxy', 1);
+
+// Memory observability — heartbeat every 60s, per-request delta when a
+// request allocates >10MB heap or takes >1s. See
+// docs/PRODUCTION_STABILITY_HANDOFF.md for context.
+startMemoryHeartbeat(60_000);
+app.use(memoryDeltaMiddleware({ minDeltaMB: 10, minDurationMs: 1000 }));
 
 process.on('uncaughtException', (error) => {
   console.error('🚨 Uncaught exception:', error);
