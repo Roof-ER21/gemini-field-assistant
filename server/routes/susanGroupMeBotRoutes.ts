@@ -685,7 +685,7 @@ async function mrmsAtAddressDate(
 ): Promise<any | null> {
   try {
     const result = await getMrmsHailAtPoint(isoDate, geo.lat, geo.lng);
-    console.log(`[SusanBot] MRMS ${isoDate} @ (${geo.lat.toFixed(3)},${geo.lng.toFixed(3)}) → atPoint=${result?.atLocation?.hailSizeInches || '-'}`);
+    console.log(`[SusanBot] MRMS ${isoDate} @ (${geo.lat.toFixed(3)},${geo.lng.toFixed(3)}) → atPoint=${(result as any)?.atLocation ?? '-'}`);
     return result;
   } catch (e) {
     console.warn('[SusanBot] mrmsAtAddressDate err:', e);
