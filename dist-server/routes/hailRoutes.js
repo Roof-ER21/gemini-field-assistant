@@ -2516,11 +2516,11 @@ router.get('/admin/db-size', async (req, res) => {
                          pg_database_size(current_database())::bigint AS db_bytes`),
             pool.query(`
         SELECT
-          schemaname || '.' || relname AS table,
+          n.nspname || '.' || c.relname AS "table",
           pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size,
           pg_size_pretty(pg_relation_size(c.oid))       AS data_size,
           pg_size_pretty(pg_total_relation_size(c.oid) - pg_relation_size(c.oid)) AS index_size,
-          (SELECT reltuples::bigint FROM pg_class WHERE oid = c.oid) AS row_estimate
+          c.reltuples::bigint AS row_estimate
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind IN ('r','m')
