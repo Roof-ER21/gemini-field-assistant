@@ -579,10 +579,15 @@ export class PDFReportServiceV2 {
             ? `${input.fromDate ? this.fmtDateET(input.fromDate) : '...'} to ${input.toDate ? this.fmtDateET(input.toDate) : 'today'}`
             : 'Last 5 years';
 
-    // Filter events using the unified dateMatchesLoss predicate above
-    const allHistoryEvents = input.historyEvents && input.historyEvents.length > 0
-      ? input.historyEvents
-      : input.events;
+    // Filter events using the unified dateMatchesLoss predicate above.
+    // Merge `events` + `historyEvents` (dedup by id) so the "Largest Hail"
+    // card sees the primary storm event even when the caller also provides
+    // a multi-year history list. Previously the card read `historyEvents`
+    // only and collapsed to "N/A" any time a caller used both arrays.
+    const mergedHistoryMap = new Map<string, HailEvent>();
+    for (const e of input.events || []) mergedHistoryMap.set(e.id, e);
+    for (const e of input.historyEvents || []) mergedHistoryMap.set(e.id, e);
+    const allHistoryEvents: HailEvent[] = Array.from(mergedHistoryMap.values());
     const dashEvents = dashMode === 'lifetime'
       ? allHistoryEvents
       : allHistoryEvents.filter((e) => dateMatchesLoss(e.date));
@@ -851,8 +856,11 @@ export class PDFReportServiceV2 {
          .text(input.customerName, textX, doc.y);
     }
 
-    // Roof age estimate from Census data
-    if (input.propertyRisk?.estimatedRoofAge) {
+    // Roof age estimate from Census data — opt-in. Reps asked to hide this
+    // from adjuster-facing reports since the ACS median-year-built figure
+    // is ZIP-level not property-level and adjusters have pushed back.
+    // Pass `showRoofAge: true` in the request body to include it.
+    if ((input as any).showRoofAge && input.propertyRisk?.estimatedRoofAge) {
       doc.moveDown(0.3);
       const vulnColor = input.propertyRisk.roofVulnerability === 'critical' ? '#dc2626' :
         input.propertyRisk.roofVulnerability === 'high' ? '#f97316' : this.C.sourceGreen;
