@@ -454,6 +454,76 @@ export async function fetchAddressImpact(
   }
 }
 
+export interface StormDayAggregate {
+  date: string;
+  state: string;
+  max_hail: number | null;
+  max_wind: number | null;
+  report_count: number;
+  sources: string[];
+  has_direct_hit: boolean;
+}
+
+export interface StormDaysResponse {
+  storm_days: StormDayAggregate[];
+  count: number;
+  truncated: boolean;
+}
+
+/**
+ * Aggregate "storm day" list for a property — /api/hail/storm-days.
+ *
+ * Returns one row per (date, state, bucket) cell. Safe to ask for 120
+ * months (10 years) in one call — the server pre-aggregates to ~3-10K
+ * rows DMV-wide so the wire payload is always small. Use this as the
+ * primary "does this address have a storm history?" source when the
+ * requested window is wider than the row-level /search endpoint can
+ * serve (currently capped at 5000 rows).
+ */
+export async function fetchStormDays(
+  lat: number, lng: number, months: number, radiusMiles: number, signal?: AbortSignal,
+): Promise<StormDaysResponse | null> {
+  const apiBase = getApiBaseUrl();
+  const params = new URLSearchParams({
+    lat: lat.toString(), lng: lng.toString(),
+    radius: Math.max(1, Math.min(500, Math.round(radiusMiles))).toString(),
+    months: Math.max(1, Math.min(600, Math.round(months))).toString(),
+  });
+  try {
+    const res = await fetch(`${apiBase}/hail/storm-days?${params}`, {
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as StormDaysResponse;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Raw events for a single storm day — /api/hail/storm-day-events.
+ * Called when the rep clicks a day in the aggregated storm-history panel.
+ */
+export async function fetchStormDayEvents(
+  date: string, lat: number, lng: number, radiusMiles: number, signal?: AbortSignal,
+): Promise<any[]> {
+  const apiBase = getApiBaseUrl();
+  const params = new URLSearchParams({
+    date, lat: lat.toString(), lng: lng.toString(),
+    radius: Math.max(1, Math.min(500, Math.round(radiusMiles))).toString(),
+  });
+  try {
+    const res = await fetch(`${apiBase}/hail/storm-day-events?${params}`, {
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.events) ? data.events : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchStormEvents(lat: number, lng: number, months: number, radiusMiles: number, signal?: AbortSignal): Promise<StormEvent[]> {
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';

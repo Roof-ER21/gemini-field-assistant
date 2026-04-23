@@ -36,6 +36,7 @@ import {
   geocodeAddress,
   reverseGeocodeLatLng,
   fetchStormEvents,
+  fetchStormDays,
   fetchMeshSwathsByLocation,
   fetchAddressImpact,
   formatHailTier,
@@ -866,9 +867,18 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     const effectiveSinceDate = historyRange === 'since' ? sinceDate || null : null;
 
     try {
-      const [apiEvents, nhpSwaths] = await Promise.allSettled([
+      // Three parallel fetches:
+      //   1. /hail/search       — row-level events (for markers), capped at
+      //                           5000 rows → good for ≤24mo windows
+      //   2. NHP MESH swaths    — track-geometry overlay
+      //   3. /hail/storm-days   — aggregate date list covering the full
+      //                           window (5-10+ years) so the side panel
+      //                           lists every storm day without pulling
+      //                           hundreds of thousands of rows
+      const [apiEvents, nhpSwaths, stormDayAggregate] = await Promise.allSettled([
         fetchStormEvents(searchLat, searchLng, months, activeRadiusMiles, controller.signal),
         fetchMeshSwathsByLocation(searchLat, searchLng, months, activeRadiusMiles, effectiveSinceDate, controller.signal),
+        fetchStormDays(searchLat, searchLng, months, activeRadiusMiles, controller.signal),
       ]);
 
       if (controller.signal.aborted) {
@@ -885,8 +895,42 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           ? nhpSwaths.value.filter((stormDate) => isDateInRange(stormDate.date, effectiveSinceDate))
           : [];
 
+      // Convert the /storm-days aggregate into the StormDate shape the side
+      // panel already renders. One StormDate per unique date (dedup across
+      // state/bucket rows that share a date).
+      const aggregateDates: StormDate[] = (() => {
+        if (stormDayAggregate.status !== 'fulfilled' || !stormDayAggregate.value) return [];
+        const byDate = new Map<string, { maxHail: number; maxWind: number; count: number; states: Set<string> }>();
+        for (const d of stormDayAggregate.value.storm_days) {
+          if (!isDateInRange(d.date, effectiveSinceDate)) continue;
+          const agg = byDate.get(d.date) || { maxHail: 0, maxWind: 0, count: 0, states: new Set<string>() };
+          agg.maxHail = Math.max(agg.maxHail, Number(d.max_hail) || 0);
+          agg.maxWind = Math.max(agg.maxWind, Number(d.max_wind) || 0);
+          agg.count += Number(d.report_count) || 0;
+          if (d.state) agg.states.add(d.state);
+          byDate.set(d.date, agg);
+        }
+        return Array.from(byDate.entries()).map(([date, agg]): StormDate => ({
+          date,
+          label: new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+            timeZone: 'America/New_York',
+          }),
+          eventCount: agg.count,
+          maxHailInches: agg.maxHail,
+          maxWindMph: agg.maxWind,
+          statesAffected: Array.from(agg.states),
+          closestMiles: null,
+          closestHailMiles: null,
+          closestWindMiles: null,
+        }));
+      })();
+
       setEvents(dedupedEvents);
-      setStormDates(mergeDateLists(groupEventsByDate(dedupedEvents), swathDates));
+      setStormDates(mergeDateLists(
+        mergeDateLists(groupEventsByDate(dedupedEvents), swathDates),
+        aggregateDates,
+      ));
 
       if (apiEvents.status === 'rejected' && nhpSwaths.status === 'rejected') {
         setError('All storm data sources are unavailable.');
