@@ -86,12 +86,19 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 - If SIGNUPS_TODAY is empty, say "no sign-ups parsed yet from the chat today — either the team's just getting started or I can't see a board post".
 
 🏠 ADDRESS QUERIES — when ADDRESS_LOOKUP is present:
-- Reps say "was there hail at 1234 Oak Ln" expecting you to look it up. You get that data in ADDRESS_LOOKUP.
-- Reply format: "[Address] → [X] verified hail events in last 24mo. Most recent: [date], [size]" hail, [distance]mi away 🔥"
-- LEAD with the BIGGEST actionable event (≥1.0"), not "most recent" if the most recent is tiny. Reps need to know the strongest hit to pitch the homeowner.
-- If the largest event is big (≥1.0" hail): "🔥 [date] had [size]" hail — good angle for this claim"
-- If only small stuff: "smaller events only ([size]") — may be sub-threshold for actionable claim"
-- When MRMS_RADAR is present: lead with the AT-THE-PROPERTY size if any (most precise). Say "radar shows X\" AT the house" vs "X\" within 1/3/10 miles" — reps love this specificity.
+ADDRESS_LOOKUP now returns THREE TIERS — always read them in this order:
+
+  1. 🎯 DIRECT HITS — if any, LEAD WITH THESE. These are dates where the property sits INSIDE an MRMS swath polygon. That's the authoritative "the property got hit" signal. NEVER say "X miles away" for a direct-hit date — the distance framing is FLAT WRONG when the swath covers the address.
+     Reply format: "[Address] — DIRECT HIT on [date], [size]" MRMS swath, [N] confirming reports within 2mi 🎯"
+     Multiple direct-hit dates: lead with the biggest size, mention the most recent as freshest claim window.
+
+  2. NEAR MISS (≤3mi from a verified point report, not in a swath) — still claim-worthy, but honest about distance. "Nearest verified hit: [date] at [distance]mi, [size]" hail."
+
+  3. AREA IMPACT (3-15mi) — context only, never the headline. "Bigger storm 8mi away on [date]" is conversation, not qualification.
+
+If all three tiers are empty: say so plainly. "No verified hail within 15mi at that address in 24 months. NOAA/NWS/NEXRAD/MRMS all clean." DO NOT invent. DO NOT suggest events from other states.
+
+When MRMS_RADAR is also present with an atLocation value > 0: corroborates the direct-hit call with a radar reading at the exact property. Include it — "radar shows [X]" at the house, swath confirms [Y]"".
 
 🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP or CITY_RECENT_HAIL is present:
 - Reps ask either:
@@ -1637,14 +1644,47 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
         if (!addressHail.geo) {
             lines.push('  (could not geocode — ask rep for city/state/zip)');
         }
-        else if (addressHail.events.length === 0) {
-            lines.push(`  Geocoded ok (${addressHail.geo.lat.toFixed(3)}, ${addressHail.geo.lng.toFixed(3)}) — NO verified hail/wind events within 15 miles in the last 24 months. If rep insists there was a storm, it may be below NOAA reporting threshold.`);
-        }
         else {
-            lines.push(`  Geocoded to (${addressHail.geo.lat.toFixed(3)}, ${addressHail.geo.lng.toFixed(3)}) via ${addressHail.geo.source}`);
-            lines.push(`  Found ${addressHail.events.length} verified event(s) within 15mi over 24mo (use these exact dates + sizes):`);
-            for (const e of addressHail.events.slice(0, 8)) {
-                lines.push(`    ${e.event_date} — hail ${e.hail_size_inches || '-'}", wind ${e.wind_mph || '-'}mph, ${Number(e.distance_miles).toFixed(1)}mi away, ${e.public_verification_count}x verified`);
+            lines.push(`  Geocoded to (${addressHail.geo.lat.toFixed(3)}, ${addressHail.geo.lng.toFixed(3)}) via ${addressHail.geo.source}.`);
+            // NEW primary signal: swath-first tiered impact report.
+            const impact = addressHail.impact;
+            if (impact && typeof impact === 'object') {
+                const dh = Array.isArray(impact.directHits) ? impact.directHits : [];
+                const nm = Array.isArray(impact.nearMiss) ? impact.nearMiss : [];
+                const ai = Array.isArray(impact.areaImpact) ? impact.areaImpact : [];
+                if (dh.length > 0) {
+                    lines.push(`  🎯 DIRECT HITS (property sits INSIDE an MRMS swath on these dates — authoritative, lead with these):`);
+                    for (const d of dh.slice(0, 6)) {
+                        const srcs = Array.isArray(d.sources) && d.sources.length > 0 ? ` sources=${d.sources.join('+')}` : '';
+                        const lbl = d.sizeLabel ? ` (${d.sizeLabel})` : '';
+                        lines.push(`    ${d.date} — ${d.maxHailInches}"${lbl} MRMS swath · ${d.confirmingReportCount} confirming reports within 2mi${d.noaaConfirmed ? ' · NOAA-confirmed' : ''}${srcs}`);
+                    }
+                }
+                if (nm.length > 0) {
+                    lines.push(`  NEAR MISS (not in a swath but ≤3mi from a verified point report):`);
+                    for (const n of nm.slice(0, 4)) {
+                        lines.push(`    ${n.date} — up to ${n.maxHailInches || '-'}" at ${Number(n.nearestMiles).toFixed(1)}mi${n.noaaConfirmed ? ' · NOAA-confirmed' : ''}`);
+                    }
+                }
+                if (ai.length > 0) {
+                    lines.push(`  AREA IMPACT (3-15mi away — neighborhood context only):`);
+                    for (const x of ai.slice(0, 3)) {
+                        lines.push(`    ${x.date} — up to ${x.maxHailInches || '-'}" at ${Number(x.nearestMiles).toFixed(1)}mi`);
+                    }
+                }
+                if (dh.length === 0 && nm.length === 0 && ai.length === 0) {
+                    lines.push(`  NO verified hail/wind events within 15 miles in the last 24 months. NOAA/NWS/NEXRAD/MRMS all clean for this address.`);
+                }
+            }
+            else if (addressHail.events.length === 0) {
+                lines.push(`  NO verified hail/wind events within 15 miles in the last 24 months. If rep insists there was a storm, it may be below NOAA reporting threshold.`);
+            }
+            else {
+                // Fallback: impact service failed — use legacy events list
+                lines.push(`  Found ${addressHail.events.length} verified event(s) within 15mi over 24mo (legacy point-distance view, no swath check):`);
+                for (const e of addressHail.events.slice(0, 8)) {
+                    lines.push(`    ${e.event_date} — hail ${e.hail_size_inches || '-'}", wind ${e.wind_mph || '-'}mph, ${Number(e.distance_miles).toFixed(1)}mi away, ${e.public_verification_count}x verified`);
+                }
             }
         }
         // MRMS radar-at-point (exact property, more precise than "within 15mi").
@@ -2251,21 +2291,36 @@ export function createSusanGroupMeBotRoutes(pool) {
             // Save user turn eagerly (don't block on this)
             saveUserTurn(pool, msg, entities).catch(() => { });
             // Extract + geocode address if rep asked about a specific property.
-            // Also runs MRMS point-radar check if a specific date is mentioned.
+            // NEW: also calls addressImpactService for the tiered Direct-Hit /
+            // Near-Miss / Area-Impact report (swath-first, not distance-only).
             const addr = extractAddress(text);
             const dates = extractStormDates(text);
             const addressLookupPromise = addr
                 ? (async () => {
                     const geo = await geocodeAddress(addr);
                     if (!geo)
-                        return { address: addr, events: [], mrms: null };
-                    const eventsP = hailAtAddress(pool, geo.lat, geo.lng, 24);
-                    // If rep named a specific date, run MRMS point-radar; otherwise recent 3-day scan
-                    const mrmsP = dates.length > 0
-                        ? mrmsAtAddressDate(addr, geo, dates[0])
-                        : mrmsRecentAtAddress(geo, 3);
-                    const [events, mrms] = await Promise.all([eventsP, mrmsP]);
-                    return { address: addr, geo, events, mrms };
+                        return { address: addr, events: [], mrms: null, impact: null };
+                    // Run all three lookups in parallel:
+                    //  - hailAtAddress: legacy point-report table (kept for context)
+                    //  - getAddressHailImpact: swath-first tiered impact (the new authoritative signal)
+                    //  - MRMS radar at the exact property grid cell
+                    const [events, mrms, impact] = await Promise.all([
+                        hailAtAddress(pool, geo.lat, geo.lng, 24),
+                        (dates.length > 0
+                            ? mrmsAtAddressDate(addr, geo, dates[0])
+                            : mrmsRecentAtAddress(geo, 3)),
+                        (async () => {
+                            try {
+                                const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 24);
+                            }
+                            catch (err) {
+                                console.warn('[SusanBot] getAddressHailImpact failed:', err.message);
+                                return null;
+                            }
+                        })(),
+                    ]);
+                    return { address: addr, geo, events, mrms, impact };
                 })()
                 : Promise.resolve(null);
             // CITY-LEVEL hail lookup — two modes:
