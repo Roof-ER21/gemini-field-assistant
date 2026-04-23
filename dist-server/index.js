@@ -62,6 +62,7 @@ import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
+import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
 import { createAgentNetworkRoutes } from './routes/agentNetworkRoutes.js';
@@ -8139,6 +8140,8 @@ app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
 app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
+// Susan 21 scheduled posts (motivation + digest email). Feature-flagged via env.
+startSusanScheduler(pool);
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
