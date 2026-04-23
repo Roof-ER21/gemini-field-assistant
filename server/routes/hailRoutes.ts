@@ -1291,6 +1291,56 @@ router.get('/hot-zones', async (req: Request, res: Response) => {
 // POST /api/hail/generate-report - Generate Curran-style PDF report
 router.post('/generate-report', async (req: Request, res: Response) => {
   try {
+    // SWATH ENRICHMENT — before destructuring, inject synthetic "at-property"
+    // events for every date the property sits inside an MRMS swath polygon.
+    // Fixes the Cub Stream Dr / Silver Charm Pl case where the app map showed
+    // the swath covering the house but the PDF said nothing. Runs for any
+    // request with a valid lat+lng. Silently degrades on error.
+    try {
+      const pool: import('pg').Pool = req.app.get('pool');
+      const latNum = Number(req.body?.lat);
+      const lngNum = Number(req.body?.lng);
+      if (Number.isFinite(latNum) && Number.isFinite(lngNum)) {
+        const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+        const impact = await getAddressHailImpact(pool, latNum, lngNum, 24);
+        const swathEvents = (impact.directHits || [])
+          .filter((d: any) => Number(d.maxHailInches || 0) >= 0.5)
+          .map((d: any, i: number) => ({
+            id: `swath-${d.date}-${i}`,
+            date: d.date,
+            hailSize: Number(d.maxHailInches),
+            magnitude: Number(d.maxHailInches),
+            magnitudeType: 'inches',
+            eventType: 'Hail',
+            beginDate: d.date,
+            endDate: d.date,
+            beginLat: latNum,
+            beginLon: lngNum,
+            endLat: latNum,
+            endLon: lngNum,
+            latitude: latNum,
+            longitude: lngNum,
+            distanceMiles: 0, // at-property by definition
+            source: 'MRMS Swath (at property)',
+            severity: d.severity || 'verified',
+            narrative: `Verified hail swath at property on ${d.date} — MRMS band ${d.sizeLabel || d.maxHailInches + '"'}, ${d.confirmingReportCount || 0} confirming reports within 2mi${d.noaaConfirmed ? ', NOAA-confirmed' : ''}.`,
+            state: d.state || '',
+            county: '',
+            damageProperty: 0,
+          }));
+        if (swathEvents.length > 0) {
+          if (!Array.isArray(req.body.events)) req.body.events = [];
+          if (!Array.isArray(req.body.historyEvents)) req.body.historyEvents = [];
+          // Prepend so swath rows win when same-date dedup runs downstream
+          req.body.events = [...swathEvents, ...(req.body.events || [])];
+          req.body.historyEvents = [...swathEvents, ...(req.body.historyEvents || [])];
+          console.log(`[generate-report] injected ${swathEvents.length} swath direct hits for (${latNum.toFixed(3)}, ${lngNum.toFixed(3)})`);
+        }
+      }
+    } catch (enrichErr) {
+      console.warn('[generate-report] swath enrichment failed, continuing without:', (enrichErr as Error).message);
+    }
+
     const {
       address,
       city,
