@@ -65,6 +65,7 @@ import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
+import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
@@ -9372,6 +9373,7 @@ app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
 // Susan 21 scheduled posts (motivation + digest email). Feature-flagged via env.
 startSusanScheduler(pool);
+startStormDaysRefresh(pool);
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
