@@ -2396,6 +2396,32 @@ router.get('/hailtrace-validation', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/hail/address-impact?lat=X&lng=Y&months=24
+// Unified swath-first tiered impact for a single address. Use this instead
+// of the legacy /search endpoint when you need Direct Hit / Near Miss /
+// Area Impact classification. Shipped 2026-04-23 after Cub Stream Dr
+// "1.7 miles away" bug — the property was actually in a swath band.
+router.get('/address-impact', async (req: Request, res: Response) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const months = Number(req.query.months ?? 24);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: 'lat and lng query params required' });
+    }
+    if (!Number.isFinite(months) || months <= 0 || months > 60) {
+      return res.status(400).json({ error: 'months must be 1-60' });
+    }
+    const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+    const report = await getAddressHailImpact(req.app.get('pool'), lat, lng, months);
+    res.setHeader('Cache-Control', 'private, max-age=30');
+    res.json(report);
+  } catch (error) {
+    console.error('address-impact error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // POST /api/hail/storm-impact — Point-in-polygon against MRMS vector swaths
 // Body: { date: "YYYY-MM-DD", anchorTimestamp?: string, points: [{id, lat, lng}] }
 // Returns max hail size per point; the answer to "was this address in the storm?"
