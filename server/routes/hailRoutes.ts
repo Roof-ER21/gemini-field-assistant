@@ -2813,6 +2813,42 @@ router.post('/admin/nexrad-l2-ingest', async (req: Request, res: Response) => {
 });
 
 // GET /api/hail/admin/ingest-stats — live counts per source, current state.
+// POST /api/hail/admin/vacuum-bloat
+// One-shot reclaim: VACUUM (non-blocking) the big tables that have
+// accumulated dead tuples from the backfill UPDATE storm, then REINDEX
+// the two tables whose index sizes are orders of magnitude larger than
+// their data (inspection_photos, property_images). Takes ~30-90s per
+// table on the current 3GB DB.
+router.post('/admin/vacuum-bloat', async (req: Request, res: Response) => {
+  try {
+    const pool = req.app.get('pool');
+    const results: any[] = [];
+    // VACUUM writes can't run inside a transaction block, so one statement at a time.
+    const steps: Array<[string, string]> = [
+      ['verified_hail_events',  'VACUUM (ANALYZE) verified_hail_events'],
+      ['storm_days_public',     'REFRESH MATERIALIZED VIEW storm_days_public'],
+      ['inspection_photos',     'VACUUM (FULL, ANALYZE) inspection_photos'],
+      ['property_images',       'VACUUM (FULL, ANALYZE) property_images'],
+      ['presentations',         'VACUUM (FULL, ANALYZE) presentations'],
+      ['mrms_swath_cache',      'VACUUM (ANALYZE) mrms_swath_cache'],
+    ];
+    for (const [name, sql] of steps) {
+      const t0 = Date.now();
+      try {
+        await pool.query(sql);
+        results.push({ step: name, sql, status: 'ok', ms: Date.now() - t0 });
+      } catch (e) {
+        results.push({ step: name, sql, status: 'error', error: (e as Error).message, ms: Date.now() - t0 });
+      }
+    }
+    // Report the DB size delta so we can see how much we recovered.
+    const after = await pool.query(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size`);
+    res.json({ ok: true, db_size_after: after.rows[0].db_size, steps: results });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // GET /api/hail/admin/db-size
 // Emergency triage: what's eating Postgres disk? Returns db size + top
 // tables by total_relation_size + index sizes + MV size. Called after the
