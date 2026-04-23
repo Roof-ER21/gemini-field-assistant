@@ -684,24 +684,47 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     );
   }, [filteredEvents, selectedDate]);
 
+  // Swath-direct-hit date keys — if an address is searched AND the property
+  // sits inside the MRMS swath polygon for that date, it's authoritatively a
+  // HAIL date even if the stormDate aggregate doesn't carry a size (can happen
+  // when only NHP line data or radar-only evidence is available).
+  const directHitDateKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const d of addressImpact?.directHits || []) {
+      const k = getStormDateKey(d.date);
+      if (k) s.add(k);
+    }
+    return s;
+  }, [addressImpact]);
+
   const filteredStormDates = useMemo(() => {
     let sourceDates = eventFilters.hail && eventFilters.wind
       ? stormDates
       : stormDates.filter((stormDate) => {
-        const hasHail = stormDate.maxHailInches > 0;
+        // Swath direct hit IS hail — always pass Hail filter regardless of
+        // aggregated point-report size. This fixes the "5/16 shows under
+        // Wind but not Hail" bug when the swath covers the property but
+        // the hail point reports are too small / distant to populate
+        // maxHailInches.
+        const hasHail = stormDate.maxHailInches > 0 || directHitDateKeys.has(stormDate.date);
         const hasWind = stormDate.maxWindMph > 0;
         return (eventFilters.hail && hasHail) || (eventFilters.wind && hasWind);
       });
 
     // When an address or ZIP is searched, only show dates with events that actually
-    // affected the property. ≤1mi = direct hit, ≤3mi = nearby, ≤5mi = area impact.
-    // Beyond 5mi is noise — not relevant to this specific property.
+    // affected the property. Swath-direct-hits always pass (property is in the
+    // polygon regardless of nearest-point distance). For non-direct dates,
+    // honor the user's distance-slider setting.
     if (searchSummary && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code')) {
-      sourceDates = sourceDates.filter((sd) => sd.closestMiles != null && sd.closestMiles <= 5);
+      sourceDates = sourceDates.filter((sd) => {
+        if (directHitDateKeys.has(sd.date)) return true; // always keep direct hits
+        const m = sd.closestHailMiles ?? sd.closestMiles;
+        return m != null && m <= maxDistanceMi;
+      });
     }
 
     return sourceDates.sort((a, b) => b.date.localeCompare(a.date));
-  }, [eventFilters.hail, eventFilters.wind, searchSummary, stormDates]);
+  }, [eventFilters.hail, eventFilters.wind, searchSummary, stormDates, directHitDateKeys, maxDistanceMi]);
 
   const sortedDates = useMemo(() => {
     const candidates = [...filteredStormDates];
