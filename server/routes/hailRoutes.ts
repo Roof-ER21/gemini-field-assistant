@@ -361,6 +361,11 @@ router.get('/search', async (req, res) => {
         const lonDegPad = degPad / Math.max(0.15, Math.cos((searchLat * Math.PI) / 180));
         const sinceDateStr = new Date(Date.now() - yearsNum * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
+        // LIMIT was 2000 — too small for dense metros like DMV at 24mo × 25mi
+        // radius. Silver Spring / Montgomery Co. returned 333 hail events across
+        // 818 rows and truncated at 2025-07-27, dropping the entire May/June
+        // 2025 storm season. Raised to 20000 so 24mo × 25mi covers the whole
+        // window; deduplication downstream keeps the response tight.
         const verifiedRows = await pool.query(
           `SELECT
              id, TO_CHAR(event_date, 'YYYY-MM-DD') AS date_str,
@@ -371,13 +376,13 @@ router.get('/search', async (req, res) => {
              source_nws_alert, source_iem_vtec, source_cocorahs, source_spc_wcm,
              source_hailtrace, source_ihm, source_rep_report,
              source_details
-           FROM verified_hail_events_public
+           FROM verified_hail_events_public_sane
            WHERE event_date >= $1::date
              AND latitude  BETWEEN $2 AND $3
              AND longitude BETWEEN $4 AND $5
              AND (hail_size_inches IS NOT NULL OR wind_mph IS NOT NULL OR tornado_ef_rank IS NOT NULL)
            ORDER BY event_date DESC
-           LIMIT 2000`,
+           LIMIT 20000`,
           [
             sinceDateStr,
             searchLat - degPad,
