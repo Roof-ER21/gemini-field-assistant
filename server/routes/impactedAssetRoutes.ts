@@ -689,7 +689,7 @@ router.post('/check-storm', async (req: Request, res: Response) => {
               eventType: alert.alertType,
               hailSize: alert.hailSizeInches,
               windSpeed: alert.windSpeedMph,
-              date: new Date(alert.stormDate).toLocaleDateString()
+              date: new Date(alert.stormDate).toLocaleDateString('en-US', { timeZone: 'America/New_York' })
             });
 
             if (smsResult.success) {

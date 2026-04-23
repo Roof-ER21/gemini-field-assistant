@@ -588,7 +588,7 @@ const AdminAnalyticsTab: React.FC = () => {
         user.uploads,
         user.susan,
         user.kbViews,
-        user.lastActive ? new Date(user.lastActive).toLocaleString() : 'N/A',
+        user.lastActive ? new Date(user.lastActive).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A',
       ]
     );
 
@@ -1158,7 +1158,7 @@ const AdminAnalyticsTab: React.FC = () => {
                       <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.susan}</td>
                       <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{user.kbViews}</td>
                       <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
-                        {new Date(user.lastActive).toLocaleDateString()}
+                        {new Date(user.lastActive).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                       </td>
                     </tr>
                   ))}
@@ -1505,7 +1505,7 @@ const AdminAnalyticsTab: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>{chat.userEmail}</span>
                         <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                          {chat.timestamp ? new Date(chat.timestamp).toLocaleString() : 'Unknown'}
+                          {chat.timestamp ? new Date(chat.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'Unknown'}
                         </span>
                       </div>
                       <div

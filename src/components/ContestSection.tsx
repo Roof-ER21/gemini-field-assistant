@@ -370,7 +370,8 @@ export default function ContestSection({ userEmail, userRole }: ContestSectionPr
     return new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'America/New_York'
     });
   };
 

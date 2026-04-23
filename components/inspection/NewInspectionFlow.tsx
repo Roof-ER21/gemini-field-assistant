@@ -823,7 +823,7 @@ Homeowners trust this assessment. Be thorough and professional.`;
     ].filter(Boolean).join(', ');
 
     let summary = `## Roof Inspection Summary\n\n`;
-    summary += `**Date:** ${new Date().toLocaleDateString()}\n`;
+    summary += `**Date:** ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })}\n`;
     summary += `**Property:** ${fullAddress || 'Address pending'}\n`;
     summary += `**Homeowner:** ${homeownerInfo.name || 'Not provided'}\n\n`;
 

@@ -441,8 +441,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
-    });
+      hour12: true,
+      timeZone: 'America/New_York'
+    }) + ' ET';
   };
 
   // Format date header
@@ -460,7 +461,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({
       return date.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'America/New_York'
       });
     }
   };
@@ -737,7 +739,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
           <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{event?.title || 'Event'}</div>
           {event?.datetime && (
             <div style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.25rem' }}>
-              {new Date(event.datetime).toLocaleString()}
+              {new Date(event.datetime).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
             </div>
           )}
           {event?.location && (
@@ -1155,7 +1157,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                     }}
                   >
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      {formatDisplayName(result.sender?.name, result.sender?.email)} • {new Date(result.created_at).toLocaleString()}
+                      {formatDisplayName(result.sender?.name, result.sender?.email)} • {new Date(result.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
                     </div>
                     <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
                       {(() => {
@@ -1205,7 +1207,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({
                     }}
                   >
                     <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      {formatDisplayName(pin.message?.sender?.name, pin.message?.sender?.email)} • {new Date(pin.message?.created_at).toLocaleString()}
+                      {formatDisplayName(pin.message?.sender?.name, pin.message?.sender?.email)} • {new Date(pin.message?.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
                     </div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
                       {(pin.message?.content as MessageContent)?.text || 'Message'}

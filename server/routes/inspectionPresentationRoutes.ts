@@ -1173,7 +1173,7 @@ router.post('/presentations', async (req: Request, res: Response) => {
       slide_number: slideNumber++,
       slide_type: 'cover',
       title: title || `Roof Inspection - ${inspection.customer_name}`,
-      content: `Property: ${inspection.property_address}\nInspection Date: ${new Date(inspection.inspection_date).toLocaleDateString()}`,
+      content: `Property: ${inspection.property_address}\nInspection Date: ${new Date(inspection.inspection_date).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}`,
       layout: 'text-only',
     });
 

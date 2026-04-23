@@ -731,7 +731,7 @@ Respond in JSON format:
                     gap: '6px'
                   }}>
                     {message.isAudio && <Mic className="w-3 h-3" />}
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {message.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
                   </div>
                 </div>
               </div>

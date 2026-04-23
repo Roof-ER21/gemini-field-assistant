@@ -2642,7 +2642,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                     </div>
                   )}
                   <div className="roof-er-message-time">
-                    {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
                   </div>
                 </div>
               </div>

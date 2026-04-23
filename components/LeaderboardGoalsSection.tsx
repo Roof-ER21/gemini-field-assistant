@@ -79,7 +79,7 @@ const LeaderboardGoalsSection: React.FC<LeaderboardGoalsSectionProps> = ({
   }
 
   // Get current month/year for display
-  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/New_York' });
 
   return (
     <div style={{

@@ -506,7 +506,7 @@ export const ClaimAuthorizationSlide: React.FC<ClaimAuthorizationSlideProps> = (
                   marginTop: '12px',
                   textAlign: 'center'
                 }}>
-                  Date: {new Date().toLocaleDateString()}
+                  Date: {new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                 </p>
               </>
             )}

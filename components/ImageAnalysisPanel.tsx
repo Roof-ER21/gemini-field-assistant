@@ -320,7 +320,7 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({ onOpenChat, onO
       yPosition = 25;
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(10);
-      pdf.text(`Date: ${selectedAssessment.timestamp.toLocaleDateString()}`, 15, yPosition);
+      pdf.text(`Date: ${selectedAssessment.timestamp.toLocaleDateString('en-US', { timeZone: 'America/New_York' })}`, 15, yPosition);
       yPosition += 5;
       pdf.text(`Image: ${selectedAssessment.imageName}`, 15, yPosition);
       yPosition += 5;

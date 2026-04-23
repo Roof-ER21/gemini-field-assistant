@@ -274,7 +274,7 @@ export const SusanChatWidget: React.FC<SusanChatWidgetProps> = ({
                     <p className={`text-xs mt-1 ${
                       msg.role === 'user' ? 'text-white/70' : 'text-white/50'
                     }`}>
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {msg.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
                     </p>
                   </div>
                 </div>

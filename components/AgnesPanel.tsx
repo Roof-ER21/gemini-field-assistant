@@ -459,7 +459,7 @@ Ask permission to address their specific concern directly: "What's the main thin
                 color: 'var(--text-disabled)',
                 marginTop: '0.5rem'
               }}>
-                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {message.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
               </div>
             </div>
           </div>

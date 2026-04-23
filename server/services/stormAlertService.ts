@@ -271,7 +271,7 @@ export async function detectAndAlertNewStorms(
           const hailAlerts = alerts.filter((a: any) => a.event_type === 'hail');
           const windAlerts = alerts.filter((a: any) => a.event_type === 'wind');
           const state = alerts[0].state;
-          const date = new Date(alerts[0].event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          const date = new Date(alerts[0].event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
 
           const maxHail = hailAlerts.length > 0 ? Math.max(...hailAlerts.map((a: any) => Number(a.magnitude) || 0)) : 0;
           const locations = [...new Set(alerts.map((a: any) => a.location))].slice(0, 3).join(', ');
@@ -506,7 +506,7 @@ export async function reconcileWithNOAA(
               : 0;
             const locations = [...new Set(alerts.map((a: any) => a.location))].slice(0, 4).join(', ');
             const dates = [...new Set(alerts.map((a: any) =>
-              new Date(a.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              new Date(a.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
             ))].join(', ');
 
             let body = `NOAA has officially confirmed ${alerts.length} storm event(s) in ${state}:\n`;

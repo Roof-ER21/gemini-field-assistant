@@ -59,7 +59,7 @@ export const PresentationGenerator: React.FC<PresentationGeneratorProps> = ({
       id: 'title-slide',
       type: 'title',
       title: presentationTitle,
-      content: `Inspector: ${inspectorName || 'Not specified'}\nProperty: ${propertyAddress || 'Not specified'}\nDate: ${new Date().toLocaleDateString()}`,
+      content: `Inspector: ${inspectorName || 'Not specified'}\nProperty: ${propertyAddress || 'Not specified'}\nDate: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })}`,
       order: order++
     });
 

@@ -282,7 +282,7 @@ const CanvassingPanel: React.FC = () => {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', { timeZone: 'America/New_York' });
   };
 
   const formatDuration = (startTime: string, endTime?: string) => {
@@ -678,7 +678,7 @@ const CanvassingPanel: React.FC = () => {
                           gap: '6px'
                         }}>
                           <Calendar className="w-4 h-4" />
-                          Follow up: {new Date(entry.followUpDate).toLocaleDateString()}
+                          Follow up: {new Date(entry.followUpDate).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                         </div>
                       )}
                     </div>
@@ -764,7 +764,7 @@ const CanvassingPanel: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                       <div>
                         <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {new Date(session.startTime).toLocaleDateString()}
+                          {new Date(session.startTime).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
                           <Clock className="w-3 h-3 inline mr-1" />

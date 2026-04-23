@@ -546,7 +546,7 @@ export const ContingencyAgreementSlide: React.FC<ContingencyAgreementSlideProps>
             textAlign: 'center',
             marginBottom: '24px'
           }}>
-            Date: {new Date().toLocaleDateString()}
+            Date: {new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
           </p>
 
           {/* Action Buttons */}

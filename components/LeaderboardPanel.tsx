@@ -309,7 +309,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
     if (!value) return 'Never';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return value;
-    return parsed.toLocaleString();
+    return parsed.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET';
   };
 
   // Safe accessor for tier name with fallback
@@ -910,7 +910,7 @@ const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({ userEmail }) => {
 
         {/* Last Update */}
         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '16px', textAlign: 'right' }}>
-          Last updated: {lastUpdate.toLocaleTimeString()}
+          Last updated: {lastUpdate.toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} ET
         </div>
 
         {/* Early Month Notice */}

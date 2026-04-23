@@ -558,7 +558,7 @@ const LiveRoomView: React.FC<LiveRoomViewProps> = ({
                       fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '2px',
                       textAlign: msg.isLocal ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px',
                     }}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
                     </div>
                   </div>
                 ))

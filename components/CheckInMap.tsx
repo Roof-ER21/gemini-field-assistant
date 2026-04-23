@@ -143,8 +143,9 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
-    });
+      hour12: true,
+      timeZone: 'America/New_York'
+    }) + ' ET';
   };
 
   // Calculate duration
@@ -192,7 +193,8 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'America/New_York'
     });
   };
 

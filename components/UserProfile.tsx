@@ -596,7 +596,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
           {/* Footer Info */}
           <div style={{ marginTop: '20px', textAlign: 'center' }}>
             <p style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>
-              Member since {new Date(user.createdAt || Date.now()).toLocaleDateString()}
+              Member since {new Date(user.createdAt || Date.now()).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
             </p>
           </div>
         </div>

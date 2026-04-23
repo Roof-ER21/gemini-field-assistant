@@ -551,9 +551,9 @@ const LiveSessionsTab: React.FC<LiveSessionsTabProps> = ({ teamMembers }) => {
                       <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
                         {formatDisplayName(session.host.name, session.host.email)}
                         {' • '}
-                        {new Date(session.started_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        {new Date(session.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
                         {' at '}
-                        {new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(session.started_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })} ET
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

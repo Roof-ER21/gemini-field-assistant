@@ -1621,9 +1621,9 @@ const DeafCommunicationPanel: React.FC = () => {
                           color: 'var(--text-muted)',
                           fontVariantNumeric: 'tabular-nums',
                         }}
-                        aria-label={`Time: ${entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                        aria-label={`Time: ${entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}`}
                       >
-                        {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}
                       </span>
                     </div>
                     {/* Content */}

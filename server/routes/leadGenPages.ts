@@ -405,7 +405,7 @@ function renderStormPage(storm: Record<string, any> | null, zip: string): string
   const eventType: string = storm?.event_type || 'Storm';
   const hailSize: string = storm?.hail_size_inches ? `${storm.hail_size_inches}"` : '';
   const eventDate: string = storm?.event_date
-    ? new Date(storm.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    ? new Date(storm.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
     : '';
 
   const seoTitle = hasStorm

@@ -452,7 +452,7 @@ const AdminBudgetTab: React.FC = () => {
     const headers = ['Timestamp', 'User Email', 'User Name', 'Provider', 'Service Type', 'Tokens', 'Cost', 'Feature', 'Status'];
     const safeFilteredLogs = Array.isArray(filteredUsageLogs) ? filteredUsageLogs : [];
     const rows = safeFilteredLogs.map(log => [
-      new Date(log.timestamp).toLocaleString(),
+      new Date(log.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET',
       log.userEmail,
       log.userName,
       log.provider,
@@ -1347,7 +1347,7 @@ const AdminBudgetTab: React.FC = () => {
               {paginatedLogs.map((log) => (
                 <tr key={log.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
                   <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
-                    {new Date(log.timestamp).toLocaleString()}
+                    {new Date(log.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
                   </td>
                   <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                     <div>{log.userName}</div>

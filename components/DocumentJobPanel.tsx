@@ -758,7 +758,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
-                    Updated {new Date(job.updatedAt).toLocaleDateString()}
+                    Updated {new Date(job.updatedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                   </span>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {job.notes.length > 0 && (
@@ -1110,7 +1110,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                       <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>{note.text}</p>
                       <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
                         <span>{note.author}</span>
-                        <span>{new Date(note.createdAt).toLocaleString()}</span>
+                        <span>{new Date(note.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET</span>
                       </div>
                     </div>
                   ))}
@@ -1170,7 +1170,7 @@ const DocumentJobPanel: React.FC<DocumentJobPanelProps> = ({
                       </span>
                       {action.dueDate && (
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
-                          {new Date(action.dueDate).toLocaleDateString()}
+                          {new Date(action.dueDate).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                         </span>
                       )}
                     </div>

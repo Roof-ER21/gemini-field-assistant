@@ -281,7 +281,8 @@ export const InspectionPresenterV2: React.FC<InspectionPresenterV2Props> = ({
         {new Date().toLocaleDateString('en-US', {
           month: 'long',
           day: 'numeric',
-          year: 'numeric'
+          year: 'numeric',
+          timeZone: 'America/New_York'
         })}
       </p>
       {userProfile?.company && (

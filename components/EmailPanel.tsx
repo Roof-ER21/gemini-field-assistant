@@ -1877,7 +1877,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                         <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Clock className="w-3 h-3" />
-                            {new Date(email.createdAt).toLocaleString()}
+                            {new Date(email.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
                           </span>
                           <span style={{
                             padding: '2px 8px',

@@ -466,7 +466,8 @@ export const RepLandingSlide: React.FC<RepLandingSlideProps> = ({
               weekday: 'long',
               month: 'long',
               day: 'numeric',
-              year: 'numeric'
+              year: 'numeric',
+              timeZone: 'America/New_York'
             })}
           </div>
         </div>

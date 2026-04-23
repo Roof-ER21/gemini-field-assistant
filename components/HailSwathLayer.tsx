@@ -304,7 +304,7 @@ const HailSwathLayer: React.FC<HailSwathLayerProps> = ({
                   {swath.maxWidth > 0 && <div><strong>Max Width:</strong> {(swath.maxWidth / 1000).toFixed(1)} km</div>}
                   {swath.startDate && (
                     <div><strong>Date:</strong> {new Date(swath.startDate + 'T12:00:00').toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric'
+                      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York'
                     })}</div>
                   )}
                 </div>

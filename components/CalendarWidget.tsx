@@ -58,7 +58,7 @@ function toDateString(date: Date): string {
 function formatEventTime(isoString: string): string {
   try {
     const d = new Date(isoString);
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
   } catch {
     return '';
   }

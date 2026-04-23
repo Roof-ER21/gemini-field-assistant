@@ -607,7 +607,7 @@ const LearningDashboard: React.FC = () => {
                   {followups.map((f: any) => (
                     <div key={f.feedback_id} style={{ border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '0.65rem' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
-                        Due {new Date(f.due_at).toLocaleDateString()}
+                        Due {new Date(f.due_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                       </div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                         {f.comment || f.response_excerpt || 'Follow-up on Susan response'}

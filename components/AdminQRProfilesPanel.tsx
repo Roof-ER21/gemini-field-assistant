@@ -825,7 +825,7 @@ function VideoManagementModal({
                   <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 2 }}>{v.description}</div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                  Added {new Date(v.created_at).toLocaleDateString()}
+                  Added {new Date(v.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                 </div>
               </div>
               <button

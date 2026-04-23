@@ -1139,7 +1139,7 @@ const AdminPanel: React.FC = () => {
     if (Number.isNaN(parsed.getTime())) {
       return value;
     }
-    return parsed.toLocaleString();
+    return parsed.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET';
   };
 
   const fetchUserConversations = async (userId: string) => {
@@ -1251,7 +1251,7 @@ const AdminPanel: React.FC = () => {
     if (!selectedConversation || !messages.length) return;
 
     const conversationText = messages
-      .map(msg => `[${msg.created_at ? new Date(msg.created_at).toLocaleString() : 'Unknown'}] ${msg.sender?.toUpperCase() || 'UNKNOWN'}: ${msg.content || ''}`)
+      .map(msg => `[${msg.created_at ? new Date(msg.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'Unknown'}] ${msg.sender?.toUpperCase() || 'UNKNOWN'}: ${msg.content || ''}`)
       .join('\n\n');
 
     const blob = new Blob([conversationText], { type: 'text/plain' });
@@ -1362,7 +1362,7 @@ const AdminPanel: React.FC = () => {
 
     const csvHeader = 'Name,Email,Role,State,Total Messages,Last Active\n';
     const csvRows = users.map(user =>
-      `"${user.name}","${user.email}","${user.role}","${user.state || 'N/A'}",${user.total_messages},"${user.last_active ? new Date(user.last_active).toLocaleString() : 'N/A'}"`
+      `"${user.name}","${user.email}","${user.role}","${user.state || 'N/A'}",${user.total_messages},"${user.last_active ? new Date(user.last_active).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}"`
     ).join('\n');
 
     const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
@@ -2205,7 +2205,7 @@ const AdminPanel: React.FC = () => {
                             fontSize: '11px',
                             color: 'var(--text-tertiary)'
                           }}>
-                            {new Date(user.last_active).toLocaleDateString()}
+                            {new Date(user.last_active).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                           </div>
                         </div>
                       </div>
@@ -2505,7 +2505,7 @@ const AdminPanel: React.FC = () => {
                                   {conv.message_count} msgs
                                 </div>
                                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                                  {new Date(conv.last_message_at).toLocaleDateString()}
+                                  {new Date(conv.last_message_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                                 </div>
                               </div>
                               <div style={{
@@ -2551,7 +2551,7 @@ const AdminPanel: React.FC = () => {
                                 Conversation Messages
                               </div>
                               <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
-                                {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString()}
+                                {selectedConversation.message_count} messages • {new Date(selectedConversation.first_message_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                               </div>
                             </div>
                             <button
@@ -2665,7 +2665,7 @@ const AdminPanel: React.FC = () => {
                                     gap: '4px'
                                   }}>
                                     <Clock style={{ width: '12px', height: '12px' }} />
-                                    {msg.created_at ? new Date(msg.created_at).toLocaleString() : 'Unknown'}
+                                    {msg.created_at ? new Date(msg.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'Unknown'}
                                   </div>
                                 </div>
                               ))
@@ -2842,7 +2842,7 @@ const AdminPanel: React.FC = () => {
                           {email.recipient || 'N/A'}
                         </td>
                         <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-                          {new Date(email.created_at).toLocaleDateString()} {new Date(email.created_at).toLocaleTimeString()}
+                          {new Date(email.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} {new Date(email.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} ET
                         </td>
                         <td style={{ padding: '1rem' }}>
                           <button
@@ -3078,8 +3078,8 @@ const AdminPanel: React.FC = () => {
                         </div>
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textAlign: 'right' }}>
-                        <div>{new Date(msg.created_at).toLocaleDateString()}</div>
-                        <div>{new Date(msg.created_at).toLocaleTimeString()}</div>
+                        <div>{new Date(msg.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</div>
+                        <div>{new Date(msg.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} ET</div>
                       </div>
                     </div>
                     <div style={{ fontSize: '0.9375rem', lineHeight: '1.6', color: 'var(--text-tertiary)', whiteSpace: 'pre-wrap' }}>
@@ -3294,7 +3294,7 @@ const AdminPanel: React.FC = () => {
                             {mapping.notes || '-'}
                           </td>
                           <td style={{ padding: '0.75rem', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
-                            {new Date(mapping.created_at).toLocaleDateString()}
+                            {new Date(mapping.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                             <button
@@ -3822,7 +3822,7 @@ const AdminPanel: React.FC = () => {
                           <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Manual Sync</div>
                           <div style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                             {leaderboardSyncStatus?.lastSync
-                              ? `Last synced: ${new Date(leaderboardSyncStatus.lastSync).toLocaleString()}`
+                              ? `Last synced: ${new Date(leaderboardSyncStatus.lastSync).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`
                               : 'Never synced'}
                           </div>
                         </div>
@@ -4523,7 +4523,7 @@ const AdminPanel: React.FC = () => {
                             </span>
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                            {new Date(session.timestamp).toLocaleString()}
+                            {new Date(session.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET
                           </div>
                         </div>
 
@@ -4740,7 +4740,7 @@ const AdminPanel: React.FC = () => {
                         return (
                           <div key={dateStr} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ width: '100px', fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
-                              {new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              {new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
                             </div>
                             <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: '4px', height: '24px', overflow: 'hidden' }}>
                               <div style={{
@@ -4916,7 +4916,7 @@ const AdminPanel: React.FC = () => {
                           borderTop: '1px solid var(--border-subtle)'
                         }}>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                            Updated {new Date(script.updatedAt).toLocaleDateString()}
+                            Updated {new Date(script.updatedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button

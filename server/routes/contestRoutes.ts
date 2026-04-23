@@ -352,7 +352,7 @@ export function createContestRoutes(pool: Pool): Router {
         for (const p of participantUsers.rows) {
           pushService.sendToUser(p.id, {
             title: `🏆 New Contest: ${name}`,
-            body: `${description || contest_type} contest starts ${new Date(start_date).toLocaleDateString()}!${prize_description ? ` Prize: ${prize_description}` : ''}`,
+            body: `${description || contest_type} contest starts ${new Date(start_date).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}!${prize_description ? ` Prize: ${prize_description}` : ''}`,
             data: { type: 'contest_alert', contestId: contest.id }
           }, 'contest_alert').catch((e: any) => console.error('Contest push error:', e.message));
         }

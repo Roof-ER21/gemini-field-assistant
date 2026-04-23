@@ -354,7 +354,7 @@ const DirectivesPanel: React.FC = () => {
                       {d.content}
                     </p>
                     <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-disabled)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <span>By {d.created_by_name} &middot; {new Date(d.created_at).toLocaleDateString()}</span>
+                      <span>By {d.created_by_name} &middot; {new Date(d.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
                       {d.effective_until && (
                         <span style={{
                           padding: '1px 8px',
@@ -363,7 +363,7 @@ const DirectivesPanel: React.FC = () => {
                           color: new Date(d.effective_until) < new Date() ? '#f87171' : '#60a5fa',
                           fontWeight: 600,
                         }}>
-                          {new Date(d.effective_until) < new Date() ? 'Expired' : `Expires ${new Date(d.effective_until).toLocaleDateString()}`}
+                          {new Date(d.effective_until) < new Date() ? 'Expired' : `Expires ${new Date(d.effective_until).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}`}
                         </span>
                       )}
                       {!d.effective_until && (
