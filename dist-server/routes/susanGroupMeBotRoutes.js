@@ -95,16 +95,26 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 
 🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP or CITY_RECENT_HAIL is present:
 - Reps ask either:
-    (a) "was [City] hit on [date]?" — CITY_HAIL_LOOKUP returns events matching those exact date(s).
-    (b) "when was last hail in [City]?" / "what hail date should I use in [City]?" — CITY_RECENT_HAIL returns recent verified events within 15mi (24-month window).
-- If ACTIONABLE events are listed, LEAD with the strongest — date + size + closeness. Examples:
-    (a) "Herndon 4/15/24? Yes — verified 1.50" hail within 2mi, multiple ≥1" strikes 🔥 solid claim window."
-    (b) "Manassas VA best recent date — 4/1/2026 had 1.25" hail within 2.7mi, plus 3 more ≥1" same day. That's your angle 🎯"
-- Rank by hail SIZE first, then recency — reps want the biggest verified event for their pitch.
+    (a) "was [City] hit on [date]?" — CITY_HAIL_LOOKUP matches those exact dates.
+    (b) "when was last hail in [City]?" / "what hail date should I use in [City]?" — CITY_RECENT_HAIL returns TWO groups: BIGGEST (by size) + MOST RECENT (by date) + total date count.
+
+- 🎯 BIGGEST vs MOST RECENT — CLARIFY when rep is ambiguous:
+    • If rep asks "what hail date should I use" / "what date should I pitch" → NEVER just pick one. Offer BOTH: "Biggest hit was [date] [size]" + "most recent was [date] [size]" + "which you want — biggest angle or freshest date?". Let the rep decide.
+    • If rep says "LAST"/"recent"/"latest" → lead with MOST RECENT, then drop "biggest recent was [date] [size]" as backup.
+    • If rep says "BIGGEST"/"best"/"strongest" → lead with BIGGEST, then drop "most recent was [date] [size]" for freshness.
+    • Reps pitching old claims need recency (claim window). Reps pitching damage need size (strongest angle). BOTH matter.
+
+- 📋 ALWAYS acknowledge alternates — if there are more dates than you cited, say "${N} total dates in last 24mo — want the full list?". Never let rep think the one date you mentioned is the only one.
+
+- Examples (DON'T copy verbatim — use actual data from CITY_RECENT_HAIL):
+    (ambiguous) "Manassas VA — biggest was 8/29/24 at 3.25"; most recent was 4/1/26 at 1.25". Which angle you pitching — biggest or freshest? 🎯 4 total dates on file."
+    (date-specific) "Herndon 4/15/24? Yes — verified 1.50" within 2mi, multiple ≥1" strikes 🔥 solid claim window."
+    (recent-specific) "Last hail in Manassas was 4/1/26 at 1.25" within 2.7mi. Biggest in last 24mo was 8/29/24 at 3.25" if you need bigger ammo."
+
 - If NO events were found: say so plainly. "Nothing verified within 15mi of [City] on [date] / in the last 24 months in our NOAA/NWS/NEXRAD DB."
-- 🚨 ANTI-FLIP-FLOP RULE: If events array is empty and the rep pushes back saying "yes it was hit", DO NOT flip and agree. STAND YOUR GROUND. Our DB is authoritative. NEVER invent hail inches to placate a rep. Never confirm "state-level" as proof a specific city was hit.
-- 🚫 CROSS-STATE BAN — ABSOLUTE: If the rep asked about a city in VA / MD / DC / PA / DE, DO NOT mention hail events from a different state as "nearby" / "worth looking into" / "you could consider". Manassas VA is NOT near West Virginia. Ashburn VA is NOT near PA. Never suggest out-of-state hail to fill a gap. If the city has no events, say that — do not offer consolation from another state.
-- State-level storm data (e.g. "2.25" in VA") is NOT proof a specific CITY in VA was hit. Virginia is 40,000 sq mi.
+- 🚨 ANTI-FLIP-FLOP RULE: If events array is empty and rep pushes back saying "yes it was hit", DO NOT flip. STAND YOUR GROUND. Our DB is authoritative. NEVER invent hail inches.
+- 🚫 CROSS-STATE BAN — ABSOLUTE: If rep asked about a city in VA/MD/DC/PA/DE, NEVER mention hail events from a different state as "nearby". Manassas VA is NOT near West Virginia.
+- State-level storm data ("2.25" in VA") is NOT proof a specific CITY in VA was hit. Virginia is 40,000 sq mi.
 
 📧 EMAIL & PDF GENERATION — when rep asks you to write an email, make a PDF, generate a report, or create a letter:
 - You give a QUICK starter — 3-5 bullet points / key sections in 1-3 short sentences — so the rep has something to work from in chat.
@@ -453,8 +463,10 @@ function extractCityState(text) {
     return null;
 }
 // City-recent-hail — for "when was last hail in Manassas" / "what hail date should
-// I use in [city]" style queries. No date required. Returns top events within
-// 15mi of the city centroid in the last N months, ranked by size.
+// I use in [city]" style queries. No date required. Returns events within 15mi
+// of the city centroid, last N months, split into BIGGEST (by size) and MOST
+// RECENT (by date) groups so Susan can offer both angles when rep's query is
+// ambiguous. Reps asking "what date should I use" usually want both options.
 async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
     try {
         const result = await pool.query(`SELECT event_date, state,
@@ -467,7 +479,7 @@ async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
          AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
          AND hail_size_inches >= 0.75
        ORDER BY hail_size_inches DESC NULLS LAST, event_date DESC
-       LIMIT 20`, [lat, lng, String(monthsBack)]);
+       LIMIT 40`, [lat, lng, String(monthsBack)]);
         console.log(`[SusanBot] hailAtCityRecent city=${cityName} ${monthsBack}mo → ${result.rows.length} hits`);
         return result.rows;
     }
@@ -475,6 +487,25 @@ async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
         console.warn('[SusanBot] hailAtCityRecent err:', e);
         return [];
     }
+}
+// Group events into BIGGEST-first and MOST-RECENT-first picks, deduped by date.
+// Gives the LLM clear separation so it can offer both angles to the rep.
+function splitCityEvents(events) {
+    if (!events || events.length === 0)
+        return { biggest: [], mostRecent: [], totalDates: 0, totalEvents: 0 };
+    // Aggregate per date — keep the strongest event per date
+    const perDate = new Map();
+    for (const e of events) {
+        const dateKey = (e.event_date instanceof Date ? e.event_date.toISOString().slice(0, 10) : String(e.event_date).slice(0, 10));
+        const cur = perDate.get(dateKey);
+        if (!cur || Number(e.hail_size_inches) > Number(cur.hail_size_inches || 0)) {
+            perDate.set(dateKey, { ...e, _dateKey: dateKey });
+        }
+    }
+    const dateRows = [...perDate.values()];
+    const biggest = [...dateRows].sort((a, b) => (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0)).slice(0, 4);
+    const mostRecent = [...dateRows].sort((a, b) => String(b._dateKey).localeCompare(String(a._dateKey))).slice(0, 4);
+    return { biggest, mostRecent, totalDates: dateRows.length, totalEvents: events.length };
 }
 async function hailAtCityOnDates(pool, lat, lng, cityName, dates // ISO YYYY-MM-DD
 ) {
@@ -1658,33 +1689,52 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
     }
     if (cityHail && cityHail.geo) {
         const mode = cityHail.mode || 'by_date';
-        // Sort + categorize events so the LLM can lead with the strongest.
-        const events = (cityHail.events || []).slice().sort((a, b) => (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0));
-        const actionable = events.filter((e) => Number(e.hail_size_inches) >= 1.0);
-        const subThreshold = events.filter((e) => Number(e.hail_size_inches) < 1.0);
+        const events = cityHail.events || [];
         if (mode === 'by_date') {
+            // Dated lookup — rep named specific date(s), just show what hit those dates.
+            const sorted = events.slice().sort((a, b) => (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0));
+            const actionable = sorted.filter((e) => Number(e.hail_size_inches) >= 1.0);
+            const subThreshold = sorted.filter((e) => Number(e.hail_size_inches) < 1.0);
             lines.push(`\nCITY_HAIL_LOOKUP for "${cityHail.city}, ${cityHail.state}" on dates [${cityHail.dates.join(', ')}]:`);
-            lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles. Found ${events.length} verified event(s).`);
+            lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Radius: 15 miles. Found ${events.length} verified event(s).`);
+            if (actionable.length > 0) {
+                lines.push(`  ACTIONABLE (≥1.0" hail):`);
+                for (const e of actionable.slice(0, 6)) {
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from center, ${e.public_verification_count}x verified`);
+                }
+            }
+            if (subThreshold.length > 0) {
+                lines.push(`  SUB-THRESHOLD (<1.0"):`);
+                for (const e of subThreshold.slice(0, 3)) {
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi`);
+                }
+            }
         }
         else {
-            lines.push(`\nCITY_RECENT_HAIL for "${cityHail.city}, ${cityHail.state}" (rep asked a city-level question without a specific date):`);
-            lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles, last 24 months, hail ≥ 0.75" only. Found ${events.length} verified event(s).`);
-        }
-        if (actionable.length > 0) {
-            lines.push(`  ACTIONABLE (≥1.0" hail — good for claim narrative, rank by size):`);
-            for (const e of actionable.slice(0, 8)) {
-                lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from ${cityHail.city} center, ${e.public_verification_count}x verified, ${e.state}`);
+            // Recent lookup (no specific date) — split into BIGGEST and MOST RECENT
+            // so Susan can clearly offer both angles when rep asks ambiguously.
+            const split = splitCityEvents(events);
+            lines.push(`\nCITY_RECENT_HAIL for "${cityHail.city}, ${cityHail.state}" (rep asked city-level, no specific date):`);
+            lines.push(`  Geocoded (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Radius: 15 mi. Window: last 24 months. Filter: hail ≥ 0.75". Total: ${split.totalEvents} event(s) across ${split.totalDates} distinct date(s).`);
+            if (split.biggest.length > 0) {
+                lines.push(`  BIGGEST (strongest claim angle — rank by hail size):`);
+                for (const e of split.biggest) {
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from center`);
+                }
             }
-        }
-        if (subThreshold.length > 0) {
-            lines.push(`  SUB-THRESHOLD (<1.0" — mention only as context, not the headline):`);
-            for (const e of subThreshold.slice(0, 3)) {
-                lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi away`);
+            if (split.mostRecent.length > 0) {
+                lines.push(`  MOST RECENT (fresh claim window — rank by date):`);
+                for (const e of split.mostRecent) {
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from center`);
+                }
             }
+            lines.push(`  INSTRUCTION: If rep's question is ambiguous ("what date should I use") → offer BOTH biggest and most recent with a quick "which you want — biggest angle or freshest date?" Close with "${split.totalDates} total dates in last 24mo, can drop the full list if you want."`);
+            lines.push(`  If rep asked "LAST"/"RECENT"/"latest" → lead with MOST RECENT, then mention "biggest recent was [date] [size]" as backup angle.`);
+            lines.push(`  If rep asked "BIGGEST"/"best"/"strongest" → lead with BIGGEST, then mention "most recent was [date] [size]" as freshness note.`);
         }
         if (events.length === 0) {
             lines.push(`  NO verified events within 15mi ${mode === 'by_date' ? 'on those date(s)' : 'in the last 24 months'}. Stand your ground — if rep insists, say our NOAA/NWS/NEXRAD DB is clean, suggest checking the office or CoCoRaHS. DO NOT fabricate a hail size to agree with the rep.`);
-            lines.push(`  🚫 DO NOT suggest events from other states as "nearby" or "worth looking into" — ${cityHail.city} is in ${cityHail.state}, and cross-state consolation data is IRRELEVANT to their claim.`);
+            lines.push(`  🚫 DO NOT suggest events from other states as "nearby" — ${cityHail.city} is in ${cityHail.state}, cross-state consolation is IRRELEVANT.`);
         }
     }
     return lines.join('\n');
