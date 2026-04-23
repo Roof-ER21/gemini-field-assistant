@@ -197,11 +197,11 @@ class DailySummaryService {
             <div class="time-info">
               <div class="time-item">
                 <div class="time-label">First Activity</div>
-                <div class="time-value">${new Date(summary.firstActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="time-value">${new Date(summary.firstActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}</div>
               </div>
               <div class="time-item">
                 <div class="time-label">Last Activity</div>
-                <div class="time-value">${new Date(summary.lastActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="time-value">${new Date(summary.lastActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}</div>
               </div>
             </div>
 
@@ -242,8 +242,8 @@ ${summary.chatPreview.map(msg => `  "${msg}"`).join('\n')}
 ` : ''}
 
 TIME INFO:
-First Activity: ${new Date(summary.firstActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-Last Activity: ${new Date(summary.lastActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+First Activity: ${new Date(summary.firstActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}
+Last Activity: ${new Date(summary.lastActivity).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'}
 
 Keep up the great work! 🚀
 

@@ -596,8 +596,9 @@ export function startSusanScheduler(pool) {
         cron.schedule('0 18 * * *', () => sendDailyDigest(pool), { timezone: TZ });
     }
     if (stormsOn) {
-        // Every 30 min, 8 AM - 8 PM EDT
-        cron.schedule('*/30 8-19 * * *', () => checkStormAlerts(pool), { timezone: TZ });
+        // Every 30 min, 8 AM - 8 PM EDT — offset 7/37 so it doesn't collide with
+        // the LSR (:15/:45) and NWS-alerts (*/5) pollers on the same container.
+        cron.schedule('7,37 8-19 * * *', () => checkStormAlerts(pool), { timezone: TZ });
     }
     if (backfillOn) {
         // Nightly MRMS swath backfill — 3 AM EDT. Catches up to 60 missing storm
@@ -633,7 +634,9 @@ export function startSusanScheduler(pool) {
     // Local Storm Reports flow in near real-time; tighter cadence catches
     // severe weather as it happens. Gated by IEM_LSR_LIVE_ENABLED.
     if (process.env.IEM_LSR_LIVE_ENABLED === 'true') {
-        cron.schedule('*/30 8-21 * * *', async () => {
+        // Offset 15/45 to avoid colliding with storm-alerts (:07/:37) and the
+        // NWS-alerts (*/5) pollers. Spread the load across the minute.
+        cron.schedule('15,45 8-21 * * *', async () => {
             try {
                 const { IemLsrLiveService } = await import('./iemLsrLiveService.js');
                 const svc = new IemLsrLiveService(pool);
@@ -651,7 +654,10 @@ export function startSusanScheduler(pool) {
     // real-time signals that complement the slower LSR/CoCoRaHS reporting
     // cadence. Gated by NWS_ALERTS_LIVE_ENABLED.
     if (process.env.NWS_ALERTS_LIVE_ENABLED === 'true') {
-        cron.schedule('*/5 * * * *', async () => {
+        // */5 stays tight because alerts are time-sensitive, but we offset by 2
+        // so we fire at :02, :07, :12… — intentionally colliding with storm-alerts
+        // (:07/:37) is OK because NWS alerts is a cheap GET to weather.gov.
+        cron.schedule('2-59/5 * * * *', async () => {
             try {
                 const { NwsAlertsLiveService } = await import('./nwsAlertsService.js');
                 const svc = new NwsAlertsLiveService(pool);

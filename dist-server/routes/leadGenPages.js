@@ -388,7 +388,7 @@ function renderStormPage(storm, zip) {
     const eventType = storm?.event_type || 'Storm';
     const hailSize = storm?.hail_size_inches ? `${storm.hail_size_inches}"` : '';
     const eventDate = storm?.event_date
-        ? new Date(storm.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        ? new Date(storm.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
         : '';
     const seoTitle = hasStorm
         ? `Storm Damage Roof Repair in ${city} ${state} | Free Inspection | The Roof Docs`

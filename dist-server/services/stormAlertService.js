@@ -190,7 +190,7 @@ export async function detectAndAlertNewStorms(pool, pushService) {
                     const hailAlerts = alerts.filter((a) => a.event_type === 'hail');
                     const windAlerts = alerts.filter((a) => a.event_type === 'wind');
                     const state = alerts[0].state;
-                    const date = new Date(alerts[0].event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    const date = new Date(alerts[0].event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
                     const maxHail = hailAlerts.length > 0 ? Math.max(...hailAlerts.map((a) => Number(a.magnitude) || 0)) : 0;
                     const locations = [...new Set(alerts.map((a) => a.location))].slice(0, 3).join(', ');
                     let body = `${date} storm update for ${state}:\n`;
@@ -386,7 +386,7 @@ export async function reconcileWithNOAA(pool, pushService) {
                             ? Math.max(...hailAlerts.map((a) => Number(a.noaa_magnitude) || Number(a.magnitude) || 0))
                             : 0;
                         const locations = [...new Set(alerts.map((a) => a.location))].slice(0, 4).join(', ');
-                        const dates = [...new Set(alerts.map((a) => new Date(a.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })))].join(', ');
+                        const dates = [...new Set(alerts.map((a) => new Date(a.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })))].join(', ');
                         let body = `NOAA has officially confirmed ${alerts.length} storm event(s) in ${state}:\n`;
                         if (hailAlerts.length > 0) {
                             body += `• ${hailAlerts.length} verified hail report(s), up to ${maxHail}" — ${locations}\n`;

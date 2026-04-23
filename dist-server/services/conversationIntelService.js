@@ -180,5 +180,5 @@ function timeAgo(date) {
         return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800)
         return `${Math.floor(seconds / 86400)}d ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
 }
