@@ -63,6 +63,7 @@ import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
+import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
 import { createDirectiveRoutes } from './routes/directiveRoutes.js';
 import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js';
@@ -78,6 +79,7 @@ import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
 import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
+import { createAdminRoutes } from './routes/adminRoutes.js';
 // IHM and HailTrace removed — all hail data sourced from NOAA/NWS/NEXRAD (free, federal)
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import { calculateBonusTier as calculateBonusTierAsync, calculateBonusTierNumber, clearTierCache, getAllTiers, getDefaultTiers, BONUS_TIERS } from './utils/bonusTiers.js';
@@ -8146,8 +8148,21 @@ app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
 app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
-// Susan 21 scheduled posts (motivation + digest email). Feature-flagged via env.
-startSusanScheduler(pool);
+// Susan 21 scheduled posts + storm-days refresh.
+// Phase 2 worker split: cron schedulers now run in the dedicated sa21-worker
+// service (server/worker.ts). They are OFF here by default so the web container
+// is not burdened with background ingest work.
+// Set RUN_SCHEDULERS=true on THIS service only if you intentionally want the web
+// container to also run schedulers (e.g., during a rollback before the worker
+// service is healthy). See docs/PHASE2_RAILWAY_SETUP.md.
+if (process.env.RUN_SCHEDULERS === 'true') {
+    startSusanScheduler(pool);
+    startStormDaysRefresh(pool);
+    console.log('[web] RUN_SCHEDULERS=true — susan scheduler + storm-days refresh started in web container');
+}
+else {
+    console.log('[web] RUN_SCHEDULERS not set — schedulers deferred to sa21-worker service');
+}
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));
 app.use('/api/agent-network', createAgentNetworkRoutes(pool));
@@ -8196,6 +8211,10 @@ app.use('/api/deaf-mode', deafModeRoutes);
 app.use(createLiveKitRoutes(pool));
 // Lead Machine routes (storm blast, door knocking, GBP, Craigslist, HOA)
 app.use('/api/lead-machine', createLeadMachineRoutes(pool));
+// Admin operational routes — worker heartbeat status, etc.
+// GET /api/admin/worker-status returns health of the sa21-worker background process.
+// See server/routes/adminRoutes.ts and docs/PHASE2_RAILWAY_SETUP.md.
+app.use('/api/admin', createAdminRoutes(pool));
 // ============================================================================
 // PUBLIC LEAD-GEN PAGES (before SPA fallback)
 // /storm/:zip  |  /claim-help  |  /refer/:code
