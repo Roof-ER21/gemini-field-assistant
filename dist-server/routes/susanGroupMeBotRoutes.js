@@ -64,13 +64,17 @@ MINIMUM QUALITY BAR (ALWAYS):
 - If ADDRESS_LOOKUP shows "no events", tell the rep straight: "no verified hail within 15mi at that address in 24 months. NOAA/NWS/NEXRAD all clean."
 - If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
 
-📻 CHAT_CONTEXT — team-flow questions:
-- When CHAT_CONTEXT is provided, the rep is asking about the recent chat itself (recap, signups, what happened today, team wins).
-- READ the messages, extract real facts (sales counts, wins, approvals, shoutouts, sign-up posts), and summarize.
-- Format: "[#] signups today 🔥 Joe M 🦅🦅, Royce/Eric/Nick/Kevin each 1..." — use actual names + numbers from the messages.
-- If the question is "who got signups" or "team count", count sign-up posts in CHAT_CONTEXT (look for 'sign up', 'signup', 'e-sign', 'esign', claim-type emojis like 🦅🔥💪).
-- NEVER make up numbers — only count what's visible in CHAT_CONTEXT.
-- If nothing relevant is in CHAT_CONTEXT, say "no sign-ups posted in the last N messages — the board might be elsewhere".
+📻 CHAT_CONTEXT + SIGNUPS_TODAY — team-flow questions:
+- When the rep asks a recap/signup/team-flow question and SIGNUPS_TODAY is present, USE IT VERBATIM. It's the authoritative count — reps post "Sign up / [items] / [carrier] / [customer]" and the server has already parsed each one into rep+carrier+customer.
+- Build a briefing in Susan's voice. Template:
+    "[N] sign-ups on the day 🔥
+    • [Rep name]: [count]× — [Carrier1] ([customer1]), [Carrier2] ([customer2])
+    • [Rep name]: [count]× — [Carrier] ([customer])
+    [1-line closing hype / motivator]"
+- The briefing should lead with total count and rank reps by sign-ups (top first).
+- NEVER invent counts. If SIGNUPS_TODAY shows 7, say 7 — not 8 or "about 8".
+- If a rep is missing from SIGNUPS_TODAY but appears in a "daily sales" post in CHAT_CONTEXT (e.g. Ross posted a board with counts), merge the two views and note any mismatch.
+- If SIGNUPS_TODAY is empty, say "no sign-ups parsed yet from the chat today — either the team's just getting started or I can't see a board post".
 
 🏠 ADDRESS QUERIES — when ADDRESS_LOOKUP is present:
 - Reps say "was there hail at 1234 Oak Ln" expecting you to look it up. You get that data in ADDRESS_LOOKUP.
@@ -393,6 +397,108 @@ async function geocodeAddress(addr) {
 // ─── Chat context — for recap / team / "today" style questions ───────────────
 function needsChatContext(text) {
     return /\b(recap|today|yesterday|summary|summarize|catch\s+me\s+up|catch\s+up|what\s+happened|what\s+did|wins|signups?|sign\s+ups?|total|team\s+did|team\s+hit|day|week|what's\s+new|whats\s+new)\b/i.test(text);
+}
+// ─── Sign-up post parser ────────────────────────────────────────────────────
+// Team convention: reps post "Sign up / 3 sided aluminum / Roof / DS / Liberty Mutual / Getachew"
+// (slash OR dash separated, first token is "sign up" or "signup", lastish token is HO name,
+// carrier matches our known list, middle tokens are line items)
+const CARRIER_PATTERNS = [
+    [/\busaa\b/i, 'USAA'],
+    [/\bstate\s*farm\b/i, 'State Farm'],
+    [/\ballstate\b/i, 'Allstate'],
+    [/\btravelers\b/i, 'Travelers'],
+    [/\bliberty(\s*mutual)?\b/i, 'Liberty Mutual'],
+    [/\berie\b/i, 'Erie'],
+    [/\bnationwide\b/i, 'Nationwide'],
+    [/\bprogressive\b/i, 'Progressive'],
+    [/\bfarmers\b/i, 'Farmers'],
+    [/\bgeico\b/i, 'Geico'],
+    [/\bencompass\b/i, 'Encompass'],
+    [/\bchubb\b/i, 'Chubb'],
+    [/\bamica\b/i, 'Amica'],
+    [/\bhartford\b/i, 'Hartford'],
+    [/\bcincinnati\b/i, 'Cincinnati'],
+    [/\bhanover\b/i, 'Hanover'],
+    [/\bkemper\b/i, 'Kemper'],
+    [/\bmetlife\b/i, 'MetLife'],
+    [/\bsafeco\b/i, 'Safeco'],
+    [/\bhomesite\b/i, 'Homesite'],
+    [/\bautoowners?\b/i, 'Auto-Owners'],
+    [/\b(american\s*family|amfam)\b/i, 'American Family'],
+    [/\bassurant\b/i, 'Assurant'],
+    [/\bstillwater\b/i, 'Stillwater'],
+];
+const SIGNUP_PREFIX = /^\s*[🦅🔥💪✅🎯⚡️\s]*(sign\s*up|esign|e-sign|signup)\b/i;
+function parseSignupPost(text, senderName, ts) {
+    if (!SIGNUP_PREFIX.test(text))
+        return null;
+    // Normalize separators (slashes + dashes) to pipes, then split
+    // Strip leading emoji + "sign up" prefix first
+    let body = text.replace(SIGNUP_PREFIX, '').replace(/^[\s\/\-|:,]+/, '');
+    // Split on / or -- (not single dash in middle of words like "3-sided")
+    const parts = body
+        .split(/\s*(?:\/|\s-\s|\s\|\s)\s*/)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0 && p.length < 80);
+    if (parts.length === 0)
+        return null;
+    let carrier = null;
+    let carrierIdx = -1;
+    for (let i = 0; i < parts.length; i++) {
+        for (const [re, name] of CARRIER_PATTERNS) {
+            if (re.test(parts[i])) {
+                carrier = name;
+                carrierIdx = i;
+                break;
+            }
+        }
+        if (carrier)
+            break;
+    }
+    let items = [];
+    let customer = null;
+    if (carrierIdx >= 0) {
+        items = parts.slice(0, carrierIdx);
+        const after = parts.slice(carrierIdx + 1);
+        // Customer is typically the last part after the carrier
+        customer = after[after.length - 1] || null;
+    }
+    else {
+        // No carrier detected — last part is customer, rest are items
+        items = parts.slice(0, -1);
+        customer = parts[parts.length - 1] || null;
+    }
+    // Guard: if "customer" looks like an item (roof, ds, etc), null it out
+    if (customer && /^(roof|siding|ds|downspout|gutter|metal|metals|wrap|wraps|screen|screens|window|windows|garage|shed|detached)$/i.test(customer)) {
+        customer = null;
+    }
+    return {
+        rep: senderName,
+        items,
+        carrier,
+        customer,
+        raw: text.slice(0, 200),
+        ts,
+    };
+}
+function parseDailySignups(messages, dayStartEpoch) {
+    const out = [];
+    for (const m of messages) {
+        if (dayStartEpoch && m.created_at < dayStartEpoch)
+            continue;
+        const p = parseSignupPost(m.text, m.name, m.created_at);
+        if (p)
+            out.push(p);
+    }
+    return out;
+}
+function startOfTodayEDT() {
+    // Approximate "today" in Eastern time (UTC-4). For simplicity use -4h shift;
+    // accuracy within 1 hour is fine for "today's signups".
+    const now = new Date();
+    const edt = new Date(now.getTime() - 4 * 3600 * 1000);
+    edt.setUTCHours(0, 0, 0, 0);
+    return Math.floor((edt.getTime() + 4 * 3600 * 1000) / 1000);
 }
 async function fetchRecentChatMessages(limit = 40) {
     const token = process.env.GROUPME_TOKEN || (await (async () => {
@@ -857,8 +963,25 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
         }
     }
     if (chatContext && chatContext.length > 0) {
-        lines.push(`\nCHAT_CONTEXT (last ${chatContext.length} messages in the Sales Team chat, chronological — use to answer "recap the day" / "team signups" / "what happened" style questions):`);
-        for (const c of chatContext.slice(-30)) {
+        // Structured signups brief (parsed deterministically so Susan can't miscount)
+        const todayStart = startOfTodayEDT();
+        const todaySignups = parseDailySignups(chatContext, todayStart);
+        if (todaySignups.length > 0) {
+            lines.push(`\nSIGNUPS_TODAY (structured parse of team sign-up posts since midnight EDT):`);
+            // Aggregate per rep
+            const perRep = {};
+            for (const s of todaySignups) {
+                (perRep[s.rep] ||= []).push(s);
+            }
+            const repOrder = Object.entries(perRep).sort((a, b) => b[1].length - a[1].length);
+            lines.push(`  Total: ${todaySignups.length} sign-ups across ${repOrder.length} reps.`);
+            for (const [rep, list] of repOrder) {
+                const byCarrier = list.map((l) => `${l.carrier || '?'} (${l.customer || '?'})`).join(', ');
+                lines.push(`  • ${rep}: ${list.length}× — ${byCarrier}`);
+            }
+        }
+        lines.push(`\nCHAT_CONTEXT (last ${chatContext.length} messages in the Sales Team chat, chronological):`);
+        for (const c of chatContext.slice(-40)) {
             const ts = new Date(c.created_at * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
             const who = c.sender_type === 'bot' ? 'Susan' : c.name;
             lines.push(`  [${ts}] ${who}: ${c.text.slice(0, 280)}`);
@@ -1253,9 +1376,10 @@ export function createSusanGroupMeBotRoutes(pool) {
                     return { address: addr, geo, events };
                 })()
                 : Promise.resolve(null);
-            // Pull recent chat context for recap / team-flow style questions
+            // Pull recent chat context for recap / team-flow style questions.
+            // We pull 100 so daily recaps can span the whole day (multiple hours).
             const chatContextPromise = needsChatContext(text)
-                ? fetchRecentChatMessages(40)
+                ? fetchRecentChatMessages(100)
                 : Promise.resolve([]);
             // Prefer entity-driven KB search; fall back to token FTS
             const [kbHits, stormHits, addressHail, chatContext] = await Promise.all([
