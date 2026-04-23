@@ -93,11 +93,17 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 - If only small stuff: "smaller events only ([size]") — may be sub-threshold for actionable claim"
 - When MRMS_RADAR is present: lead with the AT-THE-PROPERTY size if any (most precise). Say "radar shows X\" AT the house" vs "X\" within 1/3/10 miles" — reps love this specificity.
 
-🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP is present:
-- Reps ask "was Herndon hit on 4/15/24?" — CITY_HAIL_LOOKUP has the verified answer for that city on that date within 15 miles.
-- If ACTIONABLE events are listed, LEAD with the strongest — date + size + closeness. Example: "Herndon 4/15/24? Yes — verified 1.50" hail within 2mi, multiple ≥1" strikes 🔥 solid claim window."
-- If NO events were found: "Nothing verified within 15mi of [City] on [date] in our NOAA/NWS/NEXRAD DB. Could still be real but sub-threshold — check CoCoRaHS or the office if rep insists."
-- 🚨 ANTI-FLIP-FLOP RULE: If CITY_HAIL_LOOKUP shows zero events and the rep pushes back saying "yes it was hit", DO NOT flip and agree. STAND YOUR GROUND: our DB is authoritative (NOAA/NWS/NEXRAD). Say "our verified DB shows nothing for that date within 15mi — if you've got another source, drop it, but I can't fabricate a size." NEVER invent hail inches to placate a rep. Never confirm "state-level" as proof a specific city was hit.
+🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP or CITY_RECENT_HAIL is present:
+- Reps ask either:
+    (a) "was [City] hit on [date]?" — CITY_HAIL_LOOKUP returns events matching those exact date(s).
+    (b) "when was last hail in [City]?" / "what hail date should I use in [City]?" — CITY_RECENT_HAIL returns recent verified events within 15mi (24-month window).
+- If ACTIONABLE events are listed, LEAD with the strongest — date + size + closeness. Examples:
+    (a) "Herndon 4/15/24? Yes — verified 1.50" hail within 2mi, multiple ≥1" strikes 🔥 solid claim window."
+    (b) "Manassas VA best recent date — 4/1/2026 had 1.25" hail within 2.7mi, plus 3 more ≥1" same day. That's your angle 🎯"
+- Rank by hail SIZE first, then recency — reps want the biggest verified event for their pitch.
+- If NO events were found: say so plainly. "Nothing verified within 15mi of [City] on [date] / in the last 24 months in our NOAA/NWS/NEXRAD DB."
+- 🚨 ANTI-FLIP-FLOP RULE: If events array is empty and the rep pushes back saying "yes it was hit", DO NOT flip and agree. STAND YOUR GROUND. Our DB is authoritative. NEVER invent hail inches to placate a rep. Never confirm "state-level" as proof a specific city was hit.
+- 🚫 CROSS-STATE BAN — ABSOLUTE: If the rep asked about a city in VA / MD / DC / PA / DE, DO NOT mention hail events from a different state as "nearby" / "worth looking into" / "you could consider". Manassas VA is NOT near West Virginia. Ashburn VA is NOT near PA. Never suggest out-of-state hail to fill a gap. If the city has no events, say that — do not offer consolation from another state.
 - State-level storm data (e.g. "2.25" in VA") is NOT proof a specific CITY in VA was hit. Virginia is 40,000 sq mi.
 
 📧 EMAIL & PDF GENERATION — when rep asks you to write an email, make a PDF, generate a report, or create a letter:
@@ -427,6 +433,30 @@ function extractCityState(text) {
         }
     }
     return null;
+}
+// City-recent-hail — for "when was last hail in Manassas" / "what hail date should
+// I use in [city]" style queries. No date required. Returns top events within
+// 15mi of the city centroid in the last N months, ranked by size.
+async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
+    try {
+        const result = await pool.query(`SELECT event_date, state,
+              latitude, longitude,
+              hail_size_inches, wind_mph,
+              public_verification_count,
+              (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) AS distance_miles
+       FROM verified_hail_events_public
+       WHERE event_date >= (CURRENT_DATE - ($3 || ' months')::interval)::date
+         AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
+         AND hail_size_inches >= 0.75
+       ORDER BY hail_size_inches DESC NULLS LAST, event_date DESC
+       LIMIT 20`, [lat, lng, String(monthsBack)]);
+        console.log(`[SusanBot] hailAtCityRecent city=${cityName} ${monthsBack}mo → ${result.rows.length} hits`);
+        return result.rows;
+    }
+    catch (e) {
+        console.warn('[SusanBot] hailAtCityRecent err:', e);
+        return [];
+    }
 }
 async function hailAtCityOnDates(pool, lat, lng, cityName, dates // ISO YYYY-MM-DD
 ) {
@@ -1555,15 +1585,22 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
         }
     }
     if (cityHail && cityHail.geo) {
+        const mode = cityHail.mode || 'by_date';
         // Sort + categorize events so the LLM can lead with the strongest.
         const events = (cityHail.events || []).slice().sort((a, b) => (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0));
         const actionable = events.filter((e) => Number(e.hail_size_inches) >= 1.0);
         const subThreshold = events.filter((e) => Number(e.hail_size_inches) < 1.0);
-        lines.push(`\nCITY_HAIL_LOOKUP for "${cityHail.city}, ${cityHail.state}" on dates [${cityHail.dates.join(', ')}]:`);
-        lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles. Found ${events.length} verified event(s).`);
+        if (mode === 'by_date') {
+            lines.push(`\nCITY_HAIL_LOOKUP for "${cityHail.city}, ${cityHail.state}" on dates [${cityHail.dates.join(', ')}]:`);
+            lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles. Found ${events.length} verified event(s).`);
+        }
+        else {
+            lines.push(`\nCITY_RECENT_HAIL for "${cityHail.city}, ${cityHail.state}" (rep asked a city-level question without a specific date):`);
+            lines.push(`  Geocoded to (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Search radius: 15 miles, last 24 months, hail ≥ 0.75" only. Found ${events.length} verified event(s).`);
+        }
         if (actionable.length > 0) {
-            lines.push(`  ACTIONABLE (≥1.0" hail — good for claim narrative):`);
-            for (const e of actionable.slice(0, 6)) {
+            lines.push(`  ACTIONABLE (≥1.0" hail — good for claim narrative, rank by size):`);
+            for (const e of actionable.slice(0, 8)) {
                 lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from ${cityHail.city} center, ${e.public_verification_count}x verified, ${e.state}`);
             }
         }
@@ -1574,7 +1611,8 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
             }
         }
         if (events.length === 0) {
-            lines.push(`  NO verified events within 15mi on those date(s). Stand your ground — if rep insists, say our NOAA/NWS/NEXRAD DB is clean for that day, suggest checking the office or CoCoRaHS. DO NOT fabricate a hail size to agree with the rep.`);
+            lines.push(`  NO verified events within 15mi ${mode === 'by_date' ? 'on those date(s)' : 'in the last 24 months'}. Stand your ground — if rep insists, say our NOAA/NWS/NEXRAD DB is clean, suggest checking the office or CoCoRaHS. DO NOT fabricate a hail size to agree with the rep.`);
+            lines.push(`  🚫 DO NOT suggest events from other states as "nearby" or "worth looking into" — ${cityHail.city} is in ${cityHail.state}, and cross-state consolation data is IRRELEVANT to their claim.`);
         }
     }
     return lines.join('\n');
@@ -2092,24 +2130,37 @@ export function createSusanGroupMeBotRoutes(pool) {
                     return { address: addr, geo, events, mrms };
                 })()
                 : Promise.resolve(null);
-            // CITY-LEVEL hail lookup — fires when rep asks "was [City], [State] hit on [date]"
-            // WITHOUT a street address. Fixes the "Herndon on 4/15/2024" case where Susan
-            // previously said "nothing verified" because there was no street address to
-            // anchor the radius query on.
-            const cityQuery = (!addr && dates.length > 0) ? extractCityState(text) : null;
-            const cityHailPromise = cityQuery
+            // CITY-LEVEL hail lookup — two modes:
+            //   (a) city + specific date(s) → "was [city] hit on [date]" style. Radius
+            //       search on those exact dates.
+            //   (b) city + NO date → "what hail date should I use in [city]" / "when
+            //       was [city] last hit". Returns recent top events in last 24mo.
+            // Fixes the "Manassas 4/1" case where Susan said "no events" for a city
+            // the DB actually has, because she had no handler for city-only queries.
+            const cityOnlyQuery = !addr ? extractCityState(text) : null;
+            const cityHailPromise = cityOnlyQuery
                 ? (async () => {
                     // Reuse geocodeAddress by faking a minimal address from city+state
                     const geo = await geocodeAddress({
-                        full: `${cityQuery.city}, ${cityQuery.state}`,
-                        street: cityQuery.city,
-                        city: cityQuery.city,
-                        state: cityQuery.state,
+                        full: `${cityOnlyQuery.city}, ${cityOnlyQuery.state}`,
+                        street: cityOnlyQuery.city,
+                        city: cityOnlyQuery.city,
+                        state: cityOnlyQuery.state,
                     });
                     if (!geo)
                         return null;
-                    const events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cityQuery.city, dates);
-                    return { city: cityQuery.city, state: cityQuery.state, geo, dates, events };
+                    let events;
+                    let mode;
+                    if (dates.length > 0) {
+                        events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cityOnlyQuery.city, dates);
+                        mode = 'by_date';
+                    }
+                    else {
+                        // No date named → find recent dates where this city WAS hit
+                        events = await hailAtCityRecent(pool, geo.lat, geo.lng, cityOnlyQuery.city, 24);
+                        mode = 'recent';
+                    }
+                    return { city: cityOnlyQuery.city, state: cityOnlyQuery.state, geo, dates, events, mode };
                 })()
                 : Promise.resolve(null);
             // Pull recent chat context for recap / team-flow style questions.
