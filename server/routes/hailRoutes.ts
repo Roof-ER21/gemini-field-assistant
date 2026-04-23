@@ -1301,7 +1301,12 @@ router.post('/generate-report', async (req: Request, res: Response) => {
     // Fixes the Cub Stream Dr / Silver Charm Pl case where the app map showed
     // the swath covering the house but the PDF said nothing. Runs for any
     // request with a valid lat+lng. Silently degrades on error.
-    try {
+    //
+    // `skipEnrichment: true` in the body opts out — useful when the caller
+    // has already hand-crafted the event set (adjuster-ready reports where
+    // we want exact control over the events shown) and the 24-mo swath
+    // lookup would just add latency + risk 502 gateway timeouts.
+    if (req.body?.skipEnrichment !== true) try {
       const pool: import('pg').Pool = req.app.get('pool');
       const latNum = Number(req.body?.lat);
       const lngNum = Number(req.body?.lng);
