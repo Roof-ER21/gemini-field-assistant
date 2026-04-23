@@ -21,6 +21,7 @@
 import pg from 'pg';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
+import { startPdfJobWorker } from './services/pdfJobQueue.js';
 
 const { Pool } = pg;
 
@@ -146,6 +147,11 @@ async function main(): Promise<void> {
   // show 5-10 years of history without loading hundreds of thousands of
   // raw events into the web container.
   startStormDaysRefresh(pool);
+
+  // Phase 4: PDF job queue consumer. The web container enqueues a row
+  // into pdf_jobs on POST /api/hail/generate-report; this worker renders
+  // them asynchronously so the web never blocks on pdfkit.
+  startPdfJobWorker(pool);
 
   // Keep the process alive. node-cron installs its own setIntervals, but if
   // every cron job is disabled the event loop would drain and the worker would

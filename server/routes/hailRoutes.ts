@@ -1306,8 +1306,42 @@ router.get('/hot-zones', async (req: Request, res: Response) => {
 });
 
 // POST /api/hail/generate-report - Generate Curran-style PDF report
+//
+// Phase 4: by default this endpoint ENQUEUES a pdf_jobs row and returns
+// {jobId} immediately so the web container never blocks on pdfkit while
+// reps are hitting chat/SSE. Poll GET /api/hail/report/:id for status
+// (returns {status:'pending'|'running'|'done'|'error', url?, error?}).
+// When status='done', url is a path under /uploads/reports/ that the
+// browser can GET to download the PDF.
+//
+// Pass `sync: true` in the body to force inline rendering (for scripts
+// that want the bytes back in one HTTP call). Rep-facing UI should
+// always use the async mode.
 router.post('/generate-report', async (req: Request, res: Response) => {
   try {
+    // ENQUEUE MODE (default) — insert a row, return the ID, let the
+    // sa21-worker render. This is what the UI "Generate Report" button
+    // has used since Phase 4. The sync path below is only for curl
+    // scripts and the adjuster-packet one-off generators.
+    if (req.body?.sync !== true) {
+      const pool: import('pg').Pool = req.app.get('pool');
+      const requestedBy = req.header('x-user-email') || null;
+      const { rows } = await pool.query(
+        `INSERT INTO pdf_jobs (payload, requested_by_email)
+         VALUES ($1::jsonb, $2)
+         RETURNING id, created_at`,
+        [JSON.stringify(req.body || {}), requestedBy],
+      );
+      const jobId = rows[0].id;
+      console.log(`[generate-report] enqueued job ${jobId} for ${requestedBy || 'anon'}`);
+      return res.status(202).json({
+        jobId,
+        status: 'pending',
+        pollUrl: `/api/hail/report/${jobId}`,
+        message: 'Report queued. Poll pollUrl until status=done, then download from result url.',
+      });
+    }
+
     // SWATH ENRICHMENT — inject synthetic "at-property" events for every date
     // the property sits inside an MRMS swath polygon. The walk is expensive:
     // 100+ swath polygon reads and potential cold cache fills. It pushed
@@ -1777,6 +1811,94 @@ router.post('/generate-report', async (req: Request, res: Response) => {
     releasePdfSlot();
     console.error('❌ PDF report generation error:', error);
     res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// GET /api/hail/report/:id — poll a pdf_jobs row for status.
+//
+// Returns one of:
+//   { status: 'pending'|'running', jobId, createdAt }
+//   { status: 'done',  jobId, url: '/api/hail/report/<id>/download', completedAt }
+//   { status: 'error', jobId, error, completedAt }
+//
+// The browser polls this every ~2s after POST /generate-report, then
+// follows `url` to stream the PDF bytes back.
+router.get('/report/:id', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id || '');
+    if (!/^[0-9a-f-]{10,}$/i.test(id)) {
+      return res.status(400).json({ error: 'invalid job id' });
+    }
+    const pool: import('pg').Pool = req.app.get('pool');
+    const { rows } = await pool.query(
+      `SELECT id, status,
+              result_url, (result_bytes IS NOT NULL) AS has_bytes,
+              error, created_at, started_at, completed_at
+         FROM pdf_jobs WHERE id = $1`,
+      [id],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'job not found' });
+    const r = rows[0];
+    if (r.status === 'done') {
+      // Prefer an explicit external URL (for future S3/R2 integration),
+      // fall back to the in-DB bytes served by /download below.
+      const url = r.result_url || `/api/hail/report/${id}/download`;
+      return res.json({
+        status: 'done', jobId: id, url, hasBytes: !!r.has_bytes,
+        createdAt: r.created_at, completedAt: r.completed_at,
+      });
+    }
+    if (r.status === 'error') {
+      return res.json({
+        status: 'error', jobId: id, error: r.error,
+        createdAt: r.created_at, completedAt: r.completed_at,
+      });
+    }
+    return res.json({
+      status: r.status, jobId: id,
+      createdAt: r.created_at, startedAt: r.started_at,
+    });
+  } catch (err) {
+    console.error('[report/:id] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// GET /api/hail/report/:id/download — stream the PDF bytes back.
+// Read the bytea column and pipe to the response with a sensible
+// filename derived from the payload (address + date-of-loss when present).
+router.get('/report/:id/download', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id || '');
+    if (!/^[0-9a-f-]{10,}$/i.test(id)) {
+      return res.status(400).json({ error: 'invalid job id' });
+    }
+    const pool: import('pg').Pool = req.app.get('pool');
+    const { rows } = await pool.query(
+      `SELECT status, result_bytes, result_mime, payload
+         FROM pdf_jobs WHERE id = $1`,
+      [id],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'job not found' });
+    const r = rows[0];
+    if (r.status !== 'done' || !r.result_bytes) {
+      return res.status(409).json({ error: 'report not ready', status: r.status });
+    }
+    const body = r.payload || {};
+    const addrSlug = String(body.address || 'report')
+      .replace(/[^A-Za-z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+    const dateTag = body.dateOfLoss || body.toDate ||
+      (Array.isArray(body.datesOfLoss) && body.datesOfLoss[0]) || '';
+    const filename = `${addrSlug}${dateTag ? '_' + dateTag : ''}.pdf`;
+    res.setHeader('Content-Type', r.result_mime || 'application/pdf');
+    res.setHeader('Content-Length', String(r.result_bytes.length));
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.end(r.result_bytes);
+  } catch (err) {
+    console.error('[report/:id/download] err:', err);
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

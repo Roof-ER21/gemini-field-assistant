@@ -9373,18 +9373,19 @@ app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
 app.use('/api/susan/groupme-webhook', createSusanGroupMeBotRoutes(pool));
 // Susan 21 scheduled posts + storm-days refresh.
-// Phase 2 worker split: cron schedulers now run in the dedicated sa21-worker
-// service (server/worker.ts). They are OFF here by default so the web container
-// is not burdened with background ingest work.
-// Set RUN_SCHEDULERS=true on THIS service only if you intentionally want the web
-// container to also run schedulers (e.g., during a rollback before the worker
-// service is healthy). See docs/PHASE2_RAILWAY_SETUP.md.
-if (process.env.RUN_SCHEDULERS === 'true') {
+// Phase 2 worker split: cron schedulers should run in the dedicated sa21-worker
+// service (server/worker.ts). Until that service is stood up on Railway, we
+// default to running them IN THE WEB CONTAINER so nothing breaks — that's
+// today's behavior, same as before the worker file existed.
+// After sa21-worker is created and confirmed healthy (GET /api/admin/worker-status
+// reports age < 2 min) set RUN_SCHEDULERS=false on this service to migrate.
+// See docs/PHASE2_RAILWAY_SETUP.md.
+if (process.env.RUN_SCHEDULERS !== 'false') {
   startSusanScheduler(pool);
   startStormDaysRefresh(pool);
-  console.log('[web] RUN_SCHEDULERS=true — susan scheduler + storm-days refresh started in web container');
+  console.log('[web] schedulers running in web container (set RUN_SCHEDULERS=false after sa21-worker is up)');
 } else {
-  console.log('[web] RUN_SCHEDULERS not set — schedulers deferred to sa21-worker service');
+  console.log('[web] RUN_SCHEDULERS=false — schedulers deferred to sa21-worker service');
 }
 app.use('/api/directives', createDirectiveRoutes(pool));
 app.use('/api/agent-tasks', createAgentTaskRoutes(pool));

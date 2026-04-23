@@ -824,14 +824,40 @@ export async function generateStormReport(
     customerName: opts.customerName?.trim() || undefined,
   };
 
-  const response = await fetch(`${apiBase}/hail/generate-report`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-email': email }, body: JSON.stringify(payload) });
-  if (!response.ok) throw new Error(`Report API returned ${response.status}`);
-  const blob = await response.blob();
-  // Build a filename hint from the mode — multi/range/lifetime shouldn't end in "undefined"
+  // Async queue mode: the server enqueues a pdf_jobs row and returns {jobId}.
+  // We poll /api/hail/report/:id every 2s until status='done', then GET the
+  // /download endpoint to stream the bytes. Replaces the old inline-render
+  // request which blocked the web container for 30-60s and caused 502s.
+  const enqueueResponse = await fetch(`${apiBase}/hail/generate-report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-email': email },
+    body: JSON.stringify(payload),
+  });
+  if (!enqueueResponse.ok) throw new Error(`Report enqueue returned ${enqueueResponse.status}`);
+  const enqueueJson = await enqueueResponse.json() as { jobId?: string; status?: string; pollUrl?: string; error?: string };
+  if (!enqueueJson.jobId) throw new Error(enqueueJson.error || 'enqueue returned no jobId');
+
+  const jobId = enqueueJson.jobId;
+  const pollDeadline = Date.now() + 120_000; // 2 min ceiling; typical report renders in 3-10s
+  let pollJson: any = null;
+  while (Date.now() < pollDeadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const pollResp = await fetch(`${apiBase}/hail/report/${jobId}`, { headers: { 'x-user-email': email } });
+    if (!pollResp.ok) continue;
+    pollJson = await pollResp.json();
+    if (pollJson.status === 'done') break;
+    if (pollJson.status === 'error') throw new Error(pollJson.error || 'report render failed');
+  }
+  if (!pollJson || pollJson.status !== 'done') throw new Error('Report render timed out after 2 minutes — try again.');
+
+  // Stream the finished PDF.
+  const downloadResp = await fetch(`${apiBase}${pollJson.url}`, { headers: { 'x-user-email': email } });
+  if (!downloadResp.ok) throw new Error(`Report download returned ${downloadResp.status}`);
+  const blob = await downloadResp.blob();
   const dateTag = opts.dateOfLoss
     || (opts.datesOfLoss && opts.datesOfLoss.length > 0 ? `multi_${opts.datesOfLoss.length}_dates` : '')
     || (opts.fromDate && opts.toDate ? `${opts.fromDate}_to_${opts.toDate}` : '')
     || (opts.lifetime ? 'all-history' : 'report');
   const fallbackFilename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${dateTag}.pdf`;
-  downloadBlob(blob, getResponseFilename(response, fallbackFilename));
+  downloadBlob(blob, getResponseFilename(downloadResp, fallbackFilename));
 }
