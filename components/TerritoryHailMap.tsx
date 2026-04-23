@@ -39,7 +39,9 @@ import {
   fetchMeshSwathsByLocation,
   fetchAddressImpact,
   formatHailTier,
+  verifyDate,
   type AddressImpactReport,
+  type VerifyDateResult,
   deduplicateEvents,
   groupEventsByDate,
   mergeDateLists,
@@ -616,6 +618,10 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   // Distance range for result filtering. Default 3 mi (direct + near-miss only).
   // Drag up to 15 mi to include neighborhood-area context.
   const [maxDistanceMi, setMaxDistanceMi] = useState<number>(3);
+  // Verify-date: rep types a date from HailTrace/Hail Recon, we check on-demand.
+  const [verifyDateInput, setVerifyDateInput] = useState<string>('');
+  const [verifyResult, setVerifyResult] = useState<VerifyDateResult | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
   const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
@@ -1640,6 +1646,101 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                   </p>
                 )}
               </>
+            )}
+          </div>
+        )}
+
+        {/* Verify-date: rep pastes a date from HailTrace/Hail Recon and we
+            check authoritatively, triggering an on-demand swath fetch if that
+            date isn't cached yet. Closes the "HailTrace says yes, we say no"
+            complaint loop. */}
+        {searchSummary && searchLat && searchLng && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code') && (
+          <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#6b7280', margin: '0 0 6px 0' }}>
+              Verify Another Source's Date
+            </p>
+            <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px 0' }}>
+              Rep brought you a date from HailTrace / Hail Recon? Drop it here and we'll check every source.
+            </p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="date"
+                value={verifyDateInput}
+                onChange={(e) => setVerifyDateInput(e.target.value)}
+                aria-label="Date to verify"
+                style={{
+                  flex: 1,
+                  borderRadius: 6,
+                  border: '1px solid #374151',
+                  background: '#111827',
+                  color: '#fff',
+                  padding: '6px 8px',
+                  fontSize: 12,
+                }}
+              />
+              <button
+                type="button"
+                disabled={!verifyDateInput || verifyLoading}
+                onClick={async () => {
+                  if (!verifyDateInput || !searchLat || !searchLng) return;
+                  setVerifyLoading(true);
+                  setVerifyResult(null);
+                  const r = await verifyDate(searchLat, searchLng, verifyDateInput);
+                  setVerifyResult(r);
+                  setVerifyLoading(false);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: !verifyDateInput || verifyLoading ? 'not-allowed' : 'pointer',
+                  background: !verifyDateInput || verifyLoading ? '#1f2937' : '#ef4444',
+                  color: '#fff',
+                }}
+              >
+                {verifyLoading ? '...' : 'Check'}
+              </button>
+            </div>
+            {verifyResult && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  borderRadius: 6,
+                  fontSize: 12,
+                  background:
+                    verifyResult.confidence === 'high' ? 'rgba(16,185,129,0.1)'
+                    : verifyResult.confidence === 'medium' ? 'rgba(251,191,36,0.1)'
+                    : verifyResult.confidence === 'low' ? 'rgba(148,163,184,0.1)'
+                    : 'rgba(156,163,175,0.05)',
+                  border: `1px solid ${
+                    verifyResult.confidence === 'high' ? 'rgba(16,185,129,0.4)'
+                    : verifyResult.confidence === 'medium' ? 'rgba(251,191,36,0.4)'
+                    : verifyResult.confidence === 'low' ? 'rgba(148,163,184,0.3)'
+                    : 'rgba(75,85,99,0.3)'
+                  }`,
+                  color:
+                    verifyResult.confidence === 'high' ? '#d1fae5'
+                    : verifyResult.confidence === 'medium' ? '#fef3c7'
+                    : verifyResult.confidence === 'low' ? '#e2e8f0'
+                    : '#9ca3af',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>{verifyResult.verdict}</div>
+                {verifyResult.sources.length > 0 && (
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>
+                    Sources: {verifyResult.sources.join(', ')}
+                  </div>
+                )}
+                {verifyResult.topPointReports.length > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+                    Closest: {verifyResult.topPointReports[0].distanceMi}mi — {verifyResult.topPointReports[0].hail ? `${verifyResult.topPointReports[0].hail}" hail` : ''}
+                    {verifyResult.topPointReports[0].wind ? ` ${verifyResult.topPointReports[0].wind}mph wind` : ''}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

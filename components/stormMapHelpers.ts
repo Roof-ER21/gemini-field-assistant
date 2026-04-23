@@ -389,6 +389,45 @@ export interface AddressImpactReport {
   };
 }
 
+// Verify-date — rep brings us a HailTrace/Hail Recon date, we check on-demand.
+// Triggers a swath cache fill if the date isn't cached yet.
+export interface VerifyDateResult {
+  date: string;
+  lat: number;
+  lng: number;
+  verdict: string;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  swathHit: { directHit: boolean; maxInches: number | null; label: string | null };
+  pointReportCount: number;
+  closestDistanceMi: number | null;
+  maxHailInches: number | null;
+  sources: string[];
+  topPointReports: Array<{ distanceMi: string; hail: number | null; wind: number | null; state: string }>;
+}
+
+export async function verifyDate(
+  lat: number,
+  lng: number,
+  date: string,
+  signal?: AbortSignal,
+): Promise<VerifyDateResult | null> {
+  const apiBase = getApiBaseUrl();
+  try {
+    const res = await fetch(`${apiBase}/hail/verify-date`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng, date }),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(90_000)])
+        : AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as VerifyDateResult;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchAddressImpact(
   lat: number,
   lng: number,
