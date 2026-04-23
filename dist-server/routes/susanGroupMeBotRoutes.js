@@ -596,18 +596,33 @@ const CARRIER_OR_VENDOR_REGEX = /\b(allstate|usaa|state\s*farm|travelers|liberty
 const ASSESSMENT_WORDS = /\b(brutal|tough|easy|great|awful|terrible|amazing|the\s+boy|goat|nightmare|dream|devil|angel|reschedule|avoid|reliable|unreliable|took\s+(my|back|a)|denied|approved|flipped|refused|refuses|no\s+good|no\s+bueno|hit\s+or\s+miss|crushing|stack|save(d|)|lost|won|fight|cooking|inadequate|incompetent|killer|dbag|d-bag|jerk|cool|chill|rude|polite)\b/i;
 // Negative-intel markers — triggers the Roof-ER confidence pivot in the reply.
 // Includes typical KB sections like "REPUTATION: Tough" or "WATCH-OUT" + narrative.
-const NEGATIVE_INTEL_REGEX = /\b(tough|brutal|awful|terrible|nightmare|avoid|hard\s+pass|denies?|den(ies|ial|ied)|refus(es|ed|e)?|rough|rude|jerk|d[-\s]?bag|incompetent|inadequate|bad\s+news|pain\s+in\s+the|difficult|unreliable|hit[-\s]or[-\s]miss|no\s+good|no\s+bueno|devil|nightmarish|the\s+worst|stonewall|lowball|antagonistic|combative|dishonest|shady|flaky|problem\s+adjuster|problem\s+child|pain|not\s+helpful|uncooperative)\b/i;
+const NEGATIVE_INTEL_REGEX = /\b(tough|brutal|awful|terrible|nightmare|avoid|hard\s+pass|denies?|den(ies|ial|ied)|refus(es|ed|e)?|rough|rude|jerk|d[-\s]?bag|incompetent|inadequate|bad\s+news|pain\s+in\s+the|difficult|unreliable|hit[-\s]or[-\s]miss|no\s+good|no\s+bueno|devil|nightmarish|the\s+worst|stonewall|lowball|antagonistic|combative|dishonest|shady|flaky|problem\s+adjuster|problem\s+child|not\s+helpful|uncooperative)\b/gi;
+// Positive markers — used as counterbalance. If a doc has more positive signals
+// than negative, the adjuster is actually gold (even if the doc mentions tough
+// peers). No pivot needed.
+const POSITIVE_INTEL_REGEX = /\b(the\s+boy|🐐|goat\b|gold\b|crush(es|ing)?(\s+it)?|approves?\s+(consistently|jobs|claims)|easy\s+to\s+work|dream|reliable|bright\s+spot|killing\s+it|elite|solid|pays?\s+fast|responsive|helpful|cooperative|great\s+adjuster|smooth|approachable|well[-\s]regarded|fair|straight[-\s]?shooter|approval\s+rate|approve\s+most|knows\s+roof|sharp|professional|flips?\s+(cases|claims)|saves?\s+cases)\b/gi;
 function hasNegativeIntel(kbHits) {
-    // Only count negativity from adjuster-intel or team-canon docs (not general training)
-    for (const h of kbHits.slice(0, 3)) {
-        const category = String(h.category || '').toLowerCase();
-        if (category && !['adjuster-intel', 'team-canon', 'insurance-intel', 'carrier-intel'].some((c) => category.includes(c)))
-            continue;
-        const text = `${h.name || ''} ${h.content || ''}`;
-        if (NEGATIVE_INTEL_REGEX.test(text))
-            return true;
-    }
-    return false;
+    if (!kbHits || kbHits.length === 0)
+        return false;
+    // Focus on TOP hit only — that's the doc most relevant to the rep's question.
+    // Carrier-wide docs (which might mention both tough AND gold adjusters) would
+    // otherwise falsely trigger pivots when asking about a GOLD adjuster.
+    const top = kbHits[0];
+    if (!top)
+        return false;
+    const category = String(top.category || '').toLowerCase();
+    if (category && !['adjuster-intel', 'team-canon', 'insurance-intel', 'carrier-intel'].some((c) => category.includes(c)))
+        return false;
+    const text = `${top.name || ''} ${top.content || ''}`;
+    const negMatches = text.match(NEGATIVE_INTEL_REGEX) || [];
+    const posMatches = text.match(POSITIVE_INTEL_REGEX) || [];
+    if (negMatches.length === 0)
+        return false;
+    // No positives → clear negative doc → pivot
+    if (posMatches.length === 0)
+        return true;
+    // Both present → only pivot if negative strongly outweighs positive (2x+)
+    return negMatches.length >= posMatches.length * 2;
 }
 const PROPER_NOUN_REGEX = /\b([A-Z][a-zA-Z'\-]{2,}(?:\s+[A-Z][a-zA-Z'\-]+){0,2})\b/g;
 // Heuristic: does this message LOOK like rep-to-rep intel worth learning?
