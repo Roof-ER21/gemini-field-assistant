@@ -418,20 +418,37 @@ function extractCityState(text) {
         virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
         'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
     };
-    const NOISE_WORDS = /^(hail|storm|damage|claim|today|yesterday|last|past|this|the|a|an|it|there|here|roof|date|day|weather|rain|wind|verified|approved|tough|bad|is|was|are|were|on|in|for|about|around|near|hit|any|from|some|know|got|saw|did|had|have|been|being|will|can|did)$/i;
+    const NOISE_WORDS = new Set([
+        'hail', 'storm', 'damage', 'claim', 'today', 'yesterday', 'last', 'past', 'this',
+        'the', 'a', 'an', 'it', 'there', 'here', 'roof', 'date', 'day', 'weather', 'rain',
+        'wind', 'verified', 'approved', 'tough', 'bad', 'is', 'was', 'are', 'were', 'on',
+        'in', 'for', 'about', 'around', 'near', 'hit', 'any', 'from', 'some', 'know', 'got',
+        'saw', 'did', 'had', 'have', 'been', 'being', 'will', 'can', 'use', 'give', 'tell',
+        'show', 'find', 'check', 'get', 'what', 'when', 'where', 'why', 'how', 'if', 'should',
+        'would', 'could', 'could', 'me', 'us', 'of', 'to', 'at', 'by', 'my', 'our',
+        'susan', 'susie', 'suzy', 'suzie',
+    ]);
     for (const re of [commaRe, spaceRe]) {
         const m = text.match(re);
-        if (m) {
-            const rawCity = m[1].trim();
-            // Filter out obvious non-city leading words (e.g. "past Virginia")
-            const firstWord = rawCity.split(/\s+/)[0];
-            if (NOISE_WORDS.test(firstWord))
-                continue;
-            if (rawCity.length < 3 || rawCity.length > 42)
-                continue;
-            const stateKey = m[2].toLowerCase();
-            return { city: rawCity, state: stateMap[stateKey] || m[2].toUpperCase() };
+        if (!m)
+            continue;
+        let rawCity = m[1].trim();
+        // Strip leading noise words until we hit a likely city name. Multi-word
+        // captures like "use in manassas" → strip "use" + "in" → "manassas".
+        let words = rawCity.split(/\s+/);
+        while (words.length > 0 && NOISE_WORDS.has(words[0].toLowerCase())) {
+            words.shift();
         }
+        if (words.length === 0)
+            continue;
+        rawCity = words.join(' ');
+        if (rawCity.length < 3 || rawCity.length > 42)
+            continue;
+        // Reject if remaining first word is still a noise word (defensive)
+        if (NOISE_WORDS.has(words[0].toLowerCase()))
+            continue;
+        const stateKey = m[2].toLowerCase();
+        return { city: rawCity, state: stateMap[stateKey] || m[2].toUpperCase() };
     }
     return null;
 }
