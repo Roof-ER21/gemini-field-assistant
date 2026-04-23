@@ -394,6 +394,79 @@ async function geocodeAddress(addr) {
     }
     return null;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+//   PASSIVE INTEL LEARNING — watch chat for new adjuster/carrier intel,
+//   queue as KB candidates for admin approval.
+// ═══════════════════════════════════════════════════════════════════════════
+const CARRIER_OR_VENDOR_REGEX = /\b(allstate|usaa|state\s*farm|travelers|liberty\s*mutual|erie|nationwide|progressive|farmers|geico|encompass|chubb|amica|hartford|cincinnati|hanover|kemper|metlife|safeco|homesite|american\s*family|seek\s*now|seeknow|rebuild|alacrity|patriot\s*claims|hancock|cumberland|global\s*risk|trident|allcat)\b/i;
+const ASSESSMENT_WORDS = /\b(brutal|tough|easy|great|awful|terrible|amazing|the\s+boy|goat|nightmare|dream|devil|angel|reschedule|avoid|reliable|unreliable|took\s+(my|back|a)|denied|approved|flipped|refused|refuses|no\s+good|no\s+bueno|hit\s+or\s+miss|crushing|stack|save(d|)|lost|won|fight|cooking|inadequate|incompetent|killer|dbag|d-bag|jerk|cool|chill|rude|polite)\b/i;
+const PROPER_NOUN_REGEX = /\b([A-Z][a-zA-Z'\-]{2,}(?:\s+[A-Z][a-zA-Z'\-]+){0,2})\b/g;
+// Heuristic: does this message LOOK like rep-to-rep intel worth learning?
+function looksLikeIntel(text) {
+    if (!text || text.length < 30 || text.length > 1500)
+        return { match: false, reason: 'length', candidates: [] };
+    if (SIGNUP_PREFIX.test(text))
+        return { match: false, reason: 'signup_post', candidates: [] };
+    const hasCarrier = CARRIER_OR_VENDOR_REGEX.test(text);
+    const hasAssessment = ASSESSMENT_WORDS.test(text);
+    if (!hasCarrier && !hasAssessment)
+        return { match: false, reason: 'no_signal', candidates: [] };
+    // Must have at least one proper-noun candidate that ISN'T a carrier
+    const names = [...text.matchAll(PROPER_NOUN_REGEX)]
+        .map((m) => m[1])
+        .filter((n) => !CARRIER_OR_VENDOR_REGEX.test(n))
+        .filter((n) => !/^(Susan|The|This|That|Ahmed|Ross|Nick|Oliver|Ford|Reese|Keith|Kevin|Ben|Chris|Richie|Hey|Hi|Hello|Yeah|No|Good|Great|LFG|HO|DMV|NOAA|USAA|Allstate|Travelers|Erie|State|Liberty|Nationwide|Progressive|Farmers|Homesite|Geico)$/i.test(n));
+    if (names.length === 0)
+        return { match: false, reason: 'no_proper_noun', candidates: [] };
+    const reasons = [];
+    if (hasCarrier)
+        reasons.push('carrier');
+    if (hasAssessment)
+        reasons.push('assessment');
+    reasons.push('proper_noun');
+    return { match: true, reason: reasons.join('+'), candidates: [...new Set(names)].slice(0, 5) };
+}
+// Dedup: check if we've already queued a candidate with same content recently
+async function hasSimilarCandidate(pool, senderName, text) {
+    try {
+        const r = await pool.query(`SELECT 1 FROM kb_learning_candidates
+       WHERE sender_name = $1 AND raw_text = $2 AND created_at > NOW() - INTERVAL '7 days'
+       LIMIT 1`, [senderName, text.slice(0, 500)]);
+        return r.rows.length > 0;
+    }
+    catch {
+        return false;
+    }
+}
+async function queueLearningCandidate(pool, msg, context, trigger) {
+    try {
+        // Best-guess fields
+        const carrierMatch = CARRIER_OR_VENDOR_REGEX.exec(msg.text);
+        const detectedCarrier = carrierMatch ? carrierMatch[1] : null;
+        const detectedName = trigger.candidates[0] || null;
+        await pool.query(`INSERT INTO kb_learning_candidates
+         (source_message_id, sender_user_id, sender_name, group_id, raw_text,
+          context_messages, detected_entity_type, detected_name, detected_carrier,
+          trigger_reason, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
+       ON CONFLICT (source_message_id) DO NOTHING`, [
+            String(msg.id),
+            String(msg.user_id || ''),
+            String(msg.name || ''),
+            String(msg.group_id || SALES_GROUP_ID),
+            String(msg.text).slice(0, 2000),
+            JSON.stringify(context.slice(-5).map((c) => ({ name: c.name, text: c.text.slice(0, 300) }))),
+            'adjuster',
+            detectedName,
+            detectedCarrier,
+            trigger.reason,
+        ]);
+        console.log(`[SusanBot] learning_candidate queued — sender=${msg.name}, detected_name=${detectedName}, carrier=${detectedCarrier}`);
+    }
+    catch (e) {
+        console.warn('[SusanBot] queueLearningCandidate err:', e);
+    }
+}
 // ─── Chat context — for recap / team / "today" style questions ───────────────
 function needsChatContext(text) {
     return /\b(recap|today|yesterday|summary|summarize|catch\s+me\s+up|catch\s+up|what\s+happened|what\s+did|wins|signups?|sign\s+ups?|total|team\s+did|team\s+hit|day|week|what's\s+new|whats\s+new)\b/i.test(text);
@@ -1320,8 +1393,22 @@ export function createSusanGroupMeBotRoutes(pool) {
         // Reply condition
         const mentioned = textMentionsSusan(text);
         const isReply = isReplyToSusan(msg.attachments || []);
-        if (!mentioned && !isReply)
-            return;
+        // PASSIVE INTEL LEARNING — runs BEFORE the trigger check so we capture
+        // intel even when reps are talking to each other (not to Susan). This
+        // queues candidates for admin review; nothing is auto-written to KB here.
+        if (!mentioned && !isReply) {
+            const intel = looksLikeIntel(text);
+            if (intel.match) {
+                const dup = await hasSimilarCandidate(pool, msg.name || '', text);
+                if (!dup) {
+                    // Pull a little context from recent chat (best-effort, non-blocking)
+                    fetchRecentChatMessages(10).then((recent) => {
+                        queueLearningCandidate(pool, msg, recent, intel).catch(() => { });
+                    }).catch(() => { });
+                }
+            }
+            return; // no reply — we just observed
+        }
         // Rate limits
         const rate = withinRate();
         if (!rate.ok) {
@@ -1443,6 +1530,135 @@ export function createSusanGroupMeBotRoutes(pool) {
         }
         catch (e) {
             res.status(500).json({ error: e?.message || 'audit failed' });
+        }
+    });
+    // ═══════════ Learning candidates (admin) ═══════════
+    // List pending learnings for admin review
+    router.get('/learnings', async (req, res) => {
+        const status = String(req.query.status || 'pending');
+        const limit = Math.min(Number(req.query.limit || 50), 200);
+        try {
+            const r = await pool.query(`SELECT id, source_message_id, sender_name, raw_text, context_messages,
+                detected_entity_type, detected_name, detected_carrier, trigger_reason,
+                status, proposed_kb_doc_name, proposed_kb_doc_content,
+                merge_target_doc_id, created_at, reviewed_at, reviewed_by, applied_at
+         FROM kb_learning_candidates
+         WHERE status = $1
+         ORDER BY created_at DESC LIMIT $2`, [status, limit]);
+            res.json({ count: r.rows.length, candidates: r.rows });
+        }
+        catch (e) {
+            res.status(500).json({ error: e?.message || 'learnings query failed' });
+        }
+    });
+    // Synthesize + approve a learning candidate → ingest to KB
+    router.post('/learnings/:id/approve', async (req, res) => {
+        const id = Number(req.params.id);
+        const reviewedBy = String(req.body?.reviewed_by || 'admin');
+        try {
+            const cand = (await pool.query(`SELECT * FROM kb_learning_candidates WHERE id=$1 AND status='pending'`, [id])).rows[0];
+            if (!cand)
+                return res.status(404).json({ error: 'pending candidate not found' });
+            // Check if we already have a KB doc for this adjuster — merge vs. new
+            let targetDoc = null;
+            if (cand.detected_name) {
+                const searchKey = cand.detected_name.toLowerCase();
+                const match = await pool.query(`SELECT id, name, content FROM knowledge_documents
+           WHERE category = 'adjuster-intel' AND LOWER(name) LIKE $1
+           ORDER BY LENGTH(content) DESC LIMIT 1`, [`%${searchKey}%`]);
+                if (match.rows.length > 0)
+                    targetDoc = match.rows[0];
+            }
+            // Synthesize via Groq (fast, free)
+            const groqKey = process.env.GROQ_API_KEY;
+            let synthesized = null;
+            if (groqKey) {
+                const prompt = `You are updating The Roof Docs adjuster knowledge base.
+
+REP MESSAGE:
+${cand.raw_text}
+
+SURROUNDING CHAT (most recent last):
+${Array.isArray(cand.context_messages) ? cand.context_messages.map((c) => `[${c.name}] ${c.text}`).join('\n') : ''}
+
+${targetDoc ? `EXISTING KB DOC for ${cand.detected_name}:\n${targetDoc.content.slice(0, 2000)}\n\nMerge the new message's intel into this existing profile. Preserve all prior content. Add new observations under BEHAVIOR & STYLE or WATCH-OUTS with date + rep attribution.` : `No existing KB doc for this person. Create a new ADJUSTER / INSPECTOR PROFILE.`}
+
+Output JSON with:
+{
+  "name": "Adjuster Intel: <Name> (<Company>)",
+  "content": "<full updated profile in the same format as our KB: Name, Company, Role, REPUTATION, BEHAVIOR & STYLE, STRATEGY, WATCH-OUTS, KNOWN CONTACT, Source>",
+  "category": "adjuster-intel"
+}`;
+                const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+                    body: JSON.stringify({
+                        model: 'llama-3.3-70b-versatile',
+                        messages: [
+                            { role: 'system', content: 'You are a careful KB editor. Preserve existing facts, add new ones with attribution. Output ONLY the JSON object.' },
+                            { role: 'user', content: prompt },
+                        ],
+                        max_tokens: 1500,
+                        temperature: 0.3,
+                        response_format: { type: 'json_object' },
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const content = data?.choices?.[0]?.message?.content;
+                    if (content) {
+                        try {
+                            synthesized = JSON.parse(content);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            if (!synthesized || !synthesized.content) {
+                return res.status(502).json({ error: 'LLM synthesis failed', candidate: cand });
+            }
+            // Apply — UPDATE existing or INSERT new
+            let appliedDocId;
+            if (targetDoc) {
+                await pool.query(`UPDATE knowledge_documents SET name=$1, content=$2 WHERE id=$3`, [synthesized.name || targetDoc.name, synthesized.content, targetDoc.id]);
+                appliedDocId = targetDoc.id;
+            }
+            else {
+                const slugName = (cand.detected_name || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const filePath = `groupme-archive://adjuster/learned-${slugName}-${Date.now()}`;
+                const ins = await pool.query(`INSERT INTO knowledge_documents (name, category, state, content, file_path)
+           VALUES ($1, 'adjuster-intel', NULL, $2, $3)
+           RETURNING id`, [synthesized.name, synthesized.content, filePath]);
+                appliedDocId = ins.rows[0].id;
+            }
+            await pool.query(`UPDATE kb_learning_candidates
+         SET status='approved', reviewed_at=NOW(), reviewed_by=$1, applied_at=NOW(),
+             applied_kb_doc_id=$2, proposed_kb_doc_name=$3, proposed_kb_doc_content=$4,
+             merge_target_doc_id=$5, llm_synthesis_raw=$6, llm_model='llama-3.3-70b-versatile'
+         WHERE id=$7`, [reviewedBy, appliedDocId, synthesized.name, synthesized.content,
+                targetDoc ? targetDoc.id : null, JSON.stringify(synthesized), id]);
+            res.json({ ok: true, action: targetDoc ? 'merged' : 'inserted', kb_doc_id: appliedDocId, doc_name: synthesized.name });
+        }
+        catch (e) {
+            console.error('[SusanBot] learning approve err:', e);
+            res.status(500).json({ error: e?.message || 'approve failed' });
+        }
+    });
+    router.post('/learnings/:id/reject', async (req, res) => {
+        const id = Number(req.params.id);
+        const reviewedBy = String(req.body?.reviewed_by || 'admin');
+        const reason = String(req.body?.reason || '');
+        try {
+            const r = await pool.query(`UPDATE kb_learning_candidates
+         SET status='rejected', reviewed_at=NOW(), reviewed_by=$1,
+             llm_synthesis_raw = COALESCE(llm_synthesis_raw, '') || CASE WHEN $2 <> '' THEN ' [reject-reason: ' || $2 || ']' ELSE '' END
+         WHERE id=$3 AND status='pending' RETURNING id`, [reviewedBy, reason, id]);
+            if (r.rows.length === 0)
+                return res.status(404).json({ error: 'pending candidate not found' });
+            res.json({ ok: true });
+        }
+        catch (e) {
+            res.status(500).json({ error: e?.message || 'reject failed' });
         }
     });
     // Feedback endpoint — reps can 👍/👎 a reply via a POST
