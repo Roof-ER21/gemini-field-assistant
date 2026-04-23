@@ -282,24 +282,53 @@ async function repStats(pool, senderName) {
     return null;
 }
 function extractAddress(text) {
-    // Match: <number> <street-name-up-to-4-words> <suffix> [, city] [, state] [zip]
-    const re = /\b(\d{2,6})\s+([A-Za-z][A-Za-z0-9.'\-\s]{1,60}?)\s+(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|ln|lane|way|ct|court|pl|place|cir|circle|pkwy|parkway|hwy|highway|ter|terrace|sq|square|trl|trail)\b[.,]?\s*([A-Za-z][A-Za-z.\s]{1,40}?)?\s*,?\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)?\s*,?\s*(\d{5})?/i;
-    const m = text.match(re);
+    // Two-pass: first find the "<num> <name> <suffix>" — then anchor forward to find
+    // state or zip. Earlier single-regex was non-greedy and captured just 2-letter
+    // city fragments ("As"/"Re") instead of the full city, because the state group
+    // was optional and the city group was lazy.
+    const streetRe = /\b(\d{2,6})\s+([A-Za-z][A-Za-z0-9.'\-\s]{1,60}?)\s+(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|ln|lane|way|ct|court|pl|place|cir|circle|pkwy|parkway|hwy|highway|ter|terrace|sq|square|trl|trail)\b/i;
+    const m = text.match(streetRe);
     if (!m)
         return null;
-    const [full, num, nameRaw, suffix, cityRaw, stateRaw, zip] = m;
-    const street = `${num} ${nameRaw.trim()} ${suffix}`;
-    // Clean city — trim trailing words that are not really city (e.g. "in the")
-    let city = (cityRaw || '').trim().replace(/\s+(in|near|of|the|on)\s+.*$/i, '').trim();
-    if (city.length > 40 || /\b(hail|storm|damage|claim|today|yesterday|week|month|year|ago)\b/i.test(city))
-        city = '';
+    const [fullStreet, num, nameRaw, suffix] = m;
+    const streetEndIdx = (m.index || 0) + fullStreet.length;
+    const tail = text.slice(streetEndIdx, streetEndIdx + 80);
+    // Try to find state AND/OR zip in the tail
     const stateMap = {
+        va: 'VA', md: 'MD', pa: 'PA', dc: 'DC', wv: 'WV', de: 'DE',
         virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
         'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
     };
-    const stateKey = (stateRaw || '').toLowerCase().trim();
-    const state = stateMap[stateKey] || (stateRaw ? stateRaw.toUpperCase() : undefined);
-    return { full: full.trim(), street, city: city || undefined, state, zip };
+    const stateRe = /\b(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
+    const zipRe = /\b(\d{5})(?:-\d{4})?\b/;
+    const sm = tail.match(stateRe);
+    const zm = tail.match(zipRe);
+    if (!sm && !zm)
+        return null; // no state and no zip → not actionable address
+    const state = sm ? stateMap[sm[1].toLowerCase()] || sm[1].toUpperCase() : undefined;
+    const zip = zm ? zm[1] : undefined;
+    // City = everything between street-suffix and state/zip, greedy trim
+    let city = undefined;
+    const cutoff = Math.min(sm ? (sm.index ?? 1000) : 1000, zm ? (zm.index ?? 1000) : 1000);
+    if (cutoff > 0 && cutoff < 80) {
+        const rawCity = tail.slice(0, cutoff).replace(/^[.,\s]+|[.,\s]+$/g, '');
+        // Reject obvious non-city tails ("in the", "last year", etc)
+        if (rawCity.length >= 2 &&
+            rawCity.length <= 40 &&
+            !/\b(hail|storm|damage|claim|today|yesterday|week|month|year|ago|last|this|past)\b/i.test(rawCity)) {
+            city = rawCity;
+        }
+    }
+    const street = `${num} ${nameRaw.trim()} ${suffix}`;
+    // Build full display string
+    const fullParts = [street];
+    if (city)
+        fullParts.push(city);
+    if (state)
+        fullParts.push(state);
+    if (zip)
+        fullParts.push(zip);
+    return { full: fullParts.join(', '), street, city, state, zip };
 }
 async function geocodeAddress(addr) {
     const parts = [addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', ');
