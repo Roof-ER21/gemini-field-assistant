@@ -330,6 +330,45 @@ export interface AddressImpactTier {
   state?: string | null;
 }
 
+/**
+ * Round a raw hail size UP to the nearest standard adjuster tier.
+ * Raw measurements (0.38", 0.659") are confusing to homeowners and
+ * adjusters — they're used to hearing 1/2", 3/4", penny/quarter/golfball.
+ * We only round UP so we never under-report a real hit.
+ * Pass-through for null/undefined so callers can chain safely.
+ */
+const HAIL_DISPLAY_TIERS = [
+  0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.5, 4.0, 4.5, 5.0,
+];
+export function roundHailToTier(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined || !Number.isFinite(raw)) return null;
+  if (raw <= 0) return 0;
+  for (const tier of HAIL_DISPLAY_TIERS) {
+    if (raw <= tier + 1e-6) return tier;
+  }
+  // Anything larger than our table (rare), return rounded to .25"
+  return Math.ceil(raw * 4) / 4;
+}
+/** Format a tier-rounded hail size for display ("1/2"", "3/4"", "1 1/4""). */
+export function formatHailTier(raw: number | null | undefined): string {
+  const tier = roundHailToTier(raw);
+  if (tier === null) return '-';
+  // Use fraction display for under-1 values (matches adjuster vocabulary)
+  if (tier === 0.25) return '1/4"';
+  if (tier === 0.5) return '1/2"';
+  if (tier === 0.75) return '3/4"';
+  if (tier === 1.0) return '1"';
+  if (tier === 1.25) return '1 1/4"';
+  if (tier === 1.5) return '1 1/2"';
+  if (tier === 1.75) return '1 3/4"';
+  if (tier === 2.0) return '2"';
+  if (tier === 2.25) return '2 1/4"';
+  if (tier === 2.5) return '2 1/2"';
+  if (tier === 2.75) return '2 3/4"';
+  if (tier === 3.0) return '3"';
+  return `${tier}"`;
+}
+
 export interface AddressImpactReport {
   lat: number;
   lng: number;

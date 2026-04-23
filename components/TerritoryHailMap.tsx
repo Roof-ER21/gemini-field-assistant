@@ -38,6 +38,7 @@ import {
   fetchStormEvents,
   fetchMeshSwathsByLocation,
   fetchAddressImpact,
+  formatHailTier,
   type AddressImpactReport,
   deduplicateEvents,
   groupEventsByDate,
@@ -609,6 +610,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   // an address/postal-code and we get lat+lng back.
   const [addressImpact, setAddressImpact] = useState<AddressImpactReport | null>(null);
   const [addressImpactLoading, setAddressImpactLoading] = useState(false);
+  // Show light-hail (<0.5") direct hits? Default off — radar-band edges dilute
+  // the headline. Rep can toggle on for full transparency.
+  const [showLightHail, setShowLightHail] = useState(false);
+  // Distance range for result filtering. Default 3 mi (direct + near-miss only).
+  // Drag up to 15 mi to include neighborhood-area context.
+  const [maxDistanceMi, setMaxDistanceMi] = useState<number>(3);
   const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
   const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
@@ -707,6 +714,33 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     () => [...filteredStormDates].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2),
     [filteredStormDates],
   );
+
+  // Apply rep-facing filters (light-hail toggle + distance slider) to the
+  // swath-based tiered impact before anything renders. directHits are
+  // swath-based (no distance) so only the light-hail filter applies; near-miss
+  // and area-impact respect the distance slider.
+  const filteredAddressImpact = useMemo<AddressImpactReport | null>(() => {
+    if (!addressImpact) return null;
+    const keepDirect = (e: { maxHailInches: number | null }) =>
+      showLightHail || (e.maxHailInches ?? 0) >= 0.5;
+    const keepByDistance = (e: { nearestMiles?: number; maxHailInches: number | null }) =>
+      (e.nearestMiles ?? 999) <= maxDistanceMi && (showLightHail || (e.maxHailInches ?? 0) >= 0.5);
+    const dh = addressImpact.directHits.filter(keepDirect);
+    const nm = addressImpact.nearMiss.filter(keepByDistance);
+    const ai = addressImpact.areaImpact.filter(keepByDistance);
+    return {
+      ...addressImpact,
+      directHits: dh,
+      nearMiss: nm,
+      areaImpact: ai,
+      summary: {
+        ...addressImpact.summary,
+        directHitCount: dh.length,
+        nearMissCount: nm.length,
+        areaImpactCount: ai.length,
+      },
+    };
+  }, [addressImpact, showLightHail, maxDistanceMi]);
 
   const canvassingAlert = useMemo(
     () => computeCanvassingAlert(gpsPosition, filteredEvents),
@@ -1388,6 +1422,41 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
               />
             )}
           </div>
+          {/* Distance slider + small-hail toggle — apply to address-impact panels
+              so reps can dial from "at the property" to "neighborhood area". */}
+          {searchSummary && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code') && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#6b7280' }}>Distance Range</p>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#d1d5db' }}>{maxDistanceMi <= 1 ? 'at property' : `≤ ${maxDistanceMi} mi`}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={15}
+                step={1}
+                value={maxDistanceMi}
+                onChange={(e) => setMaxDistanceMi(Number(e.target.value))}
+                aria-label="Maximum distance from property"
+                style={{ width: '100%', accentColor: '#ef4444' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 9, color: '#4b5563' }}>
+                <span>1</span><span>3</span><span>5</span><span>10</span><span>15</span>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontSize: 12, color: '#d1d5db' }}>
+                <input
+                  type="checkbox"
+                  checked={showLightHail}
+                  onChange={(e) => setShowLightHail(e.target.checked)}
+                  style={{ accentColor: '#ef4444' }}
+                />
+                Show light hail (&lt; 0.5&quot;)
+                <span style={{ fontSize: 10, color: '#6b7280' }}>
+                  — radar-band edges
+                </span>
+              </label>
+            </div>
+          )}
         </form>
 
         {searchSummary && (
@@ -1405,12 +1474,15 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
               // Prefer DIRECT HIT from swath-based tiered impact over nearest-point
               // distance. Reps need the authoritative "property got hit" signal
               // first — the old "Last hit X mi away" was losing claims.
-              const bestDirectHit = addressImpact?.directHits?.[0];
+              // Rank by hail size DESC so the biggest direct hit always leads,
+              // then most-recent as tiebreak. 3" softball beats recent 0.5" drizzle.
+              const bestDirectHit = [...(filteredAddressImpact?.directHits || [])]
+                .sort((a, b) => (b.maxHailInches || 0) - (a.maxHailInches || 0) || b.date.localeCompare(a.date))[0];
               if (bestDirectHit) {
                 const dateLabel = formatDateLabel(bestDirectHit.date);
                 return (
                   <p style={{ marginTop: 4, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-                    🎯 DIRECT HIT {dateLabel} · {bestDirectHit.maxHailInches}" {bestDirectHit.sizeLabel ? `(${bestDirectHit.sizeLabel})` : ''} MRMS swath
+                    🎯 DIRECT HIT {dateLabel} · {formatHailTier(bestDirectHit.maxHailInches)} MRMS swath
                     {bestDirectHit.noaaConfirmed ? ' · NOAA ✓' : ''}
                   </p>
                 );
@@ -1439,15 +1511,15 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 Checking MRMS swath polygons at this property...
               </p>
             )}
-            {addressImpact && !addressImpactLoading && (
+            {filteredAddressImpact && !addressImpactLoading && (
               <>
-                {addressImpact.directHits.length > 0 && (
+                {filteredAddressImpact.directHits.length > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', letterSpacing: '0.08em' }}>🎯 DIRECT HITS</span>
-                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.directHits.length})</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({filteredAddressImpact.directHits.length})</span>
                     </div>
-                    {addressImpact.directHits.slice(0, 6).map((d) => (
+                    {filteredAddressImpact.directHits.slice(0, 6).map((d) => (
                       <button
                         key={`dh-${d.date}`}
                         onClick={() => {
@@ -1471,7 +1543,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                         }}
                       >
                         <div style={{ fontWeight: 600 }}>
-                          {formatDateLabel(d.date)} — {d.maxHailInches}" {d.sizeLabel ? `(${d.sizeLabel})` : ''} MRMS swath
+                          {formatDateLabel(d.date)} — {formatHailTier(d.maxHailInches)} MRMS swath
                         </div>
                         <div style={{ fontSize: 11, color: '#86efac', marginTop: 2 }}>
                           {d.confirmingReportCount} confirming report{d.confirmingReportCount === 1 ? '' : 's'} within 2mi
@@ -1481,41 +1553,65 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                     ))}
                   </div>
                 )}
-                {addressImpact.nearMiss.length > 0 && (
+                {filteredAddressImpact.nearMiss.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em' }}>NEAR MISS</span>
-                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.nearMiss.length})</span>
-                      <span style={{ fontSize: 10, color: '#6b7280' }}>≤3mi, no swath</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({filteredAddressImpact.nearMiss.length})</span>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>≤{maxDistanceMi}mi, no swath</span>
                     </div>
-                    {addressImpact.nearMiss.slice(0, 4).map((n) => (
+                    {filteredAddressImpact.nearMiss.slice(0, 4).map((n) => (
                       <div key={`nm-${n.date}`} style={{ padding: '4px 8px', marginTop: 3, fontSize: 12, color: '#fcd34d' }}>
-                        {formatDateLabel(n.date)} — up to {n.maxHailInches ?? '-'}" at {n.nearestMiles?.toFixed(1) ?? '-'}mi
+                        {formatDateLabel(n.date)} — up to {formatHailTier(n.maxHailInches)} at {n.nearestMiles?.toFixed(1) ?? '-'}mi
                         {n.noaaConfirmed ? ' · NOAA ✓' : ''}
                       </div>
                     ))}
                   </div>
                 )}
-                {addressImpact.areaImpact.length > 0 && (
+                {filteredAddressImpact.areaImpact.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em' }}>AREA IMPACT</span>
-                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.areaImpact.length})</span>
-                      <span style={{ fontSize: 10, color: '#6b7280' }}>3–15mi context</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({filteredAddressImpact.areaImpact.length})</span>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>3–{maxDistanceMi}mi context</span>
                     </div>
-                    {addressImpact.areaImpact.slice(0, 3).map((a) => (
+                    {filteredAddressImpact.areaImpact.slice(0, 3).map((a) => (
                       <div key={`ai-${a.date}`} style={{ padding: '3px 8px', marginTop: 2, fontSize: 11, color: '#94a3b8' }}>
-                        {formatDateLabel(a.date)} — up to {a.maxHailInches ?? '-'}" at {a.nearestMiles?.toFixed(1) ?? '-'}mi
+                        {formatDateLabel(a.date)} — up to {formatHailTier(a.maxHailInches)} at {a.nearestMiles?.toFixed(1) ?? '-'}mi
                       </div>
                     ))}
                   </div>
                 )}
-                {addressImpact.directHits.length === 0 && addressImpact.nearMiss.length === 0 && addressImpact.areaImpact.length === 0 && (
+                {filteredAddressImpact.directHits.length === 0 && filteredAddressImpact.nearMiss.length === 0 && filteredAddressImpact.areaImpact.length === 0 && (
                   <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
-                    No verified hail at or near this property in our NOAA/NWS/NEXRAD/MRMS database for the last {addressImpact.monthsBack} months.
+                    {addressImpact && (addressImpact.directHits.length + addressImpact.nearMiss.length + addressImpact.areaImpact.length) > 0
+                      ? `All hits are ${showLightHail ? '' : '< 0.5" or '}outside ${maxDistanceMi} mi — widen the distance or enable light hail to see more.`
+                      : `No verified hail at or near this property in our NOAA/NWS/NEXRAD/MRMS database for the last ${addressImpact?.monthsBack ?? 24} months.`}
                   </p>
                 )}
-                {(addressImpact.cacheStats.swathColdFetches > 0 || addressImpact.cacheStats.swathSkippedDueToCap > 0) && (
+                {(() => {
+                  // Footnote hidden items so reps know the filters are active
+                  if (!addressImpact) return null;
+                  const hiddenLight = !showLightHail
+                    ? addressImpact.directHits.filter((d) => (d.maxHailInches ?? 0) < 0.5).length +
+                      addressImpact.nearMiss.filter((n) => (n.maxHailInches ?? 0) < 0.5).length +
+                      addressImpact.areaImpact.filter((a) => (a.maxHailInches ?? 0) < 0.5).length
+                    : 0;
+                  const hiddenDistance =
+                    addressImpact.nearMiss.filter((n) => (n.nearestMiles ?? 999) > maxDistanceMi).length +
+                    addressImpact.areaImpact.filter((a) => (a.nearestMiles ?? 999) > maxDistanceMi).length;
+                  if (hiddenLight === 0 && hiddenDistance === 0) return null;
+                  return (
+                    <p style={{ marginTop: 6, fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }}>
+                      Hidden by filters:{' '}
+                      {hiddenLight > 0 && <>{hiddenLight} light hail day{hiddenLight === 1 ? '' : 's'} (&lt; 1/2&quot;)</>}
+                      {hiddenLight > 0 && hiddenDistance > 0 && ', '}
+                      {hiddenDistance > 0 && <>{hiddenDistance} beyond {maxDistanceMi} mi</>}
+                      . Toggle filters above.
+                    </p>
+                  );
+                })()}
+                {addressImpact && (addressImpact.cacheStats.swathColdFetches > 0 || addressImpact.cacheStats.swathSkippedDueToCap > 0) && (
                   <p style={{ marginTop: 6, fontSize: 10, color: '#6b7280' }}>
                     {addressImpact.cacheStats.swathCacheHits} cached · {addressImpact.cacheStats.swathColdFetches} fetched · {addressImpact.cacheStats.swathSkippedDueToCap} deferred
                   </p>
@@ -1608,10 +1704,14 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           // from the old distance-based latestStorms list > nothing.
           // 3-15mi events are relegated to the full storm-date list below; they
           // are NOT the headline for the property.
-          const direct = addressImpact?.directHits || [];
+          const direct = filteredAddressImpact?.directHits || [];
           const topDirect = [...direct]
             .sort((a, b) => (b.maxHailInches || 0) - (a.maxHailInches || 0))
             .slice(0, 2);
+          // Count hidden light-hail events so we can footnote the rep
+          const hiddenLight = !showLightHail && addressImpact
+            ? addressImpact.directHits.filter((d) => (d.maxHailInches ?? 0) < 0.5).length
+            : 0;
 
           if (topDirect.length > 0) {
             return (
@@ -1645,7 +1745,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                       >
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{formatDateLabel(d.date)}</p>
                         <p style={{ fontSize: 12, color: '#86efac', margin: '4px 0 0 0' }}>
-                          <span style={{ fontWeight: 600 }}>DIRECT HIT</span> · {d.maxHailInches}" {d.sizeLabel ? d.sizeLabel : ''} MRMS swath · {d.confirmingReportCount} confirming{d.confirmingReportCount === 1 ? '' : 's'}
+                          <span style={{ fontWeight: 600 }}>DIRECT HIT</span> · {formatHailTier(d.maxHailInches)} MRMS swath · {d.confirmingReportCount} confirming{d.confirmingReportCount === 1 ? '' : 's'}
                           {d.noaaConfirmed ? ' · NOAA ✓' : ''}
                         </p>
                       </button>
@@ -1655,6 +1755,11 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 {direct.length > 2 && (
                   <p style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>
                     +{direct.length - 2} more direct hit{direct.length - 2 === 1 ? '' : 's'} — see full list below
+                  </p>
+                )}
+                {hiddenLight > 0 && (
+                  <p style={{ marginTop: 4, fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }}>
+                    +{hiddenLight} light hail day{hiddenLight === 1 ? '' : 's'} (&lt; 1/2&quot;) hidden — toggle &quot;Show light hail&quot; above to include.
                   </p>
                 )}
               </div>
