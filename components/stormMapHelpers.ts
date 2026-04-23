@@ -311,6 +311,71 @@ function mapNoaaType(t?: string): StormEvent['eventType'] | null {
   return null;
 }
 
+// ============================================================
+// Address Impact — swath-first Direct Hit / Near Miss / Area Impact report
+// ============================================================
+// Backed by /api/hail/address-impact which runs point-in-polygon against
+// cached MRMS swath bands FIRST, then falls back to point-report distance.
+// Fixes "1.7 miles away" lookups that hid a property sitting inside a swath.
+
+export interface AddressImpactTier {
+  date: string;
+  maxHailInches: number | null;
+  sizeLabel?: string | null;
+  severity?: string | null;
+  nearestMiles?: number;
+  confirmingReportCount: number;
+  noaaConfirmed: boolean;
+  sources: string[];
+  state?: string | null;
+}
+
+export interface AddressImpactReport {
+  lat: number;
+  lng: number;
+  monthsBack: number;
+  directHits: AddressImpactTier[];
+  nearMiss: AddressImpactTier[];
+  areaImpact: AddressImpactTier[];
+  summary: {
+    directHitCount: number;
+    nearMissCount: number;
+    areaImpactCount: number;
+    datesExamined: number;
+  };
+  cacheStats: {
+    swathCacheHits: number;
+    swathColdFetches: number;
+    swathSkippedDueToCap: number;
+  };
+}
+
+export async function fetchAddressImpact(
+  lat: number,
+  lng: number,
+  months: number,
+  signal?: AbortSignal,
+): Promise<AddressImpactReport | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const apiBase = getApiBaseUrl();
+  const params = new URLSearchParams({
+    lat: lat.toString(),
+    lng: lng.toString(),
+    months: Math.max(1, Math.min(60, Math.round(months))).toString(),
+  });
+  try {
+    const res = await fetch(`${apiBase}/hail/address-impact?${params}`, {
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as AddressImpactReport;
+    if (!data || typeof data !== 'object' || !Array.isArray(data.directHits)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchStormEvents(lat: number, lng: number, months: number, radiusMiles: number, signal?: AbortSignal): Promise<StormEvent[]> {
   const apiBase = getApiBaseUrl();
   const email = authService.getCurrentUser()?.email || localStorage.getItem('userEmail') || 'storm-maps@roofer21.com';

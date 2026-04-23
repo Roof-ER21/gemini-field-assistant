@@ -37,6 +37,8 @@ import {
   reverseGeocodeLatLng,
   fetchStormEvents,
   fetchMeshSwathsByLocation,
+  fetchAddressImpact,
+  type AddressImpactReport,
   deduplicateEvents,
   groupEventsByDate,
   mergeDateLists,
@@ -602,6 +604,11 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [stormDates, setStormDates] = useState<StormDate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Swath-first tiered impact for the searched address — shipped 2026-04-23
+  // after Cub Stream Dr "1.7 miles away" bug. Populates when the search is
+  // an address/postal-code and we get lat+lng back.
+  const [addressImpact, setAddressImpact] = useState<AddressImpactReport | null>(null);
+  const [addressImpactLoading, setAddressImpactLoading] = useState(false);
   const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
   const [canvassingBanner, setCanvassingBanner] = useState<CanvassingAlert | null>(null);
@@ -838,6 +845,35 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
       abortRef.current?.abort();
     };
   }, [fetchData]);
+
+  // Swath-first tiered impact for the searched address. Only fires for
+  // address / postal-code searches — for city/region searches, the tiered
+  // lookup isn't meaningful (the centroid isn't the rep's property).
+  useEffect(() => {
+    if (!searchSummary || !searchLat || !searchLng) {
+      setAddressImpact(null);
+      return;
+    }
+    if (searchSummary.resultType !== 'address' && searchSummary.resultType !== 'postal_code') {
+      setAddressImpact(null);
+      return;
+    }
+    const controller = new AbortController();
+    setAddressImpactLoading(true);
+    setAddressImpact(null);
+    const months =
+      historyRange === 'since'
+        ? getEffectiveMonths(12, sinceDate || null)
+        : rangeToMonths(historyRange);
+    void (async () => {
+      const report = await fetchAddressImpact(searchLat, searchLng, months, controller.signal);
+      if (!controller.signal.aborted) {
+        setAddressImpact(report);
+        setAddressImpactLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [searchLat, searchLng, searchSummary?.resultType, historyRange, sinceDate]);
 
   const handleSearch = useCallback(
     async (event: React.FormEvent) => {
@@ -1369,6 +1405,104 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
               <p style={{ marginTop: 4, fontSize: 12, color: '#86efac' }}>
                 Last hit {latestStorms[0].label} with {formatStormImpactSummary(latestStorms[0])}
               </p>
+            )}
+          </div>
+        )}
+
+        {/* Swath-first tiered impact — Direct Hit / Near Miss / Area Impact.
+            Shipped 2026-04-23 after Cub Stream Dr "1.7 miles away" incident. */}
+        {searchSummary && (searchSummary.resultType === 'address' || searchSummary.resultType === 'postal_code') && (addressImpactLoading || addressImpact) && (
+          <div style={{ borderBottom: '1px solid #1f2937', padding: 12, flexShrink: 0 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#6b7280', margin: 0 }}>
+              Swath Impact Analysis
+            </p>
+            {addressImpactLoading && (
+              <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
+                Checking MRMS swath polygons at this property...
+              </p>
+            )}
+            {addressImpact && !addressImpactLoading && (
+              <>
+                {addressImpact.directHits.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', letterSpacing: '0.08em' }}>🎯 DIRECT HITS</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.directHits.length})</span>
+                    </div>
+                    {addressImpact.directHits.slice(0, 6).map((d) => (
+                      <button
+                        key={`dh-${d.date}`}
+                        onClick={() => {
+                          const key = getStormDateKey(d.date);
+                          if (!key) return;
+                          const match = stormDates.find((sd) => getStormDateKey(sd.date) === key);
+                          if (match) setSelectedDate(match);
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '6px 8px',
+                          marginTop: 4,
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          borderRadius: 4,
+                          color: '#d1fae5',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600 }}>
+                          {formatDateLabel(d.date)} — {d.maxHailInches}" {d.sizeLabel ? `(${d.sizeLabel})` : ''} MRMS swath
+                        </div>
+                        <div style={{ fontSize: 11, color: '#86efac', marginTop: 2 }}>
+                          {d.confirmingReportCount} confirming report{d.confirmingReportCount === 1 ? '' : 's'} within 2mi
+                          {d.noaaConfirmed ? ' · NOAA ✓' : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {addressImpact.nearMiss.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em' }}>NEAR MISS</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.nearMiss.length})</span>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>≤3mi, no swath</span>
+                    </div>
+                    {addressImpact.nearMiss.slice(0, 4).map((n) => (
+                      <div key={`nm-${n.date}`} style={{ padding: '4px 8px', marginTop: 3, fontSize: 12, color: '#fcd34d' }}>
+                        {formatDateLabel(n.date)} — up to {n.maxHailInches ?? '-'}" at {n.nearestMiles?.toFixed(1) ?? '-'}mi
+                        {n.noaaConfirmed ? ' · NOAA ✓' : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {addressImpact.areaImpact.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em' }}>AREA IMPACT</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>({addressImpact.areaImpact.length})</span>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>3–15mi context</span>
+                    </div>
+                    {addressImpact.areaImpact.slice(0, 3).map((a) => (
+                      <div key={`ai-${a.date}`} style={{ padding: '3px 8px', marginTop: 2, fontSize: 11, color: '#94a3b8' }}>
+                        {formatDateLabel(a.date)} — up to {a.maxHailInches ?? '-'}" at {a.nearestMiles?.toFixed(1) ?? '-'}mi
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {addressImpact.directHits.length === 0 && addressImpact.nearMiss.length === 0 && addressImpact.areaImpact.length === 0 && (
+                  <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
+                    No verified hail at or near this property in our NOAA/NWS/NEXRAD/MRMS database for the last {addressImpact.monthsBack} months.
+                  </p>
+                )}
+                {(addressImpact.cacheStats.swathColdFetches > 0 || addressImpact.cacheStats.swathSkippedDueToCap > 0) && (
+                  <p style={{ marginTop: 6, fontSize: 10, color: '#6b7280' }}>
+                    {addressImpact.cacheStats.swathCacheHits} cached · {addressImpact.cacheStats.swathColdFetches} fetched · {addressImpact.cacheStats.swathSkippedDueToCap} deferred
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
