@@ -80,17 +80,17 @@ export async function materializeIhmDates(pool: Pool): Promise<MaterializeResult
              hail_size_inches, verified_hail_size_inches,
              wind_mph, source_ihm, source_details)
           VALUES
-            ($1::date, $2::numeric, $3::numeric, $4::varchar(2),
-             $5::numeric, $5::numeric,
-             $6::int, TRUE,
+            ($1, $2, $3, $4,
+             $5, $5,
+             $6, TRUE,
              jsonb_build_object('ihm', jsonb_build_object(
-               'city', $7::text,
-               'state', $4::text,
-               'source_page', $8::text,
-               'observed_has_spotter', $9::boolean,
-               'observed_has_radar', $10::boolean,
-               'observed_rows', $11::int,
-               'mirrored_at', $12::text
+               'city', $7,
+               'state', $13,
+               'source_page', $8,
+               'observed_has_spotter', $9,
+               'observed_has_radar', $10,
+               'observed_rows', $11,
+               'mirrored_at', $12
              )))
           ON CONFLICT (event_date, lat_bucket, lng_bucket) DO UPDATE SET
             source_ihm = TRUE,
@@ -111,6 +111,7 @@ export async function materializeIhmDates(pool: Pool): Promise<MaterializeResult
           d.has_radar === true,
           Number(d.rows || 0),
           c.fetched_at.toISOString(),
+          c.state,    // $13 — state again, but this param is used only in jsonb text context
         ],
       );
       datesMaterialized++;
