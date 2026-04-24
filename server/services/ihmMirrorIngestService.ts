@@ -233,8 +233,15 @@ export async function diffCityAgainstOurs(
     });
   }
 
+  // Only include IHM dates where IHM actually reported hail (non-null size OR
+  // trained spotter corroboration). NWS-warning-only rows with no hail size
+  // would otherwise show up as IHM_ONLY noise — those aren't "IHM shows hail
+  // we don't", they're severe-storm warnings unrelated to hail.
   const ihmByDate = new Map<string, UniqueDate>();
-  for (const d of unique_dates) ihmByDate.set(d.date, d);
+  for (const d of unique_dates) {
+    const hasConfirmedHail = (d.max_hail_inches ?? 0) > 0 || d.has_spotter === true;
+    if (hasConfirmedHail) ihmByDate.set(d.date, d);
+  }
 
   const allDates = new Set<string>([...ihmByDate.keys(), ...oursByDate.keys()]);
   const rows: IhmCityDiffRow[] = [];
