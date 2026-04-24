@@ -10,6 +10,28 @@ import { computeStormImpact } from './stormImpactService.js';
 // tell the rep "N more dates pending — refresh in a minute".
 const COLD_FETCH_TIME_BUDGET_MS = 45_000; // 45s total across all cold fetches
 const COLD_FETCH_MIN_HAIL = 0.5; // skip cold-fetch for trace-only days
+// Global concurrency cap. Each getAddressHailImpact holds swath polygon
+// buffers in heap; when my test-replay fired 10 in parallel 2026-04-23,
+// the web container OOM'd (Railway SIGKILL). Cap at 3 concurrent so a
+// burst of rep questions or a test harness can't blow the heap. Extra
+// requests wait in a FIFO queue — individual response time grows from
+// ~2s to at most ~6s under worst-case contention, which is fine.
+const MAX_CONCURRENT_IMPACTS = 3;
+let _active = 0;
+const _waiters = [];
+function acquire() {
+    if (_active < MAX_CONCURRENT_IMPACTS) {
+        _active++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => _waiters.push(() => { _active++; resolve(); }));
+}
+function release() {
+    _active--;
+    const next = _waiters.shift();
+    if (next)
+        next();
+}
 const PER_FETCH_TIMEOUT_MS = 15_000; // per-date, so slow ones don't eat budget
 // Standard search window — can be overridden per caller.
 const DEFAULT_RADIUS_MI = 15;
@@ -133,6 +155,15 @@ async function countConfirmingReports(pool, lat, lng, dateIso) {
  * Main entry point — called by Susan bot, /api/hail/search, map UI, etc.
  */
 export async function getAddressHailImpact(pool, lat, lng, monthsBack = 24) {
+    await acquire();
+    try {
+        return await _impactInner(pool, lat, lng, monthsBack);
+    }
+    finally {
+        release();
+    }
+}
+async function _impactInner(pool, lat, lng, monthsBack) {
     const started = Date.now();
     const candidates = await getCandidateDates(pool, lat, lng, monthsBack);
     console.log(`[AddressImpact] (${lat.toFixed(3)},${lng.toFixed(3)}) ${monthsBack}mo → ${candidates.length} candidate dates (${candidates.filter((c) => c.has_swath_cache).length} cached)`);
