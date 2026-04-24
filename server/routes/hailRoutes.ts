@@ -3121,6 +3121,21 @@ router.post('/admin/ihm-mirror-ingest', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/hail/admin/materialize-ihm-dates
+// GUARANTEE: no rep can cite an IHM date we don't have. For every city in
+// ihm_city_mirror, for every date where IHM reports confirmed hail, upsert
+// a row into verified_hail_events tagged source_ihm=TRUE. Idempotent.
+router.post('/admin/materialize-ihm-dates', async (req: Request, res: Response) => {
+  try {
+    const { materializeIhmDates } = await import('../services/ihmDateMaterializeService.js');
+    const r = await materializeIhmDates(req.app.get('pool'));
+    res.json(r);
+  } catch (err) {
+    console.error('[admin/materialize-ihm-dates] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/hail/admin/run-migration-079 — apply migration 079_ihm_city_mirror.sql
 // Creates the ihm_city_mirror table + indexes. Idempotent (CREATE IF NOT EXISTS).
 router.post('/admin/run-migration-079', async (req: Request, res: Response) => {
