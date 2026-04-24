@@ -150,7 +150,17 @@ export async function backfillSwathCache(
       errors.push(msg);
       console.warn(`[SwathBackfill] [${i + 1}/${batch.length}] ${msg}`);
     }
-    // Rate-limit so we don't hammer the IEM archive
+    // Rate-limit so we don't hammer the IEM archive.
+    // The sleep also gives V8 a ~3s window to run old-gen GC and reclaim
+    // external Buffer memory from the MRMS decode — without an idle event
+    // loop tick the ~200MB/iteration creep never gets collected and RSS
+    // climbs into double-digit GB over a 60-day batch.
+    // If --expose-gc is set (NODE_OPTIONS=--expose-gc), call it explicitly
+    // to force Mark-Sweep on external memory every 5 iterations. This is
+    // a soft suggestion — V8 can ignore it — but it helps bound RSS.
+    if ((i + 1) % 5 === 0 && typeof (global as any).gc === 'function') {
+      try { (global as any).gc(); } catch { /* noop */ }
+    }
     if (i < batch.length - 1) await sleep(DELAY_MS);
   }
 

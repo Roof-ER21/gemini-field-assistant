@@ -748,32 +748,27 @@ export async function getHistoricalMrmsOverlay(
   const files = await listArchiveFiles(request.date);
   const selectedFiles = chooseArchiveFiles(files, request.anchorTimestamp);
 
-  // Download all selected files in parallel to minimise latency.
-  const downloadResults = await Promise.allSettled(
-    selectedFiles.map((file) =>
-      downloadArchiveFile(file).then((compressed) => ({
-        file,
-        raw: zlib.gunzipSync(compressed),
-      })),
-    ),
-  );
-
+  // Serial download+decode — same reasoning as the vector path below.
+  // Parallel downloads were keeping N raw Buffers alive concurrently
+  // (~100-200 MB each for 1440-min MESH), and V8's external-memory GC
+  // is sticky enough that backfill runs piled up 10+ GB before the
+  // container bounced. Serial keeps peak to ~1 file worth of raw.
   const decodedGrids: DecodedMrmsGrib[] = [];
   const decodedFileNames: string[] = [];
   let primaryFile = selectedFiles[selectedFiles.length - 1];
 
-  for (const outcome of downloadResults) {
-    if (outcome.status === 'fulfilled') {
-      try {
-        decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
-        decodedFileNames.push(outcome.value.file.name);
-        // Use the last successfully decoded file as the primary reference for metadata.
-        primaryFile = outcome.value.file;
-      } catch (err) {
-        console.warn(`Historical MRMS: failed to decode ${outcome.value.file.name}: ${err}`);
-      }
-    } else {
-      console.warn(`Historical MRMS: failed to download a composite file: ${outcome.reason}`);
+  for (const file of selectedFiles) {
+    try {
+      const compressed = await downloadArchiveFile(file);
+      const raw = zlib.gunzipSync(compressed);
+      // `compressed` now unreachable, GC can reclaim it (~5-10 MB).
+      const decoded = decodeMrmsGrib2(raw);
+      // `raw` now unreachable, GC can reclaim it (~100-200 MB).
+      decodedGrids.push(decoded);
+      decodedFileNames.push(file.name);
+      primaryFile = file;
+    } catch (err) {
+      console.warn(`Historical MRMS: ${file.name} failed: ${err}`);
     }
   }
 
@@ -782,6 +777,9 @@ export async function getHistoricalMrmsOverlay(
   }
 
   const composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+  // Drop per-file grid refs — composite owns the merged data now.
+  decodedGrids.length = 0;
+  decodedFileNames.length = 0;
   const result = await renderOverlay(composite, request, primaryFile);
 
   cache.set(cacheKey, {
@@ -863,7 +861,12 @@ export async function loadMrmsDailyComposite(date: string): Promise<CompositeDec
     // during a long-running backfill).
     // Hard LRU — Float32Array composite grids are ~60MB each, previously
     // grew unbounded in a long 467-date query.
-    while (compositeGridCache.size > 30) {
+    // Cap at 10 (was 30). Each composite is a ~100MB Float32Array; 10
+    // entries = ~1GB worst case, which is all we can afford to pin in
+    // memory on the web container. Nights of backfill runs will cold-fetch
+    // dates that aren't in the 10-slot window, but that's 3s of latency
+    // per date vs 10GB+ of memory creep.
+    while (compositeGridCache.size > 10) {
       const oldest = compositeGridCache.keys().next().value;
       if (oldest === undefined) break;
       compositeGridCache.delete(oldest);
@@ -1216,26 +1219,25 @@ export async function getHistoricalMrmsSwathPolygons(
     const files = await listArchiveFiles(request.date);
     const selectedFiles = chooseArchiveFiles(files, request.anchorTimestamp);
 
-    const downloadResults = await Promise.allSettled(
-      selectedFiles.map((file) =>
-        downloadArchiveFile(file).then((compressed) => ({
-          file,
-          raw: zlib.gunzipSync(compressed),
-        }))
-      )
-    );
-
+    // Serial download+decode, NOT Promise.allSettled. Each file's raw and
+    // decompressed Buffers are ~100-200 MB for the 1440-min MESH product;
+    // allSettled kept all N files' raw Buffers alive in the function's
+    // scope until they all finished, peaking ~400-800 MB per iteration.
+    // V8's external-memory GC is sticky and didn't reclaim between backfill
+    // calls, causing the 14 GB RSS creep. Serial mode keeps peak at ~1 file.
     const decodedGrids: DecodedMrmsGrib[] = [];
     const decodedFileNames: string[] = [];
-
-    for (const outcome of downloadResults) {
-      if (outcome.status === 'fulfilled') {
-        try {
-          decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
-          decodedFileNames.push(outcome.value.file.name);
-        } catch (err) {
-          console.warn(`[MRMS Vector] Decode error: ${err}`);
-        }
+    for (const file of selectedFiles) {
+      try {
+        const compressed = await downloadArchiveFile(file);
+        const raw = zlib.gunzipSync(compressed);
+        // `compressed` Buffer is now unreachable — GC can reclaim ~5-10 MB.
+        const decoded = decodeMrmsGrib2(raw);
+        // `raw` Buffer is now unreachable — GC can reclaim ~100-200 MB.
+        decodedGrids.push(decoded);
+        decodedFileNames.push(file.name);
+      } catch (err) {
+        console.warn(`[MRMS Vector] ${file.name} download/decode error: ${err}`);
       }
     }
 
@@ -1244,6 +1246,12 @@ export async function getHistoricalMrmsSwathPolygons(
     }
 
     composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+    // Drop refs to per-file grids as soon as composite is built — they
+    // aren't needed again, and holding them until function return
+    // doubles the external-memory footprint during the downstream
+    // polygon build step.
+    decodedGrids.length = 0;
+    decodedFileNames.length = 0;
     compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
   }
 
@@ -1297,8 +1305,10 @@ export async function getHistoricalMrmsSwathPolygons(
     void saveSwathToDb(pool, request.date, roundedBounds, result);
   }
 
-  // Hard LRU eviction (see cache block above).
-  while (swathPolyCache.size > 50) {
+  // Hard LRU eviction. Cap at 20 (was 50). Polygon objects are small
+  // (~200KB each) so even the old cap wasn't the primary leak, but
+  // tightening helps bound worst-case RSS during long backfill runs.
+  while (swathPolyCache.size > 20) {
     const oldest = swathPolyCache.keys().next().value;
     if (oldest === undefined) break;
     swathPolyCache.delete(oldest);
