@@ -3187,42 +3187,63 @@ router.get('/ihm-coverage-summary', async (req: Request, res: Response) => {
       const lng = Number(r.lng);
       const dLat = RADIUS_MI / MILES_PER_DEG_LAT;
       const dLng = RADIUS_MI / (MILES_PER_DEG_LAT * Math.max(Math.cos((lat * Math.PI) / 180), 0.1));
+      // Three thresholds so reps get an apples-to-apples comparison:
+      //   any: any hail detected (>= 0.25" MRMS floor)
+      //   adjuster: >= 0.5" (adjuster-tier, our QL threshold)
+      //   ihm: >= 1.0" ("severe", matches what IHM appears to count for
+      //        "Doppler detected hail at or near X" — they seem to filter
+      //        to quarter-size and up based on sample data)
       const { rows: countRows } = await pool.query(`
-        SELECT COUNT(DISTINCT event_date)::int AS n
+        SELECT
+          COUNT(DISTINCT event_date) FILTER (WHERE max_hail > 0)::int       AS any_hail,
+          COUNT(DISTINCT event_date) FILTER (WHERE max_hail >= 0.5)::int    AS adjuster_tier,
+          COUNT(DISTINCT event_date) FILTER (WHERE max_hail >= 1.0)::int    AS severe
           FROM storm_days_public
          WHERE lat_bucket BETWEEN $1 AND $2
            AND lng_bucket BETWEEN $3 AND $4
            AND max_hail IS NOT NULL
-           AND max_hail > 0
       `, [lat - dLat, lat + dLat, lng - dLng, lng + dLng]);
-      results.push({ ...r, ours_dates_10mi: countRows[0]?.n ?? 0 });
+      const c = countRows[0] || {};
+      results.push({
+        ...r,
+        ours_dates_10mi:            Number(c.any_hail) || 0,
+        ours_dates_10mi_adjuster:   Number(c.adjuster_tier) || 0,
+        ours_dates_10mi_severe:     Number(c.severe) || 0,
+      });
     }
     const rows = results;
 
-    // Build fleet totals + per-state breakdown
-    let fleetIhm = 0, fleetOurs = 0, citiesWithOursAdvantage = 0, citiesWithIhmAdvantage = 0;
-    const byState: Record<string, { cities: number; ihm: number; ours: number }> = {};
+    // Build fleet totals + per-state breakdown. "ours" = severe-tier (>=1")
+    // because that's what IHM appears to count, making it the fair comparison.
+    let fleetIhm = 0, fleetOurs = 0, fleetOursAll = 0;
+    let citiesWithOursAdvantage = 0, citiesWithIhmAdvantage = 0;
+    const byState: Record<string, { cities: number; ihm: number; ours_severe: number; ours_any: number }> = {};
     for (const r of rows) {
       const ihm = Number(r.ihm_confirmed_hail_dates) || 0;
-      const ours = Number(r.ours_dates_10mi) || 0;
+      const oursSevere = Number(r.ours_dates_10mi_severe) || 0;
+      const oursAny = Number(r.ours_dates_10mi) || 0;
       fleetIhm += ihm;
-      fleetOurs += ours;
-      if (ours > ihm) citiesWithOursAdvantage++;
-      else if (ihm > ours) citiesWithIhmAdvantage++;
-      const s = (byState[r.state] ??= { cities: 0, ihm: 0, ours: 0 });
+      fleetOurs += oursSevere;
+      fleetOursAll += oursAny;
+      if (oursSevere > ihm) citiesWithOursAdvantage++;
+      else if (ihm > oursSevere) citiesWithIhmAdvantage++;
+      const s = (byState[r.state] ??= { cities: 0, ihm: 0, ours_severe: 0, ours_any: 0 });
       s.cities++;
       s.ihm += ihm;
-      s.ours += ours;
+      s.ours_severe += oursSevere;
+      s.ours_any += oursAny;
     }
 
     const body = {
       fleet: {
         cities_with_ihm_mirror: rows.length,
         ihm_confirmed_hail_dates_total: fleetIhm,
-        our_dates_total: fleetOurs,
+        our_severe_dates_total: fleetOurs,              // >= 1"
+        our_any_hail_dates_total: fleetOursAll,          // >= MRMS floor
         cities_where_we_have_more: citiesWithOursAdvantage,
         cities_where_ihm_has_more: citiesWithIhmAdvantage,
         cities_tied: rows.length - citiesWithOursAdvantage - citiesWithIhmAdvantage,
+        comparison_basis: 'severe-tier (>=1") vs IHM confirmed-hail — apples-to-apples',
       },
       by_state: byState,
       cities: rows,
