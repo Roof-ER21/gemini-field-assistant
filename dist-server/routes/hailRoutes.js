@@ -1204,7 +1204,7 @@ router.post('/generate-report', async (req, res) => {
             const latNum = Number(enrichedPayload.lat);
             const lngNum = Number(enrichedPayload.lng);
             if (Number.isFinite(latNum) && Number.isFinite(lngNum)
-                && !Array.isArray(enrichedPayload.swathDirectHitDates)) {
+                && !Array.isArray(enrichedPayload.swathDirectHits)) {
                 try {
                     const { getAddressHailImpact } = await import('../services/addressImpactService.js');
                     // skipColdFetch: the enqueue path can't block the client while we
@@ -1213,8 +1213,11 @@ router.post('/generate-report', async (req, res) => {
                     // fills the cache for every ≥1" DMV+PA storm day, so all rep-relevant
                     // dates are warm — a miss here means the date wasn't claim-worthy.
                     const impact = await getAddressHailImpact(pool, latNum, lngNum, 60, { skipColdFetch: true });
-                    enrichedPayload.swathDirectHitDates = (impact?.directHits || []).map((d) => String(d.date));
-                    console.log(`[generate-report] enriched with ${enrichedPayload.swathDirectHitDates.length} swath direct hits (cached-only)`);
+                    enrichedPayload.swathDirectHits = (impact?.directHits || []).map((d) => ({
+                        date: String(d.date),
+                        hailInches: Number(d.maxHailInches || 0.5),
+                    }));
+                    console.log(`[generate-report] enriched with ${enrichedPayload.swathDirectHits.length} swath direct hits (cached-only)`);
                 }
                 catch (e) {
                     console.warn('[generate-report] swath enrichment skipped:', e.message);
@@ -1592,17 +1595,19 @@ router.post('/generate-report', async (req, res) => {
             return res.status(503).json({ error: queueErr.message });
         }
         console.log(`📄 Generating PDF report (${activePdfCount}/${MAX_CONCURRENT_PDFS} active)`);
-        // Consult the swath-first address impact service so the PDF's "DIRECT HIT"
-        // labels agree with the UI's side panel. Without this, a property inside
+        // Consult the swath-first address impact service so the PDF's At Property
+        // size agrees with the UI's side panel. Without this, a property inside
         // a swath polygon with its nearest point report 1.2 mi away gets
-        // labeled "1-3 mi" in the PDF even though the UI says Direct Hit. Match
-        // the monthsBack window to the date filters in play: lifetime → 60 mo,
-        // single-date / range → cover the range + a bit.
-        let swathDirectHitDates = [];
+        // labeled "1-3 mi" in the PDF even though the UI says Direct Hit.
+        // skipColdFetch keeps this cheap (~1s); our nightly backfill warms cache.
+        let swathDirectHits = [];
         try {
             const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-            const impact = await getAddressHailImpact(req.app.get('pool'), parsedLat, parsedLng, 60);
-            swathDirectHitDates = (impact?.directHits || []).map((d) => String(d.date));
+            const impact = await getAddressHailImpact(req.app.get('pool'), parsedLat, parsedLng, 60, { skipColdFetch: true });
+            swathDirectHits = (impact?.directHits || []).map((d) => ({
+                date: String(d.date),
+                hailInches: Number(d.maxHailInches || 0.5),
+            }));
         }
         catch (e) {
             console.warn('[generate-report] swath-first impact check failed (PDF will fall back to distance-only labels):', e.message);
@@ -1615,7 +1620,7 @@ router.post('/generate-report', async (req, res) => {
             lat: parsedLat,
             lng: parsedLng,
             radius: parseFloat(radius),
-            swathDirectHitDates,
+            swathDirectHits,
             noaaEvents: normalizedNoaaEvents,
             historyEvents: normalizedHistoryEvents,
             dateOfLoss,
@@ -2047,12 +2052,15 @@ async function renderClaimPacketToResponse(res, pool, params) {
         noaaEvents: adapterNoaaEvents,
     });
     // Swath-first direct-hit labeling — same as /generate-report, so the
-    // PDF's DIRECT HIT column agrees with the UI's side panel.
+    // PDF's At Property column agrees with the UI's side panel.
     let claimPacketSwathDirectHits = [];
     try {
         const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-        const impact = await getAddressHailImpact(pool, lat, lng, 60);
-        claimPacketSwathDirectHits = (impact?.directHits || []).map((d) => String(d.date));
+        const impact = await getAddressHailImpact(pool, lat, lng, 60, { skipColdFetch: true });
+        claimPacketSwathDirectHits = (impact?.directHits || []).map((d) => ({
+            date: String(d.date),
+            hailInches: Number(d.maxHailInches || 0.5),
+        }));
     }
     catch (e) {
         console.warn('[claim-packet] swath-first impact check failed:', e.message);
@@ -2064,7 +2072,7 @@ async function renderClaimPacketToResponse(res, pool, params) {
         lat,
         lng,
         radius: 10,
-        swathDirectHitDates: claimPacketSwathDirectHits,
+        swathDirectHits: claimPacketSwathDirectHits,
         events: adapterEvents,
         historyEvents: adapterHistoryEvents,
         noaaEvents: adapterNoaaEvents,

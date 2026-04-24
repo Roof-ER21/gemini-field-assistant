@@ -1072,8 +1072,8 @@ export class PDFReportServiceV2 {
         // HISTORICAL STORM ACTIVITY
         // =========================================================
         this.drawSectionBanner(doc, 'Historical Storm Activity');
-        const histHeaders = ['Map Date*', 'Hit', 'Impact Time', 'Direction', 'Speed', 'At Property', '1-3mi', '3-5mi', '5-10mi'];
-        const histWidths = [62, 62, 62, 44, 40, 60, 54, 54, 54];
+        const histHeaders = ['Map Date*', 'Impact Time', 'Direction', 'Speed', 'At Property', '1-3mi', '3-5mi', '5-10mi'];
+        const histWidths = [72, 72, 52, 46, 72, 60, 60, 60];
         const historicalSeedEvents = (input.historyEvents && input.historyEvents.length > 0)
             ? input.historyEvents
             : filteredIhm.length > 0
@@ -1135,26 +1135,38 @@ export class PDFReportServiceV2 {
             else if (dist > 5.0 && dist <= 10.0 && size > g.w10)
                 g.w10 = size;
         }
-        // Add synthetic date groups for swath direct hits that didn't surface as
-        // point reports within 10mi. The property is inside an MRMS swath band on
-        // that date → must appear in the history table, even if no rep report /
-        // NOAA row is close enough to tag a band.
+        // Build swath-hit map: date → hail size reported by the MRMS swath the
+        // property is inside. Accept either new shape (swathDirectHits[]) or the
+        // legacy flat list (swathDirectHitDates[] → default 0.5" = quarter-size).
+        const swathHitMap = new Map();
+        for (const h of input.swathDirectHits || []) {
+            if (h && typeof h.date === 'string') {
+                swathHitMap.set(h.date, Number(h.hailInches) || 0.5);
+            }
+        }
         for (const d of input.swathDirectHitDates || []) {
-            const dk = this.getDateKey(d) || d;
-            if (!dateGroups.has(dk)) {
-                dateGroups.set(dk, {
-                    date: d, direction: '---', speed: undefined, duration: undefined,
-                    atLoc: 0, w3: 0, w5: 0, w10: 0,
+            if (!swathHitMap.has(d))
+                swathHitMap.set(d, 0.5);
+        }
+        // Promote the swath size into atLoc for any date where the property is
+        // inside a swath. If the row already had a larger atLoc from a nearby
+        // point report, keep the larger number.
+        for (const [dk, hailInches] of swathHitMap) {
+            const key = this.getDateKey(dk) || dk;
+            const existing = dateGroups.get(key);
+            if (existing) {
+                if (hailInches > existing.atLoc)
+                    existing.atLoc = hailInches;
+            }
+            else {
+                dateGroups.set(key, {
+                    date: dk, direction: '---', speed: undefined, duration: undefined,
+                    atLoc: hailInches, w3: 0, w5: 0, w10: 0,
                 });
             }
         }
-        // Keep any date that has a non-zero distance band OR is a swath direct
-        // hit. Previously swath-only dates (no point report within 10 mi but
-        // property inside a swath polygon) got dropped — those are exactly the
-        // "UI says Direct Hit, PDF says nothing" cases.
-        const swathDirectHitSetPre = new Set(input.swathDirectHitDates || []);
         const consolidatedDates = Array.from(dateGroups.values())
-            .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0 || swathDirectHitSetPre.has(g.date))
+            .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
         // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
         // for the PDF. Sub-¼" radar signatures exist (sleet/graupel) but listing
@@ -1166,29 +1178,12 @@ export class PDFReportServiceV2 {
                 return '---';
             return `${Math.max(0.25, inches).toFixed(2)}"`;
         };
-        // SWATH-FIRST labeling — if the property sits inside a cached MRMS swath
-        // polygon on that date, it's a DIRECT HIT. Full stop. Distance bands only
-        // matter when there's no swath confirmation. This is the rule: if the UI
-        // says Direct Hit (swath-based), the PDF says Direct Hit.
-        const swathDirectHitSet = new Set(input.swathDirectHitDates || []);
-        const hitLabel = (g) => {
-            if (swathDirectHitSet.has(g.date))
-                return 'DIRECT HIT';
-            if (g.atLoc >= 0.5)
-                return 'DIRECT HIT';
-            if (g.atLoc > 0)
-                return 'Direct';
-            if (g.w3 > 0)
-                return '1-3 mi';
-            if (g.w5 > 0)
-                return '3-5 mi';
-            if (g.w10 > 0)
-                return '5-10 mi';
-            return '---';
-        };
+        // No separate Hit column — the populated "At Property" cell IS the
+        // direct-hit signal (rep convention: if a number's in that column, the
+        // property was hit). Swath direct hits were already promoted into atLoc
+        // above so they show as a size, not as a label.
         const histRows = consolidatedDates.map(g => [
             this.fmtDateET(g.date),
-            hitLabel(g),
             this.fmtFullDateTimeET(g.date),
             g.direction,
             g.speed ? g.speed.toFixed(1) : '---',
@@ -1197,15 +1192,13 @@ export class PDFReportServiceV2 {
             displaySize(g.w5),
             displaySize(g.w10),
         ]);
-        // Summary line above the table — tells the adjuster at a glance what
-        // category of hits this property has. Swath direct hits count too.
-        const isDirectByAtLoc = (g) => g.atLoc > 0 || swathDirectHitSet.has(g.date);
-        const isActionable = (g) => g.atLoc >= 0.5 || swathDirectHitSet.has(g.date);
-        const directHitCount = consolidatedDates.filter(isDirectByAtLoc).length;
-        const actionableCount = consolidatedDates.filter(isActionable).length;
-        const within3Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 > 0).length;
-        const within5Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 === 0 && g.w5 > 0).length;
-        const within10Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
+        // Summary line above the table. Swath direct hits have already been
+        // promoted into atLoc, so counts are simple distance-band reads.
+        const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
+        const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
+        const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 > 0).length;
+        const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 > 0).length;
+        const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
         const largestActionable = consolidatedDates.reduce((max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max), { size: 0, date: '' });
         if (directHitCount > 0 || within3Count > 0 || within5Count > 0 || within10Count > 0) {
             doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
@@ -1239,11 +1232,10 @@ export class PDFReportServiceV2 {
         }
         doc.moveDown(0.3);
         doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-            .text('* "At Property" = 0-1 mi. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — ' +
-            'each observation is assigned to one band, showing max hail in that band. ' +
-            '"DIRECT HIT" = the property sits inside an MRMS hail-swath polygon on that date (the ' +
-            'radar-derived footprint of hail ≥ the cited size), OR hail 1/2" or larger was reported at property. ' +
-            '"Direct" = sub-1/2" radar signature at property. ' +
+            .text('* "At Property" = 0-1 mi, populated when either (a) the property sits inside an MRMS hail-swath polygon ' +
+            'on that date — the radar-derived footprint of hail ≥ the cited size, OR (b) hail ≥ 1/4" was reported ' +
+            'at the property. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — each observation is ' +
+            'assigned to one band, showing max hail in that band. ' +
             'Sub-1/4" values rounded up to 1/4" for display. See "Disclaimer & Limitations" (end of report) for ' +
             'full methodology and source list.', this.M, doc.y, { width: this.CW });
         // =========================================================
