@@ -102,6 +102,14 @@ interface ReportInput {
   companyPhone?: string;
   companyWebsite?: string;
   filter?: ReportFilter;
+  /** ISO dates (YYYY-MM-DD) where the property's lat/lng sits INSIDE a cached
+   * MRMS swath polygon. Populated by the caller via addressImpactService.
+   * When a date is in this set, the history table labels it "DIRECT HIT"
+   * regardless of point-report distance — the authoritative signal is the
+   * swath polygon, not the nearest point report. Without this, the UI's
+   * "Direct Hit" badge and the PDF's label can disagree (ticket ref:
+   * 5838 Cub Stream Dr → swath says DIRECT, PDF says 1-3 mi). */
+  swathDirectHitDates?: string[];
   mapImage?: Buffer | null;
   nexradImage?: Buffer | null;
   nexradTimestamp?: string;
@@ -1362,8 +1370,27 @@ export class PDFReportServiceV2 {
       else if (dist > 5.0 && dist <= 10.0 && size > g.w10) g.w10 = size;
     }
 
+    // Add synthetic date groups for swath direct hits that didn't surface as
+    // point reports within 10mi. The property is inside an MRMS swath band on
+    // that date → must appear in the history table, even if no rep report /
+    // NOAA row is close enough to tag a band.
+    for (const d of input.swathDirectHitDates || []) {
+      const dk = this.getDateKey(d) || d;
+      if (!dateGroups.has(dk)) {
+        dateGroups.set(dk, {
+          date: d, direction: '---', speed: undefined, duration: undefined,
+          atLoc: 0, w3: 0, w5: 0, w10: 0,
+        });
+      }
+    }
+
+    // Keep any date that has a non-zero distance band OR is a swath direct
+    // hit. Previously swath-only dates (no point report within 10 mi but
+    // property inside a swath polygon) got dropped — those are exactly the
+    // "UI says Direct Hit, PDF says nothing" cases.
+    const swathDirectHitSetPre = new Set(input.swathDirectHitDates || []);
     const consolidatedDates = Array.from(dateGroups.values())
-      .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
+      .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0 || swathDirectHitSetPre.has(g.date))
       .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
 
     // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
@@ -1376,14 +1403,13 @@ export class PDFReportServiceV2 {
       return `${Math.max(0.25, inches).toFixed(2)}"`;
     };
 
-    // Direct-hit labeling (mutually-exclusive distance bands):
-    //   atLoc >= 0.5  → "DIRECT HIT" (insurance-actionable hail at property, 0-1mi)
-    //   atLoc > 0     → "Direct"     (sub-1/2" radar signature at property)
-    //   w3 > 0        → "1-3 mi"
-    //   w5 > 0        → "3-5 mi"
-    //   w10 > 0       → "5-10 mi"
-    //   else          → "---"
-    const hitLabel = (g: { atLoc: number; w3: number; w5: number; w10: number }): string => {
+    // SWATH-FIRST labeling — if the property sits inside a cached MRMS swath
+    // polygon on that date, it's a DIRECT HIT. Full stop. Distance bands only
+    // matter when there's no swath confirmation. This is the rule: if the UI
+    // says Direct Hit (swath-based), the PDF says Direct Hit.
+    const swathDirectHitSet = new Set(input.swathDirectHitDates || []);
+    const hitLabel = (g: { date: string; atLoc: number; w3: number; w5: number; w10: number }): string => {
+      if (swathDirectHitSet.has(g.date)) return 'DIRECT HIT';
       if (g.atLoc >= 0.5) return 'DIRECT HIT';
       if (g.atLoc > 0) return 'Direct';
       if (g.w3 > 0) return '1-3 mi';
@@ -1405,12 +1431,14 @@ export class PDFReportServiceV2 {
     ]);
 
     // Summary line above the table — tells the adjuster at a glance what
-    // category of hits this property has.
-    const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
-    const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
-    const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 > 0).length;
-    const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 > 0).length;
-    const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
+    // category of hits this property has. Swath direct hits count too.
+    const isDirectByAtLoc = (g: { atLoc: number; date: string }) => g.atLoc > 0 || swathDirectHitSet.has(g.date);
+    const isActionable = (g: { atLoc: number; date: string }) => g.atLoc >= 0.5 || swathDirectHitSet.has(g.date);
+    const directHitCount = consolidatedDates.filter(isDirectByAtLoc).length;
+    const actionableCount = consolidatedDates.filter(isActionable).length;
+    const within3Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 > 0).length;
+    const within5Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 === 0 && g.w5 > 0).length;
+    const within10Count = consolidatedDates.filter(g => !isDirectByAtLoc(g) && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
     const largestActionable = consolidatedDates.reduce(
       (max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max),
       { size: 0, date: '' },
@@ -1448,7 +1476,9 @@ export class PDFReportServiceV2 {
        .text(
          '* "At Property" = 0-1 mi. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — ' +
          'each observation is assigned to one band, showing max hail in that band. ' +
-         '"DIRECT HIT" = hail 1/2" or larger at property; "Direct" = sub-1/2" radar signature at property. ' +
+         '"DIRECT HIT" = the property sits inside an MRMS hail-swath polygon on that date (the ' +
+         'radar-derived footprint of hail ≥ the cited size), OR hail 1/2" or larger was reported at property. ' +
+         '"Direct" = sub-1/2" radar signature at property. ' +
          'Sub-1/4" values rounded up to 1/4" for display. See "Disclaimer & Limitations" (end of report) for ' +
          'full methodology and source list.',
          this.M, doc.y, { width: this.CW }

@@ -1747,6 +1747,21 @@ router.post('/generate-report', async (req: Request, res: Response) => {
 
     console.log(`📄 Generating PDF report (${activePdfCount}/${MAX_CONCURRENT_PDFS} active)`);
 
+    // Consult the swath-first address impact service so the PDF's "DIRECT HIT"
+    // labels agree with the UI's side panel. Without this, a property inside
+    // a swath polygon with its nearest point report 1.2 mi away gets
+    // labeled "1-3 mi" in the PDF even though the UI says Direct Hit. Match
+    // the monthsBack window to the date filters in play: lifetime → 60 mo,
+    // single-date / range → cover the range + a bit.
+    let swathDirectHitDates: string[] = [];
+    try {
+      const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+      const impact = await getAddressHailImpact(req.app.get('pool'), parsedLat, parsedLng, 60);
+      swathDirectHitDates = (impact?.directHits || []).map((d: any) => String(d.date));
+    } catch (e) {
+      console.warn('[generate-report] swath-first impact check failed (PDF will fall back to distance-only labels):', (e as Error).message);
+    }
+
     // Generate PDF stream
     const pdfStream = pdfReportServiceV2.generateReport({
       address,
@@ -1755,6 +1770,7 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       lat: parsedLat,
       lng: parsedLng,
       radius: parseFloat(radius),
+      swathDirectHitDates,
       noaaEvents: normalizedNoaaEvents,
       historyEvents: normalizedHistoryEvents,
       dateOfLoss,
@@ -2251,6 +2267,17 @@ async function renderClaimPacketToResponse(
     noaaEvents: adapterNoaaEvents as any,
   });
 
+  // Swath-first direct-hit labeling — same as /generate-report, so the
+  // PDF's DIRECT HIT column agrees with the UI's side panel.
+  let claimPacketSwathDirectHits: string[] = [];
+  try {
+    const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+    const impact = await getAddressHailImpact(pool, lat, lng, 60);
+    claimPacketSwathDirectHits = (impact?.directHits || []).map((d: any) => String(d.date));
+  } catch (e) {
+    console.warn('[claim-packet] swath-first impact check failed:', (e as Error).message);
+  }
+
   const reportPayload = {
     address: propertyAddress,
     city: property.city,
@@ -2258,6 +2285,7 @@ async function renderClaimPacketToResponse(
     lat,
     lng,
     radius: 10,
+    swathDirectHitDates: claimPacketSwathDirectHits,
     events: adapterEvents,
     historyEvents: adapterHistoryEvents,
     noaaEvents: adapterNoaaEvents,
