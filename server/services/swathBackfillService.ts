@@ -65,6 +65,12 @@ async function findMissingStormDays(
   pool: Pool,
   monthsBack: number,
 ): Promise<Array<{ event_date: string; max_hail: number }>> {
+  // "Missing" now requires a cache entry whose bbox COVERS the full 6-state
+  // footprint — not just any cache entry. When we widened the bbox north
+  // 40.5→42.3 to include all of PA, existing cache entries at the narrower
+  // bbox don't satisfy the new coverage requirement, so this query correctly
+  // flags them as still-missing and the backfill re-fetches them at the
+  // wider footprint.
   const { rows } = await pool.query(
     `SELECT event_date::text AS event_date,
             MAX(hail_size_inches)::numeric AS max_hail
@@ -73,11 +79,14 @@ async function findMissingStormDays(
        AND state IN ('VA','MD','DC','PA','WV','DE')
        AND hail_size_inches >= 1.0
        AND event_date NOT IN (
-         SELECT storm_date FROM mrms_swath_cache WHERE expires_at > NOW()
+         SELECT storm_date FROM mrms_swath_cache
+         WHERE expires_at > NOW()
+           AND north >= $2 AND south <= $3
+           AND east  >= $4 AND west  <= $5
        )
      GROUP BY event_date
      ORDER BY MAX(hail_size_inches) DESC NULLS LAST, event_date DESC`,
-    [monthsBack],
+    [monthsBack, DMV_BBOX.north, DMV_BBOX.south, DMV_BBOX.east, DMV_BBOX.west],
   );
   return rows.map((r) => ({
     event_date: String(r.event_date),
