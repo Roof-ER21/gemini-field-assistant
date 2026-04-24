@@ -2821,6 +2821,75 @@ router.post('/admin/run-migration-079', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// GET /api/hail/ihm-coverage-summary
+// Fleet-wide summary: across every DMV/PA/WV/DE city, how many confirmed-hail
+// dates does IHM claim vs how many do we have in our DB? Answer the question
+// "IHM has more" at scale, not per-city. Ranked by biggest gaps both ways.
+router.get('/ihm-coverage-summary', async (req, res) => {
+    try {
+        const pool = req.app.get('pool');
+        const { rows } = await pool.query(`
+      SELECT
+        city, state,
+        lat, lng,
+        doppler_lifetime AS ihm_lifetime,
+        doppler_past_year AS ihm_past_year,
+        unique_dates_count AS ihm_parsed_dates,
+        (
+          SELECT COUNT(DISTINCT event_date)
+          FROM verified_hail_events_public_sane v
+          WHERE hail_size_inches IS NOT NULL
+            AND 3959 * 2 * ASIN(SQRT(
+              POWER(SIN(RADIANS((v.latitude  - m.lat) / 2)), 2) +
+              COS(RADIANS(m.lat)) * COS(RADIANS(v.latitude)) *
+              POWER(SIN(RADIANS((v.longitude - m.lng) / 2)), 2)
+            )) <= 10
+        )::int AS ours_dates_10mi,
+        (
+          SELECT COUNT(*) FROM jsonb_array_elements(unique_dates) e
+          WHERE (e->>'max_hail_inches')::numeric > 0
+             OR (e->>'has_spotter')::boolean = true
+        )::int AS ihm_confirmed_hail_dates,
+        fetched_at
+      FROM ihm_city_mirror m
+      WHERE status = 200 AND lat IS NOT NULL AND lng IS NOT NULL
+      ORDER BY state, city
+    `);
+        // Build fleet totals + per-state breakdown
+        let fleetIhm = 0, fleetOurs = 0, citiesWithOursAdvantage = 0, citiesWithIhmAdvantage = 0;
+        const byState = {};
+        for (const r of rows) {
+            const ihm = Number(r.ihm_confirmed_hail_dates) || 0;
+            const ours = Number(r.ours_dates_10mi) || 0;
+            fleetIhm += ihm;
+            fleetOurs += ours;
+            if (ours > ihm)
+                citiesWithOursAdvantage++;
+            else if (ihm > ours)
+                citiesWithIhmAdvantage++;
+            const s = (byState[r.state] ??= { cities: 0, ihm: 0, ours: 0 });
+            s.cities++;
+            s.ihm += ihm;
+            s.ours += ours;
+        }
+        res.json({
+            fleet: {
+                cities_with_ihm_mirror: rows.length,
+                ihm_confirmed_hail_dates_total: fleetIhm,
+                our_dates_total: fleetOurs,
+                cities_where_we_have_more: citiesWithOursAdvantage,
+                cities_where_ihm_has_more: citiesWithIhmAdvantage,
+                cities_tied: rows.length - citiesWithOursAdvantage - citiesWithIhmAdvantage,
+            },
+            by_state: byState,
+            cities: rows,
+        });
+    }
+    catch (err) {
+        console.error('[ihm-coverage-summary] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 // GET /api/hail/ihm-vs-ours?city=Fairfax&state=VA&radiusMiles=10
 // Per-city diff of IHM's public hail-date log vs our verified_hail_events.
 // Returns { ihm_dates, ours_dates, verdict_counts: {MATCH, IHM_ONLY, OURS_ONLY,
