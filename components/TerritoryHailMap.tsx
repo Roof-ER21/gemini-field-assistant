@@ -598,10 +598,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [searchLat, setSearchLat] = useState<number | null>(DEFAULT_CENTER[0]);
   const [searchLng, setSearchLng] = useState<number | null>(DEFAULT_CENTER[1]);
   const [searchSummary, setSearchSummary] = useState<PropertySearchSummary | null>(null);
-  // Default widened from '2y' to '5y' after the NOAA NCEI historical backfill
-  // extended our tagged coverage back to 2015. Reps asking "did this address
-  // ever get hit?" now see 5 years by default; the picker still goes up to 10y.
-  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('5y');
+  // 2y default — reps reported 5y made the initial page load too slow
+  // (pulling 5 years of events + swath cache fills across 250k+ points).
+  // 2y covers the insurance-relevant window (most carriers require claims
+  // within 2 years of loss date); deeper history is still one click away
+  // via the range picker.
+  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('2y');
   const [sinceDate, setSinceDate] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('recent');
   const [eventFilters, setEventFilters] = useState<EventFilterState>({ hail: true, wind: false });
@@ -1359,10 +1361,18 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     void handleBuildRoute(routeData.destination);
   }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
 
+  // OSM + Esri tile providers. Previously used mt{s}.google.com/vt/ which is
+  // Google's internal tile server — not a public API, has no stable contract,
+  // and Microsoft Edge / Chrome Tracking Prevention blocks every tile request
+  // + logs it to console. On a live-storm page that loads 100+ tiles, the
+  // console floods with "Tracking Prevention blocked access to storage"
+  // warnings, the map keeps retrying, and the page crashes into a remount
+  // loop (reps reported the app "keeps crashing and coming back"). OSM + Esri
+  // are the standard Leaflet defaults, no key, no tracking — also faster.
   const mapTileUrl =
     baseMap === 'map'
-      ? 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
-      : 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+      ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative', overflow: 'hidden' }}>
