@@ -789,13 +789,16 @@ export async function getHistoricalMrmsOverlay(
     result,
   });
 
-  if (cache.size > 100) {
-    const now = Date.now();
-    for (const [key, entry] of cache.entries()) {
-      if (entry.expiresAt <= now) {
-        cache.delete(key);
-      }
-    }
+  // Hard LRU eviction — Map iteration order is insertion order, so the
+  // first key is the oldest. Evict until we're under the cap regardless
+  // of expiry. The previous "evict expired only" code allowed unbounded
+  // growth inside one long-running request loop (the getAddressHailImpact
+  // 467-date walk that OOM'd Susan 21 at 2026-04-24 01:38 UTC, peaking
+  // at 13.5GB RSS).
+  while (cache.size > 100) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
   }
 
   return result;
@@ -858,11 +861,12 @@ export async function loadMrmsDailyComposite(date: string): Promise<CompositeDec
 
     // Prune old cache entries opportunistically (don't let this grow unbounded
     // during a long-running backfill).
-    if (compositeGridCache.size > 30) {
-      const now = Date.now();
-      for (const [k, v] of compositeGridCache.entries()) {
-        if (v.expiresAt <= now) compositeGridCache.delete(k);
-      }
+    // Hard LRU — Float32Array composite grids are ~60MB each, previously
+    // grew unbounded in a long 467-date query.
+    while (compositeGridCache.size > 30) {
+      const oldest = compositeGridCache.keys().next().value;
+      if (oldest === undefined) break;
+      compositeGridCache.delete(oldest);
     }
     return composite;
   } catch {
@@ -1293,12 +1297,11 @@ export async function getHistoricalMrmsSwathPolygons(
     void saveSwathToDb(pool, request.date, roundedBounds, result);
   }
 
-  // Prune expired entries
-  if (swathPolyCache.size > 50) {
-    const now = Date.now();
-    for (const [k, v] of swathPolyCache.entries()) {
-      if (v.expiresAt <= now) swathPolyCache.delete(k);
-    }
+  // Hard LRU eviction (see cache block above).
+  while (swathPolyCache.size > 50) {
+    const oldest = swathPolyCache.keys().next().value;
+    if (oldest === undefined) break;
+    swathPolyCache.delete(oldest);
   }
 
   return result;
