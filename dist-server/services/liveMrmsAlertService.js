@@ -1,6 +1,12 @@
 import { DMV_CITIES } from './dmvCities.js';
 // Tunables
-export const DEFAULT_MIN_MESH_INCHES = 1.0; // claim-tier floor
+// Threshold 0.5" catches marble-size and up. Rep's logic: quarter-size (1")
+// is the "severe" line adjusters recognize, but reps want eyes-on any time
+// radar shows ≥ half-inch so they can get out the door before the storm
+// moves. Polygon bands are FLOOR thresholds — a 0.50" band = MESH ≥ 0.5"
+// inside. 0.38" MESH would sit inside the 0.25" band, not 0.50", so
+// sub-half cells don't trigger (and shouldn't — rep's call).
+export const DEFAULT_MIN_MESH_INCHES = 0.5;
 const DEDUP_LAT_BUCKET = 0.1; // ~7 mi
 const DEDUP_LNG_BUCKET = 0.1;
 const DEDUP_WINDOW_HOURS = 24;
