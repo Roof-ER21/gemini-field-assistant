@@ -2397,6 +2397,35 @@ export function createSusanGroupMeBotRoutes(pool) {
                     return { city: cityOnlyQuery.city, state: cityOnlyQuery.state, geo, dates, events, mode };
                 })()
                 : Promise.resolve(null);
+            // ──────────────────────────────────────────────────────────────
+            // HAIL-LOOKUP FALLBACK REDIRECT — gated by HAIL_LOOKUP_FALLBACK=true
+            // When on, any address/city/date hail question short-circuits to a
+            // canned reply pointing reps at the web app's Storm Maps page, which
+            // is the authoritative source. Needed while the city-level localizer
+            // is getting rebuilt — Susan's LLM replies were summarizing to
+            // state-level ("hail in VA") instead of actual verified city/distance
+            // pairs, which embarrassed us in testing.
+            // Adjuster/carrier/KB queries are unaffected and pass through.
+            // ──────────────────────────────────────────────────────────────
+            if (process.env.HAIL_LOOKUP_FALLBACK === 'true') {
+                const isHailLookup = addr ||
+                    (cityOnlyQuery && dates.length > 0) ||
+                    (cityOnlyQuery && /\b(hail|storm)\b/i.test(text)) ||
+                    (dates.length > 0 && /\b(hail|storm)\b/i.test(text));
+                if (isHailLookup) {
+                    const fallback = `My guy 🫡 — my address-level hail lookup is offline while we rebuild it. ` +
+                        `For the most accurate storm date at any property, pull it up in the app: ` +
+                        `https://sa21.up.railway.app → Storm Maps → search the address. ` +
+                        `You'll get the verified hail dates, distances, swath bands, and sources.`;
+                    if (!testMode) {
+                        await postToGroupMe(fallback, String(msg.id), String(msg.group_id));
+                        repliedAt.push(Date.now());
+                    }
+                    console.log(`[SusanBot] HAIL_LOOKUP_FALLBACK fired for ${msg.name}: ${text.slice(0, 80)}`);
+                    await saveBotTurn(pool, msg, null, fallback, [], [], 'fallback-redirect', 0, { fallback_redirect: true, test_mode: testMode });
+                    return;
+                }
+            }
             // Pull recent chat context for recap / team-flow style questions.
             // We pull 100 so daily recaps can span the whole day (multiple hours).
             const chatContextPromise = needsChatContext(text)
