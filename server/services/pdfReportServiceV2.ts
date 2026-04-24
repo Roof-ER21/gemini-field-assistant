@@ -626,13 +626,35 @@ export class PDFReportServiceV2 {
             : 'Last 5 years';
 
     // Filter events using the unified dateMatchesLoss predicate above.
-    // Merge `events` + `historyEvents` (dedup by id) so the "Largest Hail"
-    // card sees the primary storm event even when the caller also provides
-    // a multi-year history list. Previously the card read `historyEvents`
-    // only and collapsed to "N/A" any time a caller used both arrays.
+    // Merge `events` + `historyEvents` + NOAA hail events (dedup by id). The
+    // NOAA merge is critical: when /search returns all events as NOAA
+    // (common for addresses where NCEI storm reports are the primary source,
+    // e.g. Richmond VA), the dashboard card used to read events[]+historyEvents[]
+    // only and collapsed to "N/A" despite 500+ NOAA records showing 2.40"
+    // hail in the area. Every NOAA hail event is now first-class in the
+    // dashboard calc.
     const mergedHistoryMap = new Map<string, HailEvent>();
     for (const e of input.events || []) mergedHistoryMap.set(e.id, e);
     for (const e of input.historyEvents || []) mergedHistoryMap.set(e.id, e);
+    for (const e of input.noaaEvents || []) {
+      if (e.eventType === 'hail' && !mergedHistoryMap.has(e.id)) {
+        mergedHistoryMap.set(e.id, {
+          id: e.id,
+          date: e.date,
+          latitude: e.latitude,
+          longitude: e.longitude,
+          hailSize: e.magnitude ?? null,
+          severity: (e.magnitude || 0) >= 1.75 ? 'severe' : (e.magnitude || 0) >= 1 ? 'moderate' : 'minor',
+          source: e.location || 'NOAA Storm Events',
+          distanceMiles: e.distanceMiles,
+          comments: e.comments,
+          noaaEventId: e.noaaEventId,
+          radarSite: e.radarSite,
+          nwsForecastOffice: e.nwsForecastOffice,
+          cocorahsStation: e.cocorahsStation,
+        });
+      }
+    }
     const allHistoryEvents: HailEvent[] = Array.from(mergedHistoryMap.values());
     const dashEvents = dashMode === 'lifetime'
       ? allHistoryEvents
