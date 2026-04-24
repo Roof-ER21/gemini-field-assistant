@@ -353,7 +353,15 @@ export class PDFReportServiceV2 {
             ...selectedEvents.map(e => e.hailSize || 0),
             ...selectedNoaaHailEvents.map(e => e.magnitude || 0),
         ].filter(s => s > 0);
-        const selectedMaxHail = selectedHailSizes.length > 0 ? Math.max(...selectedHailSizes) : maxHail;
+        // When a date filter is in play (dateOfLoss/datesOfLoss/range) and no
+        // events matched, DON'T fall back to the all-history max — that would
+        // make the narrative claim "3" baseball hail today" when nothing
+        // was actually documented today. For lifetime reports (no filter),
+        // keep the maxHail fallback because the whole history IS the query.
+        const hasDateFilter = Boolean(input.dateOfLoss || input.datesOfLoss || input.fromDate || input.toDate);
+        const selectedMaxHail = selectedHailSizes.length > 0
+            ? Math.max(...selectedHailSizes)
+            : (hasDateFilter ? 0 : maxHail);
         const severeCount = selectedHailSizes.filter(s => s >= 1.5).length;
         const hailEvents = [
             ...selectedEvents.map(e => ({
