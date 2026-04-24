@@ -1195,9 +1195,29 @@ router.post('/generate-report', async (req, res) => {
         if (req.body?.sync !== true) {
             const pool = req.app.get('pool');
             const requestedBy = req.header('x-user-email') || null;
+            // Swath-first enrichment — run before enqueue so the PDF's DIRECT HIT
+            // labels agree with the UI side panel (see feedback memo:
+            // swath-first-direct-hit). Without this, the worker renders the raw
+            // payload and gets distance-only labels. Adds ~1-3s to the enqueue
+            // call which is acceptable vs a wrong PDF.
+            const enrichedPayload = { ...(req.body || {}) };
+            const latNum = Number(enrichedPayload.lat);
+            const lngNum = Number(enrichedPayload.lng);
+            if (Number.isFinite(latNum) && Number.isFinite(lngNum)
+                && !Array.isArray(enrichedPayload.swathDirectHitDates)) {
+                try {
+                    const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+                    const impact = await getAddressHailImpact(pool, latNum, lngNum, 60);
+                    enrichedPayload.swathDirectHitDates = (impact?.directHits || []).map((d) => String(d.date));
+                    console.log(`[generate-report] enriched with ${enrichedPayload.swathDirectHitDates.length} swath direct hits`);
+                }
+                catch (e) {
+                    console.warn('[generate-report] swath enrichment skipped:', e.message);
+                }
+            }
             const { rows } = await pool.query(`INSERT INTO pdf_jobs (payload, requested_by_email)
          VALUES ($1::jsonb, $2)
-         RETURNING id, created_at`, [JSON.stringify(req.body || {}), requestedBy]);
+         RETURNING id, created_at`, [JSON.stringify(enrichedPayload), requestedBy]);
             const jobId = rows[0].id;
             console.log(`[generate-report] enqueued job ${jobId} for ${requestedBy || 'anon'}`);
             return res.status(202).json({
