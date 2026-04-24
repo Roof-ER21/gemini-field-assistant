@@ -1,12 +1,24 @@
 import { DMV_CITIES } from './dmvCities.js';
 // Tunables
-// Threshold 0.5" catches marble-size and up. Rep's logic: quarter-size (1")
-// is the "severe" line adjusters recognize, but reps want eyes-on any time
-// radar shows ≥ half-inch so they can get out the door before the storm
-// moves. Polygon bands are FLOOR thresholds — a 0.50" band = MESH ≥ 0.5"
-// inside. 0.38" MESH would sit inside the 0.25" band, not 0.50", so
-// sub-half cells don't trigger (and shouldn't — rep's call).
-export const DEFAULT_MIN_MESH_INCHES = 0.5;
+// Threshold 0.25" — we alert on anything trace-and-up, but with tiered
+// messaging so reps learn to trust the bigger numbers:
+//   0.25-0.50"  → 👀 HEADS UP (single line, informational)
+//   0.50-1.00"  → ⚡ HAIL ALERT (per-city bullets, canvas-ready)
+//   1.00"+      → 🚨 SEVERE HAIL (bold emphasis, drop everything)
+// Matches what HailTrace / IHM canvassing reps would set their own
+// thresholds at. Polygon bands are FLOOR thresholds, so 0.38" MESH falls
+// inside a 0.25" band (not 0.50") and fires a HEADS UP, not an ALERT.
+export const DEFAULT_MIN_MESH_INCHES = 0.25;
+// Tier cut-offs — inches ≥ these thresholds upgrade to the next tier.
+const TIER_ALERT_INCHES = 0.50;
+const TIER_SEVERE_INCHES = 1.00;
+function tierForInches(inches) {
+    if (inches >= TIER_SEVERE_INCHES)
+        return 'severe';
+    if (inches >= TIER_ALERT_INCHES)
+        return 'alert';
+    return 'heads_up';
+}
 const DEDUP_LAT_BUCKET = 0.1; // ~7 mi
 const DEDUP_LNG_BUCKET = 0.1;
 const DEDUP_WINDOW_HOURS = 24;
@@ -201,24 +213,44 @@ export async function runLiveMrmsAlertCheck(pool, opts = {}) {
             ref_time: refTime,
         };
     }
-    // Build the message
+    // Build tiered message — tier is determined by the PEAK cell's size,
+    // so one storm with mixed-size cells still gets a single coherent post
+    // at the appropriate urgency level.
     const refDate = new Date(refTime);
     const minsAgo = Math.round((Date.now() - refDate.getTime()) / 60_000);
     const timeLabel = minsAgo < 60 ? `${minsAgo} min ago` : `${Math.round(minsAgo / 60)}h ago`;
     const peakInches = newCells[0].inches.toFixed(2);
-    const lines = [
-        `⚡ HAIL ON RADAR — ${newCells.length} cell${newCells.length > 1 ? 's' : ''} across DMV, peak ${peakInches}" (${timeLabel})`,
-    ];
-    for (const c of newCells.slice(0, 8)) {
-        const cityLabel = c.nearestCity
-            ? `${c.nearestCity.name}, ${c.nearestCity.state} (${c.nearestCity.dist.toFixed(0)}mi)`
-            : `${c.lat.toFixed(2)},${c.lng.toFixed(2)}`;
-        lines.push(`• ${cityLabel}: ${c.inches.toFixed(2)}"`);
+    const peakTier = tierForInches(newCells[0].inches);
+    const lines = [];
+    if (peakTier === 'severe') {
+        lines.push(`🚨 SEVERE HAIL — peak ${peakInches}" (${timeLabel}). Drop everything.`);
     }
-    if (newCells.length > 8)
-        lines.push(`  …+${newCells.length - 8} more cells`);
-    lines.push('');
-    lines.push('Map: sa21.up.railway.app → Storm Maps → toggle LIVE');
+    else if (peakTier === 'alert') {
+        lines.push(`⚡ HAIL ALERT — ${newCells.length} cell${newCells.length > 1 ? 's' : ''} in VA/MD/PA, peak ${peakInches}" (${timeLabel})`);
+    }
+    else {
+        // heads_up — keep it short; reps don't need a bulleted list for trace cells
+        const leadCity = newCells[0].nearestCity;
+        const cityLabel = leadCity ? `${leadCity.name}, ${leadCity.state}` : 'DMV area';
+        const suffix = newCells.length > 1 ? ` (+${newCells.length - 1} more)` : '';
+        lines.push(`👀 HEADS UP — radar hail near ${cityLabel}: ${peakInches}" (${timeLabel})${suffix}`);
+        lines.push('');
+        lines.push('Map: sa21.up.railway.app → Storm Maps → LIVE');
+    }
+    // Per-city bullets only for ALERT + SEVERE (skip for heads_up — keeps it one line)
+    if (peakTier !== 'heads_up') {
+        for (const c of newCells.slice(0, 8)) {
+            const cityLabel = c.nearestCity
+                ? `${c.nearestCity.name}, ${c.nearestCity.state} (${c.nearestCity.dist.toFixed(0)}mi)`
+                : `${c.lat.toFixed(2)},${c.lng.toFixed(2)}`;
+            const sizePrefix = tierForInches(c.inches) === 'severe' ? '🚨 ' : '';
+            lines.push(`• ${sizePrefix}${cityLabel}: ${c.inches.toFixed(2)}"`);
+        }
+        if (newCells.length > 8)
+            lines.push(`  …+${newCells.length - 8} more cells`);
+        lines.push('');
+        lines.push('Map: sa21.up.railway.app → Storm Maps → toggle LIVE');
+    }
     const text = lines.join('\n');
     // Pick bot + group
     const targetBotId = testMode ? TEST_BOT_ID : GROUPME_BOT_ID;

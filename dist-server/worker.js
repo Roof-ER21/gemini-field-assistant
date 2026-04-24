@@ -139,8 +139,10 @@ async function main() {
     // to Sales Team. Default off so flipping it on is a conscious choice.
     if (process.env.LIVE_MRMS_ALERT_ENABLED === 'true' || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group') {
         const { runLiveMrmsAlertCheck } = await import('./services/liveMrmsAlertService.js');
+        const { runLiveNwsWarningCheck } = await import('./services/liveNwsWarningAlertService.js');
         const TEN_MIN = 10 * 60_000;
-        const POLL = async () => {
+        const FIVE_MIN = 5 * 60_000;
+        const MRMS_POLL = async () => {
             const now = new Date();
             const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
             const h = et.getHours();
@@ -156,13 +158,31 @@ async function main() {
                 console.warn('[LiveMrmsAlert-cron] err:', e.message);
             }
         };
-        // First run ~30s after startup; then every 10 min
-        setTimeout(POLL, 30_000);
-        setInterval(POLL, TEN_MIN);
-        console.log(`[worker] LiveMrmsAlert cron registered (${process.env.LIVE_MRMS_ALERT_ENABLED === 'true' ? 'SALES-TEAM' : 'TEST-GROUP'} target, 10-min poll, 8am-10pm EDT)`);
+        // NWS warnings are time-sensitive (lead time before storm hits) — poll
+        // every 5 min during daytime. No quiet hours for tornado warnings.
+        const NWS_POLL = async () => {
+            try {
+                const r = await runLiveNwsWarningCheck(pool);
+                if (r.new_posted > 0) {
+                    console.log(`[LiveNwsAlert-cron] posted=${r.new_posted} dup=${r.skipped_duplicate} out-of-scope=${r.skipped_out_of_scope} active=${r.active_warnings}`);
+                }
+            }
+            catch (e) {
+                console.warn('[LiveNwsAlert-cron] err:', e.message);
+            }
+        };
+        // MRMS first run ~30s after startup; then every 10 min
+        setTimeout(MRMS_POLL, 30_000);
+        setInterval(MRMS_POLL, TEN_MIN);
+        // NWS first run ~45s after startup; then every 5 min
+        setTimeout(NWS_POLL, 45_000);
+        setInterval(NWS_POLL, FIVE_MIN);
+        const target = process.env.LIVE_MRMS_ALERT_ENABLED === 'true' ? 'SALES-TEAM' : 'TEST-GROUP';
+        console.log(`[worker] LiveMrmsAlert cron registered (${target} target, 10-min poll, 8am-10pm EDT, 0.25" tiered)`);
+        console.log(`[worker] LiveNwsWarning cron registered (${target} target, 5-min poll, 24/7, SVR-TSTM + TORNADO warnings)`);
     }
     else {
-        console.log('[worker] LiveMrmsAlert cron NOT registered (LIVE_MRMS_ALERT_ENABLED unset)');
+        console.log('[worker] LiveMrmsAlert + LiveNwsWarning crons NOT registered (LIVE_MRMS_ALERT_ENABLED unset)');
     }
     // Keep the process alive. node-cron installs its own setIntervals, but if
     // every cron job is disabled the event loop would drain and the worker would
