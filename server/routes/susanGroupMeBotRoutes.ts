@@ -25,6 +25,23 @@ import { emailService } from '../services/emailService.js';
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
 const SALES_GROUP_ID = process.env.GROUPME_SUSAN_GROUP_ID || '93177620';
+
+// Private test group (Ahmed + Reese + Susan only). Optional — when set,
+// the webhook also responds to messages from this group, posting back
+// via TEST_BOT_ID. Lets the team iterate on Susan's answers without
+// spamming the live Sales Team chat. If either var is unset the test
+// group is ignored entirely.
+const TEST_GROUP_ID = process.env.GROUPME_TEST_GROUP_ID || '';
+const TEST_BOT_ID   = process.env.GROUPME_TEST_BOT_ID   || '';
+
+// Helper: which bot id to post with based on which group the inbound
+// message came from. Falls back to the Sales-Team bot if no match — the
+// post will 404 if the bot_id doesn't belong to that group, which is the
+// desired fail-loud behavior.
+function botIdForGroup(groupId: string | null | undefined): string {
+  if (TEST_GROUP_ID && TEST_BOT_ID && String(groupId) === TEST_GROUP_ID) return TEST_BOT_ID;
+  return BOT_ID;
+}
 const MAX_REPLIES_PER_HOUR = 15;
 const MAX_REPLIES_PER_DAY = 100;
 
@@ -2282,13 +2299,18 @@ async function generateReply(
   return { reply: null, error: errors.join(' | '), qualityFlags: lastFlags, retries };
 }
 
-export async function postToGroupMe(text: string, replyToId?: string): Promise<string | null> {
-  if (!BOT_ID) {
-    console.error('[SusanBot] GROUPME_SUSAN_BOT_ID not set — cannot post');
+export async function postToGroupMe(
+  text: string,
+  replyToId?: string,
+  groupId?: string | null,
+): Promise<string | null> {
+  const botId = botIdForGroup(groupId);
+  if (!botId) {
+    console.error('[SusanBot] no bot_id for group', groupId, '— cannot post');
     return null;
   }
   const body: any = {
-    bot_id: BOT_ID,
+    bot_id: botId,
     text: text.slice(0, 999),
   };
   if (replyToId) {
@@ -2365,8 +2387,12 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     if (msg.sender_type === 'bot') return;
     if (msg.name === 'Susan 21') return;
 
-    // Only for our sales group
-    if (msg.group_id && String(msg.group_id) !== SALES_GROUP_ID) return;
+    // Allow Sales Team + the private test group (if configured).
+    // Everything else (stray groups, unrelated bots) is ignored.
+    const isAllowedGroup =
+      String(msg.group_id) === SALES_GROUP_ID ||
+      (TEST_GROUP_ID && String(msg.group_id) === TEST_GROUP_ID);
+    if (msg.group_id && !isAllowedGroup) return;
 
     const text: string = String(msg.text || '').trim();
     if (text.length < 10) return;
@@ -2399,7 +2425,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
               const rollup = await getTodaySignupRollup(pool);
               const repFirst = (msg.name || '').split(' ')[0] || 'chief';
               const lateText = `Late add from @${msg.name || 'rep'} 🔥 Updated count: ${rollup.count} on the board today. Nice, ${repFirst}.`;
-              await postToGroupMe(lateText, String(msg.id));
+              await postToGroupMe(lateText, String(msg.id), String(msg.group_id));
               await pool.query(
                 `UPDATE bot_recap_state SET late_updates = late_updates + 1 WHERE recap_date = $1`,
                 [recap.recap_date]
@@ -2423,7 +2449,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     if (milestone.match && shouldCelebrateNow()) {
       const phrase = nextMilestonePhrase();
       if (!testMode) {
-        await postToGroupMe(phrase, String(msg.id));
+        await postToGroupMe(phrase, String(msg.id), String(msg.group_id));
         markCelebrated();
         repliedAt.push(Date.now());
       }
@@ -2459,7 +2485,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       const rollup = await getTodaySignupRollup(pool);
       const reply = formatSignupRecapForChat(rollup);
       if (!testMode) {
-        await postToGroupMe(reply, String(msg.id));
+        await postToGroupMe(reply, String(msg.id), String(msg.group_id));
         repliedAt.push(Date.now());
       }
       console.log(`[SusanBot] leader recap query from ${queryLeaderName} — count=${rollup.count}`);
@@ -2491,7 +2517,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       }
 
       if (!testMode) {
-        await postToGroupMe(confirmReply, String(msg.id));
+        await postToGroupMe(confirmReply, String(msg.id), String(msg.group_id));
         repliedAt.push(Date.now());
       }
       console.log(`[SusanBot] teaching mode=${isTrusted ? 'trusted' : 'pending'} sender=${senderName} fact="${teachingFact.slice(0, 80)}"`);
@@ -2525,7 +2551,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       const rebuildReply =
         "🔧 Getting upgraded right now team — full knowledge base + context memory comes online by end of day. " +
         "Swing back in a bit and I'll be way sharper. Appreciate the patience 🙏";
-      const posted = await postToGroupMe(rebuildReply, String(msg.id));
+      const posted = await postToGroupMe(rebuildReply, String(msg.id), String(msg.group_id));
       if (posted) {
         repliedAt.push(Date.now());
         console.log(`[SusanBot] rebuild_mode REPLIED to ${msg.name}`);
@@ -2671,7 +2697,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
           provider || 'unknown', latencyMs, { ...qualityFlags, retries, test_mode: true });
         return;
       }
-      const posted = await postToGroupMe(reply, String(msg.id));
+      const posted = await postToGroupMe(reply, String(msg.id), String(msg.group_id));
       const allStorms = [...stormHits, ...(addressHail?.events ?? [])];
       if (posted) {
         repliedAt.push(Date.now());
