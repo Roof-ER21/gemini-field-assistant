@@ -86,8 +86,25 @@ async function getTodaySignupCount() {
         const todayTs = todayStart.getTime() / 1000;
         let count = 0;
         for (const m of msgs) {
+            // Only count messages posted BY REPS — not Susan's own scheduled
+            // posts or recap messages that mention "Signup" / "signups on the
+            // board". Without this filter the bot's midday post like
+            // "Signups on the board today: 0" gets counted as a signup on the
+            // evening sweep, producing bogus "we have 1 signup" narratives.
+            if (m.sender_type !== 'user')
+                continue;
+            // Require the message LOOK like a real signup post (name/address
+            // follows) — reps format them "Signup - John Doe, 123 Main St" or
+            // "Sign up: Jane, Leesburg". "Signup sheet is down" / "sign up for
+            // training" should NOT count. Heuristic: starts with signup/sign up
+            // AND contains a separator (dash, colon, pipe) OR a street number.
             const t = String(m.text || '').trim();
-            if (m.created_at >= todayTs && /^(sign\s*up|signup)\b/i.test(t))
+            if (m.created_at < todayTs)
+                continue;
+            if (!/^(sign\s*up|signup)\b/i.test(t))
+                continue;
+            const looksLikeRealSignup = /[-:|—•]/.test(t) || /\b\d+\s+[A-Z]/.test(t) || /\b(at|for)\s+[A-Z]/.test(t);
+            if (looksLikeRealSignup)
                 count++;
         }
         return count;
