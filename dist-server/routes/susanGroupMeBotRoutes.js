@@ -2316,9 +2316,8 @@ export function createSusanGroupMeBotRoutes(pool) {
                     //  - getAddressHailImpact: swath-first tiered impact (the new authoritative signal)
                     //  - MRMS radar at the exact property grid cell
                     const [events, mrms, impact] = await Promise.all([
-                        // Widened from 24→120 months so Susan sees the full 10-year
-                        // backfill when a rep asks about an older date. The downstream
-                        // LIMIT 12 keeps the LLM prompt size sensible.
+                        // Point-report lookup — cheap SQL, safe to run wide. 120mo covers
+                        // the full NOAA NCEI / NCEI SWDI historical backfill (2015+).
                         hailAtAddress(pool, geo.lat, geo.lng, 120),
                         (dates.length > 0
                             ? mrmsAtAddressDate(addr, geo, dates[0])
@@ -2326,9 +2325,15 @@ export function createSusanGroupMeBotRoutes(pool) {
                         (async () => {
                             try {
                                 const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-                                // Same widen on the swath-first impact lookup. 120mo covers
-                                // every NOAA NCEI event id the historical backfill just tagged.
-                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 120);
+                                // Swath-first impact is capped at 24mo because
+                                // mrms_swath_cache only reaches back to 2022-07-12; older
+                                // dates have no swath polygons anyway, so widening just
+                                // wastes cold-fetch budget. On a 120mo call we observed
+                                // 17 cold fetches × ~3s + 367 skipped dates = 49s per
+                                // address — past Susan's internal timeout, so half the
+                                // replay questions got dropped. Point-report path above
+                                // still surfaces pre-2022 hail via hailAtAddress.
+                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 24);
                             }
                             catch (err) {
                                 console.warn('[SusanBot] getAddressHailImpact failed:', err.message);
