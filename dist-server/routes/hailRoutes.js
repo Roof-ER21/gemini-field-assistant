@@ -2825,10 +2825,19 @@ router.post('/admin/run-migration-079', async (req, res) => {
 // Fleet-wide summary: across every DMV/PA/WV/DE city, how many confirmed-hail
 // dates does IHM claim vs how many do we have in our DB? Answer the question
 // "IHM has more" at scale, not per-city. Ranked by biggest gaps both ways.
+// In-memory cache of the expensive fleet summary (15-min TTL). First call
+// after deploy takes 30-60s, then cached until refresh. Callers can pass
+// ?refresh=1 to force rebuild.
+let _ihmSummaryCache = null;
+const IHM_SUMMARY_TTL_MS = 15 * 60 * 1000;
 router.get('/ihm-coverage-summary', async (req, res) => {
     try {
+        const now = Date.now();
+        const forceRefresh = req.query.refresh === '1';
+        if (!forceRefresh && _ihmSummaryCache && now - _ihmSummaryCache.at < IHM_SUMMARY_TTL_MS) {
+            return res.json({ ..._ihmSummaryCache.body, cached: true, cached_age_ms: now - _ihmSummaryCache.at });
+        }
         const pool = req.app.get('pool');
-        // Step 1: pull the cheap per-city stats in one cheap query (no haversine).
         const ihmRows = (await pool.query(`
       SELECT
         city, state, lat, lng,
@@ -2845,11 +2854,11 @@ router.get('/ihm-coverage-summary', async (req, res) => {
       WHERE status = 200 AND lat IS NOT NULL AND lng IS NOT NULL
       ORDER BY state, city
     `)).rows;
-        // Step 2: for each city, run a cheap bbox-filtered haversine against
-        // verified_hail_events_public_sane. The bbox pre-filter uses the
-        // lat/lng btree index — each query is O(hits-in-bbox) not O(table).
+        // Per-city count via storm_days_public MV (1000x smaller than base table).
+        // Distance calc via bbox pre-filter on (lat_bucket, lng_bucket) which the
+        // storm_days_public_bucket_idx index can serve directly.
         const results = [];
-        const MILES_PER_DEG_LAT = 69.0; // roughly constant
+        const MILES_PER_DEG_LAT = 69.0;
         const RADIUS_MI = 10;
         for (const r of ihmRows) {
             const lat = Number(r.lat);
@@ -2858,17 +2867,12 @@ router.get('/ihm-coverage-summary', async (req, res) => {
             const dLng = RADIUS_MI / (MILES_PER_DEG_LAT * Math.max(Math.cos((lat * Math.PI) / 180), 0.1));
             const { rows: countRows } = await pool.query(`
         SELECT COUNT(DISTINCT event_date)::int AS n
-          FROM verified_hail_events_public_sane
-         WHERE latitude  BETWEEN $1 AND $2
-           AND longitude BETWEEN $3 AND $4
-           AND hail_size_inches IS NOT NULL
-           AND hail_size_inches > 0
-           AND 3959 * 2 * ASIN(SQRT(
-             POWER(SIN(RADIANS((latitude  - $5) / 2)), 2) +
-             COS(RADIANS($5)) * COS(RADIANS(latitude)) *
-             POWER(SIN(RADIANS((longitude - $6) / 2)), 2)
-           )) <= $7
-      `, [lat - dLat, lat + dLat, lng - dLng, lng + dLng, lat, lng, RADIUS_MI]);
+          FROM storm_days_public
+         WHERE lat_bucket BETWEEN $1 AND $2
+           AND lng_bucket BETWEEN $3 AND $4
+           AND max_hail IS NOT NULL
+           AND max_hail > 0
+      `, [lat - dLat, lat + dLat, lng - dLng, lng + dLng]);
             results.push({ ...r, ours_dates_10mi: countRows[0]?.n ?? 0 });
         }
         const rows = results;
@@ -2889,7 +2893,7 @@ router.get('/ihm-coverage-summary', async (req, res) => {
             s.ihm += ihm;
             s.ours += ours;
         }
-        res.json({
+        const body = {
             fleet: {
                 cities_with_ihm_mirror: rows.length,
                 ihm_confirmed_hail_dates_total: fleetIhm,
@@ -2900,7 +2904,10 @@ router.get('/ihm-coverage-summary', async (req, res) => {
             },
             by_state: byState,
             cities: rows,
-        });
+            built_in_ms: Date.now() - now,
+        };
+        _ihmSummaryCache = { at: now, body };
+        res.json({ ...body, cached: false });
     }
     catch (err) {
         console.error('[ihm-coverage-summary] err:', err);
