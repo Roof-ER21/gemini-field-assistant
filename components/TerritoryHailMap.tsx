@@ -801,8 +801,24 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
       bounds = extendBounds(bounds, event.beginLat, event.beginLon);
     }
 
+    // Fallback: if we have a selectedDate but ZERO events for it in the
+    // currently-loaded window (because /search is capped at 5000 and the
+    // date came from the storm-days MV aggregate), we'd have no bounds
+    // and the swath layer would never fetch. Use a ~25mi box around the
+    // searched address (or map center) so the swath query has SOMETHING
+    // to query against. The backend trims to the actual storm footprint.
+    if (!bounds && Number.isFinite(searchLat) && Number.isFinite(searchLng)) {
+      const deg = 0.4; // ~28 mi lat; lng narrows naturally at this latitude
+      bounds = {
+        north: searchLat + deg,
+        south: searchLat - deg,
+        east: searchLng + deg,
+        west: searchLng - deg,
+      };
+    }
+
     return padBounds(bounds, 0.22);
-  }, [selectedDate, selectedStormEvents]);
+  }, [selectedDate, selectedStormEvents, searchLat, searchLng]);
 
   const selectedStormCenter = useMemo(
     () => getBoundsCenter(selectedStormBounds, mapCenter),
