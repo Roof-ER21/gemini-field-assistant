@@ -3183,6 +3183,21 @@ router.post('/admin/ihm-mirror-ingest', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/hail/admin/live-nws-warning-check — dry-run / manual trigger
+router.post('/admin/live-nws-warning-check', async (req: Request, res: Response) => {
+  try {
+    const { runLiveNwsWarningCheck } = await import('../services/liveNwsWarningAlertService.js');
+    const r = await runLiveNwsWarningCheck(req.app.get('pool'), {
+      dryRun: req.body?.dryRun === true,
+      forceTestGroup: req.body?.forceTestGroup === true,
+    });
+    res.json(r);
+  } catch (err) {
+    console.error('[admin/live-nws-warning-check] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/hail/admin/live-mrms-alert-check
 // Runs one MRMS live-alert pass. body: {minMeshInches?, dryRun?, forceTestGroup?}
 // - dryRun=true      → compute + return what would be posted, no actual post
