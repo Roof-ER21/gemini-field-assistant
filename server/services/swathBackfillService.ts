@@ -15,11 +15,22 @@
 import type { Pool } from 'pg';
 import { getHistoricalMrmsSwathPolygons } from './historicalMrmsService.js';
 
-// DMV-wide bbox — covers VA/MD/DC/PA/WV/DE with a small padding. One cache
-// entry at this bbox covers every address in our service area, so we don't
-// need per-address backfills — one fetch serves everyone.
+// 6-state footprint bbox — covers ALL of VA/MD/DC/PA/WV/DE with small padding.
+// One cache entry at this bbox covers every address in our service area.
+//
+// Coverage notes (corners):
+//   north: 42.3  — catches PA's northernmost border with NY (Erie, Bradford)
+//   south: 36.5  — southern VA (Virginia Beach 36.85, Danville 36.58)
+//   east:  -74.5 — off Atlantic coast, well past Delmarva + Virginia Beach
+//   west:  -82.5 — western WV (past Huntington at -82.45) + western PA
+//                  (Pittsburgh -79.99, well inside)
+//
+// Previously 40.5 on the north which clipped the top of PA (Erie + Scranton
+// were outside the backfill). Widened 2026-04-24 per Ahmed's request for
+// full PA coverage. MRMS coverage adds ~5-10% more storm-days per year but
+// there's no downside — Pennsylvania reps need the same confidence as DMV.
 const DMV_BBOX = {
-  north: 40.5,
+  north: 42.3,
   south: 36.5,
   east:  -74.5,
   west:  -82.5,
