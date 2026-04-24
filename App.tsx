@@ -443,7 +443,21 @@ const App: React.FC = () => {
       case 'stormmap':
         return (
           <LazyLoadBoundary componentName="Storm Map">
-            <TerritoryHailMap isAdmin={currentUser?.role === 'admin'} setActivePanel={setActivePanel} />
+            <ErrorBoundary
+              fallback={
+                <div style={{ padding: 40, textAlign: 'center', color: '#e5e7eb', background: '#0a0a0f', minHeight: '100vh' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+                  <h2 style={{ marginBottom: 12 }}>Storm Map hit a snag.</h2>
+                  <p style={{ color: '#9ca3af', marginBottom: 24 }}>Your data is safe. Reload the app to continue — old tab caches occasionally trip over new data shapes.</p>
+                  <button onClick={() => { if (typeof caches !== 'undefined') { caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).finally(() => window.location.reload()); } else { window.location.reload(); } }}
+                    style={{ background: '#ef4444', color: '#fff', padding: '10px 20px', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                    Clear cache + reload
+                  </button>
+                </div>
+              }
+            >
+              <TerritoryHailMap isAdmin={currentUser?.role === 'admin'} setActivePanel={setActivePanel} />
+            </ErrorBoundary>
           </LazyLoadBoundary>
         );
       case 'leaderboard':

@@ -1,6 +1,9 @@
 // Service Worker for S21 Field AI
 // Network-first strategy + Push Notifications
-const VERSION = 's21-sw-v4-2026-02-24';
+// Bumped v5 2026-04-24 to evict cached bundles with broken OSM tile URLs
+// and Google-tracking-prevention-blocked Google tile URLs. Any rep on a
+// stale tab gets their cache cleared on next SW activation.
+const VERSION = 's21-sw-v5-2026-04-24';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

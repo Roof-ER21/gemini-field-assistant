@@ -192,13 +192,23 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
       return;
     }
 
+    // Canvas2D warning fix: willReadFrequently=true signals the browser
+    // to keep the canvas CPU-backed so getImageData() calls (used for
+    // hail-size pixel reads in the hover tooltip) don't each trigger a
+    // GPU→CPU readback. Eliminates the console spam that compounds into
+    // crash loops on Edge/Chrome.
+    //
+    // Abort on unmount + dep change so rapid date-scrubbing doesn't
+    // accumulate orphan canvases + image loads in memory.
+    let cancelled = false;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      if (cancelled) return;
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) {
         ctx.drawImage(img, 0, 0);
         canvasRef.current = canvas;
@@ -210,6 +220,13 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
       imgLoadedRef.current = false;
     };
     img.src = overlayUrl;
+
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+    };
   }, [visible, overlayUrl]);
 
   // Map mousemove handler for hail size tooltip
@@ -244,7 +261,7 @@ const MRMSHailOverlay: React.FC<MRMSHailOverlayProps> = ({
         return;
       }
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return;
 
       const pixel = ctx.getImageData(px, py, 1, 1).data;
