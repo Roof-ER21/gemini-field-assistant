@@ -725,9 +725,17 @@ const TRUSTED_TEACHERS: Record<string, string> = {
   '115896304': 'Ahmed Mahmoud',  // Creator / final authority
 };
 
-// Teaching trigger. Requires "remember/learn/save/note" + fact-inducing syntax.
-// Accepts both "susan remember that X" and (when replying to Susan) just "remember that X".
-const REMEMBER_RE = /^\s*(?:@?\s*susan[,\s]+)?(?:please[,\s]+)?(?:remember|learn|save|note)(?:\s+(?:that|this)\s+|[:,]\s+|\s+)(.+)$/i;
+// Teaching trigger. Catches the natural phrasings reps actually use:
+//   "susan remember that X" / "remember that X"
+//   "susan take note of X" / "take note, X"   ← Reese's canonical phrase
+//   "susan for the record X" / "for the record: X"
+//   "susan make note of X" / "make note: X"
+//   "susan keep in mind X"
+//   "susan save X" / "learn X" / "note X"
+// "@Susan " prefix stripped before regex runs. Susan prefix is optional since
+// reps often hit Reply on a Susan message and just type the directive.
+const REMEMBER_RE =
+  /^\s*(?:@?\s*susan[,\s]+)?(?:please[,\s]+)?(?:remember|learn|save|note|take\s+note(?:\s+of)?|make\s+(?:a\s+)?note(?:\s+of)?|for\s+the\s+record|keep\s+in\s+mind)(?:\s+(?:that|this)\s+|[:,]\s+|\s+)(.+)$/i;
 
 function detectRememberDirective(text: string): string | null {
   // Strip leading @mention (e.g., "@Susan 21 remember that...")
