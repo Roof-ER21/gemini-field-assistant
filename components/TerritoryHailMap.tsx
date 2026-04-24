@@ -598,7 +598,10 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [searchLat, setSearchLat] = useState<number | null>(DEFAULT_CENTER[0]);
   const [searchLng, setSearchLng] = useState<number | null>(DEFAULT_CENTER[1]);
   const [searchSummary, setSearchSummary] = useState<PropertySearchSummary | null>(null);
-  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('2y');
+  // Default widened from '2y' to '5y' after the NOAA NCEI historical backfill
+  // extended our tagged coverage back to 2015. Reps asking "did this address
+  // ever get hit?" now see 5 years by default; the picker still goes up to 10y.
+  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('5y');
   const [sinceDate, setSinceDate] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('recent');
   const [eventFilters, setEventFilters] = useState<EventFilterState>({ hail: true, wind: false });
