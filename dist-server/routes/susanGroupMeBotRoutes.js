@@ -453,54 +453,6 @@ function extractAddress(text) {
 // no street address is provided. Requires a DMV state anchor (either abbreviation
 // or full name) so we don't guess wildly from random capitalized words.
 const DMV_STATES_RE_STRICT = /(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)/;
-/**
- * Stateless fallback — when extractCityState returns null but the message
- * clearly references a city (verbs like "hit", "impact", "hail in X",
- * "was X hit"), pull the probable city token. State gets inferred by
- * geocoder downstream; if geocoder can't resolve it in DMV+PA+WV+DE it
- * won't return a geo and the lookup falls back to stormSearch.
- */
-function extractCityStateless(text) {
-    // Patterns Reese's real questions matched — we're targeting these explicitly:
-    //   "hail hit Germantown on 8/29/24"
-    //   "was sterling impacted by 8/29/2024"
-    //   "was Virginia Beach impacted by hail"
-    //   "hail in Purcellville this year"
-    //   "what size hail in Middletown on 5/3/25"
-    // Each captures a 1-3 word capitalized (or lowercase) proper noun in
-    // the city slot. Noise words are stripped.
-    const patterns = [
-        /\b(?:hail\s+(?:hit|in|at)|storm\s+(?:hit|in|at)|was|did)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\s+(?:hit|impacted|get|have|on|by|this|last)\b/i,
-        /\b(?:hail|storm)\s+(?:in|at|near|for)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\b/i,
-        /\b(?:size|hail)\s+(?:hit|in|was\s+in|was\s+at)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\b/i,
-        /\b([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\s+(?:got\s+hit|was\s+hit|was\s+impacted|got\s+hail)\b/i,
-    ];
-    const NOISE = new Set([
-        'hail', 'storm', 'damage', 'claim', 'today', 'yesterday', 'last', 'past', 'this',
-        'the', 'a', 'an', 'it', 'there', 'here', 'roof', 'date', 'day', 'weather', 'rain',
-        'wind', 'verified', 'approved', 'tough', 'bad', 'is', 'was', 'are', 'were', 'on',
-        'in', 'for', 'about', 'around', 'near', 'hit', 'any', 'from', 'some', 'know', 'got',
-        'saw', 'did', 'had', 'have', 'been', 'being', 'will', 'can', 'use', 'give', 'tell',
-        'show', 'find', 'check', 'get', 'what', 'when', 'where', 'why', 'how', 'if', 'should',
-        'would', 'could', 'me', 'us', 'of', 'to', 'at', 'by', 'my', 'our', 'size', 'big',
-        'susan', 'susie', 'suzy', 'suzie', 'hey',
-    ]);
-    for (const re of patterns) {
-        const m = text.match(re);
-        if (!m)
-            continue;
-        let words = m[1].trim().split(/\s+/);
-        while (words.length > 0 && NOISE.has(words[0].toLowerCase()))
-            words.shift();
-        while (words.length > 0 && NOISE.has(words[words.length - 1].toLowerCase()))
-            words.pop();
-        const city = words.join(' ').trim();
-        if (city.length < 3 || city.length > 42)
-            continue;
-        return { city, state: null };
-    }
-    return null;
-}
 function extractCityState(text) {
     // Pattern 1: "[City], [State]" (comma-separated, preferred)
     const commaRe = /\b([a-z][a-zA-Z.\-]+(?:\s+[a-zA-Z][a-zA-Z.\-]+){0,3})[,]\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
@@ -2437,41 +2389,18 @@ export function createSusanGroupMeBotRoutes(pool) {
             //       was [city] last hit". Returns recent top events in last 24mo.
             // Fixes the "Manassas 4/1" case where Susan said "no events" for a city
             // the DB actually has, because she had no handler for city-only queries.
-            // Primary: explicit "City, ST" / "City ST" extraction. Fallback:
-            // stateless extractor that grabs a probable city noun around hail/
-            // storm/hit verbs. Either way the geocoder downstream validates
-            // by trying to resolve the name to a lat/lng in DMV+PA+WV+DE.
-            let cityOnlyQuery = !addr ? extractCityState(text) : null;
-            if (!addr && !cityOnlyQuery) {
-                cityOnlyQuery = extractCityStateless(text);
-            }
+            const cityOnlyQuery = !addr ? extractCityState(text) : null;
             const cityHailPromise = cityOnlyQuery
                 ? (async () => {
-                    // Reuse geocodeAddress by faking a minimal address from city+state.
-                    // When state is null (stateless extractor), try DMV footprint
-                    // states in order of rep population: MD, VA, DC, PA, WV, DE.
-                    // First successful geocode wins. Keeps queries localized to
-                    // reps' territory and avoids resolving "Middletown" to OH.
-                    const stateTries = cityOnlyQuery.state
-                        ? [cityOnlyQuery.state]
-                        : ['MD', 'VA', 'DC', 'PA', 'WV', 'DE'];
-                    let geo = null;
-                    let resolvedState = cityOnlyQuery.state;
-                    for (const st of stateTries) {
-                        geo = await geocodeAddress({
-                            full: `${cq.city}, ${st}`,
-                            street: cq.city,
-                            city: cq.city,
-                            state: st,
-                        });
-                        if (geo) {
-                            resolvedState = st;
-                            break;
-                        }
-                    }
+                    // Reuse geocodeAddress by faking a minimal address from city+state
+                    const geo = await geocodeAddress({
+                        full: `${cityOnlyQuery.city}, ${cityOnlyQuery.state}`,
+                        street: cityOnlyQuery.city,
+                        city: cityOnlyQuery.city,
+                        state: cityOnlyQuery.state,
+                    });
                     if (!geo)
                         return null;
-                    const cq = { ...cityOnlyQuery, state: resolvedState || null };
                     let events;
                     let mode;
                     // NEW: deterministic per-date CITY_IMPACT blocks (city+specific date
@@ -2483,12 +2412,12 @@ export function createSusanGroupMeBotRoutes(pool) {
                     // verbatim, not summarize.
                     let cityImpactBlocks = [];
                     if (dates.length > 0) {
-                        events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cq.city, dates);
+                        events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cityOnlyQuery.city, dates);
                         mode = 'by_date';
                         try {
                             const { getCityImpactOnDate, renderCityImpactBlock } = await import('../services/cityImpactService.js');
                             const blocks = await Promise.all(dates.slice(0, 3).map((d) => // cap at 3 dates per request
-                             getCityImpactOnDate(pool, geo.lat, geo.lng, cq.city, cq.state, d)
+                             getCityImpactOnDate(pool, geo.lat, geo.lng, cityOnlyQuery.city, cityOnlyQuery.state, d)
                                 .then(renderCityImpactBlock)
                                 .catch((err) => {
                                 console.warn('[SusanBot] cityImpact err:', err.message);
@@ -2502,12 +2431,12 @@ export function createSusanGroupMeBotRoutes(pool) {
                     }
                     else {
                         // No date named → find recent dates where this city WAS hit
-                        events = await hailAtCityRecent(pool, geo.lat, geo.lng, cq.city, 24);
+                        events = await hailAtCityRecent(pool, geo.lat, geo.lng, cityOnlyQuery.city, 24);
                         mode = 'recent';
                     }
                     return {
-                        city: cq.city,
-                        state: cq.state || '',
+                        city: cityOnlyQuery.city,
+                        state: cityOnlyQuery.state,
                         geo,
                         dates,
                         events,
