@@ -2685,6 +2685,33 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     }
   };
 
+  // Test-mode read-only: fetch recent bot conversation turns so a script
+  // can correlate its fired test messages with Susan's generated replies.
+  // ?limit=N (default 20)   ?afterMsgId=<id>  (optional cursor)
+  router.get('/test-turns', async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(Number(req.query.limit ?? 20), 100);
+      const afterMsgId = req.query.afterMsgId ? String(req.query.afterMsgId) : null;
+      const params: any[] = [limit];
+      let where = '';
+      if (afterMsgId) {
+        params.push(afterMsgId);
+        where = `AND created_at > (SELECT created_at FROM bot_conversation_turns WHERE message_id=$${params.length})`;
+      }
+      const { rows } = await pool.query(
+        `SELECT message_id, role, sender_name, text, provider, latency_ms, quality_flags, created_at
+           FROM bot_conversation_turns
+          WHERE 1=1 ${where}
+          ORDER BY created_at DESC
+          LIMIT $1`,
+        params,
+      );
+      res.json({ turns: rows });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
   // Register handler at both /webhook and root '/' so it's reachable from either
   // - /api/susan/groupme/webhook (new)
   // - /api/susan/groupme-webhook (legacy alias, matches the bot's registered callback_url)
