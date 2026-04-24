@@ -293,7 +293,20 @@ async function _impactInner(
       if (aHail !== bHail) return bHail - aHail;
       return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
     });
-  const sorted = [...cachedSorted, ...uncachedSorted];
+  // Hard cap. For dense DMV addresses the FULL OUTER JOIN of point-reports
+  // and swath-cache rows can yield 400-500 candidate dates — every swath
+  // polygon whose bbox overlaps the point's coordinate. Walking all of them
+  // loads ~60MB of composite grid per iteration into heap; V8 can't GC
+  // across the await boundary so memory climbed to 13.5GB and OOM'd Susan.
+  // Cap at 60 most-relevant candidates (cached recents + biggest uncached)
+  // so the loop stays bounded regardless of candidate count.
+  const MAX_CANDIDATES_PER_REQUEST = 60;
+  const sorted = [...cachedSorted, ...uncachedSorted].slice(0, MAX_CANDIDATES_PER_REQUEST);
+  if (cachedSorted.length + uncachedSorted.length > MAX_CANDIDATES_PER_REQUEST) {
+    console.log(
+      `[AddressImpact] capped ${cachedSorted.length + uncachedSorted.length} candidates → ${MAX_CANDIDATES_PER_REQUEST}`,
+    );
+  }
 
   const timeBudgetExpires = started + COLD_FETCH_TIME_BUDGET_MS;
 
