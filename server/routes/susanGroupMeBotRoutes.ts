@@ -2709,7 +2709,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       // pairs, which embarrassed us in testing.
       // Adjuster/carrier/KB queries are unaffected and pass through.
       // ──────────────────────────────────────────────────────────────
-      if (process.env.HAIL_LOOKUP_FALLBACK === 'true') {
+      // Test-harness can bypass the fallback to exercise the real path
+      // without flipping the prod env var. Only honored in test-mode.
+      const bypassFallback = testMode && req.headers['x-susan-bypass-fallback'] === 'true';
+      if (!bypassFallback && process.env.HAIL_LOOKUP_FALLBACK === 'true') {
         const isHailLookup =
           addr ||
           (cityOnlyQuery && dates.length > 0) ||
