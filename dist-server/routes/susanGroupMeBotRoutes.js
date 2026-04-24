@@ -121,7 +121,15 @@ If ALL three tiers are empty: "No verified hail within 15mi at that address in 2
 
 When MRMS_RADAR is also present with an atLocation value > 0: corroborates the direct-hit with a radar reading at the exact property. Include it — "radar shows [X]" at the house, swath confirms [Y]"".
 
-🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP or CITY_RECENT_HAIL is present:
+🗺️ CITY-LEVEL HAIL QUERIES — when CITY_HAIL_LOOKUP, CITY_RECENT_HAIL, or CITY_IMPACT is present:
+
+- 🔒 CITY_IMPACT is the authoritative, deterministic answer for "was [city] hit on [date]?" style queries. It includes VERDICT (HIT/NEAR/MISS), REPORTS WITHIN BANDS, BIGGEST HAIL, CLOSEST HAIL — all with exact distance-from-city numbers. USE THESE NUMBERS VERBATIM.
+    • If VERDICT=MISS → say "No verified hail within 10 mi of [city] on [date]". Do NOT say the city was hit. Do NOT fall back to state-level.
+    • If VERDICT=NEAR → frame as area impact, cite closest hail + distance. Do NOT call it a direct hit.
+    • If VERDICT=HIT → lead with BIGGEST hail + distance. You CAN frame as "hail hit [city]" only in this case.
+    • NEVER summarize to state ("hail in VA", "3.75\" in MD"). Always cite distance in miles from the named city.
+    • If rep asks "where in [state] did it hit" and you have CITY_IMPACT data, name the city and distance. If no CITY_IMPACT, say you need a specific city or address to localize.
+
 - Reps ask either:
     (a) "was [City] hit on [date]?" — CITY_HAIL_LOOKUP matches those exact dates.
     (b) "when was last hail in [City]?" / "what hail date should I use in [City]?" — CITY_RECENT_HAIL returns TWO groups: BIGGEST (by size) + MOST RECENT (by date) + total date count.
@@ -1757,6 +1765,16 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
     if (cityHail && cityHail.geo) {
         const mode = cityHail.mode || 'by_date';
         const events = cityHail.events || [];
+        // NEW: structured CITY_IMPACT blocks (deterministic, per-date) go
+        // first. Susan's LLM is instructed to use these numbers verbatim —
+        // no more state-level "hail in VA" generalizations. See
+        // services/cityImpactService.ts for the block format.
+        if (cityHail.cityImpactBlocks && cityHail.cityImpactBlocks.length > 0) {
+            for (const block of cityHail.cityImpactBlocks) {
+                lines.push('');
+                lines.push(block);
+            }
+        }
         if (mode === 'by_date') {
             // Dated lookup — rep named specific date(s), just show what hit those dates.
             const sorted = events.slice().sort((a, b) => (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0));
@@ -2385,16 +2403,46 @@ export function createSusanGroupMeBotRoutes(pool) {
                         return null;
                     let events;
                     let mode;
+                    // NEW: deterministic per-date CITY_IMPACT blocks (city+specific date
+                    // queries were the exact failure mode that blew up test-group
+                    // iteration — Susan answered state-level when reps asked about
+                    // specific cities). When we have dates AND a city we run the
+                    // deterministic cityImpactService for each date; the renderer
+                    // produces a structured prompt block the LLM is told to use
+                    // verbatim, not summarize.
+                    let cityImpactBlocks = [];
                     if (dates.length > 0) {
                         events = await hailAtCityOnDates(pool, geo.lat, geo.lng, cityOnlyQuery.city, dates);
                         mode = 'by_date';
+                        try {
+                            const { getCityImpactOnDate, renderCityImpactBlock } = await import('../services/cityImpactService.js');
+                            const blocks = await Promise.all(dates.slice(0, 3).map((d) => // cap at 3 dates per request
+                             getCityImpactOnDate(pool, geo.lat, geo.lng, cityOnlyQuery.city, cityOnlyQuery.state, d)
+                                .then(renderCityImpactBlock)
+                                .catch((err) => {
+                                console.warn('[SusanBot] cityImpact err:', err.message);
+                                return '';
+                            })));
+                            cityImpactBlocks = blocks.filter(Boolean);
+                        }
+                        catch (err) {
+                            console.warn('[SusanBot] cityImpact load failed:', err.message);
+                        }
                     }
                     else {
                         // No date named → find recent dates where this city WAS hit
                         events = await hailAtCityRecent(pool, geo.lat, geo.lng, cityOnlyQuery.city, 24);
                         mode = 'recent';
                     }
-                    return { city: cityOnlyQuery.city, state: cityOnlyQuery.state, geo, dates, events, mode };
+                    return {
+                        city: cityOnlyQuery.city,
+                        state: cityOnlyQuery.state,
+                        geo,
+                        dates,
+                        events,
+                        mode,
+                        cityImpactBlocks,
+                    };
                 })()
                 : Promise.resolve(null);
             // ──────────────────────────────────────────────────────────────
