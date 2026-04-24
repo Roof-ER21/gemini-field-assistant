@@ -43,3 +43,6 @@ android/
 
 # Agent worktrees (never commit — they're ephemeral)
 .claude/worktrees/
+
+# IHM Wayback crawl artifacts (generated; can be rebuilt)
+scripts/ihm-wayback/data/

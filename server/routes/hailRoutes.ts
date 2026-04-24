@@ -3097,6 +3097,73 @@ router.get('/admin/backfill-stats', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/hail/admin/ihm-mirror-ingest
+// Upsert an IHM crawl artifact into ihm_city_mirror.
+//   If body is an artifact { crawled_at, completed_at, cities: [...] } → ingest it.
+//   If body is empty → read the latest scripts/ihm-wayback/data/ihm-mirror-*.json
+//     from local disk (useful for local dev; won't work in Railway unless the
+//     file was deployed with the container).
+// Run `node scripts/ihm-wayback/crawl.mjs` first to produce the artifact,
+// then POST it up:
+//   curl -X POST -H "Content-Type: application/json" \
+//     --data-binary @scripts/ihm-wayback/data/ihm-mirror-LATEST.json \
+//     https://sa21.up.railway.app/api/hail/admin/ihm-mirror-ingest
+router.post('/admin/ihm-mirror-ingest', async (req: Request, res: Response) => {
+  try {
+    const { ingestArtifact, ingestLatestCrawl } = await import('../services/ihmMirrorIngestService.js');
+    const r = req.body && Array.isArray((req.body as any).cities)
+      ? await ingestArtifact(req.app.get('pool'), req.body)
+      : await ingestLatestCrawl(req.app.get('pool'));
+    res.json(r);
+  } catch (err) {
+    console.error('[admin/ihm-mirror-ingest] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /api/hail/admin/run-migration-079 — apply migration 079_ihm_city_mirror.sql
+// Creates the ihm_city_mirror table + indexes. Idempotent (CREATE IF NOT EXISTS).
+router.post('/admin/run-migration-079', async (req: Request, res: Response) => {
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const sqlPath = path.resolve(__dirname, '../../database/migrations/079_ihm_city_mirror.sql');
+    const sql = await fs.readFile(sqlPath, 'utf8');
+    await (req.app.get('pool')).query(sql);
+    res.json({ ok: true, migration: '079_ihm_city_mirror' });
+  } catch (err) {
+    console.error('[admin/run-migration-079] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// GET /api/hail/ihm-vs-ours?city=Fairfax&state=VA&radiusMiles=10
+// Per-city diff of IHM's public hail-date log vs our verified_hail_events.
+// Returns { ihm_dates, ours_dates, verdict_counts: {MATCH, IHM_ONLY, OURS_ONLY,
+// SIZE_MISMATCH}, rows: [...] }. The key question this answers for a rep:
+// "when you say IHM shows more dates for Fairfax than we do — which ones, and
+// are they real?"
+router.get('/ihm-vs-ours', async (req: Request, res: Response) => {
+  try {
+    const city = String(req.query.city ?? '').trim();
+    const state = String(req.query.state ?? '').trim().toUpperCase();
+    const radiusMiles = Math.min(Math.max(Number(req.query.radiusMiles ?? 10), 1), 30);
+    if (!city || !/^[A-Z]{2}$/.test(state)) {
+      return res.status(400).json({ error: 'city and state (2-letter) required' });
+    }
+    const { diffCityAgainstOurs } = await import('../services/ihmMirrorIngestService.js');
+    const diff = await diffCityAgainstOurs(req.app.get('pool'), city, state, radiusMiles);
+    if (!diff) return res.status(404).json({ error: `no IHM mirror for ${city}, ${state} — run the crawler first` });
+    res.json(diff);
+  } catch (err) {
+    console.error('[ihm-vs-ours] err:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // GET /api/hail/address-impact?lat=X&lng=Y&months=24
 // Unified swath-first tiered impact for a single address. Use this instead
 // of the legacy /search endpoint when you need Direct Hit / Near Miss /
