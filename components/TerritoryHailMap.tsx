@@ -1362,16 +1362,19 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
 
   // OSM + Esri tile providers. Previously used mt{s}.google.com/vt/ which is
-  // Google's internal tile server — not a public API, has no stable contract,
-  // and Microsoft Edge / Chrome Tracking Prevention blocks every tile request
-  // + logs it to console. On a live-storm page that loads 100+ tiles, the
-  // console floods with "Tracking Prevention blocked access to storage"
-  // warnings, the map keeps retrying, and the page crashes into a remount
-  // loop (reps reported the app "keeps crashing and coming back"). OSM + Esri
-  // are the standard Leaflet defaults, no key, no tracking — also faster.
+  // Google's internal tile server — not a public API, Edge/Chrome Tracking
+  // Prevention blocks every request + logs warnings, flooding the console
+  // and crashing the map into a remount loop. OSM + Esri are standard
+  // Leaflet providers, no key, no tracking, no crash.
+  //
+  // IMPORTANT: OSM uses subdomains a/b/c (or no subdomain). DO NOT use
+  // {s} with Leaflet's default [0,1,2,3] — 0.tile.openstreetmap.org doesn't
+  // exist and causes ERR_NAME_NOT_RESOLVED on every tile. Use the bare
+  // domain URL and pass no subdomains prop. Esri World Imagery also works
+  // without subdomain splitting on a single CDN.
   const mapTileUrl =
     baseMap === 'map'
-      ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
       : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
   return (
