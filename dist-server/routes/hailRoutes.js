@@ -2863,6 +2863,28 @@ router.post('/admin/ihm-mirror-ingest', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// POST /api/hail/admin/live-mrms-alert-check
+// Runs one MRMS live-alert pass. body: {minMeshInches?, dryRun?, forceTestGroup?}
+// - dryRun=true      → compute + return what would be posted, no actual post
+// - forceTestGroup=true → post to GROUPME_TEST_GROUP_ID regardless of env flag
+// - minMeshInches=X  → override 1.0" threshold for this call only
+// Enabled via env LIVE_MRMS_ALERT_ENABLED (values: 'true', 'test-group').
+// Safe to call from curl for manual triggering during live storms.
+router.post('/admin/live-mrms-alert-check', async (req, res) => {
+    try {
+        const { runLiveMrmsAlertCheck } = await import('../services/liveMrmsAlertService.js');
+        const r = await runLiveMrmsAlertCheck(req.app.get('pool'), {
+            minMeshInches: typeof req.body?.minMeshInches === 'number' ? req.body.minMeshInches : undefined,
+            dryRun: req.body?.dryRun === true,
+            forceTestGroup: req.body?.forceTestGroup === true,
+        });
+        res.json(r);
+    }
+    catch (err) {
+        console.error('[admin/live-mrms-alert-check] err:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 // POST /api/hail/admin/materialize-ihm-dates
 // GUARANTEE: no rep can cite an IHM date we don't have. For every city in
 // ihm_city_mirror, for every date where IHM reports confirmed hail, upsert
