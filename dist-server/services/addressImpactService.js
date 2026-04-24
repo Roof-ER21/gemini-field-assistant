@@ -189,18 +189,22 @@ async function _impactInner(pool, lat, lng, monthsBack) {
             return bHail - aHail;
         return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
     });
-    // Hard cap. For dense DMV addresses the FULL OUTER JOIN of point-reports
-    // and swath-cache rows can yield 400-500 candidate dates — every swath
-    // polygon whose bbox overlaps the point's coordinate. Walking all of them
-    // loads ~60MB of composite grid per iteration into heap; V8 can't GC
-    // across the await boundary so memory climbed to 13.5GB and OOM'd Susan.
-    // Cap at 60 most-relevant candidates (cached recents + biggest uncached)
-    // so the loop stays bounded regardless of candidate count.
-    const MAX_CANDIDATES_PER_REQUEST = 60;
-    const sorted = [...cachedSorted, ...uncachedSorted].slice(0, MAX_CANDIDATES_PER_REQUEST);
-    if (cachedSorted.length + uncachedSorted.length > MAX_CANDIDATES_PER_REQUEST) {
-        console.log(`[AddressImpact] capped ${cachedSorted.length + uncachedSorted.length} candidates → ${MAX_CANDIDATES_PER_REQUEST}`);
-    }
+    // Re-sort the cached phase by HAIL SIZE DESC (same as uncached phase)
+    // so the biggest storms win. A prior attempt sorted cached by date DESC
+    // (recent wins) and capped the walk at 60 — that dropped 7/16/24's 3"
+    // DIRECT HIT from the Monrovia walk because it was 21 months old. For
+    // dense DMV addresses with 400+ cached candidates, "biggest hail first"
+    // is the right priority: an adjuster-worthy direct hit will never be
+    // missed, and small-hail dates fall through to the point-report tier
+    // even if we truncate later.
+    const cachedBySize = [...cachedSorted].sort((a, b) => {
+        const aHail = Number(a.max_hail_inches || 0);
+        const bHail = Number(b.max_hail_inches || 0);
+        if (aHail !== bHail)
+            return bHail - aHail;
+        return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
+    });
+    const sorted = [...cachedBySize, ...uncachedSorted];
     const timeBudgetExpires = started + COLD_FETCH_TIME_BUDGET_MS;
     for (const c of sorted) {
         const dateIso = isoDate(c.event_date);
