@@ -2504,6 +2504,51 @@ router.post('/admin/nexrad-l2-ingest', async (req, res) => {
     }
 });
 // GET /api/hail/admin/ingest-stats — live counts per source, current state.
+// GET /api/hail/admin/coverage-summary
+// "How much do we actually have?" — grouped by year across the DMV footprint.
+// Reports total rows, unique storm days, and direct-hit counts (events that
+// sit inside an MRMS swath polygon) per year so we can see the before/after
+// of the NOAA NCEI + NCEI SWDI historical backfill that ran tonight.
+router.get('/admin/coverage-summary', async (req, res) => {
+    try {
+        const pool = req.app.get('pool');
+        const { rows } = await pool.query(`
+      SELECT
+        EXTRACT(year FROM event_date)::int AS year,
+        COUNT(*)::int                      AS total_events,
+        COUNT(DISTINCT event_date)::int    AS unique_storm_days,
+        COUNT(*) FILTER (WHERE hail_size_inches >= 1.0)::int  AS severe_hail_events,
+        COUNT(*) FILTER (WHERE hail_size_inches >= 0.5)::int  AS adjuster_tier_hail,
+        COUNT(*) FILTER (WHERE source_noaa_ncei)::int         AS noaa_tagged,
+        COUNT(*) FILTER (WHERE source_ncei_swdi)::int         AS nexrad_tagged,
+        ROUND(MAX(hail_size_inches)::numeric, 2)              AS max_hail_that_year
+      FROM verified_hail_events_public_sane
+      WHERE state IN ('VA','MD','DC','PA','WV','DE')
+      GROUP BY year
+      ORDER BY year DESC
+    `);
+        const totals = await pool.query(`
+      SELECT
+        COUNT(*)::int                      AS total_events,
+        COUNT(DISTINCT event_date)::int    AS unique_storm_days,
+        COUNT(*) FILTER (WHERE hail_size_inches >= 1.0)::int AS severe_hail_events,
+        MIN(event_date)::text              AS earliest_date,
+        MAX(event_date)::text              AS latest_date
+      FROM verified_hail_events_public_sane
+      WHERE state IN ('VA','MD','DC','PA','WV','DE')
+    `);
+        const swath = await pool.query(`
+      SELECT COUNT(*)::int AS swath_days,
+             MIN(storm_date)::text AS earliest,
+             MAX(storm_date)::text AS latest
+      FROM mrms_swath_cache
+    `);
+        res.json({ by_year: rows, totals: totals.rows[0], swath_cache: swath.rows[0] });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // POST /api/hail/admin/vacuum-bloat
 // One-shot reclaim: VACUUM (non-blocking) the big tables that have
 // accumulated dead tuples from the backfill UPDATE storm, then REINDEX
