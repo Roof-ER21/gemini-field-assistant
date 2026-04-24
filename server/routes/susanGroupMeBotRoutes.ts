@@ -490,6 +490,47 @@ function extractAddress(text: string): ExtractedAddress | null {
 // no street address is provided. Requires a DMV state anchor (either abbreviation
 // or full name) so we don't guess wildly from random capitalized words.
 const DMV_STATES_RE_STRICT = /(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)/;
+
+/**
+ * Stateless city extractor — fires when the rep drops the state name
+ * ("what hail hit Germantown on 8/29/24?"). Matches common verbs around
+ * a 1-3 word city token, strips noise. Return value's `state` is null;
+ * the downstream lookupDmvCity() (static dict, zero HTTP) resolves the
+ * state + lat/lng. If the name isn't in the dict we return null from
+ * the caller and fall through to regular stormSearch.
+ *
+ * Zero HTTP by design. An earlier version did 6-state retry against the
+ * Census geocoder and crashed 2 deploys in a row.
+ */
+function extractCityStateless(text: string): { city: string } | null {
+  const patterns: RegExp[] = [
+    /\b(?:hail\s+(?:hit|in|at)|storm\s+(?:hit|in|at))\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\b/i,
+    /\b(?:was|did)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\s+(?:hit|impacted|get|got|have)\b/i,
+    /\b(?:hail|storm)\s+(?:in|at|near|for)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\b/i,
+    /\b(?:size|hail)\s+(?:hit|in|was\s+in|was\s+at)\s+([A-Za-z][A-Za-z'.\-]+(?:\s+[A-Za-z][A-Za-z'.\-]+){0,2})\b/i,
+  ];
+  const NOISE = new Set([
+    'hail','storm','damage','claim','today','yesterday','last','past','this','the','a','an',
+    'it','there','here','roof','date','day','weather','rain','wind','verified','approved',
+    'tough','bad','is','was','are','were','on','in','for','about','around','near','hit',
+    'any','from','some','know','got','saw','did','had','have','been','being','will','can',
+    'use','give','tell','show','find','check','get','what','when','where','why','how','if',
+    'should','would','could','me','us','of','to','at','by','my','our','size','big',
+    'susan','susie','suzy','suzie','hey',
+  ]);
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (!m) continue;
+    let words = m[1].trim().split(/\s+/);
+    while (words.length > 0 && NOISE.has(words[0].toLowerCase())) words.shift();
+    while (words.length > 0 && NOISE.has(words[words.length - 1].toLowerCase())) words.pop();
+    const city = words.join(' ').trim();
+    if (city.length < 3 || city.length > 42) continue;
+    return { city };
+  }
+  return null;
+}
+
 function extractCityState(text: string): { city: string; state: string } | null {
   // Pattern 1: "[City], [State]" (comma-separated, preferred)
   const commaRe = /\b([a-z][a-zA-Z.\-]+(?:\s+[a-zA-Z][a-zA-Z.\-]+){0,3})[,]\s*(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
@@ -2641,16 +2682,37 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       //       was [city] last hit". Returns recent top events in last 24mo.
       // Fixes the "Manassas 4/1" case where Susan said "no events" for a city
       // the DB actually has, because she had no handler for city-only queries.
-      const cityOnlyQuery = !addr ? extractCityState(text) : null;
+      // Primary: "[City, ST]" / "[City ST]" explicit extraction.
+      // Fallback: stateless extractor + DMV city dict lookup (zero HTTP,
+      // instant, can't hang). Covers "what hit Germantown on 8/29/24"
+      // style questions that drop the state.
+      let cityOnlyQuery: { city: string; state: string } | null =
+        !addr ? extractCityState(text) : null;
+      if (!addr && !cityOnlyQuery) {
+        const stateless = extractCityStateless(text);
+        if (stateless) {
+          const { lookupDmvCity } = await import('../services/dmvCities.js');
+          const hit = lookupDmvCity(stateless.city);
+          if (hit) cityOnlyQuery = { city: hit.name, state: hit.state };
+        }
+      }
       const cityHailPromise = cityOnlyQuery
         ? (async () => {
-            // Reuse geocodeAddress by faking a minimal address from city+state
-            const geo = await geocodeAddress({
-              full: `${cityOnlyQuery.city}, ${cityOnlyQuery.state}`,
-              street: cityOnlyQuery.city,
-              city: cityOnlyQuery.city,
-              state: cityOnlyQuery.state,
-            } as ExtractedAddress);
+            // Geocode via dict first (zero HTTP, instant) before falling back
+            // to Census. Covers the hot path without a network round-trip.
+            const { lookupDmvCity } = await import('../services/dmvCities.js');
+            const dictHit = lookupDmvCity(cityOnlyQuery.city);
+            let geo: { lat: number; lng: number; source: string } | null = dictHit
+              ? { lat: dictHit.lat, lng: dictHit.lng, source: 'dmv-dict' }
+              : null;
+            if (!geo) {
+              geo = await geocodeAddress({
+                full: `${cityOnlyQuery.city}, ${cityOnlyQuery.state}`,
+                street: cityOnlyQuery.city,
+                city: cityOnlyQuery.city,
+                state: cityOnlyQuery.state,
+              } as ExtractedAddress);
+            }
             if (!geo) return null;
             let events: any[];
             let mode: 'by_date' | 'recent';
