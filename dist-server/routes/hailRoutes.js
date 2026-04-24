@@ -2828,33 +2828,50 @@ router.post('/admin/run-migration-079', async (req, res) => {
 router.get('/ihm-coverage-summary', async (req, res) => {
     try {
         const pool = req.app.get('pool');
-        const { rows } = await pool.query(`
+        // Step 1: pull the cheap per-city stats in one cheap query (no haversine).
+        const ihmRows = (await pool.query(`
       SELECT
-        city, state,
-        lat, lng,
+        city, state, lat, lng,
         doppler_lifetime AS ihm_lifetime,
         doppler_past_year AS ihm_past_year,
         unique_dates_count AS ihm_parsed_dates,
-        (
-          SELECT COUNT(DISTINCT event_date)
-          FROM verified_hail_events_public_sane v
-          WHERE hail_size_inches IS NOT NULL
-            AND 3959 * 2 * ASIN(SQRT(
-              POWER(SIN(RADIANS((v.latitude  - m.lat) / 2)), 2) +
-              COS(RADIANS(m.lat)) * COS(RADIANS(v.latitude)) *
-              POWER(SIN(RADIANS((v.longitude - m.lng) / 2)), 2)
-            )) <= 10
-        )::int AS ours_dates_10mi,
         (
           SELECT COUNT(*) FROM jsonb_array_elements(unique_dates) e
           WHERE (e->>'max_hail_inches')::numeric > 0
              OR (e->>'has_spotter')::boolean = true
         )::int AS ihm_confirmed_hail_dates,
         fetched_at
-      FROM ihm_city_mirror m
+      FROM ihm_city_mirror
       WHERE status = 200 AND lat IS NOT NULL AND lng IS NOT NULL
       ORDER BY state, city
-    `);
+    `)).rows;
+        // Step 2: for each city, run a cheap bbox-filtered haversine against
+        // verified_hail_events_public_sane. The bbox pre-filter uses the
+        // lat/lng btree index — each query is O(hits-in-bbox) not O(table).
+        const results = [];
+        const MILES_PER_DEG_LAT = 69.0; // roughly constant
+        const RADIUS_MI = 10;
+        for (const r of ihmRows) {
+            const lat = Number(r.lat);
+            const lng = Number(r.lng);
+            const dLat = RADIUS_MI / MILES_PER_DEG_LAT;
+            const dLng = RADIUS_MI / (MILES_PER_DEG_LAT * Math.max(Math.cos((lat * Math.PI) / 180), 0.1));
+            const { rows: countRows } = await pool.query(`
+        SELECT COUNT(DISTINCT event_date)::int AS n
+          FROM verified_hail_events_public_sane
+         WHERE latitude  BETWEEN $1 AND $2
+           AND longitude BETWEEN $3 AND $4
+           AND hail_size_inches IS NOT NULL
+           AND hail_size_inches > 0
+           AND 3959 * 2 * ASIN(SQRT(
+             POWER(SIN(RADIANS((latitude  - $5) / 2)), 2) +
+             COS(RADIANS($5)) * COS(RADIANS(latitude)) *
+             POWER(SIN(RADIANS((longitude - $6) / 2)), 2)
+           )) <= $7
+      `, [lat - dLat, lat + dLat, lng - dLng, lng + dLng, lat, lng, RADIUS_MI]);
+            results.push({ ...r, ours_dates_10mi: countRows[0]?.n ?? 0 });
+        }
+        const rows = results;
         // Build fleet totals + per-state breakdown
         let fleetIhm = 0, fleetOurs = 0, citiesWithOursAdvantage = 0, citiesWithIhmAdvantage = 0;
         const byState = {};
