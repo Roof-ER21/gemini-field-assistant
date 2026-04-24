@@ -1361,21 +1361,28 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     void handleBuildRoute(routeData.destination);
   }, [gpsPosition, handleBuildRoute, routeData, routeMode, routeOrigin]);
 
-  // OSM + Esri tile providers. Previously used mt{s}.google.com/vt/ which is
-  // Google's internal tile server — not a public API, Edge/Chrome Tracking
-  // Prevention blocks every request + logs warnings, flooding the console
-  // and crashing the map into a remount loop. OSM + Esri are standard
-  // Leaflet providers, no key, no tracking, no crash.
+  // Mapbox tile provider. Previous iterations:
+  //   1. mt{s}.google.com/vt/lyrs=m (Google's internal tile server — Edge
+  //      Tracking Prevention blocked every request → console flood + crash loop)
+  //   2. OpenStreetMap bare domain (OSM's volunteer servers 403-block
+  //      commercial/high-traffic usage: "Referer is required by tile usage
+  //      policy of OpenStreetMap's volunteer-run servers")
   //
-  // IMPORTANT: OSM uses subdomains a/b/c (or no subdomain). DO NOT use
-  // {s} with Leaflet's default [0,1,2,3] — 0.tile.openstreetmap.org doesn't
-  // exist and causes ERR_NAME_NOT_RESOLVED on every tile. Use the bare
-  // domain URL and pass no subdomains prop. Esri World Imagery also works
-  // without subdomain splitting on a single CDN.
+  // Mapbox: 50k free map loads/month, fast CDN, no Tracking Prevention issues,
+  // no referer policy blocks. Dark/light styles work far better with our
+  // colored swath overlays than OSM's default styling. Requires
+  // VITE_MAPBOX_TOKEN to be set at build time (already in Railway env).
+  const MAPBOX_TOKEN = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
   const mapTileUrl =
-    baseMap === 'map'
-      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-      : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    MAPBOX_TOKEN
+      ? (baseMap === 'map'
+          ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`
+          : `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`)
+      // Fallback to Esri if no token (Esri's gray canvas + world imagery are
+      // free and unlimited; just less visually polished than Mapbox).
+      : (baseMap === 'map'
+          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+          : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative', overflow: 'hidden' }}>
@@ -2216,7 +2223,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
         <MapContainer center={mapCenter} zoom={mapZoom} style={{ width: '100%', height: '100%' }} zoomControl={true} attributionControl={false}>
           <MapCameraController center={mapCenter} zoom={mapZoom} fitBoundsRequest={fitBoundsRequest} />
           <MapInteractionHandler routeMode={routeMode} onMapClick={handleMapInteraction} />
-          <TileLayer url={mapTileUrl} subdomains={['0', '1', '2', '3']} maxZoom={21} />
+          <TileLayer url={mapTileUrl} maxZoom={21} tileSize={512} zoomOffset={-1} attribution={MAPBOX_TOKEN ? '© Mapbox © OpenStreetMap' : '© Esri'} />
 
           {/* Hail Swath Contours — clustered convex hull polygons from ground reports.
               Shown ONLY when the vector swath polygons haven't loaded yet OR when
