@@ -3065,6 +3065,12 @@ router.post('/admin/noaa-historical-backfill', async (req: Request, res: Respons
 router.get('/admin/backfill-stats', async (req: Request, res: Response) => {
   try {
     const pool = req.app.get('pool');
+    // A day counts as "cached" only if a cache entry covers the full
+    // 6-state footprint (north >= 42.3 for full PA, south <= 36.5 for
+    // southern VA, east >= -74.5 offshore, west <= -82.5 into western WV).
+    // Prior query just checked date presence, so entries cached at the
+    // narrower pre-2026-04-24 bbox wrongly counted as 'done' for northern
+    // PA queries.
     const { rows } = await pool.query(`
       WITH storm_days AS (
         SELECT DISTINCT event_date
@@ -3074,7 +3080,11 @@ router.get('/admin/backfill-stats', async (req: Request, res: Response) => {
           AND hail_size_inches >= 1.0
       ),
       cached_days AS (
-        SELECT DISTINCT storm_date AS event_date FROM mrms_swath_cache WHERE expires_at > NOW()
+        SELECT DISTINCT storm_date AS event_date
+        FROM mrms_swath_cache
+        WHERE expires_at > NOW()
+          AND north >= 42.3 AND south <= 36.5
+          AND east  >= -74.5 AND west <= -82.5
       )
       SELECT
         (SELECT COUNT(*) FROM storm_days) AS total,
