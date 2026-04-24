@@ -153,6 +153,37 @@ async function main(): Promise<void> {
   // them asynchronously so the web never blocks on pdfkit.
   startPdfJobWorker(pool);
 
+  // Live MRMS → Sales Team hail alert. Polls MRMS every 10 min during
+  // 8 AM - 10 PM EDT, posts a single bulleted alert when >=1" cells
+  // detected in DMV/PA/WV/DE. Dedup via bot_storm_alerts_sent table.
+  // Default threshold 1.0" (claim tier). Gated on LIVE_MRMS_ALERT_ENABLED
+  // env var: 'test-group' → post to GROUPME_TEST_GROUP_ID, 'true' → post
+  // to Sales Team. Default off so flipping it on is a conscious choice.
+  if (process.env.LIVE_MRMS_ALERT_ENABLED === 'true' || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group') {
+    const { runLiveMrmsAlertCheck } = await import('./services/liveMrmsAlertService.js');
+    const TEN_MIN = 10 * 60_000;
+    const POLL = async () => {
+      const now = new Date();
+      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const h = et.getHours();
+      if (h < 8 || h >= 22) return; // quiet 10pm-8am EDT
+      try {
+        const r = await runLiveMrmsAlertCheck(pool);
+        if (r.posted || r.new_cells > 0) {
+          console.log(`[LiveMrmsAlert-cron] posted=${r.posted} new=${r.new_cells} peak=${r.cells?.[0]?.inches ?? '-'}"`);
+        }
+      } catch (e) {
+        console.warn('[LiveMrmsAlert-cron] err:', (e as Error).message);
+      }
+    };
+    // First run ~30s after startup; then every 10 min
+    setTimeout(POLL, 30_000);
+    setInterval(POLL, TEN_MIN);
+    console.log(`[worker] LiveMrmsAlert cron registered (${process.env.LIVE_MRMS_ALERT_ENABLED === 'true' ? 'SALES-TEAM' : 'TEST-GROUP'} target, 10-min poll, 8am-10pm EDT)`);
+  } else {
+    console.log('[worker] LiveMrmsAlert cron NOT registered (LIVE_MRMS_ALERT_ENABLED unset)');
+  }
+
   // Keep the process alive. node-cron installs its own setIntervals, but if
   // every cron job is disabled the event loop would drain and the worker would
   // exit. The heartbeat interval above keeps the loop alive anyway, but this
