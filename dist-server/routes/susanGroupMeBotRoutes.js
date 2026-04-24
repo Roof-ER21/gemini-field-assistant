@@ -1184,7 +1184,13 @@ function needsInsuranceDirectory(text, carriers) {
         return false;
     return /\b(phone|fax|email|number|contact|claim\s*number|file\s*a\s*claim|portal|login|how\s+to\s+file|how\s+do\s+i\s+file|where\s+do\s+i|submit|who\s+do\s+i\s+call|website|app)\b/i.test(text);
 }
-async function hailAtAddress(pool, lat, lng, monthsBack = 24) {
+async function hailAtAddress(pool, lat, lng, 
+// Widened 24→120 months (10 years) after the NOAA NCEI + NCEI SWDI
+// historical backfill landed 256K tagged rows back to 2015. LIMIT 12
+// downstream still keeps the result tight for the LLM prompt, and
+// ORDER BY event_date DESC makes sure recent storms lead even when
+// the rep asks about an address with a long history.
+monthsBack = 120) {
     // Query verified_hail_events_public within 15 miles over last N months
     // Haversine formula in SQL (3959 = earth radius miles)
     try {
@@ -2310,14 +2316,19 @@ export function createSusanGroupMeBotRoutes(pool) {
                     //  - getAddressHailImpact: swath-first tiered impact (the new authoritative signal)
                     //  - MRMS radar at the exact property grid cell
                     const [events, mrms, impact] = await Promise.all([
-                        hailAtAddress(pool, geo.lat, geo.lng, 24),
+                        // Widened from 24→120 months so Susan sees the full 10-year
+                        // backfill when a rep asks about an older date. The downstream
+                        // LIMIT 12 keeps the LLM prompt size sensible.
+                        hailAtAddress(pool, geo.lat, geo.lng, 120),
                         (dates.length > 0
                             ? mrmsAtAddressDate(addr, geo, dates[0])
                             : mrmsRecentAtAddress(geo, 3)),
                         (async () => {
                             try {
                                 const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 24);
+                                // Same widen on the swath-first impact lookup. 120mo covers
+                                // every NOAA NCEI event id the historical backfill just tagged.
+                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 120);
                             }
                             catch (err) {
                                 console.warn('[SusanBot] getAddressHailImpact failed:', err.message);
