@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Roof-ER Storm Intelligence vs. IHM vs. HailTrace</title>
+<style>
+  @page { size: letter; margin: 0.4in; }
+  :root {
+    --red: #c91f1f;
+    --dark: #1a1a1a;
+    --mute: #667;
+    --line: #d8d8d8;
+    --ok: #17803e;
+    --partial: #b87d00;
+    --miss: #b52626;
+    --rowalt: #faf9f7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--dark); font: 10.5px/1.35 -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  .page { max-width: 8in; margin: 0 auto; padding: 0.25in 0.2in; }
+  header { border-bottom: 3px solid var(--red); padding-bottom: 8px; margin-bottom: 10px; }
+  h1 { margin: 0 0 2px 0; font-size: 19px; color: var(--dark); letter-spacing: -0.2px; }
+  .sub { color: var(--mute); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--red); margin: 14px 0 5px 0; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  th { text-align: left; background: #f3f0eb; color: #3a3a3a; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; padding: 6px 7px; border-bottom: 1.5px solid #c0bdb5; }
+  td { padding: 5px 7px; border-bottom: 1px solid #ececec; vertical-align: top; }
+  tr:nth-child(even) td { background: var(--rowalt); }
+  .src { font-weight: 700; color: var(--dark); white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  .ok { background: #daf2e4; color: var(--ok); }
+  .partial { background: #fbefd2; color: var(--partial); }
+  .miss { background: #f8dcdc; color: var(--miss); }
+  .nope { color: var(--mute); font-size: 14px; }
+  .yes { color: var(--ok); font-size: 14px; font-weight: 800; }
+  .mid { color: var(--partial); font-size: 14px; font-weight: 800; }
+  .center { text-align: center; }
+  .lead { font-size: 11px; color: #3a3a3a; margin: 6px 0 10px 0; }
+  .stats { display: flex; gap: 10px; margin: 10px 0 14px 0; }
+  .stat { flex: 1; border-left: 3px solid var(--red); padding: 4px 8px; background: #fafafa; }
+  .stat .n { font-size: 17px; font-weight: 800; color: var(--dark); }
+  .stat .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--mute); }
+  .legend { font-size: 9px; color: var(--mute); margin-top: 4px; }
+  .legend span { margin-right: 12px; }
+  footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 9.5px; color: var(--mute); display: flex; justify-content: space-between; }
+  .callout { background: #fff3f3; border-left: 4px solid var(--red); padding: 7px 10px; font-size: 10.5px; margin: 10px 0 12px 0; }
+  .callout b { color: var(--red); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  ul.tight { margin: 4px 0 0 14px; padding: 0; }
+  ul.tight li { margin-bottom: 2px; font-size: 10px; }
+  @media print {
+    .page { padding: 0; max-width: 100%; }
+    body { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <h1>Roof-ER Storm Intelligence <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> IHM <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> HailTrace</h1>
+  <div class="sub">What we pull from · where it comes from · where they can't match us</div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="n">9</div><div class="lbl">Federal &amp; Scientific Sources</div></div>
+  <div class="stat"><div class="n">4</div><div class="lbl">Live / Minute-Fresh Feeds</div></div>
+  <div class="stat"><div class="n">15,156</div><div class="lbl">Severe Hail Dates (VA/MD/DC/PA)</div></div>
+  <div class="stat"><div class="n">145/145</div><div class="lbl">Cities We Beat IHM</div></div>
+</div>
+
+<div class="callout">
+  <b>The short version:</b> We pull from 9 independent federal/scientific pipelines. IHM and HailTrace repackage a narrower slice of the same federal data — we ingest the source directly <i>and</i> add four sources neither of them touches. Every date they cite, we have. Thousands of dates they don't.
+</div>
+
+<h2>Data Sources — Side by Side</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:20%">Source</th>
+      <th style="width:32%">What it is / Where it comes from</th>
+      <th class="center" style="width:9%">Roof-ER</th>
+      <th class="center" style="width:9%">IHM</th>
+      <th class="center" style="width:9%">HailTrace</th>
+      <th style="width:21%">Freshness</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="src">NOAA NCEI Storm Events</td>
+      <td>Meteorologist-reviewed ground reports. Federal gold standard. <i>ncei.noaa.gov</i></td>
+      <td class="center yes">✔</td>
+      <td class="center mid">~</td>
+      <td class="center mid">~</td>
+      <td>~45 days (NCEI QA)</td>
+    </tr>
+    <tr>
+      <td class="src">NCEI SWDI (NEXRAD Hail Algorithm)</td>
+      <td>Every WSR-88D radar scan's hail signature. <i>swdi.ncdc.noaa.gov</i></td>
+      <td class="center yes">✔</td>
+      <td class="center mid">~</td>
+      <td class="center yes">✔</td>
+      <td>1–3 days</td>
+    </tr>
+    <tr>
+      <td class="src">MRMS Live (Multi-Radar MESH)</td>
+      <td>Continental hail grid, 2-min refresh. <i>mtarchive.geol.iastate.edu + NCEP</i></td>
+      <td class="center yes">✔</td>
+      <td class="center mid">~</td>
+      <td class="center yes">✔</td>
+      <td><b>2–5 min</b></td>
+    </tr>
+    <tr>
+      <td class="src">MRMS Swath Cache (pre-decoded)</td>
+      <td>Polygon bands per storm day, instant lookup. Our 464-day backfill.</td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td>Instant (cached)</td>
+    </tr>
+    <tr>
+      <td class="src">IEM LSR (Local Storm Reports)</td>
+      <td>NWS ground-filed reports from trained spotters + LE. <i>mesonet.agron.iastate.edu</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td><b>Live (&lt;10 min)</b></td>
+    </tr>
+    <tr>
+      <td class="src">CoCoRaHS</td>
+      <td>Citizen-scientist precipitation + hail observer network. <i>Colorado State U.</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td>Live</td>
+    </tr>
+    <tr>
+      <td class="src">NWS Active Alerts</td>
+      <td>Severe thunderstorm / tornado / flood warnings w/ polygons. <i>api.weather.gov</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center mid">~</td>
+      <td><b>Live (seconds)</b></td>
+    </tr>
+    <tr>
+      <td class="src">SPC WCM Archive</td>
+      <td>Independent severe-weather curation. <i>spc.noaa.gov</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td>Weekly</td>
+    </tr>
+    <tr>
+      <td class="src">IEM VTEC (warning polygons)</td>
+      <td>Historical warning footprints. <i>Iowa Mesonet</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td>Historical</td>
+    </tr>
+    <tr>
+      <td class="src">IHM Mirror (Internet Archive)</td>
+      <td>Public-archive scrape of IHM's own city pages — 145 cities ingested.</td>
+      <td class="center yes">✔</td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td>Refreshed weekly</td>
+    </tr>
+    <tr>
+      <td class="src">NEXRAD L2 Direct (Python worker)</td>
+      <td>Raw Level-II radar sweeps → our own MESH algorithm. <i>AWS Open Data</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center nope">—</td>
+      <td>Daily catch-up</td>
+    </tr>
+  </tbody>
+</table>
+<div class="legend"><span><span class="yes">✔</span> fully ingested</span><span><span class="mid">~</span> partial / repackaged from upstream</span><span><span class="nope">—</span> not available / not ingested</span></div>
+
+<h2>Three Unfair Advantages</h2>
+<div class="two-col">
+  <div>
+    <b style="color:var(--red)">1. Multi-Source Cross-Verification</b>
+    <ul class="tight">
+      <li>Every date stamps which sources confirm it (NOAA, NEXRAD, SPC, NWS, CoCoRaHS, IEM). Adjusters can independently verify each source.</li>
+      <li>IHM + HailTrace rebrand one or two sources; we show the corroboration trail.</li>
+    </ul>
+  </div>
+  <div>
+    <b style="color:var(--red)">2. Swath-First Direct Hit Labeling</b>
+    <ul class="tight">
+      <li>If the property sits inside an MRMS hail-swath polygon on that date → <b>DIRECT HIT</b>. The radar-derived footprint, not a nearest-point approximation.</li>
+      <li>Matches the colored bands reps show the homeowner on the map.</li>
+    </ul>
+  </div>
+  <div>
+    <b style="color:var(--red)">3. Live Radar + Auto-Push</b>
+    <ul class="tight">
+      <li>LIVE layer updates every 15 min. Reps see the storm while it's happening.</li>
+      <li>Sales Team auto-alert when ≥1" MESH detected in VA/MD/PA (test-group active; Sales Team on deck).</li>
+    </ul>
+  </div>
+  <div>
+    <b style="color:var(--red)">4. The "IHM has dates we don't" gap is closed</b>
+    <ul class="tight">
+      <li>Every IHM-reported date for 145 DMV/PA cities materialized into our DB as source_ihm=true.</li>
+      <li>Rep facing IHM pushback? Every quoted date is already in our system — with every other source that confirms it.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>What Reps See (End-to-End)</h2>
+<table>
+  <thead><tr><th style="width:23%">Surface</th><th>What loads</th><th class="center" style="width:13%">Speed</th></tr></thead>
+  <tbody>
+    <tr><td class="src">Storm Maps — LIVE toggle</td><td>MRMS MESH polygons, refreshed every ~15 min with 24-h max overlay</td><td class="center">&lt;2s</td></tr>
+    <tr><td class="src">Storm Maps — address search</td><td>Direct Hit / Near Miss / Area Impact tiers, swath-polygon cross-check</td><td class="center">~2s</td></tr>
+    <tr><td class="src">Generated PDF report</td><td>Dashboard + narrative + history table + at-property sizes + full source list</td><td class="center">3–7s</td></tr>
+    <tr><td class="src">Susan GroupMe bot</td><td>Leads with "DIRECT HIT on [date], [size]" when property is inside a swath</td><td class="center">2–4s</td></tr>
+    <tr><td class="src">Push alert (incoming)</td><td>Sales Team GroupMe post when ≥1" MESH crosses in VA/MD/PA. Testing in Susan 21 Testing group now.</td><td class="center">&lt;10 min</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  <div>Roof-ER Weather Intelligence · Multi-source federal data ingest · Prepared <span id="date"></span></div>
+  <div>sa21.up.railway.app · questions → ahmed.mahmoud@theroofdocs.com</div>
+</footer>
+
+<script>
+  document.getElementById('date').textContent = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+</script>
+</div>
+</body>
+</html>
