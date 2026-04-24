@@ -1339,9 +1339,14 @@ router.post('/generate-report', async (req: Request, res: Response) => {
           && !Array.isArray(enrichedPayload.swathDirectHitDates)) {
         try {
           const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-          const impact = await getAddressHailImpact(pool, latNum, lngNum, 60);
+          // skipColdFetch: the enqueue path can't block the client while we
+          // cold-fetch 20+ uncached dates at 2-3s each (would block for 45-60s).
+          // Use only what's already in mrms_swath_cache. The nightly backfill
+          // fills the cache for every ≥1" DMV+PA storm day, so all rep-relevant
+          // dates are warm — a miss here means the date wasn't claim-worthy.
+          const impact = await getAddressHailImpact(pool, latNum, lngNum, 60, { skipColdFetch: true });
           enrichedPayload.swathDirectHitDates = (impact?.directHits || []).map((d: any) => String(d.date));
-          console.log(`[generate-report] enriched with ${enrichedPayload.swathDirectHitDates.length} swath direct hits`);
+          console.log(`[generate-report] enriched with ${enrichedPayload.swathDirectHitDates.length} swath direct hits (cached-only)`);
         } catch (e) {
           console.warn('[generate-report] swath enrichment skipped:', (e as Error).message);
         }

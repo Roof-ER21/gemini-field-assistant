@@ -252,9 +252,10 @@ export async function getAddressHailImpact(
   lat: number,
   lng: number,
   monthsBack: number = 24,
+  opts: { skipColdFetch?: boolean } = {},
 ): Promise<AddressImpactReport> {
   await acquire();
-  try { return await _impactInner(pool, lat, lng, monthsBack); }
+  try { return await _impactInner(pool, lat, lng, monthsBack, opts.skipColdFetch === true); }
   finally { release(); }
 }
 
@@ -263,6 +264,7 @@ async function _impactInner(
   lat: number,
   lng: number,
   monthsBack: number,
+  skipColdFetch: boolean = false,
 ): Promise<AddressImpactReport> {
   const started = Date.now();
   const candidates = await getCandidateDates(pool, lat, lng, monthsBack);
@@ -317,7 +319,9 @@ async function _impactInner(
     let canAttemptSwath = c.has_swath_cache;
     // For uncached: only cold-fetch dates with meaningful hail AND only while
     // within our time budget. Trace days (≤0.5") don't justify ~3-5s latency.
-    if (!canAttemptSwath) {
+    // skipColdFetch=true forces cache-only mode (used by PDF-enqueue enrichment
+    // where we can't block the client for 30-60s of cold fetches).
+    if (!canAttemptSwath && !skipColdFetch) {
       const budgetRemaining = timeBudgetExpires - Date.now() > 0;
       const hailWorthFetching = maxHailForThisDate >= COLD_FETCH_MIN_HAIL || (c.point_reports_within_15mi || 0) >= 3;
       canAttemptSwath = budgetRemaining && hailWorthFetching;
