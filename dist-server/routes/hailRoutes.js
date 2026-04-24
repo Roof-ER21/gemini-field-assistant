@@ -3183,6 +3183,14 @@ router.get('/address-impact', async (req, res) => {
         const lat = Number(req.query.lat);
         const lng = Number(req.query.lng);
         const months = Number(req.query.months ?? 24);
+        // skipColdFetch defaults to TRUE (cached-only, fast ~1-2s). Previously
+        // the UI hit this on every address search and hung 30-45s while cold-
+        // fetching 5+ uncached GRIB2 files — that latency froze reps' browsers
+        // and contributed to the crash cascade. The nightly backfill warms all
+        // ≥1" DMV+PA storm days, so cache-only gives reps every claim-worthy
+        // date instantly. Callers that genuinely need deep history (admin tools,
+        // one-off audits) can pass ?coldFetch=1 to opt in to the slow path.
+        const allowColdFetch = req.query.coldFetch === '1' || req.query.coldFetch === 'true';
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
             return res.status(400).json({ error: 'lat and lng query params required' });
         }
@@ -3190,7 +3198,7 @@ router.get('/address-impact', async (req, res) => {
             return res.status(400).json({ error: 'months must be 1-60' });
         }
         const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-        const report = await getAddressHailImpact(req.app.get('pool'), lat, lng, months);
+        const report = await getAddressHailImpact(req.app.get('pool'), lat, lng, months, { skipColdFetch: !allowColdFetch });
         res.setHeader('Cache-Control', 'private, max-age=30');
         res.json(report);
     }
