@@ -833,28 +833,25 @@ export async function loadMrmsDailyComposite(date: string): Promise<CompositeDec
     const files = await listArchiveFiles(date);
     const selectedFiles = chooseArchiveFiles(files);
 
-    const downloadResults = await Promise.allSettled(
-      selectedFiles.map((file) =>
-        downloadArchiveFile(file).then((compressed) => ({
-          file,
-          raw: zlib.gunzipSync(compressed),
-        }))
-      )
-    );
-
+    // Serial download+decode — same rationale as the other two call sites.
+    // Parallel download keeps all N files' raw Buffers (~100-200 MB each)
+    // alive in scope until all finish.
     const decodedGrids: DecodedMrmsGrib[] = [];
     const decodedFileNames: string[] = [];
-    for (const outcome of downloadResults) {
-      if (outcome.status === 'fulfilled') {
-        try {
-          decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
-          decodedFileNames.push(outcome.value.file.name);
-        } catch { /* ignore per-file decode error; others may succeed */ }
-      }
+    for (const file of selectedFiles) {
+      try {
+        const compressed = await downloadArchiveFile(file);
+        const raw = zlib.gunzipSync(compressed);
+        const decoded = decodeMrmsGrib2(raw);
+        decodedGrids.push(decoded);
+        decodedFileNames.push(file.name);
+      } catch { /* ignore per-file error */ }
     }
     if (decodedGrids.length === 0) return null;
 
     const composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+    decodedGrids.length = 0;
+    decodedFileNames.length = 0;
     compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
 
     // Prune old cache entries opportunistically (don't let this grow unbounded
@@ -916,40 +913,33 @@ export async function getMrmsHailAtPoint(
       const files = await listArchiveFiles(date);
       const selectedFiles = chooseArchiveFiles(files);
 
-      const downloadResults = await Promise.allSettled(
-        selectedFiles.map((file) =>
-          downloadArchiveFile(file).then((compressed) => ({
-            file,
-            raw: zlib.gunzipSync(compressed),
-          }))
-        )
-      );
-
+      // Serial download+decode — same rationale as the other two sites.
       const decodedGrids: DecodedMrmsGrib[] = [];
       const decodedFileNames: string[] = [];
-
-      for (const outcome of downloadResults) {
-        if (outcome.status === 'fulfilled') {
-          try {
-            decodedGrids.push(decodeMrmsGrib2(outcome.value.raw));
-            decodedFileNames.push(outcome.value.file.name);
-          } catch (err) {
-            console.warn(`[MRMS Point] Decode error: ${err}`);
-          }
+      for (const file of selectedFiles) {
+        try {
+          const compressed = await downloadArchiveFile(file);
+          const raw = zlib.gunzipSync(compressed);
+          const decoded = decodeMrmsGrib2(raw);
+          decodedGrids.push(decoded);
+          decodedFileNames.push(file.name);
+        } catch (err) {
+          console.warn(`[MRMS Point] ${file.name}: ${err}`);
         }
       }
 
       if (decodedGrids.length === 0) return null;
 
       composite = buildCompositeGrid(decodedGrids, decodedFileNames);
+      decodedGrids.length = 0;
+      decodedFileNames.length = 0;
       compositeGridCache.set(cKey, { expiresAt: Date.now() + CACHE_TTL_MS, composite });
 
-      // Prune old entries
-      if (compositeGridCache.size > 30) {
-        const now = Date.now();
-        for (const [k, v] of compositeGridCache.entries()) {
-          if (v.expiresAt <= now) compositeGridCache.delete(k);
-        }
+      // Hard LRU (matches the other call sites).
+      while (compositeGridCache.size > 10) {
+        const oldest = compositeGridCache.keys().next().value;
+        if (oldest === undefined) break;
+        compositeGridCache.delete(oldest);
       }
     }
 
