@@ -2441,9 +2441,19 @@ export function createSusanGroupMeBotRoutes(pool) {
                 const stateless = extractCityStateless(text);
                 if (stateless) {
                     const { lookupDmvCity } = await import('../services/dmvCities.js');
-                    const hit = lookupDmvCity(stateless.city);
-                    if (hit)
-                        cityOnlyQuery = { city: hit.name, state: hit.state };
+                    // The regex can over-capture ("Germantown on August"). Try the
+                    // full capture first, then peel words off the right until the
+                    // dict hits. Covers both 1-word and 2-word cities (Virginia Beach,
+                    // Falls Church, Silver Spring, Mt Airy, etc.).
+                    const words = stateless.city.split(/\s+/);
+                    for (let n = words.length; n >= 1; n--) {
+                        const probe = words.slice(0, n).join(' ');
+                        const hit = lookupDmvCity(probe);
+                        if (hit) {
+                            cityOnlyQuery = { city: hit.name, state: hit.state };
+                            break;
+                        }
+                    }
                 }
             }
             const cityHailPromise = cityOnlyQuery
