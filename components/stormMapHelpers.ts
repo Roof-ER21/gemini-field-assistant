@@ -920,8 +920,13 @@ export async function generateStormReport(
   }
   if (!pollJson || pollJson.status !== 'done') throw new Error('Report render timed out after 2 minutes — try again.');
 
-  // Stream the finished PDF.
-  const downloadResp = await fetch(`${apiBase}${pollJson.url}`, { headers: { 'x-user-email': email } });
+  // Stream the finished PDF. pollJson.url comes back fully qualified as
+  // `/api/hail/report/<id>/download` from the server — don't double-prefix
+  // by re-adding apiBase. Only prepend apiBase when url is a bare path.
+  const downloadPath = pollJson.url?.startsWith('/api/')
+    ? pollJson.url
+    : `${apiBase}${pollJson.url}`;
+  const downloadResp = await fetch(downloadPath, { headers: { 'x-user-email': email } });
   if (!downloadResp.ok) throw new Error(`Report download returned ${downloadResp.status}`);
   const blob = await downloadResp.blob();
   const dateTag = opts.dateOfLoss
