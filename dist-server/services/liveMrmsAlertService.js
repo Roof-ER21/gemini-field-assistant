@@ -4,8 +4,14 @@ export const DEFAULT_MIN_MESH_INCHES = 1.0; // claim-tier floor
 const DEDUP_LAT_BUCKET = 0.1; // ~7 mi
 const DEDUP_LNG_BUCKET = 0.1;
 const DEDUP_WINDOW_HOURS = 24;
-const CITY_MAX_DIST_MI = 15; // only report cells within 15mi of a DMV city
-// DMV+PA+WV+DE footprint bbox (matches mrms_swath_cache backfill footprint)
+const CITY_MAX_DIST_MI = 15; // only report cells within 15mi of a targeted city
+// STATE SCOPE — only alert on cells nearest to a city in this set.
+// Start with VA/MD/PA (DC implicit because DC centroids live in the DMV
+// dict and fall naturally within MD/VA coverage). DE + NJ coming soon.
+const ALERT_STATES = new Set(['VA', 'MD', 'PA', 'DC']);
+// MRMS fetch bbox — stays wide so a storm spanning NJ/DE borders still
+// gets detected. Filtering to ALERT_STATES happens after nearest-city
+// match so cells too far from any VA/MD/PA city drop out naturally.
 const ALERT_BBOX = {
     north: 42.3,
     south: 36.5,
@@ -49,6 +55,10 @@ function nearestCity(lat, lng) {
     let best = null;
     for (const key of Object.keys(DMV_CITIES)) {
         const c = DMV_CITIES[key];
+        // State scope check — only consider cities in VA/MD/PA/DC for now.
+        // DE + NJ will be added by broadening ALERT_STATES (no other code change).
+        if (!ALERT_STATES.has(c.state))
+            continue;
         const d = haversineMi(lat, lng, c.lat, c.lng);
         if (!best || d < best.dist)
             best = { name: c.name, state: c.state, dist: d };
@@ -129,7 +139,9 @@ export async function runLiveMrmsAlertCheck(pool, opts = {}) {
         return { ran: true, reason: 'fetch_failed', cells_detected: 0, cells_above_threshold: 0, new_cells: 0, cells_suppressed_duplicate: 0, posted: false };
     const refTime = resp.metadata?.refTime ?? new Date().toISOString();
     const features = resp.features || [];
-    // Extract claim-tier cells with nearest city
+    // Extract claim-tier cells with nearest city IN ALERT_STATES.
+    // Cells with no VA/MD/PA/DC city within 15mi are dropped (keeps us from
+    // posting about WV/NJ/DE cells until those states are enabled).
     const cells = [];
     for (const f of features) {
         const inches = Number(f.properties?.sizeInches || 0);
@@ -138,12 +150,10 @@ export async function runLiveMrmsAlertCheck(pool, opts = {}) {
         const c = centroidOfFeature(f);
         if (!c)
             continue;
-        cells.push({
-            lat: c.lat,
-            lng: c.lng,
-            inches,
-            nearestCity: nearestCity(c.lat, c.lng),
-        });
+        const nearest = nearestCity(c.lat, c.lng);
+        if (!nearest)
+            continue; // out of scope (no VA/MD/PA/DC city within 15mi)
+        cells.push({ lat: c.lat, lng: c.lng, inches, nearestCity: nearest });
     }
     // Collapse to unique (city, inches bucket) pairs — the UI shows contour-banded
     // polygons so a single storm emits several nested features. One alert per city.
