@@ -154,16 +154,16 @@ async function countConfirmingReports(pool, lat, lng, dateIso) {
 /**
  * Main entry point — called by Susan bot, /api/hail/search, map UI, etc.
  */
-export async function getAddressHailImpact(pool, lat, lng, monthsBack = 24) {
+export async function getAddressHailImpact(pool, lat, lng, monthsBack = 24, opts = {}) {
     await acquire();
     try {
-        return await _impactInner(pool, lat, lng, monthsBack);
+        return await _impactInner(pool, lat, lng, monthsBack, opts.skipColdFetch === true);
     }
     finally {
         release();
     }
 }
-async function _impactInner(pool, lat, lng, monthsBack) {
+async function _impactInner(pool, lat, lng, monthsBack, skipColdFetch = false) {
     const started = Date.now();
     const candidates = await getCandidateDates(pool, lat, lng, monthsBack);
     console.log(`[AddressImpact] (${lat.toFixed(3)},${lng.toFixed(3)}) ${monthsBack}mo → ${candidates.length} candidate dates (${candidates.filter((c) => c.has_swath_cache).length} cached)`);
@@ -212,7 +212,9 @@ async function _impactInner(pool, lat, lng, monthsBack) {
         let canAttemptSwath = c.has_swath_cache;
         // For uncached: only cold-fetch dates with meaningful hail AND only while
         // within our time budget. Trace days (≤0.5") don't justify ~3-5s latency.
-        if (!canAttemptSwath) {
+        // skipColdFetch=true forces cache-only mode (used by PDF-enqueue enrichment
+        // where we can't block the client for 30-60s of cold fetches).
+        if (!canAttemptSwath && !skipColdFetch) {
             const budgetRemaining = timeBudgetExpires - Date.now() > 0;
             const hailWorthFetching = maxHailForThisDate >= COLD_FETCH_MIN_HAIL || (c.point_reports_within_15mi || 0) >= 3;
             canAttemptSwath = budgetRemaining && hailWorthFetching;
