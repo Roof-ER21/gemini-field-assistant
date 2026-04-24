@@ -285,6 +285,43 @@ export class PDFReportServiceV2 {
         });
         const stream = new PassThrough();
         doc.pipe(stream);
+        // ===== SWATH HIT PROMOTION (must happen BEFORE any event filtering) =====
+        // The UI's side panel labels dates as Direct Hit based on point-in-polygon
+        // against mrms_swath_cache. When the PDF is rendered we don't want a
+        // secondary distance-only labeling system to silently drop those dates;
+        // instead we synthesize an "at-property" hail observation per swath hit
+        // so the dashboard card (Largest Hail), Storm Impact Narrative event
+        // count, Documented Hail Events table, AND Historical Storm Activity
+        // table all see the swath hits as first-class observations tied to the
+        // property. Without this, the dashboard can show "N/A" and the narrative
+        // "0 storm events" for a property that's clearly inside 10+ swath
+        // polygons — a huge credibility hit with adjusters.
+        const normalizedSwathHits = [
+            ...(input.swathDirectHits || []),
+            ...(input.swathDirectHitDates || []).map((d) => ({ date: d, hailInches: 0.5 })),
+        ];
+        if (normalizedSwathHits.length > 0) {
+            const existingEventIds = new Set((input.events || []).map((e) => e.id));
+            const syntheticSwathEvents = normalizedSwathHits
+                .filter((h) => !existingEventIds.has(`swath-${h.date}`))
+                .map((h) => ({
+                id: `swath-${h.date}`,
+                date: h.date,
+                latitude: input.lat,
+                longitude: input.lng,
+                hailSize: h.hailInches,
+                severity: h.hailInches >= 1.75 ? 'severe' : h.hailInches >= 1 ? 'moderate' : 'minor',
+                source: 'MRMS Swath',
+                distanceMiles: 0,
+                radarSite: 'MRMS',
+            }));
+            // Clone the input object so we don't mutate the caller's value.
+            input = {
+                ...input,
+                events: [...(input.events || []), ...syntheticSwathEvents],
+                historyEvents: [...(input.historyEvents || []), ...syntheticSwathEvents],
+            };
+        }
         // ===== DATE FILTER — supports single/multi/range/lifetime modes =====
         const dateSet = input.datesOfLoss && input.datesOfLoss.length > 0
             ? new Set(input.datesOfLoss)
@@ -1135,36 +1172,9 @@ export class PDFReportServiceV2 {
             else if (dist > 5.0 && dist <= 10.0 && size > g.w10)
                 g.w10 = size;
         }
-        // Build swath-hit map: date → hail size reported by the MRMS swath the
-        // property is inside. Accept either new shape (swathDirectHits[]) or the
-        // legacy flat list (swathDirectHitDates[] → default 0.5" = quarter-size).
-        const swathHitMap = new Map();
-        for (const h of input.swathDirectHits || []) {
-            if (h && typeof h.date === 'string') {
-                swathHitMap.set(h.date, Number(h.hailInches) || 0.5);
-            }
-        }
-        for (const d of input.swathDirectHitDates || []) {
-            if (!swathHitMap.has(d))
-                swathHitMap.set(d, 0.5);
-        }
-        // Promote the swath size into atLoc for any date where the property is
-        // inside a swath. If the row already had a larger atLoc from a nearby
-        // point report, keep the larger number.
-        for (const [dk, hailInches] of swathHitMap) {
-            const key = this.getDateKey(dk) || dk;
-            const existing = dateGroups.get(key);
-            if (existing) {
-                if (hailInches > existing.atLoc)
-                    existing.atLoc = hailInches;
-            }
-            else {
-                dateGroups.set(key, {
-                    date: dk, direction: '---', speed: undefined, duration: undefined,
-                    atLoc: hailInches, w3: 0, w5: 0, w10: 0,
-                });
-            }
-        }
+        // (Swath hits were already promoted into input.events at the top of
+        // generateReport — their distanceMiles=0 puts them in atLoc automatically
+        // via the dist<=1.0 branch above.)
         const consolidatedDates = Array.from(dateGroups.values())
             .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
