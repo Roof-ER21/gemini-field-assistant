@@ -68,6 +68,13 @@ export async function materializeIhmDates(pool: Pool): Promise<MaterializeResult
         skippedNoHail++;
         continue;
       }
+      // valid_event_date CHECK on verified_hail_events: 1950 <= d <= today+1
+      const asDate = new Date(d.date + 'T00:00:00Z');
+      const maxDate = new Date(Date.now() + 36 * 3600 * 1000);   // today + ~1.5 days
+      if (Number.isNaN(asDate.getTime()) || asDate.getUTCFullYear() < 1950 || asDate > maxDate) {
+        skippedNoHail++;
+        continue;
+      }
 
       // Use 0.25" as the floor if IHM has has_spotter but null size — trained
       // spotter reporting hail without size is at minimum pea-tier, most NWS
