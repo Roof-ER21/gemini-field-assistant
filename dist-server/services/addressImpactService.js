@@ -204,8 +204,19 @@ async function _impactInner(pool, lat, lng, monthsBack, skipColdFetch = false) {
             return bHail - aHail;
         return isoDate(b.event_date).localeCompare(isoDate(a.event_date));
     });
-    const sorted = [...cachedBySize, ...uncachedSorted];
+    // HARD CAP on candidates processed per request. Previously unbounded —
+    // for dense DMV addresses with 400+ cached dates (Leesburg, Baltimore),
+    // sequentially loading every polygon through mrms_swath_cache + running
+    // point-in-polygon OOM'd the web container at ~300 dates because each
+    // cached collection deserializes a ~100-500KB GeoJSON, and V8 GC couldn't
+    // keep pace with how fast we were allocating. Container would 502, then
+    // restart, then the retry would 502 again — classic "PDF idle" from the
+    // rep's perspective. Biggest-hail-first sort above ensures we keep every
+    // claim-worthy Direct Hit even with the cap.
+    const MAX_CANDIDATES_PER_REQUEST = 150;
+    const sorted = [...cachedBySize, ...uncachedSorted].slice(0, MAX_CANDIDATES_PER_REQUEST);
     const timeBudgetExpires = started + COLD_FETCH_TIME_BUDGET_MS;
+    let processedSinceGc = 0;
     for (const c of sorted) {
         const dateIso = isoDate(c.event_date);
         const maxHailForThisDate = Number(c.max_hail_inches || 0);
@@ -284,6 +295,17 @@ async function _impactInner(pool, lat, lng, monthsBack, skipColdFetch = false) {
                 nearMiss.push(fallbackTier);
             else if (nearest <= 15)
                 areaImpact.push(fallbackTier);
+        }
+        // Explicit GC nudge every 40 candidates — each iteration deserialized
+        // a potentially 100-500KB GeoJSON collection; without a hint V8 lets
+        // RSS climb during the hot loop.
+        processedSinceGc++;
+        if (processedSinceGc >= 40 && typeof global.gc === 'function') {
+            try {
+                global.gc();
+            }
+            catch { /* noop */ }
+            processedSinceGc = 0;
         }
     }
     // Sort each tier DESC by date, then DESC by size for tie-break
