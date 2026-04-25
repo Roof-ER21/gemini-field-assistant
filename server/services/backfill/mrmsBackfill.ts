@@ -240,6 +240,55 @@ export const mrmsBackfill: BackfillRunner = {
             });
           }
 
+          // ────────────────────────────────────────────────────────────
+          // UTC-shadow dedup: a storm spanning UTC midnight (e.g. 5-9 PM EDT
+          // April 1 → 21:00 UTC 4/1 to 01:00 UTC 4/2) shows up in BOTH UTC
+          // daily swath aggregates. Without filtering, we'd insert the same
+          // physical cell with event_date=4/1 AND event_date=4/2.
+          //
+          // Before upserting day D, we look up MRMS-only rows already in
+          // verified_hail_events for day D-1 with the same (latitude,
+          // longitude, hail_size_inches). If a match exists, we drop it from
+          // this batch — the storm has already been attributed to the
+          // earlier (correct) ET day.
+          //
+          // Past dupes (~647k rows) cleaned manually 2026-04-25; this
+          // prevents them from re-forming.
+          // ────────────────────────────────────────────────────────────
+          if (batch.length > 0) {
+            const prev = new Date(`${date}T00:00:00Z`);
+            prev.setUTCDate(prev.getUTCDate() - 1);
+            const prevDate = prev.toISOString().slice(0, 10);
+            const { rows: prevRows } = await pool.query<{
+              latitude: string; longitude: string; hail_size_inches: string | null;
+            }>(
+              `SELECT latitude, longitude, hail_size_inches
+                 FROM verified_hail_events
+                WHERE event_date = $1 AND source_mrms = true
+                  AND state = ANY($2::text[])`,
+              [prevDate, [...allowedStates]],
+            );
+            const prevKeys = new Set(prevRows.map((r) => {
+              const sz = r.hail_size_inches !== null
+                ? Math.round(Number(r.hail_size_inches) * 100)
+                : 'null';
+              return `${Number(r.latitude).toFixed(4)}|${Number(r.longitude).toFixed(4)}|${sz}`;
+            }));
+            const beforeLen = batch.length;
+            for (let i = batch.length - 1; i >= 0; i--) {
+              const b = batch[i];
+              const sz = b.hailSizeInches !== null && b.hailSizeInches !== undefined
+                ? Math.round(b.hailSizeInches * 100)
+                : 'null';
+              const key = `${b.latitude.toFixed(4)}|${b.longitude.toFixed(4)}|${sz}`;
+              if (prevKeys.has(key)) batch.splice(i, 1);
+            }
+            const droppedShadows = beforeLen - batch.length;
+            if (droppedShadows > 0) {
+              console.log(`[mrms] ${date}: dropped ${droppedShadows} UTC-shadow buckets (already on ${prevDate})`);
+            }
+          }
+
           if (dryRun) {
             console.log(`[mrms] dry ${date}: ${batch.length} buckets ready`);
             continue;
