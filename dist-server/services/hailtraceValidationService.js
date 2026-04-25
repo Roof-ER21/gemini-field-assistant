@@ -32,6 +32,11 @@ function classifyAgreement(hailtraceSize, mrmsSize) {
 }
 export async function crossValidateHailtrace(params, pool) {
     // 1. Pull HailTrace points for this date + bounding box.
+    //    Filter to HailSize reports only (`hail_size > 0`) — the live API mixes
+    //    WindSpeed and Tornado reports into `weatherReports[]`, and comparing
+    //    wind mph to MRMS hail-inch polygons produces meaningless
+    //    `mrms_miss` noise on the overlay. Wind events have their own overlay
+    //    path; this endpoint is specifically for hail cross-validation.
     const { rows } = await pool.query(`SELECT event_id, latitude, longitude, hail_size, hail_size_algorithm,
             hail_size_meteo, types, wind_speed, wind_star_level
        FROM hailtrace_events
@@ -41,6 +46,8 @@ export async function crossValidateHailtrace(params, pool) {
         AND longitude IS NOT NULL
         AND latitude BETWEEN $2 AND $3
         AND longitude BETWEEN $4 AND $5
+        AND hail_size IS NOT NULL
+        AND hail_size > 0
       ORDER BY hail_size DESC NULLS LAST`, [params.date, params.south, params.north, params.west, params.east]);
     const hailtracePoints = rows.map((r) => {
         const meteo = r.hail_size_meteo !== null ? Number(r.hail_size_meteo) : null;

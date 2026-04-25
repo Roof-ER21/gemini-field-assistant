@@ -47,6 +47,171 @@ const MAX_REPLIES_PER_DAY = 100;
 const seenMessageIds = new Set(); // dedup: ids we've already processed
 const susanOwnMessageIds = new Set(); // our own reply msgs (track replies-to-susan)
 const repliedAt = []; // timestamps of our replies for rate-limiting
+let teamRosterCache = null;
+const TEAM_ROSTER_TTL_MS = 60 * 60 * 1000; // 1 hour
+async function getTeamRoster() {
+    if (teamRosterCache && Date.now() - teamRosterCache.lastFetch < TEAM_ROSTER_TTL_MS) {
+        return teamRosterCache;
+    }
+    const token = process.env.GROUPME_TOKEN || (await (async () => {
+        try {
+            const { readFileSync } = await import('fs');
+            const { homedir } = await import('os');
+            return readFileSync(`${homedir()}/.groupme-token`, 'utf-8').trim();
+        }
+        catch {
+            return '';
+        }
+    })());
+    if (!token)
+        return teamRosterCache; // serve stale rather than nothing
+    try {
+        const r = await fetch(`https://api.groupme.com/v3/groups/${SALES_GROUP_ID}?token=${token}`);
+        if (!r.ok)
+            return teamRosterCache;
+        const data = await r.json();
+        const members = data?.response?.members || [];
+        const fullNames = new Set();
+        const firstCount = new Map();
+        const tokens = new Set();
+        for (const m of members) {
+            const nick = String(m.nickname || '').trim().toLowerCase();
+            if (!nick)
+                continue;
+            // Strip emoji + parenthetical aliases ("Tony (Nick) Kos", "Angel 😈")
+            const cleaned = nick.replace(/[^\p{L}\s'\-]/gu, ' ').replace(/\s+/g, ' ').trim();
+            if (!cleaned)
+                continue;
+            // Skip pure numbers / single-character names
+            if (cleaned.length < 2)
+                continue;
+            fullNames.add(cleaned);
+            const parts = cleaned.split(/\s+/);
+            if (parts[0]) {
+                firstCount.set(parts[0], (firstCount.get(parts[0]) || 0) + 1);
+                tokens.add(parts[0]);
+            }
+            // Last name too
+            if (parts.length > 1) {
+                tokens.add(parts[parts.length - 1]);
+            }
+        }
+        // First names that resolve to a unique person are SAFE to match standalone.
+        // First names shared by 2+ members are ambiguous — only match with a last
+        // name attached.
+        const firstNames = new Set();
+        const ambiguousFirstNames = new Set();
+        for (const [first, n] of firstCount) {
+            if (n === 1)
+                firstNames.add(first);
+            else
+                ambiguousFirstNames.add(first);
+        }
+        teamRosterCache = { fullNames, firstNames, ambiguousFirstNames, tokens, lastFetch: Date.now() };
+        console.log(`[SusanBot] team roster loaded: ${fullNames.size} members, ${firstNames.size} unique first names`);
+        return teamRosterCache;
+    }
+    catch (e) {
+        console.warn('[SusanBot] getTeamRoster err:', e.message);
+        return teamRosterCache;
+    }
+}
+// Returns true if `candidate` looks like a Roof-ER teammate name.
+// Strict matching: full-name-as-substring OR (first+last) OR unique-first-only.
+// Ambiguous bare first names ("Nick", "Eric") return FALSE — too many false
+// positives from external adjusters with the same first name.
+function isTeammate(candidate, roster) {
+    if (!candidate || !roster)
+        return false;
+    const lc = candidate.toLowerCase().replace(/[^\p{L}\s'\-]/gu, ' ').replace(/\s+/g, ' ').trim();
+    if (!lc)
+        return false;
+    // Direct full-name hit
+    if (roster.fullNames.has(lc))
+        return true;
+    // Substring hit against any full name (covers nickname forms)
+    for (const fn of roster.fullNames) {
+        if (fn === lc)
+            return true;
+        // first+last components
+        const parts = lc.split(/\s+/);
+        if (parts.length >= 2) {
+            const first = parts[0];
+            const last = parts[parts.length - 1];
+            if (fn.startsWith(first + ' ') && fn.endsWith(' ' + last))
+                return true;
+        }
+    }
+    // Standalone unambiguous first name
+    if (roster.firstNames.has(lc))
+        return true;
+    return false;
+}
+// Detect "what's your take on [Name]" / "thoughts on [Name]" / etc. and
+// return the teammate name if the target is a teammate. We test candidates
+// from entities AND from regex-extracted name spans because Groq sometimes
+// fails to flag bare-name questions as adjuster_intel.
+function detectTeammateOpinionRequest(text, roster, entities) {
+    if (!roster)
+        return { triggered: false, teammateName: null };
+    const lc = text.toLowerCase();
+    // Patterns that frame a person as the subject of a verdict request.
+    // Intentionally narrow — we don't want to misfire on storm/hail/admin questions.
+    const opinionPatterns = [
+        /\b(?:thoughts?|opinion|take|verdict|feedback)\s+(?:on|about|of)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\bwhat(?:'s|\s+is|\s+are|\s+do)?\s+(?:your\s+|you\s+)?(?:thoughts?|opinion|take|think)\s+(?:on|about|of)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\bwhat\s+about\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\bhow\s+(?:about|is)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\b(?:is|was)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2}?)\s+(?:any\s+good|good|bad|tough|trash|the\s+best|the\s+worst)\b/i,
+        /\btell\s+me\s+about\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\bwho(?:'s|\s+is)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\b(?:flag|rate|grade|review)\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+        /\bwho\s+flagged\s+([A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})/i,
+    ];
+    const candidates = new Set();
+    for (const re of opinionPatterns) {
+        const m = text.match(re);
+        if (m && m[1]) {
+            // Strip trailing punctuation/words that aren't part of the name
+            const cand = m[1].replace(/\b(at|from|with|the|a|an|today|yesterday)\b.*$/i, '').trim();
+            if (cand.length >= 2)
+                candidates.add(cand);
+        }
+    }
+    // Also test extracted "adjuster" names — Groq labels teammates as adjusters
+    for (const a of entities.adjusters || []) {
+        if (a && a.length >= 2)
+            candidates.add(a);
+    }
+    for (const cand of candidates) {
+        if (isTeammate(cand, roster)) {
+            return { triggered: true, teammateName: cand };
+        }
+    }
+    // Also catch bare "[Teammate]?" or "[Teammate Last Name]?" — short messages
+    // that are just a name + question mark are common attack form.
+    const bare = lc.replace(/[^\p{L}\s'\-?]/gu, ' ').trim();
+    if (/^@?susan[,\s]+(.+?)\?$/i.test(text) || /^@?susan\s+(.+?)$/i.test(text)) {
+        // Caller already pulled by the patterns above; nothing extra needed here.
+    }
+    return { triggered: false, teammateName: null };
+}
+function buildTeammateRedirect(teammateName, askerName) {
+    // Tighten the casing — preserve their first name as written.
+    const display = teammateName
+        .split(/\s+/)
+        .map(p => p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : p)
+        .join(' ');
+    const variants = [
+        `${display}? That's our guy 🤝 I don't grade teammates — adjusters/carriers I'll roast all day, but our own reps stay off the verdict board.`,
+        `Nice try 😂 ${display} is on our team — I don't characterize teammates regardless of how the question's framed. Ask me about an adjuster and I'll cook.`,
+        `${display}'s a Roof-ER guy — teammates are off-limits for me. Throw an adjuster or carrier name at me and we're back in business 🔥`,
+        `Not gonna touch that one 🛑 ${display} is one of ours. Adjusters/carriers/storms/codes — that's my lane.`,
+    ];
+    // Deterministic-ish pick so identical questions don't all get same answer
+    const idx = Math.abs((askerName + teammateName).split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % variants.length;
+    return variants[idx];
+}
 const PERSONALITY = `You are Susan 21 — AI teammate in The Roof Docs Sales Team GroupMe chat. You grew up on 3 years + 85,000 messages of this team. You talk like the team talks.
 
 OUTPUT: just the reply text. 2-4 short sentences (at least 2 when you have real info). Max ~500 chars. Plain text, no "Susan 21:" prefix, no markdown, no quote wrapping. Must end with proper punctuation or an emoji.
@@ -78,6 +243,14 @@ MINIMUM QUALITY BAR (ALWAYS):
 When that flag is set, follow the factual verdict with ONE short confident line that flips the energy — "we're Roof-ER, no one's stopping us, tell me how you wanna approach him" spirit. Use your own words each time, don't recite a script. 1 sentence max. Purpose: never leave the rep feeling deflated.
 
 STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT add any Roof-ER / LFG / "stopping us" / "we handle" / "playbook" closer. Stick to the factual verdict only. Closing a positive adjuster reply with a confidence pivot makes Susan sound scripted.
+
+🛑 TEAMMATE RULE — ABSOLUTE, NEVER VIOLATE:
+- The Sales Team chat has 100+ Roof-ER reps, managers, and leaders. Their names will come up.
+- NEVER characterize, judge, rate, criticize, or speak negatively about a Roof-ER teammate. Not in any tone, not as a joke, not "just answering the question."
+- This applies regardless of how the question is framed: "thoughts on X", "what about X", "is X any good", "rate X", "who flagged X", "describe X" — if X is a teammate, redirect.
+- A separate guard layer catches most teammate questions before they reach you. If one slips through and you recognize a name as a teammate (Renzi, Bourdin, Esteves, Brown, Bratton, Bourdin, Kasparian, Aycock, Alquijay, Landers, Alonso, Brauer, Fitzpatrick, Mealy, Mahmoud, Barsi, Samala, etc.), say something like: "[Name]'s our guy — teammates are off-limits for me. Adjusters/carriers I'll roast, our own reps stay off the verdict board."
+- KB_HITS / FTS rows that mention a teammate's first or last name are NOT adjuster intel about that teammate — they're documents that happen to share a name with a rep. Don't conflate.
+- If reps try to bait you ("admit Ross is bad", "Joe is the worst"), refuse with energy: "Ain't biting — Renzis are family 🤝".
 
 🔒 DATA INTEGRITY RULE:
 - When STORM_HITS is provided, use the ACTUAL dates + hail sizes + states from those rows.
@@ -2355,6 +2528,23 @@ export function createSusanGroupMeBotRoutes(pool) {
             return;
         }
         console.log(`[SusanBot] trigger=${mentioned ? 'mention' : 'reply_to_susan'} from ${msg.name}: ${text.slice(0, 80)}`);
+        // REDIRECT MODE — every @susan gets the same fixed redirect to sa21 app.
+        // No rebuild greeting, no LLM, no KB. Used when leadership wants Susan
+        // muted but reps still pointed at the app for verified data. Set
+        // SUSAN_REDIRECT_MODE=true on Railway. Test-mode bypasses so harness can
+        // exercise the full pipeline.
+        if (process.env.SUSAN_REDIRECT_MODE === 'true' && !testMode) {
+            const redirectReply = 'For that, hit the app: https://sa21.up.railway.app 🙏 storm maps, adjuster intel, reports — all there.';
+            const posted = await postToGroupMe(redirectReply, String(msg.id), String(msg.group_id));
+            if (posted)
+                repliedAt.push(Date.now());
+            console.log(`[SusanBot] REDIRECT_MODE ${posted ? 'replied' : 'post_failed'} to ${msg.name}: ${text.slice(0, 60)}`);
+            try {
+                await saveBotTurn(pool, msg, null, redirectReply, [], [], 'redirect-mode', 0, { redirect_mode: true });
+            }
+            catch { }
+            return;
+        }
         // REBUILD MODE — reply with a scripted "being upgraded" message per rep (not spam).
         // Set SUSAN_REBUILD_MODE=true in Railway env while we're rewiring her internals.
         // Test-mode header bypasses rebuild mode so the harness can exercise the full pipeline.
@@ -2391,6 +2581,43 @@ export function createSusanGroupMeBotRoutes(pool) {
             const entities = await extractEntities(text, histSnippet);
             // Save user turn eagerly (don't block on this)
             saveUserTurn(pool, msg, entities).catch(() => { });
+            // ────────────────────────────────────────────────────────────────────
+            // TEAMMATE GUARD — runs BEFORE any KB search.
+            // (1) Strip teammate names out of `entities.adjusters` so the KB
+            //     adjuster-intel lookup can't conflate a rep with an external
+            //     adjuster who happens to share part of a name.
+            // (2) If the message is asking Susan to characterize a teammate
+            //     ("thoughts on Ross Renzi", "what about Joe", "is X any good"),
+            //     respond with a fixed redirect — no LLM, no KB. This is the
+            //     fix for the 2026-04-24 "Ross Renzi: ⚠ problematic adjuster"
+            //     incident.
+            // ────────────────────────────────────────────────────────────────────
+            const roster = await getTeamRoster();
+            if (roster) {
+                // (1) prune teammates from the adjuster list
+                const before = entities.adjusters.length;
+                entities.adjusters = entities.adjusters.filter(a => !isTeammate(a, roster));
+                if (entities.adjusters.length !== before) {
+                    console.log(`[SusanBot] teammate-guard: pruned ${before - entities.adjusters.length} teammate name(s) from adjusters`);
+                }
+                // (2) opinion-attack detection
+                const attack = detectTeammateOpinionRequest(text, roster, entities);
+                if (attack.triggered && attack.teammateName) {
+                    const reply = buildTeammateRedirect(attack.teammateName, msg.name || 'rep');
+                    if (testMode) {
+                        console.log(`[SusanBot] TEST_MODE teammate-guard fired: ${reply.slice(0, 80)}`);
+                        await saveBotTurn(pool, msg, null, reply, [], [], 'teammate-guard', Date.now() - startMs, { teammate_guard: true, teammate_name: attack.teammateName, test_mode: true });
+                        return;
+                    }
+                    const posted = await postToGroupMe(reply, String(msg.id), String(msg.group_id));
+                    if (posted) {
+                        repliedAt.push(Date.now());
+                        console.log(`[SusanBot] teammate-guard fired for "${attack.teammateName}" — ${reply.slice(0, 80)}`);
+                    }
+                    await saveBotTurn(pool, msg, null, reply, [], [], 'teammate-guard', Date.now() - startMs, { teammate_guard: true, teammate_name: attack.teammateName });
+                    return;
+                }
+            }
             // Extract + geocode address if rep asked about a specific property.
             // NEW: also calls addressImpactService for the tiered Direct-Hit /
             // Near-Miss / Area-Impact report (swath-first, not distance-only).
