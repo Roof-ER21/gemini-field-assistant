@@ -41,6 +41,20 @@ function generateAlertId(): string {
   return s;
 }
 
+/** Format a Date as wall-clock time in America/New_York, e.g. "9:42 AM ET". */
+export function fmtEasternClock(d: Date | number = new Date()): string {
+  const date = typeof d === 'number' ? new Date(d) : d;
+  // en-US gives "9:42 AM"; we suffix "ET" so reps see the timezone explicitly
+  // (avoids EDT/EST confusion across daylight saving boundaries).
+  const t = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+  return `${t} ET`;
+}
+
 /** Insert a pending alert. Returns the alert_id and the wrapper text to post. */
 export async function createPendingAlert(
   pool: Pool,
@@ -81,6 +95,8 @@ export async function createPendingAlert(
   }
   if (!row) throw new Error('failed to insert pending alert after 5 retries');
 
+  const firedAt = new Date();
+  const expiresAt = new Date(firedAt.getTime() + expiresMin * 60_000);
   const proposalText =
     `🟡 PROPOSED Sales Team alert (paused for review):\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -88,7 +104,7 @@ export async function createPendingAlert(
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `Reply ✅ YES (or just "yes") to send to Sales Team.\n` +
     `Reply ❌ NO (or "skip") to drop it.\n` +
-    `ID: ${alertId} · expires in ${expiresMin}m`;
+    `ID: ${alertId} · fired ${fmtEasternClock(firedAt)} · expires ${fmtEasternClock(expiresAt)}`;
 
   return { alertId, proposalText, rowId: row.id };
 }

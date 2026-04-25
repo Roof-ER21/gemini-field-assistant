@@ -2657,7 +2657,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     // ────────────────────────────────────────────────────────────────────
     if (TEST_GROUP_ID && String(msg.group_id) === TEST_GROUP_ID && text.length > 0 && text.length < 80) {
       try {
-        const { parseApprovalCommand, approvePendingAlert, rejectPendingAlert, attachPostedMessageId } =
+        const { parseApprovalCommand, approvePendingAlert, rejectPendingAlert, attachPostedMessageId, fmtEasternClock } =
           await import('../services/pendingAlertsService.js');
         const cmd = parseApprovalCommand(text);
         if (cmd) {
@@ -2681,9 +2681,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
             });
             const ok = fwdRes.ok;
             await attachPostedMessageId(pool, row.id, null);
+            const sentAt = fmtEasternClock();
             await postToGroupMe(
               ok
-                ? `✅ Sent ${row.alert_id} → Sales Team. (approved by ${decidedBy})`
+                ? `✅ Sent ${row.alert_id} → Sales Team at ${sentAt}. (approved by ${decidedBy})`
                 : `❌ Approval recorded but forward POST failed (status ${fwdRes.status}). Try again.`,
               String(msg.id), String(msg.group_id),
             );
@@ -2692,9 +2693,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
           }
           if (cmd.action === 'reject') {
             const row = await rejectPendingAlert(pool, cmd.alertId, decidedBy);
+            const at = fmtEasternClock();
             await postToGroupMe(
               row
-                ? `🛑 Skipped ${row.alert_id}. (rejected by ${decidedBy})`
+                ? `🛑 Skipped ${row.alert_id} at ${at}. (rejected by ${decidedBy})`
                 : `🤷 Nothing pending to skip.`,
               String(msg.id), String(msg.group_id),
             );

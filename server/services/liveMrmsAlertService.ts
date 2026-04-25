@@ -294,7 +294,14 @@ export async function runLiveMrmsAlertCheck(
   // at the appropriate urgency level.
   const refDate = new Date(refTime);
   const minsAgo = Math.round((Date.now() - refDate.getTime()) / 60_000);
-  const timeLabel = minsAgo < 60 ? `${minsAgo} min ago` : `${Math.round(minsAgo / 60)}h ago`;
+  // Wall-clock in Eastern alongside "min ago" so reviewers see the absolute
+  // time without doing UTC math on their phone.
+  const refClockET = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(refDate);
+  const timeLabel = minsAgo < 60
+    ? `${minsAgo} min ago · ${refClockET} ET`
+    : `${Math.round(minsAgo / 60)}h ago · ${refClockET} ET`;
   const peakInches = newCells[0].inches.toFixed(2);
   const peakTier = tierForInches(newCells[0].inches);
 
