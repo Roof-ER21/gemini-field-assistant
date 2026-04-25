@@ -214,8 +214,12 @@ export async function runLiveMrmsAlertCheck(
     forceTestGroup?: boolean;
   } = {},
 ): Promise<LiveAlertResult> {
-  const enabled = process.env.LIVE_MRMS_ALERT_ENABLED === 'true' || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group';
-  const testMode = opts.forceTestGroup === true || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group';
+  const flagVal = process.env.LIVE_MRMS_ALERT_ENABLED;
+  const enabled = flagVal === 'true' || flagVal === 'test-group' || flagVal === 'approval-gate';
+  const testMode = opts.forceTestGroup === true || flagVal === 'test-group';
+  // approval-gate: post to TEST group as proposal; await human ✅/❌ in test group;
+  // forwarder lives in susanGroupMeBotRoutes.ts handler.
+  const approvalGate = flagVal === 'approval-gate' && !opts.forceTestGroup;
   if (!enabled && !opts.dryRun && !opts.forceTestGroup) {
     return { ran: false, reason: 'LIVE_MRMS_ALERT_ENABLED not set', cells_detected: 0, cells_above_threshold: 0, new_cells: 0, cells_suppressed_duplicate: 0, posted: false };
   }
@@ -324,9 +328,13 @@ export async function runLiveMrmsAlertCheck(
   }
   const text = lines.join('\n');
 
-  // Pick bot + group
-  const targetBotId = testMode ? TEST_BOT_ID : GROUPME_BOT_ID;
-  const targetGroupId = testMode ? TEST_GROUP_ID : SALES_TEAM_GROUP_ID;
+  // Pick bot + group. approval-gate posts the PROPOSAL to test group, but
+  // remembers the Sales-Team destination so the approver's "yes" forwards
+  // it to the right place.
+  const targetBotId = (testMode || approvalGate) ? TEST_BOT_ID : GROUPME_BOT_ID;
+  const targetGroupId = (testMode || approvalGate) ? TEST_GROUP_ID : SALES_TEAM_GROUP_ID;
+  const forwardBotId = approvalGate ? GROUPME_BOT_ID : targetBotId;
+  const forwardGroupId = approvalGate ? SALES_TEAM_GROUP_ID : targetGroupId;
 
   if (opts.dryRun) {
     return {
@@ -354,7 +362,28 @@ export async function runLiveMrmsAlertCheck(
     };
   }
 
-  const posted = await postToGroupMe(targetBotId, text);
+  // approval-gate: stash the original alert as a pending row + post the
+  // wrapped proposal to test group. Forward happens in the Susan webhook
+  // when a reviewer ✅/❌s.
+  let textToPost = text;
+  if (approvalGate) {
+    try {
+      const { createPendingAlert } = await import('./pendingAlertsService.js');
+      const created = await createPendingAlert(pool, {
+        source: 'mrms',
+        targetGroupId: forwardGroupId,
+        targetBotId: forwardBotId,
+        messageText: text,
+        metadata: { peakInches, newCells: newCells.length, refTime, tier: peakTier },
+      });
+      textToPost = created.proposalText;
+      console.log(`[LiveMrmsAlert] approval-gate pending=${created.alertId} await test-group review`);
+    } catch (e) {
+      console.error('[LiveMrmsAlert] approval-gate persist failed, falling back to direct test-group post:', (e as Error).message);
+    }
+  }
+
+  const posted = await postToGroupMe(targetBotId, textToPost);
 
   // Persist sent cells (even if post failed, we don't retry in same window)
   for (const c of newCells) {
@@ -384,7 +413,8 @@ export async function runLiveMrmsAlertCheck(
     }
   }
 
-  console.log(`[LiveMrmsAlert] posted=${posted} new=${newCells.length} suppressed=${suppressed} target=${testMode ? 'test-group' : 'sales-team'} peak=${peakInches}"`);
+  const targetLabel = approvalGate ? 'approval-gate' : (testMode ? 'test-group' : 'sales-team');
+  console.log(`[LiveMrmsAlert] posted=${posted} new=${newCells.length} suppressed=${suppressed} target=${targetLabel} peak=${peakInches}"`);
   return {
     ran: true,
     cells_detected: features.length,
