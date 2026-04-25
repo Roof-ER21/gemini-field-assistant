@@ -40,11 +40,19 @@ export async function fetchMapImage(params: MapImageParams): Promise<Buffer | nu
   }
 
   const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  // VITE_-prefixed env is set on Railway for the client build but is also
+  // readable server-side. Mapbox Static Images uses the same token as the
+  // tile API. 50K free/mo on the standard plan — plenty for PDF generation.
+  const mapboxToken = process.env.MAPBOX_TOKEN || process.env.VITE_MAPBOX_TOKEN;
 
   let imageBuffer: Buffer | null = null;
 
   if (googleKey) {
     imageBuffer = await fetchGoogleStaticMap(params, googleKey);
+  }
+
+  if (!imageBuffer && mapboxToken) {
+    imageBuffer = await fetchMapboxStaticMap(params, mapboxToken);
   }
 
   if (!imageBuffer) {
@@ -110,6 +118,44 @@ async function fetchGoogleStaticMap(params: MapImageParams, apiKey: string): Pro
  * OpenStreetMap static image via Geoapify (free tier: 3000 req/day)
  * Falls back to plain tile compositing if Geoapify is unavailable
  */
+/**
+ * Mapbox Static Images API — used as fallback when GOOGLE_MAPS_API_KEY is
+ * unset. Reuses the same token the live web map uses (VITE_MAPBOX_TOKEN).
+ * Output: styled satellite-streets map with a red pin on the subject property.
+ * Same shape as Google Static Maps — caller doesn't need to know the source.
+ */
+async function fetchMapboxStaticMap(params: MapImageParams, token: string): Promise<Buffer | null> {
+  const { lat, lng, zoom = 14, width = 600, height = 300, markers = [] } = params;
+  try {
+    // Pin overlays — comma-separated list of `pin-s-{label}+{color}({lng},{lat})`.
+    // Property pin first, then any extra markers.
+    const overlays: string[] = [`pin-s-p+ff0000(${lng},${lat})`];
+    for (const m of markers) {
+      const color = (m.color || 'blue').replace('#', '');
+      const label = (m.label || 'm').slice(0, 1).toLowerCase();
+      overlays.push(`pin-s-${label}+${color}(${m.lng},${m.lat})`);
+    }
+    const overlayPath = overlays.join(',');
+
+    const url =
+      `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/` +
+      `${overlayPath}/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${token}`;
+
+    console.log(`🗺️ Fetching Mapbox Static Map for ${lat.toFixed(4)},${lng.toFixed(4)} (zoom=${zoom})`);
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) {
+      console.error(`Mapbox static error: ${response.status} ${await response.text().catch(() => '')}`);
+      return null;
+    }
+    const buf = Buffer.from(await response.arrayBuffer());
+    console.log(`✅ Mapbox static map: ${buf.length} bytes`);
+    return buf;
+  } catch (e) {
+    console.error('Mapbox static fetch failed:', e);
+    return null;
+  }
+}
+
 async function fetchOSMStaticMap(params: MapImageParams): Promise<Buffer | null> {
   const { lat, lng, zoom = 14, width = 600, height = 300 } = params;
 
