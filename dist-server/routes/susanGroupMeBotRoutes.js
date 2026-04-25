@@ -2403,6 +2403,56 @@ export function createSusanGroupMeBotRoutes(pool) {
         if (msg.group_id && !isAllowedGroup)
             return;
         const text = String(msg.text || '').trim();
+        // ────────────────────────────────────────────────────────────────────
+        // STORM-ALERT APPROVAL GATE — test-group only. When a storm alert is
+        // posted under LIVE_MRMS_ALERT_ENABLED=approval-gate, it lands in the
+        // test group as a PROPOSAL with a token (A-XXXXX). A reviewer replies
+        // ✅/yes (optionally with the token) → forward to Sales Team. ❌/no
+        // → drop. Runs BEFORE length filter / mention check so "yes" alone
+        // is enough.
+        // ────────────────────────────────────────────────────────────────────
+        if (TEST_GROUP_ID && String(msg.group_id) === TEST_GROUP_ID && text.length > 0 && text.length < 80) {
+            try {
+                const { parseApprovalCommand, approvePendingAlert, rejectPendingAlert, attachPostedMessageId } = await import('../services/pendingAlertsService.js');
+                const cmd = parseApprovalCommand(text);
+                if (cmd) {
+                    const decidedBy = msg.name || 'reviewer';
+                    if (cmd.action === 'approve') {
+                        const row = await approvePendingAlert(pool, cmd.alertId, decidedBy);
+                        if (!row) {
+                            await postToGroupMe(cmd.alertId
+                                ? `🤷 No pending alert with id ${cmd.alertId} (expired or already decided).`
+                                : `🤷 No pending alert to approve.`, String(msg.id), String(msg.group_id));
+                            return;
+                        }
+                        // Forward to the original target (usually Sales Team)
+                        const fwdRes = await fetch('https://api.groupme.com/v3/bots/post', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ bot_id: row.target_bot_id, text: row.message_text }),
+                        });
+                        const ok = fwdRes.ok;
+                        await attachPostedMessageId(pool, row.id, null);
+                        await postToGroupMe(ok
+                            ? `✅ Sent ${row.alert_id} → Sales Team. (approved by ${decidedBy})`
+                            : `❌ Approval recorded but forward POST failed (status ${fwdRes.status}). Try again.`, String(msg.id), String(msg.group_id));
+                        console.log(`[SusanBot] approval-gate: ${row.alert_id} approved by ${decidedBy} forward_ok=${ok}`);
+                        return;
+                    }
+                    if (cmd.action === 'reject') {
+                        const row = await rejectPendingAlert(pool, cmd.alertId, decidedBy);
+                        await postToGroupMe(row
+                            ? `🛑 Skipped ${row.alert_id}. (rejected by ${decidedBy})`
+                            : `🤷 Nothing pending to skip.`, String(msg.id), String(msg.group_id));
+                        console.log(`[SusanBot] approval-gate: ${row?.alert_id || '(none)'} rejected by ${decidedBy}`);
+                        return;
+                    }
+                }
+            }
+            catch (e) {
+                console.error('[SusanBot] approval-gate handler err:', e.message);
+            }
+        }
         if (text.length < 10)
             return;
         // Reply condition

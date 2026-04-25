@@ -93,16 +93,21 @@ function tierEmojiForEvent(event) {
     return '⛈️';
 }
 export async function runLiveNwsWarningCheck(pool, opts = {}) {
-    const enabled = process.env.LIVE_MRMS_ALERT_ENABLED === 'true' || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group';
-    const testMode = opts.forceTestGroup === true || process.env.LIVE_MRMS_ALERT_ENABLED === 'test-group';
+    const flagVal = process.env.LIVE_MRMS_ALERT_ENABLED;
+    const enabled = flagVal === 'true' || flagVal === 'test-group' || flagVal === 'approval-gate';
+    const testMode = opts.forceTestGroup === true || flagVal === 'test-group';
+    const approvalGate = flagVal === 'approval-gate' && !opts.forceTestGroup;
     if (!enabled && !opts.dryRun && !opts.forceTestGroup) {
         return { ran: false, reason: 'LIVE_MRMS_ALERT_ENABLED not set', active_warnings: 0, new_posted: 0, skipped_duplicate: 0, skipped_out_of_scope: 0 };
     }
     await ensureSchema(pool);
     const features = await fetchActiveAlertsForStates();
     let newPosted = 0, skippedDup = 0, skippedOutOfScope = 0;
-    const targetBotId = testMode ? TEST_BOT_ID : GROUPME_BOT_ID;
-    const targetGroupId = testMode ? TEST_GROUP_ID : SALES_TEAM_GROUP_ID;
+    // approval-gate: post proposal to test group, forward via webhook on ✅
+    const targetBotId = (testMode || approvalGate) ? TEST_BOT_ID : GROUPME_BOT_ID;
+    const targetGroupId = (testMode || approvalGate) ? TEST_GROUP_ID : SALES_TEAM_GROUP_ID;
+    const forwardBotId = approvalGate ? GROUPME_BOT_ID : targetBotId;
+    const forwardGroupId = approvalGate ? SALES_TEAM_GROUP_ID : targetGroupId;
     for (const f of features) {
         const p = f.properties;
         if (!p || !p.id || !p.event)
@@ -143,13 +148,32 @@ export async function runLiveNwsWarningCheck(pool, opts = {}) {
             console.warn('[LiveNwsAlert] no target bot id configured; would have posted:', text.slice(0, 80));
             continue;
         }
-        const posted = await postToGroupMe(targetBotId, text);
+        let textToPost = text;
+        if (approvalGate) {
+            try {
+                const { createPendingAlert } = await import('./pendingAlertsService.js');
+                const created = await createPendingAlert(pool, {
+                    source: 'nws',
+                    targetGroupId: forwardGroupId,
+                    targetBotId: forwardBotId,
+                    messageText: text,
+                    metadata: { event: p.event, alertId: p.id, areaDesc: p.areaDesc, expires: p.expires },
+                });
+                textToPost = created.proposalText;
+                console.log(`[LiveNwsAlert] approval-gate pending=${created.alertId} for ${p.event}`);
+            }
+            catch (e) {
+                console.error('[LiveNwsAlert] approval-gate persist failed:', e.message);
+            }
+        }
+        const posted = await postToGroupMe(targetBotId, textToPost);
         if (posted) {
             await pool.query(`INSERT INTO bot_nws_alerts_sent (alert_id, event, area_desc, expires_at, group_id)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (alert_id) DO NOTHING`, [p.id, p.event, p.areaDesc || null, p.expires ? new Date(p.expires) : null, targetGroupId]);
             newPosted++;
-            console.log(`[LiveNwsAlert] posted ${p.event} (${p.id.slice(-12)}) to ${testMode ? 'test-group' : 'sales-team'}`);
+            const targetLabel = approvalGate ? 'approval-gate' : (testMode ? 'test-group' : 'sales-team');
+            console.log(`[LiveNwsAlert] posted ${p.event} (${p.id.slice(-12)}) to ${targetLabel}`);
         }
     }
     return {
