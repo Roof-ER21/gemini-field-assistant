@@ -3769,23 +3769,37 @@ router.get('/storm-days', async (req, res) => {
         const distinctDates = Array.from(new Set(limited.map((r) => r.date)));
         const bboxByDate = new Map();
         if (distinctDates.length > 0) {
-            // mrms_swath_cache contains one row per (date, query_bbox). Multiple
-            // user queries from different locations produce different rows with
-            // overlapping but non-identical bboxes. Naively unioning all rows
-            // returns a continent-sized box. Instead pick the bbox of the row
-            // with the most hail_cells per date — that's the row that actually
-            // captured the storm's footprint, not just an empty query window.
-            // Falls back to MAX(hail_cells)=0 rows only if no real storm was
-            // computed (date with cache entries but zero hail anywhere).
-            const { rows: bboxRows } = await pool.query(`SELECT DISTINCT ON (storm_date)
+            // mrms_swath_cache contains one row per (date, query_bbox). Each
+            // row's bbox is the QUERY window that was used, not the polygon
+            // extent. To return a useful "where the storm hit" bbox, prefer
+            // rows with hail (hail_cells>0) and pick the SMALLEST-area row
+            // — that's the most narrowly-scoped query that still captured
+            // the storm. If only zero-hail rows exist for a date (cache from
+            // a quiet day), return the smallest of those as a last resort.
+            const { rows: bboxRows } = await pool.query(`WITH ranked AS (
+           SELECT
+             storm_date,
+             north::float  AS north,
+             south::float  AS south,
+             east::float   AS east,
+             west::float   AS west,
+             (north - south) * (east - west) AS area_sq_deg,
+             hail_cells,
+             ROW_NUMBER() OVER (
+               PARTITION BY storm_date
+               ORDER BY
+                 (hail_cells > 0) DESC,
+                 (north - south) * (east - west) ASC,
+                 hail_cells DESC
+             ) AS rk
+           FROM mrms_swath_cache
+           WHERE storm_date = ANY($1::date[])
+         )
+         SELECT
            TO_CHAR(storm_date, 'YYYY-MM-DD') AS date,
-           north::float  AS north,
-           south::float  AS south,
-           east::float   AS east,
-           west::float   AS west
-         FROM mrms_swath_cache
-         WHERE storm_date = ANY($1::date[])
-         ORDER BY storm_date, hail_cells DESC, feature_count DESC`, [distinctDates]);
+           north, south, east, west
+         FROM ranked
+         WHERE rk = 1`, [distinctDates]);
             for (const b of bboxRows) {
                 bboxByDate.set(b.date, { north: b.north, south: b.south, east: b.east, west: b.west });
             }
