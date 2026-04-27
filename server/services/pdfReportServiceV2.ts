@@ -644,7 +644,13 @@ export class PDFReportServiceV2 {
     const severeCount = selectedHailSizes.filter(s => s >= 1.5).length;
     const hailEvents = [
       ...selectedEvents.map(e => ({
-        date: e.date, size: e.hailSize, source: 'NEXRAD' as const,
+        // Preserve the original event's source field so the cap algorithm
+        // can detect cross-source consensus (e.g., NOAA + NWS + NEXRAD all
+        // agreeing on 1.5"). The verifiedEventsPdfAdapter emits comma-joined
+        // labels like "NOAA, NEXRAD"; previously this was hardcoded to
+        // 'NEXRAD' which collapsed source diversity into a single token.
+        // Fallback to 'NEXRAD' when the source field is missing.
+        date: e.date, size: e.hailSize, source: (e.source as string) || 'NEXRAD',
         distance: e.distanceMiles, location: '', comments: e.comments || '',
         direction: e.stormDirection || '', speed: e.stormSpeed, duration: e.duration
       })),
