@@ -110,14 +110,23 @@ async function main() {
       endDate: now.toISOString(),
     }).catch((e) => { console.log(`    alerts failed: ${e.message}`); return []; });
 
-    // Build per-date consilience reports for direct-hit dates first
-    // (sub-mile federal ground reports + MRMS swath), sorted earliest-first
-    const topDates = events
+    // Build per-date consilience reports — prefer direct-hit-class dates
+    // (sub-mile, ≥ 0.5") first, then fall back to nearest qualifying events.
+    // Sort ascending by date so earliest-known direct hit appears first
+    // (production /generate-report does the same via swathDirectHits).
+    const directHitClass = events
       .filter((e) => (e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 1)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((e) => e.date)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
-      .slice(0, 3);
+      .filter((v, i, arr) => arr.indexOf(v) === i);
+    const fallback = directHitClass.length === 0
+      ? events
+          .filter((e) => (e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 5)
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map((e) => e.date)
+          .filter((v, i, arr) => arr.indexOf(v) === i)
+      : [];
+    const topDates = [...directHitClass, ...fallback].slice(0, 3);
     console.log(`  Building consilience reports for: ${topDates.join(', ') || '(no dates ≥ 0.5")'}…`);
     const consilienceReports: ConsilienceReport[] = (
       await Promise.all(
