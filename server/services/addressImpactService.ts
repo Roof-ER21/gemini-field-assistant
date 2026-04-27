@@ -392,17 +392,52 @@ async function _impactInner(
       if (nearest === null || nearest === undefined) {
         continue; // no point reports either; skip entirely
       }
+
+      // Ground-truth upgrade path — covers the "MRMS swath polygon misses
+      // the property by feet but federal ground reports show 1"+ hail next
+      // door" case (e.g. 4/1/2026 Manassas, where NCEI SWDI logged three
+      // 1.0–1.25" hits within 0.4–0.7 mi of 8482 Stonewall Rd but the swath
+      // polygon was a hair offset). Polygon-only DIRECT HIT misses these.
+      //
+      // Upgrade rules (require ground-quality source — NCEI/IEM/SPC):
+      //   A) Any ground report ≤ 1.0 mi with hail ≥ 0.5"  → DIRECT HIT
+      //   B) Any ground report ≤ 0.5 mi with hail ≥ 0.25" → DIRECT HIT
+      const sources = Array.isArray(c.sources) ? c.sources : [];
+      const hasGroundSource = sources.some((s) =>
+        s === 'noaa_ncei' || s === 'ncei_swdi' || s === 'iem_lsr' ||
+        s === 'spc_wcm' || s === 'cocorahs',
+      );
+      const nearestMi = Number(nearest);
+      const groundUpgradeQualifies = hasGroundSource && maxHail !== null && (
+        (nearestMi <= 1.0 && maxHail >= 0.5) ||
+        (nearestMi <= 0.5 && maxHail >= 0.25)
+      );
+
+      if (groundUpgradeQualifies) {
+        const conf = await countConfirmingReports(pool, lat, lng, dateIso);
+        const srcSet = new Set<string>([...sources, ...conf.sources]);
+        directHits.push({
+          date: dateIso,
+          maxHailInches: maxHail,
+          confirmingReportCount: conf.count,
+          noaaConfirmed: conf.noaaConfirmed || !!c.noaa_confirmed,
+          sources: [...srcSet].sort(),
+          state: c.state ?? null,
+        });
+        continue;
+      }
+
       const fallbackTier: AddressImpactTier = {
         date: dateIso,
         maxHailInches: maxHail,
-        nearestMiles: Number(nearest),
+        nearestMiles: nearestMi,
         confirmingReportCount: Number(c.point_reports_within_15mi || 0),
         noaaConfirmed: !!c.noaa_confirmed,
-        sources: Array.isArray(c.sources) ? c.sources : [],
+        sources,
         state: c.state ?? null,
       };
-      if (nearest <= 3) nearMiss.push(fallbackTier);
-      else if (nearest <= 15) areaImpact.push(fallbackTier);
+      if (nearestMi <= 3) nearMiss.push(fallbackTier);
+      else if (nearestMi <= 15) areaImpact.push(fallbackTier);
     }
 
     // Explicit GC nudge every 40 candidates — each iteration deserialized
