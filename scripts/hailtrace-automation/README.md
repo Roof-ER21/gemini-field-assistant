@@ -1,13 +1,44 @@
 # HailTrace Automation
 
-Automation scripts to extract storm data from your HailTrace subscription.
+Extracts storm data from the HailTrace GraphQL API and imports it into the
+Susan21 `hailtrace_events` table so the `/hail/hailtrace-validation` endpoint
+and `HailtraceValidationLayer` map overlay have real points to render against
+MRMS swaths.
+
+## End-to-end flow (v2, 2026-04-24)
+
+```bash
+# 1) Export credentials
+export HAILTRACE_EMAIL='you@example.com'
+export HAILTRACE_PASSWORD='...'
+
+# 2) Pull events + weatherReports (per-point geometry) to JSON
+node hailtrace-api.js --start 2024-01-01 --end 2026-04-24 --types HAIL --limit 500
+
+# 3) Inspect before writing (no DB changes)
+node import-to-db.mjs hailtrace-exports/<generated>.json --dry-run
+
+# 4) Insert/upsert into hailtrace_events (idempotent — event_id is the PK)
+railway run node import-to-db.mjs hailtrace-exports/<generated>.json
+```
+
+### Why v2
+
+v1 of `hailtrace-api.js` queried only `FilterWeatherEvents` — which returns
+per-event max sizes but **no coordinates**. Every row it ever imported had
+`latitude=null, longitude=null`, so the validation map rendered zero pins.
+
+v2 batches `GetWeatherEventsByDates` after the listing step to harvest
+`weatherReports[]` with GeoJSON `geometry.coordinates` (lng, lat). The output
+JSON flattens each report into one row of the existing `hailtrace_events`
+schema (per-point, not per-event) so no DB migration is required.
 
 ## Two Approaches
 
 | Approach | Reliability | Speed | Use Case |
 |----------|-------------|-------|----------|
-| **API Client** (Recommended) | High | Fast | Bulk data extraction, scheduled jobs |
-| Browser Scraper | Medium | Slow | PDF downloads, UI-specific features |
+| **API Client** (`hailtrace-api.js` v2) | High | Fast | Bulk data extraction → DB import |
+| Browser Scraper (`hailtrace-scraper.js`) | Medium | Slow | PDF downloads, UI-specific features |
 
 ---
 
@@ -22,7 +53,7 @@ Direct GraphQL API access - faster and more reliable than browser automation.
 export HAILTRACE_EMAIL="your-email@example.com"
 export HAILTRACE_PASSWORD="your-password"
 
-# Run
+# Run — default pulls 1y of ALL weather types, up to 500 events
 node hailtrace-api.js
 ```
 

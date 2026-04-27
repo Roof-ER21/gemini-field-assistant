@@ -57,6 +57,13 @@ export interface StormDate {
   closestHailMiles?: number | null;
   /** Closest wind observation — kept for future wind-specific UI. */
   closestWindMiles?: number | null;
+  /**
+   * Where the storm actually hit (full MRMS swath extent for this date).
+   * Used by the map's polygon-fetch fallback when no events near the
+   * search address match the date — keeps the swath visible at its real
+   * location even when the storm was hundreds of miles away.
+   */
+  stormBbox?: { north: number; south: number; east: number; west: number } | null;
 }
 
 export interface GpsPosition {
@@ -462,6 +469,12 @@ export interface StormDayAggregate {
   report_count: number;
   sources: string[];
   has_direct_hit: boolean;
+  /**
+   * Actual MRMS swath extent for this date (union across all cached sub-bboxes).
+   * Null if no swath was ever computed. The map uses this to render the polygon
+   * at its real location, regardless of where the user is searching from.
+   */
+  storm_bbox: { north: number; south: number; east: number; west: number } | null;
 }
 
 export interface StormDaysResponse {
@@ -682,6 +695,9 @@ export function mergeDateLists(eventDates: StormDate[], swathDates: StormDate[])
       if (norm.closestMiles != null) {
         ex.closestMiles = ex.closestMiles != null ? Math.min(ex.closestMiles, norm.closestMiles) : norm.closestMiles;
       }
+      // Preserve the storm bbox — first one wins (server returns the same
+      // union-extent for every row of a given date, so first-seen is fine).
+      if (norm.stormBbox && !ex.stormBbox) ex.stormBbox = norm.stormBbox;
     } else { map.set(dk, norm); }
   }
   return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));

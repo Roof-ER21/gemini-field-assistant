@@ -2651,6 +2651,149 @@ router.get('/hailtrace-validation', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/hail/storm-date-matrix
+// For each storm date in a state set + date window, returns which data sources
+// confirm it: IHM (scraped mirror), HailTrace (imported), SA21 (MRMS + NCEI +
+// NEXRAD + CoCoRaHS + rep reports). Powers the rep-facing "every date they
+// cite, we have + N dates only we have" talking point.
+//
+// Query params:
+//   states=VA,MD,PA,DE,NJ,DC   (default this set)
+//   start=YYYY-MM-DD           (default: 13 months ago)
+//   end=YYYY-MM-DD             (default: today)
+//   minHail=0.5                (default 0.5")
+//   minWind=50                 (default 50 mph)
+//
+// Response: { totals: {...}, rows: [{date, ihm, ht, sa21, ...flags, hail, wind, verdict}] }
+router.get('/storm-date-matrix', async (req: Request, res: Response) => {
+  try {
+    const pool = req.app.get('pool');
+    const DEFAULT_STATES = ['VA', 'MD', 'PA', 'DE', 'NJ', 'DC'];
+    const states = (req.query.states ? String(req.query.states).split(',') : DEFAULT_STATES)
+      .map(s => s.trim().toUpperCase())
+      .filter(Boolean);
+
+    const end = req.query.end ? String(req.query.end) : new Date().toISOString().slice(0, 10);
+    const start = req.query.start
+      ? String(req.query.start)
+      : new Date(new Date(end).getTime() - 400 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const minHail = Number(req.query.minHail ?? 0.5);
+    const minWind = Number(req.query.minWind ?? 50);
+
+    // DMV+PA+DE+NJ combined bbox for HT lat/lng filtering (HT rows have no state col)
+    const bbox = { latMin: 36.5, latMax: 42.5, lngMin: -80.5, lngMax: -73.9 };
+
+    const sql = `
+      WITH ihm_dates AS (
+        SELECT DISTINCT (d->>'date')::date AS event_date,
+               MAX((d->>'max_hail_inches')::numeric) AS max_hail,
+               MAX((d->>'wind_mph_max')::int) AS max_wind
+          FROM ihm_city_mirror m, jsonb_array_elements(m.unique_dates) d
+         WHERE m.state = ANY($1::text[])
+           AND (d->>'date')::date BETWEEN $2 AND $3
+           AND ( (d->>'max_hail_inches')::numeric >= $4
+              OR (d->>'wind_mph_max')::int       >= $5
+              OR (d->>'has_radar')::boolean
+              OR (d->>'has_spotter')::boolean )
+         GROUP BY (d->>'date')::date
+      ),
+      ht_dates AS (
+        SELECT event_date::date AS event_date,
+               MAX(hail_size)::numeric AS max_hail,
+               MAX(wind_speed) AS max_wind
+          FROM hailtrace_events
+         WHERE deleted_at IS NULL
+           AND event_date BETWEEN $2 AND $3
+           AND latitude  BETWEEN $6 AND $7
+           AND longitude BETWEEN $8 AND $9
+           AND (hail_size >= $4 OR wind_speed >= $5)
+         GROUP BY event_date::date
+      ),
+      sa21_dates AS (
+        SELECT event_date::date AS event_date,
+               BOOL_OR(source_mrms)     AS has_mrms,
+               BOOL_OR(source_ncei_swdi) AS has_ncei,
+               BOOL_OR(source_nexrad_l2) AS has_nexrad,
+               BOOL_OR(source_cocorahs) AS has_cocorahs,
+               BOOL_OR(source_rep_report OR source_customer_report OR source_groupme) AS has_rep,
+               BOOL_OR(source_nws_alert) AS has_nws,
+               BOOL_OR(source_ihm) AS has_ihm_mirror,
+               MAX(hail_size_inches)::numeric AS max_hail,
+               MAX(wind_mph)::int AS max_wind
+          FROM verified_hail_events
+         WHERE state = ANY($1::text[])
+           AND event_date BETWEEN $2 AND $3
+           AND (hail_size_inches >= $4 OR wind_mph >= $5)
+         GROUP BY event_date::date
+      )
+      SELECT COALESCE(s21.event_date, ihm.event_date, ht.event_date) AS date,
+             (ihm.event_date IS NOT NULL) AS ihm,
+             (ht.event_date  IS NOT NULL) AS hailtrace,
+             (s21.event_date IS NOT NULL) AS sa21,
+             COALESCE(s21.has_mrms, false)       AS sa21_mrms,
+             COALESCE(s21.has_ncei, false)       AS sa21_ncei_swdi,
+             COALESCE(s21.has_nexrad, false)     AS sa21_nexrad_l2,
+             COALESCE(s21.has_cocorahs, false)   AS sa21_cocorahs,
+             COALESCE(s21.has_rep, false)        AS sa21_rep_report,
+             COALESCE(s21.has_nws, false)        AS sa21_nws_alert,
+             COALESCE(s21.has_ihm_mirror, false) AS sa21_ihm_mirror,
+             GREATEST(s21.max_hail, ihm.max_hail, ht.max_hail) AS max_hail_inches,
+             GREATEST(s21.max_wind, ihm.max_wind, ht.max_wind) AS max_wind_mph
+        FROM sa21_dates s21
+             FULL OUTER JOIN ihm_dates ihm ON ihm.event_date = s21.event_date
+             FULL OUTER JOIN ht_dates  ht  ON ht.event_date  = COALESCE(s21.event_date, ihm.event_date)
+       ORDER BY COALESCE(s21.event_date, ihm.event_date, ht.event_date) DESC
+    `;
+    const { rows } = await pool.query(sql, [
+      states, start, end, minHail, minWind,
+      bbox.latMin, bbox.latMax, bbox.lngMin, bbox.lngMax,
+    ]);
+
+    let totalAll3 = 0, totalHtSa = 0, totalIhmSa = 0, totalSaOnly = 0, totalOther = 0;
+    const out = rows.map(r => {
+      const ihm = !!r.ihm, ht = !!r.hailtrace, sa = !!r.sa21;
+      let verdict: string;
+      if (ihm && ht && sa) { verdict = 'ALL_THREE'; totalAll3++; }
+      else if (sa && ht && !ihm) { verdict = 'HT_SA21'; totalHtSa++; }
+      else if (sa && ihm && !ht) { verdict = 'IHM_SA21'; totalIhmSa++; }
+      else if (sa && !ihm && !ht) { verdict = 'SA21_ONLY'; totalSaOnly++; }
+      else if (ihm && ht && !sa) { verdict = 'IHM_HT_NO_SA21_GAP'; totalOther++; }
+      else if (ihm && !sa && !ht) { verdict = 'IHM_ONLY'; totalOther++; }
+      else if (ht && !sa && !ihm) { verdict = 'HT_ONLY'; totalOther++; }
+      else { verdict = 'UNKNOWN'; totalOther++; }
+      return {
+        date: r.date,
+        ihm, hailtrace: ht, sa21: sa,
+        sources: {
+          mrms: r.sa21_mrms, ncei_swdi: r.sa21_ncei_swdi, nexrad_l2: r.sa21_nexrad_l2,
+          cocorahs: r.sa21_cocorahs, rep_report: r.sa21_rep_report,
+          nws_alert: r.sa21_nws_alert, ihm_mirror: r.sa21_ihm_mirror,
+        },
+        maxHailInches: r.max_hail_inches !== null ? Number(r.max_hail_inches) : null,
+        maxWindMph: r.max_wind_mph !== null ? Number(r.max_wind_mph) : null,
+        verdict,
+      };
+    });
+
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({
+      params: { states, start, end, minHail, minWind },
+      totals: {
+        dates: out.length,
+        all_three: totalAll3,
+        ht_sa21: totalHtSa,
+        ihm_sa21: totalIhmSa,
+        sa21_only: totalSaOnly,
+        competitor_only_gaps: totalOther,
+      },
+      rows: out,
+    });
+  } catch (error) {
+    console.error('storm-date-matrix error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // POST /api/hail/admin/backfill-swaths
 // Trigger a single swath-cache backfill run on-demand. Body: { maxPerRun?, monthsBack?, dryRun? }.
 // Use this to churn through the 300+ missing DMV storm days faster than the
@@ -3971,7 +4114,35 @@ router.get('/storm-days', async (req: Request, res: Response) => {
     });
 
     const truncated = filtered.length > HARD_CAP;
-    const output = (truncated ? filtered.slice(0, HARD_CAP) : filtered).map((r: any) => ({
+    const limited = truncated ? filtered.slice(0, HARD_CAP) : filtered;
+
+    // Batch-query mrms_swath_cache for the actual storm bbox per date. Reps
+    // need to see where the storm hit on the map even when the storm was far
+    // from their search address — without this, clicking a date that's in the
+    // list but happened in (say) WV would render an empty polygon for the
+    // user's local bbox. The map uses storm_bbox as the polygon-fetch bbox
+    // instead of falling back to a 28mi box around the search anchor.
+    const distinctDates = Array.from(new Set(limited.map((r: any) => r.date)));
+    const bboxByDate = new Map<string, { north: number; south: number; east: number; west: number }>();
+    if (distinctDates.length > 0) {
+      const { rows: bboxRows } = await pool.query(
+        `SELECT
+           TO_CHAR(storm_date, 'YYYY-MM-DD') AS date,
+           MAX(north)::float AS north,
+           MIN(south)::float AS south,
+           MAX(east)::float  AS east,
+           MIN(west)::float  AS west
+         FROM mrms_swath_cache
+         WHERE storm_date = ANY($1::date[])
+         GROUP BY storm_date`,
+        [distinctDates],
+      );
+      for (const b of bboxRows) {
+        bboxByDate.set(b.date, { north: b.north, south: b.south, east: b.east, west: b.west });
+      }
+    }
+
+    const output = limited.map((r: any) => ({
       date: r.date,
       state: r.state,
       max_hail: r.max_hail != null ? Number(r.max_hail) : null,
@@ -3982,6 +4153,10 @@ router.get('/storm-days', async (req: Request, res: Response) => {
       // A future patch will batch-query mrms_swath_cache for the returned dates
       // and set this flag per day before responding.
       has_direct_hit: false,
+      // Actual MRMS swath extent for this date (union across all cached
+      // sub-bboxes). Null if no swath was ever computed. Client uses this
+      // to render the polygon at its real location.
+      storm_bbox: bboxByDate.get(r.date) ?? null,
     }));
 
     return res.json({ storm_days: output, count: output.length, truncated });

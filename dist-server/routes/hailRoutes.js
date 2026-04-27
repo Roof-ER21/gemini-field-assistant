@@ -3759,7 +3759,30 @@ router.get('/storm-days', async (req, res) => {
             return haversineMiles(lat, lng, bucketLat, bucketLng) <= radiusMiles;
         });
         const truncated = filtered.length > HARD_CAP;
-        const output = (truncated ? filtered.slice(0, HARD_CAP) : filtered).map((r) => ({
+        const limited = truncated ? filtered.slice(0, HARD_CAP) : filtered;
+        // Batch-query mrms_swath_cache for the actual storm bbox per date. Reps
+        // need to see where the storm hit on the map even when the storm was far
+        // from their search address — without this, clicking a date that's in the
+        // list but happened in (say) WV would render an empty polygon for the
+        // user's local bbox. The map uses storm_bbox as the polygon-fetch bbox
+        // instead of falling back to a 28mi box around the search anchor.
+        const distinctDates = Array.from(new Set(limited.map((r) => r.date)));
+        const bboxByDate = new Map();
+        if (distinctDates.length > 0) {
+            const { rows: bboxRows } = await pool.query(`SELECT
+           TO_CHAR(storm_date, 'YYYY-MM-DD') AS date,
+           MAX(north)::float AS north,
+           MIN(south)::float AS south,
+           MAX(east)::float  AS east,
+           MIN(west)::float  AS west
+         FROM mrms_swath_cache
+         WHERE storm_date = ANY($1::date[])
+         GROUP BY storm_date`, [distinctDates]);
+            for (const b of bboxRows) {
+                bboxByDate.set(b.date, { north: b.north, south: b.south, east: b.east, west: b.west });
+            }
+        }
+        const output = limited.map((r) => ({
             date: r.date,
             state: r.state,
             max_hail: r.max_hail != null ? Number(r.max_hail) : null,
@@ -3770,6 +3793,10 @@ router.get('/storm-days', async (req, res) => {
             // A future patch will batch-query mrms_swath_cache for the returned dates
             // and set this flag per day before responding.
             has_direct_hit: false,
+            // Actual MRMS swath extent for this date (union across all cached
+            // sub-bboxes). Null if no swath was ever computed. Client uses this
+            // to render the polygon at its real location.
+            storm_bbox: bboxByDate.get(r.date) ?? null,
         }));
         return res.json({ storm_days: output, count: output.length, truncated });
     }

@@ -803,14 +803,27 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
       bounds = extendBounds(bounds, event.beginLat, event.beginLon);
     }
 
-    // Fallback: if we have a selectedDate but ZERO events for it in the
-    // currently-loaded window (because /search is capped at 5000 and the
-    // date came from the storm-days MV aggregate), we'd have no bounds
-    // and the swath layer would never fetch. Use a ~25mi box around the
-    // searched address (or map center) so the swath query has SOMETHING
-    // to query against. The backend trims to the actual storm footprint.
+    // Preferred fallback: use the actual storm bbox returned by the
+    // /storm-days endpoint (union of all cached MRMS swath extents for that
+    // date). This makes the swath polygon render at its true location even
+    // when the storm hit hundreds of miles from the search address — reps
+    // can click any date in the list and see where it actually hit.
+    if (!bounds && selectedDate.stormBbox) {
+      const b = selectedDate.stormBbox;
+      if (
+        Number.isFinite(b.north) && Number.isFinite(b.south) &&
+        Number.isFinite(b.east) && Number.isFinite(b.west)
+      ) {
+        bounds = { north: b.north, south: b.south, east: b.east, west: b.west };
+      }
+    }
+
+    // Last-resort fallback: if no events AND no storm bbox (date predates
+    // mrms_swath_cache coverage, or external NHP-only date), use a ~28mi
+    // box around the searched address so the polygon endpoint at least has
+    // somewhere to look. Keeps prior behavior for legacy dates.
     if (!bounds && Number.isFinite(searchLat) && Number.isFinite(searchLng)) {
-      const deg = 0.4; // ~28 mi lat; lng narrows naturally at this latitude
+      const deg = 0.4;
       bounds = {
         north: searchLat + deg,
         south: searchLat - deg,
@@ -826,6 +839,39 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
     () => getBoundsCenter(selectedStormBounds, mapCenter),
     [mapCenter, selectedStormBounds],
   );
+
+  // When a storm date is selected and its actual extent is far from the
+  // user's search anchor (>50mi center-to-center), pan/fit the map to the
+  // storm's location so reps can see where it hit. Without this, clicking
+  // a date for a storm that happened in WV/PA would silently render the
+  // swath polygon offscreen relative to a DMV-anchored map view.
+  const lastFitBoundsDateRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedDate || !selectedDate.stormBbox || !selectedStormBounds) {
+      lastFitBoundsDateRef.current = null;
+      return;
+    }
+    if (lastFitBoundsDateRef.current === selectedDate.date) return;
+
+    const stormCenterLat = (selectedDate.stormBbox.north + selectedDate.stormBbox.south) / 2;
+    const stormCenterLng = (selectedDate.stormBbox.east + selectedDate.stormBbox.west) / 2;
+    const anchorLat = Number.isFinite(searchLat) ? searchLat : mapCenter[0];
+    const anchorLng = Number.isFinite(searchLng) ? searchLng : mapCenter[1];
+
+    // Cheap distance check (degrees, no haversine needed for trigger threshold).
+    const dLat = stormCenterLat - anchorLat;
+    const dLng = stormCenterLng - anchorLng;
+    const approxMiles = Math.sqrt(dLat * dLat * 69 * 69 + dLng * dLng * 54 * 54);
+
+    if (approxMiles > 50) {
+      setFitBoundsRequest({
+        id: Date.now(),
+        bounds: selectedStormBounds,
+        maxZoom: 9,
+      });
+      lastFitBoundsDateRef.current = selectedDate.date;
+    }
+  }, [selectedDate, selectedStormBounds, searchLat, searchLng, mapCenter]);
 
   const showHistoricalHailOverlay = Boolean(swathVisible && selectedDate && selectedStormBounds);
   // When vector swath polygons are available, hide the blurry raster overlay beneath them.
@@ -921,14 +967,23 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
       // state/bucket rows that share a date).
       const aggregateDates: StormDate[] = (() => {
         if (stormDayAggregate.status !== 'fulfilled' || !stormDayAggregate.value) return [];
-        const byDate = new Map<string, { maxHail: number; maxWind: number; count: number; states: Set<string> }>();
+        const byDate = new Map<string, {
+          maxHail: number;
+          maxWind: number;
+          count: number;
+          states: Set<string>;
+          stormBbox: { north: number; south: number; east: number; west: number } | null;
+        }>();
         for (const d of stormDayAggregate.value.storm_days) {
           if (!isDateInRange(d.date, effectiveSinceDate)) continue;
-          const agg = byDate.get(d.date) || { maxHail: 0, maxWind: 0, count: 0, states: new Set<string>() };
+          const agg = byDate.get(d.date) || { maxHail: 0, maxWind: 0, count: 0, states: new Set<string>(), stormBbox: null };
           agg.maxHail = Math.max(agg.maxHail, Number(d.max_hail) || 0);
           agg.maxWind = Math.max(agg.maxWind, Number(d.max_wind) || 0);
           agg.count += Number(d.report_count) || 0;
           if (d.state) agg.states.add(d.state);
+          // Server returns a single bbox per date (union across cached sub-bboxes),
+          // so the same value comes through every row. First non-null wins.
+          if (d.storm_bbox && !agg.stormBbox) agg.stormBbox = d.storm_bbox;
           byDate.set(d.date, agg);
         }
         return Array.from(byDate.entries()).map(([date, agg]): StormDate => ({
@@ -944,6 +999,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           closestMiles: null,
           closestHailMiles: null,
           closestWindMiles: null,
+          stormBbox: agg.stormBbox,
         }));
       })();
 

@@ -46,3 +46,7 @@ android/
 
 # IHM Wayback crawl artifacts (generated; can be rebuilt)
 scripts/ihm-wayback/data/
+
+# HailTrace API export dumps (generated; 100s of MB; never commit)
+scripts/hailtrace-automation/hailtrace-exports/
+scripts/hailtrace-automation/*.bak.*

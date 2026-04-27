@@ -58,20 +58,58 @@
 <div class="page">
 
 <header>
-  <h1>Roof-ER Storm Intelligence <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> IHM <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> HailTrace</h1>
-  <div class="sub">What we pull from · where it comes from · where they can't match us</div>
+  <h1>Roof-ER Storm Intelligence <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> IHM / HailRecon <span style="color:var(--mute);font-weight:400;font-size:15px;">&nbsp;vs.&nbsp;</span> HailTrace</h1>
+  <div class="sub">What we pull from · where it comes from · where they can't match us · VA · MD · PA · DE · NJ · DC</div>
 </header>
 
 <div class="stats">
-  <div class="stat"><div class="n">9</div><div class="lbl">Federal &amp; Scientific Sources</div></div>
+  <div class="stat"><div class="n">11</div><div class="lbl">Federal &amp; Scientific Sources</div></div>
   <div class="stat"><div class="n">4</div><div class="lbl">Live / Minute-Fresh Feeds</div></div>
-  <div class="stat"><div class="n">15,156</div><div class="lbl">Severe Hail Dates (VA/MD/DC/PA)</div></div>
-  <div class="stat"><div class="n">145/145</div><div class="lbl">Cities We Beat IHM</div></div>
+  <div class="stat"><div class="n">345</div><div class="lbl">Storm Dates, VA/MD/PA/DE/NJ (past year)</div></div>
+  <div class="stat"><div class="n">282</div><div class="lbl">Dates ONLY in SA21 (neither competitor has)</div></div>
 </div>
 
 <div class="callout">
-  <b>The short version:</b> We pull from 9 independent federal/scientific pipelines. IHM and HailTrace repackage a narrower slice of the same federal data — we ingest the source directly <i>and</i> add four sources neither of them touches. Every date they cite, we have. Thousands of dates they don't.
+  <b>The short version:</b> HailRecon.com simply redirects to InteractiveHailMaps.com — they're the same company. We pull from 11 independent federal/scientific pipelines, including HailTrace's own data (imported via their API, cross-verified against our MRMS). For VA/MD/PA/DE/NJ over the past year: <b>345 storm dates total. Every date IHM or HailTrace cites is in our system. 282 more dates only we have. Zero dates the competitors have that we miss.</b>
 </div>
+
+<h2>Storm-Date Coverage — Past 12 Months (VA/MD/PA/DE/NJ/DC)</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:40%">What the dataset covers</th>
+      <th class="center" style="width:20%">Dates</th>
+      <th style="width:40%">What this means for reps</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="src">In SA21 only (★)</td>
+      <td class="center"><b style="color:var(--ok);font-size:14px;">282</b> of 345</td>
+      <td>Dates confirmed by our MRMS radar, NOAA, NEXRAD L2, CoCoRaHS — that neither IHM nor HailTrace have any record of.</td>
+    </tr>
+    <tr>
+      <td class="src">In SA21 + HailTrace</td>
+      <td class="center"><b>32</b> of 345</td>
+      <td>Cross-verified between our pipeline and HailTrace's meteorologist team. Strongest adjuster ammo.</td>
+    </tr>
+    <tr>
+      <td class="src">In SA21 + IHM</td>
+      <td class="center"><b>6</b> of 345</td>
+      <td>We match what IHM shows, without the $999-$1,999/yr subscription.</td>
+    </tr>
+    <tr>
+      <td class="src">In SA21 + IHM + HailTrace (all 3)</td>
+      <td class="center"><b>25</b> of 345</td>
+      <td>Triple-verified. Reports built on these dates are unassailable.</td>
+    </tr>
+    <tr>
+      <td class="src">In IHM or HailTrace <i>without</i> SA21</td>
+      <td class="center"><b style="color:var(--miss);font-size:14px;">0</b> of 345</td>
+      <td>Zero dates where a competitor has data we lack. Every storm they cite, we have.</td>
+    </tr>
+  </tbody>
+</table>
 
 <h2>Data Sources — Side by Side</h2>
 <table>
@@ -173,6 +211,14 @@
       <td class="center nope">—</td>
       <td class="center nope">—</td>
       <td>Daily catch-up</td>
+    </tr>
+    <tr>
+      <td class="src">HailTrace GraphQL Import</td>
+      <td>Direct ingest of HailTrace's meteorologist-reviewed events — their own data, in our DB. <i>app-graphql.hailtrace.com</i></td>
+      <td class="center yes">✔</td>
+      <td class="center nope">—</td>
+      <td class="center yes">✔ (native)</td>
+      <td>On-demand scrape</td>
     </tr>
   </tbody>
 </table>
