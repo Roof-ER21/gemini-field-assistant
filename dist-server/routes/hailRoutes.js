@@ -1612,6 +1612,46 @@ router.post('/generate-report', async (req, res) => {
         catch (e) {
             console.warn('[generate-report] swath-first impact check failed (PDF will fall back to distance-only labels):', e.message);
         }
+        // Build per-date multi-source consilience reports (Independent Multi-Source
+        // Corroboration block in PDF). Capped at the 6 most recent direct hits or
+        // top-rated storm dates to keep PDF size manageable. Failures are silent
+        // — the PDF section is auto-omitted if the array is empty.
+        let consilienceReports = [];
+        try {
+            const { buildConsilience } = await import('../services/consilienceService.js');
+            const dateUniverse = [];
+            // Prefer direct hits (highest-credibility dates)
+            for (const dh of swathDirectHits) {
+                if (!dateUniverse.includes(dh.date))
+                    dateUniverse.push(dh.date);
+                if (dateUniverse.length >= 6)
+                    break;
+            }
+            // Fall back to top selected events when no direct hits are available
+            if (dateUniverse.length === 0) {
+                const sortedEvents = [...normalizedEvents]
+                    .filter((e) => e.date && (e.hailSize || 0) >= 0.5)
+                    .sort((a, b) => (b.hailSize || 0) - (a.hailSize || 0));
+                for (const e of sortedEvents) {
+                    if (!dateUniverse.includes(e.date))
+                        dateUniverse.push(e.date);
+                    if (dateUniverse.length >= 6)
+                        break;
+                }
+            }
+            const reports = await Promise.all(dateUniverse.map((date) => buildConsilience(req.app.get('pool'), {
+                lat: parsedLat,
+                lng: parsedLng,
+                dateIso: date,
+            }).catch((err) => {
+                console.warn(`[generate-report] consilience fetch failed for ${date}: ${err.message}`);
+                return null;
+            })));
+            consilienceReports = reports.filter((r) => r !== null);
+        }
+        catch (e) {
+            console.warn('[generate-report] consilience build failed (PDF will omit corroboration block):', e.message);
+        }
         // Generate PDF stream
         const pdfStream = pdfReportServiceV2.generateReport({
             address,
@@ -1649,7 +1689,8 @@ router.post('/generate-report', async (req, res) => {
                 medianYearBuilt: propertyRiskData.factors.medianYearBuilt,
                 roofVulnerability: propertyRiskData.factors.roofVulnerability,
                 riskMultiplier: propertyRiskData.riskMultiplier
-            } : undefined
+            } : undefined,
+            consilienceReports: consilienceReports.length > 0 ? consilienceReports : undefined,
         });
         // Set response headers for PDF download
         const filename = `Storm_Report_${address.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;

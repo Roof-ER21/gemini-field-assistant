@@ -159,6 +159,101 @@ export class PDFReportServiceV2 {
         }
         return false;
     }
+    /**
+     * "Independent Multi-Source Corroboration" — per-date sub-block listing
+     * which independent measurement modalities recorded the storm, with
+     * citation URLs the adjuster can verify themselves. Auto-curate: only
+     * sources that fired (present=true) are shown. Silence is omission, not
+     * "no data" placeholder.
+     */
+    drawConsilienceSection(doc, reports) {
+        if (!reports || reports.length === 0)
+            return;
+        // Order most-recent-first
+        const ordered = [...reports].sort((a, b) => b.dateIso.localeCompare(a.dateIso));
+        this.drawSectionBanner(doc, 'Independent Multi-Source Corroboration');
+        doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
+            .text('Each storm date below is corroborated against multiple independent measurement modalities — radar (MRMS / NEXRAD L2), forecaster judgment (NWS warnings), federal post-event databases (NCEI / IEM / SPC), citizen visual reports (mPING), and mechanical instrument readings (Synoptic / MADIS surface stations). Every claim is footnoted with a public source URL the reader can independently verify.', this.M, doc.y, { width: this.CW });
+        doc.moveDown(0.6);
+        const sourceOrder = [
+            { key: 'mrms', label: 'MRMS Radar', modality: 'Radar reflectivity (multi-radar composite)' },
+            { key: 'nexrad', label: 'NEXRAD L2', modality: 'Raw radar volume scan' },
+            { key: 'nws', label: 'NWS Warning', modality: 'Forecaster judgment / official warning' },
+            { key: 'ground', label: 'Federal Ground', modality: 'Post-event ground report (NCEI/IEM/SPC/CoCoRaHS)' },
+            { key: 'mping', label: 'mPING Citizen', modality: 'Visual citizen report (NOAA-affiliated)' },
+            { key: 'surface', label: 'Surface Stations', modality: 'Anemometer + tipping bucket (Synoptic / MADIS)' },
+        ];
+        for (const r of ordered) {
+            const dateLabel = (() => {
+                try {
+                    return new Date(`${r.dateIso}T12:00:00`).toLocaleDateString('en-US', {
+                        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                        timeZone: 'America/New_York',
+                    });
+                }
+                catch {
+                    return r.dateIso;
+                }
+            })();
+            // Sub-header per storm date with consilience score badge
+            this.checkPageBreak(doc, 80);
+            const subY = doc.y;
+            doc.rect(this.M - 4, subY, this.CW + 8, 22).fill('#f5f6fa');
+            doc.fontSize(11).fillColor(this.C.sectionText).font('Helvetica-Bold')
+                .text(dateLabel, this.M, subY + 5, { width: this.CW - 100 });
+            // Score badge: "5 of 6 sources agree"
+            const total = sourceOrder.length;
+            const score = r.consilienceScore;
+            const badge = `${score} of ${total} sources confirm`;
+            const badgeColor = score >= 4 ? this.C.sourceGreen : score >= 2 ? this.C.accent : this.C.lightText;
+            doc.fontSize(9).fillColor(badgeColor).font('Helvetica-Bold')
+                .text(badge, this.M + this.CW - 130, subY + 7, { width: 130, align: 'right' });
+            doc.y = subY + 24;
+            doc.moveDown(0.2);
+            // Per-source rows — only those with present=true
+            let renderedAny = false;
+            for (const s of sourceOrder) {
+                const finding = r[s.key];
+                if (!finding || !finding.present)
+                    continue;
+                renderedAny = true;
+                this.checkPageBreak(doc, 36);
+                const rowY = doc.y;
+                // Source label column (left, bold)
+                doc.fontSize(9).fillColor(this.C.sourceGreen).font('Helvetica-Bold')
+                    .text(`✓ ${s.label}`, this.M, rowY, { width: 110, continued: false });
+                // Headline column (middle)
+                const headline = finding.headline || s.modality;
+                doc.fontSize(9).fillColor(this.C.text).font('Helvetica')
+                    .text(headline, this.M + 115, rowY, { width: this.CW - 115 });
+                // Citation URL on the next line, smaller, link-styled
+                const urlY = doc.y + 1;
+                doc.fontSize(7).fillColor(this.C.link).font('Helvetica-Oblique')
+                    .text(`Source: ${this.truncateUrl(finding.sourceUrl)}`, this.M + 115, urlY, {
+                    width: this.CW - 115,
+                    link: finding.sourceUrl,
+                    underline: false,
+                });
+                doc.moveDown(0.3);
+            }
+            if (!renderedAny) {
+                doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica-Oblique')
+                    .text('No independent corroboration on this date.', this.M, doc.y, { width: this.CW });
+                doc.moveDown(0.4);
+            }
+            doc.moveDown(0.5);
+        }
+        // Reproducibility footer
+        this.checkPageBreak(doc, 30);
+        doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica-Oblique')
+            .text('All sources above are public federal/affiliated databases. URLs link to the same data Roof-ER queried — reproduce any line independently to verify.', this.M, doc.y, { width: this.CW, align: 'center' });
+        doc.moveDown(0.5);
+    }
+    truncateUrl(url, maxLen = 90) {
+        if (url.length <= maxLen)
+            return url;
+        return url.slice(0, maxLen - 1) + '…';
+    }
     getStateBuildingCodes(state) {
         const codes = {
             'VA': {
@@ -948,6 +1043,13 @@ export class PDFReportServiceV2 {
             doc.fontSize(9).fillColor(this.C.mutedText).font('Helvetica-Oblique')
                 .text('No hail observations found for the selected criteria.', this.M, doc.y);
             doc.moveDown(0.5);
+        }
+        // =========================================================
+        // INDEPENDENT MULTI-SOURCE CORROBORATION
+        // (auto-curate: silently omitted when no consilienceReports passed)
+        // =========================================================
+        if (input.consilienceReports && input.consilienceReports.length > 0) {
+            this.drawConsilienceSection(doc, input.consilienceReports);
         }
         // =========================================================
         // VERIFIED GROUND OBSERVATIONS - WIND

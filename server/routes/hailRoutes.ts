@@ -1793,6 +1793,46 @@ router.post('/generate-report', async (req: Request, res: Response) => {
       console.warn('[generate-report] swath-first impact check failed (PDF will fall back to distance-only labels):', (e as Error).message);
     }
 
+    // Build per-date multi-source consilience reports (Independent Multi-Source
+    // Corroboration block in PDF). Capped at the 6 most recent direct hits or
+    // top-rated storm dates to keep PDF size manageable. Failures are silent
+    // — the PDF section is auto-omitted if the array is empty.
+    let consilienceReports: any[] = [];
+    try {
+      const { buildConsilience } = await import('../services/consilienceService.js');
+      const dateUniverse: string[] = [];
+      // Prefer direct hits (highest-credibility dates)
+      for (const dh of swathDirectHits) {
+        if (!dateUniverse.includes(dh.date)) dateUniverse.push(dh.date);
+        if (dateUniverse.length >= 6) break;
+      }
+      // Fall back to top selected events when no direct hits are available
+      if (dateUniverse.length === 0) {
+        const sortedEvents = [...normalizedEvents]
+          .filter((e: any) => e.date && (e.hailSize || 0) >= 0.5)
+          .sort((a: any, b: any) => (b.hailSize || 0) - (a.hailSize || 0));
+        for (const e of sortedEvents) {
+          if (!dateUniverse.includes(e.date)) dateUniverse.push(e.date);
+          if (dateUniverse.length >= 6) break;
+        }
+      }
+      const reports = await Promise.all(
+        dateUniverse.map((date) =>
+          buildConsilience(req.app.get('pool'), {
+            lat: parsedLat,
+            lng: parsedLng,
+            dateIso: date,
+          }).catch((err) => {
+            console.warn(`[generate-report] consilience fetch failed for ${date}: ${(err as Error).message}`);
+            return null;
+          }),
+        ),
+      );
+      consilienceReports = reports.filter((r): r is NonNullable<typeof r> => r !== null);
+    } catch (e) {
+      console.warn('[generate-report] consilience build failed (PDF will omit corroboration block):', (e as Error).message);
+    }
+
     // Generate PDF stream
     const pdfStream = pdfReportServiceV2.generateReport({
       address,
@@ -1830,7 +1870,8 @@ router.post('/generate-report', async (req: Request, res: Response) => {
         medianYearBuilt: propertyRiskData.factors.medianYearBuilt,
         roofVulnerability: propertyRiskData.factors.roofVulnerability,
         riskMultiplier: propertyRiskData.riskMultiplier
-      } : undefined
+      } : undefined,
+      consilienceReports: consilienceReports.length > 0 ? consilienceReports : undefined,
     } as any);
 
     // Set response headers for PDF download

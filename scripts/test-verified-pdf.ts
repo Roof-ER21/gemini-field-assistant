@@ -15,6 +15,7 @@ import { PDFReportServiceV2 } from '../server/services/pdfReportServiceV2.js';
 import { fetchMapImage } from '../server/services/mapImageService.js';
 import { fetchNexradImage } from '../server/services/nexradService.js';
 import { fetchNWSAlerts } from '../server/services/nwsAlertService.js';
+import { buildConsilience, type ConsilienceReport } from '../server/services/consilienceService.js';
 
 const OUT_DIR = '/tmp/pdf-test';
 
@@ -109,6 +110,30 @@ async function main() {
       endDate: now.toISOString(),
     }).catch((e) => { console.log(`    alerts failed: ${e.message}`); return []; });
 
+    // Build per-date consilience reports for top 3 storm dates
+    const topDates = events
+      .filter((e) => (e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 10)
+      .sort((a, b) => (b.hailSize || 0) - (a.hailSize || 0))
+      .map((e) => e.date)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .slice(0, 3);
+    console.log(`  Building consilience reports for: ${topDates.join(', ') || '(no dates ≥ 0.5")'}…`);
+    const consilienceReports: ConsilienceReport[] = (
+      await Promise.all(
+        topDates.map((d) =>
+          buildConsilience(pool, { lat: target.lat, lng: target.lng, dateIso: d }).catch(
+            (e) => {
+              console.log(`    consilience fetch failed for ${d}: ${e.message}`);
+              return null;
+            },
+          ),
+        ),
+      )
+    ).filter((r): r is ConsilienceReport => r !== null);
+    for (const r of consilienceReports) {
+      console.log(`    ${r.dateIso}: ${r.consilienceScore}/6 sources (${r.sourcesAgreeing.join(',')})`);
+    }
+
     console.log(`  Generating PDF…${target.dateOfLoss ? ` [dateOfLoss=${target.dateOfLoss}]` : ''}`);
     const stream = pdfService.generateReport({
       address: target.address,
@@ -137,6 +162,7 @@ async function main() {
       includeMap: !!mapImage,
       includeNexrad: !!nexrad?.imageBuffer,
       includeWarnings: alerts.length > 0,
+      consilienceReports: consilienceReports.length > 0 ? consilienceReports : undefined,
     });
 
     const outPath = path.join(OUT_DIR, `${target.slug}-verified.pdf`);
