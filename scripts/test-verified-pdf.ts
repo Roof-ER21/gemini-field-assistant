@@ -110,10 +110,11 @@ async function main() {
       endDate: now.toISOString(),
     }).catch((e) => { console.log(`    alerts failed: ${e.message}`); return []; });
 
-    // Build per-date consilience reports for top 3 storm dates
+    // Build per-date consilience reports for direct-hit dates first
+    // (sub-mile federal ground reports + MRMS swath), sorted earliest-first
     const topDates = events
-      .filter((e) => (e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 10)
-      .sort((a, b) => (b.hailSize || 0) - (a.hailSize || 0))
+      .filter((e) => (e.hailSize || 0) >= 0.5 && (e.distanceMiles ?? 99) <= 1)
+      .sort((a, b) => a.date.localeCompare(b.date))
       .map((e) => e.date)
       .filter((v, i, arr) => arr.indexOf(v) === i)
       .slice(0, 3);

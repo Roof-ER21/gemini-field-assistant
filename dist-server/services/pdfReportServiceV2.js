@@ -169,8 +169,9 @@ export class PDFReportServiceV2 {
     drawConsilienceSection(doc, reports) {
         if (!reports || reports.length === 0)
             return;
-        // Order most-recent-first
-        const ordered = [...reports].sort((a, b) => b.dateIso.localeCompare(a.dateIso));
+        // Earliest first — establishes the longest possible damage timeline
+        // (rep can argue: "this property has had hail since [first date]").
+        const ordered = [...reports].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
         this.drawSectionBanner(doc, 'Independent Multi-Source Corroboration');
         doc.fontSize(8).fillColor(this.C.lightText).font('Helvetica-Oblique')
             .text('Each storm date below is corroborated against multiple independent measurement modalities — radar (MRMS / NEXRAD L2), forecaster judgment (NWS warnings), federal post-event databases (NCEI / IEM / SPC), citizen visual reports (mPING), and mechanical instrument readings (Synoptic / MADIS surface stations). Every claim is footnoted with a public source URL the reader can independently verify.', this.M, doc.y, { width: this.CW });

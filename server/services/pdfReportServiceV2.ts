@@ -304,8 +304,9 @@ export class PDFReportServiceV2 {
    */
   private drawConsilienceSection(doc: any, reports: ConsilienceReport[]): void {
     if (!reports || reports.length === 0) return;
-    // Order most-recent-first
-    const ordered = [...reports].sort((a, b) => b.dateIso.localeCompare(a.dateIso));
+    // Earliest first — establishes the longest possible damage timeline
+    // (rep can argue: "this property has had hail since [first date]").
+    const ordered = [...reports].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
 
     this.drawSectionBanner(doc, 'Independent Multi-Source Corroboration');
 

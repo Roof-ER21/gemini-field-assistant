@@ -1794,23 +1794,33 @@ router.post('/generate-report', async (req: Request, res: Response) => {
     }
 
     // Build per-date multi-source consilience reports (Independent Multi-Source
-    // Corroboration block in PDF). Capped at the 6 most recent direct hits or
-    // top-rated storm dates to keep PDF size manageable. Failures are silent
-    // — the PDF section is auto-omitted if the array is empty.
+    // Corroboration block in PDF). Priority order:
+    //   1. DIRECT HIT dates (property is inside MRMS swath polygon OR has
+    //      sub-mile federal ground reports — strongest claim category)
+    //   2. Sorted by event_date ASC (earliest direct hit first — establishes
+    //      the longest possible damage timeline for the rep's claim)
+    // Capped at 6 dates so the PDF doesn't bloat.
+    // If no direct hits, fall back to recent qualifying events still sorted ASC.
     let consilienceReports: any[] = [];
     try {
       const { buildConsilience } = await import('../services/consilienceService.js');
       const dateUniverse: string[] = [];
-      // Prefer direct hits (highest-credibility dates)
-      for (const dh of swathDirectHits) {
+
+      // Direct hits first, sorted ASC by date (earliest direct-hit first)
+      const directHitsSorted = [...swathDirectHits].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+      for (const dh of directHitsSorted) {
         if (!dateUniverse.includes(dh.date)) dateUniverse.push(dh.date);
         if (dateUniverse.length >= 6) break;
       }
-      // Fall back to top selected events when no direct hits are available
+
+      // Fall back to other qualifying events only if we have NO direct hits
+      // (rare — most properties with multi-year history have at least one).
       if (dateUniverse.length === 0) {
         const sortedEvents = [...normalizedEvents]
           .filter((e: any) => e.date && (e.hailSize || 0) >= 0.5)
-          .sort((a: any, b: any) => (b.hailSize || 0) - (a.hailSize || 0));
+          .sort((a: any, b: any) => a.date.localeCompare(b.date));
         for (const e of sortedEvents) {
           if (!dateUniverse.includes(e.date)) dateUniverse.push(e.date);
           if (dateUniverse.length >= 6) break;
