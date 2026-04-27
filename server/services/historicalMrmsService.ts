@@ -531,6 +531,97 @@ export function buildCompositeGrid(grids: DecodedMrmsGrib[], sourceFiles: string
   };
 }
 
+/**
+ * Sample the composite grid at a single lat/lng → hail size in inches.
+ *
+ * Returns null when the point is outside the grid extent, or when the
+ * sampled value is sub-trace (< 0.25"). Use this when the property's
+ * exact pixel value matters more than the swath polygon's wide-area max
+ * — e.g., `addressImpactService` Path A direct-hit sizing, where the
+ * polygon-wide `max_mesh_inches` was over-stating because it picked the
+ * loudest cell anywhere in the swath rather than the cell over the
+ * actual house.
+ *
+ * Geometry (per `buildCompositeGrid` and the IEM MTArchive convention):
+ *   - rows are north-to-south (row 0 = north edge, row height-1 = south)
+ *   - cols are west-to-east  (col 0 = west edge,  col width-1  = east)
+ *   - latStep = (north - south) / (height - 1)
+ *   - lonStep = (east - west)  / (width - 1)
+ *   - row = round((north - lat) / latStep)
+ *   - col = round((lng - west)  / lonStep)
+ *   - index = row * width + col
+ *
+ * Nearest-neighbor sampling is appropriate here: the MRMS grid is ~1km
+ * resolution, residential property bounding boxes are smaller than one
+ * cell, and bilinear interpolation would smear non-zero hail into
+ * surrounding zero cells.
+ */
+export function samplePixelInchesAtLatLng(
+  grid: CompositeDecodedMrmsGrib,
+  lat: number,
+  lng: number,
+): number | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < grid.south || lat > grid.north) return null;
+  if (lng < grid.west || lng > grid.east) return null;
+  if (grid.width <= 1 || grid.height <= 1) return null;
+
+  const latStep = (grid.north - grid.south) / (grid.height - 1);
+  const lonStep = (grid.east - grid.west) / (grid.width - 1);
+  const row = Math.round((grid.north - lat) / latStep);
+  const col = Math.round((lng - grid.west) / lonStep);
+  if (row < 0 || row >= grid.height) return null;
+  if (col < 0 || col >= grid.width) return null;
+
+  const mm = grid.mmGrid[row * grid.width + col];
+  if (!Number.isFinite(mm) || mm <= 0) return null;
+  const inches = mm / 25.4;
+  if (inches < 0.25) return null; // sub-trace radar noise
+  return Number(inches.toFixed(2));
+}
+
+/**
+ * Sample the highest pixel value within a small neighborhood around the
+ * lat/lng. Useful when the property's lat/lng falls on a cell boundary
+ * or when a 1-pixel-wide swath edge slightly misses the centroid. The
+ * radius is in cells (1 = 3x3 window, 2 = 5x5, etc.).
+ *
+ * Defaults to a 3x3 window (~3km diameter) so a property right at the
+ * edge of a polygon still picks up the swath's actual hail size.
+ */
+export function samplePixelInchesNeighborhood(
+  grid: CompositeDecodedMrmsGrib,
+  lat: number,
+  lng: number,
+  cellRadius: number = 1,
+): number | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < grid.south || lat > grid.north) return null;
+  if (lng < grid.west || lng > grid.east) return null;
+  if (grid.width <= 1 || grid.height <= 1) return null;
+
+  const latStep = (grid.north - grid.south) / (grid.height - 1);
+  const lonStep = (grid.east - grid.west) / (grid.width - 1);
+  const centerRow = Math.round((grid.north - lat) / latStep);
+  const centerCol = Math.round((lng - grid.west) / lonStep);
+
+  let maxMm = 0;
+  for (let dr = -cellRadius; dr <= cellRadius; dr += 1) {
+    for (let dc = -cellRadius; dc <= cellRadius; dc += 1) {
+      const r = centerRow + dr;
+      const c = centerCol + dc;
+      if (r < 0 || r >= grid.height) continue;
+      if (c < 0 || c >= grid.width) continue;
+      const mm = grid.mmGrid[r * grid.width + c];
+      if (Number.isFinite(mm) && mm > maxMm) maxMm = mm;
+    }
+  }
+  if (maxMm <= 0) return null;
+  const inches = maxMm / 25.4;
+  if (inches < 0.25) return null;
+  return Number(inches.toFixed(2));
+}
+
 function gridBoundsToIndices(
   decoded: Pick<DecodedMrmsGrib | CompositeDecodedMrmsGrib, 'north' | 'south' | 'east' | 'west' | 'width' | 'height'>,
   requestedBounds: HistoricalMrmsRequest,
