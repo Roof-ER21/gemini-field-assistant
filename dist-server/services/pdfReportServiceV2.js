@@ -22,6 +22,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { extractHailSizeFromText, extractWindSpeedFromText } from './nwsAlertService.js';
 import { generateHailNarrative } from './narrativeService.js';
+import { displayHailInches, buildBandVerification, } from './displayCapService.js';
 const PDFDocument = PDFKit.default || PDFKit;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -461,7 +462,13 @@ export class PDFReportServiceV2 {
         const severeCount = selectedHailSizes.filter(s => s >= 1.5).length;
         const hailEvents = [
             ...selectedEvents.map(e => ({
-                date: e.date, size: e.hailSize, source: 'NEXRAD',
+                // Preserve the original event's source field so the cap algorithm
+                // can detect cross-source consensus (e.g., NOAA + NWS + NEXRAD all
+                // agreeing on 1.5"). The verifiedEventsPdfAdapter emits comma-joined
+                // labels like "NOAA, NEXRAD"; previously this was hardcoded to
+                // 'NEXRAD' which collapsed source diversity into a single token.
+                // Fallback to 'NEXRAD' when the source field is missing.
+                date: e.date, size: e.hailSize, source: e.source || 'NEXRAD',
                 distance: e.distanceMiles, location: '', comments: e.comments || '',
                 direction: e.stormDirection || '', speed: e.stormSpeed, duration: e.duration
             })),
@@ -917,9 +924,26 @@ export class PDFReportServiceV2 {
             const m = Number(e.magnitude) || 0;
             return m > max ? m : max;
         }, 0);
+        // Pre-cap the narrative's hail size — the prose says "X-inch hail
+        // measuring up to Y in diameter" and adjusters dismiss reports
+        // anchored on >2.5". Cap the headline magnitude to the adjuster-
+        // credible ceiling per the 2026-04-27 meeting. This is an area-wide
+        // value (covers the report's full date scope), so it doesn't qualify
+        // as at-location for the cap; isAtLocation=false → unverified branch
+        // dominates → outliers cap to 2.0, verified consensus passes through.
+        const narrativeReports = hailEvents
+            .filter(e => (e.size || 0) > 0)
+            .map(e => ({
+            source: e.source || '',
+            sizeInches: e.size || 0,
+            distanceMiles: e.distance ?? 99,
+        }));
+        const narrativeV = buildBandVerification(narrativeReports, false, // not at-property; this is area-wide narrative
+        primaryStormDate, input.lat, input.lng);
+        const narrativeMaxHail = displayHailInches(selectedMaxHail, narrativeV) ?? 0;
         const narrative = generateHailNarrative({
             address: input.address, city: input.city, state: input.state,
-            stormDate: primaryStormDate, maxHailSize: selectedMaxHail,
+            stormDate: primaryStormDate, maxHailSize: narrativeMaxHail,
             totalEvents: filteredSelectedIhm.length + filteredSelectedNoaa.length,
             severeCount, windEvents: filteredSelectedNoaaWind.length,
             maxWindMph,
@@ -1261,7 +1285,10 @@ export class PDFReportServiceV2 {
                     distanceMiles: e.distanceMiles,
                     comments: e.comments,
                 }));
-        // Build per-event list, then consolidate by date for a cleaner table
+        // Build per-event list, then consolidate by date for a cleaner table.
+        // The `source` field is preserved here so the cap algorithm
+        // (buildBandVerification + displayHailInches) can run primary-tier
+        // detection per band per date.
         const historicalHailEvents = historicalSeedEvents
             .map(e => ({
             date: e.date,
@@ -1270,14 +1297,23 @@ export class PDFReportServiceV2 {
             duration: e.duration,
             size: e.hailSize || 0,
             distance: e.distanceMiles,
+            source: e.source || '',
         }))
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
-        // Consolidate by date using MUTUALLY EXCLUSIVE distance bands
-        // so each observation lands in exactly one column (no double counting).
-        //   atLoc  = 0-1.0 mi (DIRECT HIT zone — Verisk/ISO convention + MRMS pixel)
-        //   w3     = 1-3 mi
+        // Consolidate by date using MUTUALLY EXCLUSIVE distance bands so each
+        // observation lands in exactly one column (no double counting).
+        //   atLoc  = 0-0.5 mi (At Property — strict bucket per 2026-04-27 addendum)
+        //   w3     = 0.5-3 mi
         //   w5     = 3-5 mi
         //   w10    = 5-10 mi
+        //
+        // The 0-0.5 mi at-property bound was tightened from 0-1.0 mi after the
+        // 2026-04-27 PM session: a 4" reading at 0.6 mi was rendering in the
+        // At Property column even though it was ~0.6 mi away from the actual
+        // address. Adjusters dismissed the report. Now the at-property cell is
+        // strictly ≤0.5 mi — Path A swath direct hits (distanceMiles=0) still
+        // populate it, but a stray neighbor-block ground report at 0.6 mi
+        // shows in the 0.5-3 mi column where it visually belongs.
         const dateGroups = new Map();
         for (const e of historicalHailEvents) {
             const dk = this.getDateKey(e.date) || e.date;
@@ -1296,9 +1332,9 @@ export class PDFReportServiceV2 {
                 g.speed = e.speed;
             if (!g.duration && e.duration)
                 g.duration = e.duration;
-            if (dist <= 1.0 && size > g.atLoc)
+            if (dist <= 0.5 && size > g.atLoc)
                 g.atLoc = size;
-            else if (dist > 1.0 && dist <= 3.0 && size > g.w3)
+            else if (dist > 0.5 && dist <= 3.0 && size > g.w3)
                 g.w3 = size;
             else if (dist > 3.0 && dist <= 5.0 && size > g.w5)
                 g.w5 = size;
@@ -1311,38 +1347,91 @@ export class PDFReportServiceV2 {
         const consolidatedDates = Array.from(dateGroups.values())
             .filter(g => g.atLoc > 0 || g.w3 > 0 || g.w5 > 0 || g.w10 > 0)
             .sort((a, b) => (this.parseStormDate(b.date)?.getTime() || 0) - (this.parseStormDate(a.date)?.getTime() || 0));
-        // Hail size display rule: anything non-zero but sub-¼" rounds UP to ¼"
-        // for the PDF. Sub-¼" radar signatures exist (sleet/graupel) but listing
-        // them verbatim ("0.13\"") gives adjusters license to dismiss the report.
-        // ¼" is the smallest credible documented hail size (pea). The underlying
-        // map / API data is unaffected — this floor is display-only.
+        // Per-date band reports for verification context. Each event lands in
+        // exactly one band (same strict bucketing as the dateGroups loop), and
+        // the cap runs per-band so a 4" reading at 0.6mi can't pull the
+        // at-property column's verification — it's a 1-3mi-band report.
+        const bandReportsByDate = new Map();
+        for (const e of historicalHailEvents) {
+            const dk = this.getDateKey(e.date) || e.date;
+            const dist = e.distance ?? 99;
+            if (!bandReportsByDate.has(dk)) {
+                bandReportsByDate.set(dk, { atLoc: [], w3: [], w5: [], w10: [] });
+            }
+            const br = {
+                source: e.source || '',
+                sizeInches: e.size,
+                distanceMiles: dist,
+            };
+            const bands = bandReportsByDate.get(dk);
+            if (dist <= 0.5)
+                bands.atLoc.push(br);
+            else if (dist <= 3.0)
+                bands.w3.push(br);
+            else if (dist <= 5.0)
+                bands.w5.push(br);
+            else if (dist <= 10.0)
+                bands.w10.push(br);
+        }
+        // Cap-aware hail size display. Runs displayHailInches per band per date
+        // (post-strict-bucketing) with the band's own VerificationContext. The
+        // cap algorithm:
+        //   - sub-0.25 raw → null (suppressed; column blank)
+        //   - 0.25-0.74 raw → 0.75 floor
+        //   - 0.75-2.0 raw → pass through
+        //   - 2.0-2.5 raw → 2.0 unless verified+at-location
+        //   - 2.5+ raw → 2.0/2.5/3.0 ceiling per Sterling-class + verified
+        //   - consensus override: ≥2 primary sources agreeing in [0.75, 2.6) win
+        // See server/services/displayCapService.ts for the full rule table.
+        const capForBand = (rawInches, dateKey, band) => {
+            if (rawInches <= 0)
+                return null;
+            const reports = bandReportsByDate.get(dateKey)?.[band] || [];
+            const v = buildBandVerification(reports, band === 'atLoc', dateKey, input.lat, input.lng);
+            return displayHailInches(rawInches, v);
+        };
         const displaySize = (inches) => {
-            if (inches <= 0)
+            if (inches === null || inches <= 0)
                 return '---';
-            return `${Math.max(0.25, inches).toFixed(2)}"`;
+            return `${inches.toFixed(2)}"`;
         };
         // No separate Hit column — the populated "At Property" cell IS the
         // direct-hit signal (rep convention: if a number's in that column, the
         // property was hit). Swath direct hits were already promoted into atLoc
         // above so they show as a size, not as a label.
-        const histRows = consolidatedDates.map(g => [
+        // Compute capped values once per date so the table cells and summary
+        // line stay consistent. A date's atLoc raw might be 0.4 but the cap
+        // floors it to 0.75; the summary's "actionable count" should reflect
+        // the displayed value, not the raw.
+        const cappedDates = consolidatedDates.map(g => {
+            const dk = this.getDateKey(g.date) || g.date;
+            return {
+                ...g,
+                atLocDisplay: capForBand(g.atLoc, dk, 'atLoc'),
+                w3Display: capForBand(g.w3, dk, 'w3'),
+                w5Display: capForBand(g.w5, dk, 'w5'),
+                w10Display: capForBand(g.w10, dk, 'w10'),
+            };
+        });
+        const histRows = cappedDates.map(g => [
             this.fmtDateET(g.date),
             this.fmtFullDateTimeET(g.date),
             g.direction,
             g.speed ? g.speed.toFixed(1) : '---',
-            displaySize(g.atLoc),
-            displaySize(g.w3),
-            displaySize(g.w5),
-            displaySize(g.w10),
+            displaySize(g.atLocDisplay),
+            displaySize(g.w3Display),
+            displaySize(g.w5Display),
+            displaySize(g.w10Display),
         ]);
-        // Summary line above the table. Swath direct hits have already been
-        // promoted into atLoc, so counts are simple distance-band reads.
-        const directHitCount = consolidatedDates.filter(g => g.atLoc > 0).length;
-        const actionableCount = consolidatedDates.filter(g => g.atLoc >= 0.5).length;
-        const within3Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 > 0).length;
-        const within5Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 > 0).length;
-        const within10Count = consolidatedDates.filter(g => g.atLoc === 0 && g.w3 === 0 && g.w5 === 0 && g.w10 > 0).length;
-        const largestActionable = consolidatedDates.reduce((max, g) => (g.atLoc >= 0.5 && g.atLoc > max.size ? { size: g.atLoc, date: g.date } : max), { size: 0, date: '' });
+        // Summary line above the table — based on capped display values so it
+        // matches what the adjuster sees in the table cells. A date suppressed
+        // by sub-0.25 cap doesn't get counted as "with hail at property".
+        const directHitCount = cappedDates.filter(g => (g.atLocDisplay ?? 0) > 0).length;
+        const actionableCount = cappedDates.filter(g => (g.atLocDisplay ?? 0) >= 0.5).length;
+        const within3Count = cappedDates.filter(g => (g.atLocDisplay ?? 0) === 0 && (g.w3Display ?? 0) > 0).length;
+        const within5Count = cappedDates.filter(g => (g.atLocDisplay ?? 0) === 0 && (g.w3Display ?? 0) === 0 && (g.w5Display ?? 0) > 0).length;
+        const within10Count = cappedDates.filter(g => (g.atLocDisplay ?? 0) === 0 && (g.w3Display ?? 0) === 0 && (g.w5Display ?? 0) === 0 && (g.w10Display ?? 0) > 0).length;
+        const largestActionable = cappedDates.reduce((max, g) => ((g.atLocDisplay ?? 0) >= 0.5 && (g.atLocDisplay ?? 0) > max.size ? { size: g.atLocDisplay ?? 0, date: g.date } : max), { size: 0, date: '' });
         if (directHitCount > 0 || within3Count > 0 || within5Count > 0 || within10Count > 0) {
             doc.fontSize(9).fillColor(this.C.text).font('Helvetica-Bold');
             const parts = [];
@@ -1375,10 +1464,10 @@ export class PDFReportServiceV2 {
         }
         doc.moveDown(0.3);
         doc.fontSize(7).fillColor(this.C.mutedText).font('Helvetica')
-            .text('* "At Property" = 0-1 mi, populated when either (a) the property sits inside an MRMS hail-swath polygon ' +
+            .text('* "At Property" = 0-0.5 mi, populated when either (a) the property sits inside an MRMS hail-swath polygon ' +
             'on that date — the radar-derived footprint of hail ≥ the cited size, OR (b) hail ≥ 1/4" was reported ' +
-            'at the property. Distance columns (1-3, 3-5, 5-10 mi) are mutually exclusive — each observation is ' +
-            'assigned to one band, showing max hail in that band. ' +
+            'within 1/2 mile of the property. Distance columns (0.5-3, 3-5, 5-10 mi) are mutually exclusive — each ' +
+            'observation is assigned to one band, showing max hail in that band. ' +
             'Sub-1/4" values rounded up to 1/4" for display. See "Disclaimer & Limitations" (end of report) for ' +
             'full methodology and source list.', this.M, doc.y, { width: this.CW });
         // =========================================================
