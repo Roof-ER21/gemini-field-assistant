@@ -598,12 +598,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
   const [searchLat, setSearchLat] = useState<number | null>(DEFAULT_CENTER[0]);
   const [searchLng, setSearchLng] = useState<number | null>(DEFAULT_CENTER[1]);
   const [searchSummary, setSearchSummary] = useState<PropertySearchSummary | null>(null);
-  // 2y default — reps reported 5y made the initial page load too slow
-  // (pulling 5 years of events + swath cache fills across 250k+ points).
-  // 2y covers the insurance-relevant window (most carriers require claims
-  // within 2 years of loss date); deeper history is still one click away
-  // via the range picker.
-  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('2y');
+  // 3y default per 2026-04-27 PM addendum — Virginia statute of limitations
+  // for property claims is 3 years from date of loss, so adjusters expect
+  // historical context spanning that window. Was 2y previously; bumped after
+  // the meeting decided 3y matches the legal claim-window adjusters reason
+  // about. Deeper history (5y / 10y) still available via the range picker.
+  const [historyRange, setHistoryRange] = useState<HistoryRangePreset>('3y');
   const [sinceDate, setSinceDate] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('recent');
   const [eventFilters, setEventFilters] = useState<EventFilterState>({ hail: true, wind: false });
@@ -1547,8 +1547,8 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
           </div>
           <div style={{ marginTop: 12 }}>
             <p style={{ marginBottom: 8, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#6b7280' }}>History Range</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-              {(['1y', '2y', '5y', '10y', 'since'] as HistoryRangePreset[]).map((range) => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+              {(['1y', '2y', '3y', '5y', '10y', 'since'] as HistoryRangePreset[]).map((range) => (
                 <button
                   key={range}
                   type="button"

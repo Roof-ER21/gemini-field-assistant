@@ -1,20 +1,28 @@
 /**
  * displayCapService — adjuster-credibility display cap for hail values.
  *
- * Problem: raw MRMS / NCEI / IEM LSR data sometimes shows 3"–4" hail "at
- * location" in our markets (DMV). Per the field rep with thousands of
- * roofs under his belt, anything >2.5" gets the report rejected as
+ * Background. Raw MRMS / NCEI / NWS LSR data sometimes shows 3"–4" hail
+ * "at location" in our markets (DMV). Per the field rep with thousands
+ * of roofs under his belt, anything >2.5" gets the report rejected as
  * "garbage" by adjusters. Per Gemini consultation in the 2026-04-27
  * meeting: 4" hail aloft can be 0.5" on the roof by the time it lands.
  *
- * This module sits between the underlying truth (which we keep intact in
- * the database) and any rep-or-adjuster-facing surface that prints a hail
- * size. The raw value is preserved everywhere internally; only the
- * display value is capped.
+ * This module sits between the underlying truth (preserved intact in
+ * the database) and any adjuster-facing surface that prints a hail
+ * size. Raw values stay everywhere internally — only display values are
+ * capped.
  *
- * Decision authority: 2026-04-27 storm-app meeting (Ahmed, Reese, Russell,
- * Louie) + post-meeting clarifications via Ahmed (consensus override,
- * polygon-containment-as-at-property, Sterling-class radius).
+ * Decision authority. 2026-04-27 storm-app meeting (Ahmed, Reese,
+ * Russell, Louie) + same-day afternoon addendum (strict column
+ * bucketing, primary-source filter, polygon render quality). The
+ * morning handoff locked the cap algorithm; the afternoon surfaced that
+ * the cap alone wasn't enough — most "4-inch at location" outliers are
+ * source-leak and bucketing-spillage problems upstream of this file.
+ *
+ * sa21 / Hail Yes drift policy. Both apps implement a display cap, but
+ * they are NOT required to be byte-identical (per user direction
+ * 2026-04-27 PM). Each app makes the calls that fit its own data and
+ * surfaces. This file is the sa21 source of truth.
  *
  * Algorithm rules (locked, post-clarification):
  *
@@ -33,11 +41,19 @@
  *     raw 2.51+, verified            → 2.5
  *     raw 2.51+, otherwise           → 2.0
  *
- * Why consensus overrides cap: when 3 different ground sources independently
- * report the same 1.5" reading, that's stronger evidence than a single MRMS
- * pixel claiming 4". The capped value (e.g. 2.5) would actually OVER-state
- * what hit the roof. Source agreement at moderate sizes is the most
- * adjuster-credible signal we have.
+ * Why consensus overrides cap. When 2+ primary-tier sources independently
+ * report the same 1.5" reading, that's stronger evidence than a single
+ * MRMS pixel claiming 4". The capped value (e.g. 2.5) would actually
+ * OVER-state what hit the roof in that scenario. Source agreement at
+ * moderate sizes is the most adjuster-credible signal we have.
+ *
+ * Why bucketing matters more than the cap. The 0.25 noise floor and
+ * 0.75 minimum aren't the only things protecting against the 381k-row
+ * "MRMS pixel inflation" problem in our DB. The actual fix is upstream:
+ * strict column bucketing (At Property = dist ≤ 0.5mi only) and
+ * primary-source filtering on adjuster surfaces. The cap function is
+ * the safety net, not the gatekeeper. See addressImpactService for the
+ * bucketing logic and sourceTier.ts for the primary/supplemental split.
  */
 
 export interface VerificationContext {
@@ -239,4 +255,97 @@ function haversineMiles(
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Lightweight source classifier for the cap helpers below. Recognizes the
+ * display-style labels that flow through the PDF event pipeline ("NOAA",
+ * "NWS", "NEXRAD", etc.) AND the snake_case keys ("source_noaa_ncei").
+ * The full source-tier table lives in sourceTier.ts; this function is the
+ * narrow subset the cap algorithm needs.
+ */
+function tokensInSource(source: string): string[] {
+  return source
+    .toLowerCase()
+    .split(/[\s,;|/_-]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+function sourceIsPrimary(source: string): boolean {
+  const tokens = tokensInSource(source);
+  return tokens.some((t) =>
+    t === 'noaa' ||
+    t === 'ncei' ||
+    t === 'nws' ||
+    t === 'nexrad' ||
+    t === 'mrms' ||
+    t === 'spc' ||
+    t === 'iem',
+  );
+}
+
+function sourceIsGovernmentObserver(source: string): boolean {
+  const tokens = tokensInSource(source);
+  return tokens.some((t) =>
+    t === 'nws' ||
+    t === 'noaa' ||
+    t === 'ncei' ||
+    t === 'iem',
+  );
+}
+
+/**
+ * Per-band report record. `source` is the display label or comma-joined
+ * source string from the PDF event pipeline (matched via tokens).
+ * `sizeInches` is the raw observed hail size. `distanceMiles` is the
+ * report's distance from the queried address.
+ */
+export interface BandReport {
+  source: string;
+  sizeInches: number;
+  distanceMiles: number;
+}
+
+/**
+ * Build a VerificationContext for a single band on a single storm date,
+ * given the reports that fall in that band.
+ *
+ * The cap algorithm runs per-band per-date (the addendum requirement —
+ * "each column gets its own verification context"). A 4" reading at
+ * 0.6mi shouldn't pull the at-property band's verification — it's a
+ * 1-3mi-band report.
+ *
+ * @param bandReports     reports in this band on this date (already
+ *                        distance-filtered by the caller)
+ * @param isAtPropertyBand true when this is the 0–0.5mi at-property band;
+ *                        only this band can satisfy `isAtLocation`
+ * @param stormDate       YYYY-MM-DD of the storm
+ * @param queryLat/queryLng query point (for Sterling-class lookup)
+ */
+export function buildBandVerification(
+  bandReports: BandReport[],
+  isAtPropertyBand: boolean,
+  stormDate: string,
+  queryLat: number,
+  queryLng: number,
+): VerificationContext {
+  const primary = bandReports.filter((r) => sourceIsPrimary(r.source));
+  const govObservers = primary.filter((r) =>
+    sourceIsGovernmentObserver(r.source),
+  );
+
+  const isVerified = primary.length >= 3 && govObservers.length >= 1;
+  const isAtLocation = isAtPropertyBand && primary.length > 0;
+  const isSterlingClass = isSterlingClassStorm(
+    stormDate.length > 10 ? stormDate.slice(0, 10) : stormDate,
+    queryLat,
+    queryLng,
+  );
+
+  const consensusSize = computeConsensusSize(
+    primary.map((r) => ({ source: r.source, sizeInches: r.sizeInches })),
+  );
+
+  return { isVerified, isAtLocation, isSterlingClass, consensusSize };
 }

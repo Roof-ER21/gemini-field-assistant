@@ -11,7 +11,7 @@ import { authService } from '../services/authService';
 // Types
 // ============================================================
 
-export type HistoryRangePreset = '1y' | '2y' | '5y' | '10y' | 'since';
+export type HistoryRangePreset = '1y' | '2y' | '3y' | '5y' | '10y' | 'since';
 export type TabId = 'recent' | 'impact';
 export type SearchResultType = 'address' | 'postal_code' | 'locality' | 'administrative_area' | 'unknown';
 
@@ -223,7 +223,7 @@ export function formatHistoryRangeLabel(range: HistoryRangePreset, sinceDate: st
       : p.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: ET_ZONE });
     return `since ${label}`;
   }
-  const map: Record<string, string> = { '10y': 'the last 10 years', '5y': 'the last 5 years', '2y': 'the last 2 years', '1y': 'the last year' };
+  const map: Record<string, string> = { '10y': 'the last 10 years', '5y': 'the last 5 years', '3y': 'the last 3 years', '2y': 'the last 2 years', '1y': 'the last year' };
   return map[range] || 'the last year';
 }
 
@@ -241,7 +241,7 @@ export function getFilterSummaryLabel(filters: EventFilterState, count: number):
 }
 
 export function rangeToMonths(range: HistoryRangePreset): number {
-  const map: Record<string, number> = { '1y': 12, '2y': 24, '5y': 60, '10y': 120, since: 12 };
+  const map: Record<string, number> = { '1y': 12, '2y': 24, '3y': 36, '5y': 60, '10y': 120, since: 12 };
   return map[range] || 12;
 }
 
