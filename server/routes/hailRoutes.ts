@@ -4125,16 +4125,24 @@ router.get('/storm-days', async (req: Request, res: Response) => {
     const distinctDates = Array.from(new Set(limited.map((r: any) => r.date)));
     const bboxByDate = new Map<string, { north: number; south: number; east: number; west: number }>();
     if (distinctDates.length > 0) {
+      // mrms_swath_cache contains one row per (date, query_bbox). Multiple
+      // user queries from different locations produce different rows with
+      // overlapping but non-identical bboxes. Naively unioning all rows
+      // returns a continent-sized box. Instead pick the bbox of the row
+      // with the most hail_cells per date — that's the row that actually
+      // captured the storm's footprint, not just an empty query window.
+      // Falls back to MAX(hail_cells)=0 rows only if no real storm was
+      // computed (date with cache entries but zero hail anywhere).
       const { rows: bboxRows } = await pool.query(
-        `SELECT
+        `SELECT DISTINCT ON (storm_date)
            TO_CHAR(storm_date, 'YYYY-MM-DD') AS date,
-           MAX(north)::float AS north,
-           MIN(south)::float AS south,
-           MAX(east)::float  AS east,
-           MIN(west)::float  AS west
+           north::float  AS north,
+           south::float  AS south,
+           east::float   AS east,
+           west::float   AS west
          FROM mrms_swath_cache
          WHERE storm_date = ANY($1::date[])
-         GROUP BY storm_date`,
+         ORDER BY storm_date, hail_cells DESC, feature_count DESC`,
         [distinctDates],
       );
       for (const b of bboxRows) {
