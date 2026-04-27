@@ -1350,27 +1350,26 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
 
   const handleMapInteraction = useCallback(
     (lat: number, lng: number, routeModeEnabled: boolean) => {
+      // Route mode: click drops a route waypoint. Unchanged.
       if (routeModeEnabled) {
         void handleBuildRoute([lat, lng]);
         setMapClickInsight(null);
         return;
       }
 
-      const { nearestEvent, distanceMiles } = findNearestStormEvent(lat, lng, filteredEvents);
-      setMapClickInsight({
-        lat,
-        lng,
-        nearestEvent,
-        distanceMiles,
-      });
-
-      const selectedDateKey = nearestEvent ? getStormDateKey(nearestEvent.beginDate) : null;
-      if (selectedDateKey) {
-        const matchingStormDate = stormDates.find((stormDate) => stormDate.date === selectedDateKey) || null;
-        setSelectedDate(matchingStormDate);
-      }
+      // Non-route map clicks are NO-OPS per 2026-04-27 PM addendum (Bug 4a).
+      // Previously every click mutated `selectedDate` to the nearest storm
+      // event, which broke navigation on mobile: a double-tap-to-zoom or
+      // accidental tap on a button overlapping the map would silently clear
+      // the rep's selected storm date. Storm date selection now happens
+      // ONLY via the side-panel storm-date picker. If the user wants the
+      // "click to inspect nearest event" behavior back, gate it behind an
+      // explicit pin-mode toggle.
+      //
+      // Bug 4c (double-tap zoom clearing state) falls out of this fix
+      // automatically — without state mutation, double-taps just zoom.
     },
-    [filteredEvents, handleBuildRoute, stormDates],
+    [handleBuildRoute],
   );
 
   useEffect(() => {
