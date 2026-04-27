@@ -1648,9 +1648,12 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 .sort((a, b) => (b.maxHailInches || 0) - (a.maxHailInches || 0) || b.date.localeCompare(a.date))[0];
               if (bestDirectHit) {
                 const dateLabel = formatDateLabel(bestDirectHit.date);
+                const evidenceLabel = bestDirectHit.evidenceType === 'ground_upgrade'
+                  ? 'federal ground reports'
+                  : 'MRMS swath';
                 return (
                   <p style={{ marginTop: 4, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-                    🎯 DIRECT HIT {dateLabel} · {formatHailTier(bestDirectHit.maxHailInches)} MRMS swath
+                    🎯 DIRECT HIT {dateLabel} · {formatHailTier(bestDirectHit.maxHailInches)} {evidenceLabel}
                     {bestDirectHit.noaaConfirmed ? ' · NOAA ✓' : ''}
                   </p>
                 );
@@ -1687,38 +1690,45 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', letterSpacing: '0.08em' }}>🎯 DIRECT HITS</span>
                       <span style={{ fontSize: 11, color: '#6b7280' }}>({filteredAddressImpact.directHits.length})</span>
                     </div>
-                    {filteredAddressImpact.directHits.slice(0, 6).map((d) => (
-                      <button
-                        key={`dh-${d.date}`}
-                        onClick={() => {
-                          const key = getStormDateKey(d.date);
-                          if (!key) return;
-                          const match = stormDates.find((sd) => getStormDateKey(sd.date) === key);
-                          if (match) setSelectedDate(match);
-                        }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '6px 8px',
-                          marginTop: 4,
-                          background: 'rgba(16, 185, 129, 0.08)',
-                          border: '1px solid rgba(16, 185, 129, 0.35)',
-                          borderRadius: 4,
-                          color: '#d1fae5',
-                          fontSize: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div style={{ fontWeight: 600 }}>
-                          {formatDateLabel(d.date)} — {formatHailTier(d.maxHailInches)} MRMS swath
-                        </div>
-                        <div style={{ fontSize: 11, color: '#86efac', marginTop: 2 }}>
-                          {d.confirmingReportCount} confirming report{d.confirmingReportCount === 1 ? '' : 's'} within 2mi
-                          {d.noaaConfirmed ? ' · NOAA ✓' : ''}
-                        </div>
-                      </button>
-                    ))}
+                    {filteredAddressImpact.directHits.slice(0, 6).map((d) => {
+                      // Evidence-type label so reps can tell at a glance whether
+                      // this is polygon containment or sub-mile ground corroboration.
+                      const evidenceLabel = d.evidenceType === 'ground_upgrade'
+                        ? 'federal ground reports'
+                        : 'MRMS swath';
+                      return (
+                        <button
+                          key={`dh-${d.date}`}
+                          onClick={() => {
+                            const key = getStormDateKey(d.date);
+                            if (!key) return;
+                            const match = stormDates.find((sd) => getStormDateKey(sd.date) === key);
+                            if (match) setSelectedDate(match);
+                          }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '6px 8px',
+                            marginTop: 4,
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            borderRadius: 4,
+                            color: '#d1fae5',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ fontWeight: 600 }}>
+                            {formatDateLabel(d.date)} — {formatHailTier(d.maxHailInches)} {evidenceLabel}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#86efac', marginTop: 2 }}>
+                            {d.confirmingReportCount} confirming report{d.confirmingReportCount === 1 ? '' : 's'} within 2mi
+                            {d.noaaConfirmed ? ' · NOAA ✓' : ''}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {filteredAddressImpact.nearMiss.length > 0 && (
@@ -2008,7 +2018,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                       >
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0 }}>{formatDateLabel(d.date)}</p>
                         <p style={{ fontSize: 12, color: '#86efac', margin: '4px 0 0 0' }}>
-                          <span style={{ fontWeight: 600 }}>DIRECT HIT</span> · {formatHailTier(d.maxHailInches)} MRMS swath · {d.confirmingReportCount} confirming{d.confirmingReportCount === 1 ? '' : 's'}
+                          <span style={{ fontWeight: 600 }}>DIRECT HIT</span> · {formatHailTier(d.maxHailInches)} {d.evidenceType === 'ground_upgrade' ? 'federal ground reports' : 'MRMS swath'} · {d.confirmingReportCount} confirming{d.confirmingReportCount === 1 ? '' : 's'}
                           {d.noaaConfirmed ? ' · NOAA ✓' : ''}
                         </p>
                       </button>

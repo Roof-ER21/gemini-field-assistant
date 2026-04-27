@@ -19,6 +19,24 @@
  */
 import type pg from 'pg';
 import { computeStormImpact, type StormImpactPoint } from './stormImpactService.js';
+import { getHailLevel } from './hailPalette.js';
+
+/**
+ * Hail-palette helpers for ground-truth-upgraded direct hits. Polygon-derived
+ * tiers receive label + severity from the MRMS GRIB band metadata via
+ * computeStormImpact. Ground-upgraded tiers don't, so we synthesize equivalent
+ * values from the same palette so the UI side panel renders both paths
+ * identically (no "MRMS swath" hardcoded label confusion).
+ */
+function hailLabelOf(inches: number | null): string | null {
+  if (inches === null || !Number.isFinite(inches) || inches < 0.25) return null;
+  return getHailLevel(inches).label;
+}
+
+function hailSeverityOf(inches: number | null): string | null {
+  if (inches === null || !Number.isFinite(inches) || inches < 0.25) return null;
+  return getHailLevel(inches).severity;
+}
 
 export interface AddressImpactTier {
   /** ISO date YYYY-MM-DD */
@@ -39,6 +57,13 @@ export interface AddressImpactTier {
   sources: string[];
   /** State of the strongest hit (for legacy display) */
   state?: string | null;
+  /**
+   * Evidence type for direct hits — tells UI/PDF which credibility framing to use:
+   *   'mrms_polygon'    — property's lat/lng inside the MRMS swath polygon (Path A)
+   *   'ground_upgrade'  — sub-mile federal ground reports corroborate (Path B)
+   * For non-direct tiers (near miss / area impact) this field is undefined.
+   */
+  evidenceType?: 'mrms_polygon' | 'ground_upgrade';
 }
 
 export interface AddressImpactReport {
@@ -364,15 +389,19 @@ async function _impactInner(
           // Corroborating point reports within 2 mi on the same date
           const conf = await countConfirmingReports(pool, lat, lng, dateIso);
           const srcSet = new Set<string>([...(c.sources || []), ...conf.sources]);
+          // Fall back to palette-derived label/severity if the GRIB band
+          // didn't carry them (older cached polygons sometimes omit). The UI
+          // hides direct hits without a sizeLabel — see TerritoryHailMap.tsx.
           tier = {
             date: dateIso,
             maxHailInches: r.maxHailInches,
-            sizeLabel: r.label,
-            severity: r.severity,
+            sizeLabel: r.label ?? hailLabelOf(r.maxHailInches),
+            severity: r.severity ?? hailSeverityOf(r.maxHailInches),
             confirmingReportCount: conf.count,
             noaaConfirmed: conf.noaaConfirmed || c.noaa_confirmed,
             sources: [...srcSet].sort(),
             state: c.state ?? null,
+            evidenceType: 'mrms_polygon',
           };
           directHit = true;
           directHits.push(tier);
@@ -399,30 +428,53 @@ async function _impactInner(
       // 1.0–1.25" hits within 0.4–0.7 mi of 8482 Stonewall Rd but the swath
       // polygon was a hair offset). Polygon-only DIRECT HIT misses these.
       //
-      // Upgrade rules (require ground-quality source — NCEI/IEM/SPC):
-      //   A) Any ground report ≤ 1.0 mi with hail ≥ 0.5"  → DIRECT HIT
-      //   B) Any ground report ≤ 0.5 mi with hail ≥ 0.25" → DIRECT HIT
+      // Hybrid upgrade rules (require ground-quality source — NCEI/IEM/SPC/CoCoRaHS):
+      //   A) Any ground report ≤ 0.5 mi with hail ≥ 0.25"                   → DIRECT HIT
+      //   B) Any ground report ≤ 1.0 mi with hail ≥ 0.5"                    → DIRECT HIT
+      //   C) Any ground report ≤ 1.5 mi with hail ≥ 0.5" AND ≥ 2 confirming → DIRECT HIT
+      //
+      // Tier C handles the "report just outside 1.0 mi but multiple federal
+      // sources corroborate" case. Single-source weak evidence still goes to
+      // AT LOCATION (preserves credibility for adjuster review).
       const sources = Array.isArray(c.sources) ? c.sources : [];
       const hasGroundSource = sources.some((s) =>
         s === 'noaa_ncei' || s === 'ncei_swdi' || s === 'iem_lsr' ||
         s === 'spc_wcm' || s === 'cocorahs',
       );
       const nearestMi = Number(nearest);
-      const groundUpgradeQualifies = hasGroundSource && maxHail !== null && (
-        (nearestMi <= 1.0 && maxHail >= 0.5) ||
-        (nearestMi <= 0.5 && maxHail >= 0.25)
-      );
+
+      // confirmingReports counts rows within 2mi sharing this date — used for
+      // tier C's "≥2 confirming" gate AND for the directHit tier's display.
+      // Pre-fetch once so we don't double-query when groundUpgradeQualifies fires.
+      let conf: { count: number; noaaConfirmed: boolean; sources: string[] } | null = null;
+      const getConf = async () => conf ??= await countConfirmingReports(pool, lat, lng, dateIso);
+
+      const groundUpgradeQualifies =
+        hasGroundSource && maxHail !== null && (
+          (nearestMi <= 0.5 && maxHail >= 0.25) ||
+          (nearestMi <= 1.0 && maxHail >= 0.5) ||
+          // Tier C requires multi-source corroboration — skip if no other
+          // confirming report within 2mi (a single isolated 1.5mi report
+          // doesn't carry enough credibility on its own).
+          (nearestMi <= 1.5 && maxHail >= 0.5 && (await getConf()).count >= 2)
+        );
 
       if (groundUpgradeQualifies) {
-        const conf = await countConfirmingReports(pool, lat, lng, dateIso);
-        const srcSet = new Set<string>([...sources, ...conf.sources]);
+        const c2 = await getConf();
+        const srcSet = new Set<string>([...sources, ...c2.sources]);
         directHits.push({
           date: dateIso,
           maxHailInches: maxHail,
-          confirmingReportCount: conf.count,
-          noaaConfirmed: conf.noaaConfirmed || !!c.noaa_confirmed,
+          // Populate sizeLabel + severity from the hail palette so the UI
+          // panel renders ground-truth-upgraded hits identically to swath
+          // ones (no special-casing needed in the side panel).
+          sizeLabel: hailLabelOf(maxHail),
+          severity: hailSeverityOf(maxHail),
+          confirmingReportCount: c2.count,
+          noaaConfirmed: c2.noaaConfirmed || !!c.noaa_confirmed,
           sources: [...srcSet].sort(),
           state: c.state ?? null,
+          evidenceType: 'ground_upgrade',
         });
         continue;
       }

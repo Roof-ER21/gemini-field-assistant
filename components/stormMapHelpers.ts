@@ -335,6 +335,12 @@ export interface AddressImpactTier {
   noaaConfirmed: boolean;
   sources: string[];
   state?: string | null;
+  /**
+   * Evidence type for direct hits:
+   *   'mrms_polygon'   — property's lat/lng inside the MRMS swath polygon (Path A)
+   *   'ground_upgrade' — sub-mile federal ground reports corroborate (Path B)
+   */
+  evidenceType?: 'mrms_polygon' | 'ground_upgrade';
 }
 
 /**

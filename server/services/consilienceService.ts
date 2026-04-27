@@ -466,7 +466,8 @@ function buildGroundFinding(
   );
   const present = groundRows.length > 0;
   const sourcesPresent = new Set<string>();
-  let maxHail = 0;
+  // null = no row had a hail measurement (wind/tornado-only event); 0+ = real measurement
+  let maxHailObserved: number | null = null;
   let nearestMi = Number.POSITIVE_INFINITY;
   for (const r of groundRows) {
     if (r.sources.noaa_ncei) sourcesPresent.add('noaa_ncei');
@@ -474,19 +475,23 @@ function buildGroundFinding(
     if (r.sources.iem_lsr) sourcesPresent.add('iem_lsr');
     if (r.sources.spc_wcm) sourcesPresent.add('spc_wcm');
     if (r.sources.cocorahs) sourcesPresent.add('cocorahs');
-    if (r.hail_size_inches !== null) maxHail = Math.max(maxHail, r.hail_size_inches);
+    if (r.hail_size_inches !== null && r.hail_size_inches > 0) {
+      maxHailObserved = Math.max(maxHailObserved ?? 0, r.hail_size_inches);
+    }
     nearestMi = Math.min(nearestMi, r.distance_mi);
   }
-  const headline = present
-    ? `${groundRows.length} federal ground report${groundRows.length === 1 ? '' : 's'}, peak ${maxHail.toFixed(2)}" at ${nearestMi.toFixed(1)} mi`
-    : null;
+  const reportWord = `report${groundRows.length === 1 ? '' : 's'}`;
+  const headline = !present ? null
+    : maxHailObserved === null
+      ? `${groundRows.length} federal ground ${reportWord} within ${nearestMi.toFixed(1)} mi (wind/tornado event — no hail measurement)`
+      : `${groundRows.length} federal ground ${reportWord}, peak ${maxHailObserved.toFixed(2)}" at ${nearestMi.toFixed(1)} mi`;
   return {
     present,
     headline,
     sourceUrl: `${NOAA_STORM_EVENTS_BASE}choosedates.jsp?statefips=51%2CVIRGINIA&beginDate_mm=${dateIso.slice(5, 7)}&beginDate_dd=${dateIso.slice(8, 10)}&beginDate_yyyy=${dateIso.slice(0, 4)}`,
     details: {
       reportCount: groundRows.length,
-      maxHailInches: present ? maxHail : null,
+      maxHailInches: maxHailObserved,
       nearestMiles: present ? nearestMi : null,
       sources: [...sourcesPresent].sort(),
     },
