@@ -457,17 +457,29 @@ export function createProfileRoutes(pool) {
                 console.warn(`[JotForm Webhook] missing homeowner name — submissionID=${submissionID} formID=${formID} repSlug=${repSlug}`);
                 return res.status(400).json({ success: false, error: 'Missing homeowner name' });
             }
-            // Idempotency: insert with submissionID conflict-protect. If we get
-            // the same submission twice (JotForm retried on a transient failure)
-            // we skip and ack quickly.
-            const insertResult = await pool.query(`INSERT INTO profile_leads (
-           profile_id, homeowner_name, homeowner_email, homeowner_phone,
-           address, service_type, preferred_date, preferred_time, message, status,
-           jotform_submission_id, jotform_form_id, raw_payload, source
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
-         ON CONFLICT (jotform_submission_id) DO NOTHING
-         RETURNING id`, [
+            // Idempotency: dedup on submissionID via partial unique index. We
+            // have to spell out the predicate in ON CONFLICT because the index
+            // is partial (WHERE jotform_submission_id IS NOT NULL) — PG uses the
+            // predicate to pick the right index for the conflict check. If
+            // submissionID is empty (rare — JotForm should always send one)
+            // we skip the dedup branch and just insert.
+            const insertSql = submissionID
+                ? `INSERT INTO profile_leads (
+             profile_id, homeowner_name, homeowner_email, homeowner_phone,
+             address, service_type, preferred_date, preferred_time, message, status,
+             jotform_submission_id, jotform_form_id, raw_payload, source
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
+           ON CONFLICT (jotform_submission_id) WHERE jotform_submission_id IS NOT NULL DO NOTHING
+           RETURNING id`
+                : `INSERT INTO profile_leads (
+             profile_id, homeowner_name, homeowner_email, homeowner_phone,
+             address, service_type, preferred_date, preferred_time, message, status,
+             jotform_submission_id, jotform_form_id, raw_payload, source
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
+           RETURNING id`;
+            const insertResult = await pool.query(insertSql, [
                 profileId,
                 homeownerName,
                 homeownerEmail || null,
