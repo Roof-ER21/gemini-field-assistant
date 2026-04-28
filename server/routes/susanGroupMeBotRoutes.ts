@@ -343,16 +343,23 @@ When MRMS_RADAR is also present with an atLocation value > 0: corroborates the d
 
 📧 EMAIL & PDF GENERATION — when rep asks you to write an email, make a PDF, generate a report, or create a letter:
 - You give a QUICK starter — 3-5 bullet points / key sections in 1-3 short sentences — so the rep has something to work from in chat.
-- Then IMMEDIATELY redirect to the full generators at sa21: "Full template + send is at sa21.up.railway.app → Email Generator / PDF Generator / Storm Report tab."
-- Example: "Quick draft: intro, damage summary, photos, request for reinspection, sign-off. Full sendable version is at sa21.up.railway.app → Email Generator tab 📧"
-- Do NOT try to write the full email inline — too long for chat, and the app has templates + auto-fill.
-- Same rule for storm reports, repair-attempt letters, invoices, estimates — sa21 owns the generator; you give the starter.
+- Then redirect to the right app:
+  • STORM/HAIL REPORTS, ADDRESS-LEVEL HAIL LOOKUPS, STORM MAPS, ADJUSTER PDFs → hailyes.up.railway.app (Hail Yes — citation-grade NCEI/NWS/NEXRAD records, what adjusters accept).
+  • EMAILS, REPAIR-ATTEMPT LETTERS, INVOICES, ESTIMATES → sa21.up.railway.app → Email Generator tab.
+- Example (storm/hail): "Address ate it on 7/16/25. Pull the verified report at hailyes.up.railway.app → search address → download PDF. NCEI-cited so adjusters can't dismiss it."
+- Example (email): "Quick draft: intro, damage summary, photos, request for reinspection, sign-off. Full sendable version at sa21.up.railway.app → Email Generator tab 📧"
+- Do NOT try to write full emails or PDFs inline — too long for chat, and the apps have templates + auto-fill.
 
 ☎️ INSURANCE_DIRECTORY — when present:
 - Rep is asking how to contact a carrier, file a claim, get a phone/email/portal.
 - USE the exact phone/email/portal from INSURANCE_DIRECTORY verbatim. Never invent numbers.
 - Reply format: "[Carrier]: claims [phone], [email]. Portal: [website]. [1-line note from notes field if notable]."
 - If INSURANCE_DIRECTORY is empty but rep asked for contact info: say "no entry for [carrier] in our directory yet — check the Insurance tab in the sa21 app".
+
+🌩️ APP ROUTING — quick reference:
+- Anything hail/wind/storm/address-impact → hailyes.up.railway.app (Hail Yes)
+- Anything else (Susan AI, knowledge, profiles, email gen, insurance lookup, training) → sa21.up.railway.app
+- Hail Yes pulls federal NCEI Storm Events + NEXRAD MRMS — the citation-grade record adjusters accept. Hail Trace and IHM run their own algorithms — convenience apps, not measurements.
 
 VOICE PRINCIPLES:
 - Direct. Confident. Human.
@@ -2849,22 +2856,24 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
       `[SusanBot] trigger=${mentioned ? 'mention' : 'reply_to_susan'} from ${msg.name}: ${text.slice(0, 80)}`
     );
 
-    // REDIRECT MODE — every @susan gets the same fixed redirect to sa21 app.
-    // No rebuild greeting, no LLM, no KB. Used when leadership wants Susan
-    // muted but reps still pointed at the app for verified data. Set
-    // SUSAN_REDIRECT_MODE=true on Railway. Test-mode bypasses so harness can
-    // exercise the full pipeline.
+    // REDIRECT MODE — every @susan gets a fixed redirect (no LLM, no KB).
+    // Used when leadership wants Susan muted but reps still pointed at the
+    // right app. Hail/wind/storm/address questions go to Hail Yes;
+    // everything else goes to sa21. Set SUSAN_REDIRECT_MODE=true on
+    // Railway. Test-mode bypasses so harness can exercise the full pipeline.
     if (process.env.SUSAN_REDIRECT_MODE === 'true' && !testMode) {
-      const redirectReply =
-        'For that, hit the app: https://sa21.up.railway.app 🙏 storm maps, adjuster intel, reports — all there.';
+      const isStormish = /\b(hail|wind|storm|swath|nexrad|mrms|address|property)\b/i.test(text);
+      const redirectReply = isStormish
+        ? 'For that, pull it in Hail Yes: https://hailyes.up.railway.app 🌩️ — verified storm dates, NCEI-cited PDFs, what adjusters accept.'
+        : 'For that, hit the app: https://sa21.up.railway.app 🙏 Susan AI, profiles, email & repair-letter generators — all there.';
       const posted = await postToGroupMe(redirectReply, String(msg.id), String(msg.group_id));
       if (posted) repliedAt.push(Date.now());
       console.log(
-        `[SusanBot] REDIRECT_MODE ${posted ? 'replied' : 'post_failed'} to ${msg.name}: ${text.slice(0, 60)}`,
+        `[SusanBot] REDIRECT_MODE ${posted ? 'replied' : 'post_failed'} (${isStormish ? 'hail-yes' : 'sa21'}) to ${msg.name}: ${text.slice(0, 60)}`,
       );
       try {
         await saveBotTurn(pool, msg, null, redirectReply, [], [],
-          'redirect-mode', 0, { redirect_mode: true });
+          'redirect-mode', 0, { redirect_mode: true, route: isStormish ? 'hail-yes' : 'sa21' });
       } catch {}
       return;
     }
@@ -3108,10 +3117,10 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
           (dates.length > 0 && /\b(hail|storm)\b/i.test(text));
         if (isHailLookup) {
           const fallback =
-            `My guy 🫡 — my address-level hail lookup is offline while we rebuild it. ` +
-            `For the most accurate storm date at any property, pull it up in the app: ` +
-            `https://sa21.up.railway.app → Storm Maps → search the address. ` +
-            `You'll get the verified hail dates, distances, swath bands, and sources.`;
+            `My guy 🫡 — my in-chat address hail lookup is offline while we rebuild it. ` +
+            `For the most accurate storm date at any property, pull it up in Hail Yes: ` +
+            `https://hailyes.up.railway.app → search the address. ` +
+            `Verified hail dates, NCEI-cited swath bands, adjuster-grade PDF.`;
           if (!testMode) {
             await postToGroupMe(fallback, String(msg.id), String(msg.group_id));
             repliedAt.push(Date.now());
