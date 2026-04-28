@@ -124,6 +124,121 @@ export function createProfileRoutes(pool) {
             return false;
         }
     }
+    // Helper: Lead → Calendar + Gmail integrations
+    //
+    // Shared by /contact (in-app form) and /jotform-webhook (JotForm submissions)
+    // so both paths produce identical artifacts: rep gets a notification email,
+    // a calendar event is created if a date was provided, and a local
+    // calendar_events row lands so the rep's CalendarPanel reflects the booking.
+    //
+    // Fire-and-forget — runs in its own async block so the caller can return
+    // success to the client without waiting on Calendar/Gmail latency.
+    function processLeadIntegrations(profileId, leadId, leadData) {
+        const sourceLabel = leadData.sourceLabel || 'QR code contact form';
+        (async () => {
+            try {
+                const profileRow = await pool.query('SELECT user_id, name, email FROM employee_profiles WHERE id = $1', [profileId]);
+                const repUserId = profileRow.rows[0]?.user_id;
+                const repName = profileRow.rows[0]?.name || 'Rep';
+                const repEmail = profileRow.rows[0]?.email;
+                if (!repUserId)
+                    return;
+                const serviceLabel = leadData.serviceType
+                    ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
+                    : 'Service Request';
+                // 1) Calendar event if a date was provided
+                if (leadData.preferredDate) {
+                    const startTime = leadData.preferredTime
+                        ? `${leadData.preferredDate}T${leadData.preferredTime}:00`
+                        : `${leadData.preferredDate}T09:00:00`;
+                    const start = new Date(startTime);
+                    const end = new Date(start.getTime() + 90 * 60 * 1000); // 90 min
+                    const eventDescription = [
+                        `Homeowner: ${leadData.homeownerName}`,
+                        leadData.homeownerEmail ? `Email: ${leadData.homeownerEmail}` : '',
+                        leadData.homeownerPhone ? `Phone: ${leadData.homeownerPhone}` : '',
+                        leadData.address ? `Address: ${leadData.address}` : '',
+                        leadData.message ? `\nNotes: ${leadData.message}` : '',
+                        `\nLead ID: ${leadId}`,
+                        `Scheduled via ${sourceLabel}`,
+                    ].filter(Boolean).join('\n');
+                    const calResult = await createCalendarEvent(pool, repUserId, {
+                        summary: `${serviceLabel} - ${leadData.homeownerName}`,
+                        startTime: start.toISOString(),
+                        endTime: end.toISOString(),
+                        location: leadData.address || undefined,
+                        description: eventDescription,
+                        attendeeEmails: leadData.homeownerEmail ? [leadData.homeownerEmail] : undefined,
+                        timeZone: 'America/New_York',
+                    });
+                    if (calResult.success) {
+                        console.log(`[QR Lead] Google Calendar event created for rep=${repUserId} lead=${leadId} event=${calResult.eventId}`);
+                    }
+                    else {
+                        console.log(`[QR Lead] Google Calendar not available for rep=${repUserId}: ${calResult.error}`);
+                    }
+                    // Always create local calendar event (ensures it shows in CalendarPanel)
+                    try {
+                        await pool.query(`INSERT INTO calendar_events
+               (user_id, summary, description, location, start_time, end_time, event_type, attendees, color, google_event_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [
+                            repUserId,
+                            `${serviceLabel} - ${leadData.homeownerName}`,
+                            eventDescription,
+                            leadData.address || null,
+                            start.toISOString(),
+                            end.toISOString(),
+                            'inspection',
+                            JSON.stringify(leadData.homeownerEmail
+                                ? [{ email: leadData.homeownerEmail, name: leadData.homeownerName }]
+                                : []),
+                            '#dc2626',
+                            calResult.success ? calResult.eventId : null,
+                        ]);
+                        console.log(`[QR Lead] Local calendar event created for rep=${repUserId} lead=${leadId}`);
+                    }
+                    catch (localCalErr) {
+                        console.error(`[QR Lead] Failed to create local calendar event:`, localCalErr);
+                    }
+                }
+                // 2) Notification email to the rep
+                const emailResult = await sendGmailEmail(pool, repUserId, {
+                    to: repEmail || 'me',
+                    subject: `New Lead: ${leadData.homeownerName} - ${serviceLabel}`,
+                    body: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                <h2 style="margin: 0;">New Lead from QR Code</h2>
+              </div>
+              <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
+                <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr><td style="padding: 8px 0; color: #999;">Name</td><td style="padding: 8px 0; font-weight: 600;">${leadData.homeownerName}</td></tr>
+                  ${leadData.homeownerEmail ? `<tr><td style="padding: 8px 0; color: #999;">Email</td><td style="padding: 8px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
+                  ${leadData.homeownerPhone ? `<tr><td style="padding: 8px 0; color: #999;">Phone</td><td style="padding: 8px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
+                  ${leadData.address ? `<tr><td style="padding: 8px 0; color: #999;">Address</td><td style="padding: 8px 0;">${leadData.address}</td></tr>` : ''}
+                  <tr><td style="padding: 8px 0; color: #999;">Service</td><td style="padding: 8px 0;">${serviceLabel}</td></tr>
+                  ${leadData.preferredDate ? `<tr><td style="padding: 8px 0; color: #999;">Preferred Date</td><td style="padding: 8px 0; font-weight: 600;">${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}</td></tr>` : ''}
+                  ${leadData.message ? `<tr><td style="padding: 8px 0; color: #999;">Message</td><td style="padding: 8px 0;">${leadData.message}</td></tr>` : ''}
+                </table>
+                ${leadData.preferredDate ? '<p style="color: #4ade80; margin-top: 16px;">A calendar event has been created for this appointment.</p>' : ''}
+                <p style="margin-top: 16px; font-size: 13px; color: #666;">Sent from Susan AI Field Assistant — source: ${sourceLabel}</p>
+              </div>
+            </div>
+          `,
+                });
+                if (emailResult.success) {
+                    console.log(`[QR Lead] Notification email sent to rep=${repUserId} msgId=${emailResult.messageId}`);
+                }
+                else {
+                    console.log(`[QR Lead] Gmail not connected for rep=${repUserId}: ${emailResult.error}`);
+                }
+            }
+            catch (err) {
+                console.error('[QR Lead] Calendar/Email integration error:', err);
+            }
+        })();
+    }
     // ==========================================================================
     // PUBLIC ENDPOINTS (No Auth Required)
     // ==========================================================================
@@ -191,111 +306,23 @@ export function createProfileRoutes(pool) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
          RETURNING id`, [profileId || null, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, preferredDate || null, preferredTime || null, message]);
             const leadId = result.rows[0].id;
-            // ── Google Calendar + Gmail integration (async, non-blocking) ──
-            // Look up the rep's user_id from their employee profile
+            // Calendar + Gmail integrations run async in their own block so the
+            // client gets a quick success response. Both /contact and the JotForm
+            // webhook share processLeadIntegrations() so leads from either path
+            // produce identical artifacts (rep email, local + Google calendar
+            // events). See the helper definition for behavior.
             if (profileId) {
-                (async () => {
-                    try {
-                        const profileRow = await pool.query('SELECT user_id, name, email FROM employee_profiles WHERE id = $1', [profileId]);
-                        const repUserId = profileRow.rows[0]?.user_id;
-                        const repName = profileRow.rows[0]?.name || 'Rep';
-                        const repEmail = profileRow.rows[0]?.email;
-                        if (!repUserId)
-                            return;
-                        const serviceLabel = serviceType
-                            ? SERVICE_LABELS[serviceType] || serviceType.replace(/_/g, ' ')
-                            : 'Service Request';
-                        // 1) Create calendar event if date was provided
-                        if (preferredDate) {
-                            const startTime = preferredTime
-                                ? `${preferredDate}T${preferredTime}:00`
-                                : `${preferredDate}T09:00:00`;
-                            const start = new Date(startTime);
-                            const end = new Date(start.getTime() + 90 * 60 * 1000); // 90 min
-                            const eventDescription = [
-                                `Homeowner: ${homeownerName}`,
-                                homeownerEmail ? `Email: ${homeownerEmail}` : '',
-                                homeownerPhone ? `Phone: ${homeownerPhone}` : '',
-                                address ? `Address: ${address}` : '',
-                                message ? `\nNotes: ${message}` : '',
-                                `\nLead ID: ${leadId}`,
-                                'Scheduled via QR code contact form',
-                            ].filter(Boolean).join('\n');
-                            // Try Google Calendar first
-                            const calResult = await createCalendarEvent(pool, repUserId, {
-                                summary: `${serviceLabel} - ${homeownerName}`,
-                                startTime: start.toISOString(),
-                                endTime: end.toISOString(),
-                                location: address || undefined,
-                                description: eventDescription,
-                                attendeeEmails: homeownerEmail ? [homeownerEmail] : undefined,
-                                timeZone: 'America/New_York',
-                            });
-                            if (calResult.success) {
-                                console.log(`[QR Lead] Google Calendar event created for rep=${repUserId} lead=${leadId} event=${calResult.eventId}`);
-                            }
-                            else {
-                                console.log(`[QR Lead] Google Calendar not available for rep=${repUserId}: ${calResult.error}`);
-                            }
-                            // Always create local calendar event (ensures it shows in CalendarPanel)
-                            try {
-                                await pool.query(`INSERT INTO calendar_events
-                   (user_id, summary, description, location, start_time, end_time, event_type, attendees, color, google_event_id)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [
-                                    repUserId,
-                                    `${serviceLabel} - ${homeownerName}`,
-                                    eventDescription,
-                                    address || null,
-                                    start.toISOString(),
-                                    end.toISOString(),
-                                    'inspection',
-                                    JSON.stringify(homeownerEmail ? [{ email: homeownerEmail, name: homeownerName }] : []),
-                                    '#dc2626', // red for inspections
-                                    calResult.success ? calResult.eventId : null
-                                ]);
-                                console.log(`[QR Lead] Local calendar event created for rep=${repUserId} lead=${leadId}`);
-                            }
-                            catch (localCalErr) {
-                                console.error(`[QR Lead] Failed to create local calendar event:`, localCalErr);
-                            }
-                        }
-                        // 2) Send rep a notification email about the new lead
-                        const emailResult = await sendGmailEmail(pool, repUserId, {
-                            to: repEmail || 'me',
-                            subject: `New Lead: ${homeownerName} - ${serviceLabel}`,
-                            body: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                    <h2 style="margin: 0;">New Lead from QR Code</h2>
-                  </div>
-                  <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
-                    <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr><td style="padding: 8px 0; color: #999;">Name</td><td style="padding: 8px 0; font-weight: 600;">${homeownerName}</td></tr>
-                      ${homeownerEmail ? `<tr><td style="padding: 8px 0; color: #999;">Email</td><td style="padding: 8px 0;">${homeownerEmail}</td></tr>` : ''}
-                      ${homeownerPhone ? `<tr><td style="padding: 8px 0; color: #999;">Phone</td><td style="padding: 8px 0;">${homeownerPhone}</td></tr>` : ''}
-                      ${address ? `<tr><td style="padding: 8px 0; color: #999;">Address</td><td style="padding: 8px 0;">${address}</td></tr>` : ''}
-                      <tr><td style="padding: 8px 0; color: #999;">Service</td><td style="padding: 8px 0;">${serviceLabel}</td></tr>
-                      ${preferredDate ? `<tr><td style="padding: 8px 0; color: #999;">Preferred Date</td><td style="padding: 8px 0; font-weight: 600;">${preferredDate}${preferredTime ? ` at ${preferredTime}` : ''}</td></tr>` : ''}
-                      ${message ? `<tr><td style="padding: 8px 0; color: #999;">Message</td><td style="padding: 8px 0;">${message}</td></tr>` : ''}
-                    </table>
-                    ${preferredDate ? '<p style="color: #4ade80; margin-top: 16px;">A calendar event has been created for this appointment.</p>' : ''}
-                    <p style="margin-top: 16px; font-size: 13px; color: #666;">Sent from Susan AI Field Assistant</p>
-                  </div>
-                </div>
-              `,
-                        });
-                        if (emailResult.success) {
-                            console.log(`[QR Lead] Notification email sent to rep=${repUserId} msgId=${emailResult.messageId}`);
-                        }
-                        else {
-                            console.log(`[QR Lead] Gmail not connected for rep=${repUserId}: ${emailResult.error}`);
-                        }
-                    }
-                    catch (err) {
-                        console.error('[QR Lead] Calendar/Email integration error:', err);
-                    }
-                })();
+                processLeadIntegrations(profileId, leadId, {
+                    homeownerName,
+                    homeownerEmail,
+                    homeownerPhone,
+                    address,
+                    serviceType,
+                    preferredDate,
+                    preferredTime,
+                    message,
+                    sourceLabel: 'QR code contact form',
+                });
             }
             res.json({
                 success: true,
@@ -309,6 +336,180 @@ export function createProfileRoutes(pool) {
                 success: false,
                 error: 'Failed to submit contact form'
             });
+        }
+    });
+    /**
+     * POST /api/profiles/jotform-webhook
+     * JotForm submission ingest — public endpoint configured in JotForm's
+     * webhooks settings ("Settings → Integrations → Webhooks").
+     *
+     * JotForm posts multipart/form-data with these top-level keys:
+     *   - submissionID, formID, ip, formTitle, username, customParams
+     *   - rawRequest (JSON-stringified): the actual form fields keyed by their
+     *     internal field names (q3_name, q4_email, etc.) plus our prefilled
+     *     URL params (howDid, provideComments).
+     *   - pretty: human-readable "Field Label:Value, ..." string
+     *
+     * We extract:
+     *   - Homeowner contact details from the rawRequest fields (matched by
+     *     fuzzy field names since JotForm doesn't guarantee key shape).
+     *   - The rep slug from `provideComments`, which we prefill on the
+     *     iframe URL as "Rep: {Name} ({slug})".
+     *   - Then look up profile_id from slug, insert into profile_leads, and
+     *     call the shared processLeadIntegrations helper.
+     *
+     * Idempotency: ON CONFLICT (jotform_submission_id) DO NOTHING — JotForm
+     * retries on failures and we don't want duplicate leads or double
+     * calendar events.
+     */
+    router.post('/jotform-webhook', async (req, res) => {
+        try {
+            const body = (req.body || {});
+            // JotForm sends the actual fields under `rawRequest` as a JSON string.
+            // Some integrations also send fields directly on the body — fall back
+            // gracefully so we capture as much as possible regardless of payload
+            // shape. JotForm has been known to vary this between webhook versions.
+            let rawRequest = {};
+            if (typeof body.rawRequest === 'string') {
+                try {
+                    rawRequest = JSON.parse(body.rawRequest);
+                }
+                catch {
+                    rawRequest = {};
+                }
+            }
+            else if (body.rawRequest && typeof body.rawRequest === 'object') {
+                rawRequest = body.rawRequest;
+            }
+            const fields = { ...body, ...rawRequest };
+            const submissionID = String(body.submissionID || rawRequest.submissionID || '').trim();
+            const formID = String(body.formID || '').trim();
+            // JotForm field-name fuzzy matcher. Field keys look like:
+            //   q3_name, q4_email, q5_phoneNumber, q6_typeA, q7_address, q8_message,
+            //   plus our prefilled `howDid` and `provideComments`.
+            // We pluck by the conceptual name (the suffix), not the q-prefix
+            // number, so this still works if the form layout changes.
+            const findField = (...candidates) => {
+                for (const cand of candidates) {
+                    const lower = cand.toLowerCase();
+                    for (const [key, value] of Object.entries(fields)) {
+                        const keyLower = key.toLowerCase();
+                        // Match exact suffix (after q{N}_) or full-name match
+                        const suffix = keyLower.replace(/^q\d+_/, '');
+                        if (suffix === lower || keyLower === lower) {
+                            if (value === null || value === undefined)
+                                continue;
+                            if (typeof value === 'string' && value.trim() === '')
+                                continue;
+                            if (typeof value === 'object') {
+                                // Compound fields (e.g. name = {first, last}) — flatten
+                                const flat = Object.values(value)
+                                    .filter((v) => typeof v === 'string' && v.trim() !== '')
+                                    .join(' ').trim();
+                                if (flat)
+                                    return flat;
+                                continue;
+                            }
+                            return String(value).trim();
+                        }
+                    }
+                }
+                return null;
+            };
+            const homeownerName = findField('name', 'fullName', 'homeownerName', 'yourName') ||
+                findField('firstName') ||
+                '';
+            const homeownerEmail = findField('email', 'emailAddress', 'homeownerEmail');
+            const homeownerPhone = findField('phone', 'phoneNumber', 'homeownerPhone', 'tel', 'mobile');
+            const addressFull = findField('address', 'streetAddress', 'fullAddress', 'propertyAddress');
+            const message = findField('message', 'comments', 'notes', 'additionalInfo', 'inquiry');
+            const provideComments = findField('provideComments', 'comments') || '';
+            const howDid = findField('howDid', 'howDidYouHear');
+            // Service type: try matching against our known service labels first
+            const rawService = (findField('service', 'serviceType', 'typeOfService', 'requestType') || '').toLowerCase();
+            let serviceType = null;
+            for (const [key, label] of Object.entries(SERVICE_LABELS)) {
+                if (rawService.includes(key.replace(/_/g, ' ')) || rawService.includes(label.toLowerCase())) {
+                    serviceType = key;
+                    break;
+                }
+            }
+            // Date/time fields are tricky in JotForm — they often come as compound
+            // objects {month, day, year, hour, min, ampm}. findField flattens to
+            // a string but we need to coerce to ISO. Best-effort: pass through the
+            // string as-is and let processLeadIntegrations attempt the date parse.
+            const preferredDateRaw = findField('preferredDate', 'date', 'datetime', 'inspectionDate');
+            const preferredTimeRaw = findField('preferredTime', 'time', 'inspectionTime');
+            // Parse the prefilled "Rep: {Name} ({slug})" string to get the slug
+            // we can match against employee_profiles. This is how the JotForm
+            // iframe attributes the lead to the right rep — see the SSR profile
+            // page renderer in server/index.ts.
+            const repSlugMatch = provideComments.match(/\(([a-z0-9-]+)\)\s*$/i);
+            const repSlug = repSlugMatch ? repSlugMatch[1] : null;
+            let profileId = null;
+            if (repSlug) {
+                const profileRow = await pool.query('SELECT id FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1', [repSlug]);
+                profileId = profileRow.rows[0]?.id || null;
+            }
+            // Bare minimum: a name. JotForm's required-field validation should
+            // ensure this on the form side, but defend in code anyway.
+            if (!homeownerName) {
+                console.warn(`[JotForm Webhook] missing homeowner name — submissionID=${submissionID} formID=${formID} repSlug=${repSlug}`);
+                return res.status(400).json({ success: false, error: 'Missing homeowner name' });
+            }
+            // Idempotency: insert with submissionID conflict-protect. If we get
+            // the same submission twice (JotForm retried on a transient failure)
+            // we skip and ack quickly.
+            const insertResult = await pool.query(`INSERT INTO profile_leads (
+           profile_id, homeowner_name, homeowner_email, homeowner_phone,
+           address, service_type, preferred_date, preferred_time, message, status,
+           jotform_submission_id, jotform_form_id, raw_payload, source
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
+         ON CONFLICT (jotform_submission_id) DO NOTHING
+         RETURNING id`, [
+                profileId,
+                homeownerName,
+                homeownerEmail || null,
+                homeownerPhone || null,
+                addressFull || null,
+                serviceType,
+                preferredDateRaw || null,
+                preferredTimeRaw || null,
+                [message, howDid && howDid !== 'Spoke to a Rep' ? `(How: ${howDid})` : '']
+                    .filter(Boolean).join('\n').trim() || null,
+                submissionID || null,
+                formID || null,
+                JSON.stringify({ ...body, rawRequest: undefined, rawRequestParsed: rawRequest }),
+            ]);
+            // ON CONFLICT skip → no row returned. Ack OK, log it.
+            if (insertResult.rowCount === 0) {
+                console.log(`[JotForm Webhook] duplicate submission skipped — submissionID=${submissionID}`);
+                return res.json({ success: true, deduped: true });
+            }
+            const leadId = insertResult.rows[0].id;
+            console.log(`[JotForm Webhook] new lead — submissionID=${submissionID} leadId=${leadId} ` +
+                `rep=${repSlug || 'unknown'} name="${homeownerName}"`);
+            // Wire calendar + email via the same helper /contact uses, so JotForm
+            // and in-app submissions land identically in the rep's inbox + calendar.
+            if (profileId) {
+                processLeadIntegrations(profileId, leadId, {
+                    homeownerName,
+                    homeownerEmail,
+                    homeownerPhone,
+                    address: addressFull,
+                    serviceType,
+                    preferredDate: preferredDateRaw,
+                    preferredTime: preferredTimeRaw,
+                    message,
+                    sourceLabel: 'JotForm',
+                });
+            }
+            res.json({ success: true, leadId });
+        }
+        catch (error) {
+            console.error('❌ JotForm webhook error:', error);
+            res.status(500).json({ success: false, error: 'Webhook processing failed' });
         }
     });
     /**
