@@ -204,6 +204,17 @@ export function createProfileRoutes(pool: Pool) {
         const repEmail = profileRow.rows[0]?.email;
         if (!repUserId) return;
 
+        // Resolve admin user once — used as fallback sender when rep hasn't
+        // OAuth'd their Google account. Most reps are forgetful and will
+        // never connect; admin's account is always live so we route through
+        // it rather than dropping the email/invite.
+        const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
+        const adminUserRow = await pool.query(
+          'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+          [adminEmailAddr],
+        );
+        const adminUserId: string | null = adminUserRow.rows[0]?.id || null;
+
         const serviceLabel = leadData.serviceType
           ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
           : 'Service Request';
@@ -226,7 +237,9 @@ export function createProfileRoutes(pool: Pool) {
             `Scheduled via ${sourceLabel}`,
           ].filter(Boolean).join('\n');
 
-          const calResult = await createCalendarEvent(pool, repUserId, {
+          // Try the rep's connected Google Calendar first — preferred path
+          // because the event lives on the rep's calendar where they expect it.
+          let calResult = await createCalendarEvent(pool, repUserId, {
             summary: `${serviceLabel} - ${leadData.homeownerName}`,
             startTime: start.toISOString(),
             endTime: end.toISOString(),
@@ -240,6 +253,33 @@ export function createProfileRoutes(pool: Pool) {
             console.log(`[QR Lead] Google Calendar event created for rep=${repUserId} lead=${leadId} event=${calResult.eventId}`);
           } else {
             console.log(`[QR Lead] Google Calendar not available for rep=${repUserId}: ${calResult.error}`);
+
+            // Fallback: create the event on admin's calendar, with both rep
+            // and homeowner as attendees. Both still get Google Calendar
+            // invites; the event just lives on admin's calendar instead of
+            // the rep's. Reps can connect their own Google later for cleaner
+            // attribution.
+            if (adminUserId) {
+              const fallbackAttendees: string[] = [];
+              if (repEmail) fallbackAttendees.push(repEmail);
+              if (leadData.homeownerEmail) fallbackAttendees.push(leadData.homeownerEmail);
+              const adminCalResult = await createCalendarEvent(pool, adminUserId, {
+                summary: `[${repName}] ${serviceLabel} - ${leadData.homeownerName}`,
+                startTime: start.toISOString(),
+                endTime: end.toISOString(),
+                location: leadData.address || undefined,
+                description: `Rep: ${repName} (not OAuth'd)\n\n${eventDescription}`,
+                attendeeEmails: fallbackAttendees.length > 0 ? fallbackAttendees : undefined,
+                timeZone: 'America/New_York',
+              });
+              if (adminCalResult.success) {
+                console.log(`[QR Lead] Admin-fallback calendar event created lead=${leadId} event=${adminCalResult.eventId} attendees=${fallbackAttendees.join(',')}`);
+                // Treat admin-fallback as success for the local-row link
+                calResult = adminCalResult;
+              } else {
+                console.log(`[QR Lead] Admin-fallback calendar also failed: ${adminCalResult.error}`);
+              }
+            }
           }
 
           // Always create local calendar event (ensures it shows in CalendarPanel)
@@ -269,11 +309,10 @@ export function createProfileRoutes(pool: Pool) {
           }
         }
 
-        // 2) Notification email to the rep
-        const emailResult = await sendGmailEmail(pool, repUserId, {
-          to: repEmail || 'me',
-          subject: `New Lead: ${leadData.homeownerName} - ${serviceLabel}`,
-          body: `
+        // 2) Notification email to the rep — try rep's Gmail first, then
+        // fall back to admin's Gmail addressed to the rep's email so reps
+        // who never connected Google still get notified.
+        const repEmailBody = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
                 <h2 style="margin: 0;">New Lead from QR Code</h2>
@@ -293,13 +332,35 @@ export function createProfileRoutes(pool: Pool) {
                 <p style="margin-top: 16px; font-size: 13px; color: #666;">Sent from Susan AI Field Assistant — source: ${sourceLabel}</p>
               </div>
             </div>
-          `,
+          `;
+        const repEmailSubject = `New Lead: ${leadData.homeownerName} - ${serviceLabel}`;
+
+        let emailResult = await sendGmailEmail(pool, repUserId, {
+          to: repEmail || 'me',
+          subject: repEmailSubject,
+          body: repEmailBody,
         });
 
         if (emailResult.success) {
-          console.log(`[QR Lead] Notification email sent to rep=${repUserId} msgId=${emailResult.messageId}`);
+          console.log(`[QR Lead] Notification email sent to rep=${repUserId} via own Gmail msgId=${emailResult.messageId}`);
         } else {
-          console.log(`[QR Lead] Gmail not connected for rep=${repUserId}: ${emailResult.error}`);
+          console.log(`[QR Lead] Rep Gmail not available for rep=${repUserId}: ${emailResult.error}`);
+          // Fallback: send via admin's Gmail to the rep's email address.
+          if (adminUserId && repEmail) {
+            const fallbackResult = await sendGmailEmail(pool, adminUserId, {
+              to: repEmail,
+              subject: repEmailSubject,
+              body: repEmailBody,
+            });
+            if (fallbackResult.success) {
+              console.log(`[QR Lead] Notification email sent via admin-fallback to ${repEmail} msgId=${fallbackResult.messageId}`);
+              emailResult = fallbackResult;
+            } else {
+              console.log(`[QR Lead] Admin-fallback email also failed: ${fallbackResult.error}`);
+            }
+          } else if (!repEmail) {
+            console.log(`[QR Lead] No rep email on file — skipping fallback send`);
+          }
         }
 
         // 3) In-app notification on the rep's bell icon. Survives even if the
@@ -329,16 +390,9 @@ export function createProfileRoutes(pool: Pool) {
         }
 
         // 4) Admin BCC email — every lead, regardless of rep Gmail state.
-        // Uses the LEAD_ADMIN_EMAIL env var; falls back to the well-known
-        // admin address if unset. Sent from the rep's Gmail if connected,
-        // else from the admin's (the helper picks whoever's connected).
+        // adminUserId / adminEmailAddr resolved once at top of fn for reuse
+        // by the calendar + email fallbacks above.
         try {
-          const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
-          const adminUserRow = await pool.query(
-            'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [adminEmailAddr],
-          );
-          const adminUserId = adminUserRow.rows[0]?.id;
           if (adminUserId) {
             const adminResult = await sendGmailEmail(pool, adminUserId, {
               to: adminEmailAddr,
