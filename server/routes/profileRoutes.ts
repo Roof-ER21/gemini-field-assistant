@@ -574,8 +574,21 @@ export function createProfileRoutes(pool: Pool) {
       // Bare minimum: a name. JotForm's required-field validation should
       // ensure this on the form side, but defend in code anyway.
       if (!homeownerName) {
+        // Dump the body shape so we can fix the fuzzy-matcher when JotForm
+        // ships a new field-naming convention. body.rawRequest may be
+        // a JSON string, an object, or absent — log all three views.
+        const bodyKeys = Object.keys(body);
+        const fieldKeys = Object.keys(fields);
+        const sample: Record<string, any> = {};
+        for (const k of fieldKeys.slice(0, 20)) {
+          const v = (fields as any)[k];
+          sample[k] = typeof v === 'string' ? v.slice(0, 100) : v;
+        }
         console.warn(
-          `[JotForm Webhook] missing homeowner name — submissionID=${submissionID} formID=${formID} repSlug=${repSlug}`,
+          `[JotForm Webhook] missing homeowner name — submissionID=${submissionID} formID=${formID} repSlug=${repSlug}\n` +
+          `  bodyKeys=${JSON.stringify(bodyKeys)}\n` +
+          `  fieldKeys=${JSON.stringify(fieldKeys)}\n` +
+          `  sample=${JSON.stringify(sample)}`,
         );
         return res.status(400).json({ success: false, error: 'Missing homeowner name' });
       }
