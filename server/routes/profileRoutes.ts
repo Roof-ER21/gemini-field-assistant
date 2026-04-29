@@ -834,6 +834,36 @@ export function createProfileRoutes(pool: Pool) {
     }
   });
 
+  /**
+   * POST /api/profiles/track-share
+   * Track when a homeowner shares a rep's profile/QR — public endpoint.
+   * shareType: 'native' | 'copy_link' | 'sms' | 'email' | 'social'
+   */
+  router.post('/track-share', async (req: Request, res: Response) => {
+    try {
+      const { profileSlug, shareType = 'native' } = req.body;
+      if (!profileSlug) return res.status(400).json({ success: false, error: 'Profile slug required' });
+
+      const profileResult = await pool.query(
+        'SELECT id FROM employee_profiles WHERE slug = $1 LIMIT 1',
+        [profileSlug],
+      );
+      const profileId = profileResult.rows[0]?.id || null;
+      const userAgent = (req.headers['user-agent'] as string) || '';
+      const ip = req.ip || ((req.headers['x-forwarded-for'] as string) || '');
+
+      await pool.query(
+        `INSERT INTO profile_shares (profile_id, profile_slug, share_type, user_agent, ip_hash)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [profileId, profileSlug, shareType, userAgent.substring(0, 500), hashIP(ip)],
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error('❌ Share tracking error:', error);
+      res.json({ success: true });
+    }
+  });
+
   // ==========================================================================
   // AUTHENTICATED ENDPOINTS
   // ==========================================================================

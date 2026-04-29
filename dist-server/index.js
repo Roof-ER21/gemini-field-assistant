@@ -59,6 +59,7 @@ import { createContestRoutes } from './routes/contestRoutes.js';
 import { createProfileRoutes } from './routes/profileRoutes.js';
 import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
+import { createLeadAnalyticsRoutes } from './routes/leadAnalyticsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
@@ -8223,6 +8224,7 @@ app.use('/api', createContestRoutes(pool));
 app.use('/api/profiles', createProfileRoutes(pool));
 app.use('/api/qr-analytics', createQRAnalyticsRoutes(pool));
 app.use('/api/profile-leads', createProfileLeadsRoutes(pool));
+app.use('/api/lead-analytics', createLeadAnalyticsRoutes(pool));
 // Register lead generation routes (storm zones, referrals, lead scoring)
 app.use('/api/leads', createLeadGenRoutes(pool));
 // Register agreement routes (e-signatures for Claim Auth and Contingency)

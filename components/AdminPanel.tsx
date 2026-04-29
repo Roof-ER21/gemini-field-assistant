@@ -39,6 +39,7 @@ import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import { API_BASE_URL } from '../services/config';
 import AdminAnalyticsTab from './AdminAnalyticsTab';
+import AdminLeadAnalyticsPanel from './AdminLeadAnalyticsPanel';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
@@ -294,7 +295,7 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
   const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1635,7 +1636,7 @@ const AdminPanel: React.FC = () => {
         const tabGroups = [
           { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
           { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
-          { id: 'perf' as const, label: 'Performance', tabs: ['analytics', 'budget', 'tiers'] },
+          { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
           { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
           { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'rep-phones'] }
         ];
@@ -1647,6 +1648,7 @@ const AdminPanel: React.FC = () => {
           emails: { label: 'Emails', icon: <Mail style={{ width: '0.875rem', height: '0.875rem' }} /> },
           messages: { label: 'Messages', icon: <MessageSquare style={{ width: '0.875rem', height: '0.875rem' }} /> },
           analytics: { label: 'Analytics', icon: <BarChart3 style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'lead-analytics': { label: 'Lead Analytics', icon: <Target style={{ width: '0.875rem', height: '0.875rem' }} /> },
           budget: { label: 'Budget', icon: <DollarSign style={{ width: '0.875rem', height: '0.875rem' }} /> },
           tiers: { label: 'Bonus Tiers', icon: <Trophy style={{ width: '0.875rem', height: '0.875rem' }} /> },
           agnes: { label: 'Agnes Training', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
@@ -3121,6 +3123,15 @@ const AdminPanel: React.FC = () => {
 
         {activeTab === 'analytics' && (
           <AdminAnalyticsTab />
+        )}
+
+        {activeTab === 'lead-analytics' && (
+          <AdminLeadAnalyticsPanel userEmail={(() => {
+            try {
+              const authUser = localStorage.getItem('s21_auth_user');
+              return authUser ? JSON.parse(authUser).email : '';
+            } catch { return ''; }
+          })()} />
         )}
 
         {activeTab === 'budget' && (
