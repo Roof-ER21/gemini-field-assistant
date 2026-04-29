@@ -364,6 +364,18 @@ export function createProfileRoutes(pool) {
      */
     router.post('/jotform-webhook', async (req, res) => {
         try {
+            // Shared-secret check. JotForm doesn't sign webhooks, so we lock down
+            // the endpoint with a query-param key. When JOTFORM_WEBHOOK_SECRET is
+            // unset (initial rollout), all requests are accepted so we don't break
+            // the existing flow before the JotForm dashboard URL is updated.
+            const requiredSecret = process.env.JOTFORM_WEBHOOK_SECRET;
+            if (requiredSecret) {
+                const providedKey = String(req.query.key || req.header('x-jotform-key') || '');
+                if (providedKey !== requiredSecret) {
+                    console.warn(`[JotForm Webhook] rejected — bad/missing key from ip=${req.ip}`);
+                    return res.status(401).json({ success: false, error: 'unauthorized' });
+                }
+            }
             const body = (req.body || {});
             // JotForm sends the actual fields under `rawRequest` as a JSON string.
             // Some integrations also send fields directly on the body — fall back
