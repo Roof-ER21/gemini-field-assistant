@@ -437,8 +437,13 @@ export function createProfileRoutes(pool) {
                 }
                 return null;
             };
+            // typeA / typeB / typeC are JotForm's internal widget names for compound
+            // fields like "Full Name" (typeA = {first, last}) — surfaces as q8_typeA
+            // in this form's payload. We try concrete labels first, then the typeX
+            // family, then a firstName/lastName fallback.
             const homeownerName = findField('name', 'fullName', 'homeownerName', 'yourName') ||
-                findField('firstName') ||
+                findField('typeA', 'typeB', 'typeC') ||
+                [findField('firstName', 'first'), findField('lastName', 'last')].filter(Boolean).join(' ').trim() ||
                 '';
             const homeownerEmail = findField('email', 'emailAddress', 'homeownerEmail');
             const homeownerPhone = findField('phone', 'phoneNumber', 'homeownerPhone', 'tel', 'mobile');
@@ -446,8 +451,9 @@ export function createProfileRoutes(pool) {
             const message = findField('message', 'comments', 'notes', 'additionalInfo', 'inquiry');
             const provideComments = findField('provideComments', 'comments') || '';
             const howDid = findField('howDid', 'howDidYouHear');
-            // Service type: try matching against our known service labels first
-            const rawService = (findField('service', 'serviceType', 'typeOfService', 'requestType') || '').toLowerCase();
+            // Service type: try matching against our known service labels first.
+            // `selectThe` is this form's checkbox group ("Select the areas...").
+            const rawService = (findField('service', 'serviceType', 'typeOfService', 'requestType', 'selectThe') || '').toLowerCase();
             let serviceType = null;
             for (const [key, label] of Object.entries(SERVICE_LABELS)) {
                 if (rawService.includes(key.replace(/_/g, ' ')) || rawService.includes(label.toLowerCase())) {
@@ -459,7 +465,7 @@ export function createProfileRoutes(pool) {
             // objects {month, day, year, hour, min, ampm}. findField flattens to
             // a string but we need to coerce to ISO. Best-effort: pass through the
             // string as-is and let processLeadIntegrations attempt the date parse.
-            const preferredDateRaw = findField('preferredDate', 'date', 'datetime', 'inspectionDate');
+            const preferredDateRaw = findField('preferredDate', 'date', 'datetime', 'inspectionDate', 'appointment');
             const preferredTimeRaw = findField('preferredTime', 'time', 'inspectionTime');
             // Parse the prefilled "Rep: {Name} ({slug})" string to get the slug
             // we can match against employee_profiles. This is how the JotForm
