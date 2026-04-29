@@ -9493,6 +9493,139 @@ app.use('/api/admin', createAdminRoutes(pool));
 registerLeadGenPages(app, pool);
 
 // ============================================================================
+// ADMIN QR PRINT SHEET — printable grid of every rep's QR code
+// ============================================================================
+// GET /admin/qr-print?email=<admin>&layout=sheet|single&role=sales_rep&slugs=a,b
+//   - `email` (required): admin email — checked via isAdmin()
+//   - `layout` (default `sheet`): `sheet` = 6/page grid; `single` = one large card per page
+//   - `role` (optional): filter by role_type (e.g. `sales_rep`, `admin`)
+//   - `slugs` (optional): comma-separated subset of slugs to print
+// QR images are pulled from api.qrserver.com (same source MyProfilePanel uses).
+app.get('/admin/qr-print', async (req, res, next) => {
+  try {
+    const email = String(req.query.email || req.header('x-user-email') || '').trim();
+    if (!email) {
+      return res.status(401).send('<h1>401</h1><p>Pass ?email=&lt;admin email&gt; to print QR sheet.</p>');
+    }
+    const adminCheck = await isAdmin(email);
+    if (!adminCheck) {
+      return res.status(403).send(`<h1>403</h1><p>${email} is not an admin.</p>`);
+    }
+
+    const layout = req.query.layout === 'single' ? 'single' : 'sheet';
+    const roleFilter = typeof req.query.role === 'string' ? req.query.role : null;
+    const slugFilter = typeof req.query.slugs === 'string'
+      ? req.query.slugs.split(',').map(s => s.trim()).filter(Boolean)
+      : null;
+
+    const params: any[] = [];
+    const where: string[] = ['is_active = true'];
+    if (roleFilter) { params.push(roleFilter); where.push(`role_type = $${params.length}`); }
+    if (slugFilter && slugFilter.length) { params.push(slugFilter); where.push(`slug = ANY($${params.length}::text[])`); }
+
+    const result = await pool.query(
+      `SELECT name, slug, phone_number, image_url, role_type
+         FROM employee_profiles
+        WHERE ${where.join(' AND ')}
+        ORDER BY name ASC`,
+      params
+    );
+    const profiles = result.rows;
+    const origin = `${req.protocol}://${req.get('host')}`;
+
+    res.set('Content-Type', 'text/html');
+    res.send(renderQrPrintSheet(profiles, origin, layout, email));
+  } catch (err) {
+    console.error('QR print sheet error:', err);
+    next(err);
+  }
+});
+
+function renderQrPrintSheet(profiles: any[], origin: string, layout: 'sheet' | 'single', adminEmail: string): string {
+  const escape = (s: string) => String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  } as any)[c]);
+
+  const cards = profiles.map(p => {
+    const profileUrl = `${origin}/profile/${p.slug}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data=${encodeURIComponent(profileUrl)}`;
+    const headshot = p.image_url
+      ? (String(p.image_url).startsWith('/') ? `${origin}${p.image_url}` : p.image_url)
+      : '';
+    return `
+      <div class="card">
+        ${headshot ? `<img class="headshot" src="${escape(headshot)}" alt="${escape(p.name)}" />` : '<div class="headshot placeholder"></div>'}
+        <div class="name">${escape(p.name || '')}</div>
+        <img class="qr" src="${qrUrl}" alt="QR code for ${escape(p.name)}" />
+        <div class="url">${escape(profileUrl.replace(/^https?:\/\//, ''))}</div>
+        ${p.phone_number ? `<div class="phone">${escape(p.phone_number)}</div>` : ''}
+        <div class="cta">Scan for free inspection</div>
+      </div>`;
+  }).join('\n');
+
+  const sheetCss = `
+    @page { size: letter; margin: 0.4in; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #f5f5f5; color: #111; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .toolbar button { background: #dc2626; color: white; border: 0; padding: 10px 20px; font-weight: 600; cursor: pointer; border-radius: 6px; }
+    .toolbar a { color: #555; text-decoration: none; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+    .headshot { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid #dc2626; margin: 0 auto 8px; display: block; }
+    .headshot.placeholder { background: #eee; }
+    .name { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+    .qr { width: 180px; height: 180px; display: block; margin: 0 auto; }
+    .url { font-size: 10px; color: #666; margin-top: 6px; word-break: break-all; }
+    .phone { font-size: 12px; color: #333; margin-top: 4px; }
+    .cta { font-size: 11px; color: #dc2626; font-weight: 600; margin-top: 4px; text-transform: uppercase; }
+    @media print {
+      body { background: white; padding: 0; }
+      .toolbar { display: none; }
+      .card { border-color: #ccc; }
+    }
+  `;
+  const singleCss = `
+    @page { size: letter; margin: 0.5in; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #f5f5f5; color: #111; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .toolbar button { background: #dc2626; color: white; border: 0; padding: 10px 20px; font-weight: 600; cursor: pointer; border-radius: 6px; }
+    .grid { display: block; }
+    .card { background: white; border: 2px solid #dc2626; border-radius: 12px; padding: 40px; text-align: center; page-break-after: always; break-after: page; min-height: 9in; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .card:last-child { page-break-after: auto; }
+    .headshot { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid #dc2626; margin: 0 auto 24px; display: block; }
+    .headshot.placeholder { background: #eee; }
+    .name { font-weight: 700; font-size: 36px; margin-bottom: 16px; }
+    .qr { width: 420px; height: 420px; display: block; margin: 0 auto; }
+    .url { font-size: 14px; color: #666; margin-top: 16px; word-break: break-all; }
+    .phone { font-size: 18px; color: #333; margin-top: 8px; font-weight: 600; }
+    .cta { font-size: 16px; color: #dc2626; font-weight: 700; margin-top: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    @media print {
+      body { background: white; padding: 0; }
+      .toolbar { display: none; }
+    }
+  `;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QR Print Sheet — ${profiles.length} reps</title>
+  <style>${layout === 'single' ? singleCss : sheetCss}</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Print (Cmd+P)</button>
+    <span>${profiles.length} ${profiles.length === 1 ? 'rep' : 'reps'} · layout: <b>${layout}</b></span>
+    <a href="?email=${encodeURIComponent(adminEmail)}&layout=${layout === 'single' ? 'sheet' : 'single'}">Switch to ${layout === 'single' ? 'sheet (6/page)' : 'single (1/page)'}</a>
+  </div>
+  <div class="grid">
+    ${cards}
+  </div>
+</body>
+</html>`;
+}
+
+// ============================================================================
 // PUBLIC PROFILE PAGE ROUTE (before SPA fallback)
 // ============================================================================
 
@@ -9596,14 +9729,15 @@ function renderProfilePage(profile: any): string {
     .section-title { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 12px; }
     .section-subtitle { font-size: 16px; color: #6b7280; text-align: center; margin-bottom: 32px; }
 
-    /* Top Navbar */
+    /* Top Navbar — logo centered, links absolute-right */
     .top-nav { background: #111; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 12px 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-    .nav-inner { display: flex; align-items: center; justify-content: space-between; }
-    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-    .nav-logo img { height: 36px; width: auto; }
-    .nav-links { display: flex; align-items: center; gap: 8px; }
-    .nav-link { color: #9ca3af; font-size: 13px; font-weight: 500; text-decoration: none; padding: 8px 14px; border-radius: 6px; transition: all 0.2s; }
-    .nav-link:hover { color: white; background: rgba(255,255,255,0.06); }
+    .nav-inner { display: flex; align-items: center; justify-content: center; position: relative; min-height: 44px; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
+    .nav-logo img { height: 40px; width: auto; }
+    .nav-logo-text { color: white; font-size: 18px; font-weight: 800; letter-spacing: 0.02em; }
+    .nav-links { display: flex; align-items: center; gap: 8px; position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+    .nav-link { color: white; font-size: 13px; font-weight: 500; text-decoration: none; padding: 8px 14px; border-radius: 6px; transition: all 0.2s; }
+    .nav-link:hover { background: rgba(255,255,255,0.06); }
     .nav-cta { background: #b60807; color: white; font-size: 13px; font-weight: 600; padding: 8px 18px; border-radius: 6px; text-decoration: none; transition: all 0.2s; }
     .nav-cta:hover { background: #9a0706; }
     @media (max-width: 640px) { .nav-links { display: none; } }
@@ -9866,7 +10000,7 @@ function renderProfilePage(profile: any): string {
     <div class="container">
       <div class="nav-inner">
         <a href="https://www.theroofdocs.com" target="_blank" class="nav-logo">
-          <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/Main_Logo-1.png" alt="The Roof Docs">
+          <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="The Roof Docs">
         </a>
         <div class="nav-links">
           <a href="https://www.theroofdocs.com/services/" target="_blank" class="nav-link">Services</a>
