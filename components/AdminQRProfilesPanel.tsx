@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Camera,
   Upload,
+  Star,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -941,6 +942,232 @@ function VideoManagementModal({
   );
 }
 
+// ─── Reviews Management Modal ─────────────────────────────────────────────────
+
+interface ReviewRow {
+  id: string;
+  profile_id: string | null;
+  text: string;
+  author: string;
+  date_label: string | null;
+  source: string | null;
+  source_url: string | null;
+  rating: number;
+  display_order: number;
+  is_active: boolean;
+}
+
+function ReviewsManagementModal({
+  profile,
+  userEmail,
+  onClose,
+  addToast,
+}: {
+  profile: QRProfile;
+  userEmail: string;
+  onClose: () => void;
+  addToast: (msg: string, type?: 'success' | 'error') => void;
+}) {
+  const [reviews, setReviews] = React.useState<ReviewRow[]>([]);
+  const [globalReviews, setGlobalReviews] = React.useState<ReviewRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  // New review form
+  const [text, setText] = React.useState('');
+  const [author, setAuthor] = React.useState('');
+  const [dateLabel, setDateLabel] = React.useState('');
+  const [source, setSource] = React.useState('google');
+  const [sourceUrl, setSourceUrl] = React.useState('');
+
+  async function loadReviews() {
+    setLoading(true);
+    try {
+      const [own, global] = await Promise.all([
+        fetch(`${API_BASE}/api/profiles/${profile.id}/reviews`, { headers: { 'x-user-email': userEmail } }).then(r => r.json()),
+        fetch(`${API_BASE}/api/profiles/reviews/global`).then(r => r.json()),
+      ]);
+      setReviews(own.reviews || []);
+      setGlobalReviews(global.reviews || []);
+    } catch {
+      addToast('Failed to load reviews', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { loadReviews(); }, [profile.id]);
+
+  async function handleAdd() {
+    if (!text.trim() || !author.trim()) {
+      addToast('Review text and author are required', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/profiles/${profile.id}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
+        body: JSON.stringify({
+          text: text.trim(),
+          author: author.trim(),
+          date_label: dateLabel.trim() || null,
+          source,
+          source_url: sourceUrl.trim() || null,
+          rating: 5,
+          display_order: reviews.length + 1,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed');
+      addToast('Review added', 'success');
+      setText(''); setAuthor(''); setDateLabel(''); setSourceUrl('');
+      loadReviews();
+    } catch (e: any) {
+      addToast(e.message || 'Failed to add review', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(reviewId: string) {
+    if (!window.confirm('Delete this review?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/profiles/reviews/${reviewId}`, {
+        method: 'DELETE',
+        headers: { 'x-user-email': userEmail },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed');
+      addToast('Review deleted', 'success');
+      loadReviews();
+    } catch (e: any) {
+      addToast(e.message || 'Failed to delete', 'error');
+    }
+  }
+
+  async function handleToggleActive(r: ReviewRow) {
+    try {
+      const res = await fetch(`${API_BASE}/api/profiles/reviews/${r.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
+        body: JSON.stringify({ is_active: !r.is_active }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed');
+      loadReviews();
+    } catch (e: any) {
+      addToast(e.message || 'Failed to update', 'error');
+    }
+  }
+
+  return (
+    <Modal title={`Reviews — ${profile.name}`} onClose={onClose} maxWidth={780}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        <div style={{ background: 'var(--bg-elevated)', padding: 12, borderRadius: 8, fontSize: 13, color: 'var(--text-tertiary)' }}>
+          {reviews.length > 0
+            ? <>This rep has <b style={{ color: 'var(--text-primary)' }}>{reviews.length}</b> curated review{reviews.length === 1 ? '' : 's'} — they will appear on /profile/{profile.slug} instead of the {globalReviews.length} global fallbacks.</>
+            : <>This rep has no curated reviews. Their page is currently showing the <b style={{ color: 'var(--text-primary)' }}>{globalReviews.length} global fallbacks</b>. Add at least one rep-specific review below to override.</>
+          }
+        </div>
+
+        {/* Existing reviews */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-tertiary)' }}><Loader size={20} /> Loading...</div>
+        ) : reviews.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-tertiary)', fontSize: 13 }}>No reviews yet for this rep.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {reviews.map(r => (
+              <div key={r.id} style={{ background: 'var(--bg-primary)', border: '1px solid var(--bg-elevated)', borderRadius: 8, padding: 12, opacity: r.is_active ? 1 : 0.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 6, lineHeight: 1.5 }}>"{r.text}"</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      — {r.author} {r.date_label && `· ${r.date_label}`} {r.source && `· ${r.source}`} {!r.is_active && ' · HIDDEN'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button style={iconBtn()} onClick={() => handleToggleActive(r)} title={r.is_active ? 'Hide' : 'Show'}>
+                      {r.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                    <button style={{ ...iconBtn(), color: '#dc2626', borderColor: '#7f1d1d' }} onClick={() => handleDelete(r.id)} title="Delete"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new review form */}
+        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: 14, marginTop: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>Add a review</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Paste the review text (without the quotes — we add them)"
+              rows={4}
+              style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid var(--border-subtle)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit' }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <input
+                value={author}
+                onChange={e => setAuthor(e.target.value)}
+                placeholder="Author name"
+                style={reviewInputStyle()}
+              />
+              <input
+                value={dateLabel}
+                onChange={e => setDateLabel(e.target.value)}
+                placeholder="Date (e.g. 2025)"
+                style={reviewInputStyle()}
+              />
+              <select
+                value={source}
+                onChange={e => setSource(e.target.value)}
+                style={reviewInputStyle()}
+              >
+                <option value="google">Google</option>
+                <option value="gaf">GAF</option>
+                <option value="bbb">BBB</option>
+                <option value="manual">Other</option>
+              </select>
+            </div>
+            <input
+              value={sourceUrl}
+              onChange={e => setSourceUrl(e.target.value)}
+              placeholder="Source URL (optional — link to verify)"
+              style={reviewInputStyle()}
+            />
+            <button
+              onClick={handleAdd}
+              disabled={saving || !text.trim() || !author.trim()}
+              style={primaryBtn(saving || !text.trim() || !author.trim())}
+            >
+              {saving ? <Loader size={14} /> : <Plus size={14} />}
+              {saving ? 'Adding...' : 'Add review'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function reviewInputStyle(): React.CSSProperties {
+  return {
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-primary)',
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+  };
+}
+
 // ─── Bulk Import Modal ────────────────────────────────────────────────────────
 
 function BulkImportModal({
@@ -1102,6 +1329,7 @@ function ProfileRow({
   onEdit,
   onDeleted,
   onManageVideos,
+  onManageReviews,
   onUploadPhoto,
   addToast,
   isMobile,
@@ -1111,6 +1339,7 @@ function ProfileRow({
   onEdit: (p: QRProfile) => void;
   onDeleted: () => void;
   onManageVideos: (p: QRProfile) => void;
+  onManageReviews: (p: QRProfile) => void;
   onUploadPhoto: (p: QRProfile) => void;
   addToast: (msg: string, type?: 'success' | 'error') => void;
   isMobile: boolean;
@@ -1221,6 +1450,7 @@ function ProfileRow({
           <button style={iconBtn()} onClick={() => onEdit(profile)} title="Edit"><Edit2 size={14} /></button>
           <button style={iconBtn()} onClick={() => onUploadPhoto(profile)} title="Upload Photo"><Camera size={14} /></button>
           <button style={iconBtn()} onClick={() => onManageVideos(profile)} title="Manage Videos"><Video size={14} /></button>
+          <button style={iconBtn()} onClick={() => onManageReviews(profile)} title="Manage Reviews"><Star size={14} /></button>
           <button
             style={iconBtn()}
             onClick={handleDownloadQR}
@@ -1291,6 +1521,9 @@ function ProfileRow({
           </button>
           <button style={iconBtn()} onClick={() => onManageVideos(profile)} title="Manage videos">
             <Video size={14} />
+          </button>
+          <button style={iconBtn()} onClick={() => onManageReviews(profile)} title="Manage reviews">
+            <Star size={14} />
           </button>
           <button
             style={iconBtn()}
@@ -1469,6 +1702,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
   // Modals
   const [createEditProfile, setCreateEditProfile] = React.useState<QRProfile | null | 'new'>('');
   const [videoProfile, setVideoProfile] = React.useState<QRProfile | null>(null);
+  const [reviewsProfile, setReviewsProfile] = React.useState<QRProfile | null>(null);
   const [uploadPhotoProfile, setUploadPhotoProfile] = React.useState<QRProfile | null>(null);
   const [showBulkImport, setShowBulkImport] = React.useState(false);
 
@@ -1717,6 +1951,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
                 onEdit={prof => setCreateEditProfile(prof)}
                 onDeleted={refresh}
                 onManageVideos={prof => setVideoProfile(prof)}
+                onManageReviews={prof => setReviewsProfile(prof)}
                 onUploadPhoto={prof => setUploadPhotoProfile(prof)}
                 addToast={addToast}
                 isMobile={true}
@@ -1745,6 +1980,7 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
                     onEdit={prof => setCreateEditProfile(prof)}
                     onDeleted={refresh}
                     onManageVideos={prof => setVideoProfile(prof)}
+                    onManageReviews={prof => setReviewsProfile(prof)}
                     onUploadPhoto={prof => setUploadPhotoProfile(prof)}
                     addToast={addToast}
                     isMobile={false}
@@ -1789,6 +2025,15 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
           profile={videoProfile}
           userEmail={userEmail}
           onClose={() => setVideoProfile(null)}
+          addToast={addToast}
+        />
+      )}
+
+      {reviewsProfile && (
+        <ReviewsManagementModal
+          profile={reviewsProfile}
+          userEmail={userEmail}
+          onClose={() => setReviewsProfile(null)}
           addToast={addToast}
         />
       )}

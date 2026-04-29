@@ -8400,6 +8400,27 @@ app.get('/profile/:slug', async (req, res, next) => {
         const videosResult = await pool.query(`SELECT id, title, description, url, thumbnail_url, is_welcome_video, duration
        FROM profile_videos WHERE profile_id = $1 ORDER BY display_order ASC`, [profile.id]);
         profile.videos = videosResult.rows;
+        // Fetch reviews — rep-specific first, fall back to globals if rep has none.
+        // Limit 4 to match the 2x2 grid layout. is_active gates soft-deletion
+        // without dropping rows so admin can re-activate without re-typing.
+        const ownReviews = await pool.query(`SELECT id, text, author, date_label, source, rating
+         FROM profile_reviews
+        WHERE profile_id = $1 AND is_active = TRUE
+        ORDER BY display_order ASC, created_at ASC
+        LIMIT 4`, [profile.id]);
+        if (ownReviews.rows.length > 0) {
+            profile.reviews = ownReviews.rows;
+            profile.reviews_are_global = false;
+        }
+        else {
+            const globalReviews = await pool.query(`SELECT id, text, author, date_label, source, rating
+           FROM profile_reviews
+          WHERE profile_id IS NULL AND is_active = TRUE
+          ORDER BY display_order ASC, created_at ASC
+          LIMIT 4`);
+            profile.reviews = globalReviews.rows;
+            profile.reviews_are_global = true;
+        }
         // Track scan
         const userAgent = req.headers['user-agent'] || '';
         const referrer = req.headers['referer'] || '';
@@ -8896,17 +8917,27 @@ function renderProfilePage(profile) {
       <h2 class="section-title" style="color:#1a1a1a">What Our Customers Say</h2>
       <div class="reviews-grid">
         ${(() => {
-        // Reviews sourced from knowledge/preselected_reviews.md — insurance
-        // restoration angle, anonymous per the source doc.
+        // Reviews come from profile_reviews. Renderer is rep-agnostic;
+        // the SSR handler picks rep-specific or global fallback.
         const star = '<svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
-        const stars = star.repeat(5);
-        const reviews = [
-            { text: 'I had several other companies look at my roof and tell me everything was fine. Roof-ER came out, identified significant wind and hail damage, and met with my adjuster. The claim was approved for a full replacement. Extremely professional and honest.', author: 'Barbara Joyal', date: '2024' },
-            { text: 'The team guided me through the entire insurance process which was originally very overwhelming. They handled all the paperwork and the heavy lifting with the adjuster. I couldn’t be happier with the outcome and the quality of the new roof.', author: 'Arturo Santos', date: '2025' },
-            { text: 'Unlike the high-pressure sales tactics I experienced with other contractors, this team focused on educating me about the damage. They worked directly with my insurance to ensure a fair assessment. Professional, transparent, and highly recommended.', author: 'S.M.', date: 'Mar 2026' },
-            { text: 'Total professional experience from start to finish. They helped get my storm damage claim approved quickly and the crew was surgical in their cleanup. Not a single nail left in the yard. Truly a premium service.', author: 'Ivalee Jimenez', date: '2025' },
-        ];
-        return reviews.map(r => `<div class="review-card"><div class="review-stars">${stars}</div><p class="review-text">&ldquo;${r.text}&rdquo;</p><p class="review-author">— ${r.author} <span style="color:#9ca3af;font-weight:400;">· ${r.date} · Google Review</span></p></div>`).join('');
+        const reviews = (profile.reviews || []);
+        const sourceLabel = (s) => {
+            if (!s)
+                return 'Customer Review';
+            if (s === 'google')
+                return 'Google Review';
+            if (s === 'gaf')
+                return 'GAF Review';
+            if (s === 'bbb')
+                return 'BBB Review';
+            return 'Customer Review';
+        };
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        return reviews.map((r) => {
+            const stars = star.repeat(Math.max(1, Math.min(5, r.rating || 5)));
+            const meta = [r.date_label, sourceLabel(r.source)].filter(Boolean).join(' · ');
+            return `<div class="review-card"><div class="review-stars">${stars}</div><p class="review-text">&ldquo;${escapeHtml(r.text)}&rdquo;</p><p class="review-author">— ${escapeHtml(r.author)} <span style="color:#9ca3af;font-weight:400;">· ${escapeHtml(meta)}</span></p></div>`;
+        }).join('');
     })()}
       </div>
       <div style="text-align:center;margin-top:24px;">

@@ -1758,6 +1758,159 @@ export function createProfileRoutes(pool: Pool) {
     }
   });
 
+  // ==========================================================================
+  // REVIEWS — admin curates per-rep + global testimonials shown on /profile/:slug
+  // ==========================================================================
+
+  /**
+   * GET /api/profiles/reviews/global
+   * List the global fallback reviews (profile_id IS NULL).
+   * Public-readable so the renderer can fall back, but admin gets full set.
+   */
+  router.get('/reviews/global', async (_req: Request, res: Response) => {
+    try {
+      const r = await pool.query(
+        `SELECT id, profile_id, text, author, date_label, source, source_url, rating, display_order, is_active, created_at
+           FROM profile_reviews
+          WHERE profile_id IS NULL
+          ORDER BY display_order ASC, created_at ASC`,
+      );
+      res.json({ success: true, reviews: r.rows });
+    } catch (error) {
+      console.error('❌ Global reviews list error:', error);
+      res.status(500).json({ success: false, error: 'Failed to load reviews' });
+    }
+  });
+
+  /**
+   * GET /api/profiles/:id/reviews
+   * List reviews curated for a specific rep. Admin-only because this exposes
+   * is_active rows and ordering; the public renderer pulls reviews via the
+   * SSR /profile/:slug handler instead.
+   */
+  router.get('/:id/reviews', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!(await isAdminUser(userEmail))) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+      const r = await pool.query(
+        `SELECT id, profile_id, text, author, date_label, source, source_url, rating, display_order, is_active, created_at
+           FROM profile_reviews
+          WHERE profile_id = $1
+          ORDER BY display_order ASC, created_at ASC`,
+        [req.params.id],
+      );
+      res.json({ success: true, reviews: r.rows });
+    } catch (error) {
+      console.error('❌ Profile reviews list error:', error);
+      res.status(500).json({ success: false, error: 'Failed to load reviews' });
+    }
+  });
+
+  /**
+   * POST /api/profiles/:id/reviews
+   * Create a review for a rep. Pass `:id = "global"` to create a global row.
+   */
+  router.post('/:id/reviews', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!(await isAdminUser(userEmail))) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+      const profileIdParam = req.params.id === 'global' ? null : req.params.id;
+      const { text, author, date_label, source, source_url, rating, display_order } = req.body || {};
+      if (!text || !author) {
+        return res.status(400).json({ success: false, error: 'text and author are required' });
+      }
+      const r = await pool.query(
+        `INSERT INTO profile_reviews (profile_id, text, author, date_label, source, source_url, rating, display_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [
+          profileIdParam,
+          String(text).trim(),
+          String(author).trim(),
+          date_label || null,
+          source || 'google',
+          source_url || null,
+          Number.isFinite(rating) ? rating : 5,
+          Number.isFinite(display_order) ? display_order : 0,
+        ],
+      );
+      res.json({ success: true, review: r.rows[0] });
+    } catch (error) {
+      console.error('❌ Profile review create error:', error);
+      res.status(500).json({ success: false, error: 'Failed to create review' });
+    }
+  });
+
+  /**
+   * PUT /api/profiles/reviews/:reviewId
+   * Update any field on an existing review.
+   */
+  router.put('/reviews/:reviewId', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!(await isAdminUser(userEmail))) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+      const { text, author, date_label, source, source_url, rating, display_order, is_active } = req.body || {};
+      const r = await pool.query(
+        `UPDATE profile_reviews SET
+           text = COALESCE($2, text),
+           author = COALESCE($3, author),
+           date_label = COALESCE($4, date_label),
+           source = COALESCE($5, source),
+           source_url = COALESCE($6, source_url),
+           rating = COALESCE($7, rating),
+           display_order = COALESCE($8, display_order),
+           is_active = COALESCE($9, is_active),
+           updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [
+          req.params.reviewId,
+          text != null ? String(text).trim() : null,
+          author != null ? String(author).trim() : null,
+          date_label != null ? date_label : null,
+          source != null ? source : null,
+          source_url != null ? source_url : null,
+          Number.isFinite(rating) ? rating : null,
+          Number.isFinite(display_order) ? display_order : null,
+          typeof is_active === 'boolean' ? is_active : null,
+        ],
+      );
+      if (r.rowCount === 0) return res.status(404).json({ success: false, error: 'Review not found' });
+      res.json({ success: true, review: r.rows[0] });
+    } catch (error) {
+      console.error('❌ Profile review update error:', error);
+      res.status(500).json({ success: false, error: 'Failed to update review' });
+    }
+  });
+
+  /**
+   * DELETE /api/profiles/reviews/:reviewId
+   * Hard-delete a review row.
+   */
+  router.delete('/reviews/:reviewId', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!(await isAdminUser(userEmail))) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+      const r = await pool.query(
+        'DELETE FROM profile_reviews WHERE id = $1 RETURNING id',
+        [req.params.reviewId],
+      );
+      if (r.rowCount === 0) return res.status(404).json({ success: false, error: 'Review not found' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('❌ Profile review delete error:', error);
+      res.status(500).json({ success: false, error: 'Failed to delete review' });
+    }
+  });
+
   /**
    * POST /api/profiles/bulk-import
    * Bulk import profiles from JSON array
