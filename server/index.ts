@@ -10173,12 +10173,12 @@ function renderProfilePage(profile: any): string {
           const star = '<svg class="review-star" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
           const stars = star.repeat(5);
           const reviews = [
-            { text: 'I had several other companies look at my roof and tell me everything was fine. Roof-ER came out, identified significant wind and hail damage, and met with my adjuster. The claim was approved for a full replacement. Extremely professional and honest.', author: 'Verified Customer' },
-            { text: 'The team guided me through the entire insurance process which was originally very overwhelming. They handled all the paperwork and the heavy lifting with the adjuster. I couldn’t be happier with the outcome and the quality of the new roof.', author: 'Verified Customer' },
-            { text: 'Unlike the high-pressure sales tactics I experienced with other contractors, this team focused on educating me about the damage. They worked directly with my insurance to ensure a fair assessment. Professional, transparent, and highly recommended.', author: 'Verified Customer' },
-            { text: 'Total professional experience from start to finish. They helped get my storm damage claim approved quickly and the crew was surgical in their cleanup. Not a single nail left in the yard. Truly a premium service.', author: 'Verified Customer' },
+            { text: 'I had several other companies look at my roof and tell me everything was fine. Roof-ER came out, identified significant wind and hail damage, and met with my adjuster. The claim was approved for a full replacement. Extremely professional and honest.', author: 'Barbara Joyal', date: '2024' },
+            { text: 'The team guided me through the entire insurance process which was originally very overwhelming. They handled all the paperwork and the heavy lifting with the adjuster. I couldn’t be happier with the outcome and the quality of the new roof.', author: 'Arturo Santos', date: '2025' },
+            { text: 'Unlike the high-pressure sales tactics I experienced with other contractors, this team focused on educating me about the damage. They worked directly with my insurance to ensure a fair assessment. Professional, transparent, and highly recommended.', author: 'S.M.', date: 'Mar 2026' },
+            { text: 'Total professional experience from start to finish. They helped get my storm damage claim approved quickly and the crew was surgical in their cleanup. Not a single nail left in the yard. Truly a premium service.', author: 'Ivalee Jimenez', date: '2025' },
           ];
-          return reviews.map(r => `<div class="review-card"><div class="review-stars">${stars}</div><p class="review-text">&ldquo;${r.text}&rdquo;</p><p class="review-author">- ${r.author}</p></div>`).join('');
+          return reviews.map(r => `<div class="review-card"><div class="review-stars">${stars}</div><p class="review-text">&ldquo;${r.text}&rdquo;</p><p class="review-author">— ${r.author} <span style="color:#9ca3af;font-weight:400;">· ${r.date} · Google Review</span></p></div>`).join('');
         })()}
       </div>
     </div>
