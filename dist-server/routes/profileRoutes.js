@@ -461,12 +461,31 @@ export function createProfileRoutes(pool) {
                     break;
                 }
             }
-            // Date/time fields are tricky in JotForm — they often come as compound
-            // objects {month, day, year, hour, min, ampm}. findField flattens to
-            // a string but we need to coerce to ISO. Best-effort: pass through the
-            // string as-is and let processLeadIntegrations attempt the date parse.
-            const preferredDateRaw = findField('preferredDate', 'date', 'datetime', 'inspectionDate', 'appointment');
-            const preferredTimeRaw = findField('preferredTime', 'time', 'inspectionTime');
+            // Date/time fields are tricky in JotForm.
+            // The Appointment widget surfaces as a single composite string like:
+            //   "new 2026-05-05 09:00 60 America/New_York (GMT-04:00)"
+            // The DB column is `date`, so we have to extract YYYY-MM-DD or PG
+            // throws "invalid input syntax for type date" and the whole row fails.
+            // Other compound widgets come through findField pre-flattened.
+            const rawApptStr = findField('preferredDate', 'date', 'datetime', 'inspectionDate', 'appointment') || '';
+            let preferredDateRaw = null;
+            let preferredTimeRaw = findField('preferredTime', 'time', 'inspectionTime');
+            if (rawApptStr) {
+                // Match YYYY-MM-DD anywhere in the string
+                const dateMatch = rawApptStr.match(/(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch)
+                    preferredDateRaw = dateMatch[1];
+                // Match HH:MM (24-hr) — but only if no time was already extracted
+                if (!preferredTimeRaw) {
+                    const timeMatch = rawApptStr.match(/\b(\d{1,2}:\d{2})\b/);
+                    if (timeMatch)
+                        preferredTimeRaw = timeMatch[1];
+                }
+                // If no date matched, fall back to null (don't pass garbage to PG)
+                if (!preferredDateRaw && !preferredTimeRaw) {
+                    console.warn(`[JotForm Webhook] could not parse appointment string: ${rawApptStr.slice(0, 100)}`);
+                }
+            }
             // Parse the prefilled "Rep: {Name} ({slug})" string to get the slug
             // we can match against employee_profiles. This is how the JotForm
             // iframe attributes the lead to the right rep — see the SSR profile
