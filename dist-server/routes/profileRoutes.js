@@ -244,9 +244,12 @@ export function createProfileRoutes(pool) {
                 }
                 // 3) In-app notification on the rep's bell icon. Survives even if the
                 // rep's Gmail isn't connected — admin (below) is the third backstop.
+                // team_notifications.type has a CHECK constraint limiting it to
+                // mention/direct_message/shared_content/system — we use 'system'
+                // and put the new_lead semantics in the data JSON.
                 try {
-                    await pool.query(`INSERT INTO notifications (user_id, type, title, body, data, created_at)
-             VALUES ($1, 'new_lead', $2, $3, $4, NOW())`, [
+                    await pool.query(`INSERT INTO team_notifications (user_id, type, title, body, data, created_at)
+             VALUES ($1, 'system', $2, $3, $4, NOW())`, [
                         repUserId,
                         `New lead: ${leadData.homeownerName}`,
                         [
@@ -255,7 +258,7 @@ export function createProfileRoutes(pool) {
                             leadData.address ? `Address: ${leadData.address}` : '',
                             leadData.preferredDate ? `Appointment: ${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}` : '',
                         ].filter(Boolean).join(' · '),
-                        JSON.stringify({ type: 'new_lead', lead_id: leadId, source: sourceLabel }),
+                        JSON.stringify({ kind: 'new_lead', lead_id: leadId, source: sourceLabel }),
                     ]);
                     console.log(`[QR Lead] In-app notification inserted for rep=${repUserId}`);
                 }
