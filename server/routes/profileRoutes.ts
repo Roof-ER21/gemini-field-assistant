@@ -86,6 +86,16 @@ const uploadVideo = multer({
   }
 });
 
+// JotForm webhooks send multipart/form-data with text fields only (no files).
+// Express's default urlencoded parser ignores multipart, leaving req.body
+// empty. multer().none() parses the text fields into req.body without
+// accepting any file uploads. Bump fieldSize because `rawRequest` is a
+// JSON-stringified blob of the full form payload (can exceed default 1MB
+// when forms have many fields or long messages).
+const jotformParser = multer({
+  limits: { fieldSize: 5 * 1024 * 1024, fields: 200 },
+}).none();
+
 export { UPLOADS_ROOT };
 
 export interface EmployeeProfile {
@@ -452,7 +462,7 @@ export function createProfileRoutes(pool: Pool) {
    * retries on failures and we don't want duplicate leads or double
    * calendar events.
    */
-  router.post('/jotform-webhook', async (req: Request, res: Response) => {
+  router.post('/jotform-webhook', jotformParser, async (req: Request, res: Response) => {
     try {
       // Shared-secret check. JotForm doesn't sign webhooks, so we lock down
       // the endpoint with a query-param key. When JOTFORM_WEBHOOK_SECRET is
