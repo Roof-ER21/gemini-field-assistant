@@ -8822,7 +8822,7 @@ function renderProfilePage(profile) {
           </div>
         </div>
         <div class="stats-row">
-          <div class="stat-box"><div class="stat-number">9</div><div class="stat-label">Years in Business</div></div>
+          <div class="stat-box"><div class="stat-number">8</div><div class="stat-label">Years in Business</div></div>
           <div class="stat-box"><div class="stat-number">8,000+</div><div class="stat-label">Projects Completed</div></div>
         </div>
         <div class="cert-list">

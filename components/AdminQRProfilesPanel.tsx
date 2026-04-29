@@ -1116,6 +1116,36 @@ function ProfileRow({
   isMobile: boolean;
 }) {
   const [deleting, setDeleting] = React.useState(false);
+  const [downloadingQR, setDownloadingQR] = React.useState(false);
+
+  async function handleDownloadQR() {
+    setDownloadingQR(true);
+    try {
+      const profileUrl = `${window.location.origin}/profile/${profile.slug}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1024x1024&margin=20&data=${encodeURIComponent(profileUrl)}`;
+      const res = await fetch(qrUrl);
+      if (!res.ok) throw new Error('QR fetch failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${profile.slug}-qr.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addToast(`Downloaded QR for ${profile.name}`, 'success');
+    } catch {
+      addToast('Failed to download QR', 'error');
+    } finally {
+      setDownloadingQR(false);
+    }
+  }
+
+  function handlePrintQR() {
+    const url = `/admin/qr-print?email=${encodeURIComponent(userEmail)}&layout=single&slugs=${encodeURIComponent(profile.slug)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 
   async function handleDelete() {
     if (!window.confirm(`Delete profile for ${profile.name}? This cannot be undone.`)) return;
@@ -1192,6 +1222,15 @@ function ProfileRow({
           <button style={iconBtn()} onClick={() => onUploadPhoto(profile)} title="Upload Photo"><Camera size={14} /></button>
           <button style={iconBtn()} onClick={() => onManageVideos(profile)} title="Manage Videos"><Video size={14} /></button>
           <button
+            style={iconBtn()}
+            onClick={handleDownloadQR}
+            disabled={downloadingQR}
+            title="Download QR code (1024×1024 PNG for flyers)"
+          >
+            {downloadingQR ? <Loader size={14} /> : <Download size={14} />}
+          </button>
+          <button style={iconBtn()} onClick={handlePrintQR} title="Print one-page QR sheet"><QrCode size={14} /></button>
+          <button
             style={{ ...iconBtn(), color: '#dc2626', borderColor: '#7f1d1d' }}
             onClick={handleDelete}
             disabled={deleting}
@@ -1252,6 +1291,17 @@ function ProfileRow({
           </button>
           <button style={iconBtn()} onClick={() => onManageVideos(profile)} title="Manage videos">
             <Video size={14} />
+          </button>
+          <button
+            style={iconBtn()}
+            onClick={handleDownloadQR}
+            disabled={downloadingQR}
+            title="Download QR code (1024×1024 PNG for flyers)"
+          >
+            {downloadingQR ? <Loader size={14} /> : <Download size={14} />}
+          </button>
+          <button style={iconBtn()} onClick={handlePrintQR} title="Print one-page QR sheet">
+            <QrCode size={14} />
           </button>
           <button
             style={{ ...iconBtn(), color: '#dc2626', borderColor: '#7f1d1d' }}
