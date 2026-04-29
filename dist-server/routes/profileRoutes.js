@@ -1194,8 +1194,14 @@ export function createProfileRoutes(pool) {
                     fs.unlinkSync(req.file.path);
                 return res.status(400).json({ success: false, error: 'Title is required' });
             }
+            const isWelcome = is_welcome_video === 'true' || is_welcome_video === true;
+            // If this is a welcome video, delete any existing welcome video for this profile first
+            // so we never have two welcome-video rows for the same rep.
+            if (isWelcome) {
+                await pool.query(`DELETE FROM profile_videos WHERE profile_id = $1 AND is_welcome_video = true`, [id]);
+            }
             const result = await pool.query(`INSERT INTO profile_videos (profile_id, title, description, url, is_welcome_video, duration, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [id, title, description || null, videoUrl, is_welcome_video === 'true' || is_welcome_video === true, duration ? parseInt(duration) : null, display_order ? parseInt(display_order) : 0]);
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [id, title, description || null, videoUrl, isWelcome, duration ? parseInt(duration) : null, display_order ? parseInt(display_order) : 0]);
             console.log(`✅ Video added for profile ${id}: ${videoUrl} (volume: ${UPLOADS_ROOT})`);
             res.json({ success: true, video: result.rows[0] });
         }

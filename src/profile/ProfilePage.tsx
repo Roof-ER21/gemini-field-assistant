@@ -265,56 +265,51 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Video Section */}
-            {profile.videos && profile.videos.length > 0 ? (
-              <div className="space-y-4">
-                {profile.videos.map((video) => {
-                  // Make relative upload URLs absolute using current origin
-                  const rawUrl = video.url || '';
-                  const url = rawUrl.startsWith('/uploads/') ? `${window.location.origin}${rawUrl}` : rawUrl;
-                  const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
-                  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-                  const isEmbed = youtubeMatch || vimeoMatch;
-
-                  let embedUrl = '';
-                  if (youtubeMatch) embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
-                  else if (vimeoMatch) embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
-
-                  return (
-                    <div key={video.id} className="relative">
-                      <div className="overflow-hidden shadow-2xl rounded-lg border-0">
-                        {isEmbed ? (
-                          <iframe
-                            src={embedUrl}
-                            className="w-full aspect-video bg-black"
-                            style={{ borderRadius: '8px', border: 'none' }}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <video
-                            controls
-                            playsInline
-                            preload="metadata"
-                            poster={video.thumbnail_url || undefined}
-                            className="w-full aspect-video bg-black"
-                            style={{ borderRadius: '8px' }}
-                          >
-                            <source src={url} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                        )}
-                      </div>
-                      {video.title && (
-                        <p className="text-white font-medium mt-2 text-sm">{video.title}</p>
-                      )}
-                      {video.description && (
-                        <p className="text-gray-400 text-xs mt-1">{video.description}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            {/* Video Section — show the welcome video, falling back to the first video */}
+            {profile.videos && profile.videos.length > 0 ? (() => {
+              const video = profile.videos!.find(v => v.is_welcome_video) ?? profile.videos![0];
+              const rawUrl = video.url || '';
+              const url = rawUrl.startsWith('/uploads/') ? `${window.location.origin}${rawUrl}` : rawUrl;
+              const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
+              const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+              const isEmbed = youtubeMatch || vimeoMatch;
+              let embedUrl = '';
+              if (youtubeMatch) embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+              else if (vimeoMatch) embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+              return (
+                <div className="relative">
+                  <div className="overflow-hidden shadow-2xl rounded-lg border-0">
+                    {isEmbed ? (
+                      <iframe
+                        src={embedUrl}
+                        className="w-full aspect-video bg-black"
+                        style={{ borderRadius: '8px', border: 'none' }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        poster={video.thumbnail_url || undefined}
+                        className="w-full aspect-video bg-black"
+                        style={{ borderRadius: '8px' }}
+                      >
+                        <source src={url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    )}
+                  </div>
+                  {video.title && (
+                    <p className="text-white font-medium mt-2 text-sm">{video.title}</p>
+                  )}
+                  {video.description && (
+                    <p className="text-gray-400 text-xs mt-1">{video.description}</p>
+                  )}
+                </div>
+              );
+            })()
             ) : (
               <div className="relative">
                 <div className="overflow-hidden shadow-2xl rounded-lg border-0">
