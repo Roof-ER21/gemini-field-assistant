@@ -301,6 +301,74 @@ export function createProfileRoutes(pool: Pool) {
         } else {
           console.log(`[QR Lead] Gmail not connected for rep=${repUserId}: ${emailResult.error}`);
         }
+
+        // 3) In-app notification on the rep's bell icon. Survives even if the
+        // rep's Gmail isn't connected — admin (below) is the third backstop.
+        try {
+          await pool.query(
+            `INSERT INTO notifications (user_id, type, title, body, data, created_at)
+             VALUES ($1, 'new_lead', $2, $3, $4, NOW())`,
+            [
+              repUserId,
+              `New lead: ${leadData.homeownerName}`,
+              [
+                `${serviceLabel} request from ${leadData.homeownerName}`,
+                leadData.homeownerPhone ? `Phone: ${leadData.homeownerPhone}` : '',
+                leadData.address ? `Address: ${leadData.address}` : '',
+                leadData.preferredDate ? `Appointment: ${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}` : '',
+              ].filter(Boolean).join(' · '),
+              JSON.stringify({ type: 'new_lead', lead_id: leadId, source: sourceLabel }),
+            ],
+          );
+          console.log(`[QR Lead] In-app notification inserted for rep=${repUserId}`);
+        } catch (notifErr) {
+          console.error(`[QR Lead] Failed to insert in-app notification:`, notifErr);
+        }
+
+        // 4) Admin BCC email — every lead, regardless of rep Gmail state.
+        // Uses the LEAD_ADMIN_EMAIL env var; falls back to the well-known
+        // admin address if unset. Sent from the rep's Gmail if connected,
+        // else from the admin's (the helper picks whoever's connected).
+        try {
+          const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
+          const adminUserRow = await pool.query(
+            'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [adminEmailAddr],
+          );
+          const adminUserId = adminUserRow.rows[0]?.id;
+          if (adminUserId) {
+            const adminResult = await sendGmailEmail(pool, adminUserId, {
+              to: adminEmailAddr,
+              subject: `[Lead] ${leadData.homeownerName} → ${repName} (${sourceLabel})`,
+              body: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #1a1a1a; color: white; padding: 16px; border-radius: 8px 8px 0 0;">
+                    <h3 style="margin: 0; font-size: 16px;">Admin copy — new ${sourceLabel} lead</h3>
+                  </div>
+                  <div style="background: white; color: #1a1a1a; padding: 16px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 8px 8px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                      <tr><td style="padding: 6px 0; color: #666;">Rep</td><td style="padding: 6px 0; font-weight: 600;">${repName}</td></tr>
+                      <tr><td style="padding: 6px 0; color: #666;">Homeowner</td><td style="padding: 6px 0; font-weight: 600;">${leadData.homeownerName}</td></tr>
+                      ${leadData.homeownerEmail ? `<tr><td style="padding: 6px 0; color: #666;">Email</td><td style="padding: 6px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
+                      ${leadData.homeownerPhone ? `<tr><td style="padding: 6px 0; color: #666;">Phone</td><td style="padding: 6px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
+                      ${leadData.address ? `<tr><td style="padding: 6px 0; color: #666;">Address</td><td style="padding: 6px 0;">${leadData.address}</td></tr>` : ''}
+                      <tr><td style="padding: 6px 0; color: #666;">Service</td><td style="padding: 6px 0;">${serviceLabel}</td></tr>
+                      ${leadData.preferredDate ? `<tr><td style="padding: 6px 0; color: #666;">Appointment</td><td style="padding: 6px 0;">${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}</td></tr>` : ''}
+                    </table>
+                    <p style="margin-top: 12px; font-size: 12px; color: #999;">Lead ID: ${leadId}</p>
+                  </div>
+                </div>
+              `,
+            });
+            if (adminResult.success) {
+              console.log(`[QR Lead] Admin BCC sent msgId=${adminResult.messageId}`);
+            } else {
+              console.log(`[QR Lead] Admin BCC skipped: ${adminResult.error}`);
+            }
+          }
+        } catch (adminErr) {
+          console.error(`[QR Lead] Admin BCC failed:`, adminErr);
+        }
       } catch (err) {
         console.error('[QR Lead] Calendar/Email integration error:', err);
       }
@@ -536,12 +604,33 @@ export function createProfileRoutes(pool: Pool) {
         findField('typeA', 'typeB', 'typeC') ||
         [findField('firstName', 'first'), findField('lastName', 'last')].filter(Boolean).join(' ').trim() ||
         '';
-      const homeownerEmail = findField('email', 'emailAddress', 'homeownerEmail');
-      const homeownerPhone = findField('phone', 'phoneNumber', 'homeownerPhone', 'tel', 'mobile');
+      // Email: must contain @ and a dot. Drop garbage rather than store junk.
+      // Phone: keep only digits, format US numbers as (XXX) XXX-XXXX. Foreign
+      // or partial numbers fall through as the digit string so we don't lose
+      // data — the lead still saves.
+      const rawEmail = findField('email', 'emailAddress', 'homeownerEmail');
+      const homeownerEmail = (() => {
+        if (!rawEmail) return null;
+        const trimmed = String(rawEmail).trim().toLowerCase();
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : null;
+      })();
+      const rawPhone = findField('phone', 'phoneNumber', 'homeownerPhone', 'tel', 'mobile');
+      const homeownerPhone = (() => {
+        if (!rawPhone) return null;
+        const digits = String(rawPhone).replace(/\D/g, '');
+        if (digits.length === 10) return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+        if (digits.length === 11 && digits.startsWith('1')) {
+          const d = digits.slice(1);
+          return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+        }
+        return digits || null;
+      })();
+
       const addressFull = findField('address', 'streetAddress', 'fullAddress', 'propertyAddress');
       const message = findField('message', 'comments', 'notes', 'additionalInfo', 'inquiry');
       const provideComments = findField('provideComments', 'comments') || '';
       const howDid = findField('howDid', 'howDidYouHear');
+      const referralName = findField('provideName', 'referralName', 'nameOfReferral');
 
       // Service type: try matching against our known service labels first.
       // `selectThe` is this form's checkbox group ("Select the areas...").
@@ -626,17 +715,19 @@ export function createProfileRoutes(pool: Pool) {
         ? `INSERT INTO profile_leads (
              profile_id, homeowner_name, homeowner_email, homeowner_phone,
              address, service_type, preferred_date, preferred_time, message, status,
-             jotform_submission_id, jotform_form_id, raw_payload, source
+             jotform_submission_id, jotform_form_id, raw_payload, source,
+             how_did_hear, referral_name
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform', $13, $14)
            ON CONFLICT (jotform_submission_id) WHERE jotform_submission_id IS NOT NULL DO NOTHING
            RETURNING id`
         : `INSERT INTO profile_leads (
              profile_id, homeowner_name, homeowner_email, homeowner_phone,
              address, service_type, preferred_date, preferred_time, message, status,
-             jotform_submission_id, jotform_form_id, raw_payload, source
+             jotform_submission_id, jotform_form_id, raw_payload, source,
+             how_did_hear, referral_name
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform')
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10, $11, $12::jsonb, 'jotform', $13, $14)
            RETURNING id`;
       const insertResult = await pool.query(insertSql,
         [
@@ -648,11 +739,12 @@ export function createProfileRoutes(pool: Pool) {
           serviceType,
           preferredDateRaw || null,
           preferredTimeRaw || null,
-          [message, howDid && howDid !== 'Spoke to a Rep' ? `(How: ${howDid})` : '']
-            .filter(Boolean).join('\n').trim() || null,
+          message || null,
           submissionID || null,
           formID || null,
           JSON.stringify({ ...body, rawRequest: undefined, rawRequestParsed: rawRequest }),
+          howDid || null,
+          referralName || null,
         ],
       );
 
