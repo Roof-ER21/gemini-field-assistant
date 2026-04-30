@@ -631,12 +631,12 @@ export function createProfileRoutes(pool) {
                     console.warn(`[JotForm Webhook] could not parse appointment string: ${rawApptStr.slice(0, 100)}`);
                 }
             }
-            // Parse the prefilled "Rep: {Name} ({slug})" string to get the slug
-            // we can match against employee_profiles. This is how the JotForm
-            // iframe attributes the lead to the right rep — see the SSR profile
-            // page renderer in server/index.ts.
+            // Rep attribution: prefer the hidden repSlug field (tamper-proof) added
+            // to the JotForm form. Fall back to regex on provideComments for any
+            // submissions that came in before the hidden field was added.
+            const repSlugDirect = findField('repSlug', 'rep_slug', 'repslug');
             const repSlugMatch = provideComments.match(/\(([a-z0-9-]+)\)\s*$/i);
-            const repSlug = repSlugMatch ? repSlugMatch[1] : null;
+            const repSlug = repSlugDirect || (repSlugMatch ? repSlugMatch[1] : null);
             let profileId = null;
             if (repSlug) {
                 const profileRow = await pool.query('SELECT id FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1', [repSlug]);
