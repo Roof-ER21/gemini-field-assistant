@@ -21,6 +21,8 @@ import { Router } from 'express';
 import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { emailService } from '../services/emailService.js';
 import { resolvePerson, fetchKbRowsForPerson, buildDisambiguationReply, buildUnknownPersonReply, logDisambiguationEvent, } from '../services/susanPersonResolver.js';
+import { matchTemplate } from '../services/susanResponseTemplates.js';
+import { classifyIntent, applyOverrides, } from '../services/susanIntentRouter.js';
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
 const SALES_GROUP_ID = process.env.GROUPME_SUSAN_GROUP_ID || '93177620';
@@ -405,9 +407,7 @@ RUNNING GAGS (STRICT SENDER-MATCH — check the SENDER field in the input, not t
     • "Stay humble — the Commanders are the better DMV franchise now 🏈"
   Otherwise (SENDER is anyone else — Ahmed, Ross, Nick, Oliver, Ford, Reese, anyone): NEVER mention the Ravens. Do NOT add a football jab. Do NOT reference Baltimore. Do NOT reference the Commanders.
 
-- If and ONLY IF the SENDER field is "Ahmed Mahmoud" or "Ahmed" — open with a cool salute (rotate naturally): "Top 🔝", "My guy 🫡", "The architect speaks 🧑‍💻", "Captain 🫡", "The man, the myth 🐐", "The creator, the all-seeing 👁️", "HTTR-level ops 🏈" (HTTR = Hail To The Redskins / Commanders). Pick one, don't force. Ahmed is the one who built you — he's a die-hard Washington Commanders fan, and you share that energy. If football comes up naturally in his question, you can throw a subtle Commanders tip-of-the-hat, but don't force it. Do NOT do any of this for anyone else.
-
-- DO NOT do "cool salutes" or "Ravens jabs" for senders who aren't explicitly named above. Most replies have no gag at all — just the real answer in Susan's voice.
+- DO NOT do "cool salutes" or special prefixes for ANY sender. Most replies have no gag at all — just the real answer in Susan's voice. (Earlier rules for "The architect speaks" etc. are RETIRED — they read robotic in chat. Just answer the question.)
 
 📜 CODE + LAW CITATION DISCIPLINE (when rep asks about codes, laws, matching, denials):
 - You MUST cite the exact code section or statute from KB_HITS. Examples: "IRC R908.3", "VA USBC §R908.3.1", "Maryland Insurance Administration COMAR 31.15.12", "IBC Chapter 9".
@@ -2591,6 +2591,31 @@ export function createSusanGroupMeBotRoutes(pool) {
             console.log(`[SusanBot] teaching mode=${isTrusted ? 'trusted' : 'pending'} sender=${senderName} fact="${teachingFact.slice(0, 80)}"`);
             return; // skip normal LLM reply — this was a command, not a question
         }
+        // ────────────────────────────────────────────────────────────────────
+        // FAST TEMPLATES — handles greetings, superlatives ("best rep", "best
+        // company"), scope-deflect (weather, jokes). Zero LLM, zero retrieval.
+        // Hits BEFORE the rate-limiter so common responses are always free
+        // and instant. Never blends KB context.
+        // ────────────────────────────────────────────────────────────────────
+        {
+            const tmplStart = Date.now();
+            const senderKey = String(msg.user_id || msg.sender_id || msg.name || '');
+            const tmpl = matchTemplate(text, senderKey);
+            if (tmpl) {
+                if (testMode) {
+                    console.log(`[SusanBot] TEST_MODE template=${tmpl.intent}: ${tmpl.reply.slice(0, 80)}`);
+                    await saveBotTurn(pool, msg, null, tmpl.reply, [], [], `template-${tmpl.intent.toLowerCase()}`, Date.now() - tmplStart, { template: tmpl.intent, test_mode: true });
+                    return;
+                }
+                const posted = await postToGroupMe(tmpl.reply, String(msg.id), String(msg.group_id));
+                if (posted) {
+                    repliedAt.push(Date.now());
+                    console.log(`[SusanBot] template=${tmpl.intent} fired: ${tmpl.reply.slice(0, 80)}`);
+                }
+                await saveBotTurn(pool, msg, null, tmpl.reply, [], [], `template-${tmpl.intent.toLowerCase()}`, Date.now() - tmplStart, { template: tmpl.intent });
+                return;
+            }
+        }
         // Rate limits — test mode bypasses (harness needs to run dozens of cases
         // without hitting the 15/hr cap)
         if (!testMode) {
@@ -2660,10 +2685,78 @@ export function createSusanGroupMeBotRoutes(pool) {
                 getThreadHistory(pool, threadId, 6),
             ]);
             const histSnippet = historySnippet(history);
-            // Entity extraction (Groq) — uses history as context
-            const entities = await extractEntities(text, histSnippet);
+            // ────────────────────────────────────────────────────────────────────
+            // INTENT CLASSIFIER — single source of truth for what the rep is
+            // asking. Runs in parallel with entity extraction (both Groq calls
+            // are cheap). Result drives one-lane dispatch — no fallthrough, no
+            // context blending. This is what fixes "Ross from seek now" type
+            // hallucinations: the classifier returns TEAMMATE_LOOKUP regardless
+            // of carrier suffix, and we redirect before any KB retrieval runs.
+            // ────────────────────────────────────────────────────────────────────
+            const [entities, classifiedRaw] = await Promise.all([
+                extractEntities(text, histSnippet),
+                classifyIntent(text, histSnippet),
+            ]);
             // Save user turn eagerly (don't block on this)
             saveUserTurn(pool, msg, entities).catch(() => { });
+            // Apply roster override — if classifier said ADJUSTER_LOOKUP for a
+            // person who's actually a teammate, flip to TEAMMATE_LOOKUP.
+            const classified = classifiedRaw
+                ? await applyOverrides(text, classifiedRaw)
+                : null;
+            if (classified) {
+                console.log(`[SusanBot] intent=${classified.intent} conf=${classified.confidence.toFixed(2)} person=${classified.person_name || '—'} carrier=${classified.carrier || '—'}`);
+            }
+            // Lane dispatch for intents the classifier handles definitively.
+            // ADJUSTER_LOOKUP / CARRIER_PLAYBOOK / STORM_* / LEGAL_CODE /
+            // FOLLOWUP / OTHER fall through to the existing retrieval pipeline.
+            if (classified) {
+                // TEAMMATE_LOOKUP — redirect, never characterize, never retrieve KB.
+                // This is THE fix for "Ross from seek now Susan" — even with a
+                // carrier suffix, the classifier sees the teammate name and routes
+                // here. No fallthrough.
+                if (classified.intent === 'TEAMMATE_LOOKUP') {
+                    const teammateName = classified.person_name || msg.name || 'rep';
+                    const reply = buildTeammateRedirect(teammateName, msg.name || 'rep');
+                    if (testMode) {
+                        console.log(`[SusanBot] TEST_MODE intent-router teammate redirect: ${reply.slice(0, 80)}`);
+                        await saveBotTurn(pool, msg, null, reply, [], [], 'intent-teammate', Date.now() - startMs, { intent: 'TEAMMATE_LOOKUP', teammate_name: teammateName, test_mode: true });
+                        return;
+                    }
+                    const posted = await postToGroupMe(reply, String(msg.id), String(msg.group_id));
+                    if (posted) {
+                        repliedAt.push(Date.now());
+                        console.log(`[SusanBot] intent=TEAMMATE_LOOKUP redirected for "${teammateName}"`);
+                    }
+                    await saveBotTurn(pool, msg, null, reply, [], [], 'intent-teammate', Date.now() - startMs, { intent: 'TEAMMATE_LOOKUP', teammate_name: teammateName });
+                    return;
+                }
+                // APPROVAL_RESPONSE — only valid if a pending alert is bound to
+                // this thread. Otherwise treat as FOLLOWUP/OTHER (fall through).
+                // This is the fix for bare "yes Susan" hitting the alert
+                // approval-gate when no alert was offered.
+                if (classified.intent === 'APPROVAL_RESPONSE') {
+                    // Pending-alert check: is there a recent (<10 min) bot turn in
+                    // THIS thread that asked a yes/no question? If not, this isn't
+                    // an approval — fall through to normal handling.
+                    const threadIdNow = deriveThreadId(msg);
+                    const pendingCheck = await pool.query(`SELECT id FROM bot_conversation_turns
+             WHERE thread_id = $1 AND role = 'bot'
+               AND created_at > NOW() - INTERVAL '10 minutes'
+               AND (text ILIKE '%which angle%' OR text ILIKE '%want the full list%'
+                 OR text ILIKE '%yes or no%' OR text ILIKE '%confirm%'
+                 OR text ILIKE '%approve%')
+             ORDER BY created_at DESC LIMIT 1`, [threadIdNow]);
+                    if (pendingCheck.rowCount === 0) {
+                        console.log(`[SusanBot] intent=APPROVAL_RESPONSE but no pending Q in thread — falling through`);
+                        // fall through (don't return) — treat as FOLLOWUP via normal pipeline
+                    }
+                    else {
+                        // Real approval — fall through and let existing handlers process
+                        console.log(`[SusanBot] intent=APPROVAL_RESPONSE with pending Q — letting normal flow handle`);
+                    }
+                }
+            }
             // ────────────────────────────────────────────────────────────────────
             // TEAMMATE GUARD — runs BEFORE any KB search.
             // (1) Strip teammate names out of `entities.adjusters` so the KB
