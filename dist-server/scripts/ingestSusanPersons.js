@@ -137,16 +137,27 @@ function normalizeCarrier(raw) {
 }
 function parseAdjusterName(rawName, kbId) {
     const stripped = rawName.replace(/^Adjuster Intel:\s*/i, '').trim();
-    // Try (Carrier) at end
-    const m = stripped.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-    let namePart;
+    // Extract ALL parenthetical groups. Last one is carrier; preceding ones are
+    // nicknames/aliases (e.g., "Nicholas Cecaci (Nick CC) (SeekNow)" →
+    // name="Nicholas Cecaci", nicknames=["Nick CC"], carrier="SeekNow")
+    const parenPat = /\(([^)]+)\)/g;
+    const allParens = [];
+    let pm;
+    while ((pm = parenPat.exec(stripped)) !== null)
+        allParens.push(pm[1].trim());
+    let namePart = stripped.replace(/\s*\([^)]+\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
     let carrierRaw;
-    if (m) {
-        namePart = m[1].trim();
-        carrierRaw = m[2].trim();
+    const nicknameAliases = [];
+    if (allParens.length === 1) {
+        carrierRaw = allParens[0];
     }
-    else {
-        namePart = stripped;
+    else if (allParens.length >= 2) {
+        carrierRaw = allParens[allParens.length - 1];
+        for (let i = 0; i < allParens.length - 1; i++) {
+            const alias = allParens[i].trim();
+            if (alias)
+                nicknameAliases.push(alias);
+        }
     }
     // Strip noise prefixes from name
     namePart = namePart
@@ -172,6 +183,7 @@ function parseAdjusterName(rawName, kbId) {
         cleanedName: namePart,
         carrier,
         isCompany,
+        nicknameAliases,
     };
 }
 function isLikelyTestUser(name) {
@@ -205,6 +217,17 @@ function buildAdjusterAltNames(parsed) {
     if (tokens.length >= 2) {
         alts.add(tokens[0]);
         alts.add(tokens[tokens.length - 1]);
+    }
+    // Nicknames captured in parens (e.g. "Nick CC" for "Nicholas Cecaci")
+    for (const alias of parsed.nicknameAliases || []) {
+        if (alias)
+            alts.add(alias);
+        // Also expand multi-word nicknames into individual tokens — "Nick CC"
+        // adds both "Nick" and "CC" so a rep typing either still resolves.
+        const aliasTokens = alias.split(/\s+/).filter(Boolean);
+        if (aliasTokens.length > 1)
+            for (const t of aliasTokens)
+                alts.add(t);
     }
     // Original raw form (handles spelling variants if multi-row)
     if (parsed.raw && parsed.raw !== parsed.cleanedName) {
