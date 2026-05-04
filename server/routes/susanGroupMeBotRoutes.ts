@@ -2690,6 +2690,21 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
           await import('../services/pendingAlertsService.js');
         const cmd = parseApprovalCommand(text);
         if (cmd) {
+          // Gate: don't fire approval-gate unless there's a pending alert in
+          // the last 30 minutes. Bare "yes susan" should NOT trip a
+          // "🤷 No pending alert to approve" reply when no alert was offered.
+          const pendingCheck = await pool.query<{ id: number }>(
+            `SELECT id FROM pending_alerts
+             WHERE status = 'pending' AND created_at > NOW() - INTERVAL '30 minutes'
+             LIMIT 1`
+          );
+          if (pendingCheck.rowCount === 0 && !cmd.alertId) {
+            // No live alert AND user didn't reference one explicitly — skip
+            console.log(`[SusanBot] approval-gate: no pending alert in window — skipping bare "${text.slice(0,30)}"`);
+            // Don't return — let the message flow to normal handling (intent
+            // router will pick up bare yes/no as APPROVAL_RESPONSE → falls
+            // through to FOLLOWUP)
+          } else {
           const decidedBy = msg.name || 'reviewer';
           if (cmd.action === 'approve') {
             const row = await approvePendingAlert(pool, cmd.alertId, decidedBy);
@@ -2732,6 +2747,7 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
             console.log(`[SusanBot] approval-gate: ${row?.alert_id || '(none)'} rejected by ${decidedBy}`);
             return;
           }
+          }  // close else (pending alert exists)
         }
       } catch (e) {
         console.error('[SusanBot] approval-gate handler err:', (e as Error).message);
