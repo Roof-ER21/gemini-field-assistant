@@ -71,30 +71,37 @@ const STOPWORD_NAMES = new Set([
  *   1. Names supplied by entity extractor (Groq) — already structured
  *   2. Pattern-matched names from the message (catches things Groq missed)
  */
+// Strip leading addressee/stopword tokens from a candidate name.
+// "Susan Anthony" → "Anthony", "Hey Nick" → "Nick", "the Allstate" → "" (filtered).
+function peelLeadingStopwords(name: string): string {
+  let n = name.trim();
+  while (true) {
+    const parts = n.split(/\s+/);
+    if (parts.length <= 1) break;
+    if (!STOPWORD_NAMES.has(parts[0].toLowerCase())) break;
+    n = parts.slice(1).join(' ');
+  }
+  return n;
+}
+
 export function extractPersonCandidates(text: string, entityNames: string[] = []): string[] {
   const out = new Set<string>();
+  // Entity-name path (Groq output). Groq sometimes prefixes the addressee
+  // ("Susan Anthony" when the rep wrote "Susan Anthony?"). Peel it.
   for (const n of entityNames) {
-    const trimmed = (n || '').trim();
-    if (!trimmed) continue;
-    const lower = trimmed.toLowerCase().replace(/\s+/g, ' ');
+    let name = peelLeadingStopwords((n || '').trim());
+    if (!name) continue;
+    const lower = name.toLowerCase().replace(/\s+/g, ' ');
     if (STOPWORD_NAMES.has(lower)) continue;
     if (lower.length < 2) continue;
-    out.add(trimmed);
+    out.add(name);
   }
+  // Pattern path (regex over the message text)
   for (const re of PERSON_LOOKUP_PATTERNS) {
     const m = text.match(re);
     if (!m) continue;
-    let name = (m[1] || '').trim();
+    const name = peelLeadingStopwords((m[1] || '').trim());
     if (!name) continue;
-    // Strip leading addressee tokens — "Susan Anthony?" should resolve to
-    // "Anthony", not "Susan Anthony". Any leading word that's a stopword
-    // (Susan, Hey, Yo, etc.) gets peeled off.
-    while (true) {
-      const parts = name.split(/\s+/);
-      if (parts.length <= 1) break;
-      if (!STOPWORD_NAMES.has(parts[0].toLowerCase())) break;
-      name = parts.slice(1).join(' ');
-    }
     const lower = name.toLowerCase();
     if (STOPWORD_NAMES.has(lower)) continue;
     if (name.length < 2) continue;
