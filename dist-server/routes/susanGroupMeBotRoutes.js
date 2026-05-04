@@ -2612,6 +2612,7 @@ export function createSusanGroupMeBotRoutes(pool) {
         // tests new behavior before flipping it for the live Sales Team. Set
         // GROUPME_TEST_GROUP_ID to enable the carve-out.
         const isTestGroupMsg = TEST_GROUP_ID && String(msg.group_id) === TEST_GROUP_ID;
+        console.log(`[SusanBot] redirect-check: msg.group_id=${msg.group_id} TEST_GROUP_ID=${TEST_GROUP_ID || '(unset)'} isTestGroupMsg=${isTestGroupMsg} REDIRECT_MODE=${process.env.SUSAN_REDIRECT_MODE} testMode=${testMode}`);
         if (process.env.SUSAN_REDIRECT_MODE === 'true' && !testMode && !isTestGroupMsg) {
             const isStormish = /\b(hail|wind|storm|swath|nexrad|mrms|address|property)\b/i.test(text);
             const redirectReply = isStormish
