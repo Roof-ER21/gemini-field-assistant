@@ -21,6 +21,13 @@ import { Router, Request, Response } from 'express';
 import type pg from 'pg';
 import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { emailService } from '../services/emailService.js';
+import {
+  resolvePerson,
+  fetchKbRowsForPerson,
+  buildDisambiguationReply,
+  buildUnknownPersonReply,
+  logDisambiguationEvent,
+} from '../services/susanPersonResolver.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
@@ -2957,6 +2964,102 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         }
       }
 
+      // ────────────────────────────────────────────────────────────────────
+      // PERSON RESOLVER — runs after teammate-guard, before any KB retrieval.
+      // Resolves named persons via the susan_persons registry. Decides:
+      //   • unknown_name    → "no intel on X" reply, no LLM, no KB
+      //   • ambiguous       → "which X — our rep, or [adj] at [carrier]?" reply
+      //   • teammate_only   → redirect (belt-and-suspenders w/ guard above)
+      //   • adjuster_only   → strict person_id retrieval; skips text-search
+      //   • company_only    → same as adjuster_only
+      //   • none            → fall through to existing pipeline (storm, code, etc.)
+      // This is the architectural fix for teammate↔adjuster cross-up: when
+      // KB and LLM only ever see rows tagged to one specific person_id,
+      // they can't conflate a "Ross adjuster" row with rep "Ross Renzi".
+      // ────────────────────────────────────────────────────────────────────
+      let resolvedPersonKbHits: any[] | null = null;
+      try {
+        const resolution = await resolvePerson(pool, {
+          text,
+          entityAdjusterNames: entities.adjusters,
+          carrierHints: entities.carriers,
+        });
+
+        const shortCircuit = async (
+          reply: string,
+          provider: string,
+          flags: Record<string, any>
+        ): Promise<void> => {
+          if (testMode) {
+            console.log(`[SusanBot] TEST_MODE ${provider}: ${reply.slice(0, 80)}`);
+            await saveBotTurn(pool, msg, null, reply, [], [],
+              provider, Date.now() - startMs, { ...flags, test_mode: true });
+            return;
+          }
+          const posted = await postToGroupMe(reply, String(msg.id), String(msg.group_id));
+          if (posted) {
+            repliedAt.push(Date.now());
+            console.log(`[SusanBot] ${provider} — ${reply.slice(0, 80)}`);
+          }
+          await saveBotTurn(pool, msg, null, reply, [], [],
+            provider, Date.now() - startMs, flags);
+        };
+
+        if (resolution.kind === 'unknown_name') {
+          await shortCircuit(
+            buildUnknownPersonReply(resolution.queriedName),
+            'person-resolver-unknown',
+            { person_resolver: 'unknown_name', queried_name: resolution.queriedName }
+          );
+          return;
+        }
+        if (resolution.kind === 'ambiguous') {
+          await logDisambiguationEvent(pool, {
+            groupId: String(msg.group_id || SALES_GROUP_ID),
+            threadId: deriveThreadId(msg),
+            askerName: msg.name,
+            askerUserId: String(msg.user_id || msg.sender_id || ''),
+            queriedName: resolution.queriedName,
+            candidates: resolution.candidates,
+          });
+          await shortCircuit(
+            buildDisambiguationReply(resolution.candidates, resolution.queriedName),
+            'person-resolver-ambiguous',
+            {
+              person_resolver: 'ambiguous',
+              queried_name: resolution.queriedName,
+              candidate_ids: resolution.candidates.map((c) => c.id),
+            }
+          );
+          return;
+        }
+        if (resolution.kind === 'teammate_only') {
+          // Existing teammate-guard above handles most cases; this catches
+          // patterns the guard misses (e.g., rep questions phrased without an
+          // explicit opinion verb).
+          await shortCircuit(
+            buildTeammateRedirect(resolution.person.canonical_name, msg.name || 'rep'),
+            'person-resolver-teammate',
+            { person_resolver: 'teammate_only', person_id: resolution.person.id }
+          );
+          return;
+        }
+        if (resolution.kind === 'adjuster_only' || resolution.kind === 'company_only') {
+          // Replace free-text FTS with strict person_id retrieval. The LLM
+          // will only see KB rows tagged to this exact person — no other
+          // adjusters with similar names, no rep-named rows, no cross-up.
+          resolvedPersonKbHits = await fetchKbRowsForPerson(pool, resolution.person.id);
+          console.log(
+            `[SusanBot] person-resolver: ${resolution.kind} id=${resolution.person.id} name="${resolution.person.canonical_name}" carrier=${resolution.person.carrier || '—'} kb_rows=${resolvedPersonKbHits.length}`
+          );
+        }
+        // resolution.kind === 'none' → fall through unchanged
+      } catch (err) {
+        // Resolver failure must NOT break replies — fall through to existing
+        // pipeline. Person resolver is an enhancement, not a hard dependency.
+        console.warn('[SusanBot] person resolver err (falling through):', (err as Error).message);
+      }
+
       // Extract + geocode address if rep asked about a specific property.
       // NEW: also calls addressImpactService for the tiered Direct-Hit /
       // Near-Miss / Area-Impact report (swath-first, not distance-only).
@@ -3145,9 +3248,15 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         ? insuranceDirectoryLookup(pool, entities.carriers)
         : Promise.resolve([]);
 
-      // Prefer entity-driven KB search; fall back to token FTS
+      // KB retrieval: when the person resolver matched a single adjuster/company,
+      // we already have person_id-keyed rows — skip the FTS path entirely so the
+      // LLM never sees rows about other people with similar names. Otherwise
+      // fall back to entity-driven smartKbSearch (which itself falls back to FTS).
+      const kbSearchPromise = resolvedPersonKbHits !== null
+        ? Promise.resolve(resolvedPersonKbHits)
+        : smartKbSearch(pool, text, entities, canonicals);
       const [kbHits, stormHits, addressHail, cityHail, chatContext, insuranceDir] = await Promise.all([
-        smartKbSearch(pool, text, entities, canonicals),
+        kbSearchPromise,
         stormSearch(pool, text),
         addressLookupPromise,
         cityHailPromise,
