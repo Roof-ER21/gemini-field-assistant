@@ -2881,7 +2881,13 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
     // right app. Hail/wind/storm/address questions go to Hail Yes;
     // everything else goes to sa21. Set SUSAN_REDIRECT_MODE=true on
     // Railway. Test-mode bypasses so harness can exercise the full pipeline.
-    if (process.env.SUSAN_REDIRECT_MODE === 'true' && !testMode) {
+    //
+    // CARVE-OUT: messages from the private test group always get the full
+    // pipeline regardless of redirect mode — this is how leadership shadow-
+    // tests new behavior before flipping it for the live Sales Team. Set
+    // GROUPME_TEST_GROUP_ID to enable the carve-out.
+    const isTestGroupMsg = TEST_GROUP_ID && String(msg.group_id) === TEST_GROUP_ID;
+    if (process.env.SUSAN_REDIRECT_MODE === 'true' && !testMode && !isTestGroupMsg) {
       const isStormish = /\b(hail|wind|storm|swath|nexrad|mrms|address|property)\b/i.test(text);
       const redirectReply = isStormish
         ? 'For that, pull it in Hail Yes: https://hailyes.up.railway.app 🌩️ — verified storm dates, NCEI-cited PDFs, what adjusters accept.'
