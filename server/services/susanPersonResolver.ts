@@ -84,10 +84,20 @@ export function extractPersonCandidates(text: string, entityNames: string[] = []
   for (const re of PERSON_LOOKUP_PATTERNS) {
     const m = text.match(re);
     if (!m) continue;
-    const name = (m[1] || '').trim();
+    let name = (m[1] || '').trim();
     if (!name) continue;
+    // Strip leading addressee tokens — "Susan Anthony?" should resolve to
+    // "Anthony", not "Susan Anthony". Any leading word that's a stopword
+    // (Susan, Hey, Yo, etc.) gets peeled off.
+    while (true) {
+      const parts = name.split(/\s+/);
+      if (parts.length <= 1) break;
+      if (!STOPWORD_NAMES.has(parts[0].toLowerCase())) break;
+      name = parts.slice(1).join(' ');
+    }
     const lower = name.toLowerCase();
     if (STOPWORD_NAMES.has(lower)) continue;
+    if (name.length < 2) continue;
     out.add(name);
   }
   return Array.from(out);

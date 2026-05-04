@@ -10,9 +10,51 @@
  *   npx tsx server/scripts/ingestSusanPersons.ts --review-similar   # print near-dup candidates
  */
 import pg from 'pg';
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
 
 const DRY = process.argv.includes('--dry');
 const REVIEW_SIMILAR = process.argv.includes('--review-similar');
+
+const SALES_GROUP_ID = process.env.GROUPME_SUSAN_GROUP_ID || '93177620';
+
+/**
+ * Fetch the live Sales Team GroupMe roster — far more complete than the
+ * `users` table, which only includes people who've logged into the sa21
+ * web app. Real teammates (Ross Renzi, Oliver Brown, etc.) may be in
+ * GroupMe without ever creating an account.
+ */
+async function fetchGroupMeRoster(): Promise<Set<string>> {
+  const token = process.env.GROUPME_TOKEN || (() => {
+    try { return readFileSync(`${homedir()}/.groupme-token`, 'utf-8').trim(); }
+    catch { return ''; }
+  })();
+  if (!token) {
+    console.warn('[ingest] no GroupMe token; using only users table for teammate roster');
+    return new Set();
+  }
+  try {
+    const r = await fetch(`https://api.groupme.com/v3/groups/${SALES_GROUP_ID}?token=${token}`);
+    if (!r.ok) {
+      console.warn(`[ingest] GroupMe API ${r.status}; using only users table for teammate roster`);
+      return new Set();
+    }
+    const data: any = await r.json();
+    const members: any[] = data?.response?.members || [];
+    const out = new Set<string>();
+    for (const m of members) {
+      const nick = String(m.nickname || '').trim();
+      if (!nick) continue;
+      // Strip emoji + parenthetical aliases — match teammate-guard's normalization
+      const cleaned = nick.replace(/[^\p{L}\s'\-]/gu, ' ').replace(/\s+/g, ' ').trim();
+      if (cleaned.length >= 2) out.add(cleaned);
+    }
+    return out;
+  } catch (e) {
+    console.warn('[ingest] GroupMe roster fetch err:', (e as Error).message);
+    return new Set();
+  }
+}
 
 const TEST_NAME_PATTERNS = [
   /^test/i,
@@ -192,20 +234,84 @@ async function main() {
     teammates_seen: 0,
     teammates_inserted: 0,
     teammates_skipped_test: 0,
+    teammates_groupme_only: 0,
     adjusters_seen: 0,
     adjusters_inserted: 0,
     adjusters_company: 0,
+    adjusters_skipped_teammate: 0,
     adjusters_unparseable: 0,
     kb_rows_linked: 0,
+    reclassified_adjuster_to_teammate: 0,
   };
 
-  const teammateNames = new Set<string>();
+  const teammateNames = new Set<string>();           // lowercased full names
   const adjusterByKey = new Map<string, { name: string; carrier: string | null; kbIds: number[]; alts: Set<string>; isCompany: boolean }>();
 
-  // ─── Teammates from users ──────────────────────────────────────────────────
+  // ─── Teammate roster: GroupMe (authoritative) ∪ users (login records) ──────
+  // GroupMe has every active sales-team member; users only has those who've
+  // logged into sa21. Without GroupMe, real teammates like Ross Renzi (no
+  // login) get classified as adjusters when KB has a same-named row.
+  const groupmeRoster = await fetchGroupMeRoster();
+  console.log(`[ingest] groupme_roster=${groupmeRoster.size} members`);
+
+  // Pre-build the teammate set (lowered full names) from BOTH sources up front.
+  // We need this before inserting/updating so we can:
+  //   1. Reclassify any pre-existing adjuster rows whose name = a teammate
+  //      (BEFORE inserting teammate rows that would collide on the unique key)
+  //   2. Skip inserting adjuster KB rows whose parsed name matches a teammate
   const usersResult = await pool.query<{ id: string; name: string; role: string }>(
     `SELECT id, name, role FROM users WHERE name IS NOT NULL ORDER BY name`
   );
+  for (const u of usersResult.rows) {
+    if (u.name && !isLikelyTestUser(u.name)) teammateNames.add(u.name.toLowerCase());
+  }
+  for (const n of groupmeRoster) {
+    if (n && !isLikelyTestUser(n)) teammateNames.add(n.toLowerCase());
+  }
+
+  // ─── Step 1: reclassify mistagged adjuster rows BEFORE inserting teammates.
+  // Catches the "Adjuster Intel: Ross Renzi" case where someone posted hostile
+  // content under a teammate's name and an earlier ingest classified it as
+  // adjuster. Two sub-cases:
+  //   a) No teammate row exists for that name yet → flip person_type
+  //   b) A teammate row already exists (from prior re-run) → move KB links
+  //      from the bad adjuster row to the teammate row, then delete the
+  //      adjuster row to satisfy the unique constraint.
+  if (!DRY && teammateNames.size > 0) {
+    const allTeammatesLower = Array.from(teammateNames);
+    // Find adjuster rows with teammate names + the matching teammate id (if any)
+    const dups = await pool.query<{ adj_id: number; canonical_name: string; team_id: number | null }>(
+      `SELECT a.id AS adj_id, a.canonical_name,
+              (SELECT t.id FROM susan_persons t
+               WHERE t.canonical_lower = a.canonical_lower AND t.person_type='teammate'
+               LIMIT 1) AS team_id
+       FROM susan_persons a
+       WHERE a.person_type='adjuster'
+         AND a.canonical_lower = ANY($1::text[])`,
+      [allTeammatesLower]
+    );
+    for (const row of dups.rows) {
+      if (row.team_id) {
+        // Merge: move KB links to the teammate row, delete the adjuster dup
+        await pool.query(
+          `UPDATE knowledge_documents SET person_id=$1 WHERE person_id=$2`,
+          [row.team_id, row.adj_id]
+        );
+        await pool.query(`DELETE FROM susan_persons WHERE id=$1`, [row.adj_id]);
+        console.log(`[ingest] merged adjuster id=${row.adj_id} "${row.canonical_name}" into teammate id=${row.team_id}`);
+      } else {
+        // Flip in-place — no existing teammate row to merge into
+        await pool.query(
+          `UPDATE susan_persons SET person_type='teammate', updated_at=now() WHERE id=$1`,
+          [row.adj_id]
+        );
+        console.log(`[ingest] reclassified adjuster id=${row.adj_id} "${row.canonical_name}" as teammate`);
+      }
+      stats.reclassified_adjuster_to_teammate++;
+    }
+  }
+
+  // ─── Step 2: Teammates from users ──────────────────────────────────────────
   for (const u of usersResult.rows) {
     stats.teammates_seen++;
     const name = (u.name || '').trim();
@@ -229,6 +335,29 @@ async function main() {
     stats.teammates_inserted++;
   }
 
+  // ─── Teammates from GroupMe (not in users table) ───────────────────────────
+  for (const name of groupmeRoster) {
+    if (!name || isLikelyTestUser(name)) continue;
+    const lower = name.toLowerCase();
+    if (teammateNames.has(lower)) continue;          // already inserted via users
+    teammateNames.add(lower);
+    if (DRY) {
+      stats.teammates_groupme_only++;
+      continue;
+    }
+    const altNames = buildTeammateAltNames(name);
+    await pool.query(
+      `INSERT INTO susan_persons (canonical_name, alt_names, person_type, team_user_id)
+       VALUES ($1, $2, 'teammate', NULL)
+       ON CONFLICT (canonical_lower, person_type, COALESCE(lower(carrier), ''))
+         DO UPDATE SET alt_names = EXCLUDED.alt_names, updated_at = now()`,
+      [name, altNames]
+    );
+    stats.teammates_groupme_only++;
+  }
+
+  // (Step 1 reclassification was already done before inserts — see top of main)
+
   // ─── Adjusters from knowledge_documents ────────────────────────────────────
   const kbResult = await pool.query<{ id: number; name: string }>(
     `SELECT id, name FROM knowledge_documents WHERE category='adjuster-intel' ORDER BY id`
@@ -238,6 +367,15 @@ async function main() {
     const parsed = parseAdjusterName(r.name, r.id);
     if (!parsed) {
       stats.adjusters_unparseable++;
+      continue;
+    }
+    // Reject KB rows whose name is a known teammate. This is the "Adjuster
+    // Intel: Ross Renzi" attack-pattern: someone posted hostile content under
+    // a teammate's name. Don't insert as adjuster — let resolver hit the
+    // teammate redirect instead.
+    if (teammateNames.has(parsed.cleanedName.toLowerCase())) {
+      stats.adjusters_skipped_teammate++;
+      console.log(`[ingest] skipping KB row id=${parsed.kbId} "${parsed.raw}" — name matches teammate`);
       continue;
     }
     if (parsed.isCompany) stats.adjusters_company++;
