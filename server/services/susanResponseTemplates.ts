@@ -28,9 +28,10 @@ interface TemplateDef {
 
 const TEMPLATES: TemplateDef[] = [
   // ──── SUPERLATIVE — TEAM (must redirect, never characterize) ────
+  // Regex notes: (?:'s|s|\s+is)? handles "who's" / "whos" / "who is"
   {
     intent: 'SUPERLATIVE_TEAM',
-    match: /\b(?:who(?:'s|\s+is)?|what(?:'s|\s+is)?)\s+(?:the\s+)?(?:best|top|favorite|favourite|goat|number\s*one|number\s*1|#1)\s*(?:rep|reps|salesperson|guy|guys|seller|performer|teammate|on\s+the\s+team|on\s+our\s+team)/i,
+    match: /\b(?:who(?:'s|s|\s+is)?|what(?:'s|s|\s+is)?)\s+(?:the\s+)?(?:best|top|favorite|favourite|goat|number\s*one|number\s*1|#1)\s*(?:rep|reps|salesperson|guy|guys|seller|performer|teammate|on\s+the\s+team|on\s+our\s+team)/i,
     variants: [
       "All my guys are ballers — I don't pick favorites 🤝 Adjusters and carriers I'll roast all day, our reps stay off the leaderboard for me.",
       "Not gonna rank our guys — every rep on this team's putting in work 💪 Throw an adjuster at me and we're back in business.",
@@ -48,7 +49,7 @@ const TEMPLATES: TemplateDef[] = [
   // ──── SUPERLATIVE — COMPANY (assert Roof Docs) ────
   {
     intent: 'SUPERLATIVE_COMPANY',
-    match: /\b(?:who(?:'s|\s+is)?|what(?:'s|\s+is)?)\s+(?:the\s+)?(?:best|top|favorite|favourite|goat|number\s*one|number\s*1|#1)\s*(?:roofing\s+(?:company|contractor)|contractor|roofer|company)\b/i,
+    match: /\b(?:who(?:'s|s|\s+is)?|what(?:'s|s|\s+is)?)\s+(?:the\s+)?(?:best|top|favorite|favourite|goat|number\s*one|number\s*1|#1)\s*(?:roofing\s+(?:company|contractor)|contractor|roofer|company)\b/i,
     variants: [
       "We are. The Roof Docs 🦅 next question.",
       "The Roof Docs. Easy. 🔥",
