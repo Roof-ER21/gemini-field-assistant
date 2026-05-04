@@ -141,19 +141,29 @@ interface ParsedAdjusterRow {
   cleanedName: string;    // "Christopher Barnett"
   carrier: string | null; // "Allstate"
   isCompany: boolean;     // true if row looks like a service org, not a person
+  nicknameAliases: string[]; // nicknames captured in parens, e.g. ["Nick CC"]
 }
 
 function parseAdjusterName(rawName: string, kbId: number): ParsedAdjusterRow | null {
   const stripped = rawName.replace(/^Adjuster Intel:\s*/i, '').trim();
-  // Try (Carrier) at end
-  const m = stripped.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-  let namePart: string;
+  // Extract ALL parenthetical groups. Last one is carrier; preceding ones are
+  // nicknames/aliases (e.g., "Nicholas Cecaci (Nick CC) (SeekNow)" →
+  // name="Nicholas Cecaci", nicknames=["Nick CC"], carrier="SeekNow")
+  const parenPat = /\(([^)]+)\)/g;
+  const allParens: string[] = [];
+  let pm: RegExpExecArray | null;
+  while ((pm = parenPat.exec(stripped)) !== null) allParens.push(pm[1].trim());
+  let namePart = stripped.replace(/\s*\([^)]+\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
   let carrierRaw: string | undefined;
-  if (m) {
-    namePart = m[1].trim();
-    carrierRaw = m[2].trim();
-  } else {
-    namePart = stripped;
+  const nicknameAliases: string[] = [];
+  if (allParens.length === 1) {
+    carrierRaw = allParens[0];
+  } else if (allParens.length >= 2) {
+    carrierRaw = allParens[allParens.length - 1];
+    for (let i = 0; i < allParens.length - 1; i++) {
+      const alias = allParens[i].trim();
+      if (alias) nicknameAliases.push(alias);
+    }
   }
   // Strip noise prefixes from name
   namePart = namePart
@@ -180,6 +190,7 @@ function parseAdjusterName(rawName: string, kbId: number): ParsedAdjusterRow | n
     cleanedName: namePart,
     carrier,
     isCompany,
+    nicknameAliases,
   };
 }
 
@@ -212,6 +223,14 @@ function buildAdjusterAltNames(parsed: ParsedAdjusterRow): string[] {
   if (tokens.length >= 2) {
     alts.add(tokens[0]);
     alts.add(tokens[tokens.length - 1]);
+  }
+  // Nicknames captured in parens (e.g. "Nick CC" for "Nicholas Cecaci")
+  for (const alias of parsed.nicknameAliases || []) {
+    if (alias) alts.add(alias);
+    // Also expand multi-word nicknames into individual tokens — "Nick CC"
+    // adds both "Nick" and "CC" so a rep typing either still resolves.
+    const aliasTokens = alias.split(/\s+/).filter(Boolean);
+    if (aliasTokens.length > 1) for (const t of aliasTokens) alts.add(t);
   }
   // Original raw form (handles spelling variants if multi-row)
   if (parsed.raw && parsed.raw !== parsed.cleanedName) {
