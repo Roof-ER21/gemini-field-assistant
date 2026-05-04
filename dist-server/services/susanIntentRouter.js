@@ -175,15 +175,26 @@ export async function applyOverrides(text, classified) {
     try {
         const roster = await getTeamRoster();
         if (roster && result.person_name && isTeammate(result.person_name, roster)) {
+            // CARRIER-HINT OVERRIDE: if the rep named a carrier or IA service
+            // ("Mike from seeknow", "Joe at Allstate"), they are explicitly
+            // asking about an EXTERNAL person, not a teammate. Don't flip to
+            // TEAMMATE_LOOKUP — let ADJUSTER_LOOKUP run through the resolver.
+            // The resolver will: find a matching external (return adjuster intel),
+            // OR find no match (return unknown_name — "no intel on Mike at
+            // SeekNow yet"). The resolver does NOT redirect to a same-named
+            // teammate when a carrier hint is present.
+            if (result.carrier) {
+                console.log(`[IntentRouter] keep ${result.intent} despite teammate match — carrier "${result.carrier}" hints external person "${result.person_name}"`);
+                return result;
+            }
             if (result.intent !== 'TEAMMATE_LOOKUP') {
-                console.log(`[IntentRouter] override: ${result.intent} → TEAMMATE_LOOKUP (person="${result.person_name}" is on roster)`);
+                console.log(`[IntentRouter] override: ${result.intent} → TEAMMATE_LOOKUP (person="${result.person_name}" is on roster, no carrier hint)`);
                 result.intent = 'TEAMMATE_LOOKUP';
                 result.confidence = Math.max(result.confidence, 0.9);
             }
         }
     }
     catch (e) {
-        // Roster fetch failed — keep classifier's verdict
         console.warn('[IntentRouter] override roster fetch err:', e.message);
     }
     return result;
