@@ -3193,10 +3193,16 @@ export function createSusanGroupMeBotRoutes(pool: pg.Pool): Router {
         };
 
         if (resolution.kind === 'unknown_name') {
+          // If the rep gave a carrier hint, include it in the no-intel
+          // reply ("No intel on Mike at SeekNow yet"). Confirms we
+          // understood the question and didn't punt to a teammate.
+          const carrierHint = entities.carriers && entities.carriers.length > 0
+            ? entities.carriers[0]
+            : null;
           await shortCircuit(
-            buildUnknownPersonReply(resolution.queriedName),
+            buildUnknownPersonReply(resolution.queriedName, carrierHint),
             'person-resolver-unknown',
-            { person_resolver: 'unknown_name', queried_name: resolution.queriedName }
+            { person_resolver: 'unknown_name', queried_name: resolution.queriedName, carrier_hint: carrierHint }
           );
           return;
         }

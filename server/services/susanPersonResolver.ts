@@ -139,8 +139,8 @@ async function lookupCandidate(
   let rows = result.rows;
   // Carrier hint is a strong "asking about an external person" signal.
   // When the rep explicitly names a carrier ("Nick at Hancock", "Ben at
-  // State Farm"), drop teammates entirely and keep only matching adjuster(s).
-  // This collapses the disambiguation when the rep already disambiguated.
+  // State Farm", "Mike from SeekNow"), they are NOT asking about a
+  // teammate — even if the first name happens to match a roster.
   if (carrierHints.length > 0) {
     const lowerHints = carrierHints.map((c) => c.toLowerCase());
     const adjusters = rows.filter((r) => r.person_type === 'adjuster' || r.person_type === 'company');
@@ -150,9 +150,15 @@ async function lookupCandidate(
       return lowerHints.some((h) => carrierLower.includes(h) || h.includes(carrierLower));
     });
     if (matching.length >= 1) {
-      // Carrier hint resolved adjuster ambiguity — teammates are no longer
-      // candidates. The rep clearly meant the adjuster.
+      // Carrier hint resolved adjuster ambiguity — return the matching
+      // adjuster(s) only (drop teammates from results).
       rows = matching;
+    } else {
+      // Carrier hint was given but NO adjuster matches it. Even if a
+      // teammate shares the name, the rep wanted an external person.
+      // Return [] so the caller emits "no intel on X at Y yet" instead
+      // of a teammate redirect that ignores their carrier hint.
+      rows = [];
     }
   }
   return rows;
@@ -256,8 +262,15 @@ export function buildDisambiguationReply(
 /**
  * "I don't have intel on this person" — use exactly when a name was clearly
  * asked about but didn't match anything. Prevents Susan from inventing.
+ *
+ * When a carrier hint was present (e.g. "Mike at SeekNow"), include it in
+ * the reply — confirms to the rep we understood the question and didn't
+ * just punt to a same-named teammate.
  */
-export function buildUnknownPersonReply(name: string): string {
+export function buildUnknownPersonReply(name: string, carrier?: string | null): string {
+  if (carrier) {
+    return `No intel on ${name} at ${carrier} yet. Drop a quick note after your meeting — what they were like, key tactics — and I'll learn for next time.`;
+  }
   return `No intel on ${name} yet. Drop the carrier and a quick note in the chat — I'll add it for next time.`;
 }
 
