@@ -2083,11 +2083,14 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
     if (cityHail && cityHail.geo) {
         const mode = cityHail.mode || 'by_date';
         const events = cityHail.events || [];
-        // NEW: structured CITY_IMPACT blocks (deterministic, per-date) go
-        // first. Susan's LLM is instructed to use these numbers verbatim —
-        // no more state-level "hail in VA" generalizations. See
-        // services/cityImpactService.ts for the block format.
-        if (cityHail.cityImpactBlocks && cityHail.cityImpactBlocks.length > 0) {
+        // Skip the local deterministic cityImpactBlocks when Hail Yes already
+        // populated events — Hail Yes is the citation-grade source and the
+        // local block was returning stale data (e.g. 4/1/26 Manassas reported
+        // as area-impact 1.25" 2.7mi when Hail Yes correctly classifies it as
+        // DIRECT HIT 3.25" 0.5" calibrated). Pre-Hail Yes integration the
+        // local block was the best signal; now Hail Yes wins.
+        const eventsAreFromHailYes = events.length > 0 && events[0]?._hail_yes === true;
+        if (!eventsAreFromHailYes && cityHail.cityImpactBlocks && cityHail.cityImpactBlocks.length > 0) {
             for (const block of cityHail.cityImpactBlocks) {
                 lines.push('');
                 lines.push(block);
