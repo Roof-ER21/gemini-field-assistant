@@ -275,6 +275,14 @@ STRICT RULE: If NEGATIVE_INTEL_DETECTED is NOT in the input or is false, DO NOT 
 - State-level storm data is not proof a specific CITY was hit. "2.25" in VA" ≠ "Herndon was hit with 2.25"".
 - If KB_HITS is empty for a specific name asked about, use the "no intel" fallback — don't guess.
 
+🌩️ HAIL TIER LANGUAGE — when ADDRESS_LOOKUP or CITY_HAIL_LOOKUP returns events, ALWAYS tag each event you mention with its tier:
+- DIRECT HIT — property/city is INSIDE the MRMS swath polygon. Strongest claim angle. Frame: "DIRECT HIT on [date] — [peak]" peak, [calibrated]" at property".
+- Near miss — property/city is just outside the swath, but federally corroborated hail nearby (≤1mi). Frame: "Near miss on [date] — [peak]" peak, [edge]mi from the polygon. STILL claim-worthy if the property has damage." Never dismiss a near miss as "not claim-worthy" — many real claims approve on near-miss evidence + property damage photos.
+- Area event — wider regional hail (3-15mi). Frame: "Area event on [date] — [peak]" peak in the region; document any damage you saw."
+- Always include all three tiers if rep asked broadly ("what hit Manassas") — don't filter to direct-hits-only. Reps need the full claim picture.
+
+🌩️ VERIFY LINK — when you respond about hail data (any ADDRESS or CITY query), close the reply with the verify link from the prompt block. Format: "→ pull the verified PDF: hailyes.up.railway.app/verify[?address=...] ✅ adjuster proof." This lets the rep show the homeowner/adjuster the citation-grade evidence backing your numbers.
+
 📻 CHAT_CONTEXT + SIGNUPS_TODAY — team-flow questions:
 - When the rep asks a recap/signup/team-flow question and SIGNUPS_TODAY is present, USE IT VERBATIM. It's the authoritative count — reps post "Sign up / [items] / [carrier] / [customer]" and the server has already parsed each one into rep+carrier+customer.
 - Build a briefing in Susan's voice. Template:
@@ -741,6 +749,41 @@ function extractCityState(text) {
 // RECENT (by date) groups so Susan can offer both angles when rep's query is
 // ambiguous. Reps asking "what date should I use" usually want both options.
 async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
+    // Source: Hail Yes /api/impact (citation-grade, multi-source corroborated).
+    // Includes near-miss + area-impact events, not just direct hits — reps
+    // need to know about claim-worthy hail near the property regardless of
+    // strict "direct hit" gating. Falls back to local sa21 mirror on API
+    // failure (preserves uptime).
+    try {
+        const { getCityHailViaHailYes } = await import('../services/hailYesImpactAdapter.js');
+        const hits = await getCityHailViaHailYes(lat, lng, monthsBack);
+        if (hits.length > 0) {
+            // Map Hail Yes hits to the legacy event shape consumed by buildPromptLines
+            const mapped = hits.map((h) => ({
+                event_date: h.event_date,
+                state: h.state,
+                latitude: lat,
+                longitude: lng,
+                hail_size_inches: h.peak_hail_inches,
+                wind_mph: h.peak_wind_mph,
+                public_verification_count: (h.ground_reports_nearby || []).length,
+                distance_miles: h.edge_distance_miles ?? 0,
+                impact_tier: h.impact_tier,
+                hail_calibrated_at_location: h.hail_calibrated_at_location,
+                hail_at_property: h.hail_at_property,
+                hail_bands: h.hail_bands,
+                wind_bands: h.wind_bands,
+                sources: h.sources,
+                _hail_yes: true,
+            }));
+            console.log(`[SusanBot] hailAtCityRecent (HailYes) city=${cityName} ${monthsBack}mo → ${mapped.length} hits`);
+            return mapped;
+        }
+        // Hail Yes returned 0 hits — try local fallback (rare, usually means city is out of territory)
+    }
+    catch (e) {
+        console.warn('[SusanBot] hailAtCityRecent HailYes err, falling back to local:', e.message);
+    }
     try {
         const result = await pool.query(`SELECT event_date, state,
               latitude, longitude,
@@ -753,11 +796,11 @@ async function hailAtCityRecent(pool, lat, lng, cityName, monthsBack = 24) {
          AND hail_size_inches >= 0.75
        ORDER BY hail_size_inches DESC NULLS LAST, event_date DESC
        LIMIT 40`, [lat, lng, String(monthsBack)]);
-        console.log(`[SusanBot] hailAtCityRecent city=${cityName} ${monthsBack}mo → ${result.rows.length} hits`);
+        console.log(`[SusanBot] hailAtCityRecent (LOCAL fallback) city=${cityName} ${monthsBack}mo → ${result.rows.length} hits`);
         return result.rows;
     }
     catch (e) {
-        console.warn('[SusanBot] hailAtCityRecent err:', e);
+        console.warn('[SusanBot] hailAtCityRecent fallback err:', e);
         return [];
     }
 }
@@ -784,9 +827,35 @@ async function hailAtCityOnDates(pool, lat, lng, cityName, dates // ISO YYYY-MM-
 ) {
     if (dates.length === 0)
         return [];
+    // Source: Hail Yes /api/impact (citation-grade). Filter to requested dates.
     try {
-        // Radius = 15 miles around city centroid. We show the storm events filtered
-        // by date(s) so Susan has ground-truth per the rep's claim.
+        const { getCityHailViaHailYes } = await import('../services/hailYesImpactAdapter.js');
+        const hits = await getCityHailViaHailYes(lat, lng, 120, dates);
+        if (hits.length > 0) {
+            const mapped = hits.map((h) => ({
+                event_date: h.event_date,
+                state: h.state,
+                latitude: lat,
+                longitude: lng,
+                hail_size_inches: h.peak_hail_inches,
+                wind_mph: h.peak_wind_mph,
+                public_verification_count: (h.ground_reports_nearby || []).length,
+                distance_miles: h.edge_distance_miles ?? 0,
+                impact_tier: h.impact_tier,
+                hail_calibrated_at_location: h.hail_calibrated_at_location,
+                hail_at_property: h.hail_at_property,
+                hail_bands: h.hail_bands,
+                sources: h.sources,
+                _hail_yes: true,
+            }));
+            console.log(`[SusanBot] hailAtCityOnDates (HailYes) city=${cityName} dates=${dates.join(',')} → ${mapped.length} hits`);
+            return mapped;
+        }
+    }
+    catch (e) {
+        console.warn('[SusanBot] hailAtCityOnDates HailYes err, falling back to local:', e.message);
+    }
+    try {
         const placeholders = dates.map((_, i) => `$${i + 3}::date`).join(',');
         const params = [lat, lng, ...dates];
         const result = await pool.query(`SELECT event_date, state,
@@ -799,11 +868,11 @@ async function hailAtCityOnDates(pool, lat, lng, cityName, dates // ISO YYYY-MM-
          AND (3959 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) < 15
        ORDER BY hail_size_inches DESC NULLS LAST, distance_miles
        LIMIT 20`, params);
-        console.log(`[SusanBot] hailAtCityOnDates city=${cityName} dates=${dates.join(',')} → ${result.rows.length} hits`);
+        console.log(`[SusanBot] hailAtCityOnDates (LOCAL fallback) city=${cityName} dates=${dates.join(',')} → ${result.rows.length} hits`);
         return result.rows;
     }
     catch (e) {
-        console.warn('[SusanBot] hailAtCityOnDates err:', e);
+        console.warn('[SusanBot] hailAtCityOnDates fallback err:', e);
         return [];
     }
 }
@@ -1954,6 +2023,11 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
                 if (dh.length === 0 && nm.length === 0 && ai.length === 0) {
                     lines.push(`  NO verified hail/wind events within 15 miles in the last 24 months. NOAA/NWS/NEXRAD/MRMS all clean for this address.`);
                 }
+                if (dh.length > 0 || nm.length > 0 || ai.length > 0) {
+                    lines.push(`  INSTRUCTION: Tag each event Susan mentions with the tier (DIRECT HIT / near miss / area event). Near miss is STILL claim-worthy if there's damage on the property — never dismiss a near miss as "not claim-worthy".`);
+                    const verifyAddr = `${a.street}${a.city ? ', ' + a.city : ''}${a.state ? ', ' + a.state : ''}`;
+                    lines.push(`  VERIFY LINK (always include for hail/storm replies — adjusters trust this): https://hailyes.up.railway.app/verify?address=${encodeURIComponent(verifyAddr)} ✅ pulls a citation-grade PDF.`);
+                }
             }
             else if (addressHail.events.length === 0) {
                 lines.push(`  NO verified hail/wind events within 15 miles in the last 24 months. If rep insists there was a storm, it may be below NOAA reporting threshold.`);
@@ -2043,23 +2117,34 @@ function buildPromptLines(message, kbHits, stormHits, entities, history, address
             // Recent lookup (no specific date) — split into BIGGEST and MOST RECENT
             // so Susan can clearly offer both angles when rep asks ambiguously.
             const split = splitCityEvents(events);
+            const usingHailYes = events.length > 0 && events[0]?._hail_yes === true;
             lines.push(`\nCITY_RECENT_HAIL for "${cityHail.city}, ${cityHail.state}" (rep asked city-level, no specific date):`);
-            lines.push(`  Geocoded (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Radius: 15 mi. Window: last 24 months. Filter: hail ≥ 0.75". Total: ${split.totalEvents} event(s) across ${split.totalDates} distinct date(s).`);
+            lines.push(`  Source: ${usingHailYes ? 'Hail Yes (citation-grade, multi-source corroborated)' : 'sa21 local mirror'}. Geocoded (${cityHail.geo.lat.toFixed(3)}, ${cityHail.geo.lng.toFixed(3)}) via ${cityHail.geo.source}. Window: last 24 months. Total: ${split.totalEvents} event(s) across ${split.totalDates} distinct date(s).`);
             if (split.biggest.length > 0) {
                 lines.push(`  BIGGEST (strongest claim angle — rank by hail size):`);
                 for (const e of split.biggest) {
-                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from center`);
+                    const tierTag = e.impact_tier ? ` [${e.impact_tier === 'direct_hit' ? 'DIRECT HIT' : e.impact_tier === 'near_miss' ? 'near miss' : 'area event'}]` : '';
+                    const calib = e.hail_calibrated_at_location != null && e.hail_calibrated_at_location > 0 ? `, ${e.hail_calibrated_at_location}" calibrated at property` : '';
+                    const dist = e.impact_tier === 'direct_hit' ? '' : `, edge ${Number(e.distance_miles).toFixed(1)}mi`;
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" peak${calib}${dist}${tierTag}`);
                 }
             }
             if (split.mostRecent.length > 0) {
                 lines.push(`  MOST RECENT (fresh claim window — rank by date):`);
                 for (const e of split.mostRecent) {
-                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" hail, ${Number(e.distance_miles).toFixed(1)}mi from center`);
+                    const tierTag = e.impact_tier ? ` [${e.impact_tier === 'direct_hit' ? 'DIRECT HIT' : e.impact_tier === 'near_miss' ? 'near miss' : 'area event'}]` : '';
+                    const calib = e.hail_calibrated_at_location != null && e.hail_calibrated_at_location > 0 ? `, ${e.hail_calibrated_at_location}" calibrated at property` : '';
+                    const dist = e.impact_tier === 'direct_hit' ? '' : `, edge ${Number(e.distance_miles).toFixed(1)}mi`;
+                    lines.push(`    ${e.event_date} — ${e.hail_size_inches}" peak${calib}${dist}${tierTag}`);
                 }
             }
-            lines.push(`  INSTRUCTION: If rep's question is ambiguous ("what date should I use") → offer BOTH biggest and most recent with a quick "which you want — biggest angle or freshest date?" Close with "${split.totalDates} total dates in last 24mo, can drop the full list if you want."`);
-            lines.push(`  If rep asked "LAST"/"RECENT"/"latest" → lead with MOST RECENT, then mention "biggest recent was [date] [size]" as backup angle.`);
-            lines.push(`  If rep asked "BIGGEST"/"best"/"strongest" → lead with BIGGEST, then mention "most recent was [date] [size]" as freshness note.`);
+            lines.push(`  INSTRUCTION: When stating an event, INCLUDE the tier — direct hit / near miss / area event — so rep knows the strength of the claim angle. Near miss is STILL CLAIM-WORTHY when there's damage on the property; never dismiss them.`);
+            lines.push(`  If rep's question is ambiguous ("what date should I use") → offer BOTH biggest and most recent with "which you want — biggest angle or freshest date?" Close with "${split.totalDates} total dates in last 24mo, can drop the full list if you want."`);
+            lines.push(`  If rep asked "LAST"/"RECENT"/"latest" → lead with MOST RECENT (any tier), then mention biggest recent as backup.`);
+            lines.push(`  If rep asked "BIGGEST"/"best"/"strongest" → lead with BIGGEST (any tier), then mention most recent as freshness note.`);
+            if (usingHailYes) {
+                lines.push(`  VERIFY LINK (always include for hail/storm replies — adjusters trust this): https://hailyes.up.railway.app/verify ✅ pulls a citation-grade PDF.`);
+            }
         }
         if (events.length === 0) {
             lines.push(`  NO verified events within 15mi ${mode === 'by_date' ? 'on those date(s)' : 'in the last 24 months'}. Stand your ground — if rep insists, say our NOAA/NWS/NEXRAD DB is clean, suggest checking the office or CoCoRaHS. DO NOT fabricate a hail size to agree with the rep.`);
@@ -2938,28 +3023,31 @@ export function createSusanGroupMeBotRoutes(pool) {
                     //  - getAddressHailImpact: swath-first tiered impact (the new authoritative signal)
                     //  - MRMS radar at the exact property grid cell
                     const [events, mrms, impact] = await Promise.all([
-                        // Point-report lookup — cheap SQL, safe to run wide. 120mo covers
-                        // the full NOAA NCEI / NCEI SWDI historical backfill (2015+).
+                        // Point-report lookup — kept as backup context (sa21 local mirror)
                         hailAtAddress(pool, geo.lat, geo.lng, 120),
                         (dates.length > 0
                             ? mrmsAtAddressDate(addr, geo, dates[0])
                             : mrmsRecentAtAddress(geo, 3)),
                         (async () => {
+                            // Hail Yes is now the authoritative tiered impact source.
+                            // Federal multi-source corroborated (NCEI + SWDI + IEM LSR
+                            // + HailTrace + IHM) with calibrated at-property reading.
+                            // Falls back to local addressImpactService if Hail Yes is
+                            // unreachable.
                             try {
-                                const { getAddressHailImpact } = await import('../services/addressImpactService.js');
-                                // Swath-first impact is capped at 24mo because
-                                // mrms_swath_cache only reaches back to 2022-07-12; older
-                                // dates have no swath polygons anyway, so widening just
-                                // wastes cold-fetch budget. On a 120mo call we observed
-                                // 17 cold fetches × ~3s + 367 skipped dates = 49s per
-                                // address — past Susan's internal timeout, so half the
-                                // replay questions got dropped. Point-report path above
-                                // still surfaces pre-2022 hail via hailAtAddress.
-                                return await getAddressHailImpact(pool, geo.lat, geo.lng, 24);
+                                const { getAddressHailImpactViaHailYes } = await import('../services/hailYesImpactAdapter.js');
+                                return await getAddressHailImpactViaHailYes(geo.lat, geo.lng, 24);
                             }
                             catch (err) {
-                                console.warn('[SusanBot] getAddressHailImpact failed:', err.message);
-                                return null;
+                                console.warn('[SusanBot] hail-yes impact err, falling back local:', err.message);
+                                try {
+                                    const { getAddressHailImpact } = await import('../services/addressImpactService.js');
+                                    return await getAddressHailImpact(pool, geo.lat, geo.lng, 24);
+                                }
+                                catch (err2) {
+                                    console.warn('[SusanBot] local impact also failed:', err2.message);
+                                    return null;
+                                }
                             }
                         })(),
                     ]);
