@@ -547,10 +547,48 @@ async function stormSearch(
 }>> {
   const dates = extractStormDates(text);
   if (dates.length === 0 && !mentionsStorm(text)) return [];
+  // SOURCE OF TRUTH: Hail Yes /api/events/by-date for date queries.
+  // Falls back to local sa21 mirror only if API is unreachable.
+  if (dates.length > 0) {
+    try {
+      const { getEventsByDate } = await import('../services/hailYesClient.js');
+      const allHits: any[] = [];
+      for (const d of dates.slice(0, 5)) {
+        const resp = await getEventsByDate(d);
+        if (resp && resp.events) {
+          for (const e of resp.events) {
+            // Filter to DMV territory + region states
+            if (!['VA', 'MD', 'PA', 'DC', 'WV', 'DE'].includes(e.state)) continue;
+            // Derive a verification count from source booleans (best-effort)
+            const srcCount = (e.source_ncei ? 1 : 0) + (e.source_swdi ? 1 : 0)
+              + (e.source_iem ? 1 : 0) + (e.source_hailtrace ? 1 : 0) + (e.source_ihm ? 1 : 0);
+            allHits.push({
+              event_date: e.event_date,
+              state: e.state,
+              hail_size_inches: e.peak_hail_inches,
+              wind_mph: e.peak_wind_mph,
+              public_verification_count: srcCount,
+            });
+          }
+        }
+      }
+      if (allHits.length > 0) {
+        // Sort: hail size desc, then wind desc
+        allHits.sort((a, b) =>
+          (Number(b.hail_size_inches) || 0) - (Number(a.hail_size_inches) || 0)
+          || (Number(b.wind_mph) || 0) - (Number(a.wind_mph) || 0)
+        );
+        const top = allHits.slice(0, 10);
+        console.log(`[SusanBot] stormSearch (HailYes) dates=[${dates.join(',')}] hits=${top.length}`);
+        return top;
+      }
+      // Hail Yes returned 0 — fall through to local fallback (rare; usually means out-of-territory)
+    } catch (e) {
+      console.warn('[SusanBot] stormSearch HailYes err, falling back to local:', (e as Error).message);
+    }
+  }
   try {
     if (dates.length > 0) {
-      // Specific date lookup — give top events that day in VA/MD/PA
-      // Use IN list with positional placeholders (more reliable than ANY($1::date[]))
       const placeholders = dates.map((_, i) => `$${i + 1}::date`).join(',');
       const result = await pool.query(
         `SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count
@@ -561,7 +599,7 @@ async function stormSearch(
          LIMIT 10`,
         dates
       );
-      console.log(`[SusanBot] stormSearch dates=[${dates.join(',')}] hits=${result.rows.length}`);
+      console.log(`[SusanBot] stormSearch (LOCAL fallback) dates=[${dates.join(',')}] hits=${result.rows.length}`);
       return result.rows;
     }
     // General storm ask without a date — return top recent events in region
@@ -1686,15 +1724,40 @@ async function hailAtAddress(
   pool: pg.Pool,
   lat: number,
   lng: number,
-  // Widened 24→120 months (10 years) after the NOAA NCEI + NCEI SWDI
-  // historical backfill landed 256K tagged rows back to 2015. LIMIT 12
-  // downstream still keeps the result tight for the LLM prompt, and
-  // ORDER BY event_date DESC makes sure recent storms lead even when
-  // the rep asks about an address with a long history.
   monthsBack: number = 120
 ): Promise<any[]> {
-  // Query verified_hail_events_public within 15 miles over last N months
-  // Haversine formula in SQL (3959 = earth radius miles)
+  // SOURCE OF TRUTH: Hail Yes /api/impact at the address point.
+  // Returns hits[] which we map to the legacy point-report shape so the
+  // rest of the pipeline (which expects {event_date, state, hail_size_inches,
+  // wind_mph, public_verification_count, distance_miles}) keeps working.
+  try {
+    const { getImpact, filterHits, byMostRecent } = await import('../services/hailYesClient.js');
+    const resp = await getImpact({ lat, lng });
+    if (resp && Array.isArray(resp.hits) && resp.hits.length > 0) {
+      const filtered = filterHits(resp, { monthsBack, minPeakInches: 0.25 });
+      const sorted = byMostRecent(filtered).slice(0, 12);
+      const mapped = sorted.map((h) => {
+        const srcs = h.sources || ({} as any);
+        const srcCount = (srcs.ncei ? 1 : 0) + (srcs.swdi ? 1 : 0)
+          + (srcs.iem ? 1 : 0) + (srcs.hailtrace ? 1 : 0) + (srcs.ihm ? 1 : 0);
+        return {
+          event_date: h.event_date,
+          state: h.state,
+          hail_size_inches: h.peak_hail_inches,
+          wind_mph: h.peak_wind_mph,
+          public_verification_count: srcCount,
+          distance_miles: h.edge_distance_miles ?? 0,
+          impact_tier: h.impact_tier,
+          hail_calibrated_at_location: h.hail_calibrated_at_location,
+          _hail_yes: true,
+        };
+      });
+      console.log(`[SusanBot] hailAtAddress (HailYes) (${lat.toFixed(3)}, ${lng.toFixed(3)}) ${monthsBack}mo → ${mapped.length} hits`);
+      return mapped;
+    }
+  } catch (e) {
+    console.warn('[SusanBot] hailAtAddress HailYes err, falling back to local:', (e as Error).message);
+  }
   try {
     const result = await pool.query(
       `SELECT event_date, state, hail_size_inches, wind_mph, public_verification_count,
@@ -1715,10 +1778,10 @@ async function hailAtAddress(
        LIMIT 12`,
       [lat, lng, monthsBack]
     );
-    console.log(`[SusanBot] hailAtAddress (${lat.toFixed(3)}, ${lng.toFixed(3)}) ${monthsBack}mo → ${result.rows.length} hits`);
+    console.log(`[SusanBot] hailAtAddress (LOCAL fallback) (${lat.toFixed(3)}, ${lng.toFixed(3)}) ${monthsBack}mo → ${result.rows.length} hits`);
     return result.rows;
   } catch (e) {
-    console.warn('[SusanBot] hailAtAddress err:', e);
+    console.warn('[SusanBot] hailAtAddress fallback err:', e);
     return [];
   }
 }
