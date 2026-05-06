@@ -152,7 +152,7 @@ const AgnesLearningContent: React.FC = () => {
       difficulty,
       script: scriptContent,
       scriptId: useCustomScript ? undefined : selectedScript?.id,
-      division: 'insurance'
+      division
     };
 
     console.log('config.script length:', config.script.length);
