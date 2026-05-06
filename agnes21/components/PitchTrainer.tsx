@@ -31,7 +31,7 @@ import { playSuccess, playPerfect, playLevelUp, toggleSounds, areSoundsEnabled }
 import { useAuth } from '../contexts/AuthContext';
 import { checkTTSHealth, generateSpeech, DEFAULT_FEEDBACK_VOICE, speakWithChatterbox } from '../utils/chatterboxTTS';
 import { createVAD, startVAD, stopVAD, pauseVAD, createFallbackVAD } from '../utils/vadUtils';
-import { Mic, MicOff, Video, VideoOff, X, ChevronDown, ChevronUp, Trophy, Skull, Shield, Zap, MessageSquare, Keyboard, Circle, Sparkles, AlertTriangle, Volume2, VolumeX, Wand2, Hand, Users, Headphones } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, X, ChevronDown, ChevronUp, Trophy, Skull, Shield, Zap, MessageSquare, Keyboard, Circle, Sparkles, AlertTriangle, Volume2, VolumeX, Wand2, Hand, Users, Headphones, Award } from 'lucide-react';
 import XPBar from './XPBar';
 import LevelUpModal from './LevelUpModal';
 import ScoreReviewModal from './ScoreReviewModal';
@@ -63,11 +63,11 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
   const aiSpeaking = activeAudioCount > 0;
 
   const [error, setError] = useState<string | null>(null);
-  const [isScriptExpanded, setIsScriptExpanded] = useState(false);
+  const [isScriptExpanded, setIsScriptExpanded] = useState(true);
 
   // NEW: Transcript and scoring
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -1635,7 +1635,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
         <div className="agnes-live-header">
           <div className="flex items-center space-x-3">
             <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-red-600 animate-pulse' : 'bg-neutral-600'}`}></div>
-            <span className="font-mono font-bold text-white tracking-widest text-lg">AGNES 21 <span className="text-red-600">//</span> LIVE</span>
+            <span className="font-mono font-bold text-white tracking-widest text-lg">{config.division === 'retail' ? 'AGNES 24' : 'AGNES 21'} <span className="text-red-600">//</span> LIVE</span>
             {isRecording && (
               <div className="flex items-center space-x-2 px-3 py-1 bg-red-600/20 border border-red-600/50 rounded-full animate-pulse">
                 <Circle className="w-3 h-3 text-red-500 fill-red-500" />
@@ -1661,6 +1661,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               {config.difficulty === DifficultyLevel.BEGINNER && <Sparkles className="w-4 h-4 text-cyan-500" />}
               {config.difficulty === DifficultyLevel.ROOKIE && <Shield className="w-4 h-4 text-green-500" />}
               {config.difficulty === DifficultyLevel.PRO && <Zap className="w-4 h-4 text-yellow-500" />}
+              {config.difficulty === DifficultyLevel.VETERAN && <Award className="w-4 h-4 text-orange-500" />}
               {config.difficulty === DifficultyLevel.ELITE && <Skull className="w-4 h-4 text-red-600" />}
               {config.difficulty === DifficultyLevel.NIGHTMARE && <AlertTriangle className="w-4 h-4 text-orange-600" />}
               <span className={`font-mono text-xs font-bold ${getDifficultyColor()}`}>
@@ -1849,7 +1850,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
                       <div key={idx} className={`p-3 rounded-lg ${msg.role === 'agnes' ? 'bg-red-900/20 border border-red-800/30' : 'bg-neutral-800/50 border border-neutral-700'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className={`text-xs font-bold tracking-wider ${msg.role === 'agnes' ? 'text-red-400' : 'text-white'}`}>
-                            {msg.role === 'agnes' ? 'AGNES 21' : 'YOU'}
+                            {msg.role === 'agnes' ? (config.division === 'retail' ? 'AGNES 24' : 'AGNES 21') : 'YOU'}
                           </span>
                           <span className="text-xs text-neutral-500">
                             {msg.timestamp.toLocaleTimeString()}
@@ -1885,7 +1886,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               className={`px-3 py-2.5 sm:py-1.5 rounded text-xs font-medium transition-all flex items-center space-x-1 min-h-[44px] sm:min-h-0 ${
                 voiceMode === 'continuous'
                   ? 'bg-emerald-600 text-white'
-                  : 'text-neutral-400 hover:text-white'
+                  : 'text-neutral-200 hover:text-white'
               }`}
               title="Continuous listening mode"
             >
@@ -1897,7 +1898,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
               className={`px-3 py-2.5 sm:py-1.5 rounded text-xs font-medium transition-all flex items-center space-x-1 min-h-[44px] sm:min-h-0 ${
                 voiceMode === 'push-to-talk'
                   ? 'bg-blue-600 text-white'
-                  : 'text-neutral-400 hover:text-white'
+                  : 'text-neutral-200 hover:text-white'
               }`}
               title="Push-to-Talk mode (hold SPACE or button)"
             >
@@ -1910,7 +1911,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
           {voiceMode === 'continuous' ? (
             <button
               onClick={() => setIsMuted(!isMuted)}
-              className={`p-5 rounded-full transition-all duration-300 ${isMuted ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'bg-neutral-900 text-neutral-400 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 hover:text-white'}`}
+              className={`p-5 rounded-full transition-all duration-300 ${isMuted ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'bg-neutral-800 text-neutral-200 border border-neutral-600 hover:bg-neutral-700 hover:border-neutral-500 hover:text-white'}`}
             >
               {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
             </button>
@@ -1935,7 +1936,7 @@ This is my FINAL score. Be thorough and complete in your evaluation.`
 
           <button
             onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-            className={`p-5 rounded-full transition-all duration-300 ${!isVideoEnabled ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'bg-neutral-900 text-neutral-400 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 hover:text-white'}`}
+            className={`p-5 rounded-full transition-all duration-300 ${!isVideoEnabled ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'bg-neutral-800 text-neutral-200 border border-neutral-600 hover:bg-neutral-700 hover:border-neutral-500 hover:text-white'}`}
           >
             {isVideoEnabled ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
           </button>
