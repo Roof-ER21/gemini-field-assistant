@@ -86,6 +86,7 @@ import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
 import { createAdminRoutes } from './routes/adminRoutes.js';
+import { canManageQR as canManageQRPerm } from './lib/permissions.js';
 // IHM and HailTrace removed — all hail data sourced from NOAA/NWS/NEXRAD (free, federal)
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import {
@@ -9531,9 +9532,10 @@ app.get('/admin/qr-print', async (req, res, next) => {
     if (!email) {
       return res.status(401).send('<h1>401</h1><p>Pass ?email=&lt;admin email&gt; to print QR sheet.</p>');
     }
-    const adminCheck = await isAdmin(email);
-    if (!adminCheck) {
-      return res.status(403).send(`<h1>403</h1><p>${email} is not an admin.</p>`);
+    // QR print is part of QR management — admin or marketing roles allowed.
+    const canPrint = await canManageQRPerm(pool, email);
+    if (!canPrint) {
+      return res.status(403).send(`<h1>403</h1><p>${email} cannot manage QR codes.</p>`);
     }
 
     const layout = req.query.layout === 'single' ? 'single' : 'sheet';
