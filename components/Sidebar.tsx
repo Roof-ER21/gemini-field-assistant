@@ -117,6 +117,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
+  const isMarketing = currentUser?.role === 'marketing';
+  // canManageQR: marketing or admin can manage QR profiles + analytics.
+  const canManageQR = isAdmin || isMarketing;
   const { isRetail } = useDivision();
   const [unreadCount, setUnreadCount] = useState(0);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['main', 'team', 'field-storm']));
@@ -182,8 +185,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'inspections', label: 'Inspections', desc: 'Build presentations', icon: Presentation },
     { id: 'live', label: 'Live', desc: 'Real-time mode', icon: Radio },
     { id: 'deaf-mode', label: 'Deaf Communication', desc: 'Sign language + captions', icon: Ear },
-    { id: 'admin', label: 'Admin Panel', desc: 'System settings', icon: Shield },
-  ], [unreadCount, isRetail]);
+    // 'admin' nav routes to AdminPanel for both admins and marketing users.
+    // AdminPanel itself scopes the visible tabs based on role; marketing users
+    // see only the QR Profiles tab, surfaced here as "Marketing Hub".
+    isMarketing && !isAdmin
+      ? { id: 'admin', label: 'Marketing Hub', desc: 'QR codes, profiles, analytics', icon: Shield }
+      : { id: 'admin', label: 'Admin Panel', desc: 'System settings', icon: Shield },
+  ], [unreadCount, isRetail, isMarketing, isAdmin]);
 
   // Filter by feature flags
   const navItems = useMemo(() => {
@@ -241,10 +249,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           'inspections', 'live', 'deaf-mode', 'admin',
         ]),
       }] : []),
+      // ===== MARKETING-ONLY CATEGORY (when user is marketing but NOT admin) =====
+      ...(isMarketing && !isAdmin ? [{
+        id: 'marketing-tools',
+        label: 'Marketing',
+        icon: Shield as React.ComponentType<{ className?: string }>,
+        defaultExpanded: true,
+        items: get(['admin']),  // 'admin' nav routes to AdminPanel which scopes to QR-only for marketing
+      }] : []),
     ];
 
     return categories.filter(cat => cat.items.length > 0);
-  }, [navItems, isAdmin, isRetail]);
+  }, [navItems, isAdmin, isMarketing, isRetail]);
 
   // Auto-expand category containing active panel
   useEffect(() => {

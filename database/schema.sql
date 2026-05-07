@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'sales_rep', -- sales_rep, manager, admin
+    role VARCHAR(50) DEFAULT 'sales_rep', -- sales_rep, manager, admin, marketing
     state VARCHAR(2), -- VA, MD, PA
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
