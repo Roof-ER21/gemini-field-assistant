@@ -401,14 +401,27 @@ const AdminPanel: React.FC = () => {
 
   const currentUser = authService.getCurrentUser();
 
-  // Check if current user is admin
+  // Check if current user is admin (full access) or marketing (QR-only access)
   const isAdmin = currentUser?.role === 'admin';
+  const isMarketing = currentUser?.role === 'marketing';
+  // canManageQR: marketing or admin can manage QR profiles + analytics.
+  // Admin can override / do anything marketing can do.
+  const canManageQR = isAdmin || isMarketing;
 
   // Admin PIN auth state
   const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('s21_admin_token'));
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState<'verify' | 'setup'>('verify');
   const [adminAuthChecked, setAdminAuthChecked] = useState(false);
+
+  // Force marketing users onto QR Profiles tab — they have no other tabs.
+  // Backend would 403 anyway, this just keeps the UI coherent.
+  useEffect(() => {
+    if (isMarketing && !isAdmin) {
+      setActiveGroup('system');
+      setActiveTab('qr-profiles');
+    }
+  }, [isMarketing, isAdmin]);
 
   // Centralized fetch wrapper that injects both auth headers on every admin API call
   const adminFetch = (url: string, options: RequestInit = {}) => {
@@ -1416,8 +1429,9 @@ const AdminPanel: React.FC = () => {
     return lastActiveDate > fiveMinutesAgo;
   };
 
-  // PIN auth loading state — show spinner while checking session on mount
-  if (isAdmin && !adminAuthChecked && !showPinModal) {
+  // PIN auth loading state — show spinner while checking session on mount.
+  // Both admin AND marketing roles need PIN-protected sessions.
+  if (canManageQR && !adminAuthChecked && !showPinModal) {
     return (
       <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-secondary)' }}>
         {showPinModal && (
@@ -1436,8 +1450,8 @@ const AdminPanel: React.FC = () => {
     );
   }
 
-  // Access denied for non-admin users
-  if (!isAdmin) {
+  // Access denied for users without QR/admin privileges.
+  if (!canManageQR) {
     return (
       <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-secondary)' }}>
         <div
@@ -1633,13 +1647,19 @@ const AdminPanel: React.FC = () => {
 
       {/* Tab Navigation */}
       {(() => {
-        const tabGroups = [
-          { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
-          { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
-          { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
-          { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
-          { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'rep-phones'] }
-        ];
+        // Full tab structure for admins. Marketing users get a scoped view
+        // with only the QR Profiles tab.
+        const tabGroups = isMarketing && !isAdmin
+          ? [
+              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles'] }
+            ]
+          : [
+              { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
+              { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
+              { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
+              { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
+              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'rep-phones'] }
+            ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
           users: { label: 'Users', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> },

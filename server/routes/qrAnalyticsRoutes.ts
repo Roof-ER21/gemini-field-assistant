@@ -5,23 +5,14 @@
 
 import { Router, Request, Response } from 'express';
 import type { Pool } from 'pg';
+import { canManageQR } from '../lib/permissions.js';
 
 export function createQRAnalyticsRoutes(pool: Pool) {
   const router = Router();
 
-  // Helper: Check if user is admin
-  async function isAdminUser(email?: string): Promise<boolean> {
-    if (!email) return false;
-    try {
-      const result = await pool.query(
-        'SELECT role FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-        [email]
-      );
-      return result.rows[0]?.role === 'admin';
-    } catch (error) {
-      console.error('❌ QR Analytics admin check failed:', error);
-      return false;
-    }
+  // Helper: Check if user can manage QR (admin or marketing role).
+  async function canManageQRUser(email?: string): Promise<boolean> {
+    return canManageQR(pool, email);
   }
 
   /**
@@ -32,7 +23,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     try {
       const userEmail = req.headers['x-user-email'] as string;
 
-      if (!await isAdminUser(userEmail)) {
+      if (!await canManageQRUser(userEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Admin access required'
@@ -78,7 +69,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     try {
       const userEmail = req.headers['x-user-email'] as string;
 
-      if (!await isAdminUser(userEmail)) {
+      if (!await canManageQRUser(userEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Admin access required'
@@ -124,7 +115,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     try {
       const userEmail = req.headers['x-user-email'] as string;
 
-      if (!await isAdminUser(userEmail)) {
+      if (!await canManageQRUser(userEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Admin access required'
@@ -177,7 +168,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     try {
       const userEmail = req.headers['x-user-email'] as string;
 
-      if (!await isAdminUser(userEmail)) {
+      if (!await canManageQRUser(userEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Admin access required'
@@ -228,7 +219,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     try {
       const userEmail = req.headers['x-user-email'] as string;
 
-      if (!await isAdminUser(userEmail)) {
+      if (!await canManageQRUser(userEmail)) {
         return res.status(403).json({
           success: false,
           error: 'Admin access required'
@@ -274,7 +265,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
       const { slug } = req.params;
 
       // Allow admins or profile owners
-      const isAdmin = await isAdminUser(userEmail);
+      const isAdmin = await canManageQRUser(userEmail);
 
       if (!isAdmin) {
         // Check if user owns this profile

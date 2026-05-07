@@ -16,7 +16,7 @@ export interface AuthUser {
   email: string;
   name: string;
   phone?: string | null;
-  role: 'sales_rep' | 'manager' | 'admin';
+  role: 'sales_rep' | 'manager' | 'admin' | 'marketing';
   state: 'VA' | 'MD' | 'PA' | null;
   division?: Division | null;
   created_at: Date;

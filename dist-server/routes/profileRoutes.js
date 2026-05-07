@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { createCalendarEvent } from '../services/googleCalendarService.js';
 import { sendGmailEmail } from '../services/googleGmailService.js';
+import { canManageQR, isAdmin as isAdminRole } from '../lib/permissions.js';
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)
 // - Local dev: ./public/uploads (local filesystem)
@@ -109,18 +110,16 @@ function getDeviceType(userAgent) {
 }
 export function createProfileRoutes(pool) {
     const router = Router();
-    // Helper: Check if user is admin
-    async function isAdminUser(email) {
-        if (!email)
-            return false;
-        try {
-            const result = await pool.query('SELECT role FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
-            return result.rows[0]?.role === 'admin';
-        }
-        catch (error) {
-            console.error('❌ Profile admin check failed:', error);
-            return false;
-        }
+    // Helper: Check if user can manage QR profiles (admin or marketing role).
+    // Backed by ../lib/permissions canManageQR — kept as a thin local wrapper so
+    // the call sites in this file stay terse.
+    async function canManageQRUser(email) {
+        return canManageQR(pool, email);
+    }
+    // Helper: strict admin check (used where marketing should NOT have access,
+    // e.g. the public /slug/:slug preview that lets admins see disabled profiles).
+    async function isStrictAdmin(email) {
+        return isAdminRole(pool, email);
     }
     // Helper: Check if feature is enabled
     async function isFeatureEnabled(key) {
@@ -380,10 +379,11 @@ export function createProfileRoutes(pool) {
     router.get('/slug/:slug', async (req, res) => {
         try {
             const { slug } = req.params;
-            // Check if feature is enabled (or allow if admin)
+            // Check if feature is enabled (or allow if strict admin — marketing
+            // does NOT bypass the disabled-profile preview).
             const userEmail = req.headers['x-user-email'];
             const featureEnabled = await isFeatureEnabled('qr_profiles_enabled');
-            const isAdmin = await isAdminUser(userEmail);
+            const isAdmin = await isStrictAdmin(userEmail);
             if (!featureEnabled && !isAdmin) {
                 return res.status(404).json({
                     success: false,
@@ -973,7 +973,7 @@ export function createProfileRoutes(pool) {
     router.get('/', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1023,7 +1023,7 @@ export function createProfileRoutes(pool) {
     router.post('/', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1081,7 +1081,7 @@ export function createProfileRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { id } = req.params;
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1130,7 +1130,7 @@ export function createProfileRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { id } = req.params;
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1164,7 +1164,7 @@ export function createProfileRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { id } = req.params;
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1201,7 +1201,7 @@ export function createProfileRoutes(pool) {
     router.post('/bulk-generate', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1258,7 +1258,7 @@ export function createProfileRoutes(pool) {
     router.get('/feature-status', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1309,7 +1309,7 @@ export function createProfileRoutes(pool) {
     router.post('/toggle-feature', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({
                     success: false,
                     error: 'Admin access required'
@@ -1346,7 +1346,7 @@ export function createProfileRoutes(pool) {
                 return res.status(400).json({ success: false, error: 'No image file provided' });
             }
             // Check admin or profile owner
-            const isAdmin = await isAdminUser(userEmail);
+            const isAdmin = await canManageQRUser(userEmail);
             if (!isAdmin) {
                 const ownerCheck = await pool.query(`SELECT id FROM employee_profiles WHERE id = $1 AND email = $2`, [id, userEmail]);
                 if (ownerCheck.rows.length === 0) {
@@ -1405,7 +1405,7 @@ export function createProfileRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { id } = req.params;
-            const isAdmin = await isAdminUser(userEmail);
+            const isAdmin = await canManageQRUser(userEmail);
             if (!isAdmin) {
                 const ownerCheck = await pool.query(`SELECT id FROM employee_profiles WHERE id = $1 AND email = $2`, [id, userEmail]);
                 if (ownerCheck.rows.length === 0) {
@@ -1450,7 +1450,7 @@ export function createProfileRoutes(pool) {
         try {
             const userEmail = req.headers['x-user-email'];
             const { profileId, videoId } = req.params;
-            const isAdmin = await isAdminUser(userEmail);
+            const isAdmin = await canManageQRUser(userEmail);
             if (!isAdmin) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
@@ -1499,7 +1499,7 @@ export function createProfileRoutes(pool) {
     router.get('/:id/reviews', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!(await isAdminUser(userEmail))) {
+            if (!(await canManageQRUser(userEmail))) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
             const r = await pool.query(`SELECT id, profile_id, text, author, date_label, source, source_url, rating, display_order, is_active, created_at
@@ -1520,7 +1520,7 @@ export function createProfileRoutes(pool) {
     router.post('/:id/reviews', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!(await isAdminUser(userEmail))) {
+            if (!(await canManageQRUser(userEmail))) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
             const profileIdParam = req.params.id === 'global' ? null : req.params.id;
@@ -1554,7 +1554,7 @@ export function createProfileRoutes(pool) {
     router.put('/reviews/:reviewId', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!(await isAdminUser(userEmail))) {
+            if (!(await canManageQRUser(userEmail))) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
             const { text, author, date_label, source, source_url, rating, display_order, is_active } = req.body || {};
@@ -1596,7 +1596,7 @@ export function createProfileRoutes(pool) {
     router.delete('/reviews/:reviewId', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!(await isAdminUser(userEmail))) {
+            if (!(await canManageQRUser(userEmail))) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
             const r = await pool.query('DELETE FROM profile_reviews WHERE id = $1 RETURNING id', [req.params.reviewId]);
@@ -1616,7 +1616,7 @@ export function createProfileRoutes(pool) {
     router.post('/bulk-import', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
-            if (!await isAdminUser(userEmail)) {
+            if (!await canManageQRUser(userEmail)) {
                 return res.status(403).json({ success: false, error: 'Admin access required' });
             }
             const { profiles } = req.body;

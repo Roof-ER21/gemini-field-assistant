@@ -3091,7 +3091,7 @@ app.post('/api/admin/auth/check', async (req, res) => {
       'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+    if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     const user = userResult.rows[0];
@@ -3126,7 +3126,7 @@ app.post('/api/admin/auth/set-pin', async (req, res) => {
       'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+    if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -3177,7 +3177,7 @@ app.post('/api/admin/auth/verify-pin', async (req, res) => {
       'SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+    if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -3230,7 +3230,7 @@ app.use('/api/admin', async (req, res, next) => {
   try {
     // Verify user is admin
     const userResult = await pool.query('SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
-    if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+    if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -4902,6 +4902,28 @@ ensureUserSalesRepMappingTable();
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`);
     // Promote Reese Samala to admin
     await pool.query(`UPDATE users SET role = 'admin' WHERE LOWER(email) = 'reese.samala@theroofdocs.com' AND role != 'admin'`);
+    // Promote marketing users (env-driven, comma-separated emails). Marketing
+    // role gets QR-codes-only admin access via canManageQR in
+    // server/lib/permissions.ts. Pre-seed star.mackey so she's elevated from
+    // her first login (account auto-creates on Google SSO).
+    const marketingEmails = (process.env.MARKETING_EMAILS || 'star.mackey@theroofdocs.com')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean);
+    for (const email of marketingEmails) {
+      // Pre-create the user row if she's never logged in. Default name from
+      // email local-part; she can edit it in Profile after first login.
+      const inferredName = email.split('@')[0]
+        .split('.')
+        .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(' ');
+      await pool.query(
+        `INSERT INTO users (email, name, role) VALUES ($1, $2, 'marketing')
+         ON CONFLICT (email) DO UPDATE SET role = 'marketing'
+         WHERE users.role NOT IN ('admin', 'marketing')`,
+        [email, inferredName]
+      );
+    }
     // Clean expired sessions periodically
     await pool.query(`DELETE FROM admin_sessions WHERE expires_at < NOW()`);
     console.log('✅ Admin PIN auth tables ready');
