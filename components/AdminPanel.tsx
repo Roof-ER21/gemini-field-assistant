@@ -446,9 +446,10 @@ const AdminPanel: React.FC = () => {
     setShowPinModal(false);
   };
 
-  // Check admin PIN auth status on mount
+  // Check admin PIN auth status on mount.
+  // Both admin AND marketing roles need the PIN-protected session.
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canManageQR) return;
 
     const checkAdminAuth = async () => {
       try {
@@ -478,7 +479,7 @@ const AdminPanel: React.FC = () => {
     };
 
     checkAdminAuth();
-  }, [isAdmin]);
+  }, [canManageQR]);
 
   useEffect(() => {
     if (isAdmin) {
