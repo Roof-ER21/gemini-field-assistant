@@ -361,6 +361,51 @@ export function createLeadGenRoutes(pool: Pool) {
         });
       }
 
+      // --- Forward to CC21 Command Center Active Leads (fire-and-forget) -----
+      // When CC21_LEAD_INTAKE_URL + CC21_WEBSITE_SECRET are set, mirror this
+      // self-serve QR/landing-page lead into CC21's public intake so it shows
+      // up in Active Leads. Completely inert if the env vars are absent — sa21
+      // behaves exactly as before. Never blocks or fails the homeowner's
+      // submission (we already returned 201 to them below).
+      const cc21Url = process.env.CC21_LEAD_INTAKE_URL;
+      const cc21Secret = process.env.CC21_WEBSITE_SECRET;
+      if (cc21Url && cc21Secret) {
+        // CC21 attributes leads to a region from state/zip (falls back to the
+        // primary region). sa21 stores zipCode separately and often embeds the
+        // state + zip in the address string ("...Vienna, VA 22182") — parse
+        // both out for better region attribution.
+        const addrStr = (address || '').trim();
+        const fwdZip = (zipCode || addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] || '').trim();
+        const fwdState = (addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1] || '').toUpperCase();
+        const forwardBody = {
+          fullName: homeownerName.trim(),
+          email: homeownerEmail || undefined,
+          phone: homeownerPhone || undefined,
+          address: addrStr || undefined,
+          state: fwdState || undefined,
+          zip: fwdZip || undefined,
+          source: `sa21-${resolvedSource}`,
+          hasDamage: resolvedSource === 'storm' || resolvedSource === 'storm_landing'
+            || resolvedSource === 'claim_quiz' || /damage|storm|hail/i.test(serviceType || ''),
+          message: ((message || '') + dateNote).trim() || undefined,
+        };
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), 7000);
+        fetch(cc21Url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Website-Secret': cc21Secret },
+          body: JSON.stringify(forwardBody),
+          signal: ac.signal,
+        })
+          .then(async (r) => {
+            if (!r.ok) {
+              console.error('❌ CC21 lead forward non-OK:', r.status, await r.text().catch(() => ''));
+            }
+          })
+          .catch((err) => console.error('❌ CC21 lead forward failed:', err?.message || err))
+          .finally(() => clearTimeout(t));
+      }
+
       return res.status(201).json({ success: true, leadId, score });
     } catch (error) {
       console.error('❌ Lead intake error:', error);
