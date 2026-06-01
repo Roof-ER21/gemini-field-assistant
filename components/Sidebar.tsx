@@ -122,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const canManageQR = isAdmin || isMarketing;
   const { isRetail } = useDivision();
   const [unreadCount, setUnreadCount] = useState(0);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['main', 'team', 'field-storm']));
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['main', 'learn']));
   const { features, isFeatureEnabled } = useSettings();
 
   // Map panel IDs to feature flag keys
@@ -209,33 +209,24 @@ const Sidebar: React.FC<SidebarProps> = ({
     const get = (ids: string[]) => ids.map(id => itemsMap.get(id)).filter((item): item is NavItem => !!item);
 
     const categories: NavCategory[] = [
-      // ===== REP-VISIBLE CATEGORIES (adapt per division) =====
+      // ===== REP-VISIBLE CATEGORIES =====
+      // Reps see exactly two categories (Main + Learn) = 6 pages total.
       {
         id: 'main',
         label: 'Main',
         icon: Sparkles,
         defaultExpanded: true,
-        items: get(isRetail
-          ? ['home', 'chat', 'translator']
-          : ['home', 'chat', 'translator']),
+        items: get(['home', 'chat', 'translator']),
       },
       {
-        id: 'team',
-        label: 'Team',
-        icon: Users,
+        id: 'learn',
+        label: 'Learn',
+        icon: BookOpen,
         defaultExpanded: true,
-        items: get(isRetail
-          ? ['team', 'agnes-learning', 'knowledge']
-          : ['team', 'agnes-learning', 'knowledge']),
-      },
-      {
-        id: 'field-storm',
-        label: isRetail ? 'Field' : 'Field / Storm',
-        icon: Cloud,
-        defaultExpanded: true,
-        items: get(isRetail
-          ? ['myprofile']
-          : ['stormmap', 'impacted', 'myprofile']),
+        // Profile replaces the old Team (messaging) page. The Team page and the
+        // Field/Storm pages (stormmap, impacted) are moved to Admin Tools below,
+        // so reps no longer see them.
+        items: get(['myprofile', 'agnes-learning', 'knowledge']),
       },
       // ===== ADMIN-ONLY CATEGORIES =====
       ...(isAdmin ? [{
@@ -244,6 +235,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         icon: Shield as React.ComponentType<{ className?: string }>,
         defaultExpanded: false,
         items: get([
+          // Hidden from reps; kept here so admins retain access.
+          'team', 'stormmap', 'impacted',
           'email', 'image', 'transcribe', 'documentjob', 'learning',
           'leaderboard', 'contests', 'territories', 'canvassing',
           'inspections', 'live', 'deaf-mode', 'admin',
