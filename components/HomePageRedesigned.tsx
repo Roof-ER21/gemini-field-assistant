@@ -2,15 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useDivision } from '../contexts/DivisionContext';
 import {
   MessageSquare,
-  Image,
   Mail,
-  Building2,
-  Briefcase,
-  Target,
-  TrendingUp,
-  Trophy,
   ChevronRight,
-  Sparkles,
   Sun,
   Moon,
   CloudSun,
@@ -19,7 +12,10 @@ import {
   Cloud,
   Wind,
   ThumbsUp,
-  AlertTriangle
+  AlertTriangle,
+  User,
+  Globe,
+  FileText
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -106,33 +102,6 @@ const WEATHER_QUOTES: Record<string, { insurance: string[]; retail: string[] }> 
   }
 };
 
-// Daily tips pool
-const INSURANCE_TIPS = [
-  "Always search Susan's knowledge base before an adjuster meeting — she has scripts for every scenario.",
-  "Use the 'Select State' quick action before generating emails. VA, MD, and PA have very different building code arguments.",
-  "Post your wins in Team Intel. When you upvote tips, Susan literally gets smarter for everyone.",
-  "After a storm, check Storm Maps immediately. NOAA data + SPC reports = your strongest argument.",
-  "The compliance checker in Email Gen catches language that could get you in trouble. Use it every time.",
-  "Maryland R908.3 requires full tear-off — no overlays. Susan knows this. Ask her before your next MD claim.",
-  "Agnes 21 scores you out of 100. Practice until you hit 80+ consistently.",
-  "Upload supplements and denials to Susan — she reads them and tells you exactly how to respond.",
-  "Don't say 'insurance will cover it.' Say 'as the licensed contractor, I'm required to install per current code.'",
-  "The best time to check Storm Maps is right after a weather alert. Be the first one knocking.",
-];
-
-const RETAIL_TIPS = [
-  "Always start with the ice breaker. 'Hello, how are you?' then 'You look ___, I'll be quick.'",
-  "Practice the 7 Stop Signs with Agnes 24 until the rebuttals feel natural.",
-  "Point at a neighbor's house when you say 'we're doing work down the street.' Physical pointing creates social proof.",
-  "The Broomstick Theory: take two steps back after knocking. Give space = earn respect.",
-  "Always pivot. If they don't need windows, ask about the roof. Never leave after one no.",
-  "The utility bill ask is a micro-commitment. When they go find it, they've invested in the appointment.",
-  "'Sound fair?' is your best friend. It gets a verbal yes without feeling like a close.",
-  "Susan 24 knows all 9 products. Between doors, ask her for a quick product refresh.",
-  "Know your minimums: 4+ windows, 75% siding, 15+ year roof, south-facing for solar.",
-  "End every interaction positively — even if they say no. You're the person they'll remember.",
-];
-
 interface WeatherData {
   temp: number;
   condition: string;
@@ -143,6 +112,7 @@ interface WeatherData {
 const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel, userEmail }) => {
   const { isRetail } = useDivision();
   const user = authService.getCurrentUser();
+  const isAdmin = user?.role === 'admin';
   const [recentChats, setRecentChats] = useState<Array<{ text: string }>>([]);
   const [topIntel, setTopIntel] = useState<string | null>(null);
   const [stormSummary, setStormSummary] = useState<{ count: number; maxMagnitude: number | null } | null>(null);
@@ -155,13 +125,6 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     if (hour < 12) return { text: `Good morning, ${name}`, icon: Sun };
     if (hour < 17) return { text: `Good afternoon, ${name}`, icon: CloudSun };
     return { text: `Good evening, ${name}`, icon: Moon };
-  };
-
-  // Get daily tip
-  const getDailyTip = () => {
-    const tips = isRetail ? RETAIL_TIPS : INSURANCE_TIPS;
-    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-    return tips[dayOfYear % tips.length];
   };
 
   // Get weather-based quote
@@ -261,31 +224,18 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
-  const dailyTip = getDailyTip();
   const WeatherIcon = weather?.icon || Cloud;
   const weatherQuote = weather ? getWeatherQuote(weather.condition) : null;
   const hasRecentStorms = !isRetail && stormSummary && stormSummary.count > 0;
 
-  // Quick Actions
-  const insuranceQuickActions = [
-    { id: 'stormmap', title: 'Storm Maps', description: 'Hail history & radar', icon: Building2, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
-    { id: 'email', title: 'Generate Email', description: 'Templates + compliance', icon: Mail, gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' },
-    { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: Image, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
-    { id: 'chat', title: 'Susan 21', description: 'AI assistant', icon: MessageSquare, gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
-    { id: 'myprofile', title: 'QR Profile', description: 'Share your landing page', icon: Target, gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)' },
-    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Sparkles, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+  // Quick Actions — unified 4-tile launcher for all reps (retail + insurance).
+  // Profile · Pocket Linguist · Email · Upload & Analyze.
+  const quickActions = [
+    { id: 'myprofile', title: 'Profile', description: 'QR code & settings', icon: User, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Globe, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+    { id: 'email', title: 'Email', description: 'Generate emails', icon: Mail, gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' },
+    { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: FileText, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
   ];
-
-  const retailQuickActions = [
-    { id: 'chat', title: 'Susan 24', description: 'Pitch coaching & product info', icon: MessageSquare, gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
-    { id: 'agnes-learning', title: 'Agnes 24', description: 'Practice your pitch', icon: Sparkles, gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' },
-    { id: 'knowledge', title: 'Knowledge Base', description: 'Scripts, products & rebuttals', icon: Briefcase, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
-    { id: 'team', title: 'Team Chat', description: 'Message colleagues', icon: TrendingUp, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
-    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Target, gradient: 'linear-gradient(135deg, #52525b 0%, #3f3f46 100%)' },
-    { id: 'myprofile', title: 'Profile', description: 'Your settings', icon: Trophy, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
-  ];
-
-  const quickActions = isRetail ? retailQuickActions : insuranceQuickActions;
   const accent = isRetail ? '#3b82f6' : '#dc2626';
   const accentFaint = isRetail ? 'rgba(59,130,246,' : 'rgba(220,38,38,';
 
@@ -334,8 +284,8 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
 
       <div style={{ padding: '0 1rem 1.5rem' }}>
 
-        {/* Weather Quote or Storm Alert */}
-        {hasRecentStorms ? (
+        {/* Weather Quote or Storm Alert (storm banner is admin-only; reps don't see Storm Maps) */}
+        {hasRecentStorms && isAdmin ? (
           <div
             onClick={() => setActivePanel('stormmap')}
             style={{
@@ -378,28 +328,6 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             </div>
           </div>
         ) : null}
-
-        {/* Daily Tip */}
-        <div style={{
-          background: `${accentFaint}0.08)`,
-          border: `1px solid ${accentFaint}0.2)`,
-          borderRadius: '14px',
-          padding: '0.875rem 1rem',
-          marginBottom: '0.75rem',
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'flex-start',
-        }}>
-          <Sparkles style={{ width: '16px', height: '16px', color: accent, flexShrink: 0, marginTop: '1px' }} />
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: accent, letterSpacing: '0.12em', marginBottom: '3px' }}>
-              TIP OF THE DAY
-            </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {dailyTip}
-            </div>
-          </div>
-        </div>
 
         {/* Recent Conversations */}
         {recentChats.length > 0 && (
