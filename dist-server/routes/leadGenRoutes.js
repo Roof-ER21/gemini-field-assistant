@@ -265,6 +265,38 @@ export function createLeadGenRoutes(pool) {
                 const addrStr = (address || '').trim();
                 const fwdZip = (zipCode || addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] || '').trim();
                 const fwdState = (addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1] || '').toUpperCase();
+                // Resolve the attributed rep (email + name) so CC21 can ASSIGN the lead
+                // to that specific rep — not the org owner. The rep form posts
+                // `repProfileId` (hidden field); older callers send `profileId`. Match
+                // employee_profiles directly, or via the referral code. Non-fatal.
+                let repEmail;
+                let repName;
+                const effProfileId = profileId ||
+                    (typeof req.body.repProfileId === 'string'
+                        ? (req.body.repProfileId || '').trim()
+                        : '');
+                try {
+                    if (effProfileId) {
+                        const rp = await pool.query(`SELECT name, email FROM employee_profiles WHERE id = $1 LIMIT 1`, [effProfileId]);
+                        if (rp.rows[0]) {
+                            repName = rp.rows[0].name || undefined;
+                            repEmail = rp.rows[0].email || undefined;
+                        }
+                    }
+                    if ((!repEmail || !repName) && referralCode) {
+                        const rc = await pool.query(`SELECT ep.name, ep.email
+                 FROM referral_codes rc
+                 JOIN employee_profiles ep ON ep.id = rc.profile_id
+                WHERE UPPER(rc.code) = UPPER($1) LIMIT 1`, [referralCode]);
+                        if (rc.rows[0]) {
+                            repName = repName || rc.rows[0].name || undefined;
+                            repEmail = repEmail || rc.rows[0].email || undefined;
+                        }
+                    }
+                }
+                catch (lookupErr) {
+                    console.error('CC21 forward: rep lookup failed (non-fatal):', lookupErr.message);
+                }
                 const forwardBody = {
                     fullName: homeownerName.trim(),
                     email: homeownerEmail || undefined,
@@ -276,6 +308,13 @@ export function createLeadGenRoutes(pool) {
                     hasDamage: resolvedSource === 'storm' || resolvedSource === 'storm_landing'
                         || resolvedSource === 'claim_quiz' || /damage|storm|hail/i.test(serviceType || ''),
                     message: ((message || '') + dateNote).trim() || undefined,
+                    // Rep attribution + structured intake detail for CC21
+                    repEmail,
+                    repName,
+                    referralCode: referralCode || undefined,
+                    serviceType: serviceType || undefined,
+                    preferredDate: safeDate || preferredDate || undefined,
+                    preferredTime: preferredTime || undefined,
                 };
                 const ac = new AbortController();
                 const t = setTimeout(() => ac.abort(), 7000);
