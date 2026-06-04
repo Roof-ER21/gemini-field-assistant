@@ -397,7 +397,7 @@ export function createProfileRoutes(pool) {
                     if (adminUserId) {
                         const adminResult = await sendGmailEmail(pool, adminUserId, {
                             to: adminEmailAddr,
-                            subject: `[Lead] ${leadData.homeownerName} → ${repName} (${sourceLabel})`,
+                            subject: `[Lead] ${leadData.homeownerName} -> ${repName} (${sourceLabel})`,
                             body: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
                   <div style="background: #1a1a1a; color: white; padding: 16px; border-radius: 8px 8px 0 0;">
@@ -701,8 +701,16 @@ export function createProfileRoutes(pool) {
             // to the JotForm form. Fall back to regex on provideComments for any
             // submissions that came in before the hidden field was added.
             const repSlugDirect = findField('repSlug', 'rep_slug', 'repslug');
+            // JotForm reliably forwards `howDid` but drops the standalone `repSlug`
+            // URL param, so the rep page folds the slug into howDid as
+            // "Spoke to a Rep (slug)". Parse it out here.
+            const repSlugFromHowDid = (howDid || '').match(/\(([a-z0-9-]+)\)/i);
             const repSlugMatch = provideComments.match(/\(([a-z0-9-]+)\)\s*$/i);
-            const repSlug = repSlugDirect || (repSlugMatch ? repSlugMatch[1] : null);
+            const repSlug = repSlugDirect
+                || (repSlugFromHowDid ? repSlugFromHowDid[1] : null)
+                || (repSlugMatch ? repSlugMatch[1] : null);
+            // Store a clean how_did_hear (strip the "(slug)" token we appended).
+            const howDidStored = (howDid || '').replace(/\s*\([a-z0-9-]+\)\s*$/i, '').trim() || null;
             let profileId = null;
             if (repSlug) {
                 const profileRow = await pool.query('SELECT id FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1', [repSlug]);
@@ -764,7 +772,7 @@ export function createProfileRoutes(pool) {
                 submissionID || null,
                 formID || null,
                 JSON.stringify({ ...body, rawRequest: undefined, rawRequestParsed: rawRequest }),
-                howDid || null,
+                howDidStored,
                 referralName || null,
             ]);
             // ON CONFLICT skip → no row returned. Ack OK, log it.
