@@ -35,7 +35,10 @@ function forwardLeadToCC21(lead) {
         state: state || undefined,
         zip: zip || undefined,
         source: `sa21-${srcTag}`,
-        hasDamage: /damage|storm|hail|leak/i.test(lead.serviceType || ''),
+        // sa21/QR submissions are INSURANCE jobs (100%) — drive CC21 job typing so
+        // the insurance stage-gates (signed contingency, etc.) apply.
+        jobType: lead.jobType || 'insurance',
+        hasDamage: /damage|storm|hail|leak/i.test(lead.serviceType || '') || (lead.jobType || 'insurance') === 'insurance',
         repEmail: lead.repEmail || undefined,
         repName: lead.repName || undefined,
         serviceType: lead.serviceType || undefined,
@@ -629,10 +632,14 @@ export function createProfileRoutes(pool) {
             // fields like "Full Name" (typeA = {first, last}) — surfaces as q8_typeA
             // in this form's payload. We try concrete labels first, then the typeX
             // family, then a firstName/lastName fallback.
-            const homeownerName = findField('name', 'fullName', 'homeownerName', 'yourName') ||
-                findField('typeA', 'typeB', 'typeC') ||
-                [findField('firstName', 'first'), findField('lastName', 'last')].filter(Boolean).join(' ').trim() ||
-                '';
+            // The form splits the name into separate first (typeA) + last (lastName)
+            // fields, so grab a first-name candidate then APPEND the last-name field
+            // unless the first candidate is already a full "First Last" string.
+            const nameFirst = (findField('name', 'fullName', 'homeownerName', 'yourName', 'typeA', 'typeB', 'firstName', 'first') || '').trim();
+            const nameLast = (findField('lastName', 'last', 'typeA32', 'typeB32') || '').trim();
+            const homeownerName = (nameLast && nameFirst && !/\s/.test(nameFirst))
+                ? `${nameFirst} ${nameLast}`
+                : (nameFirst || nameLast || '');
             // Email: must contain @ and a dot. Drop garbage rather than store junk.
             // Phone: keep only digits, format US numbers as (XXX) XXX-XXXX. Foreign
             // or partial numbers fall through as the digit string so we don't lose
@@ -672,6 +679,23 @@ export function createProfileRoutes(pool) {
                     break;
                 }
             }
+            // Capture ALL selected service areas (the checkbox group is a multi-select
+            // array) so the lead shows every area requested, not just the first match.
+            let servicesReadable = '';
+            for (const [k, v] of Object.entries(fields)) {
+                const suffix = k.toLowerCase().replace(/^q\d+_/, '');
+                if (['selectthe', 'service', 'servicetype', 'typeofservice'].includes(suffix)) {
+                    const list = Array.isArray(v)
+                        ? v.filter((x) => typeof x === 'string' && x.trim())
+                        : (typeof v === 'string' && v.trim() ? [v] : []);
+                    if (list.length) {
+                        servicesReadable = list.map((s) => String(s).trim().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(', ');
+                        break;
+                    }
+                }
+            }
+            // Prefer the full multi-select list for display/forward; fall back to the matched label.
+            const serviceDisplay = servicesReadable || (serviceType ? (SERVICE_LABELS[serviceType] || serviceType) : null);
             // Date/time fields are tricky in JotForm.
             // The Appointment widget surfaces as a single composite string like:
             //   "new 2026-05-05 09:00 60 America/New_York (GMT-04:00)"
@@ -791,7 +815,7 @@ export function createProfileRoutes(pool) {
                     homeownerEmail,
                     homeownerPhone,
                     address: addressFull,
-                    serviceType,
+                    serviceType: serviceDisplay,
                     preferredDate: preferredDateRaw,
                     preferredTime: preferredTimeRaw,
                     message,
@@ -806,7 +830,7 @@ export function createProfileRoutes(pool) {
                     homeownerEmail,
                     homeownerPhone,
                     address: addressFull,
-                    serviceType,
+                    serviceType: serviceDisplay,
                     preferredDate: preferredDateRaw,
                     preferredTime: preferredTimeRaw,
                     message,
