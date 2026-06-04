@@ -13,6 +13,66 @@ import { createCalendarEvent } from '../services/googleCalendarService.js';
 import { sendGmailEmail } from '../services/googleGmailService.js';
 import { canManageQR, isAdmin as isAdminRole } from '../lib/permissions.js';
 
+// ─── CC21 bridge ────────────────────────────────────────────────────────────
+// Forward a QR / JotForm / contact-form lead into CC21 Active Leads. Env-gated
+// (CC21_LEAD_INTAKE_URL + CC21_WEBSITE_SECRET — same vars the prior bridge used);
+// completely inert if unset. Fire-and-forget with a 7s timeout so it never
+// blocks or fails lead processing. When repEmail matches a CC21 user the lead
+// auto-assigns to that rep; otherwise CC21 falls back to owner + rep-in-notes.
+// NOTE: this is the REAL QR path (rep page → JotForm iframe → /jotform-webhook,
+// and the in-app /contact form) — distinct from leadGenRoutes /api/leads/intake.
+function forwardLeadToCC21(lead: {
+  homeownerName: string;
+  homeownerEmail?: string | null;
+  homeownerPhone?: string | null;
+  address?: string | null;
+  serviceType?: string | null;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
+  message?: string | null;
+  repName?: string | null;
+  repEmail?: string | null;
+  sourceLabel?: string | null;
+}): void {
+  const cc21Url = process.env.CC21_LEAD_INTAKE_URL;
+  const cc21Secret = process.env.CC21_WEBSITE_SECRET;
+  if (!cc21Url || !cc21Secret || !lead.homeownerName) return;
+  const addrStr = (lead.address || '').trim();
+  const zip = addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
+  const state = addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1]?.toUpperCase();
+  const srcTag = /jotform/i.test(lead.sourceLabel || '') ? 'jotform' : 'qr';
+  const body = {
+    fullName: lead.homeownerName,
+    email: lead.homeownerEmail || undefined,
+    phone: lead.homeownerPhone || undefined,
+    address: addrStr || undefined,
+    state: state || undefined,
+    zip: zip || undefined,
+    source: `sa21-${srcTag}`,
+    hasDamage: /damage|storm|hail|leak/i.test(lead.serviceType || ''),
+    repEmail: lead.repEmail || undefined,
+    repName: lead.repName || undefined,
+    serviceType: lead.serviceType || undefined,
+    preferredDate: lead.preferredDate || undefined,
+    preferredTime: lead.preferredTime || undefined,
+    message: lead.message || undefined,
+  };
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 7000);
+  fetch(cc21Url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Website-Secret': cc21Secret },
+    body: JSON.stringify(body),
+    signal: ac.signal,
+  })
+    .then(async (r) => {
+      if (!r.ok) console.error('[CC21 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
+      else console.log(`[CC21 forward] forwarded "${lead.homeownerName}" -> CC21${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
+    })
+    .catch((e) => console.error('[CC21 forward] failed:', (e as Error)?.message))
+    .finally(() => clearTimeout(timer));
+}
+
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)
 // - Local dev: ./public/uploads (local filesystem)
@@ -201,6 +261,24 @@ export function createProfileRoutes(pool: Pool) {
         const repUserId = profileRow.rows[0]?.user_id;
         const repName = profileRow.rows[0]?.name || 'Rep';
         const repEmail = profileRow.rows[0]?.email;
+
+        // Forward this rep-attributed lead into CC21 Active Leads (the REAL QR /
+        // JotForm / contact path). Runs even if the rep has no linked CC21 user —
+        // CC21 matches by repEmail, else owner + rep-in-notes.
+        forwardLeadToCC21({
+          homeownerName: leadData.homeownerName,
+          homeownerEmail: leadData.homeownerEmail,
+          homeownerPhone: leadData.homeownerPhone,
+          address: leadData.address,
+          serviceType: leadData.serviceType,
+          preferredDate: leadData.preferredDate,
+          preferredTime: leadData.preferredTime,
+          message: leadData.message,
+          repName: profileRow.rows[0]?.name || null,
+          repEmail: repEmail || null,
+          sourceLabel,
+        });
+
         if (!repUserId) return;
 
         // Resolve admin user once — used as fallback sender when rep hasn't
@@ -823,6 +901,20 @@ export function createProfileRoutes(pool: Pool) {
       // and in-app submissions land identically in the rep's inbox + calendar.
       if (profileId) {
         processLeadIntegrations(profileId, leadId, {
+          homeownerName,
+          homeownerEmail,
+          homeownerPhone,
+          address: addressFull,
+          serviceType,
+          preferredDate: preferredDateRaw,
+          preferredTime: preferredTimeRaw,
+          message,
+          sourceLabel: 'JotForm',
+        });
+      } else {
+        // No rep attribution (no/!matched repSlug) — still forward to CC21 so
+        // the lead lands in Active Leads (anonymous → owner + detail in notes).
+        forwardLeadToCC21({
           homeownerName,
           homeownerEmail,
           homeownerPhone,
