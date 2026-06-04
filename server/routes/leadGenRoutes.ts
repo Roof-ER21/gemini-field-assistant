@@ -422,8 +422,10 @@ export function createLeadGenRoutes(pool: Pool) {
           state: fwdState || undefined,
           zip: fwdZip || undefined,
           source: `sa21-${resolvedSource}`,
-          hasDamage: resolvedSource === 'storm' || resolvedSource === 'storm_landing'
-            || resolvedSource === 'claim_quiz' || /damage|storm|hail/i.test(serviceType || ''),
+          // sa21/QR submissions are INSURANCE jobs (100%) so CC21 applies the
+          // insurance stage-gates rather than defaulting to retail.
+          jobType: 'insurance',
+          hasDamage: true,
           message: ((message || '') + dateNote).trim() || undefined,
           // Rep attribution + structured intake detail for CC21
           repEmail,
