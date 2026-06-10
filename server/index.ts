@@ -126,6 +126,11 @@ httpServer.on('error', (error) => {
   console.error('🚨 HTTP server error:', error);
 });
 
+// Allow large profile-video uploads (1GB multer cap in profileRoutes) to
+// finish on slow connections — Node's default requestTimeout of 5 minutes
+// would reset them mid-stream.
+httpServer.requestTimeout = 15 * 60 * 1000;
+
 // ES Module __dirname and __filename support
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

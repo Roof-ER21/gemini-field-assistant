@@ -3,7 +3,7 @@
  * API endpoints for employee profile pages, QR codes, and public access
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, type RequestHandler } from 'express';
 import type { Pool } from 'pg';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -142,7 +142,7 @@ const uploadHeadshot = multer({
 
 const uploadVideo = multer({
   storage: videoStorage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB — keep in sync with MAX_VIDEO_BYTES in AdminQRProfilesPanel.tsx
   fileFilter: (_req, file, cb) => {
     const allowed = /mp4|mov|webm|m4v/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
@@ -160,6 +160,19 @@ const uploadVideo = multer({
 const jotformParser = multer({
   limits: { fieldSize: 5 * 1024 * 1024, fields: 200 },
 }).none();
+
+// Multer aborts an oversized upload with LIMIT_FILE_SIZE, which the global
+// error handler would surface as a generic 500 "Internal server error".
+// Translate it into a 413 whose message the upload UI shows verbatim.
+function rejectOversized(mw: RequestHandler, message: string): RequestHandler {
+  return (req, res, next) =>
+    mw(req, res, (err?: unknown) => {
+      if (err && (err as { code?: string }).code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ success: false, error: message });
+      }
+      next(err);
+    });
+}
 
 export { UPLOADS_ROOT };
 
@@ -1718,7 +1731,7 @@ export function createProfileRoutes(pool: Pool) {
    * POST /api/profiles/:id/image
    * Upload headshot image for a profile — saves to persistent volume
    */
-  router.post('/:id/image', uploadHeadshot.single('image'), async (req: Request, res: Response) => {
+  router.post('/:id/image', rejectOversized(uploadHeadshot.single('image'), 'This image is over the 10MB limit — use a smaller photo.'), async (req: Request, res: Response) => {
     try {
       const userEmail = req.headers['x-user-email'] as string;
       const { id } = req.params;
@@ -1796,7 +1809,7 @@ export function createProfileRoutes(pool: Pool) {
    * Add a video to a profile — supports file upload OR URL
    * Files are stored on Railway persistent volume
    */
-  router.post('/:id/videos', uploadVideo.single('video'), async (req: Request, res: Response) => {
+  router.post('/:id/videos', rejectOversized(uploadVideo.single('video'), 'This video is over the 1GB limit — compress it or paste a video URL instead.'), async (req: Request, res: Response) => {
     try {
       const userEmail = req.headers['x-user-email'] as string;
       const { id } = req.params;

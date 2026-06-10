@@ -666,6 +666,18 @@ function VideoManagementModal({
   const [dragOver, setDragOver] = React.useState(false);
   const videoInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Keep in sync with the multer fileSize limit in server/routes/profileRoutes.ts
+  const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
+
+  function pickVideoFile(f: File) {
+    if (f.size > MAX_VIDEO_BYTES) {
+      addToast(`"${f.name}" is ${(f.size / 1024 / 1024 / 1024).toFixed(1)}GB — videos must be under 1GB. Compress it or paste a video URL instead.`, 'error');
+      return;
+    }
+    setVideoFile(f);
+    setVideoUrl('');
+  }
+
   async function fetchVideos() {
     setLoading(true);
     try {
@@ -861,7 +873,7 @@ function VideoManagementModal({
       <div style={fieldStyle}>
         <label style={labelStyle}>Upload Video File</label>
         <div
-          onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) { setVideoFile(f); setVideoUrl(''); } }}
+          onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) pickVideoFile(f); }}
           onDragOver={e => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onClick={() => videoInputRef.current?.click()}
@@ -881,10 +893,10 @@ function VideoManagementModal({
         >
           <Upload size={20} color={videoFile ? '#dc2626' : '#71717a'} />
           <span style={{ fontSize: 13, color: videoFile ? '#fff' : '#71717a' }}>
-            {videoFile ? `${videoFile.name} (${(videoFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Click or drag video file (MP4, MOV up to 200MB)'}
+            {videoFile ? `${videoFile.name} (${(videoFile.size / 1024 / 1024).toFixed(1)}MB)` : 'Click or drag video file (MP4, MOV up to 1GB)'}
           </span>
         </div>
-        <input ref={videoInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setVideoFile(f); setVideoUrl(''); } }} />
+        <input ref={videoInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) pickVideoFile(f); e.target.value = ''; }} />
       </div>
 
       {/* Upload progress bar */}
