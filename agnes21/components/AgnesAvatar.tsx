@@ -2,12 +2,18 @@
 import React, { useEffect, useRef } from 'react';
 
 interface AgnesAvatarProps {
-  isActive: boolean;
-  isListening: boolean;
-  analyser: AnalyserNode | null;
+  isActive?: boolean;
+  isListening?: boolean;
+  analyser?: AnalyserNode | null;
+  variant?: 'default' | 'linguist';
 }
 
-const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analyser }) => {
+const AgnesAvatar: React.FC<AgnesAvatarProps> = ({
+  isActive = false,
+  isListening = false,
+  analyser = null,
+  variant = 'default',
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
 
@@ -26,6 +32,37 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
     ctx.scale(2, 2);
 
     const dataArray = new Uint8Array(analyser ? analyser.frequencyBinCount : 0);
+    const palette = variant === 'linguist'
+      ? {
+          outerRing: '#92400e',
+          outerDash: '#f97316',
+          outerDashActive: '#ea580c',
+          glowHot: '#fff7ed',
+          glowMid: '#fb923c',
+          glowFade: 'rgba(251, 146, 60, 0)',
+          activeGlowMid: '#f97316',
+          activeGlowFade: 'rgba(234, 88, 12, 0)',
+          pupil: '#7c2d12',
+          pupilActive: '#431407',
+          pupilStroke: '#fed7aa',
+          waveform: 'rgba(249, 115, 22, 0.55)',
+          scan: '#fdba74',
+        }
+      : {
+          outerRing: '#333',
+          outerDash: '#262626',
+          outerDashActive: '#7f1d1d',
+          glowHot: '#ffffff',
+          glowMid: '#525252',
+          glowFade: 'rgba(255,255,255,0)',
+          activeGlowMid: '#ef4444',
+          activeGlowFade: 'rgba(220, 38, 38, 0)',
+          pupil: '#171717',
+          pupilActive: '#000',
+          pupilStroke: '#555',
+          waveform: 'rgba(239, 68, 68, 0.5)',
+          scan: '#fff',
+        };
 
     let frame = 0;
 
@@ -59,7 +96,7 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
       ctx.rotate(frame * 0.005);
       ctx.beginPath();
       ctx.arc(0, 0, 110, 0, Math.PI * 2);
-      ctx.strokeStyle = '#333';
+      ctx.strokeStyle = palette.outerRing;
       ctx.lineWidth = 1;
       ctx.stroke();
       
@@ -68,7 +105,7 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
       ctx.beginPath();
       ctx.setLineDash([10, 20]);
       ctx.arc(0, 0, 125 + (intensity * 10), 0, Math.PI * 2);
-      ctx.strokeStyle = isActive ? '#7f1d1d' : '#262626'; // Red-900 vs Neutral-800
+      ctx.strokeStyle = isActive ? palette.outerDashActive : palette.outerDash;
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.restore();
@@ -85,18 +122,17 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
       // Main Glow
       const gradient = ctx.createRadialGradient(0, 0, 10, 0, 0, 80 * pulse);
       if (isActive) {
-        gradient.addColorStop(0, '#ffffff'); // Hot center
-        gradient.addColorStop(0.3, '#ef4444'); // Red mid
-        gradient.addColorStop(1, 'rgba(220, 38, 38, 0)'); // Fade out
+        gradient.addColorStop(0, palette.glowHot);
+        gradient.addColorStop(0.3, palette.activeGlowMid);
+        gradient.addColorStop(1, palette.activeGlowFade);
       } else if (isListening) {
-        // Calm Blue/White pulse when listening
-        gradient.addColorStop(0, '#ffffff');
-        gradient.addColorStop(0.4, '#525252'); 
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        gradient.addColorStop(0, palette.glowHot);
+        gradient.addColorStop(0.4, palette.glowMid);
+        gradient.addColorStop(1, palette.glowFade);
       } else {
-        // Dormant
-        gradient.addColorStop(0, '#333');
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        gradient.addColorStop(0, palette.glowHot);
+        gradient.addColorStop(0.42, palette.glowMid);
+        gradient.addColorStop(1, palette.glowFade);
       }
       
       ctx.fillStyle = gradient;
@@ -107,9 +143,9 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
       // Inner Tech Circle (The "Pupil")
       ctx.beginPath();
       ctx.arc(0, 0, 30 * (isActive ? (0.8 + intensity) : 1), 0, Math.PI * 2);
-      ctx.fillStyle = isActive ? '#000' : '#171717';
+      ctx.fillStyle = isActive ? palette.pupilActive : palette.pupil;
       ctx.fill();
-      ctx.strokeStyle = isActive ? '#fff' : '#555';
+      ctx.strokeStyle = isActive ? palette.glowHot : palette.pupilStroke;
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -121,7 +157,7 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
          ctx.save();
          ctx.globalAlpha = 0.3;
          const scanY = (frame * 2) % size;
-         ctx.fillStyle = '#fff';
+         ctx.fillStyle = palette.scan;
          ctx.fillRect(0, scanY, size, 2);
          ctx.restore();
       }
@@ -142,7 +178,7 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
             else ctx.lineTo(x, y);
          }
          ctx.closePath();
-         ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)'; // Red-500 transparent
+         ctx.strokeStyle = palette.waveform;
          ctx.lineWidth = 1;
          ctx.stroke();
          ctx.restore();
@@ -156,18 +192,18 @@ const AgnesAvatar: React.FC<AgnesAvatarProps> = ({ isActive, isListening, analys
     return () => {
       cancelAnimationFrame(animationRef.current);
     };
-  }, [isActive, isListening, analyser]);
+  }, [isActive, isListening, analyser, variant]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center">
+    <div className={`agnes-avatar agnes-avatar--${variant} relative flex flex-col items-center justify-center`}>
       {/* Holographic container effect */}
-      <div className="relative rounded-full p-1 border border-neutral-800 bg-black/50 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
+      <div className="agnes-avatar__shell relative rounded-full p-1 border border-neutral-800 bg-black/50 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
          <canvas ref={canvasRef} className="rounded-full opacity-90" />
       </div>
       
       {/* Label */}
       <div className="absolute -bottom-8 flex flex-col items-center">
-        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-red-500">Agnes 21</span>
+        <span className="agnes-avatar__label text-[10px] font-bold tracking-[0.3em] uppercase text-red-500">Agnes 21</span>
         <span className={`text-[9px] font-mono tracking-widest uppercase mt-1 transition-all duration-300 ${isActive ? 'text-white opacity-100' : 'text-neutral-600 opacity-0'}`}>
            {isActive ? 'TRANSMITTING' : 'STANDBY'}
         </span>

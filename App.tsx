@@ -56,6 +56,7 @@ const AdminDivisionToggle: React.FC = () => {
   return (
     <button
       onClick={() => setDivision(isRetail ? 'insurance' : 'retail')}
+      className="roof-er-division-toggle"
       title={`Viewing as: ${division}. Click to switch.`}
       style={{
         display: 'flex',
@@ -196,7 +197,7 @@ const App: React.FC = () => {
     admin: 'Admin Panel',
     agnes: 'Agnes - Objection Handler',
     'agnes-learning': 'Agnes 21 Learning',
-    translator: 'Agnes Translator',
+    translator: 'Pocket Linguist',
     documentjob: 'Document Job',
     learning: 'Team Knowledge',
     canvassing: 'Canvassing Tracker',
@@ -385,7 +386,7 @@ const App: React.FC = () => {
         );
       case 'translator':
         return (
-          <LazyLoadBoundary componentName="Translator">
+          <LazyLoadBoundary componentName="Pocket Linguist">
             <TranslatorPanel />
           </LazyLoadBoundary>
         );
@@ -510,7 +511,7 @@ const App: React.FC = () => {
   return (
     <SettingsProvider>
     <DivisionProvider>
-    <div className="roof-er-app-shell flex flex-col" style={{ background: 'var(--bg-primary)', height: '100dvh', minHeight: '100dvh' }}>
+    <div className="roof-er-app-shell flex flex-col" style={{ background: 'var(--bg-base)', height: '100dvh', minHeight: '100dvh' }}>
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">
@@ -530,8 +531,8 @@ const App: React.FC = () => {
             />
           </div>
           <div className="roof-er-brand-title" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-            <span className="roof-er-brand-name" style={{ fontSize: '18px' }}>Susan <span className="roof-er-brand-accent">21</span></span>
-            <span style={{ fontSize: '11px', letterSpacing: '0.2em', color: 'var(--text-tertiary)', fontWeight: 600, alignSelf: 'center' }}>S21</span>
+            <span className="roof-er-brand-name" style={{ fontSize: '18px' }}>SA<span className="roof-er-brand-accent">24</span></span>
+            <span style={{ fontSize: '10px', letterSpacing: '0.18em', color: 'var(--text-tertiary)', fontWeight: 600 }}>FIELD ASSISTANT</span>
           </div>
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>
         </div>
@@ -653,7 +654,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Floating Quick Action Button (mobile only) - Hidden on chat panel */}
-      {activePanel !== 'chat' && (
+      {activePanel !== 'chat' && activePanel !== 'translator' && (
         <button
           className="roof-er-floating-quick-action"
           aria-label="Open quick actions"

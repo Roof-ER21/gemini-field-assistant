@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { Mic, MicOff, X, Globe, Volume2, VolumeX, Phone, PhoneOff, Languages, MessageSquare } from 'lucide-react';
+import { Mic, MicOff, Globe, Volume2, VolumeX, Phone, PhoneOff, Languages, MessageSquare, Sparkles } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../agnes21/types';
 import AgnesAvatar from '../agnes21/components/AgnesAvatar';
 import Waveform from '../agnes21/components/Waveform';
@@ -415,96 +415,71 @@ The rep leads. You help.`;
   // Render idle state
   if (state === 'idle') {
     return (
-      <div className="roof-er-content-area">
-        <div className="roof-er-content-scroll">
-          <div className="roof-er-page-title">
-            <Languages className="w-6 h-6 inline mr-2" style={{ color: '#dc2626' }} />
-            Agnes Translator
+      <div className="roof-er-content-area pocket-linguist">
+        <div className="roof-er-content-scroll pocket-linguist__scroll">
+          <div className="pocket-linguist__hero">
+            <div className="pocket-linguist__title-block">
+              <span className="pocket-linguist__eyebrow">Pocket Linguist</span>
+              <div className="pocket-linguist__title-row">
+                <span className="pocket-linguist__title-icon">
+                  <Languages className="w-5 h-5" />
+                </span>
+                <h1 className="pocket-linguist__title">Real-Time Field Translator</h1>
+              </div>
+              <p className="pocket-linguist__subtitle">
+                Detect the homeowner's language, translate both sides, and keep the conversation moving at the door.
+              </p>
+            </div>
+            <div className="pocket-linguist__signal">
+              <span className="pocket-linguist__signal-dot" />
+              20+ languages ready
+            </div>
           </div>
 
-          <div style={{
-            maxWidth: '600px',
-            margin: '0 auto',
-            padding: '40px 20px',
-            textAlign: 'center'
-          }}>
+          <div className="pocket-linguist__idle-grid">
             {/* Agnes Avatar */}
-            <div style={{ marginBottom: '24px' }}>
-              <AgnesAvatar speaking={false} size={120} />
+            <div className="pocket-linguist__avatar-card">
+              <div className="pocket-linguist__avatar-ring">
+              <AgnesAvatar variant="linguist" />
+              </div>
+              <div className="pocket-linguist__avatar-caption">
+                <Sparkles className="w-4 h-4" />
+                Agnes listens for rep commands privately.
+              </div>
             </div>
 
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
-              Real-Time Field Translator
-            </h2>
-
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', marginBottom: '32px', lineHeight: 1.6 }}>
-              Agnes will help you communicate with homeowners who speak different languages.
-              Just start talking and she'll automatically detect the language and translate in real-time.
-            </p>
-
-            {/* Supported Languages */}
-            <div style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              padding: '16px',
-              marginBottom: '32px'
-            }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
-                Supports 20+ Languages
+            <div className="pocket-linguist__setup-card">
+              <div className="pocket-linguist__card-heading">
+                <Globe className="w-4 h-4" />
+                Supported languages
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                {SUPPORTED_LANGUAGES.slice(0, 12).map(lang => (
+              <div className="pocket-linguist__language-cloud">
+                {SUPPORTED_LANGUAGES.slice(0, 12).map((lang, index) => (
                   <span
                     key={lang.code}
-                    style={{
-                      padding: '4px 10px',
-                      background: 'var(--bg-elevated)',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: 'var(--text-primary)'
-                    }}
+                    className={`pocket-linguist__language-chip pocket-linguist__language-chip--${index % 4}`}
                   >
-                    {lang.flag} {lang.name}
+                    <span>{lang.flag}</span>
+                    {lang.name}
                   </span>
                 ))}
-                <span style={{
-                  padding: '4px 10px',
-                  background: 'var(--bg-elevated)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  color: 'var(--text-tertiary)'
-                }}>
+                <span className="pocket-linguist__language-chip pocket-linguist__language-chip--more">
                   +{SUPPORTED_LANGUAGES.length - 12} more
                 </span>
               </div>
+
+              <button
+                onClick={startSession}
+                className="pocket-linguist__start-button"
+              >
+                <Phone className="w-5 h-5" />
+                Start translation
+              </button>
+
+              <p className="pocket-linguist__hint">
+                Say "Hey Agnes, I have a homeowner here..." to begin.
+              </p>
             </div>
-
-            {/* Start Button */}
-            <button
-              onClick={startSession}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '16px 32px',
-                background: 'linear-gradient(135deg, #dc2626, #991b1b)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '18px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 20px rgba(220, 38, 38, 0.3)'
-              }}
-            >
-              <Phone className="w-6 h-6" />
-              Start Translation
-            </button>
-
-            <p style={{ color: 'var(--text-disabled)', fontSize: '13px', marginTop: '16px' }}>
-              Say "Hey Agnes, I have a homeowner here..." to begin
-            </p>
           </div>
         </div>
       </div>
@@ -513,28 +488,20 @@ The rep leads. You help.`;
 
   // Render active session
   return (
-    <div className="roof-er-content-area">
-      <div className="roof-er-content-scroll" style={{ padding: '16px' }}>
+    <div className="roof-er-content-area pocket-linguist">
+      <div className="roof-er-content-scroll pocket-linguist__scroll">
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Languages className="w-5 h-5" style={{ color: '#dc2626' }} />
-            <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Agnes Translator
+        <div className="pocket-linguist__session-header">
+          <div className="pocket-linguist__title-row">
+            <span className="pocket-linguist__title-icon">
+              <Languages className="w-5 h-5" />
             </span>
+            <div>
+              <h1 className="pocket-linguist__session-title">Pocket Linguist</h1>
+              <p className="pocket-linguist__session-subtitle">Live translation session</p>
+            </div>
             {detectedLanguage && (
-              <span style={{
-                padding: '4px 10px',
-                background: '#166534',
-                borderRadius: '6px',
-                fontSize: '12px',
-                color: '#fff'
-              }}>
+              <span className="pocket-linguist__detected-badge">
                 {detectedLanguage} Detected
               </span>
             )}
@@ -542,19 +509,7 @@ The rep leads. You help.`;
 
           <button
             onClick={endSession}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              background: '#dc2626',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
+            className="pocket-linguist__end-button"
           >
             <PhoneOff className="w-4 h-4" />
             End
@@ -562,31 +517,12 @@ The rep leads. You help.`;
         </div>
 
         {/* Main Content */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 300px',
-          gap: '16px',
-          flex: 1,
-          minHeight: 0
-        }}>
+        <div className="pocket-linguist__session-grid">
           {/* Transcript */}
-          <div style={{
-            background: 'var(--bg-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <MessageSquare className="w-4 h-4" style={{ color: '#dc2626' }} />
-              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+          <div className="pocket-linguist__conversation-card">
+            <div className="pocket-linguist__card-header">
+              <MessageSquare className="w-4 h-4" />
+              <span>
                 Conversation
               </span>
             </div>
@@ -600,45 +536,26 @@ The rep leads. You help.`;
               gap: '12px'
             }}>
               {transcript.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-disabled)', padding: '40px' }}>
+                <div className="pocket-linguist__empty">
                   <Globe className="w-8 h-8 mx-auto mb-3" style={{ opacity: 0.5 }} />
                   <p>Start speaking to begin translation</p>
                 </div>
               ) : (
                 transcript.map(entry => {
                   const speakerInfo =
-                    entry.speaker === 'agnes' ? { label: 'Agnes', color: '#dc2626', bg: 'var(--bg-elevated)' } :
-                    entry.speaker === 'user' ? { label: 'Rep (You)', color: '#10b981', bg: 'var(--bg-secondary)' } :
-                    { label: 'Homeowner', color: '#3b82f6', bg: 'var(--bg-secondary)' };
+                    entry.speaker === 'agnes' ? { label: 'Agnes', className: 'pocket-linguist__entry--agnes' } :
+                    entry.speaker === 'user' ? { label: 'Rep (You)', className: 'pocket-linguist__entry--rep' } :
+                    { label: 'Homeowner', className: 'pocket-linguist__entry--homeowner' };
 
                   return (
                     <div
                       key={entry.id}
-                      style={{
-                        padding: '12px 16px',
-                        background: speakerInfo.bg,
-                        borderRadius: '10px',
-                        borderLeft: `3px solid ${speakerInfo.color}`
-                      }}
+                      className={`pocket-linguist__entry ${speakerInfo.className}`}
                     >
-                      <div style={{
-                        fontSize: '11px',
-                        color: speakerInfo.color,
-                        marginBottom: '4px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
+                      <div className="pocket-linguist__entry-label">
                         {speakerInfo.label}
                         {entry.detectedLang && (
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '2px 6px',
-                            background: 'rgba(0,0,0,0.3)',
-                            borderRadius: '4px'
-                          }}>
+                          <span className="pocket-linguist__entry-lang">
                             {entry.detectedLang}
                           </span>
                         )}
@@ -667,28 +584,14 @@ The rep leads. You help.`;
           </div>
 
           {/* Agnes Panel */}
-          <div style={{
-            background: 'var(--bg-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center'
-          }}>
+          <div className="pocket-linguist__assistant-card">
             {/* Agnes Avatar */}
-            <AgnesAvatar speaking={aiSpeaking} size={100} />
+            <div className="pocket-linguist__avatar-ring pocket-linguist__avatar-ring--small">
+              <AgnesAvatar variant="linguist" isActive={aiSpeaking} />
+            </div>
 
             {/* Status */}
-            <div style={{
-              marginTop: '16px',
-              padding: '8px 16px',
-              background: state === 'listening' ? '#166534' : state === 'speaking' ? '#dc2626' : 'var(--bg-elevated)',
-              borderRadius: '20px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)'
-            }}>
+            <div className={`pocket-linguist__status pocket-linguist__status--${state}`}>
               {state === 'connecting' && 'Connecting...'}
               {state === 'listening' && 'Listening...'}
               {state === 'speaking' && 'Translating...'}
@@ -712,18 +615,7 @@ The rep leads. You help.`;
                   setIsMuted(newMuted);
                   isMutedRef.current = newMuted;
                 }}
-                style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '50%',
-                  background: isMuted ? '#dc2626' : 'var(--bg-elevated)',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+                className={`pocket-linguist__control ${isMuted ? 'pocket-linguist__control--danger' : ''}`}
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -731,18 +623,7 @@ The rep leads. You help.`;
 
               <button
                 onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-                style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '50%',
-                  background: isSpeakerOn ? 'var(--bg-elevated)' : '#dc2626',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+                className={`pocket-linguist__control ${!isSpeakerOn ? 'pocket-linguist__control--danger' : ''}`}
                 title={isSpeakerOn ? 'Mute Speaker' : 'Unmute Speaker'}
               >
                 {isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
