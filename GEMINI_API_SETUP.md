@@ -171,7 +171,7 @@ A valid Gemini API key:
 - Starts with `AIzaSy`
 - Is 39 characters long
 - Contains alphanumeric characters
-- Example: `AIzaSyDaGmRTO4xpWU_gH9C69jJ0YkF2VxFwkxM` (this is fake)
+- Example: `AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` (placeholder only — never commit a real key)
 
 ## Next Steps
 
