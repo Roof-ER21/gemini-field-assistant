@@ -73,10 +73,10 @@ export function forwardLeadToCC24(lead: {
     signal: ac.signal,
   })
     .then(async (r) => {
-      if (!r.ok) console.error('[CC21 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      else console.log(`[CC21 forward] forwarded "${lead.homeownerName}" -> CC21${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
+      if (!r.ok) console.error('[CC24 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
+      else console.log(`[CC24 forward] forwarded "${lead.homeownerName}" -> CC24${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
     })
-    .catch((e) => console.error('[CC21 forward] failed:', (e as Error)?.message))
+    .catch((e) => console.error('[CC24 forward] failed:', (e as Error)?.message))
     .finally(() => clearTimeout(timer));
 }
 
