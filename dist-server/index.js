@@ -59,6 +59,7 @@ import { createContestRoutes } from './routes/contestRoutes.js';
 import { createProfileRoutes } from './routes/profileRoutes.js';
 import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
+import { createRoofCheckRoutes } from './roofcheck/roofcheckRoutes.js';
 import { createLeadAnalyticsRoutes } from './routes/leadAnalyticsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
@@ -8248,6 +8249,8 @@ app.use('/api', createContestRoutes(pool));
 app.use('/api/profiles', createProfileRoutes(pool));
 app.use('/api/qr-analytics', createQRAnalyticsRoutes(pool));
 app.use('/api/profile-leads', createProfileLeadsRoutes(pool));
+// RoofCheck — public Roof-ER storm-check lead magnet (GET /roofcheck + /api/roofcheck/*). No auth.
+app.use(createRoofCheckRoutes(pool));
 app.use('/api/lead-analytics', createLeadAnalyticsRoutes(pool));
 // Register lead generation routes (storm zones, referrals, lead scoring)
 app.use('/api/leads', createLeadGenRoutes(pool));
