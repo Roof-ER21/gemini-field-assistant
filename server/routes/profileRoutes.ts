@@ -97,6 +97,7 @@ async function jotformQuestions(formId: string, key: string): Promise<Record<str
 export function forwardLeadToJotForm(lead: {
   homeownerName: string; homeownerEmail?: string | null; homeownerPhone?: string | null;
   address?: string | null; serviceType?: string | null; message?: string | null; sourceLabel?: string | null;
+  rep?: string | null;
 }): void {
   const key = process.env.JOTFORM_API_KEY;
   const formId = process.env.JOTFORM_LEAD_FORM_ID || '251884526474164';
@@ -106,33 +107,33 @@ export function forwardLeadToJotForm(lead: {
       const qs = await jotformQuestions(formId, key);
       if (!qs || !Object.keys(qs).length) { console.warn('[jotform push] no questions for form', formId); return; }
       const parts = lead.homeownerName.trim().split(/\s+/);
-      const first = parts[0] || lead.homeownerName, last = parts.slice(1).join(' ');
+      const first = parts[0] || lead.homeownerName;
+      const last = parts.slice(1).join(' ') || parts[0] || lead.homeownerName;
       const body = new URLSearchParams();
-      const done = { name: false, phone: false, email: false, address: false };
+      let gotName = false, gotPhone = false;
       for (const qid of Object.keys(qs)) {
-        const q = qs[qid] || {}; const t = String(q.type || ''); const nm = String(q.name || q.text || '').toLowerCase();
-        if (!done.name && (t === 'control_fullname' || /name/.test(nm))) {
-          if (t === 'control_fullname') { body.set(`submission[${qid}_first]`, first); body.set(`submission[${qid}_last]`, last); }
-          else body.set(`submission[${qid}]`, lead.homeownerName);
-          done.name = true;
-        } else if (!done.phone && lead.homeownerPhone && (t === 'control_phone' || /phone|cell|mobile/.test(nm))) {
-          if (t === 'control_phone') body.set(`submission[${qid}_full]`, lead.homeownerPhone);
-          else body.set(`submission[${qid}]`, lead.homeownerPhone);
-          done.phone = true;
-        } else if (!done.email && lead.homeownerEmail && (t === 'control_email' || /email/.test(nm))) {
-          body.set(`submission[${qid}]`, lead.homeownerEmail); done.email = true;
-        } else if (!done.address && lead.address && (t === 'control_address' || /address/.test(nm))) {
-          if (t === 'control_address') body.set(`submission[${qid}_addr_line1]`, lead.address);
-          else body.set(`submission[${qid}]`, lead.address);
-          done.address = true;
-        }
+        const q = qs[qid] || {}; const t = String(q.type || '');
+        const label = `${q.name || ''} ${q.text || ''}`.toLowerCase();
+        // The submission API ignores the form's "required" validation, so a partial
+        // lead (no appointment/checkbox) is accepted. Map by field type + label.
+        if (t === 'control_fullname') { body.set(`submission[${qid}_first]`, first); body.set(`submission[${qid}_last]`, last); gotName = true; }
+        else if (t === 'control_textbox' && /first/.test(label)) { body.set(`submission[${qid}]`, first); gotName = true; }
+        else if (t === 'control_textbox' && /last/.test(label)) { body.set(`submission[${qid}]`, last); }
+        else if (t === 'control_textbox' && /name/.test(label) && !gotName) { body.set(`submission[${qid}]`, lead.homeownerName); gotName = true; }
+        else if (t === 'control_phone' && lead.homeownerPhone) { body.set(`submission[${qid}_full]`, lead.homeownerPhone); gotPhone = true; }
+        else if (t === 'control_email' && lead.homeownerEmail) { body.set(`submission[${qid}]`, lead.homeownerEmail); }
+        else if (t === 'control_address' && lead.address) { body.set(`submission[${qid}_addr_line1]`, lead.address); }
+        else if ((t === 'control_hidden' || t === 'control_textbox') && /rep\s?slug|repslug/.test(label) && lead.rep) { body.set(`submission[${qid}]`, lead.rep); }
+        else if (t === 'control_textarea' && /comment/.test(label) && lead.message) { body.set(`submission[${qid}]`, lead.message); }
       }
-      if (!done.name || !done.phone) { console.warn('[jotform push] could not map name+phone — skipping', formId); return; }
+      if (!gotName || !gotPhone) { console.warn('[jotform push] could not map name+phone — skipping', formId); return; }
       const r = await fetch(`https://api.jotform.com/form/${formId}/submissions?apiKey=${encodeURIComponent(key)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString(),
       });
-      if (!r.ok) console.error('[jotform push] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 160));
-      else console.log(`[jotform push] submitted "${lead.homeownerName}" -> form ${formId}`);
+      if (!r.ok) { console.error('[jotform push] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 160)); return; }
+      const j: any = await r.json().catch(() => ({}));
+      if (j.responseCode !== 200) console.error('[jotform push] api error', j.responseCode, String(j.message || '').slice(0, 120));
+      else console.log(`[jotform push] submitted "${lead.homeownerName}" -> form ${formId} (${(j.content || {}).submissionID || '?'})`);
     } catch (e) { console.error('[jotform push] failed:', (e as Error)?.message); }
   })();
 }

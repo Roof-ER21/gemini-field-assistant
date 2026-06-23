@@ -234,6 +234,7 @@ export function createRoofCheckRoutes(pool) {
                 serviceType: 'Storm check (RoofCheck)',
                 message: note,
                 sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
+                rep: repSlug,
             });
             res.json({
                 ok: true,
