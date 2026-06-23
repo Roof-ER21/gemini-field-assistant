@@ -298,101 +298,189 @@ export function createQRAnalyticsRoutes(pool) {
         }
     });
     /**
-     * GET /api/qr-analytics/attribution
-     * "Who filled out what for who" — per-rep setup attribution plus a per-staff
-     * rollup. Admin / marketing only.
+     * GET /api/qr-analytics/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&slug=<rep>
+     * One consolidated, fully-filterable payload for the admin Scan Analytics
+     * dashboard: scans + signups (form-fill leads) summary, daily trend, per-rep
+     * scorecard with setup attribution, device split, and recent scan/signup
+     * feeds. All windows respect the from/to date range (ET) and the optional rep
+     * slug filter. Admin / marketing only.
+     *
+     * Date math is ET (America/New_York) to match the app's display timezone, so
+     * "today" lines up with what reps see. `($3 IS NULL OR col=$3)` makes the rep
+     * filter a no-op when no slug is passed — no dynamic SQL.
      */
-    router.get('/attribution', async (req, res) => {
+    router.get('/dashboard', async (req, res) => {
         try {
             const userEmail = req.headers['x-user-email'];
             if (!await canManageQRUser(userEmail)) {
-                return res.status(403).json({
-                    success: false,
-                    error: 'Admin access required'
-                });
+                return res.status(403).json({ success: false, error: 'Admin access required' });
             }
-            // Per-rep: who created it, who last edited it, how much content was added,
-            // and how many scans the page has pulled.
-            const perProfile = await pool.query(`
-        SELECT
-          ep.slug,
-          ep.name,
-          ep.role_type,
-          ep.is_active,
-          ep.is_claimed,
-          ep.image_url,
-          ep.created_by_email,
-          ep.created_at,
-          ep.updated_by_email,
-          ep.updated_at,
-          COALESCE(v.video_count, 0)  AS video_count,
-          COALESCE(r.review_count, 0) AS review_count,
-          COALESCE(s.scan_count, 0)   AS scan_count,
-          (ep.image_url IS NOT NULL)  AS has_photo
-        FROM employee_profiles ep
-        LEFT JOIN (SELECT profile_id, COUNT(*) AS video_count  FROM profile_videos  GROUP BY profile_id) v ON v.profile_id = ep.id
-        LEFT JOIN (SELECT profile_id, COUNT(*) AS review_count FROM profile_reviews WHERE profile_id IS NOT NULL GROUP BY profile_id) r ON r.profile_id = ep.id
-        LEFT JOIN (SELECT profile_slug, COUNT(*) AS scan_count FROM qr_scans GROUP BY profile_slug) s ON s.profile_slug = ep.slug
-        ORDER BY COALESCE(ep.updated_at, ep.created_at) DESC NULLS LAST
-      `);
-            // Per-staff rollup: how many pages each admin/marketing person set up, and
-            // how many videos / reviews they added across all reps.
-            const staff = await pool.query(`
-        SELECT
-          email,
-          SUM(profiles_created) AS profiles_created,
-          SUM(profiles_edited)  AS profiles_edited,
-          SUM(videos_added)     AS videos_added,
-          SUM(reviews_added)    AS reviews_added
-        FROM (
-          SELECT created_by_email AS email, COUNT(*) AS profiles_created, 0 AS profiles_edited, 0 AS videos_added, 0 AS reviews_added
-            FROM employee_profiles WHERE created_by_email IS NOT NULL GROUP BY created_by_email
-          UNION ALL
-          SELECT updated_by_email, 0, COUNT(*), 0, 0
-            FROM employee_profiles WHERE updated_by_email IS NOT NULL GROUP BY updated_by_email
-          UNION ALL
-          SELECT added_by_email, 0, 0, COUNT(*), 0
-            FROM profile_videos WHERE added_by_email IS NOT NULL GROUP BY added_by_email
-          UNION ALL
-          SELECT added_by_email, 0, 0, 0, COUNT(*)
-            FROM profile_reviews WHERE added_by_email IS NOT NULL GROUP BY added_by_email
-        ) t
-        GROUP BY email
-        ORDER BY profiles_created DESC, profiles_edited DESC
-      `);
+            const ET = 'America/New_York';
+            const slug = req.query.slug?.trim() || null;
+            const fromQ = req.query.from?.trim() || null;
+            const toQ = req.query.to?.trim() || null;
+            // Resolve bounds in ET (default = last 30 days). Returned as YYYY-MM-DD
+            // text so there's no JS Date timezone drift round-tripping the params.
+            const bd = await pool.query(`SELECT to_char(COALESCE($1::date, (now() AT TIME ZONE '${ET}')::date - 29), 'YYYY-MM-DD') AS from_d,
+                to_char(COALESCE($2::date, (now() AT TIME ZONE '${ET}')::date),       'YYYY-MM-DD') AS to_d`, [fromQ, toQ]);
+            let fromD = bd.rows[0].from_d;
+            let toD = bd.rows[0].to_d;
+            if (fromD > toD) {
+                const t = fromD;
+                fromD = toD;
+                toD = t;
+            } // tolerate reversed range
+            // Cap span at 400 days so a giant custom range can't generate_series the DB to death.
+            if ((Date.parse(toD) - Date.parse(fromD)) / 86400000 > 400) {
+                fromD = new Date(Date.parse(toD) - 400 * 86400000).toISOString().slice(0, 10);
+            }
+            const p = [fromD, toD, slug];
+            const [summaryR, dailyR, deviceR, recentScanR, recentSignupR, repsR, staffR] = await Promise.all([
+                // Summary: scans + unique + reps-scanned + signups, all in-range/slug
+                pool.query(`
+          SELECT
+            (SELECT COUNT(*)::int FROM qr_scans qs
+               WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR qs.profile_slug = $3)) AS scans,
+            (SELECT COUNT(DISTINCT qs.ip_hash)::int FROM qr_scans qs
+               WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR qs.profile_slug = $3)) AS unique_visitors,
+            (SELECT COUNT(DISTINCT qs.profile_slug)::int FROM qr_scans qs
+               WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR qs.profile_slug = $3)) AS reps_scanned,
+            (SELECT COUNT(*)::int FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+               WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR ep.slug = $3)) AS signups
+        `, p),
+                // Daily trend (gap-filled): scans + unique + signups per ET day
+                pool.query(`
+          WITH days AS (SELECT generate_series($1::date, $2::date, interval '1 day')::date AS d)
+          SELECT to_char(d.d, 'YYYY-MM-DD') AS date,
+                 COALESCE(sc.scans, 0)::int   AS scans,
+                 COALESCE(sc.uniq, 0)::int    AS unique_visitors,
+                 COALESCE(le.signups, 0)::int AS signups
+          FROM days d
+          LEFT JOIN (
+            SELECT (scanned_at AT TIME ZONE '${ET}')::date AS dd, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq
+            FROM qr_scans WHERE ($3::text IS NULL OR profile_slug = $3) GROUP BY 1
+          ) sc ON sc.dd = d.d
+          LEFT JOIN (
+            SELECT (pl.created_at AT TIME ZONE '${ET}')::date AS dd, COUNT(*) AS signups
+            FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+            WHERE ($3::text IS NULL OR ep.slug = $3) GROUP BY 1
+          ) le ON le.dd = d.d
+          ORDER BY d.d ASC
+        `, p),
+                // Device split (in-range/slug)
+                pool.query(`
+          SELECT COALESCE(device_type, 'unknown') AS device_type, COUNT(*)::int AS count
+          FROM qr_scans
+          WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR profile_slug = $3)
+          GROUP BY device_type ORDER BY count DESC
+        `, p),
+                // Recent scans (latest in-range/slug)
+                pool.query(`
+          SELECT qs.id, qs.profile_slug, qs.scanned_at, qs.device_type, qs.source, ep.name AS profile_name
+          FROM qr_scans qs LEFT JOIN employee_profiles ep ON ep.slug = qs.profile_slug
+          WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR qs.profile_slug = $3)
+          ORDER BY qs.scanned_at DESC LIMIT 30
+        `, p),
+                // Recent signups (the people who filled out the form), latest in-range/slug
+                pool.query(`
+          SELECT pl.id, ep.slug AS profile_slug, ep.name AS profile_name,
+                 pl.homeowner_name, pl.homeowner_email, pl.homeowner_phone,
+                 pl.service_type, pl.status, pl.created_at, pl.source, pl.address
+          FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+          WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR ep.slug = $3)
+          ORDER BY pl.created_at DESC LIMIT 30
+        `, p),
+                // Per-rep scorecard: in-range scans + signups + lifetime content + setup attribution
+                pool.query(`
+          SELECT ep.slug, ep.name, ep.role_type, ep.is_active, ep.is_claimed, ep.image_url,
+                 ep.created_by_email, ep.created_at, ep.updated_by_email, ep.updated_at,
+                 (ep.image_url IS NOT NULL) AS has_photo,
+                 COALESCE(v.c, 0)::int AS video_count,
+                 COALESCE(r.c, 0)::int AS review_count,
+                 COALESCE(s.scans, 0)::int AS scan_count,
+                 COALESCE(s.uniq, 0)::int AS unique_visitors,
+                 COALESCE(l.signups, 0)::int AS signup_count
+          FROM employee_profiles ep
+          LEFT JOIN (SELECT profile_id, COUNT(*) AS c FROM profile_videos GROUP BY 1) v ON v.profile_id = ep.id
+          LEFT JOIN (SELECT profile_id, COUNT(*) AS c FROM profile_reviews WHERE profile_id IS NOT NULL GROUP BY 1) r ON r.profile_id = ep.id
+          LEFT JOIN (
+            SELECT profile_slug, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq FROM qr_scans
+            WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date GROUP BY 1
+          ) s ON s.profile_slug = ep.slug
+          LEFT JOIN (
+            SELECT ep2.slug, COUNT(*) AS signups FROM profile_leads pl JOIN employee_profiles ep2 ON ep2.id = pl.profile_id
+            WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date GROUP BY 1
+          ) l ON l.slug = ep.slug
+          WHERE ($3::text IS NULL OR ep.slug = $3)
+          ORDER BY scan_count DESC, signup_count DESC, ep.name ASC
+        `, p),
+                // Per-staff setup rollup (lifetime — who built/curated rep pages)
+                pool.query(`
+          SELECT email,
+                 SUM(profiles_created)::int AS profiles_created,
+                 SUM(profiles_edited)::int  AS profiles_edited,
+                 SUM(videos_added)::int     AS videos_added,
+                 SUM(reviews_added)::int    AS reviews_added
+          FROM (
+            SELECT created_by_email AS email, COUNT(*) AS profiles_created, 0 AS profiles_edited, 0 AS videos_added, 0 AS reviews_added
+              FROM employee_profiles WHERE created_by_email IS NOT NULL GROUP BY 1
+            UNION ALL SELECT updated_by_email, 0, COUNT(*), 0, 0 FROM employee_profiles WHERE updated_by_email IS NOT NULL GROUP BY 1
+            UNION ALL SELECT added_by_email, 0, 0, COUNT(*), 0 FROM profile_videos WHERE added_by_email IS NOT NULL GROUP BY 1
+            UNION ALL SELECT added_by_email, 0, 0, 0, COUNT(*) FROM profile_reviews WHERE added_by_email IS NOT NULL GROUP BY 1
+          ) t GROUP BY email ORDER BY profiles_created DESC, profiles_edited DESC
+        `),
+            ]);
+            const s = summaryR.rows[0];
+            const scans = s.scans ?? 0;
+            const signups = s.signups ?? 0;
             res.json({
                 success: true,
-                profiles: perProfile.rows.map(row => ({
-                    slug: row.slug,
-                    name: row.name,
-                    roleType: row.role_type,
-                    isActive: row.is_active,
-                    isClaimed: row.is_claimed,
-                    imageUrl: row.image_url,
-                    hasPhoto: row.has_photo,
-                    createdByEmail: row.created_by_email,
-                    createdAt: row.created_at,
-                    updatedByEmail: row.updated_by_email,
-                    updatedAt: row.updated_at,
-                    videoCount: parseInt(row.video_count),
-                    reviewCount: parseInt(row.review_count),
-                    scanCount: parseInt(row.scan_count)
+                range: { from: fromD, to: toD },
+                slug,
+                summary: {
+                    scans,
+                    signups,
+                    uniqueVisitors: s.unique_visitors ?? 0,
+                    repsScanned: s.reps_scanned ?? 0,
+                    conversionRate: scans > 0 ? Math.round((signups / scans) * 1000) / 10 : 0, // % to 1 decimal
+                },
+                daily: dailyR.rows.map(r => ({
+                    date: r.date, scans: r.scans, uniqueVisitors: r.unique_visitors, signups: r.signups,
                 })),
-                staff: staff.rows.map(row => ({
-                    email: row.email,
-                    profilesCreated: parseInt(row.profiles_created),
-                    profilesEdited: parseInt(row.profiles_edited),
-                    videosAdded: parseInt(row.videos_added),
-                    reviewsAdded: parseInt(row.reviews_added)
-                }))
+                devices: deviceR.rows.map(r => ({ deviceType: r.device_type, count: r.count })),
+                recentScans: recentScanR.rows.map(r => ({
+                    id: r.id, profileSlug: r.profile_slug, profileName: r.profile_name || 'Unknown',
+                    scannedAt: r.scanned_at, deviceType: r.device_type, source: r.source,
+                })),
+                recentSignups: recentSignupR.rows.map(r => ({
+                    id: r.id, profileSlug: r.profile_slug, profileName: r.profile_name || 'Unknown',
+                    homeownerName: r.homeowner_name, homeownerEmail: r.homeowner_email, homeownerPhone: r.homeowner_phone,
+                    serviceType: r.service_type, status: r.status, address: r.address, source: r.source, createdAt: r.created_at,
+                })),
+                reps: repsR.rows.map(r => ({
+                    slug: r.slug, name: r.name, roleType: r.role_type, isActive: r.is_active, isClaimed: r.is_claimed,
+                    imageUrl: r.image_url, hasPhoto: r.has_photo,
+                    createdByEmail: r.created_by_email, createdAt: r.created_at,
+                    updatedByEmail: r.updated_by_email, updatedAt: r.updated_at,
+                    videoCount: r.video_count, reviewCount: r.review_count,
+                    scanCount: r.scan_count, uniqueVisitors: r.unique_visitors, signupCount: r.signup_count,
+                })),
+                staff: staffR.rows.map(r => ({
+                    email: r.email, profilesCreated: r.profiles_created, profilesEdited: r.profiles_edited,
+                    videosAdded: r.videos_added, reviewsAdded: r.reviews_added,
+                })),
             });
         }
         catch (error) {
-            console.error('❌ QR analytics attribution error:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to get attribution'
-            });
+            console.error('❌ QR analytics dashboard error:', error);
+            res.status(500).json({ success: false, error: 'Failed to get dashboard analytics' });
         }
     });
     return router;
