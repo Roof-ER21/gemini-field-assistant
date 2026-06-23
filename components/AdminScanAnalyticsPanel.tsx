@@ -16,6 +16,8 @@ import {
   Star,
   Camera,
   ExternalLink,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -31,7 +33,12 @@ interface Summary {
   profilesScannedMonth: number;
 }
 
-interface DailyPoint { date: string; scans: number; uniqueVisitors: number; }
+interface DailyPoint { date: string; scans: number; uniqueVisitors?: number; }
+
+interface RepDetail {
+  stats: { scansToday: number; scansThisWeek: number; scansThisMonth: number; scansAllTime: number; uniqueVisitors: number };
+  dailyScans: { date: string; scans: number }[];
+}
 interface TopProfile { slug: string; name: string; imageUrl: string | null; scanCount: number; uniqueVisitors: number; }
 interface RecentScan { id: string; profileSlug: string; profileName: string; scannedAt: string; deviceType: string | null; source: string | null; }
 interface DeviceRow { deviceType: string; count: number; }
@@ -190,7 +197,7 @@ function DailyTrend({ data }: { data: DailyPoint[] }) {
           return (
             <div
               key={d.date}
-              title={`${etDate(d.date)} — ${d.scans} scan${d.scans === 1 ? '' : 's'}, ${d.uniqueVisitors} unique`}
+              title={`${etDate(d.date)} — ${d.scans} scan${d.scans === 1 ? '' : 's'}${d.uniqueVisitors != null ? `, ${d.uniqueVisitors} unique` : ''}`}
               style={{
                 flex: '1 0 auto',
                 minWidth: data.length > 45 ? 5 : 8,
@@ -235,6 +242,41 @@ function BarRow({ label, sub, value, max, icon }: { label: React.ReactNode; sub?
   );
 }
 
+// ─── Per-rep scan history (drill-down) ────────────────────────────────────────
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '8px 14px', minWidth: 92 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(value)}</div>
+    </div>
+  );
+}
+
+function RepScanDetail({ detail, name }: { detail: RepDetail; name: string }) {
+  const s = detail.stats;
+  const total = s?.scansAllTime ?? 0;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <MiniStat label="Today" value={s?.scansToday ?? 0} />
+        <MiniStat label="This Week" value={s?.scansThisWeek ?? 0} />
+        <MiniStat label="This Month" value={s?.scansThisMonth ?? 0} />
+        <MiniStat label="All Time" value={total} />
+        <MiniStat label="Unique (30d)" value={s?.uniqueVisitors ?? 0} />
+      </div>
+      <div>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <TrendingUp size={13} color="#dc2626" /> {name} — daily scans (last 30 days)
+        </div>
+        {total === 0
+          ? <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: '0.5rem 0' }}>No scans recorded for this rep yet.</div>
+          : <DailyTrend data={detail.dailyScans} />}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalyticsPanelProps) {
@@ -249,6 +291,12 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
   const [recent, setRecent] = React.useState<RecentScan[]>([]);
   const [attribution, setAttribution] = React.useState<AttributionProfile[]>([]);
   const [staff, setStaff] = React.useState<StaffRow[]>([]);
+
+  // Per-rep scan-history drill-down (click a row → load that rep's full history)
+  const [expandedSlug, setExpandedSlug] = React.useState<string | null>(null);
+  const [repDetails, setRepDetails] = React.useState<Record<string, RepDetail>>({});
+  const [detailError, setDetailError] = React.useState<Record<string, boolean>>({});
+  const [loadingDetail, setLoadingDetail] = React.useState<string | null>(null);
 
   const [isMobile, setIsMobile] = React.useState(false);
   React.useEffect(() => {
@@ -294,6 +342,25 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
   }, [fetchJSON, range]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  const loadRepDetail = React.useCallback(async (slug: string) => {
+    setLoadingDetail(slug);
+    setDetailError(prev => ({ ...prev, [slug]: false }));
+    try {
+      const d = await fetchJSON(`/api/qr-analytics/profile/${encodeURIComponent(slug)}`);
+      setRepDetails(prev => ({ ...prev, [slug]: { stats: d.stats, dailyScans: d.dailyScans || [] } }));
+    } catch {
+      setDetailError(prev => ({ ...prev, [slug]: true }));
+    } finally {
+      setLoadingDetail(null);
+    }
+  }, [fetchJSON]);
+
+  const toggleRep = React.useCallback((slug: string) => {
+    if (expandedSlug === slug) { setExpandedSlug(null); return; }
+    setExpandedSlug(slug);
+    if (!repDetails[slug] && loadingDetail !== slug) loadRepDetail(slug);
+  }, [expandedSlug, repDetails, loadingDetail, loadRepDetail]);
 
   const maxTop = Math.max(...topProfiles.map(p => p.scanCount), 1);
   const totalDevice = devices.reduce((sum, d) => sum + d.count, 0);
@@ -447,10 +514,20 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
               {attribution.length === 0 ? (
                 <tr><td style={{ ...tdStyle, color: 'var(--text-tertiary)', textAlign: 'center' }} colSpan={5}>No rep pages yet.</td></tr>
               ) : (
-                attribution.map(p => (
-                  <tr key={p.slug}>
+                attribution.map(p => {
+                  const expanded = expandedSlug === p.slug;
+                  return (
+                  <React.Fragment key={p.slug}>
+                  <tr
+                    onClick={() => toggleRep(p.slug)}
+                    style={{ cursor: 'pointer', background: expanded ? 'var(--bg-primary)' : 'transparent' }}
+                    title="Click to see this rep's past scans"
+                  >
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>
+                          {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                        </span>
                         {p.imageUrl
                           ? <img src={p.imageUrl} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
                           : <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{getInitials(p.name)}</div>}
@@ -459,7 +536,7 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
                             {p.name}
                             {!p.isActive && <span style={{ fontSize: 10, color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: 4, padding: '0 4px' }}>inactive</span>}
                           </div>
-                          <a href={`/profile/${p.slug}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--text-tertiary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <a href={`/profile/${p.slug}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text-tertiary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}>
                             /{p.slug} <ExternalLink size={9} />
                           </a>
                         </div>
@@ -482,7 +559,26 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{fmt(p.scanCount)}</td>
                   </tr>
-                ))
+                  {expanded && (
+                    <tr>
+                      <td colSpan={5} style={{ background: 'var(--bg-primary)', padding: '4px 16px 16px', borderBottom: '1px solid var(--bg-elevated)' }}>
+                        {loadingDetail === p.slug && !repDetails[p.slug] ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13, padding: '0.5rem 0' }}>
+                            <Loader size={14} className="spin" /> Loading {p.name}'s scan history…
+                          </div>
+                        ) : detailError[p.slug] ? (
+                          <div style={{ color: '#fca5a5', fontSize: 13, padding: '0.5rem 0' }}>
+                            Couldn't load scan history. <button onClick={(e) => { e.stopPropagation(); loadRepDetail(p.slug); }} style={{ ...refreshBtnStyle, padding: '4px 8px', minHeight: 0 }}>Retry</button>
+                          </div>
+                        ) : repDetails[p.slug] ? (
+                          <RepScanDetail detail={repDetails[p.slug]} name={p.name} />
+                        ) : null}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
