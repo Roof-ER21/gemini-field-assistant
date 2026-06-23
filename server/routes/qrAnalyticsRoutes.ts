@@ -384,7 +384,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
             (SELECT COUNT(DISTINCT qs.profile_slug)::int FROM qr_scans qs
                WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR qs.profile_slug = $3)) AS reps_scanned,
-            (SELECT COUNT(*)::int FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+            (SELECT COUNT(*)::int FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
                WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR ep.slug = $3)) AS signups
         `, p),
@@ -403,7 +403,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           ) sc ON sc.dd = d.d
           LEFT JOIN (
             SELECT (pl.created_at AT TIME ZONE '${ET}')::date AS dd, COUNT(*) AS signups
-            FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+            FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
             WHERE ($3::text IS NULL OR ep.slug = $3) GROUP BY 1
           ) le ON le.dd = d.d
           ORDER BY d.d ASC
@@ -432,7 +432,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           SELECT pl.id, ep.slug AS profile_slug, ep.name AS profile_name,
                  pl.homeowner_name, pl.homeowner_email, pl.homeowner_phone,
                  pl.service_type, pl.status, pl.created_at, pl.source, pl.address
-          FROM profile_leads pl JOIN employee_profiles ep ON ep.id = pl.profile_id
+          FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
           WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
             AND ($3::text IS NULL OR ep.slug = $3)
           ORDER BY pl.created_at DESC LIMIT 30
@@ -504,7 +504,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           scannedAt: r.scanned_at, deviceType: r.device_type, source: r.source,
         })),
         recentSignups: recentSignupR.rows.map(r => ({
-          id: r.id, profileSlug: r.profile_slug, profileName: r.profile_name || 'Unknown',
+          id: r.id, profileSlug: r.profile_slug || null, profileName: r.profile_name || null,
           homeownerName: r.homeowner_name, homeownerEmail: r.homeowner_email, homeownerPhone: r.homeowner_phone,
           serviceType: r.service_type, status: r.status, address: r.address, source: r.source, createdAt: r.created_at,
         })),

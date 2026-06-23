@@ -33,7 +33,7 @@ interface DailyPoint { date: string; scans: number; uniqueVisitors?: number; sig
 interface DeviceRow { deviceType: string; count: number; }
 interface RecentScan { id: string; profileSlug: string; profileName: string; scannedAt: string; deviceType: string | null; source: string | null; }
 interface RecentSignup {
-  id: string; profileSlug: string; profileName: string;
+  id: string; profileSlug: string | null; profileName: string | null;
   homeownerName: string; homeownerEmail: string | null; homeownerPhone: string | null;
   serviceType: string | null; status: string | null; address: string | null; source: string | null; createdAt: string;
 }
@@ -566,7 +566,9 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
                         {l.serviceType && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> · {l.serviceType}</span>}
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
-                        for <b style={{ color: 'var(--text-secondary)' }}>{l.profileName}</b>
+                        {l.profileName
+                          ? <>for <b style={{ color: 'var(--text-secondary)' }}>{l.profileName}</b></>
+                          : <span style={{ fontStyle: 'italic', opacity: 0.8 }}>no rep page</span>}
                         {l.homeownerPhone && <> · {l.homeownerPhone}</>}
                         {l.address && <> · {l.address}</>}
                       </div>
