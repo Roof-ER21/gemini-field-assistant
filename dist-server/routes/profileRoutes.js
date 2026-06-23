@@ -59,12 +59,92 @@ export function forwardLeadToCC24(lead) {
     })
         .then(async (r) => {
         if (!r.ok)
-            console.error('[CC21 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
+            console.error('[CC24 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
         else
-            console.log(`[CC21 forward] forwarded "${lead.homeownerName}" -> CC21${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
+            console.log(`[CC24 forward] forwarded "${lead.homeownerName}" -> CC24${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
     })
-        .catch((e) => console.error('[CC21 forward] failed:', e?.message))
+        .catch((e) => console.error('[CC24 forward] failed:', e?.message))
         .finally(() => clearTimeout(timer));
+}
+// ─── JotForm bridge ─────────────────────────────────────────────────────────
+// Push a lead into the JotForm lead form as a real submission (so RoofCheck / QR
+// leads land in JotForm too). Env-gated on JOTFORM_API_KEY — completely inert if
+// unset. Fetches the form's question schema once (cached) and maps homeowner
+// fields by type/name; only submits when it can map at least name + phone, so a
+// misconfigured form can never produce garbage. Fire-and-forget; never blocks.
+let jfQuestionsCache = null;
+async function jotformQuestions(formId, key) {
+    if (jfQuestionsCache)
+        return jfQuestionsCache;
+    const r = await fetch(`https://api.jotform.com/form/${formId}/questions?apiKey=${encodeURIComponent(key)}`);
+    const j = await r.json().catch(() => ({}));
+    jfQuestionsCache = (j && j.content) || {};
+    return jfQuestionsCache;
+}
+export function forwardLeadToJotForm(lead) {
+    const key = process.env.JOTFORM_API_KEY;
+    const formId = process.env.JOTFORM_LEAD_FORM_ID || '251884526474164';
+    if (!key || !lead.homeownerName)
+        return;
+    (async () => {
+        try {
+            const qs = await jotformQuestions(formId, key);
+            if (!qs || !Object.keys(qs).length) {
+                console.warn('[jotform push] no questions for form', formId);
+                return;
+            }
+            const parts = lead.homeownerName.trim().split(/\s+/);
+            const first = parts[0] || lead.homeownerName, last = parts.slice(1).join(' ');
+            const body = new URLSearchParams();
+            const done = { name: false, phone: false, email: false, address: false };
+            for (const qid of Object.keys(qs)) {
+                const q = qs[qid] || {};
+                const t = String(q.type || '');
+                const nm = String(q.name || q.text || '').toLowerCase();
+                if (!done.name && (t === 'control_fullname' || /name/.test(nm))) {
+                    if (t === 'control_fullname') {
+                        body.set(`submission[${qid}_first]`, first);
+                        body.set(`submission[${qid}_last]`, last);
+                    }
+                    else
+                        body.set(`submission[${qid}]`, lead.homeownerName);
+                    done.name = true;
+                }
+                else if (!done.phone && lead.homeownerPhone && (t === 'control_phone' || /phone|cell|mobile/.test(nm))) {
+                    if (t === 'control_phone')
+                        body.set(`submission[${qid}_full]`, lead.homeownerPhone);
+                    else
+                        body.set(`submission[${qid}]`, lead.homeownerPhone);
+                    done.phone = true;
+                }
+                else if (!done.email && lead.homeownerEmail && (t === 'control_email' || /email/.test(nm))) {
+                    body.set(`submission[${qid}]`, lead.homeownerEmail);
+                    done.email = true;
+                }
+                else if (!done.address && lead.address && (t === 'control_address' || /address/.test(nm))) {
+                    if (t === 'control_address')
+                        body.set(`submission[${qid}_addr_line1]`, lead.address);
+                    else
+                        body.set(`submission[${qid}]`, lead.address);
+                    done.address = true;
+                }
+            }
+            if (!done.name || !done.phone) {
+                console.warn('[jotform push] could not map name+phone — skipping', formId);
+                return;
+            }
+            const r = await fetch(`https://api.jotform.com/form/${formId}/submissions?apiKey=${encodeURIComponent(key)}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString(),
+            });
+            if (!r.ok)
+                console.error('[jotform push] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 160));
+            else
+                console.log(`[jotform push] submitted "${lead.homeownerName}" -> form ${formId}`);
+        }
+        catch (e) {
+            console.error('[jotform push] failed:', e?.message);
+        }
+    })();
 }
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)

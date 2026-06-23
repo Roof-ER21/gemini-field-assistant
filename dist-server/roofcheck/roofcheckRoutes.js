@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
-import { forwardLeadToCC24 } from '../routes/profileRoutes.js';
+import { forwardLeadToCC24, forwardLeadToJotForm } from '../routes/profileRoutes.js';
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
 let JOBS = [];
@@ -224,6 +224,16 @@ export function createRoofCheckRoutes(pool) {
                 repEmail,
                 sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
                 jobType: 'insurance',
+            });
+            // Also push into JotForm (inert until JOTFORM_API_KEY is set).
+            forwardLeadToJotForm({
+                homeownerName: name,
+                homeownerEmail: email || null,
+                homeownerPhone: phone,
+                address: address || null,
+                serviceType: 'Storm check (RoofCheck)',
+                message: note,
+                sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
             });
             res.json({
                 ok: true,
