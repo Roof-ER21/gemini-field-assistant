@@ -19,6 +19,7 @@ import path from 'node:path';
 import type { Pool } from 'pg';
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
+import { forwardLeadToCC24 } from '../routes/profileRoutes.js';
 
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
@@ -138,9 +139,12 @@ export function createRoofCheckRoutes(pool: Pool) {
 
       // Resolve the rep whose link was used → attribute the lead to their profile.
       let profileId: string | null = null;
+      let repName: string | null = null, repEmail: string | null = null;
       if (repSlug) {
-        const pr = await pool.query(`SELECT id FROM employee_profiles WHERE slug = $1 LIMIT 1`, [repSlug]);
+        const pr = await pool.query(`SELECT id, name, email FROM employee_profiles WHERE slug = $1 LIMIT 1`, [repSlug]);
         profileId = pr.rows[0]?.id || null;
+        repName = pr.rows[0]?.name || null;
+        repEmail = pr.rows[0]?.email || null;
       }
 
       // Build the reward server-side (gated): address-level hail history + neighbor proof.
@@ -181,6 +185,21 @@ export function createRoofCheckRoutes(pool: Pool) {
         [profileId, name, email || null, phone, address || null, 'Storm check (RoofCheck)', note, source, src || null],
       );
 
+      // Forward into CC24 Active Leads (same pipeline as QR/contact leads), attributed
+      // to the rep when the link carried ?rep=. Fire-and-forget, env-gated, never blocks.
+      forwardLeadToCC24({
+        homeownerName: name,
+        homeownerEmail: email || null,
+        homeownerPhone: phone,
+        address: address || null,
+        serviceType: 'Storm check (RoofCheck)',
+        message: note,
+        repName,
+        repEmail,
+        sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
+        jobType: 'insurance',
+      });
+
       res.json({
         ok: true,
         leadId: ins.rows[0]?.id || null,
@@ -210,10 +229,7 @@ export default createRoofCheckRoutes;
 // sits on a dark bar. ${mapsScript} → client Places autocomplete (referrer-restricted,
 // safe to expose), graceful free-text + server-geocode fallback. Reads ?rep & ?src.
 // ─────────────────────────────────────────────────────────────────────────────
-function renderPage(mapsKey: string): string {
-  const mapsScript = mapsKey
-    ? `<script src="https://maps.googleapis.com/maps/api/js?key=${mapsKey}&libraries=places&callback=initRC" async defer></script>`
-    : '';
+function renderPage(_mapsKey: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -341,8 +357,11 @@ function renderPage(mapsKey: string): string {
   .foot-row img{height:22px;opacity:.9}
   .foot-fine{color:var(--faint);font-size:12.5px;line-height:1.6;max-width:88ch}
   .spin-i{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
-  .pac-container{z-index:99999;border-radius:12px;margin-top:6px;background:#15131d;border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.6);font-family:var(--body)}
-  .pac-item{color:var(--mut);border-color:var(--line);padding:7px 12px}.pac-item:hover{background:rgba(255,255,255,.06)}.pac-item-query{color:var(--tx)}
+  .ac-wrap{flex:1;min-width:0;position:relative}
+  .ac-box{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;display:none;max-height:282px;overflow:auto;
+    background:#15131d;border:1px solid var(--line);border-radius:13px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .ac-item{padding:11px 14px;font-size:14.5px;color:var(--mut);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);text-align:left}
+  .ac-item:last-child{border-bottom:0}.ac-item.on,.ac-item:hover{background:rgba(239,43,43,.12);color:var(--tx)}
   .reveal{opacity:0;transform:translateY(20px);animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
 
@@ -378,7 +397,10 @@ function renderPage(mapsKey: string): string {
 
         <div class="card">
           <form class="search" id="searchForm" autocomplete="off">
-            <input type="text" id="addr" placeholder="123 Main St, Vienna, VA 22180" aria-label="Your home address" required>
+            <div class="ac-wrap">
+              <input type="text" id="addr" placeholder="123 Main St, Vienna, VA 22180" aria-label="Your home address" autocomplete="off" required>
+              <div id="acBox" class="ac-box"></div>
+            </div>
             <button class="btn" id="goBtn" type="submit">Check my roof &rarr;</button>
           </form>
           <p class="hint" id="hint">🔒 Free, no obligation. We never share your info.</p>
@@ -440,16 +462,47 @@ function renderPage(mapsKey: string): string {
     (function loop(){x.clearRect(0,0,w,h);x.lineCap='round';for(var i=0;i<drops.length;i++){var d=drops[i];x.strokeStyle='rgba(255,140,140,'+d.o+')';x.lineWidth=1.4;x.beginPath();x.moveTo(d.x,d.y);x.lineTo(d.x-1.5,d.y+d.l);x.stroke();d.y+=d.s;d.x-=.6;if(d.y>h){d.y=-d.l;d.x=Math.random()*w;}}requestAnimationFrame(loop);})();
   })();
 
-  /* Google Places autocomplete — progressive enhancement */
-  window.initRC=function(){
-    try{
-      var ac=new google.maps.places.Autocomplete($('addr'),{types:['address'],componentRestrictions:{country:'us'},fields:['formatted_address','geometry']});
-      ac.addListener('place_changed',function(){
-        var pl=ac.getPlace();
-        if(pl&&pl.geometry&&pl.geometry.location){ctx.lat=pl.geometry.location.lat();ctx.lng=pl.geometry.location.lng();ctx.normalizedAddress=pl.formatted_address||$('addr').value;}
-      });
-    }catch(e){}
-  };
+  /* Address autocomplete — Photon (OpenStreetMap, keyless), custom dropdown.
+     On pick we get lat/lng directly; if they keep typing we re-geocode server-side. */
+  (function(){
+    var inp=$('addr'), box=$('acBox'), items=[], sel=-1, tmr=null, lastQ='';
+    function hide(){ box.style.display='none'; sel=-1; }
+    function pick(it){ if(!it) return; inp.value=it.label; ctx.lat=it.lat; ctx.lng=it.lng; ctx.normalizedAddress=it.label; hide(); }
+    function render(){
+      if(!items.length){ hide(); return; }
+      box.innerHTML=items.map(function(it,i){ return '<div class="ac-item'+(i===sel?' on':'')+'" data-i="'+i+'">'+esc(it.label)+'</div>'; }).join('');
+      box.style.display='block';
+    }
+    function fmt(p){
+      var a=[p.housenumber,p.street||p.name].filter(Boolean).join(' ');
+      var b=[p.city||p.district,p.state,p.postcode].filter(Boolean).join(', ');
+      return [a,b].filter(Boolean).join(', ');
+    }
+    async function search(q){
+      try{
+        var r=await fetch('https://photon.komoot.io/api/?lang=en&limit=7&lat=38.9&lon=-77.1&q='+encodeURIComponent(q));
+        var d=await r.json();
+        items=(d.features||[]).filter(function(f){var c=f.properties||{};return (c.countrycode==='US'||c.country==='United States')&&(c.housenumber||c.street);})
+          .map(function(f){var p=f.properties||{},g=f.geometry||{};return {label:fmt(p),lat:g.coordinates?g.coordinates[1]:null,lng:g.coordinates?g.coordinates[0]:null};})
+          .filter(function(it){return it.lat&&it.label;}).slice(0,6);
+        render();
+      }catch(e){ hide(); }
+    }
+    inp.addEventListener('input',function(){
+      ctx.lat=null; ctx.lng=null;
+      var q=inp.value.trim(); if(q.length<4){ hide(); return; }
+      clearTimeout(tmr); tmr=setTimeout(function(){ if(q!==lastQ){ lastQ=q; search(q); } },240);
+    });
+    inp.addEventListener('keydown',function(e){
+      if(box.style.display!=='block') return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); sel=Math.min(sel+1,items.length-1); render(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); sel=Math.max(sel-1,0); render(); }
+      else if(e.key==='Enter'&&sel>=0){ e.preventDefault(); pick(items[sel]); }
+      else if(e.key==='Escape'){ hide(); }
+    });
+    box.addEventListener('mousedown',function(e){ var t=e.target.closest('.ac-item'); if(t){ e.preventDefault(); pick(items[+t.dataset.i]); } });
+    inp.addEventListener('blur',function(){ setTimeout(hide,160); });
+  })();
 
   $('searchForm').addEventListener('submit', async function(e){
     e.preventDefault();
@@ -508,7 +561,6 @@ function renderPage(mapsKey: string): string {
   }
 })();
 </script>
-${mapsScript}
 </body>
 </html>`;
 }

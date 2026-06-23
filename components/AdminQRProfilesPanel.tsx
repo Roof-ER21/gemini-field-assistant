@@ -19,6 +19,8 @@ import {
   Camera,
   Upload,
   Star,
+  Copy,
+  CloudRain,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -141,6 +143,42 @@ function ToastContainer({ toasts }: { toasts: ToastItem[] }) {
 }
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
+
+// House / social Storm-Check links — the "admin copy" for official Roof Docs accounts.
+// Signups via these come in as house leads (no rep), tagged by channel.
+function HouseLinksCard({ isMobile }: { isMobile: boolean }) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const channels: Array<[string, string]> = [['facebook', 'Facebook'], ['instagram', 'Instagram'], ['social', 'General / Roof Docs']];
+  const [copied, setCopied] = React.useState<string | null>(null);
+  const copy = (url: string, key: string) => { navigator.clipboard.writeText(url); setCopied(key); setTimeout(() => setCopied(null), 1800); };
+  return (
+    <div style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.10) 0%, rgba(123,10,10,0.05) 100%)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: 14 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <CloudRain size={15} color="#dc2626" /> Storm Check — House / Social links
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)', marginBottom: 11 }}>
+        Post these on the official Roof Docs Facebook / Instagram. Signups land as house leads (no rep), tagged by channel in Scan Analytics.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {channels.map(([src, label]) => {
+          const url = `${origin}/roofcheck?src=${src}`;
+          return (
+            <div key={src} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ width: isMobile ? 'auto' : 132, minWidth: isMobile ? 'auto' : 132, fontSize: 13, fontWeight: 600, color: 'var(--text-tertiary)' }}>{label}</span>
+              <input readOnly value={url} onFocus={e => e.currentTarget.select()} style={{ flex: 1, minWidth: 170, padding: '7px 10px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 7, color: 'var(--text-primary)' }} />
+              <button onClick={() => copy(url, src)} style={{ padding: '7px 12px', background: copied === src ? '#16a34a' : '#dc2626', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {copied === src ? <Check size={13} /> : <Copy size={13} />}{copied === src ? 'Copied' : 'Copy'}
+              </button>
+              <a href={`https://api.qrserver.com/v1/create-qr-code/?size=1024x1024&margin=20&data=${encodeURIComponent(url)}`} download={`storm-check-${src}.png`} target="_blank" rel="noopener noreferrer" style={{ padding: '7px 10px', border: '1px solid var(--border-subtle)', borderRadius: 7, fontSize: 12.5, color: 'var(--text-tertiary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Download size={13} /> QR
+              </a>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
   return (
@@ -1851,6 +1889,8 @@ export default function AdminQRProfilesPanel({ userEmail }: AdminQRProfilesPanel
           icon={<QrCode size={12} />}
         />
       </div>
+
+      <HouseLinksCard isMobile={isMobile} />
 
       {/* Action Bar */}
       <div style={{

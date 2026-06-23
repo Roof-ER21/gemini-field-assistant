@@ -21,7 +21,7 @@ import { canManageQR, isAdmin as isAdminRole } from '../lib/permissions.js';
 // auto-assigns to that rep; otherwise CC21 falls back to owner + rep-in-notes.
 // NOTE: this is the REAL QR path (rep page → JotForm iframe → /jotform-webhook,
 // and the in-app /contact form) — distinct from leadGenRoutes /api/leads/intake.
-function forwardLeadToCC21(lead: {
+export function forwardLeadToCC24(lead: {
   homeownerName: string;
   homeownerEmail?: string | null;
   homeownerPhone?: string | null;
@@ -35,13 +35,16 @@ function forwardLeadToCC21(lead: {
   sourceLabel?: string | null;
   jobType?: string | null;
 }): void {
-  const cc21Url = process.env.CC21_LEAD_INTAKE_URL;
-  const cc21Secret = process.env.CC21_WEBSITE_SECRET;
+  // CC24 is the live Command Center (CC21 retired). Prefer CC24 vars; fall back
+  // to the legacy CC21 vars only if CC24 isn't configured yet.
+  const cc21Url = process.env.CC24_LEAD_INTAKE_URL || process.env.CC21_LEAD_INTAKE_URL;
+  const cc21Secret = process.env.CC24_WEBSITE_SECRET || process.env.CC21_WEBSITE_SECRET;
   if (!cc21Url || !cc21Secret || !lead.homeownerName) return;
   const addrStr = (lead.address || '').trim();
   const zip = addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
   const state = addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1]?.toUpperCase();
-  const srcTag = /jotform/i.test(lead.sourceLabel || '') ? 'jotform' : 'qr';
+  const srcTag = /roofcheck/i.test(lead.sourceLabel || '') ? 'roofcheck'
+    : (/jotform/i.test(lead.sourceLabel || '') ? 'jotform' : 'qr');
   const body = {
     fullName: lead.homeownerName,
     email: lead.homeownerEmail || undefined,
@@ -282,7 +285,7 @@ export function createProfileRoutes(pool: Pool) {
         // Forward this rep-attributed lead into CC21 Active Leads (the REAL QR /
         // JotForm / contact path). Runs even if the rep has no linked CC21 user —
         // CC21 matches by repEmail, else owner + rep-in-notes.
-        forwardLeadToCC21({
+        forwardLeadToCC24({
           homeownerName: leadData.homeownerName,
           homeownerEmail: leadData.homeownerEmail,
           homeownerPhone: leadData.homeownerPhone,
@@ -956,7 +959,7 @@ export function createProfileRoutes(pool: Pool) {
       } else {
         // No rep attribution (no/!matched repSlug) — still forward to CC21 so
         // the lead lands in Active Leads (anonymous → owner + detail in notes).
-        forwardLeadToCC21({
+        forwardLeadToCC24({
           homeownerName,
           homeownerEmail,
           homeownerPhone,
