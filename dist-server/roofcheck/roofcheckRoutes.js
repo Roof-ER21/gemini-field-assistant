@@ -228,10 +228,11 @@ export function createRoofCheckRoutes(pool) {
 }
 export default createRoofCheckRoutes;
 // ─────────────────────────────────────────────────────────────────────────────
-// Page (inlined so the build needs no asset copy). Roof-ER branded — red palette,
-// The Roof Docs logo. ${mapsKey} → client Places autocomplete (referrer-restricted,
-// safe to expose); falls back to free-text + server geocode if Maps fails to load.
-// Reads ?rep=<slug>&src=<channel> from the URL and threads them into the lead.
+// Page (inlined so the build needs no asset copy). Dark, atmospheric, "claim-grade"
+// storm aesthetic — Roof-ER red. Animated mesh background + hail canvas + radar-sweep
+// orb. Fully responsive: split desktop hero / stacked mobile. The white Roof Docs logo
+// sits on a dark bar. ${mapsScript} → client Places autocomplete (referrer-restricted,
+// safe to expose), graceful free-text + server-geocode fallback. Reads ?rep & ?src.
 // ─────────────────────────────────────────────────────────────────────────────
 function renderPage(mapsKey) {
     const mapsScript = mapsKey
@@ -241,88 +242,211 @@ function renderPage(mapsKey) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Roof-ER — Did the storm hit your roof?</title>
-<meta name="description" content="Free 10-second storm check from Roof-ER. See your 2-year hail history and whether you qualify for an insurance inspection.">
+<meta name="description" content="Free 10-second storm check from Roof-ER. See your address-level hail history and whether you qualify for an insurance inspection. VA · MD · PA.">
+<meta name="theme-color" content="#0a0a0f">
+<meta property="og:title" content="Did the storm hit your roof? — Roof-ER">
+<meta property="og:description" content="Free 10-second storm check. Your hail history + insurance eligibility.">
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <style>
-  :root{--red:#dc2626;--red2:#b60807;--dark:#7a0a0a;--ink:#161413;--mut:#6b7280;--line:#ececef}
+  :root{
+    --ink:#08080d;--ink2:#0f0e16;--card:rgba(255,255,255,.05);--line:rgba(255,255,255,.11);
+    --red:#ef2b2b;--red2:#ff5a5a;--crimson:#b30606;--steel:#46598a;
+    --tx:#f6f4f8;--mut:rgba(246,244,248,.64);--faint:rgba(246,244,248,.42);
+    --disp:"Clash Display",-apple-system,BlinkMacSystemFont,sans-serif;
+    --body:"Satoshi",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --ok:#34d399;--okbg:rgba(16,185,129,.12);
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#f7f6f5}
-  .top{display:flex;align-items:center;justify-content:center;padding:16px;background:#fff;border-bottom:1px solid var(--line)}
-  .top img{height:30px}
-  .hero{background:linear-gradient(135deg,var(--dark) 0%,var(--red2) 50%,var(--red) 130%);color:#fff;padding:42px 20px 70px;text-align:center}
-  .brand{font-weight:800;letter-spacing:.6px;font-size:13px;opacity:.92;text-transform:uppercase}
-  h1{font-size:30px;line-height:1.13;margin:14px auto 10px;max-width:640px;font-weight:800}
-  .sub{max-width:540px;margin:0 auto 22px;opacity:.95;font-size:17px}
-  .trust{max-width:600px;margin:20px auto 0;display:flex;gap:9px;justify-content:center;flex-wrap:wrap;font-size:13px}
-  .trust span{background:#ffffff24;padding:6px 12px;border-radius:999px;backdrop-filter:blur(2px)}
-  .card{background:#fff;max-width:560px;margin:-50px auto 0;border-radius:18px;box-shadow:0 14px 44px #7a0a0a26;padding:24px}
-  form.search{display:flex;gap:8px;flex-wrap:wrap}
-  input{font:inherit}
-  input[type=text],input[type=email],input[type=tel]{flex:1;min-width:0;padding:14px;border:1.5px solid var(--line);border-radius:12px;width:100%}
-  input:focus{outline:none;border-color:var(--red)}
-  .btn{background:linear-gradient(135deg,var(--red),#ef4444);color:#fff;border:0;border-radius:12px;padding:14px 18px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 14px #dc262640}
-  .btn:disabled{opacity:.6}
-  .btn.full{width:100%;margin-top:10px}
+  html,body{background:var(--ink);color:var(--tx);font-family:var(--body);font-weight:500;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  h1,h2,h3{font-family:var(--disp);font-weight:700;line-height:1.03;letter-spacing:-.02em}
+  a{color:inherit;text-decoration:none}
+  .grad{background:linear-gradient(96deg,var(--red2),var(--red) 45%,#ff7a5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* atmosphere */
+  .bg{position:fixed;inset:-30%;z-index:0;pointer-events:none;filter:blur(14px);animation:mesh 26s ease-in-out infinite alternate;
+    background:
+      radial-gradient(40% 52% at 16% 14%,rgba(239,43,43,.40),transparent 60%),
+      radial-gradient(44% 54% at 84% 10%,rgba(179,6,6,.46),transparent 62%),
+      radial-gradient(52% 56% at 78% 90%,rgba(70,89,138,.34),transparent 60%),
+      radial-gradient(48% 62% at 28% 98%,rgba(239,43,43,.30),transparent 62%);}
+  @keyframes mesh{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-3%,2%,0) scale(1.07)}100%{transform:translate3d(3%,-2%,0) scale(1.03)}}
+  #hail{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.5}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.04;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{position:relative;z-index:2}
+  @media (prefers-reduced-motion:reduce){.bg{animation:none}#hail{display:none}}
+
+  /* nav — dark bar so the white logo reads */
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px clamp(18px,5vw,56px);
+    position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(8,8,13,.9),rgba(8,8,13,.5));border-bottom:1px solid var(--line)}
+  .nav img{height:26px;display:block}
+  .nav .badge{font-family:var(--disp);font-weight:600;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);
+    border:1px solid var(--line);border-radius:999px;padding:6px 13px}
+  .nav .call{font-weight:700;font-size:14px;color:var(--tx);display:flex;align-items:center;gap:7px}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(26px,4.5vw,68px);align-items:center;
+    max-width:1280px;margin:0 auto;padding:clamp(30px,5.5vw,76px) clamp(18px,5vw,56px) clamp(34px,5vw,68px)}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--red2);margin-bottom:16px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--red2);box-shadow:0 0 0 4px rgba(239,43,43,.22);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(239,43,43,.22)}50%{box-shadow:0 0 0 9px rgba(239,43,43,0)}}
+  h1.title{font-size:clamp(2.5rem,5.4vw,4.3rem)}
+  .sub{font-size:clamp(1.02rem,1.5vw,1.28rem);color:var(--mut);max-width:36ch;margin:18px 0 0;line-height:1.5}
+
+  /* glass capture card */
+  .card{margin-top:26px;border-radius:22px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));
+    backdrop-filter:blur(16px);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);padding:clamp(18px,2.4vw,26px)}
+  form.search{display:flex;gap:10px;flex-wrap:wrap}
+  input{font:inherit;color:var(--tx)}
+  input[type=text],input[type=tel],input[type=email]{flex:1;min-width:0;width:100%;padding:15px 16px;border:1.5px solid var(--line);border-radius:13px;
+    background:rgba(255,255,255,.04);color:var(--tx);font-size:16px;transition:border-color .2s,background .2s}
+  input::placeholder{color:var(--faint)}
+  input:focus{outline:none;border-color:var(--red);background:rgba(255,255,255,.07)}
+  .btn{font-family:var(--disp);background:linear-gradient(95deg,var(--red),#ff6a4d);color:#fff;border:0;border-radius:13px;padding:15px 22px;font-weight:700;font-size:1rem;
+    cursor:pointer;white-space:nowrap;box-shadow:0 14px 34px rgba(239,43,43,.4);transition:transform .18s,box-shadow .18s}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 20px 46px rgba(239,43,43,.55)}
+  .btn:disabled{opacity:.6;transform:none}
+  .btn.full{width:100%;margin-top:11px;padding:16px}
   .muted{color:var(--mut);font-size:13.5px}
+  .hint{color:var(--mut);font-size:13.5px;margin-top:11px;display:flex;align-items:center;gap:7px}
+  .field{margin-top:10px}
   .gate,.reward{display:none}
-  .teaser{display:flex;gap:13px;align-items:flex-start;padding:15px;border-radius:14px;margin:8px 0 14px;background:#fdeeee;border:1px solid #f7caca}
-  .teaser .ic{font-size:26px;line-height:1}.teaser b{display:block;font-size:17px;margin-bottom:2px}
-  .unlock h3{font-size:18px;margin-bottom:3px}
-  .field{margin-top:9px}
-  .rwd-h{font-size:19px;font-weight:800;margin:2px 0 10px;display:flex;align-items:center;gap:7px}
-  .rwd-map{width:100%;border-radius:13px;border:1px solid var(--line);margin-bottom:12px;display:block}
-  .ev{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;margin-top:8px}
-  .ev .l{display:flex;flex-direction:column}.ev .d{font-weight:700}.ev .w{font-size:12px;color:var(--mut)}
-  .ev .m{color:var(--red2);font-weight:800;white-space:nowrap}
-  .ev.dh{border-color:#f3b4b4;background:#fdf3f3}
-  .tag{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#fff;background:var(--red);border-radius:5px;padding:2px 6px;margin-left:7px}
-  .qual{background:#eafaf0;border:1px solid #b9ebcb;color:#0a7c3e;border-radius:12px;padding:12px 14px;margin-top:12px;font-weight:700}
-  .nb{background:#fef3ec;border:1px solid #f8d6bd;border-radius:12px;padding:12px 14px;margin-top:10px;font-weight:700;color:#9a3412}
-  .src{font-size:12px;color:var(--mut);margin-top:10px}
-  .next{background:#fff7f7;border:1px dashed #f3b4b4;border-radius:13px;padding:14px;margin-top:14px}
-  .next b{color:var(--red2)}
-  footer{max-width:600px;margin:26px auto 40px;text-align:center;color:var(--mut);font-size:12.5px;padding:0 20px}
-  .spin{display:inline-block;width:15px;height:15px;border:2px solid #ffffff80;border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
-  @keyframes s{to{transform:rotate(360deg)}}
-  .pac-container{z-index:99999;border-radius:10px;margin-top:4px;box-shadow:0 8px 24px #0002;border:1px solid var(--line)}
-  @media(min-width:560px){h1{font-size:38px}}
+
+  .teaser{display:flex;gap:13px;align-items:flex-start;padding:15px;border-radius:14px;margin:6px 0 14px;background:rgba(239,43,43,.10);border:1px solid rgba(239,43,43,.32)}
+  .teaser .ic{font-size:26px;line-height:1}.teaser b{display:block;font-size:16.5px;margin-bottom:2px;color:var(--tx)}
+  .teaser div{color:var(--mut);font-size:14px}
+  .unlock h3{font-size:17px;margin-bottom:4px}.unlock .muted{margin-bottom:4px}
+
+  /* trust */
+  .trust{display:flex;gap:9px;flex-wrap:wrap;margin-top:20px}
+  .trust span{font-family:var(--disp);font-weight:600;font-size:13.5px;color:var(--mut);padding:8px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+  .trust span b{color:var(--tx)}
+
+  /* radar orb */
+  .art{position:relative;justify-self:center;width:min(440px,86vw);aspect-ratio:1}
+  .radar{position:absolute;inset:0;border-radius:50%;overflow:hidden;border:1px solid var(--line);
+    background:radial-gradient(circle at 50% 50%,rgba(70,89,138,.16),rgba(8,8,13,.4) 70%);box-shadow:0 40px 110px rgba(179,6,6,.45),inset 0 0 60px rgba(0,0,0,.6)}
+  .radar .ring{position:absolute;inset:14%;border:1px solid rgba(255,255,255,.10);border-radius:50%}
+  .radar .ring.r2{inset:30%}.radar .ring.r3{inset:46%}
+  .radar .cross,.radar .cross.v{position:absolute;background:rgba(255,255,255,.08)}
+  .radar .cross{left:0;right:0;top:50%;height:1px}.radar .cross.v{top:0;bottom:0;left:50%;width:1px}
+  .radar .sweep{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,rgba(239,43,43,.55),rgba(239,43,43,0) 24%,rgba(239,43,43,0) 100%);animation:spin 4.5s linear infinite;mix-blend-mode:screen}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .blip{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--red2);box-shadow:0 0 14px var(--red2);transform:translate(-50%,-50%);animation:blip 4.5s infinite}
+  .blip.b1{left:64%;top:38%;animation-delay:.4s}.blip.b2{left:40%;top:62%;animation-delay:1.7s}.blip.b3{left:58%;top:70%;animation-delay:2.9s}
+  @keyframes blip{0%,12%{opacity:0;transform:translate(-50%,-50%) scale(.4)}18%{opacity:1;transform:translate(-50%,-50%) scale(1)}55%{opacity:.5}100%{opacity:0}}
+  .art .float{position:absolute;display:flex;align-items:center;gap:9px;padding:12px 16px;border-radius:15px;font-family:var(--disp);font-weight:700;
+    background:linear-gradient(95deg,rgba(20,18,28,.92),rgba(20,18,28,.7));border:1px solid var(--line);backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(0,0,0,.5);animation:float 5.5s ease-in-out infinite}
+  .art .float .n{font-size:1.45rem;background:linear-gradient(95deg,var(--red2),#ff8a5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .art .float .l{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;line-height:1.2}
+  .art .f1{left:-6%;bottom:14%}.art .f2{right:-4%;top:12%;animation-delay:1.4s}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-11px)}}
+
+  /* reward */
+  .rwd-h{font-family:var(--disp);font-size:1.15rem;font-weight:700;margin:2px 0 12px;display:flex;align-items:center;gap:8px}
+  .rwd-map{width:100%;border-radius:14px;border:1px solid var(--line);margin-bottom:13px;display:block;box-shadow:0 14px 40px rgba(0,0,0,.4)}
+  .ev{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;margin-top:9px;background:rgba(255,255,255,.03)}
+  .ev .l{display:flex;flex-direction:column;gap:2px}.ev .d{font-weight:700;display:flex;align-items:center;gap:8px}.ev .w{font-size:12px;color:var(--faint)}
+  .ev .m{font-family:var(--disp);color:var(--red2);font-weight:700;white-space:nowrap;font-size:1.02rem}
+  .ev.dh{border-color:rgba(239,43,43,.42);background:rgba(239,43,43,.10)}
+  .tag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:var(--red);border-radius:6px;padding:2px 7px}
+  .qual{background:var(--okbg);border:1px solid rgba(16,185,129,.4);color:var(--ok);border-radius:13px;padding:13px 15px;margin-top:13px;font-weight:700;font-family:var(--disp)}
+  .nb{background:rgba(70,89,138,.14);border:1px solid rgba(70,89,138,.4);border-radius:13px;padding:13px 15px;margin-top:11px;font-weight:600;color:var(--tx)}
+  .src{font-size:11.5px;color:var(--faint);margin-top:11px}
+  .next{background:rgba(239,43,43,.08);border:1px dashed rgba(239,43,43,.4);border-radius:14px;padding:15px;margin-top:14px;color:var(--mut)}
+  .next b{color:var(--tx)}
+
+  footer{border-top:1px solid var(--line);max-width:1280px;margin:30px auto 0;padding:28px clamp(18px,5vw,56px) 44px}
+  .foot-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .foot-row img{height:22px;opacity:.9}
+  .foot-fine{color:var(--faint);font-size:12.5px;line-height:1.6;max-width:88ch}
+  .spin-i{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
+  .pac-container{z-index:99999;border-radius:12px;margin-top:6px;background:#15131d;border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.6);font-family:var(--body)}
+  .pac-item{color:var(--mut);border-color:var(--line);padding:7px 12px}.pac-item:hover{background:rgba(255,255,255,.06)}.pac-item-query{color:var(--tx)}
+  .reveal{opacity:0;transform:translateY(20px);animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* ── responsive: real desktop vs phone ── */
+  @media (max-width:880px){
+    .hero{grid-template-columns:1fr;text-align:center;gap:18px;padding-top:24px}
+    .sub{margin-left:auto;margin-right:auto}
+    .trust{justify-content:center}
+    .art{order:-1;width:min(300px,72vw);margin:0 auto 4px}
+    .art .float{display:none}
+    .nav .badge{display:none}
+    form.search{flex-direction:column}.btn{width:100%}
+  }
+  @media (max-width:420px){ h1.title{font-size:2.15rem} .card{margin-top:18px} }
 </style>
 </head>
 <body>
-  <div class="top"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></div>
-  <div class="hero">
-    <div class="brand">Roof&#8209;ER &middot; Free Storm Roof Check</div>
-    <h1>Did the storm hit your roof?</h1>
-    <p class="sub">Enter your address for a free 10-second check — see your 2-year hail history and whether you qualify for an insurance inspection.</p>
-    <div class="trust"><span>4,391 roofs completed in the DMV</span><span>We handle the insurance claim</span><span>Licensed &amp; local</span></div>
-  </div>
+  <div class="bg"></div>
+  <canvas id="hail"></canvas>
+  <div class="grain"></div>
+  <div class="wrap">
+    <nav class="nav">
+      <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs">
+      <span class="badge">Free Storm Roof Check</span>
+      <a class="call" href="tel:+15715550100">📞 Talk to a specialist</a>
+    </nav>
 
-  <div class="card">
-    <form class="search" id="searchForm" autocomplete="off">
-      <input type="text" id="addr" placeholder="123 Main St, Vienna, VA 22180" aria-label="Your home address" required>
-      <button class="btn" id="goBtn" type="submit">Check my roof &rarr;</button>
-    </form>
-    <p class="muted" id="hint" style="margin-top:9px">Free, no obligation. We never share your info.</p>
+    <main class="hero">
+      <section class="left">
+        <span class="eyebrow"><span class="dot"></span> Free 10-second storm check</span>
+        <h1 class="title">Did the storm hit <span class="grad">your roof?</span></h1>
+        <p class="sub">Enter your address and we'll pull your address-level hail history and tell you whether your roof qualifies for an insurance inspection — in seconds.</p>
 
-    <div class="gate" id="gate">
-      <div class="teaser" id="teaser"></div>
-      <div class="unlock">
-        <h3>See your full 2-year storm history</h3>
-        <p class="muted">We'll pull every hail &amp; wind event on record for your address and tell you if your claim window is open. A Roof-ER specialist follows up within 24 hours.</p>
-        <form id="leadForm">
-          <div class="field"><input type="text" id="name" placeholder="Your name" required></div>
-          <div class="field"><input type="tel" id="phone" placeholder="Phone" required></div>
-          <div class="field"><input type="email" id="email" placeholder="Email (optional)"></div>
-          <button class="btn full" id="leadBtn" type="submit">Show my storm history &rarr;</button>
-        </form>
+        <div class="card">
+          <form class="search" id="searchForm" autocomplete="off">
+            <input type="text" id="addr" placeholder="123 Main St, Vienna, VA 22180" aria-label="Your home address" required>
+            <button class="btn" id="goBtn" type="submit">Check my roof &rarr;</button>
+          </form>
+          <p class="hint" id="hint">🔒 Free, no obligation. We never share your info.</p>
+
+          <div class="gate" id="gate">
+            <div class="teaser" id="teaser"></div>
+            <div class="unlock">
+              <h3>See your full 2-year storm history</h3>
+              <p class="muted">Every hail &amp; wind event on record for your address, plus whether your claim window is open. A Roof-ER specialist follows up within 24 hours.</p>
+              <form id="leadForm">
+                <div class="field"><input type="text" id="name" placeholder="Your name" required></div>
+                <div class="field"><input type="tel" id="phone" placeholder="Phone" required></div>
+                <div class="field"><input type="email" id="email" placeholder="Email (optional)"></div>
+                <button class="btn full" id="leadBtn" type="submit">Show my storm history &rarr;</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="reward" id="reward"></div>
+        </div>
+
+        <div class="trust"><span><b>8,000+</b> projects completed</span><span>We handle the insurance claim</span><span>Licensed &amp; local</span></div>
+      </section>
+
+      <aside class="art">
+        <div class="radar">
+          <div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div>
+          <div class="cross"></div><div class="cross v"></div>
+          <div class="sweep"></div>
+          <span class="blip b1"></span><span class="blip b2"></span><span class="blip b3"></span>
+        </div>
+        <div class="float f1"><span class="n">8,000+</span><span class="l">roofs<br>completed</span></div>
+        <div class="float f2"><span class="n">VA·MD·PA</span><span class="l">storm<br>coverage</span></div>
+      </aside>
+    </main>
+
+    <footer>
+      <div class="foot-row">
+        <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER">
+        <span class="muted" style="font-size:13px">storm-damage roofing &amp; insurance-claim experts</span>
       </div>
-    </div>
-
-    <div class="reward" id="reward"></div>
+      <p class="foot-fine">Roof&#8209;ER / The Roof Docs — serving Virginia, Maryland &amp; Pennsylvania (the DMV, Richmond &amp; PA areas). This is a free storm-history check, not a damage assessment — the full assessment happens at your on-site inspection. Storm data: NOAA NEXRAD (NCEI SWDI) + NWS/SPC, multi-source corroborated.</p>
+    </footer>
   </div>
-
-  <footer>Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Northern Virginia, Maryland &amp; DC. Storm data: NOAA NEXRAD (NCEI SWDI) + NWS/SPC.</footer>
 
 <script>
 (function(){
@@ -330,16 +454,23 @@ function renderPage(mapsKey) {
   var P=new URLSearchParams(location.search); var REP=P.get('rep')||''; var SRC=P.get('src')||'';
   function esc(s){return String(s==null?'':s).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];});}
 
-  // Google Places autocomplete (progressive enhancement — input still works without it)
+  /* hail canvas — light, respects reduced motion */
+  (function(){
+    var c=$('hail'); if(!c) return;
+    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches){c.style.display='none';return;}
+    var x=c.getContext('2d'),w,h,drops=[];
+    function size(){w=c.width=innerWidth;h=c.height=innerHeight;var n=Math.min(150,Math.floor(w/9));drops=[];for(var i=0;i<n;i++)drops.push({x:Math.random()*w,y:Math.random()*h,l:6+Math.random()*16,s:5+Math.random()*9,o:.12+Math.random()*.3});}
+    size(); addEventListener('resize',size);
+    (function loop(){x.clearRect(0,0,w,h);x.lineCap='round';for(var i=0;i<drops.length;i++){var d=drops[i];x.strokeStyle='rgba(255,140,140,'+d.o+')';x.lineWidth=1.4;x.beginPath();x.moveTo(d.x,d.y);x.lineTo(d.x-1.5,d.y+d.l);x.stroke();d.y+=d.s;d.x-=.6;if(d.y>h){d.y=-d.l;d.x=Math.random()*w;}}requestAnimationFrame(loop);})();
+  })();
+
+  /* Google Places autocomplete — progressive enhancement */
   window.initRC=function(){
     try{
       var ac=new google.maps.places.Autocomplete($('addr'),{types:['address'],componentRestrictions:{country:'us'},fields:['formatted_address','geometry']});
       ac.addListener('place_changed',function(){
         var pl=ac.getPlace();
-        if(pl&&pl.geometry&&pl.geometry.location){
-          ctx.lat=pl.geometry.location.lat(); ctx.lng=pl.geometry.location.lng();
-          ctx.normalizedAddress=pl.formatted_address||$('addr').value;
-        }
+        if(pl&&pl.geometry&&pl.geometry.location){ctx.lat=pl.geometry.location.lat();ctx.lng=pl.geometry.location.lng();ctx.normalizedAddress=pl.formatted_address||$('addr').value;}
       });
     }catch(e){}
   };
@@ -347,8 +478,8 @@ function renderPage(mapsKey) {
   $('searchForm').addEventListener('submit', async function(e){
     e.preventDefault();
     var a=$('addr').value.trim(); if(!a) return;
-    var b=$('goBtn'); b.disabled=true; b.innerHTML='<span class="spin"></span>';
-    $('hint').textContent='Scanning storm data for your address…';
+    var b=$('goBtn'); b.disabled=true; b.innerHTML='<span class="spin-i"></span>';
+    $('hint').innerHTML='Scanning storm data for your address…';
     try{
       var body={address:ctx.normalizedAddress||a};
       if(ctx.lat&&ctx.lng){ body.lat=ctx.lat; body.lng=ctx.lng; }
@@ -358,9 +489,9 @@ function renderPage(mapsKey) {
       ctx.lat=d.lat; ctx.lng=d.lng; ctx.normalizedAddress=d.normalizedAddress||a;
       var t=d.teaser||{};
       $('teaser').innerHTML = t.got
-        ? '<div class="ic">&#9888;&#65039;</div><div><b>Your address was in a storm path.</b>Enter your details below to see <b>when</b> it hit, <b>how big</b> the hail was, and whether you <b>qualify</b> for an insurance-paid roof.</div>'
+        ? '<div class="ic">&#9888;&#65039;</div><div><b>Your address was in a storm path.</b>Enter your details to see <b>when</b> it hit, <b>how big</b> the hail was, and whether you <b>qualify</b> for an insurance-paid roof.</div>'
         : '<div class="ic">&#127783;&#65039;</div><div><b>Let\\'s check your address for storm damage.</b>Enter your details to see your full 2-year hail &amp; wind history and insurance eligibility.</div>';
-      $('hint').style.display='none'; $('gate').style.display='block';
+      $('gate').style.display='block'; $('gate').classList.add('reveal');
       $('gate').scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(err){ $('hint').textContent='Something went wrong — please try again.'; }
     finally{ b.disabled=false; b.innerHTML='Check my roof &rarr;'; }
@@ -370,7 +501,7 @@ function renderPage(mapsKey) {
     e.preventDefault();
     var name=$('name').value.trim(), phone=$('phone').value.trim(), email=$('email').value.trim();
     if(!name||phone.replace(/\\D/g,'').length<7){ alert('Please enter your name and phone.'); return; }
-    var b=$('leadBtn'); b.disabled=true; b.innerHTML='<span class="spin"></span>';
+    var b=$('leadBtn'); b.disabled=true; b.innerHTML='<span class="spin-i"></span>';
     try{
       var r=await fetch('/api/roofcheck/lead',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({name:name,phone:phone,email:email,address:ctx.normalizedAddress||$('addr').value.trim(),lat:ctx.lat,lng:ctx.lng,rep:REP,src:SRC})});
@@ -381,7 +512,7 @@ function renderPage(mapsKey) {
   });
 
   function renderReward(rw){
-    var h='<div class="rwd-h">&#128203; Your storm history — last 2 years</div>';
+    var h='<div class="rwd-h">📋 Your storm history — last 2 years</div>';
     if(rw.map) h+='<img class="rwd-map" alt="Your roof" src="'+esc(rw.map)+'" onerror="this.style.display=\\'none\\'">';
     var evs=rw.events||[];
     if(evs.length){
@@ -394,9 +525,9 @@ function renderPage(mapsKey) {
     if(rw.qualifying) h+='<div class="qual">&#10003; Qualifying event — your insurance claim window is open. This is worth a free inspection.</div>';
     if(rw.neighbors&&rw.neighbors.count>0) h+='<div class="nb">&#127968; We\\'ve completed '+rw.neighbors.count+' roof'+(rw.neighbors.count==1?'':'s')+' within a mile of you'+(rw.neighbors.nearest?(' — including one on '+esc(rw.neighbors.nearest)):'')+'.</div>';
     h+='<div class="src">Source: '+esc(rw.source||'NOAA NEXRAD (NCEI SWDI) + NWS/SPC')+'</div>';
-    h+='<div class="next">&#128197; <b>Next step:</b> the full damage assessment + insurance documentation happens at your <b>free on-site inspection</b>. A Roof-ER specialist will call within 24 hours to schedule.</div>';
+    h+='<div class="next">📅 <b>Next step:</b> the full damage assessment + insurance documentation happens at your <b>free on-site inspection</b>. A Roof-ER specialist will call within 24 hours to schedule.</div>';
     $('gate').style.display='none';
-    $('reward').innerHTML=h; $('reward').style.display='block';
+    $('reward').innerHTML=h; $('reward').style.display='block'; $('reward').classList.add('reveal');
     $('reward').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 })();
