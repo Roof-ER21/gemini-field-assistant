@@ -1383,8 +1383,8 @@ export function createProfileRoutes(pool: Pool) {
 
       const result = await pool.query(
         `INSERT INTO employee_profiles
-         (name, title, email, phone_number, bio, image_url, role_type, start_year, slug, user_id, is_claimed)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (name, title, email, phone_number, bio, image_url, role_type, start_year, slug, user_id, is_claimed, created_by_email, updated_by_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
          RETURNING *`,
         [
           name,
@@ -1397,7 +1397,8 @@ export function createProfileRoutes(pool: Pool) {
           start_year || null,
           slug,
           user_id || null,
-          user_id ? true : false
+          user_id ? true : false,
+          userEmail || null
         ]
       );
 
@@ -1448,10 +1449,11 @@ export function createProfileRoutes(pool: Pool) {
              slug = COALESCE($9, slug),
              is_active = COALESCE($10, is_active),
              user_id = COALESCE($11, user_id),
+             updated_by_email = COALESCE($13, updated_by_email),
              updated_at = NOW()
          WHERE id = $12
          RETURNING *`,
-        [name, title, email, phone_number, bio, image_url, role_type, start_year, slug, is_active, user_id, id]
+        [name, title, email, phone_number, bio, image_url, role_type, start_year, slug, is_active, user_id, id, userEmail || null]
       );
 
       if (result.rows.length === 0) {
@@ -1604,9 +1606,9 @@ export function createProfileRoutes(pool: Pool) {
 
           await pool.query(
             `INSERT INTO employee_profiles
-             (name, email, slug, user_id, is_claimed)
-             VALUES ($1, $2, $3, $4, TRUE)`,
-            [name, user.email, slug, user.id]
+             (name, email, slug, user_id, is_claimed, created_by_email, updated_by_email)
+             VALUES ($1, $2, $3, $4, TRUE, $5, $5)`,
+            [name, user.email, slug, user.id, userEmail || null]
           );
           created++;
         } catch (err) {
@@ -1764,8 +1766,8 @@ export function createProfileRoutes(pool: Pool) {
       }
 
       const result = await pool.query(
-        `UPDATE employee_profiles SET image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-        [imageUrl, id]
+        `UPDATE employee_profiles SET image_url = $1, updated_by_email = COALESCE($3, updated_by_email), updated_at = NOW() WHERE id = $2 RETURNING *`,
+        [imageUrl, id, userEmail || null]
       );
 
       if (result.rows.length === 0) {
@@ -1849,9 +1851,9 @@ export function createProfileRoutes(pool: Pool) {
       }
 
       const result = await pool.query(
-        `INSERT INTO profile_videos (profile_id, title, description, url, is_welcome_video, duration, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [id, title, description || null, videoUrl, isWelcome, duration ? parseInt(duration as string) : null, display_order ? parseInt(display_order as string) : 0]
+        `INSERT INTO profile_videos (profile_id, title, description, url, is_welcome_video, duration, display_order, added_by_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [id, title, description || null, videoUrl, isWelcome, duration ? parseInt(duration as string) : null, display_order ? parseInt(display_order as string) : 0, userEmail || null]
       );
 
       console.log(`✅ Video added for profile ${id}: ${videoUrl} (volume: ${UPLOADS_ROOT})`);
@@ -1958,8 +1960,8 @@ export function createProfileRoutes(pool: Pool) {
         return res.status(400).json({ success: false, error: 'text and author are required' });
       }
       const r = await pool.query(
-        `INSERT INTO profile_reviews (profile_id, text, author, date_label, source, source_url, rating, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO profile_reviews (profile_id, text, author, date_label, source, source_url, rating, display_order, added_by_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
         [
           profileIdParam,
@@ -1970,6 +1972,7 @@ export function createProfileRoutes(pool: Pool) {
           source_url || null,
           Number.isFinite(rating) ? rating : 5,
           Number.isFinite(display_order) ? display_order : 0,
+          userEmail || null,
         ],
       );
       res.json({ success: true, review: r.rows[0] });
@@ -2076,9 +2079,9 @@ export function createProfileRoutes(pool: Pool) {
           }
 
           await pool.query(
-            `INSERT INTO employee_profiles (name, title, role_type, email, phone_number, bio, image_url, slug, start_year, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [p.name, p.title || null, p.role_type || 'sales_rep', p.email || null, p.phone_number || null, p.bio || null, p.image_url || null, slug, p.start_year || null, p.is_active !== false]
+            `INSERT INTO employee_profiles (name, title, role_type, email, phone_number, bio, image_url, slug, start_year, is_active, created_by_email, updated_by_email)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+            [p.name, p.title || null, p.role_type || 'sales_rep', p.email || null, p.phone_number || null, p.bio || null, p.image_url || null, slug, p.start_year || null, p.is_active !== false, userEmail || null]
           );
           results.created++;
         } catch (err: any) {

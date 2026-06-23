@@ -329,6 +329,108 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     }
   });
 
+  /**
+   * GET /api/qr-analytics/attribution
+   * "Who filled out what for who" — per-rep setup attribution plus a per-staff
+   * rollup. Admin / marketing only.
+   */
+  router.get('/attribution', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+
+      if (!await canManageQRUser(userEmail)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Admin access required'
+        });
+      }
+
+      // Per-rep: who created it, who last edited it, how much content was added,
+      // and how many scans the page has pulled.
+      const perProfile = await pool.query(`
+        SELECT
+          ep.slug,
+          ep.name,
+          ep.role_type,
+          ep.is_active,
+          ep.is_claimed,
+          ep.image_url,
+          ep.created_by_email,
+          ep.created_at,
+          ep.updated_by_email,
+          ep.updated_at,
+          COALESCE(v.video_count, 0)  AS video_count,
+          COALESCE(r.review_count, 0) AS review_count,
+          COALESCE(s.scan_count, 0)   AS scan_count,
+          (ep.image_url IS NOT NULL)  AS has_photo
+        FROM employee_profiles ep
+        LEFT JOIN (SELECT profile_id, COUNT(*) AS video_count  FROM profile_videos  GROUP BY profile_id) v ON v.profile_id = ep.id
+        LEFT JOIN (SELECT profile_id, COUNT(*) AS review_count FROM profile_reviews WHERE profile_id IS NOT NULL GROUP BY profile_id) r ON r.profile_id = ep.id
+        LEFT JOIN (SELECT profile_slug, COUNT(*) AS scan_count FROM qr_scans GROUP BY profile_slug) s ON s.profile_slug = ep.slug
+        ORDER BY COALESCE(ep.updated_at, ep.created_at) DESC NULLS LAST
+      `);
+
+      // Per-staff rollup: how many pages each admin/marketing person set up, and
+      // how many videos / reviews they added across all reps.
+      const staff = await pool.query(`
+        SELECT
+          email,
+          SUM(profiles_created) AS profiles_created,
+          SUM(profiles_edited)  AS profiles_edited,
+          SUM(videos_added)     AS videos_added,
+          SUM(reviews_added)    AS reviews_added
+        FROM (
+          SELECT created_by_email AS email, COUNT(*) AS profiles_created, 0 AS profiles_edited, 0 AS videos_added, 0 AS reviews_added
+            FROM employee_profiles WHERE created_by_email IS NOT NULL GROUP BY created_by_email
+          UNION ALL
+          SELECT updated_by_email, 0, COUNT(*), 0, 0
+            FROM employee_profiles WHERE updated_by_email IS NOT NULL GROUP BY updated_by_email
+          UNION ALL
+          SELECT added_by_email, 0, 0, COUNT(*), 0
+            FROM profile_videos WHERE added_by_email IS NOT NULL GROUP BY added_by_email
+          UNION ALL
+          SELECT added_by_email, 0, 0, 0, COUNT(*)
+            FROM profile_reviews WHERE added_by_email IS NOT NULL GROUP BY added_by_email
+        ) t
+        GROUP BY email
+        ORDER BY profiles_created DESC, profiles_edited DESC
+      `);
+
+      res.json({
+        success: true,
+        profiles: perProfile.rows.map(row => ({
+          slug: row.slug,
+          name: row.name,
+          roleType: row.role_type,
+          isActive: row.is_active,
+          isClaimed: row.is_claimed,
+          imageUrl: row.image_url,
+          hasPhoto: row.has_photo,
+          createdByEmail: row.created_by_email,
+          createdAt: row.created_at,
+          updatedByEmail: row.updated_by_email,
+          updatedAt: row.updated_at,
+          videoCount: parseInt(row.video_count),
+          reviewCount: parseInt(row.review_count),
+          scanCount: parseInt(row.scan_count)
+        })),
+        staff: staff.rows.map(row => ({
+          email: row.email,
+          profilesCreated: parseInt(row.profiles_created),
+          profilesEdited: parseInt(row.profiles_edited),
+          videosAdded: parseInt(row.videos_added),
+          reviewsAdded: parseInt(row.reviews_added)
+        }))
+      });
+    } catch (error) {
+      console.error('❌ QR analytics attribution error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get attribution'
+      });
+    }
+  });
+
   return router;
 }
 

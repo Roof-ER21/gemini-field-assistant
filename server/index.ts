@@ -10563,6 +10563,14 @@ async function runStartupMigrations() {
       }
     }
 
+    // QR profile attribution — track WHO (admin/marketing) set up / edited each
+    // rep's page and added each video/review, so the Scan Analytics dashboard can
+    // show "who filled out what for who". Idempotent; safe to run every boot.
+    await pool.query(`ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS created_by_email TEXT`);
+    await pool.query(`ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS updated_by_email TEXT`);
+    await pool.query(`ALTER TABLE profile_videos ADD COLUMN IF NOT EXISTS added_by_email TEXT`);
+    await pool.query(`ALTER TABLE profile_reviews ADD COLUMN IF NOT EXISTS added_by_email TEXT`);
+
     console.log('✅ Startup migrations completed');
   } catch (error: any) {
     // Ignore "already exists" errors

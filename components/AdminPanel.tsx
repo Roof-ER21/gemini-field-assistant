@@ -43,6 +43,7 @@ import AdminLeadAnalyticsPanel from './AdminLeadAnalyticsPanel';
 import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
+import AdminScanAnalyticsPanel from './AdminScanAnalyticsPanel';
 import AdminKnowledgePanel from './AdminKnowledgePanel';
 import AdminLearningsPanel from './AdminLearningsPanel';
 import AdminPinModal from './AdminPinModal';
@@ -295,7 +296,7 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'qr-analytics' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
   const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1652,14 +1653,14 @@ const AdminPanel: React.FC = () => {
         // with only the QR Profiles tab.
         const tabGroups = isMarketing && !isAdmin
           ? [
-              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles'] }
+              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles', 'qr-analytics'] }
             ]
           : [
               { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
               { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
               { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
               { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
-              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'rep-phones'] }
+              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'qr-analytics', 'rep-phones'] }
             ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -1677,6 +1678,7 @@ const AdminPanel: React.FC = () => {
           'intel-review': { label: 'Intel Review', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
           settings: { label: 'Settings', icon: <Sliders style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'qr-profiles': { label: 'QR Profiles', icon: <MapPin style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'qr-analytics': { label: 'Scan Analytics', icon: <BarChart3 style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'knowledge': { label: 'Knowledge Base', icon: <Database style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'learnings': { label: 'Susan Learnings', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> }
@@ -5003,6 +5005,16 @@ const AdminPanel: React.FC = () => {
               const authUser = localStorage.getItem('s21_auth_user');
               return authUser ? JSON.parse(authUser).email : '';
             } catch { return ''; }
+          })()} />
+        )}
+
+        {/* Scan Analytics Tab */}
+        {activeTab === 'qr-analytics' && (
+          <AdminScanAnalyticsPanel userEmail={(() => {
+            try {
+              const authUser = localStorage.getItem('s21_auth_user');
+              return authUser ? JSON.parse(authUser).email : (currentUser?.email || '');
+            } catch { return currentUser?.email || ''; }
           })()} />
         )}
 
