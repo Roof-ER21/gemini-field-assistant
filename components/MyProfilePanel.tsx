@@ -18,7 +18,10 @@ import {
   Copy,
   ExternalLink,
   RefreshCw,
-  Loader
+  Loader,
+  CloudRain,
+  Check,
+  Download
 } from 'lucide-react';
 
 interface MyProfilePanelProps {
@@ -63,6 +66,9 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
   const [error, setError] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // RoofCheck storm-check share link (homeowners "did the storm hit your roof?")
+  const [stormChannel, setStormChannel] = useState('door');
+  const [stormCopied, setStormCopied] = useState(false);
 
   // Editable form data
   const [formData, setFormData] = useState({
@@ -191,6 +197,17 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // The rep's personal RoofCheck (storm-check) link — signups attribute back to them.
+  const stormUrl = profile
+    ? `${window.location.origin}/roofcheck?rep=${profile.slug}${stormChannel ? `&src=${stormChannel}` : ''}`
+    : '';
+  const copyStormUrl = () => {
+    if (!stormUrl) return;
+    navigator.clipboard.writeText(stormUrl);
+    setStormCopied(true);
+    setTimeout(() => setStormCopied(false), 2000);
+  };
+
   useEffect(() => {
     fetchProfile();
   }, [userEmail]);
@@ -282,6 +299,82 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           {error}
         </div>
       )}
+
+      {/* Storm Check share — rep's personal "did the storm hit your roof?" link */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(220,38,38,0.12) 0%, rgba(123,10,10,0.06) 100%)',
+        border: '1px solid rgba(220,38,38,0.35)',
+        borderRadius: '12px',
+        padding: '1.25rem 1.5rem',
+        marginBottom: '2rem',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        alignItems: 'center'
+      }}>
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+            <CloudRain style={{ width: '1.15rem', height: '1.15rem', color: '#dc2626' }} />
+            <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 700 }}>Your Storm Check link</h2>
+          </div>
+          <p style={{ margin: '0 0 0.75rem', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+            Share this with homeowners — “Did the storm hit your roof?” Every signup through your link is tagged to you and shows in your numbers.
+          </p>
+
+          {/* Channel selector — tags where you posted it (?src=) */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+            {[['door', 'Door knock'], ['text', 'Text'], ['social', 'Social'], ['qr', 'QR / flyer'], ['', 'No tag']].map(([val, label]) => (
+              <button key={label} onClick={() => setStormChannel(val)} style={{
+                padding: '0.3rem 0.7rem', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                borderRadius: '999px',
+                border: stormChannel === val ? '1px solid #dc2626' : '1px solid var(--border-subtle)',
+                background: stormChannel === val ? '#dc2626' : 'transparent',
+                color: stormChannel === val ? '#fff' : 'var(--text-tertiary)'
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {/* The link + copy */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input readOnly value={stormUrl} onFocus={(e) => e.currentTarget.select()} style={{
+              flex: 1, minWidth: 200, padding: '0.6rem 0.75rem', fontSize: '0.82rem',
+              background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)',
+              borderRadius: '8px', color: 'var(--text-primary)'
+            }} />
+            <button onClick={copyStormUrl} style={{
+              padding: '0.6rem 1rem', background: stormCopied ? '#16a34a' : '#dc2626', color: '#fff',
+              border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap'
+            }}>
+              {stormCopied ? <><Check style={{ width: '0.9rem', height: '0.9rem' }} /> Copied</> : <><Copy style={{ width: '0.9rem', height: '0.9rem' }} /> Copy</>}
+            </button>
+            <a href={stormUrl} target="_blank" rel="noopener noreferrer" style={{
+              padding: '0.6rem 0.85rem', background: 'transparent', color: 'var(--text-tertiary)',
+              border: '1px solid var(--border-subtle)', borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', textDecoration: 'none'
+            }}>
+              <ExternalLink style={{ width: '0.9rem', height: '0.9rem' }} /> Preview
+            </a>
+          </div>
+        </div>
+
+        {/* QR for the storm-check link */}
+        <div style={{ textAlign: 'center' }}>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=8&data=${encodeURIComponent(stormUrl)}`}
+            alt="Storm Check QR"
+            style={{ width: 132, height: 132, borderRadius: '10px', background: '#fff', padding: 4 }}
+          />
+          <a
+            href={`https://api.qrserver.com/v1/create-qr-code/?size=1024x1024&margin=20&data=${encodeURIComponent(stormUrl)}`}
+            download={`storm-check-${profile.slug}.png`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem', fontSize: '0.78rem', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}
+          >
+            <Download style={{ width: '0.85rem', height: '0.85rem' }} /> Download QR
+          </a>
+        </div>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr', gap: '2rem' }}>
         {/* Left Column - Profile Info */}
