@@ -76,7 +76,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
     title: '',
     bio: '',
     phone_number: '',
-    start_year: ''
+    years_experience: ''
   });
 
   // Fetch user's profile
@@ -100,7 +100,8 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           title: data.profile.title || '',
           bio: data.profile.bio || '',
           phone_number: data.profile.phone_number || '',
-          start_year: data.profile.start_year?.toString() || ''
+          // Stored as start_year in the DB; shown to reps as # of years (auto-increments yearly).
+          years_experience: data.profile.start_year ? String(new Date().getFullYear() - data.profile.start_year) : ''
         });
 
         // Fetch stats for this profile
@@ -168,7 +169,8 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           title: formData.title || null,
           bio: formData.bio || null,
           phone_number: formData.phone_number || null,
-          start_year: formData.start_year ? parseInt(formData.start_year) : null
+          // Convert "# of years" back to a start_year for storage.
+          start_year: formData.years_experience ? (new Date().getFullYear() - parseInt(formData.years_experience)) : null
         })
       });
 
@@ -570,16 +572,16 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
 
             <div>
               <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-                Started Year
+                Years of Experience
               </label>
               {editing ? (
                 <input
                   type="number"
-                  value={formData.start_year}
-                  onChange={(e) => setFormData({ ...formData, start_year: e.target.value })}
-                  placeholder="2020"
-                  min="1990"
-                  max={new Date().getFullYear()}
+                  value={formData.years_experience}
+                  onChange={(e) => setFormData({ ...formData, years_experience: e.target.value })}
+                  placeholder="7"
+                  min="0"
+                  max="60"
                   style={{
                     width: '120px',
                     padding: '0.75rem',
@@ -591,7 +593,7 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
                   }}
                 />
               ) : (
-                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.start_year || '—'}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{profile.start_year ? `${new Date().getFullYear() - profile.start_year} years` : '—'}</div>
               )}
             </div>
           </div>
