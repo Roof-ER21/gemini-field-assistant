@@ -253,6 +253,95 @@ export function createRoofCheckRoutes(pool) {
             res.json({ ok: false, error: 'Something went wrong — please try again.' });
         }
     });
+    // Public, minimal rep card — personalizes the "Contact rep" CTA (name + headshot).
+    // Only ?rep=<slug> links hit this; nothing sensitive (same info as the public profile).
+    router.get('/api/roofcheck/rep/:slug', async (req, res) => {
+        try {
+            const slug = String(req.params.slug || '').trim().toLowerCase();
+            if (!slug) {
+                res.json({ ok: false });
+                return;
+            }
+            const r = await pool.query(`SELECT name, slug, image_url FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1`, [slug]);
+            const p = r.rows[0];
+            if (!p) {
+                res.json({ ok: false });
+                return;
+            }
+            const first = String(p.name || '').trim().split(/\s+/)[0] || p.name || '';
+            res.json({ ok: true, name: p.name || null, firstName: first || null, photo: p.image_url || null });
+        }
+        catch {
+            res.json({ ok: false });
+        }
+    });
+    // Appointment request — attaches a preferred day/time to the lead the homeowner
+    // already created (gate step), then forwards it to CC24 so the office can book the
+    // inspection (CC24 turns preferredDate/preferredTime into a calendar event + rep
+    // notification). No new local lead row — we UPDATE the existing one, so the
+    // dashboard shows the requested slot on the same lead.
+    router.post('/api/roofcheck/schedule', async (req, res) => {
+        try {
+            const b = req.body || {};
+            const leadId = String(b.leadId || '').trim() || null;
+            const preferredDate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? String(b.date) : null;
+            const preferredTime = /^\d{2}:\d{2}$/.test(String(b.time || '')) ? String(b.time) : null;
+            if (!preferredDate) {
+                res.json({ ok: false, error: 'Please pick a day.' });
+                return;
+            }
+            const dayLabel = String(b.dayLabel || '').slice(0, 40);
+            const windowLabel = String(b.windowLabel || '').slice(0, 40);
+            const repSlug = String(b.rep || '').trim().toLowerCase() || null;
+            const src = String(b.src || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || null;
+            // Identity from the existing lead row (authoritative); fall back to the body.
+            let name = String(b.name || '').trim();
+            let phone = String(b.phone || '').trim();
+            let email = String(b.email || '').trim();
+            let address = String(b.address || '').trim();
+            if (leadId) {
+                const ex = await pool.query(`SELECT homeowner_name, homeowner_phone, homeowner_email, address FROM profile_leads WHERE id = $1 LIMIT 1`, [leadId]);
+                const r0 = ex.rows[0];
+                if (r0) {
+                    name = name || r0.homeowner_name || '';
+                    phone = phone || r0.homeowner_phone || '';
+                    email = email || r0.homeowner_email || '';
+                    address = address || r0.address || '';
+                }
+                const apptNote = ` | 📅 APPT REQUEST: ${dayLabel || preferredDate}${windowLabel ? ` · ${windowLabel}` : ''}`;
+                await pool.query(`UPDATE profile_leads SET preferred_date = $1, preferred_time = $2, message = COALESCE(message,'') || $3 WHERE id = $4`, [preferredDate, preferredTime, apptNote, leadId]);
+            }
+            // Rep attribution for the forward.
+            let repName = null, repEmail = null;
+            if (repSlug) {
+                const pr = await pool.query(`SELECT name, email FROM employee_profiles WHERE slug = $1 LIMIT 1`, [repSlug]);
+                repName = pr.rows[0]?.name || null;
+                repEmail = pr.rows[0]?.email || null;
+            }
+            // Forward the appointment to CC24. Env-guarded (ROOFCHECK_APPT_TO_CC24=0 to
+            // disable) for offices that would rather read the requested time off the
+            // sa21 dashboard than receive a second, appointment-tagged CC24 entry.
+            if (name && process.env.ROOFCHECK_APPT_TO_CC24 !== '0') {
+                forwardLeadToCC24({
+                    homeownerName: name,
+                    homeownerEmail: email || null,
+                    homeownerPhone: phone || null,
+                    address: address || null,
+                    serviceType: 'Inspection appointment request (RoofCheck)',
+                    preferredDate, preferredTime,
+                    message: `Homeowner requested ${dayLabel || preferredDate}${windowLabel ? ` · ${windowLabel}` : ''} for their free roof inspection.`,
+                    repName, repEmail,
+                    sourceLabel: `RoofCheck appointment${src ? ` (${src})` : ''}`,
+                    jobType: 'insurance',
+                });
+            }
+            res.json({ ok: true });
+        }
+        catch (err) {
+            console.error('[roofcheck] schedule error:', err);
+            res.json({ ok: false, error: 'Something went wrong — please try again.' });
+        }
+    });
     return router;
 }
 export default createRoofCheckRoutes;
@@ -399,6 +488,45 @@ function renderPage(_mapsKey) {
   .reveal{opacity:0;transform:translateY(20px);animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
 
+  /* nav CTA → opens the contact / sign-up sheet */
+  .navcta{font-family:var(--disp);font-weight:700;font-size:14px;color:#fff;cursor:pointer;
+    background:linear-gradient(95deg,var(--red),#ff6a4d);border:0;border-radius:999px;padding:9px 18px;
+    box-shadow:0 8px 22px rgba(239,43,43,.4);transition:transform .16s,box-shadow .16s;white-space:nowrap}
+  .navcta:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(239,43,43,.55)}
+
+  /* contact sheet (modal) */
+  .sheet-ov{display:none;position:fixed;inset:0;z-index:100;background:rgba(4,4,8,.66);backdrop-filter:blur(6px);
+    align-items:center;justify-content:center;padding:18px}
+  .sheet{position:relative;width:100%;max-width:440px;border-radius:22px;border:1px solid var(--line);
+    background:linear-gradient(180deg,#16131d,#100e16);box-shadow:0 40px 110px rgba(0,0,0,.7);padding:clamp(20px,3vw,30px)}
+  .sheet-x{position:absolute;top:13px;right:15px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);
+    background:rgba(255,255,255,.05);color:var(--mut);font-size:22px;line-height:1;cursor:pointer}
+  .sheet-x:hover{color:var(--tx);background:rgba(255,255,255,.1)}
+  .sheet h3{font-size:1.4rem;margin-bottom:6px}
+  .sheet-rep{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+  .sheet-rep img{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--red)}
+  .sheet-rep span{font-family:var(--disp);font-weight:700;font-size:15px}
+  .sheet-done{display:none;background:var(--okbg);border:1px solid rgba(16,185,129,.4);border-radius:14px;padding:16px;font-family:var(--disp);font-weight:700}
+
+  /* in-reward scheduler */
+  .sched{background:rgba(239,43,43,.08);border:1px solid rgba(239,43,43,.32);border-radius:16px;padding:16px;margin-top:14px}
+  .sched-h{font-family:var(--disp);font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:8px}
+  .sched .muted{margin:3px 0 12px}
+  .sched-lbl{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:6px 0 7px}
+  .sched-days{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .sched-wins{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}
+  .chip{font-family:var(--body);font-weight:600;font-size:13.5px;color:var(--mut);cursor:pointer;
+    background:rgba(255,255,255,.04);border:1.5px solid var(--line);border-radius:12px;padding:10px 13px;
+    white-space:nowrap;transition:border-color .15s,background .15s,color .15s;text-align:center}
+  .sched-days .chip{flex:0 0 auto}
+  .sched-wins .chip{display:flex;flex-direction:column;gap:2px;line-height:1.15}
+  .chip .cw{font-size:11px;font-weight:500;color:var(--faint)}
+  .chip:hover{border-color:rgba(239,43,43,.45);color:var(--tx)}
+  .chip.on{border-color:var(--red);background:rgba(239,43,43,.16);color:#fff}
+  .chip.on .cw{color:rgba(255,255,255,.8)}
+  .sched-ok{background:var(--okbg);border:1px solid rgba(16,185,129,.4);border-radius:13px;padding:15px;font-family:var(--disp);font-weight:700;color:var(--ok)}
+  .sched-ok b{color:var(--tx)}
+
   /* ── responsive: real desktop vs phone ── */
   @media (max-width:880px){
     .hero{grid-template-columns:1fr;text-align:center;gap:18px;padding-top:24px}
@@ -420,7 +548,7 @@ function renderPage(_mapsKey) {
     <nav class="nav">
       <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs">
       <span class="badge">Free Storm Roof Check</span>
-      <a class="call" href="tel:+15715550100">📞 Talk to a specialist</a>
+      <button class="navcta" id="contactBtn" type="button">Contact rep</button>
     </nav>
 
     <main class="hero">
@@ -478,12 +606,30 @@ function renderPage(_mapsKey) {
       </div>
       <p class="foot-fine">Roof&#8209;ER / The Roof Docs — serving Virginia, Maryland &amp; Pennsylvania (the DMV, Richmond &amp; PA areas). This is a free storm-history check, not a damage assessment — the full assessment happens at your on-site inspection. Storm data: NOAA NEXRAD (NCEI SWDI) + NWS/SPC, multi-source corroborated.</p>
     </footer>
+
+    <div class="sheet-ov" id="sheetOv">
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <button class="sheet-x" id="sheetX" type="button" aria-label="Close">&times;</button>
+        <div class="sheet-rep" id="sheetRep"></div>
+        <h3 id="sheetTitle">Get in touch with Roof&#8209;ER</h3>
+        <p class="muted" id="sheetSub">Leave your info and a local specialist will reach out — free, no obligation.</p>
+        <form id="contactForm" autocomplete="on">
+          <div class="field"><input type="text" id="cName" placeholder="Your name" autocomplete="name" required></div>
+          <div class="field"><input type="tel" id="cPhone" placeholder="Phone" autocomplete="tel" required></div>
+          <div class="field"><input type="email" id="cEmail" placeholder="Email (optional)" autocomplete="email"></div>
+          <div class="field"><input type="text" id="cAddr" placeholder="Property address (optional)" autocomplete="street-address"></div>
+          <button class="btn full" id="cBtn" type="submit">Request a callback &rarr;</button>
+        </form>
+        <div class="sheet-done" id="sheetDone"></div>
+      </div>
+    </div>
   </div>
 
 <script>
 (function(){
   var ctx={}, $=function(id){return document.getElementById(id);};
   var P=new URLSearchParams(location.search); var REP=P.get('rep')||''; var SRC=P.get('src')||'';
+  var REPNAME='', sc={};
   function esc(s){return String(s==null?'':s).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];});}
 
   /* hail canvas — light, respects reduced motion */
@@ -565,11 +711,13 @@ function renderPage(_mapsKey) {
     var name=$('name').value.trim(), phone=$('phone').value.trim(), email=$('email').value.trim();
     if(!name||phone.replace(/\\D/g,'').length<7){ alert('Please enter your name and phone.'); return; }
     var b=$('leadBtn'); b.disabled=true; b.innerHTML='<span class="spin-i"></span>';
+    ctx.name=name; ctx.phone=phone; ctx.email=email;
     try{
       var r=await fetch('/api/roofcheck/lead',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({name:name,phone:phone,email:email,address:ctx.normalizedAddress||$('addr').value.trim(),lat:ctx.lat,lng:ctx.lng,rep:REP,src:SRC})});
       var d=await r.json();
       if(!d.ok){ b.disabled=false; b.innerHTML='Show my storm history &rarr;'; alert(d.error||'Please try again.'); return; }
+      ctx.leadId=d.leadId||null;
       renderReward(d.reward||{});
     }catch(err){ b.disabled=false; b.innerHTML='Show my storm history &rarr;'; alert('Please try again.'); }
   });
@@ -588,11 +736,99 @@ function renderPage(_mapsKey) {
     if(rw.qualifying) h+='<div class="qual">&#10003; Qualifying event — your insurance claim window is open. This is worth a free inspection.</div>';
     if(rw.neighbors&&rw.neighbors.count>0) h+='<div class="nb">&#127968; We\\'ve completed '+rw.neighbors.count+' roof'+(rw.neighbors.count==1?'':'s')+' within a mile of you'+(rw.neighbors.nearest?(' — including one on '+esc(rw.neighbors.nearest)):'')+'.</div>';
     h+='<div class="src">Source: '+esc(rw.source||'NOAA NEXRAD (NCEI SWDI) + NWS/SPC')+'</div>';
-    h+='<div class="next">📅 <b>Next step:</b> the full damage assessment + insurance documentation happens at your <b>free on-site inspection</b>. A Roof-ER specialist will call within 24 hours to schedule.</div>';
+    h+='<div class="sched" id="sched">'
+      +'<div class="sched-h">📅 Book your free inspection</div>'
+      +'<p class="muted">The full damage assessment + insurance documentation happens on-site. Pick a day &amp; time that works — '+(REPNAME?esc(REPNAME):'your Roof-ER specialist')+' will confirm.</p>'
+      +'<div class="sched-lbl">Choose a day</div><div class="sched-days" id="schedDays"></div>'
+      +'<div class="sched-lbl">Choose a time</div><div class="sched-wins" id="schedWins"></div>'
+      +'<button class="btn full" id="schedBtn" type="button" disabled>Pick a day &amp; time</button>'
+      +'</div>';
     $('gate').style.display='none';
     $('reward').innerHTML=h; $('reward').style.display='block'; $('reward').classList.add('reveal');
+    buildScheduler();
     $('reward').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
+
+  /* In-reward scheduler — homeowner picks a day + time window for the on-site
+     inspection; posts to /api/roofcheck/schedule which attaches it to their lead
+     and books it in CC24. */
+  function buildScheduler(){
+    var days=$('schedDays'), wins=$('schedWins'), btn=$('schedBtn'); if(!days||!wins||!btn) return;
+    sc={};
+    var WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function pad(n){ return (n<10?'0':'')+n; }
+    var t=new Date(), dh='';
+    for(var i=1;i<=10;i++){
+      var dt=new Date(t.getFullYear(),t.getMonth(),t.getDate()+i);
+      var iso=dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
+      var lbl=WD[dt.getDay()]+' '+MO[dt.getMonth()]+' '+dt.getDate();
+      dh+='<button type="button" class="chip" data-iso="'+iso+'" data-lbl="'+esc(lbl)+'">'+esc(lbl)+'</button>';
+    }
+    days.innerHTML=dh;
+    var WINS=[['Morning','08:00','8–11am'],['Midday','11:00','11am–2pm'],['Afternoon','14:00','2–5pm'],['Evening','17:00','5–7pm']];
+    wins.innerHTML=WINS.map(function(w){ return '<button type="button" class="chip" data-time="'+w[1]+'" data-wlbl="'+esc(w[0]+' ('+w[2]+')')+'">'+w[0]+'<span class="cw">'+w[2]+'</span></button>'; }).join('');
+    function refresh(){
+      var ok=sc.iso&&sc.time;
+      btn.disabled=!ok;
+      btn.innerHTML=ok?'Lock in '+esc(sc.dayLbl)+', '+esc(sc.winShort):'Pick a day &amp; time';
+    }
+    days.addEventListener('click',function(e){ var c=e.target.closest('.chip'); if(!c) return;
+      [].forEach.call(days.children,function(x){x.classList.remove('on');}); c.classList.add('on');
+      sc.iso=c.getAttribute('data-iso'); sc.dayLbl=c.getAttribute('data-lbl'); refresh(); });
+    wins.addEventListener('click',function(e){ var c=e.target.closest('.chip'); if(!c) return;
+      [].forEach.call(wins.children,function(x){x.classList.remove('on');}); c.classList.add('on');
+      sc.time=c.getAttribute('data-time'); sc.wlbl=c.getAttribute('data-wlbl'); sc.winShort=c.firstChild.textContent; refresh(); });
+    btn.addEventListener('click',async function(){
+      if(!sc.iso||!sc.time) return;
+      btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
+      try{
+        var r=await fetch('/api/roofcheck/schedule',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({leadId:ctx.leadId,date:sc.iso,time:sc.time,dayLabel:sc.dayLbl,windowLabel:sc.wlbl,
+            name:ctx.name,phone:ctx.phone,email:ctx.email,address:ctx.normalizedAddress,rep:REP,src:SRC})});
+        var d=await r.json();
+        if(!d.ok){ btn.disabled=false; refresh(); alert(d.error||'Please try again.'); return; }
+        $('sched').innerHTML='<div class="sched-ok">✅ <b>You\\'re booked for '+esc(sc.dayLbl)+', '+esc(sc.wlbl)+'.</b>'
+          +'<div class="muted" style="margin-top:6px;font-family:var(--body);font-weight:500">'+(REPNAME?esc(REPNAME):'A Roof-ER specialist')+' will call to confirm. Keep an eye on your phone! 📞</div></div>';
+      }catch(e){ btn.disabled=false; refresh(); alert('Please try again.'); }
+    });
+  }
+
+  /* Rep personalization + contact / sign-up sheet (top-right "Contact rep"). */
+  if(REP){
+    fetch('/api/roofcheck/rep/'+encodeURIComponent(REP)).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok) return;
+      REPNAME=d.firstName||d.name||'';
+      var cb=$('contactBtn'); if(cb&&REPNAME) cb.textContent='Contact '+REPNAME;
+      if(d.name){ var st=$('sheetTitle'); if(st) st.textContent='Talk to '+d.name; }
+      var ss=$('sheetSub'); if(ss) ss.textContent=(d.firstName||'Your rep')+' is your local Roof-ER specialist — leave your info and they\\'ll reach out.';
+      if(d.photo){ var sr=$('sheetRep'); if(sr) sr.innerHTML='<img src="'+esc(d.photo)+'" alt="'+esc(d.name||'')+'" onerror="this.style.display=\\'none\\'"><span>'+esc(d.name||'')+'</span>'; }
+    }).catch(function(){});
+  }
+  (function(){
+    var ov=$('sheetOv'); if(!ov) return;
+    function open(){ ov.style.display='flex'; var a=$('cAddr'); if(a&&!a.value&&$('addr')) a.value=$('addr').value.trim(); setTimeout(function(){var n=$('cName'); if(n) n.focus();},60); }
+    function close(){ ov.style.display='none'; }
+    $('contactBtn').addEventListener('click',open);
+    $('sheetX').addEventListener('click',close);
+    ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&ov.style.display==='flex') close(); });
+    $('contactForm').addEventListener('submit',async function(e){
+      e.preventDefault();
+      var name=$('cName').value.trim(), phone=$('cPhone').value.trim(), email=$('cEmail').value.trim(), addr=$('cAddr').value.trim();
+      if(!name||phone.replace(/\\D/g,'').length<7){ alert('Please enter your name and phone.'); return; }
+      var b=$('cBtn'); b.disabled=true; b.innerHTML='<span class="spin-i"></span>';
+      try{
+        var r=await fetch('/api/roofcheck/lead',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:name,phone:phone,email:email,address:addr,lat:ctx.lat,lng:ctx.lng,rep:REP,src:SRC||'contact'})});
+        var d=await r.json();
+        if(!d.ok){ b.disabled=false; b.innerHTML='Request a callback &rarr;'; alert(d.error||'Please try again.'); return; }
+        $('contactForm').style.display='none';
+        var done=$('sheetDone');
+        done.innerHTML='✅ Thanks, '+esc(name.split(' ')[0])+'!<div class="muted" style="margin-top:6px;font-family:var(--body);font-weight:500">'+(REPNAME?esc(REPNAME):'A Roof-ER specialist')+' will reach out shortly.</div>';
+        done.style.display='block';
+      }catch(err){ b.disabled=false; b.innerHTML='Request a callback &rarr;'; alert('Please try again.'); }
+    });
+  })();
 })();
 </script>
 </body>
