@@ -9981,6 +9981,15 @@ async function runStartupMigrations() {
         await pool.query(`ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS updated_by_email TEXT`);
         await pool.query(`ALTER TABLE profile_videos ADD COLUMN IF NOT EXISTS added_by_email TEXT`);
         await pool.query(`ALTER TABLE profile_reviews ADD COLUMN IF NOT EXISTS added_by_email TEXT`);
+        // CC24 close-the-loop — link each forwarded lead to its CC24 job + cache the
+        // synced pipeline status so the funnel can reach scan→signup→booked→signed→
+        // approved→paid. Populated by forwardLeadToCC24 (job id) + the hourly sync.
+        await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_job_id TEXT`);
+        await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_job_number TEXT`);
+        await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_status TEXT`);
+        await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_status_at TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_synced_at TIMESTAMPTZ`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_profile_leads_cc24_job ON profile_leads(cc24_job_id) WHERE cc24_job_id IS NOT NULL`);
         console.log('✅ Startup migrations completed');
     }
     catch (error) {

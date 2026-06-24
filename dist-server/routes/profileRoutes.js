@@ -18,7 +18,7 @@ import { canManageQR, isAdmin as isAdminRole } from '../lib/permissions.js';
 // auto-assigns to that rep; otherwise CC21 falls back to owner + rep-in-notes.
 // NOTE: this is the REAL QR path (rep page → JotForm iframe → /jotform-webhook,
 // and the in-app /contact form) — distinct from leadGenRoutes /api/leads/intake.
-export function forwardLeadToCC24(lead) {
+export function forwardLeadToCC24(lead, pool) {
     // CC24 is the live Command Center (CC21 retired). Prefer CC24 vars; fall back
     // to the legacy CC21 vars only if CC24 isn't configured yet.
     const cc21Url = process.env.CC24_LEAD_INTAKE_URL || process.env.CC21_LEAD_INTAKE_URL;
@@ -58,10 +58,27 @@ export function forwardLeadToCC24(lead) {
         signal: ac.signal,
     })
         .then(async (r) => {
-        if (!r.ok)
-            console.error('[CC24 forward] non-OK', r.status, (await r.text().catch(() => '')).slice(0, 200));
-        else
-            console.log(`[CC24 forward] forwarded "${lead.homeownerName}" -> CC24${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
+        const txt = await r.text().catch(() => '');
+        if (!r.ok) {
+            console.error('[CC24 forward] non-OK', r.status, txt.slice(0, 200));
+            return;
+        }
+        console.log(`[CC24 forward] forwarded "${lead.homeownerName}" -> CC24${lead.repEmail ? ` (rep ${lead.repEmail})` : ''}`);
+        // Capture CC24's jobId so sa21 can sync this lead's pipeline status back —
+        // close-the-loop funnel: scan → signup → booked → signed → approved → paid.
+        if (pool && lead.leadId) {
+            try {
+                const j = JSON.parse(txt);
+                if (j?.jobId) {
+                    await pool.query(`UPDATE profile_leads
+                 SET cc24_job_id = $1, cc24_job_number = $2,
+                     cc24_status = COALESCE(cc24_status, 'new_lead'), cc24_synced_at = NOW()
+               WHERE id = $3`, [String(j.jobId), j.jobNumber != null ? String(j.jobNumber) : null, lead.leadId]);
+                    console.log(`[CC24 forward] linked lead ${lead.leadId} -> CC24 job ${j.jobId}`);
+                }
+            }
+            catch { /* response not JSON / no jobId — non-fatal */ }
+        }
     })
         .catch((e) => console.error('[CC24 forward] failed:', e?.message))
         .finally(() => clearTimeout(timer));
@@ -347,7 +364,8 @@ export function createProfileRoutes(pool) {
                         repName: profileRow.rows[0]?.name || null,
                         repEmail: repEmail || null,
                         sourceLabel,
-                    });
+                        leadId,
+                    }, pool);
                 // Resolve admin user once — fallback sender when the rep hasn't OAuth'd
                 // their Google (most never do); admin's account is always live so we route
                 // homeowner + rep notifications through it rather than dropping them.
@@ -1013,7 +1031,8 @@ export function createProfileRoutes(pool) {
                     preferredTime: preferredTimeRaw,
                     message,
                     sourceLabel: 'JotForm',
-                });
+                    leadId,
+                }, pool);
             }
             res.json({ success: true, leadId });
         }

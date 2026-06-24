@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { canManageQR } from '../lib/permissions.js';
+import { syncCc24Statuses, CC24_STAGE_RANK } from '../services/cc24Sync.js';
 
 export function createQRAnalyticsRoutes(pool: Pool) {
   const router = Router();
@@ -349,6 +350,11 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         return res.status(403).json({ success: false, error: 'Admin access required' });
       }
 
+      // Lazy close-the-loop refresh — pull CC24 pipeline statuses for open leads
+      // (throttled to 15 min, non-blocking) so the funnel's signed/approved/paid
+      // numbers stay fresh without a separate cron.
+      void syncCc24Statuses(pool).catch(() => {});
+
       const ET = 'America/New_York';
       const slug = (req.query.slug as string)?.trim() || null;
       const fromQ = (req.query.from as string)?.trim() || null;
@@ -371,7 +377,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
 
       const p: [string, string, string | null] = [fromD, toD, slug];
 
-      const [summaryR, dailyR, deviceR, recentScanR, recentSignupR, repsR, staffR, funnelR, channelR, sourceR] = await Promise.all([
+      const [summaryR, dailyR, deviceR, recentScanR, recentSignupR, repsR, staffR, funnelR, channelR, sourceR, cc24R] = await Promise.all([
         // Summary: scans + unique + reps-scanned + signups, all in-range/slug
         pool.query(`
           SELECT
@@ -529,6 +535,17 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           GROUP BY 1
           ORDER BY signups DESC
         `, p),
+
+        // ── CC24 milestones (close-the-loop): current pipeline status per lead,
+        // synced from CC24. Bucketed in JS into the 3 commission "wins".
+        pool.query(`
+          SELECT pl.cc24_status AS status, COUNT(*)::int AS n
+          FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
+          WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR ep.slug = $3)
+            AND pl.cc24_status IS NOT NULL
+          GROUP BY 1
+        `, p),
       ]);
 
       const s = summaryR.rows[0];
@@ -571,10 +588,22 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           email: r.email, profilesCreated: r.profiles_created, profilesEdited: r.profiles_edited,
           videosAdded: r.videos_added, reviewsAdded: r.reviews_added,
         })),
-        // Funnel scans → signups → booked (closed-won lives in CC24; omitted).
+        // Funnel scans → signups → booked → signed → approved → won (CC24 close-the-loop).
         funnel: (() => {
           const f = funnelR.rows[0] || {};
-          return { scans: f.scans ?? 0, signups: f.signups ?? 0, booked: f.booked ?? 0 };
+          // Bucket synced CC24 statuses into the 3 commission "wins" (cumulative — a
+          // paid lead also passed signed + approved). Win1=signed(rank≥7),
+          // Win2=approved(≥12), Win3=won/paid(≥16). lost/cancelled tracked aside.
+          let signed = 0, approved = 0, won = 0, lost = 0;
+          for (const r of (cc24R.rows as Array<{ status: string; n: number }>)) {
+            const st = String(r.status || '').toLowerCase();
+            if (st === 'lost' || st === 'cancelled') { lost += r.n; continue; }
+            const rank = CC24_STAGE_RANK[st] || 0;
+            if (rank >= 7) signed += r.n;
+            if (rank >= 12) approved += r.n;
+            if (rank >= 16) won += r.n;
+          }
+          return { scans: f.scans ?? 0, signups: f.signups ?? 0, booked: f.booked ?? 0, signed, approved, won, lost };
         })(),
         // Share-channel conversion (utm_medium). conversionPct = booked / signups.
         byChannel: channelR.rows.map(r => ({
@@ -669,6 +698,22 @@ export function createQRAnalyticsRoutes(pool: Pool) {
     } catch (error) {
       console.error('❌ QR analytics rep-readiness error:', error);
       res.status(500).json({ success: false, error: 'Failed to get rep readiness' });
+    }
+  });
+
+  // Manual CC24 sync trigger (admin) — force-pull pipeline statuses now, bypassing
+  // the 15-min throttle. Used for testing + an on-demand "refresh" button.
+  router.post('/sync-cc24', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!await canManageQRUser(userEmail)) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+      const result = await syncCc24Statuses(pool, { force: true });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('❌ CC24 sync error:', error);
+      res.status(500).json({ success: false, error: 'CC24 sync failed' });
     }
   });
 
