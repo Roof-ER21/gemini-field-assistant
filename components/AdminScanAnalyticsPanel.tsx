@@ -26,6 +26,9 @@ import {
   Share2,
   GitBranch,
   CalendarCheck,
+  Trophy,
+  FileSignature,
+  BadgeCheck,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -47,7 +50,14 @@ interface RepRow {
   videoCount: number; reviewCount: number; scanCount: number; uniqueVisitors: number; signupCount: number;
 }
 interface StaffRow { email: string; profilesCreated: number; profilesEdited: number; videosAdded: number; reviewsAdded: number; }
-interface FunnelData { scans: number; signups: number; booked: number; }
+interface FunnelData {
+  scans: number; signups: number; booked: number;
+  // Commission pipeline (synced hourly from CC24). Read 0 until leads progress.
+  signed?: number;   // Win 1 — contingency/contract signed
+  approved?: number; // Win 2 — insurance approved
+  won?: number;      // Win 3 — completed & paid
+  lost?: number;
+}
 interface ChannelRow { channel: string; signups: number; booked: number; conversionPct: number; }
 interface SourceRow { family: string; signups: number; booked: number; conversionPct: number; }
 
@@ -342,12 +352,23 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
   const maxDevice = Math.max(...devices.map(d => d.count), 1);
 
   // Funnel + channel + source (Feature B). All range/slug-aware from the API.
-  const funnel = data?.funnel ?? { scans: 0, signups: 0, booked: 0 };
+  // signed/approved/won/lost sync hourly from CC24's pipeline; default 0.
+  const funnel = {
+    scans: 0, signups: 0, booked: 0, signed: 0, approved: 0, won: 0, lost: 0,
+    ...(data?.funnel ?? {}),
+  };
   const byChannel = data?.byChannel ?? [];
   const bySource = data?.bySource ?? [];
   const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
-  const scanToSignup = pct(funnel.signups, funnel.scans);
-  const signupToBooked = pct(funnel.booked, funnel.signups);
+  // Step-to-step conversion across the full pipeline.
+  const stepRates = {
+    scanToSignup: pct(funnel.signups, funnel.scans),
+    signupToBooked: pct(funnel.booked, funnel.signups),
+    bookedToSigned: pct(funnel.signed, funnel.booked),
+    signedToApproved: pct(funnel.approved, funnel.signed),
+    approvedToWon: pct(funnel.won, funnel.approved),
+  };
+  const closeRate = pct(funnel.won, funnel.signups); // won / signups
 
   // Top reps derived from the rep scorecard (already range-aware)
   const topReps = [...reps].filter(r => r.scanCount > 0).sort((a, b) => b.scanCount - a.scanCount).slice(0, 10);
@@ -453,37 +474,58 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
         <StatCard label="Reps Scanned" value={fmt(summary?.repsScanned ?? 0)} icon={<Eye size={13} />} />
       </div>
 
-      {/* Funnel: scans → signups → booked */}
+      {/* Funnel: scans → leads → booked → signed → approved → won (full pipeline) */}
       <div style={cardStyle}>
         <h3 style={sectionTitleStyle}>
           <Target size={16} color="#dc2626" /> Conversion Funnel
-          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-tertiary)' }}>· scans → signups → booked inspections</span>
+          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-tertiary)' }}>· scans → leads → booked → signed → approved → won</span>
         </h3>
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        {/* Close rate + Lost summary */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '0.625rem 0.875rem' }}>
+            <Trophy size={15} color="#22c55e" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>Close rate</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>{closeRate}%</span>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>won / signups</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '0.625rem 0.875rem' }}>
+            <X size={15} color="#ef4444" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>Lost</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#ef4444' }}>{fmt(funnel.lost)}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 10, flexWrap: 'wrap' }}>
           {([
-            { label: 'Scans', value: funnel.scans, icon: <QrCode size={15} />, color: '#60a5fa', note: 'page views' },
-            { label: 'Signups', value: funnel.signups, icon: <ClipboardList size={15} />, color: '#22c55e', note: `${scanToSignup}% of scans`, rate: scanToSignup },
-            { label: 'Booked', value: funnel.booked, icon: <CalendarCheck size={15} />, color: '#dc2626', note: `${signupToBooked}% of signups`, rate: signupToBooked },
-          ] as const).map((step, i) => (
+            { label: 'Scans', value: funnel.scans, icon: <QrCode size={15} />, color: '#60a5fa', note: 'page views', rate: null },
+            { label: 'Leads', value: funnel.signups, icon: <ClipboardList size={15} />, color: '#22c55e', note: `${stepRates.scanToSignup}% of scans`, rate: stepRates.scanToSignup },
+            { label: 'Booked', value: funnel.booked, icon: <CalendarCheck size={15} />, color: '#dc2626', note: `${stepRates.signupToBooked}% of leads`, rate: stepRates.signupToBooked },
+            { label: '🥇 Signed', value: funnel.signed, icon: <FileSignature size={15} />, color: '#f59e0b', note: `Win 1 · ${stepRates.bookedToSigned}% of booked`, rate: stepRates.bookedToSigned },
+            { label: '🥈 Approved', value: funnel.approved, icon: <BadgeCheck size={15} />, color: '#a855f7', note: `Win 2 · ${stepRates.signedToApproved}% of signed`, rate: stepRates.signedToApproved },
+            { label: '🥉 Won / Paid', value: funnel.won, icon: <Trophy size={15} />, color: '#22c55e', note: `Win 3 · ${stepRates.approvedToWon}% of approved`, rate: stepRates.approvedToWon },
+          ] as const).map((step, i, arr) => (
             <React.Fragment key={step.label}>
-              <div style={{ flex: 1, minWidth: isMobile ? '40%' : 0, background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '0.875rem 1rem' }}>
+              <div style={{ flex: '1 1 130px', minWidth: 130, background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '0.875rem 1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: step.color, fontSize: 12, fontWeight: 700 }}>{step.icon}{step.label}</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, marginTop: 4 }}>{fmt(step.value)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{step.note}</div>
               </div>
-              {i < 2 && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? '100%' : 56, color: 'var(--text-tertiary)' }}>
-                  <ChevronRight size={18} style={isMobile ? { transform: 'rotate(90deg)' } : undefined} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: (i === 0 ? scanToSignup : signupToBooked) > 0 ? '#22c55e' : 'var(--text-tertiary)' }}>
-                    {i === 0 ? scanToSignup : signupToBooked}%
+              {i < arr.length - 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 44, color: 'var(--text-tertiary)' }}>
+                  <ChevronRight size={18} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: (arr[i + 1].rate ?? 0) > 0 ? '#22c55e' : 'var(--text-tertiary)' }}>
+                    {arr[i + 1].rate ?? 0}%
                   </span>
                 </div>
               )}
             </React.Fragment>
           ))}
         </div>
-        <p style={{ margin: '0.75rem 0 0', fontSize: 11, color: 'var(--text-tertiary)' }}>
-          “Booked” = homeowner picked an inspection slot. Closed-won isn’t tracked here — it lives in CC24.
+        <p style={{ margin: '0.875rem 0 0', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+          “Booked” = homeowner picked an inspection slot. Commission milestones (synced hourly from CC24):
+          <strong style={{ color: '#f59e0b' }}> 🥇 Win 1</strong> = contingency / contract signed ·
+          <strong style={{ color: '#a855f7' }}> 🥈 Win 2</strong> = insurance approved ·
+          <strong style={{ color: '#22c55e' }}> 🥉 Win 3</strong> = completed &amp; paid.
+          These read 0 until leads progress through the pipeline.
         </p>
       </div>
 
