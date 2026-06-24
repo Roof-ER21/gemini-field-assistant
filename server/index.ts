@@ -9738,10 +9738,10 @@ app.get('/profile/:slug', async (req, res, next) => {
     ).catch(err => console.error('Error tracking scan:', err));
 
     // Render complete HTML page with inline styles.
-    // ?v=2 → redesigned "RoofCheck aesthetic" page (flag-gated; current page is default).
+    // V2 (redesigned "RoofCheck aesthetic") is the default; ?v=1 = legacy escape hatch.
     res.set('Content-Type', 'text/html');
     res.set('Cache-Control', 'no-store, max-age=0');
-    res.send(req.query.v === '2' ? renderProfilePageV2(profile) : renderProfilePage(profile));
+    res.send(req.query.v === '1' ? renderProfilePage(profile) : renderProfilePageV2(profile));
   } catch (error) {
     console.error('Profile page error:', error);
     next();

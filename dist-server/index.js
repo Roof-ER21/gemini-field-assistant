@@ -8457,10 +8457,10 @@ app.get('/profile/:slug', async (req, res, next) => {
         pool.query(`INSERT INTO qr_scans (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`, [profile.id, slug, userAgent, referrer, ipHash, isMobile ? 'mobile' : 'desktop', 'direct']).catch(err => console.error('Error tracking scan:', err));
         // Render complete HTML page with inline styles.
-        // ?v=2 → redesigned "RoofCheck aesthetic" page (flag-gated; current page is default).
+        // V2 (redesigned "RoofCheck aesthetic") is the default; ?v=1 = legacy escape hatch.
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'no-store, max-age=0');
-        res.send(req.query.v === '2' ? renderProfilePageV2(profile) : renderProfilePage(profile));
+        res.send(req.query.v === '1' ? renderProfilePage(profile) : renderProfilePageV2(profile));
     }
     catch (error) {
         console.error('Profile page error:', error);
