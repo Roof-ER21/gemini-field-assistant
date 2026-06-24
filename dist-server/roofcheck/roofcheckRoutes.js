@@ -224,7 +224,7 @@ export function createRoofCheckRoutes(pool) {
                 serviceType: 'Storm check (RoofCheck)',
                 message: note,
                 sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
-            });
+            }, { skipHomeownerConfirm: true }); // homeowner sees results + scheduler on-page; confirm only when they book
             // Also push into JotForm (inert until JOTFORM_API_KEY is set).
             forwardLeadToJotForm({
                 homeownerName: name,

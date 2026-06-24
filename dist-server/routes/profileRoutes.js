@@ -276,6 +276,19 @@ export function processLeadIntegrations(profileId, leadId, leadData, opts) {
     }
     console.warn('[processLeadIntegrations] profile routes not initialized — lead integrations skipped');
 }
+// Friendly appointment formatting for the homeowner confirmation email.
+function formatApptForHomeowner(dateStr, timeStr) {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr))
+        return null;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const MO = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const day = `${WD[dt.getUTCDay()]}, ${MO[m - 1]} ${d}`;
+    const WINDOWS = { '08:00': 'the morning (8–11am)', '11:00': 'midday (11am–2pm)', '14:00': 'the afternoon (2–5pm)', '17:00': 'the evening (5–7pm)' };
+    const window = timeStr ? (WINDOWS[timeStr] || timeStr) : null;
+    return { day, window };
+}
 export function createProfileRoutes(pool) {
     const router = Router();
     // Helper: Check if user can manage QR profiles (admin or marketing role).
@@ -335,15 +348,36 @@ export function createProfileRoutes(pool) {
                         repEmail: repEmail || null,
                         sourceLabel,
                     });
-                if (!repUserId)
-                    return;
-                // Resolve admin user once — used as fallback sender when rep hasn't
-                // OAuth'd their Google account. Most reps are forgetful and will
-                // never connect; admin's account is always live so we route through
-                // it rather than dropping the email/invite.
+                // Resolve admin user once — fallback sender when the rep hasn't OAuth'd
+                // their Google (most never do); admin's account is always live so we route
+                // homeowner + rep notifications through it rather than dropping them.
                 const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
                 const adminUserRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmailAddr]);
                 const adminUserId = adminUserRow.rows[0]?.id || null;
+                // ── Homeowner confirmation ───────────────────────────────────────────
+                // Close the loop with the HOMEOWNER (not just the rep): a warm, branded
+                // "we got it / you're booked" email so they aren't left hanging. Sent from
+                // the rep's own Gmail when connected (personal + reply-to-rep), else admin.
+                // Fires for every lead path that carries a homeowner email. Independent of
+                // whether the rep has an sa21 account, so it runs BEFORE the rep-only guard.
+                if (!opts?.skipHomeownerConfirm && leadData.homeownerEmail && /.+@.+\..+/.test(leadData.homeownerEmail)) {
+                    const senderUserId = repUserId || adminUserId;
+                    if (senderUserId) {
+                        const firstName = (leadData.homeownerName || '').trim().split(/\s+/)[0] || 'there';
+                        const repLabel = repName && repName !== 'Rep' ? repName : 'Your Roof-ER specialist';
+                        const appt = formatApptForHomeowner(leadData.preferredDate, leadData.preferredTime);
+                        const subject = appt ? 'Your free roof inspection is reserved — Roof-ER' : 'We got your request — Roof-ER';
+                        const middle = appt
+                            ? `<p>We've got you down for <b>${appt.day}</b>${appt.window ? ` during <b>${appt.window}</b>` : ''}. ${repLabel} will give you a quick call to confirm the exact time.</p>`
+                            : `<p>${repLabel} will reach out within 24 hours to look at your roof and walk you through the next steps — at no cost.</p>`;
+                        const hoBody = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;color:#1a1a1a;line-height:1.55"><p>Hi ${firstName},</p><p>Thanks for ${appt ? 'booking a free roof inspection with' : 'reaching out to'} <b>Roof-ER</b>!</p>${middle}<p style="color:#555">Have a question in the meantime? Just reply to this email — we're happy to help.</p><p style="margin-top:18px">— ${repLabel}<br><span style="color:#888;font-size:13px">Roof-ER · The Roof Docs · Storm-damage roofing &amp; insurance claims · VA · MD · PA</span></p></div>`;
+                        sendGmailEmail(pool, senderUserId, { to: leadData.homeownerEmail, subject, body: hoBody, replyTo: repEmail || undefined })
+                            .then((r) => console.log(`[Homeowner confirm] ${r.success ? 'sent to ' + leadData.homeownerEmail + ' msgId=' + r.messageId : 'failed: ' + r.error}`))
+                            .catch((e) => console.error('[Homeowner confirm] error:', e?.message));
+                    }
+                }
+                if (!repUserId)
+                    return;
                 const serviceLabel = leadData.serviceType
                     ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
                     : 'Service Request';
