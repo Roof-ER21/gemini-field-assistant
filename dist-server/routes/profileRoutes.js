@@ -644,6 +644,30 @@ export function createProfileRoutes(pool) {
                     sourceLabel: 'QR code contact form',
                 });
             }
+            // The redesigned rep landing page replaces its embedded JotForm iframe with a
+            // native form that posts here. Preserve JotForm capture for THAT path only
+            // (matched by its serviceType marker, so other /contact callers are unchanged).
+            // Env-gated; inert without JOTFORM_API_KEY.
+            if (serviceType === 'Free inspection (rep page)') {
+                let jfRepSlug = null;
+                if (profileId) {
+                    try {
+                        const sl = await pool.query('SELECT slug FROM employee_profiles WHERE id = $1', [profileId]);
+                        jfRepSlug = sl.rows[0]?.slug || null;
+                    }
+                    catch { /* slug lookup is best-effort */ }
+                }
+                forwardLeadToJotForm({
+                    homeownerName,
+                    homeownerEmail,
+                    homeownerPhone,
+                    address,
+                    serviceType,
+                    message,
+                    sourceLabel: 'Rep profile page',
+                    rep: jfRepSlug,
+                });
+            }
             res.json({
                 success: true,
                 leadId,

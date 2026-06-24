@@ -9737,10 +9737,11 @@ app.get('/profile/:slug', async (req, res, next) => {
       [profile.id, slug, userAgent, referrer, ipHash, isMobile ? 'mobile' : 'desktop', 'direct']
     ).catch(err => console.error('Error tracking scan:', err));
 
-    // Render complete HTML page with inline styles
+    // Render complete HTML page with inline styles.
+    // ?v=2 → redesigned "RoofCheck aesthetic" page (flag-gated; current page is default).
     res.set('Content-Type', 'text/html');
     res.set('Cache-Control', 'no-store, max-age=0');
-    res.send(renderProfilePage(profile));
+    res.send(req.query.v === '2' ? renderProfilePageV2(profile) : renderProfilePage(profile));
   } catch (error) {
     console.error('Profile page error:', error);
     next();
@@ -10374,6 +10375,711 @@ function renderProfilePage(profile: any): string {
       if (p !== undefined) { p.catch(function(){}); }
     });
   </script>
+</body>
+</html>`;
+}
+
+// ============================================================================
+// PROFILE PAGE V2 — redesigned in the RoofCheck aesthetic (flag-gated via ?v=2).
+// Atmospheric dark hero (animated mesh + hero-scoped hail canvas + radar lock-on
+// medallion) → light content sections → dark glass "Request Your Free Inspection"
+// split form. Tokens/atmosphere/hail are inlined here (NOT shared with the live
+// RoofCheck page) so this is fully self-contained. Clash Display + Satoshi (Fontshare).
+// Signature motion: hero lock-on, count-up stats, "Verified Specialist" seal stamp,
+// CTA magnet hover. Perf: canvas pauses offscreen + on tab-hide + skipped <768px +
+// killed under prefers-reduced-motion. Native dark-glass lead form → /api/profiles/contact.
+// ============================================================================
+function renderProfilePageV2(profile: any): string {
+  const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, (c: string) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]));
+  const escAttr = (s: any) => esc(s);
+
+  const name = profile.name || 'Team Member';
+  const firstName = String(name).trim().split(/\s+/)[0] || name;
+  const initials = String(name).split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2);
+  const role = profile.title || getRoleLabel(profile.role_type);
+  const imageUrl = profile.image_url || '';
+  const email = profile.email || '';
+  const phone = profile.phone_number || '';
+  const bio = profile.bio || '';
+  const startYear = profile.start_year;
+  const yearsExp: number | null = startYear ? new Date().getFullYear() - startYear : null;
+  const slug = profile.slug || '';
+
+  // Same project gallery set V1 uses.
+  const projectImages = [
+    '/lovable-uploads/359b0e2f-8075-497a-a848-a9e77471e392.png',
+    '/lovable-uploads/f121ff88-cee5-488f-bd60-50b764306df1.png',
+    '/lovable-uploads/a05b9082-6460-4174-91a0-ff5a6143613f.png',
+    '/lovable-uploads/fd93bf35-9a8e-4112-a8dc-e96bac655cbc.png',
+    '/lovable-uploads/c97b7966-6107-48c6-9e39-38051fff0bb3.png',
+    '/lovable-uploads/c1fafb65-ebd7-4c4f-b197-0ba017cc097e.png',
+  ];
+  const projectLabels = ['Vienna, VA', 'Fairfax, VA', 'Rockville, MD', 'Arlington, VA', 'Bethesda, MD', 'Reston, VA'];
+
+  // Welcome video — reuse V1's exact YouTube / Vimeo / <video> resolve logic.
+  const videoHtml = (profile.videos && profile.videos.length > 0)
+    ? profile.videos.map((v: any) => {
+        const vUrl = v.url || '';
+        const ytMatch = vUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
+        const vimMatch = vUrl.match(/vimeo\.com\/(\d+)/);
+        if (ytMatch) {
+          return `<iframe src="https://www.youtube.com/embed/${ytMatch[1]}" title="${escAttr(name)} welcome video" style="width:100%;aspect-ratio:16/9;border:none;border-radius:13px;display:block" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>`;
+        } else if (vimMatch) {
+          return `<iframe src="https://player.vimeo.com/video/${vimMatch[1]}" title="${escAttr(name)} welcome video" style="width:100%;aspect-ratio:16/9;border:none;border-radius:13px;display:block" allow="autoplay;fullscreen" allowfullscreen></iframe>`;
+        }
+        return `<video controls playsinline preload="metadata" style="width:100%;aspect-ratio:16/9;border-radius:13px;background:#000;object-fit:cover;display:block"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
+      }).join('')
+    : `<div class="vid-empty"><div class="playbtn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div><div class="vlabel">A quick hello from ${esc(firstName)}</div><div class="vsub">Video coming soon</div></div>`;
+
+  // Reviews — reuse V1's loop + escaping + source labels.
+  const reviewsHtml = (() => {
+    const star = '<svg viewBox="0 0 20 20"><path d="M9.05 2.93c.3-.92 1.6-.92 1.9 0l1.07 3.29a1 1 0 00.95.69h3.46c.97 0 1.37 1.24.59 1.81l-2.8 2.03a1 1 0 00-.36 1.12l1.07 3.29c.3.92-.76 1.69-1.54 1.12l-2.8-2.03a1 1 0 00-1.18 0l-2.8 2.03c-.78.57-1.84-.2-1.54-1.12l1.07-3.29a1 1 0 00-.36-1.12l-2.8-2.03c-.78-.57-.38-1.81.59-1.81h3.46a1 1 0 00.95-.69l1.07-3.29z"/></svg>';
+    const reviews = (profile.reviews || []) as Array<{ text: string; author: string; date_label: string | null; source: string | null; rating: number }>;
+    const sourceLabel = (s: string | null) => {
+      if (!s) return 'Customer Review';
+      if (s === 'google') return 'Google Review';
+      if (s === 'gaf') return 'GAF Review';
+      if (s === 'bbb') return 'BBB Review';
+      return 'Customer Review';
+    };
+    if (!reviews.length) {
+      // Tasteful fallback so the section never renders empty.
+      return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(firstName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A Roof-ER Homeowner <span>· Verified Review</span></p></div>`;
+    }
+    return reviews.map((r) => {
+      const stars = star.repeat(Math.max(1, Math.min(5, r.rating || 5)));
+      const meta = [r.date_label, sourceLabel(r.source)].filter(Boolean).join(' · ');
+      return `<div class="rev"><div class="stars">${stars}</div><p class="q">&ldquo;${esc(r.text)}&rdquo;</p><p class="a">— ${esc(r.author)} <span>· ${esc(meta)}</span></p></div>`;
+    }).join('');
+  })();
+
+  const yearsStat = yearsExp ? `${yearsExp}+` : '7+';
+  const yearsTarget = yearsExp || 7;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${esc(name)} — The Roof Docs · Roof-ER</title>
+<link rel="icon" type="image/png" href="/roofdocs-logo.png">
+<meta name="description" content="Connect with ${escAttr(name)} at Roof-ER / The Roof Docs. Storm-damage roofing &amp; insurance-claim experts serving VA, MD &amp; PA. Schedule your free roof inspection today.">
+<meta property="og:title" content="${escAttr(name)} — The Roof Docs">
+<meta property="og:description" content="Schedule your free roof inspection with ${escAttr(name)}. 8,000+ roofs completed across VA · MD · PA.">
+<meta name="theme-color" content="#08080d">
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#08080d;--ink2:#0f0e16;--line:rgba(255,255,255,.11);
+    --red:#ef2b2b;--red2:#ff5a5a;--crimson:#b30606;--steel:#46598a;
+    --tx:#f6f4f8;--mut:rgba(246,244,248,.64);--faint:rgba(246,244,248,.42);
+    --disp:"Clash Display",-apple-system,BlinkMacSystemFont,sans-serif;
+    --body:"Satoshi",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --ok:#34d399;--okbg:rgba(16,185,129,.12);
+    --paper:#f7f6f9;--paper2:#ffffff;--ink-d:#14131b;--ink-d2:#3a3845;--ink-d3:#6b6a78;--line-d:rgba(20,19,27,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--ink);color:var(--tx);font-family:var(--body);font-weight:500;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  h1,h2,h3{font-family:var(--disp);font-weight:700;line-height:1.05;letter-spacing:-.02em}
+  a{color:inherit;text-decoration:none}
+  img{max-width:100%}
+  .grad{background:linear-gradient(96deg,var(--red2),var(--red) 45%,#ff7a5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  :focus-visible{outline:2px solid var(--red2);outline-offset:2px;border-radius:4px}
+
+  /* ── atmosphere (mesh + hail + grain) — confined to the hero only ── */
+  .atmos{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .bg{position:absolute;inset:-30%;filter:blur(14px);animation:mesh 26s ease-in-out infinite alternate;
+    background:
+      radial-gradient(40% 52% at 16% 14%,rgba(239,43,43,.40),transparent 60%),
+      radial-gradient(44% 54% at 84% 10%,rgba(179,6,6,.46),transparent 62%),
+      radial-gradient(52% 56% at 78% 90%,rgba(70,89,138,.34),transparent 60%),
+      radial-gradient(48% 62% at 28% 98%,rgba(239,43,43,.30),transparent 62%);}
+  @keyframes mesh{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-3%,2%,0) scale(1.07)}100%{transform:translate3d(3%,-2%,0) scale(1.03)}}
+  #hail{position:absolute;inset:0;pointer-events:none;opacity:.5}
+  .grain{position:absolute;inset:0;pointer-events:none;opacity:.04;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── nav ── */
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px clamp(18px,5vw,56px);
+    position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(8,8,13,.92),rgba(8,8,13,.6));border-bottom:1px solid var(--line)}
+  .nav-logo{display:flex;align-items:center;gap:11px}
+  .nav-logo img{height:26px;display:block}
+  .nav-mid{display:flex;align-items:center;gap:4px}
+  .nav-mid a{font-size:13.5px;font-weight:600;color:var(--mut);padding:8px 13px;border-radius:8px;transition:background .2s,color .2s}
+  .nav-mid a:hover{background:rgba(255,255,255,.06);color:var(--tx)}
+  .navcta{font-family:var(--disp);font-weight:700;font-size:13.5px;color:#fff;cursor:pointer;
+    background:linear-gradient(95deg,var(--red),#ff6a4d);border:0;border-radius:999px;padding:9px 18px;
+    box-shadow:0 8px 22px rgba(239,43,43,.4);transition:transform .16s,box-shadow .16s;white-space:nowrap}
+  .navcta:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(239,43,43,.55)}
+  @media (max-width:780px){.nav-mid{display:none}}
+
+  /* ── HERO ── */
+  .hero{position:relative;overflow:hidden;background:var(--ink)}
+  .hero-inner{position:relative;z-index:2;display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(26px,4.5vw,68px);align-items:center;
+    max-width:1240px;margin:0 auto;padding:clamp(34px,5.5vw,82px) clamp(18px,5vw,56px) clamp(40px,5vw,76px)}
+  .hero-inner>*{min-width:0}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--red2);margin-bottom:18px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--red2);box-shadow:0 0 0 4px rgba(239,43,43,.22);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(239,43,43,.22)}50%{box-shadow:0 0 0 9px rgba(239,43,43,0)}}
+  h1.title{font-size:clamp(2.5rem,5.4vw,4.2rem)}
+  .role{font-family:var(--disp);font-weight:600;font-size:clamp(.95rem,1.4vw,1.08rem);letter-spacing:.05em;text-transform:uppercase;color:var(--red2);margin:14px 0 0}
+  .sub{font-size:clamp(1.02rem,1.5vw,1.2rem);color:var(--mut);max-width:42ch;margin:16px 0 0;line-height:1.55}
+  .hero-cta{display:flex;gap:11px;flex-wrap:wrap;margin-top:26px}
+  .btn{font-family:var(--disp);background:linear-gradient(95deg,var(--red),#ff6a4d);color:#fff;border:0;border-radius:13px;padding:15px 24px;font-weight:700;font-size:1rem;
+    cursor:pointer;white-space:nowrap;box-shadow:0 14px 34px rgba(239,43,43,.4);transition:transform .18s,box-shadow .18s;display:inline-flex;align-items:center;gap:9px}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 20px 46px rgba(239,43,43,.55)}
+  .btn.magnet:hover{transform:translateY(-2px) scale(1.025)}
+  .btn svg{width:18px;height:18px}
+  .btn-ghost{font-family:var(--disp);font-weight:700;font-size:1rem;color:var(--tx);background:rgba(255,255,255,.05);
+    border:1.5px solid var(--line);border-radius:13px;padding:15px 22px;display:inline-flex;align-items:center;gap:9px;
+    transition:background .18s,border-color .18s,transform .18s}
+  .btn-ghost:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.22);transform:translateY(-2px)}
+  .btn-ghost svg{width:18px;height:18px;stroke:var(--red2);fill:none}
+  .trust{display:flex;gap:9px;flex-wrap:wrap;margin-top:26px}
+  .trust span{font-family:var(--disp);font-weight:600;font-size:13px;color:var(--mut);padding:8px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+  .trust span b{color:var(--tx)}
+
+  /* hero right — lock-on medallion + glass welcome video */
+  .art{position:relative;justify-self:center;width:min(440px,90vw)}
+  .medallion{position:relative;width:min(300px,72vw);aspect-ratio:1;margin:0 auto 22px}
+  .medallion .ring-orbit{position:absolute;inset:-7%;border-radius:50%;
+    background:conic-gradient(from 0deg,rgba(239,43,43,.55),rgba(239,43,43,0) 28%,rgba(70,89,138,.35) 55%,rgba(239,43,43,0) 80%,rgba(239,43,43,.5));
+    animation:spin 7s linear infinite;filter:blur(.5px);opacity:.9}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .medallion .ringline{position:absolute;border:1px solid rgba(255,255,255,.10);border-radius:50%}
+  .medallion .ringline.r1{inset:6%}.medallion .ringline.r2{inset:18%}
+  .medallion .photo{position:absolute;inset:0;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.16);
+    box-shadow:0 40px 110px rgba(179,6,6,.5),inset 0 0 60px rgba(0,0,0,.45);background:#15131d;
+    display:flex;align-items:center;justify-content:center}
+  .medallion .photo img{width:100%;height:100%;object-fit:cover;display:block}
+  .medallion .photo .ini{font-family:var(--disp);font-weight:700;font-size:3.4rem;color:var(--red2)}
+  /* lock-on sweep that "acquires" the photo on entrance, then fades */
+  .medallion .locksweep{position:absolute;inset:0;border-radius:50%;pointer-events:none;mix-blend-mode:screen;
+    background:conic-gradient(from 0deg,rgba(239,43,43,.6),rgba(239,43,43,0) 22%,rgba(239,43,43,0) 100%)}
+  .seal{position:absolute;right:-5%;bottom:4%;display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:14px;
+    font-family:var(--disp);font-weight:700;background:linear-gradient(95deg,rgba(20,18,28,.96),rgba(20,18,28,.78));
+    border:1px solid rgba(239,43,43,.4);backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(0,0,0,.5);
+    transform:scale(.4) rotate(-12deg);opacity:0}
+  .seal.stamped{animation:stamp .5s cubic-bezier(.2,1.4,.4,1) forwards}
+  @keyframes stamp{0%{transform:scale(.4) rotate(-12deg);opacity:0}60%{transform:scale(1.08) rotate(-3deg);opacity:1}100%{transform:scale(1) rotate(-3deg);opacity:1}}
+  .seal .badge-ic{width:26px;height:26px;border-radius:50%;background:rgba(239,43,43,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .seal .badge-ic svg{width:15px;height:15px;stroke:var(--red2);fill:none;stroke-width:2.4}
+  .seal .st{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);line-height:1.25}
+  .seal .sn{font-size:12.5px;color:var(--tx);line-height:1.2}
+
+  .vidcard{border-radius:20px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));
+    backdrop-filter:blur(16px);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);padding:13px}
+  .vidcard .vid-empty{position:relative;border-radius:13px;overflow:hidden;aspect-ratio:16/9;background:#0c0b12;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.06)}
+  .vidcard .vid-empty::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,rgba(239,43,43,.16),transparent 62%)}
+  .vidcard .playbtn{position:relative;z-index:2;width:60px;height:60px;border-radius:50%;background:linear-gradient(95deg,var(--red),#ff6a4d);
+    display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(239,43,43,.5)}
+  .vidcard .playbtn svg{width:24px;height:24px;fill:#fff;margin-left:3px}
+  .vidcard .vlabel{position:relative;z-index:2;margin-top:12px;font-family:var(--disp);font-weight:700;font-size:14px;color:var(--tx)}
+  .vidcard .vsub{position:relative;z-index:2;font-size:12px;color:var(--mut);margin-top:2px}
+
+  /* ── light body ── */
+  .light{position:relative;z-index:2;background:var(--paper);color:var(--ink-d)}
+  .container{max-width:1180px;margin:0 auto;padding:0 clamp(18px,5vw,40px)}
+  .sec{padding:clamp(44px,6vw,72px) 0}
+  .sec-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--red);
+    background:rgba(239,43,43,.08);border:1px solid rgba(239,43,43,.2);border-radius:999px;padding:6px 14px;margin-bottom:16px}
+  .sec-title{font-size:clamp(1.85rem,3.4vw,2.7rem);color:var(--ink-d);letter-spacing:-.02em}
+  .sec-sub{font-size:clamp(1rem,1.4vw,1.12rem);color:var(--ink-d3);margin-top:12px;max-width:54ch;line-height:1.55}
+  .center{text-align:center}.center .sec-sub{margin-left:auto;margin-right:auto}
+
+  .ctabar{position:relative;overflow:hidden;background:linear-gradient(135deg,var(--crimson) 0%,#8b0000 100%);color:#fff;text-align:center;padding:clamp(34px,5vw,52px) 0}
+  .ctabar::before{content:'';position:absolute;inset:0;opacity:.5;
+    background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+  .ctabar>*{position:relative;z-index:2}
+  .ctabar h2{font-size:clamp(1.6rem,3vw,2.3rem);color:#fff}
+  .ctabar p{margin:10px auto 22px;font-size:clamp(1rem,1.4vw,1.1rem);color:rgba(255,255,255,.92);max-width:50ch}
+  .ctabar .btn-light{display:inline-flex;align-items:center;gap:9px;background:#fff;color:var(--crimson);font-family:var(--disp);font-weight:700;font-size:1.02rem;
+    padding:15px 34px;border-radius:13px;box-shadow:0 14px 34px rgba(0,0,0,.28);transition:transform .18s,box-shadow .18s}
+  .ctabar .btn-light:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 20px 46px rgba(0,0,0,.36)}
+
+  .why-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(24px,3.5vw,48px);align-items:center}
+  .stats4{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .stat{background:var(--paper2);border:1px solid var(--line-d);border-radius:18px;padding:24px 22px;box-shadow:0 14px 36px rgba(20,19,27,.06)}
+  .stat .n{font-family:var(--disp);font-weight:700;font-size:clamp(2rem,3.4vw,2.8rem);line-height:1;letter-spacing:-.02em;
+    background:linear-gradient(96deg,var(--red2),var(--red) 50%,#ff7a5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat .l{font-size:13.5px;font-weight:600;color:var(--ink-d3);margin-top:9px}
+  .badges{display:flex;flex-direction:column;gap:11px}
+  .badge-row{display:flex;align-items:center;gap:13px;background:var(--paper2);border:1px solid var(--line-d);border-radius:14px;padding:14px 17px;box-shadow:0 8px 22px rgba(20,19,27,.05)}
+  .badge-row .ic{width:38px;height:38px;border-radius:11px;background:rgba(239,43,43,.09);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .badge-row .ic svg{width:21px;height:21px;stroke:var(--red);fill:none;stroke-width:2}
+  .badge-row .t{font-family:var(--disp);font-weight:700;font-size:15.5px;color:var(--ink-d)}
+  .badge-row .d{font-size:12.5px;color:var(--ink-d3);margin-top:1px}
+
+  .svc-card{background:linear-gradient(135deg,var(--crimson) 0%,#8b0000 100%);color:#fff;border-radius:24px;padding:clamp(28px,3.4vw,44px);
+    box-shadow:0 30px 70px rgba(179,6,6,.28);position:relative;overflow:hidden}
+  .svc-card::before{content:'';position:absolute;top:-40%;right:-10%;width:420px;height:420px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.10),transparent 68%);pointer-events:none}
+  .svc-grid{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:18px 30px;margin-bottom:26px}
+  .svc-item{display:flex;align-items:flex-start;gap:13px}
+  .svc-item .dot{width:9px;height:9px;border-radius:50%;background:#fff;margin-top:9px;flex-shrink:0;box-shadow:0 0 0 5px rgba(255,255,255,.14)}
+  .svc-item .n{font-family:var(--disp);font-weight:700;font-size:17.5px}
+  .svc-item .d{font-size:13.5px;color:#fee2e2;margin-top:3px;line-height:1.5}
+  .svc-cta{position:relative;text-align:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.22)}
+  .svc-cta a{display:inline-flex;align-items:center;gap:9px;background:#fff;color:var(--crimson);font-family:var(--disp);font-weight:700;font-size:1rem;padding:13px 30px;border-radius:11px;transition:transform .18s}
+  .svc-cta a:hover{transform:translateY(-2px)}
+
+  .steps{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
+  .step{display:flex;align-items:flex-start;gap:15px;background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:20px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
+  .step .ic{width:46px;height:46px;border-radius:13px;background:rgba(239,43,43,.09);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step .ic svg{width:22px;height:22px;stroke:var(--red);fill:none;stroke-width:2}
+  .step .num{font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:3px}
+  .step .t{font-family:var(--disp);font-weight:700;font-size:16px;color:var(--ink-d)}
+  .step .d{font-size:13px;color:var(--ink-d3);margin-top:3px;line-height:1.5}
+
+  .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .rev{background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:24px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
+  .rev .stars{display:flex;gap:3px;margin-bottom:13px}
+  .rev .stars svg{width:19px;height:19px;fill:var(--red)}
+  .rev .q{font-size:15px;color:var(--ink-d2);line-height:1.65;margin-bottom:15px}
+  .rev .a{font-family:var(--disp);font-weight:700;color:var(--ink-d);font-size:14.5px}
+  .rev .a span{font-family:var(--body);font-weight:500;color:var(--ink-d3)}
+
+  .gal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .gal{position:relative;aspect-ratio:4/3;border-radius:15px;overflow:hidden;border:1px solid var(--line-d);
+    background:linear-gradient(135deg,#1b1a24,#2a2834);box-shadow:0 12px 30px rgba(20,19,27,.10)}
+  .gal img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+  .gal::after{content:attr(data-label);position:absolute;left:13px;bottom:11px;font-family:var(--disp);font-weight:700;font-size:12.5px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6);z-index:3}
+  .gal .veil{position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.55));z-index:2}
+  .gal .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.22);z-index:1}
+  .gal .ph svg{width:42px;height:42px;stroke:currentColor;fill:none;stroke-width:1.4}
+
+  /* ── dark glass split form ── */
+  .formband{position:relative;overflow:hidden;background:var(--ink2);color:var(--tx);padding:clamp(48px,6vw,82px) 0}
+  .formband .atmos2{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .formband .bg2{position:absolute;inset:-30%;filter:blur(16px);opacity:.85;animation:mesh 30s ease-in-out infinite alternate;
+    background:
+      radial-gradient(46% 56% at 12% 16%,rgba(239,43,43,.34),transparent 60%),
+      radial-gradient(50% 58% at 88% 86%,rgba(70,89,138,.30),transparent 62%),
+      radial-gradient(42% 50% at 80% 8%,rgba(179,6,6,.34),transparent 60%);}
+  .form-split{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,4vw,56px);align-items:center;
+    max-width:1140px;margin:0 auto;padding:0 clamp(18px,5vw,40px)}
+  .form-pitch h2{font-size:clamp(1.9rem,3.4vw,2.8rem)}
+  .form-pitch p{color:var(--mut);font-size:clamp(1rem,1.4vw,1.12rem);margin-top:14px;max-width:40ch;line-height:1.55}
+  .form-pitch .rep-mini{display:flex;align-items:center;gap:13px;margin-top:24px;padding:14px 16px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+  .form-pitch .rep-mini img{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--red)}
+  .form-pitch .rep-mini .ini{width:52px;height:52px;border-radius:50%;border:2px solid var(--red);background:#15131d;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;color:var(--red2)}
+  .form-pitch .rep-mini .rn{font-family:var(--disp);font-weight:700;font-size:15.5px;color:var(--tx)}
+  .form-pitch .rep-mini .rr{font-size:12.5px;color:var(--mut);margin-top:1px}
+  .form-pitch ul{list-style:none;margin:22px 0 0;display:flex;flex-direction:column;gap:11px}
+  .form-pitch li{display:flex;align-items:center;gap:11px;font-size:14.5px;color:var(--mut)}
+  .form-pitch li svg{width:20px;height:20px;flex-shrink:0;stroke:var(--ok);fill:none;stroke-width:2.4}
+  .form-pitch li b{color:var(--tx);font-weight:700}
+
+  .glassform{border-radius:22px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03));
+    backdrop-filter:blur(18px);box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.07);padding:clamp(22px,2.6vw,30px)}
+  .glassform h3{font-size:1.4rem;color:var(--tx)}
+  .glassform .fsub{color:var(--mut);font-size:13.5px;margin:6px 0 18px}
+  .glassform .field{margin-top:11px}
+  .glassform label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .glassform input,.glassform textarea{width:100%;font:inherit;color:var(--tx);padding:14px 15px;border:1.5px solid var(--line);border-radius:12px;
+    background:rgba(255,255,255,.04);font-size:16px;transition:border-color .2s,background .2s}
+  .glassform textarea{min-height:84px;resize:vertical}
+  .glassform input::placeholder,.glassform textarea::placeholder{color:var(--faint)}
+  .glassform input:focus,.glassform textarea:focus{outline:none;border-color:var(--red);background:rgba(255,255,255,.07)}
+  .glassform .row2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .glassform .btn.full{width:100%;justify-content:center;margin-top:16px;padding:16px}
+  .glassform .fnote{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:12.5px;margin-top:13px}
+  .glassform .fnote svg{width:15px;height:15px;stroke:var(--red2);fill:none}
+  .glassform .err{color:#ffb4b4;font-size:13px;margin-top:11px;display:none}
+  .glassform .done{display:none;text-align:center;padding:22px 8px}
+  .glassform .done .check{width:62px;height:62px;border-radius:50%;background:var(--okbg);border:1px solid rgba(16,185,129,.4);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .glassform .done .check svg{width:30px;height:30px;stroke:var(--ok);fill:none;stroke-width:2.6}
+  .glassform .done h3{margin-bottom:6px}
+  .glassform .done p{color:var(--mut);font-size:14px}
+  .spin-i{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
+
+  footer.site{position:relative;z-index:2;background:var(--ink);border-top:1px solid var(--line);padding:34px 0 44px}
+  .foot-in{max-width:1180px;margin:0 auto;padding:0 clamp(18px,5vw,40px);display:flex;flex-direction:column;align-items:center;gap:15px;text-align:center}
+  .foot-in img{height:24px;opacity:.92}
+  .foot-links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+  .foot-links a{color:var(--mut);font-size:13px;transition:color .2s}
+  .foot-links a:hover{color:var(--tx)}
+  .foot-fine{color:var(--faint);font-size:12px;line-height:1.6;max-width:78ch}
+
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  .mbar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;background:rgba(8,8,13,.96);backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);padding:10px 14px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .mbar .in{display:flex;gap:9px;max-width:520px;margin:0 auto}
+  .mbar a{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:11px;font-family:var(--disp);font-weight:700;font-size:14px;padding:13px 8px}
+  .mbar .call{flex:1;background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--tx)}
+  .mbar .call svg{width:17px;height:17px;stroke:var(--tx);fill:none;stroke-width:2}
+  .mbar .insp{flex:1.5;background:linear-gradient(95deg,var(--red),#ff6a4d);color:#fff;box-shadow:0 8px 22px rgba(239,43,43,.4)}
+
+  @media (max-width:920px){.why-grid{grid-template-columns:1fr;gap:26px}.form-split{grid-template-columns:1fr;gap:26px}}
+  @media (max-width:780px){
+    .hero-inner{grid-template-columns:1fr;text-align:center;gap:24px;padding-top:26px}
+    .sub{margin-left:auto;margin-right:auto}.role{text-align:center}
+    .hero-cta,.trust{justify-content:center}
+    .art{order:-1;width:min(360px,86vw)}.seal{right:2%;bottom:2%}
+  }
+  @media (max-width:680px){
+    .svc-grid,.steps,.rev-grid{grid-template-columns:1fr}
+    .gal-grid{grid-template-columns:1fr 1fr}
+    .glassform .row2{grid-template-columns:1fr}
+    .mbar{display:block}body{padding-bottom:70px}
+  }
+  @media (max-width:420px){h1.title{font-size:2.15rem}.stats4{grid-template-columns:1fr}}
+
+  /* reduced motion: freeze everything, show final state */
+  @media (prefers-reduced-motion:reduce){
+    .bg,.bg2,.ring-orbit,.medallion .ring-orbit,.eyebrow .dot{animation:none!important}
+    #hail{display:none}
+    .reveal{opacity:1;transform:none;transition:none}
+    .seal{opacity:1;transform:rotate(-3deg)}
+    .spin-i{animation:none}
+  }
+</style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-logo" href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></a>
+    <div class="nav-mid">
+      <a href="#services">Services</a><a href="#why">Why Us</a><a href="#process">Process</a><a href="#reviews">Reviews</a><a href="#projects">Projects</a>
+    </div>
+    <button class="navcta" onclick="document.getElementById('inspection').scrollIntoView({behavior:'smooth'})" type="button">Free Inspection</button>
+  </nav>
+
+  <header class="hero">
+    <div class="atmos"><div class="bg"></div><canvas id="hail"></canvas><div class="grain"></div></div>
+    <div class="hero-inner">
+      <section class="left reveal">
+        <span class="eyebrow"><span class="dot"></span> Your local Roof-ER specialist</span>
+        <h1 class="title">Hi, I'm ${esc(firstName)} <span class="grad">${esc(String(name).trim().split(/\s+/).slice(1).join(' ') || '')}</span></h1>
+        <p class="role">${esc(role)} · The Roof Docs</p>
+        ${bio ? `<p class="sub">${esc(bio)}</p>` : `<p class="sub">I help homeowners across Virginia, Maryland &amp; Pennsylvania turn storm damage into a fully-handled insurance claim — and a brand-new roof. Let's see if yours qualifies.</p>`}
+        <div class="hero-cta">
+          <button class="btn magnet" type="button" onclick="document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            Request your free inspection
+          </button>
+          ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(firstName)}</a>` : ''}
+        </div>
+        <div class="trust"><span><b>8,000+</b> roofs completed</span><span>We handle the <b>insurance claim</b></span><span>Licensed &amp; local</span></div>
+      </section>
+
+      <aside class="art reveal">
+        <div class="medallion">
+          <div class="ring-orbit"></div>
+          <div class="ringline r1"></div><div class="ringline r2"></div>
+          <div class="photo">
+            ${imageUrl
+              ? `<img src="${escAttr(imageUrl)}" alt="${escAttr(name)}, ${escAttr(role)} at The Roof Docs" onerror="this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<span class=\\'ini\\'>${esc(initials)}</span>')">`
+              : `<span class="ini">${esc(initials)}</span>`}
+          </div>
+          <div class="locksweep" id="locksweep"></div>
+          <div class="seal" id="seal">
+            <div class="badge-ic"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+            <div><div class="st">Verified</div><div class="sn">Roof-ER Specialist</div></div>
+          </div>
+        </div>
+        <div class="vidcard">${videoHtml}</div>
+      </aside>
+    </div>
+  </header>
+
+  <section class="ctabar">
+    <div class="container">
+      <h2>Get Your FREE Home Inspection Today</h2>
+      <p>A professional assessment of your roof, siding, gutters, windows &amp; doors — no cost, no obligation.</p>
+      <a class="btn-light" href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">
+        Schedule free inspection
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <main class="light">
+    <section class="sec" id="why">
+      <div class="container">
+        <div class="why-grid">
+          <div class="reveal">
+            <span class="sec-eyebrow">Why homeowners choose us</span>
+            <h2 class="sec-title">Local expertise, proven<br>at scale.</h2>
+            <p class="sec-sub">Roof-ER (The Roof Docs) has completed more than 8,000 roofing &amp; exterior projects across the DMV. We don't just install — we manage the entire insurance claim end-to-end so you don't have to.</p>
+            <div class="stats4" style="margin-top:28px">
+              <div class="stat"><div class="n" data-count="8000" data-suffix="+">8,000+</div><div class="l">Projects completed</div></div>
+              <div class="stat"><div class="n" data-count="${yearsTarget}" data-suffix="+">${esc(yearsStat)}</div><div class="l">Years in business</div></div>
+              <div class="stat"><div class="n">VA·MD·PA</div><div class="l">Storm coverage</div></div>
+              <div class="stat"><div class="n">A+</div><div class="l">BBB rating</div></div>
+            </div>
+          </div>
+          <div class="badges reveal">
+            <div class="badge-row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div><div class="t">GAF Master Elite</div><div class="d">Top 2% of roofing contractors nationwide</div></div></div>
+            <div class="badge-row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div><div class="t">BBB A+ Accredited</div><div class="d">Verified track record &amp; customer trust</div></div></div>
+            <div class="badge-row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="t">Lifetime Workmanship Warranty</div><div class="d">Backed for as long as you own the home</div></div></div>
+            <div class="badge-row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="t">Licensed &amp; Fully Insured</div><div class="d">Family-owned, locally operated</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="services" style="padding-top:0">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:30px">
+          <span class="sec-eyebrow">What we do</span>
+          <h2 class="sec-title">Our services</h2>
+          <p class="sec-sub">One team for the whole exterior — from the first inspection to the final walkthrough.</p>
+        </div>
+        <div class="svc-card reveal">
+          <div class="svc-grid">
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Roofing</div><div class="d">Complete storm-damage roof replacement &amp; repairs</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Siding</div><div class="d">Vinyl, wood &amp; fiber-cement siding</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Gutters</div><div class="d">Seamless gutter installation &amp; repair</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Windows &amp; Doors</div><div class="d">Energy-efficient windows &amp; door installation</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Solar</div><div class="d">Solar panel installation &amp; energy solutions</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Insurance Claims</div><div class="d">We document, file &amp; manage the entire claim</div></div></div>
+          </div>
+          <div class="svc-cta"><a href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">Schedule free inspection &rarr;</a></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="process" style="background:var(--paper2)">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:34px">
+          <span class="sec-eyebrow">How it works</span>
+          <h2 class="sec-title">Complete project solution</h2>
+          <p class="sec-sub">From tear-off to solar, we handle everything — and keep you informed at every step.</p>
+        </div>
+        <div class="steps reveal">
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="num">Step 01</div><div class="t">Free Inspection</div><div class="d">Comprehensive roof &amp; property assessment.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="num">Step 02</div><div class="t">Insurance Coordination</div><div class="d">We handle all paperwork &amp; claims.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div><div><div class="num">Step 03</div><div class="t">Professional Tear-Off</div><div class="d">Safe removal of old materials &amp; full cleanup.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12l2-2 7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg></div><div><div class="num">Step 04</div><div class="t">Premium Installation</div><div class="d">Top-quality materials, expert craftsmanship.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.7-.7M6.34 6.34l-.7-.7m12.72 0l-.7.7M6.34 17.66l-.7.7M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div><div><div class="num">Step 05</div><div class="t">Solar Integration</div><div class="d">Optional solar panels for long-term savings.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="num">Step 06</div><div class="t">Final Walkthrough</div><div class="d">Quality check &amp; lifetime warranty activation.</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="reviews">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:34px">
+          <span class="sec-eyebrow">★★★★★ 5.0 average</span>
+          <h2 class="sec-title">What homeowners say</h2>
+          <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(firstName)} &amp; the Roof-ER team.</p>
+        </div>
+        <div class="rev-grid reveal">${reviewsHtml}</div>
+        <div class="center" style="margin-top:26px">
+          <a href="https://www.google.com/maps/search/The+Roof+Docs+Vienna+VA" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:9px;background:var(--paper2);color:var(--ink-d);border:1px solid var(--line-d);padding:11px 22px;border-radius:11px;font-weight:700;font-size:14px;box-shadow:0 4px 14px rgba(20,19,27,.06)">
+            <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+            See more reviews on Google
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="projects" style="background:var(--paper2)">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:34px">
+          <span class="sec-eyebrow">Proof on the ground</span>
+          <h2 class="sec-title">Recent projects</h2>
+          <p class="sec-sub">A few of the 8,000+ roofs &amp; exteriors we've completed across the DMV.</p>
+        </div>
+        <div class="gal-grid reveal">
+          ${projectImages.map((img, i) => `<div class="gal" data-label="${escAttr(projectLabels[i] || 'The Roof Docs')}"><div class="ph"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10"/></svg></div><img src="${escAttr(img)}" alt="Recent Roof-ER project in ${escAttr(projectLabels[i] || 'the DMV')}" loading="lazy" onerror="this.style.display='none'"><div class="veil"></div></div>`).join('')}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="formband" id="inspection">
+    <div class="atmos2"><div class="bg2"></div></div>
+    <div class="form-split">
+      <div class="form-pitch reveal">
+        <span class="eyebrow"><span class="dot"></span> Free · no obligation</span>
+        <h2>Request your free <span class="grad">inspection.</span></h2>
+        <p>Tell me a little about your home and I'll personally reach out to schedule your no-cost roof inspection — usually within 24 hours.</p>
+        <div class="rep-mini">
+          ${imageUrl ? `<img src="${escAttr(imageUrl)}" alt="${escAttr(name)}" onerror="this.style.display='none'">` : `<div class="ini">${esc(initials)}</div>`}
+          <div><div class="rn">${esc(name)}</div><div class="rr">${esc(role)} · VA · MD · PA</div></div>
+        </div>
+        <ul>
+          <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span>We handle the entire insurance claim</span></li>
+          <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span><b>8,000+</b> roofs completed locally</span></li>
+          <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> GAF Master Elite · Lifetime warranty</li>
+        </ul>
+      </div>
+
+      <div class="glassform reveal">
+        <form id="inspForm" autocomplete="on" novalidate>
+          <h3>Schedule your inspection</h3>
+          <p class="fsub">with <strong style="color:var(--red2)">${esc(name)}</strong> — it only takes 30 seconds.</p>
+          <div class="row2">
+            <div class="field"><label for="fn">First name</label><input id="fn" name="fn" type="text" placeholder="Jane" autocomplete="given-name" required></div>
+            <div class="field"><label for="ln">Last name</label><input id="ln" name="ln" type="text" placeholder="Doe" autocomplete="family-name"></div>
+          </div>
+          <div class="field"><label for="ph">Phone</label><input id="ph" name="ph" type="tel" placeholder="(571) 555-0199" autocomplete="tel" required></div>
+          <div class="field"><label for="em">Email</label><input id="em" name="em" type="email" placeholder="jane@email.com" autocomplete="email"></div>
+          <div class="field"><label for="ad">Property address</label><input id="ad" name="ad" type="text" placeholder="123 Main St, Vienna, VA 22180" autocomplete="street-address" required></div>
+          <div class="field"><label for="ms">Anything we should know? <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="ms" name="ms" placeholder="Recent storm, visible leak, missing shingles…"></textarea></div>
+          <div class="err" id="formErr" role="alert"></div>
+          <button class="btn full" type="submit" id="inspBtn">
+            Request my free inspection
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+          <div class="fnote"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Free &amp; no obligation. We never share your info.</div>
+        </form>
+        <div class="done" id="formDone" role="status">
+          <div class="check"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
+          <h3>Thanks, <span id="doneName">there</span>!</h3>
+          <p>${esc(firstName)} will reach out within 24 hours to confirm your free inspection. Keep an eye on your phone. 📞</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site">
+    <div class="foot-in">
+      <a href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></a>
+      <div class="foot-links"><a href="#services">Services</a><a href="#why">Why Us</a><a href="#reviews">Reviews</a><a href="#inspection">Free Inspection</a></div>
+      <p class="foot-fine">Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Virginia, Maryland &amp; Pennsylvania. Licensed &amp; insured · GAF Master Elite · BBB A+. &copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <div class="mbar">
+    <div class="in">
+      ${phone ? `<a class="call" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(firstName)}</a>` : ''}
+      <a class="insp" href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">Free Inspection</a>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var MOBILE = window.matchMedia && window.matchMedia('(max-width:767px)').matches;
+  var PROFILE_ID = ${JSON.stringify(profile.id || null)};
+  var SLUG = ${JSON.stringify(slug)};
+  var REP_NAME = ${JSON.stringify(name)};
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ── hail canvas — scoped to the hero; skip on mobile + reduced-motion; pause offscreen & on tab-hide ── */
+  (function(){
+    var c = $('hail'); if(!c) return;
+    if(REDUCE || MOBILE){ c.style.display='none'; return; }
+    var x = c.getContext('2d'), w, h, drops = [], raf = null, visible = true;
+    function size(){
+      var host = c.parentNode;
+      w = c.width = host.offsetWidth; h = c.height = host.offsetHeight;
+      var n = Math.min(120, Math.floor(w/11)); drops = [];
+      for(var i=0;i<n;i++) drops.push({x:Math.random()*w,y:Math.random()*h,l:6+Math.random()*16,s:5+Math.random()*9,o:.12+Math.random()*.3});
+    }
+    size(); addEventListener('resize', size);
+    function loop(){
+      x.clearRect(0,0,w,h); x.lineCap='round';
+      for(var i=0;i<drops.length;i++){ var d=drops[i];
+        x.strokeStyle='rgba(255,140,140,'+d.o+')'; x.lineWidth=1.4;
+        x.beginPath(); x.moveTo(d.x,d.y); x.lineTo(d.x-1.5,d.y+d.l); x.stroke();
+        d.y+=d.s; d.x-=.6; if(d.y>h){ d.y=-d.l; d.x=Math.random()*w; } }
+      raf = requestAnimationFrame(loop);
+    }
+    function start(){ if(!raf) raf = requestAnimationFrame(loop); }
+    function stop(){ if(raf){ cancelAnimationFrame(raf); raf = null; } }
+    if('IntersectionObserver' in window){
+      new IntersectionObserver(function(es){ es.forEach(function(e){ visible=e.isIntersecting; visible?start():stop(); }); }, {threshold:0}).observe(c.parentNode);
+    } else { start(); }
+    document.addEventListener('visibilitychange', function(){ document.hidden ? stop() : (visible && start()); });
+  })();
+
+  /* ── lock-on hero entrance: sweep acquires the photo, then stamp the seal ── */
+  (function(){
+    var sweep = $('locksweep'), seal = $('seal'); if(!sweep) return;
+    if(REDUCE){ if(seal){ seal.style.opacity='1'; seal.style.transform='rotate(-3deg)'; } return; }
+    var spins = 0, ang = 0, raf;
+    sweep.style.opacity = '1';
+    function tick(){
+      ang += 9; spins = ang/360;
+      sweep.style.transform = 'rotate('+ang+'deg)';
+      if(ang < 540){ raf = requestAnimationFrame(tick); }
+      else { sweep.style.transition='opacity .5s'; sweep.style.opacity='0'; if(seal) seal.classList.add('stamped'); }
+    }
+    setTimeout(function(){ raf = requestAnimationFrame(tick); }, 350);
+  })();
+
+  /* ── one shared IntersectionObserver: reveals + stat count-up; unobserve after fire ── */
+  (function(){
+    var els = [].slice.call(document.querySelectorAll('.reveal'));
+    function countUp(el){
+      var target = parseInt(el.getAttribute('data-count'),10);
+      var suffix = el.getAttribute('data-suffix') || '';
+      if(isNaN(target)) return;
+      if(REDUCE){ el.textContent = target.toLocaleString()+suffix; return; }
+      var dur = 1100, t0 = null;
+      function step(ts){ if(!t0) t0=ts; var p=Math.min((ts-t0)/dur,1);
+        var eased = 1-Math.pow(1-p,3);
+        el.textContent = Math.round(target*eased).toLocaleString()+suffix;
+        if(p<1) requestAnimationFrame(step); else el.textContent = target.toLocaleString()+suffix; }
+      requestAnimationFrame(step);
+    }
+    if(REDUCE || !('IntersectionObserver' in window)){
+      els.forEach(function(el){ el.classList.add('in'); });
+      [].forEach.call(document.querySelectorAll('[data-count]'), countUp);
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(!e.isIntersecting) return;
+        e.target.classList.add('in');
+        [].forEach.call(e.target.querySelectorAll('[data-count]'), countUp);
+        io.unobserve(e.target);
+      });
+    }, {threshold:.12, rootMargin:'0px 0px -8% 0px'});
+    els.forEach(function(el){ io.observe(el); });
+  })();
+
+  /* ── Share button: navigator.share + POST /api/profiles/track-share (reused from V1) ── */
+  /* (kept available for future nav placement; no DOM dependency if absent) */
+  window.__repShare = function(){
+    var url = window.location.origin + '/profile/' + SLUG;
+    var shareType = 'native';
+    (async function(){
+      try{
+        if(navigator.share){ await navigator.share({ title: REP_NAME + ' — The Roof Docs', url: url }); }
+        else if(navigator.clipboard){ await navigator.clipboard.writeText(url); shareType='copy_link'; }
+      }catch(e){ return; }
+      fetch('/api/profiles/track-share', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profileSlug:SLUG,shareType:shareType})}).catch(function(){});
+    })();
+  };
+
+  /* ── lead form → POST /api/profiles/contact, inline success state ── */
+  (function(){
+    var f = $('inspForm'); if(!f) return;
+    f.addEventListener('submit', async function(e){
+      e.preventDefault();
+      var fn=($('fn').value||'').trim(), ln=($('ln').value||'').trim();
+      var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ad=($('ad').value||'').trim(), ms=($('ms').value||'').trim();
+      var err = $('formErr');
+      if(!fn || ph.replace(/\\D/g,'').length < 7){ err.textContent='Please add your name and a valid phone number.'; err.style.display='block'; return; }
+      if(!ad){ err.textContent='Please add your property address.'; err.style.display='block'; return; }
+      err.style.display='none';
+      var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
+      try{
+        var r = await fetch('/api/profiles/contact', {method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: 'Free inspection (rep page)' })});
+        /* Success even on soft backend errors — capture/notify is handled separately; never trap the homeowner. */
+        $('doneName').textContent = fn;
+        f.style.display='none';
+        $('formDone').style.display='block';
+        $('formDone').scrollIntoView({behavior:'smooth',block:'center'});
+      }catch(err2){
+        $('doneName').textContent = fn;
+        f.style.display='none';
+        $('formDone').style.display='block';
+      }
+    });
+  })();
+})();
+</script>
 </body>
 </html>`;
 }
