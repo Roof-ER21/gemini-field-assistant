@@ -405,6 +405,8 @@ function renderPage(_mapsKey) {
   /* hero */
   .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(26px,4.5vw,68px);align-items:center;
     max-width:1280px;margin:0 auto;padding:clamp(30px,5.5vw,76px) clamp(18px,5vw,56px) clamp(34px,5vw,68px)}
+  /* min-width:0 so wide nowrap content (day chips) can't blow out the grid track on mobile */
+  .hero>*{min-width:0}
   .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--red2);margin-bottom:16px}
   .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--red2);box-shadow:0 0 0 4px rgba(239,43,43,.22);animation:pulse 2.2s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(239,43,43,.22)}50%{box-shadow:0 0 0 9px rgba(239,43,43,0)}}
@@ -413,7 +415,7 @@ function renderPage(_mapsKey) {
 
   /* glass capture card */
   .card{margin-top:26px;border-radius:22px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));
-    backdrop-filter:blur(16px);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);padding:clamp(18px,2.4vw,26px)}
+    backdrop-filter:blur(16px);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);padding:clamp(18px,2.4vw,26px);min-width:0;max-width:100%}
   form.search{display:flex;gap:10px;flex-wrap:wrap}
   input{font:inherit;color:var(--tx)}
   input[type=text],input[type=tel],input[type=email]{flex:1;min-width:0;width:100%;padding:15px 16px;border:1.5px solid var(--line);border-radius:13px;
