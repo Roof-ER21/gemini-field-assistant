@@ -371,7 +371,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
 
       const p: [string, string, string | null] = [fromD, toD, slug];
 
-      const [summaryR, dailyR, deviceR, recentScanR, recentSignupR, repsR, staffR] = await Promise.all([
+      const [summaryR, dailyR, deviceR, recentScanR, recentSignupR, repsR, staffR, funnelR, channelR, sourceR] = await Promise.all([
         // Summary: scans + unique + reps-scanned + signups, all in-range/slug
         pool.query(`
           SELECT
@@ -478,6 +478,57 @@ export function createQRAnalyticsRoutes(pool: Pool) {
             UNION ALL SELECT added_by_email, 0, 0, 0, COUNT(*) FROM profile_reviews WHERE added_by_email IS NOT NULL GROUP BY 1
           ) t GROUP BY email ORDER BY profiles_created DESC, profiles_edited DESC
         `),
+
+        // ── Funnel: scans → signups → booked (in-range/slug, ET). "booked" = a
+        // homeowner who picked an inspection slot (preferred_date set). Note:
+        // closed-won isn't tracked in sa21 — it lives in CC24; omit for now.
+        pool.query(`
+          SELECT
+            (SELECT COUNT(*)::int FROM qr_scans qs
+               WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR qs.profile_slug = $3)) AS scans,
+            (SELECT COUNT(*)::int FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
+               WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND ($3::text IS NULL OR ep.slug = $3)) AS signups,
+            (SELECT COUNT(*)::int FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
+               WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+                 AND pl.preferred_date IS NOT NULL
+                 AND ($3::text IS NULL OR ep.slug = $3)) AS booked
+        `, p),
+
+        // ── By channel: share-channel attribution from utm_medium (door/text/social/
+        // facebook/instagram/qr…). signups + booked + conversion% (booked/signups).
+        pool.query(`
+          SELECT COALESCE(NULLIF(pl.utm_medium, ''), '(none)') AS channel,
+                 COUNT(*)::int AS signups,
+                 COUNT(*) FILTER (WHERE pl.preferred_date IS NOT NULL)::int AS booked
+          FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
+          WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR ep.slug = $3)
+          GROUP BY 1
+          ORDER BY signups DESC, channel ASC
+        `, p),
+
+        // ── By source family: split signups into RoofCheck vs the new V2 rep form vs
+        // legacy QR/JotForm so we can see where leads originate.
+        //   RoofCheck       = source LIKE 'roofcheck%'
+        //   Rep page (V2)   = service_type = 'Free inspection (rep page)'
+        //   QR / JotForm V1 = everything else
+        pool.query(`
+          SELECT
+            CASE
+              WHEN pl.source LIKE 'roofcheck%' THEN 'RoofCheck'
+              WHEN pl.service_type = 'Free inspection (rep page)' THEN 'Rep page (V2 form)'
+              ELSE 'QR / JotForm (V1)'
+            END AS family,
+            COUNT(*)::int AS signups,
+            COUNT(*) FILTER (WHERE pl.preferred_date IS NOT NULL)::int AS booked
+          FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
+          WHERE (pl.created_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+            AND ($3::text IS NULL OR ep.slug = $3)
+          GROUP BY 1
+          ORDER BY signups DESC
+        `, p),
       ]);
 
       const s = summaryR.rows[0];
@@ -520,10 +571,104 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           email: r.email, profilesCreated: r.profiles_created, profilesEdited: r.profiles_edited,
           videosAdded: r.videos_added, reviewsAdded: r.reviews_added,
         })),
+        // Funnel scans → signups → booked (closed-won lives in CC24; omitted).
+        funnel: (() => {
+          const f = funnelR.rows[0] || {};
+          return { scans: f.scans ?? 0, signups: f.signups ?? 0, booked: f.booked ?? 0 };
+        })(),
+        // Share-channel conversion (utm_medium). conversionPct = booked / signups.
+        byChannel: channelR.rows.map(r => ({
+          channel: r.channel,
+          signups: r.signups,
+          booked: r.booked,
+          conversionPct: r.signups > 0 ? Math.round((r.booked / r.signups) * 1000) / 10 : 0,
+        })),
+        // 3-way source family split (RoofCheck / Rep page V2 / QR-JotForm V1).
+        bySource: sourceR.rows.map(r => ({
+          family: r.family,
+          signups: r.signups,
+          booked: r.booked,
+          conversionPct: r.signups > 0 ? Math.round((r.booked / r.signups) * 1000) / 10 : 0,
+        })),
       });
     } catch (error) {
       console.error('❌ QR analytics dashboard error:', error);
       res.status(500).json({ success: false, error: 'Failed to get dashboard analytics' });
+    }
+  });
+
+  /**
+   * GET /api/qr-analytics/rep-readiness
+   * Per-rep launch-readiness scorecard so marketing can chase missing pieces.
+   * Active profiles only (is_active = true). For each rep:
+   *   hasPhoto  = image_url present & non-empty
+   *   hasVideo  = >=1 row in profile_videos
+   *   hasBio    = bio present & non-empty
+   *   hasLogin  = user_id present (claimed an account)
+   *   hasGoogle = user_id present AND a live google_oauth_tokens row
+   *               (revoked_at IS NULL AND access_token_encrypted <> 'pending')
+   *   completenessPct = round(100 * (#true of {photo,video,bio,google}) / 4)
+   *   fullyReady      = all 4 of {photo,video,bio,google} true
+   * Admin / marketing only.
+   */
+  router.get('/rep-readiness', async (req: Request, res: Response) => {
+    try {
+      const userEmail = req.headers['x-user-email'] as string;
+      if (!await canManageQRUser(userEmail)) {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+      }
+
+      const result = await pool.query(`
+        SELECT
+          ep.name,
+          ep.slug,
+          (ep.image_url IS NOT NULL AND ep.image_url <> '')           AS has_photo,
+          (v.c IS NOT NULL AND v.c > 0)                               AS has_video,
+          (ep.bio IS NOT NULL AND btrim(ep.bio) <> '')               AS has_bio,
+          (ep.user_id IS NOT NULL)                                   AS has_login,
+          (ep.user_id IS NOT NULL AND g.user_id IS NOT NULL)         AS has_google
+        FROM employee_profiles ep
+        LEFT JOIN (
+          SELECT profile_id, COUNT(*) AS c FROM profile_videos GROUP BY profile_id
+        ) v ON v.profile_id = ep.id
+        LEFT JOIN (
+          SELECT DISTINCT user_id FROM google_oauth_tokens
+          WHERE revoked_at IS NULL AND access_token_encrypted <> 'pending'
+        ) g ON g.user_id = ep.user_id
+        WHERE ep.is_active = TRUE
+        ORDER BY ep.name ASC
+      `);
+
+      const reps = result.rows.map(r => {
+        const hasPhoto = !!r.has_photo;
+        const hasVideo = !!r.has_video;
+        const hasBio = !!r.has_bio;
+        const hasLogin = !!r.has_login;
+        const hasGoogle = !!r.has_google;
+        const trueCount = [hasPhoto, hasVideo, hasBio, hasGoogle].filter(Boolean).length;
+        const completenessPct = Math.round((100 * trueCount) / 4);
+        return {
+          name: r.name,
+          slug: r.slug,
+          hasPhoto, hasVideo, hasBio, hasGoogle, hasLogin,
+          completenessPct,
+          fullyReady: trueCount === 4,
+        };
+      });
+
+      const summary = {
+        total: reps.length,
+        withPhoto: reps.filter(r => r.hasPhoto).length,
+        withVideo: reps.filter(r => r.hasVideo).length,
+        withBio: reps.filter(r => r.hasBio).length,
+        googleConnected: reps.filter(r => r.hasGoogle).length,
+        fullyReady: reps.filter(r => r.fullyReady).length,
+      };
+
+      res.json({ success: true, reps, summary });
+    } catch (error) {
+      console.error('❌ QR analytics rep-readiness error:', error);
+      res.status(500).json({ success: false, error: 'Failed to get rep readiness' });
     }
   });
 

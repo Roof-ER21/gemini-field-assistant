@@ -23,6 +23,9 @@ import {
   Filter,
   X,
   Target,
+  Share2,
+  GitBranch,
+  CalendarCheck,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -44,6 +47,9 @@ interface RepRow {
   videoCount: number; reviewCount: number; scanCount: number; uniqueVisitors: number; signupCount: number;
 }
 interface StaffRow { email: string; profilesCreated: number; profilesEdited: number; videosAdded: number; reviewsAdded: number; }
+interface FunnelData { scans: number; signups: number; booked: number; }
+interface ChannelRow { channel: string; signups: number; booked: number; conversionPct: number; }
+interface SourceRow { family: string; signups: number; booked: number; conversionPct: number; }
 
 interface DashboardData {
   range: { from: string; to: string };
@@ -55,6 +61,9 @@ interface DashboardData {
   recentSignups: RecentSignup[];
   reps: RepRow[];
   staff: StaffRow[];
+  funnel?: FunnelData;
+  byChannel?: ChannelRow[];
+  bySource?: SourceRow[];
 }
 
 interface RepDetail {
@@ -332,6 +341,14 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
   const totalDevice = devices.reduce((s, d) => s + d.count, 0);
   const maxDevice = Math.max(...devices.map(d => d.count), 1);
 
+  // Funnel + channel + source (Feature B). All range/slug-aware from the API.
+  const funnel = data?.funnel ?? { scans: 0, signups: 0, booked: 0 };
+  const byChannel = data?.byChannel ?? [];
+  const bySource = data?.bySource ?? [];
+  const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
+  const scanToSignup = pct(funnel.signups, funnel.scans);
+  const signupToBooked = pct(funnel.booked, funnel.signups);
+
   // Top reps derived from the rep scorecard (already range-aware)
   const topReps = [...reps].filter(r => r.scanCount > 0).sort((a, b) => b.scanCount - a.scanCount).slice(0, 10);
   const maxTop = Math.max(...topReps.map(r => r.scanCount), 1);
@@ -434,6 +451,107 @@ export default function AdminScanAnalyticsPanel({ userEmail }: AdminScanAnalytic
         <StatCard label="Conversion" value={summary?.conversionRate ?? 0} suffix="%" icon={<Target size={13} />} />
         <StatCard label="Unique Visitors" value={fmt(summary?.uniqueVisitors ?? 0)} icon={<Users size={13} />} />
         <StatCard label="Reps Scanned" value={fmt(summary?.repsScanned ?? 0)} icon={<Eye size={13} />} />
+      </div>
+
+      {/* Funnel: scans → signups → booked */}
+      <div style={cardStyle}>
+        <h3 style={sectionTitleStyle}>
+          <Target size={16} color="#dc2626" /> Conversion Funnel
+          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-tertiary)' }}>· scans → signups → booked inspections</span>
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          {([
+            { label: 'Scans', value: funnel.scans, icon: <QrCode size={15} />, color: '#60a5fa', note: 'page views' },
+            { label: 'Signups', value: funnel.signups, icon: <ClipboardList size={15} />, color: '#22c55e', note: `${scanToSignup}% of scans`, rate: scanToSignup },
+            { label: 'Booked', value: funnel.booked, icon: <CalendarCheck size={15} />, color: '#dc2626', note: `${signupToBooked}% of signups`, rate: signupToBooked },
+          ] as const).map((step, i) => (
+            <React.Fragment key={step.label}>
+              <div style={{ flex: 1, minWidth: isMobile ? '40%' : 0, background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '0.875rem 1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: step.color, fontSize: 12, fontWeight: 700 }}>{step.icon}{step.label}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, marginTop: 4 }}>{fmt(step.value)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{step.note}</div>
+              </div>
+              {i < 2 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? '100%' : 56, color: 'var(--text-tertiary)' }}>
+                  <ChevronRight size={18} style={isMobile ? { transform: 'rotate(90deg)' } : undefined} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: (i === 0 ? scanToSignup : signupToBooked) > 0 ? '#22c55e' : 'var(--text-tertiary)' }}>
+                    {i === 0 ? scanToSignup : signupToBooked}%
+                  </span>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        <p style={{ margin: '0.75rem 0 0', fontSize: 11, color: 'var(--text-tertiary)' }}>
+          “Booked” = homeowner picked an inspection slot. Closed-won isn’t tracked here — it lives in CC24.
+        </p>
+      </div>
+
+      {/* Channel + source split */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
+        {/* By channel */}
+        <div style={cardStyle}>
+          <h3 style={sectionTitleStyle}><Share2 size={16} color="#dc2626" /> Signups by Channel</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={thBase}>Channel</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Signups</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Booked</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byChannel.length === 0 ? (
+                  <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-tertiary)', padding: '1rem' }}>No signups in this range.</td></tr>
+                ) : byChannel.map(c => (
+                  <tr key={c.channel}>
+                    <td style={{ ...tdStyle, textTransform: 'capitalize' }}>{c.channel}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{fmt(c.signups)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{fmt(c.booked)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', color: c.conversionPct > 0 ? '#22c55e' : 'var(--text-tertiary)', fontWeight: 700 }}>{c.conversionPct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: '0.75rem 0 0', fontSize: 11, color: 'var(--text-tertiary)' }}>
+            Share channel (door / text / social…). “(none)” = no UTM on the link.
+          </p>
+        </div>
+
+        {/* By source family */}
+        <div style={cardStyle}>
+          <h3 style={sectionTitleStyle}><GitBranch size={16} color="#dc2626" /> Signups by Source</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={thBase}>Source</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Signups</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Booked</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bySource.length === 0 ? (
+                  <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-tertiary)', padding: '1rem' }}>No signups in this range.</td></tr>
+                ) : bySource.map(s => (
+                  <tr key={s.family}>
+                    <td style={tdStyle}>{s.family}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{fmt(s.signups)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{fmt(s.booked)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', color: s.conversionPct > 0 ? '#22c55e' : 'var(--text-tertiary)', fontWeight: 700 }}>{s.conversionPct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: '0.75rem 0 0', fontSize: 11, color: 'var(--text-tertiary)' }}>
+            RoofCheck vs the new V2 rep form vs legacy QR / JotForm.
+          </p>
+        </div>
       </div>
 
       {/* Daily trend */}

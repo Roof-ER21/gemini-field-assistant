@@ -44,6 +44,7 @@ import AdminBudgetTab from './AdminBudgetTab';
 import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
 import AdminScanAnalyticsPanel from './AdminScanAnalyticsPanel';
+import AdminRepReadinessPanel from './AdminRepReadinessPanel';
 import AdminKnowledgePanel from './AdminKnowledgePanel';
 import AdminLearningsPanel from './AdminLearningsPanel';
 import AdminPinModal from './AdminPinModal';
@@ -1653,14 +1654,14 @@ const AdminPanel: React.FC = () => {
         // with only the QR Profiles tab.
         const tabGroups = isMarketing && !isAdmin
           ? [
-              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles', 'qr-analytics'] }
+              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles', 'qr-analytics', 'rep-readiness'] }
             ]
           : [
               { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
               { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
               { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
               { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
-              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'qr-analytics', 'rep-phones'] }
+              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'qr-analytics', 'rep-readiness', 'rep-phones'] }
             ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -1679,6 +1680,7 @@ const AdminPanel: React.FC = () => {
           settings: { label: 'Settings', icon: <Sliders style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'qr-profiles': { label: 'QR Profiles', icon: <MapPin style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'qr-analytics': { label: 'Scan Analytics', icon: <BarChart3 style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'rep-readiness': { label: 'Rep Readiness', icon: <CheckCircle style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'knowledge': { label: 'Knowledge Base', icon: <Database style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'learnings': { label: 'Susan Learnings', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> }
@@ -5011,6 +5013,16 @@ const AdminPanel: React.FC = () => {
         {/* Scan Analytics Tab */}
         {activeTab === 'qr-analytics' && (
           <AdminScanAnalyticsPanel userEmail={(() => {
+            try {
+              const authUser = localStorage.getItem('s21_auth_user');
+              return authUser ? JSON.parse(authUser).email : (currentUser?.email || '');
+            } catch { return currentUser?.email || ''; }
+          })()} />
+        )}
+
+        {/* Rep Readiness Tab */}
+        {activeTab === 'rep-readiness' && (
+          <AdminRepReadinessPanel userEmail={(() => {
             try {
               const authUser = localStorage.getItem('s21_auth_user');
               return authUser ? JSON.parse(authUser).email : (currentUser?.email || '');
