@@ -268,6 +268,14 @@ function getDeviceType(userAgent) {
         return 'tablet';
     return 'desktop';
 }
+let leadIntegrationsRunner = null;
+export function processLeadIntegrations(profileId, leadId, leadData, opts) {
+    if (leadIntegrationsRunner) {
+        leadIntegrationsRunner(profileId, leadId, leadData, opts);
+        return;
+    }
+    console.warn('[processLeadIntegrations] profile routes not initialized — lead integrations skipped');
+}
 export function createProfileRoutes(pool) {
     const router = Router();
     // Helper: Check if user can manage QR profiles (admin or marketing role).
@@ -301,7 +309,7 @@ export function createProfileRoutes(pool) {
     //
     // Fire-and-forget — runs in its own async block so the caller can return
     // success to the client without waiting on Calendar/Gmail latency.
-    function processLeadIntegrations(profileId, leadId, leadData) {
+    function runLeadIntegrations(profileId, leadId, leadData, opts) {
         const sourceLabel = leadData.sourceLabel || 'QR code contact form';
         (async () => {
             try {
@@ -309,22 +317,24 @@ export function createProfileRoutes(pool) {
                 const repUserId = profileRow.rows[0]?.user_id;
                 const repName = profileRow.rows[0]?.name || 'Rep';
                 const repEmail = profileRow.rows[0]?.email;
-                // Forward this rep-attributed lead into CC21 Active Leads (the REAL QR /
-                // JotForm / contact path). Runs even if the rep has no linked CC21 user —
-                // CC21 matches by repEmail, else owner + rep-in-notes.
-                forwardLeadToCC24({
-                    homeownerName: leadData.homeownerName,
-                    homeownerEmail: leadData.homeownerEmail,
-                    homeownerPhone: leadData.homeownerPhone,
-                    address: leadData.address,
-                    serviceType: leadData.serviceType,
-                    preferredDate: leadData.preferredDate,
-                    preferredTime: leadData.preferredTime,
-                    message: leadData.message,
-                    repName: profileRow.rows[0]?.name || null,
-                    repEmail: repEmail || null,
-                    sourceLabel,
-                });
+                // Forward this rep-attributed lead into CC24 Active Leads (the REAL QR /
+                // JotForm / contact path). Runs even if the rep has no linked CC24 user —
+                // CC24 matches by repEmail, else owner + rep-in-notes. Skippable for callers
+                // that already forwarded the base lead (RoofCheck's appointment step).
+                if (!opts?.skipCc24Forward)
+                    forwardLeadToCC24({
+                        homeownerName: leadData.homeownerName,
+                        homeownerEmail: leadData.homeownerEmail,
+                        homeownerPhone: leadData.homeownerPhone,
+                        address: leadData.address,
+                        serviceType: leadData.serviceType,
+                        preferredDate: leadData.preferredDate,
+                        preferredTime: leadData.preferredTime,
+                        message: leadData.message,
+                        repName: profileRow.rows[0]?.name || null,
+                        repEmail: repEmail || null,
+                        sourceLabel,
+                    });
                 if (!repUserId)
                     return;
                 // Resolve admin user once — used as fallback sender when rep hasn't
@@ -429,7 +439,7 @@ export function createProfileRoutes(pool) {
                 const repEmailBody = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                <h2 style="margin: 0;">New Lead from QR Code</h2>
+                <h2 style="margin: 0;">New Lead${/jotform/i.test(sourceLabel) ? ' from JotForm' : /roofcheck/i.test(sourceLabel) ? ' from RoofCheck' : ' from QR Code'}</h2>
               </div>
               <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
                 <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
@@ -545,6 +555,9 @@ export function createProfileRoutes(pool) {
             }
         })();
     }
+    // Bind the in-factory implementation to the module-level handle so sibling
+    // modules (RoofCheck) can run this exact pipeline via the export above.
+    leadIntegrationsRunner = runLeadIntegrations;
     // ==========================================================================
     // PUBLIC ENDPOINTS (No Auth Required)
     // ==========================================================================
@@ -619,7 +632,7 @@ export function createProfileRoutes(pool) {
             // produce identical artifacts (rep email, local + Google calendar
             // events). See the helper definition for behavior.
             if (profileId) {
-                processLeadIntegrations(profileId, leadId, {
+                runLeadIntegrations(profileId, leadId, {
                     homeownerName,
                     homeownerEmail,
                     homeownerPhone,
@@ -917,7 +930,7 @@ export function createProfileRoutes(pool) {
             // Wire calendar + email via the same helper /contact uses, so JotForm
             // and in-app submissions land identically in the rep's inbox + calendar.
             if (profileId) {
-                processLeadIntegrations(profileId, leadId, {
+                runLeadIntegrations(profileId, leadId, {
                     homeownerName,
                     homeownerEmail,
                     homeownerPhone,

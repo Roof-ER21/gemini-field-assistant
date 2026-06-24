@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
-import { forwardLeadToCC24, forwardLeadToJotForm } from '../routes/profileRoutes.js';
+import { forwardLeadToJotForm, processLeadIntegrations } from '../routes/profileRoutes.js';
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
 let JOBS = [];
@@ -211,19 +211,19 @@ export function createRoofCheckRoutes(pool) {
            (profile_id, homeowner_name, homeowner_email, homeowner_phone, address, service_type, message, status, source, utm_source, utm_medium)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'new',$8,'roofcheck',$9)
          RETURNING id`, [profileId, name, email || null, phone, address || null, 'Storm check (RoofCheck)', note, source, src || null]);
-            // Forward into CC24 Active Leads (same pipeline as QR/contact leads), attributed
-            // to the rep when the link carried ?rep=. Fire-and-forget, env-gated, never blocks.
-            forwardLeadToCC24({
+            const leadId = ins.rows[0]?.id || null;
+            // Run the SAME pipeline the QR contact form uses: forward into CC24 Active
+            // Leads + notify the rep (their own Gmail, admin-fallback) + in-app bell +
+            // admin BCC, all attributed to the rep when the link carried ?rep=. profileId
+            // may be null (no rep) — CC24 still gets the lead; the rep-notify steps no-op.
+            processLeadIntegrations(profileId, leadId, {
                 homeownerName: name,
                 homeownerEmail: email || null,
                 homeownerPhone: phone,
                 address: address || null,
                 serviceType: 'Storm check (RoofCheck)',
                 message: note,
-                repName,
-                repEmail,
                 sourceLabel: `RoofCheck${src ? ` (${src})` : ''}`,
-                jobType: 'insurance',
             });
             // Also push into JotForm (inert until JOTFORM_API_KEY is set).
             forwardLeadToJotForm({
@@ -238,7 +238,7 @@ export function createRoofCheckRoutes(pool) {
             });
             res.json({
                 ok: true,
-                leadId: ins.rows[0]?.id || null,
+                leadId,
                 reward: {
                     events,
                     qualifying,
@@ -276,10 +276,10 @@ export function createRoofCheckRoutes(pool) {
         }
     });
     // Appointment request — attaches a preferred day/time to the lead the homeowner
-    // already created (gate step), then forwards it to CC24 so the office can book the
-    // inspection (CC24 turns preferredDate/preferredTime into a calendar event + rep
-    // notification). No new local lead row — we UPDATE the existing one, so the
-    // dashboard shows the requested slot on the same lead.
+    // already created (gate step), then runs the shared lead pipeline so the rep gets
+    // a Google Calendar invite + appointment email + in-app bell, and CC24 gets the
+    // appointment to book (env-skippable). No new local lead row — we UPDATE the
+    // existing one, so the dashboard shows the requested slot on the same lead.
     router.post('/api/roofcheck/schedule', async (req, res) => {
         try {
             const b = req.body || {};
@@ -311,29 +311,29 @@ export function createRoofCheckRoutes(pool) {
                 const apptNote = ` | 📅 APPT REQUEST: ${dayLabel || preferredDate}${windowLabel ? ` · ${windowLabel}` : ''}`;
                 await pool.query(`UPDATE profile_leads SET preferred_date = $1, preferred_time = $2, message = COALESCE(message,'') || $3 WHERE id = $4`, [preferredDate, preferredTime, apptNote, leadId]);
             }
-            // Rep attribution for the forward.
-            let repName = null, repEmail = null;
+            // Resolve the rep's profile id so the shared pipeline can notify them.
+            let profileId = null;
             if (repSlug) {
-                const pr = await pool.query(`SELECT name, email FROM employee_profiles WHERE slug = $1 LIMIT 1`, [repSlug]);
-                repName = pr.rows[0]?.name || null;
-                repEmail = pr.rows[0]?.email || null;
+                const pr = await pool.query(`SELECT id FROM employee_profiles WHERE slug = $1 LIMIT 1`, [repSlug]);
+                profileId = pr.rows[0]?.id || null;
             }
-            // Forward the appointment to CC24. Env-guarded (ROOFCHECK_APPT_TO_CC24=0 to
-            // disable) for offices that would rather read the requested time off the
-            // sa21 dashboard than receive a second, appointment-tagged CC24 entry.
-            if (name && process.env.ROOFCHECK_APPT_TO_CC24 !== '0') {
-                forwardLeadToCC24({
+            // Run the same pipeline the QR contact form uses — now WITH the appointment.
+            // This creates a Google Calendar invite on the rep's calendar + an appointment
+            // email + in-app bell. CC24 also gets the appointment so the office can book it,
+            // unless ROOFCHECK_APPT_TO_CC24=0 — which keeps the rep calendar/email but skips
+            // a second CC24 entry (the base lead already forwarded to CC24 at /lead).
+            if (name) {
+                processLeadIntegrations(profileId, leadId, {
                     homeownerName: name,
                     homeownerEmail: email || null,
                     homeownerPhone: phone || null,
                     address: address || null,
                     serviceType: 'Inspection appointment request (RoofCheck)',
-                    preferredDate, preferredTime,
+                    preferredDate,
+                    preferredTime,
                     message: `Homeowner requested ${dayLabel || preferredDate}${windowLabel ? ` · ${windowLabel}` : ''} for their free roof inspection.`,
-                    repName, repEmail,
                     sourceLabel: `RoofCheck appointment${src ? ` (${src})` : ''}`,
-                    jobType: 'insurance',
-                });
+                }, { skipCc24Forward: process.env.ROOFCHECK_APPT_TO_CC24 === '0' });
             }
             res.json({ ok: true });
         }

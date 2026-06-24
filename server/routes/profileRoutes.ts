@@ -275,6 +275,38 @@ function getDeviceType(userAgent: string | undefined): string {
   return 'desktop';
 }
 
+// ── Cross-module lead pipeline ───────────────────────────────────────────────
+// processLeadIntegrations runs the full "new lead" fan-out: CC24 forward + rep
+// Gmail notification (rep's own account, admin-fallback) + Google Calendar invite
+// when a date is set + in-app bell + admin BCC. It's defined inside
+// createProfileRoutes (it needs `pool`); we bind it to this module-level handle at
+// factory time so sibling route modules (e.g. RoofCheck) can trigger the identical
+// pipeline. opts.skipCc24Forward lets a caller that already forwarded the base lead
+// to CC24 add the calendar/email artifacts without creating a second CC24 entry.
+export type LeadIntegrationData = {
+  homeownerName: string;
+  homeownerEmail?: string | null;
+  homeownerPhone?: string | null;
+  address?: string | null;
+  serviceType?: string | null;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
+  message?: string | null;
+  sourceLabel?: string;
+};
+let leadIntegrationsRunner:
+  | ((profileId: string, leadId: string, leadData: LeadIntegrationData, opts?: { skipCc24Forward?: boolean }) => void)
+  | null = null;
+export function processLeadIntegrations(
+  profileId: string,
+  leadId: string,
+  leadData: LeadIntegrationData,
+  opts?: { skipCc24Forward?: boolean },
+): void {
+  if (leadIntegrationsRunner) { leadIntegrationsRunner(profileId, leadId, leadData, opts); return; }
+  console.warn('[processLeadIntegrations] profile routes not initialized — lead integrations skipped');
+}
+
 export function createProfileRoutes(pool: Pool) {
   const router = Router();
 
@@ -314,20 +346,11 @@ export function createProfileRoutes(pool: Pool) {
   //
   // Fire-and-forget — runs in its own async block so the caller can return
   // success to the client without waiting on Calendar/Gmail latency.
-  function processLeadIntegrations(
+  function runLeadIntegrations(
     profileId: string,
     leadId: string,
-    leadData: {
-      homeownerName: string;
-      homeownerEmail?: string | null;
-      homeownerPhone?: string | null;
-      address?: string | null;
-      serviceType?: string | null;
-      preferredDate?: string | null;
-      preferredTime?: string | null;
-      message?: string | null;
-      sourceLabel?: string; // e.g. "QR code contact form" / "JotForm"
-    },
+    leadData: LeadIntegrationData,
+    opts?: { skipCc24Forward?: boolean },
   ): void {
     const sourceLabel = leadData.sourceLabel || 'QR code contact form';
     (async () => {
@@ -340,10 +363,11 @@ export function createProfileRoutes(pool: Pool) {
         const repName = profileRow.rows[0]?.name || 'Rep';
         const repEmail = profileRow.rows[0]?.email;
 
-        // Forward this rep-attributed lead into CC21 Active Leads (the REAL QR /
-        // JotForm / contact path). Runs even if the rep has no linked CC21 user —
-        // CC21 matches by repEmail, else owner + rep-in-notes.
-        forwardLeadToCC24({
+        // Forward this rep-attributed lead into CC24 Active Leads (the REAL QR /
+        // JotForm / contact path). Runs even if the rep has no linked CC24 user —
+        // CC24 matches by repEmail, else owner + rep-in-notes. Skippable for callers
+        // that already forwarded the base lead (RoofCheck's appointment step).
+        if (!opts?.skipCc24Forward) forwardLeadToCC24({
           homeownerName: leadData.homeownerName,
           homeownerEmail: leadData.homeownerEmail,
           homeownerPhone: leadData.homeownerPhone,
@@ -470,7 +494,7 @@ export function createProfileRoutes(pool: Pool) {
         const repEmailBody = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                <h2 style="margin: 0;">New Lead from QR Code</h2>
+                <h2 style="margin: 0;">New Lead${/jotform/i.test(sourceLabel) ? ' from JotForm' : /roofcheck/i.test(sourceLabel) ? ' from RoofCheck' : ' from QR Code'}</h2>
               </div>
               <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
                 <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
@@ -586,6 +610,9 @@ export function createProfileRoutes(pool: Pool) {
       }
     })();
   }
+  // Bind the in-factory implementation to the module-level handle so sibling
+  // modules (RoofCheck) can run this exact pipeline via the export above.
+  leadIntegrationsRunner = runLeadIntegrations;
 
   // ==========================================================================
   // PUBLIC ENDPOINTS (No Auth Required)
@@ -692,7 +719,7 @@ export function createProfileRoutes(pool: Pool) {
       // produce identical artifacts (rep email, local + Google calendar
       // events). See the helper definition for behavior.
       if (profileId) {
-        processLeadIntegrations(profileId, leadId, {
+        runLeadIntegrations(profileId, leadId, {
           homeownerName,
           homeownerEmail,
           homeownerPhone,
@@ -1003,7 +1030,7 @@ export function createProfileRoutes(pool: Pool) {
       // Wire calendar + email via the same helper /contact uses, so JotForm
       // and in-app submissions land identically in the rep's inbox + calendar.
       if (profileId) {
-        processLeadIntegrations(profileId, leadId, {
+        runLeadIntegrations(profileId, leadId, {
           homeownerName,
           homeownerEmail,
           homeownerPhone,
