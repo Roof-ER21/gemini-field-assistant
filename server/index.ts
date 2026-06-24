@@ -218,7 +218,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
       connectSrc: [
         "'self'",
@@ -245,7 +245,7 @@ app.use(helmet({
         "https://cdnjs.cloudflare.com",
         "https://api.weather.gov"
       ],
-      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://api.fontshare.com", "https://cdn.fontshare.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
       frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com", "https://appealing-bravery-production-d7d6.up.railway.app"],
