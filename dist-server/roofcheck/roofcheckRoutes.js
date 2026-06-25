@@ -14,7 +14,7 @@
  * signup tracking, tagged with the channel (?src=door|text|social…).
  */
 import { Router } from 'express';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
@@ -97,6 +97,18 @@ export function createRoofCheckRoutes(pool) {
         const browserKey = process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || '';
         res.send(renderPage(browserKey));
     });
+    // Brand audio identity assets (music bed + heartbeat) — served same-origin so the
+    // page CSP (media-src 'self') allows playback. Files sit next to this route's source.
+    const audioDir = existsSync(path.resolve(process.cwd(), 'server/roofcheck/brand-bed.mp3'))
+        ? path.resolve(process.cwd(), 'server/roofcheck')
+        : path.dirname(new URL(import.meta.url).pathname);
+    const sendAudio = (file) => (_req, res) => {
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(path.join(audioDir, file));
+    };
+    router.get('/roofcheck/brand-bed.mp3', sendAudio('brand-bed.mp3'));
+    router.get('/roofcheck/hb.mp3', sendAudio('hb.mp3'));
     // Static map proxy — keeps the Maps key server-side.
     router.get('/api/roofcheck/staticmap', async (req, res) => {
         const lat = Number(req.query.lat), lng = Number(req.query.lng);
@@ -548,7 +560,7 @@ function renderPage(_mapsKey) {
   <div class="grain"></div>
   <div class="wrap">
     <nav class="nav">
-      <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs">
+      <img id="rc-logo" src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs">
       <span class="badge">Free Storm Roof Check</span>
       <button class="navcta" id="contactBtn" type="button">Contact rep</button>
     </nav>
@@ -833,6 +845,52 @@ function renderPage(_mapsKey) {
   })();
 })();
 </script>
+  <!-- Brand audio identity: music bed + heartbeat (matches the rep videos & promo) -->
+  <audio id="ra-bgm" loop preload="none" src="/roofcheck/brand-bed.mp3"></audio>
+  <audio id="ra-hb" preload="auto" src="/roofcheck/hb.mp3"></audio>
+  <button id="ra-mute" type="button" aria-label="Toggle sound"><span id="ra-ico">🔊</span><span id="ra-lbl">Tap for sound</span></button>
+  <style>
+    #ra-mute{ position:fixed; right:16px; bottom:16px; z-index:70; display:flex; align-items:center; gap:8px;
+      padding:11px 15px; font:600 13px/1 system-ui,-apple-system,sans-serif; letter-spacing:.3px; color:#fff;
+      background:rgba(12,12,14,.74); border:1px solid rgba(255,255,255,.18); border-radius:999px; cursor:pointer;
+      -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); box-shadow:0 6px 22px rgba(0,0,0,.45);
+      transition:transform .15s, background .2s, opacity .35s; opacity:0; }
+    #ra-mute.ready{ opacity:1; }
+    #ra-mute.idle{ animation:raNudge 2.6s ease-in-out infinite; }
+    #ra-mute:hover{ transform:translateY(-2px); background:rgba(183,8,8,.92); }
+    @keyframes raNudge{ 0%,100%{ box-shadow:0 6px 22px rgba(0,0,0,.45);} 50%{ box-shadow:0 6px 26px rgba(183,8,8,.7);} }
+    #rc-logo.rc-beat{ animation:rcBeat .85s ease-out; }
+    @keyframes rcBeat{ 0%{transform:scale(1)} 18%{transform:scale(1.06); filter:drop-shadow(0 0 14px rgba(183,8,8,.85))} 42%{transform:scale(1)} 56%{transform:scale(1.035); filter:drop-shadow(0 0 9px rgba(183,8,8,.55))} 100%{transform:scale(1); filter:none} }
+    @media (max-width:600px){ #ra-mute #ra-lbl{ display:none;} #ra-mute{ padding:12px;} }
+  </style>
+  <script>
+  (function(){
+    var bgm=document.getElementById('ra-bgm'), hb=document.getElementById('ra-hb'),
+        btn=document.getElementById('ra-mute'), ico=document.getElementById('ra-ico'), lbl=document.getElementById('ra-lbl'),
+        logo=document.getElementById('rc-logo');
+    var TARGET=0.30, BEAT=14000, started=false, hbTimer=null;
+    var muted = localStorage.getItem('roofer-muted')==='1';
+    function paint(){ ico.textContent=muted?'🔇':'🔊'; lbl.textContent=muted?'Sound off':(started?'Sound on':'Tap for sound'); btn.classList.toggle('idle', !started && !muted); }
+    paint();
+    function fade(a,to,ms){ var s=a.volume,t0=performance.now();
+      (function step(n){ var k=Math.min(1,(n-t0)/ms); a.volume=Math.max(0,Math.min(1,s+(to-s)*k));
+        if(k<1) requestAnimationFrame(step); else if(to===0){ try{a.pause();}catch(e){} } })(t0); }
+    function thump(){ if(muted) return; try{ hb.currentTime=0; hb.volume=0.5; hb.play().catch(function(){}); }catch(e){}
+      if(logo){ logo.classList.remove('rc-beat'); void logo.offsetWidth; logo.classList.add('rc-beat'); } }
+    function startBeat(){ if(hbTimer) return; setTimeout(thump,1100); hbTimer=setInterval(thump,BEAT); }
+    function begin(){ if(started||muted) return; started=true; btn.classList.add('ready');
+      bgm.volume=0; var p=bgm.play(); if(p&&p.then) p.then(function(){ fade(bgm,TARGET,1300); }).catch(function(){ started=false; });
+      else fade(bgm,TARGET,1300); startBeat(); paint(); }
+    function onFirst(e){ if(e&&e.target&&e.target.closest&&e.target.closest('#ra-mute')) return; begin(); }
+    ['pointerdown','touchstart','wheel','scroll','keydown'].forEach(function(ev){ window.addEventListener(ev,onFirst,{passive:true}); });
+    setTimeout(function(){ btn.classList.add('ready'); }, 1400);
+    btn.addEventListener('click',function(e){ e.stopPropagation();
+      if(muted){ muted=false; localStorage.setItem('roofer-muted','0'); started=false; begin(); }
+      else if(!started){ begin(); }
+      else { muted=true; localStorage.setItem('roofer-muted','1'); fade(bgm,0,400); if(hbTimer){clearInterval(hbTimer);hbTimer=null;} }
+      paint(); });
+  })();
+  </script>
 </body>
 </html>`;
 }
