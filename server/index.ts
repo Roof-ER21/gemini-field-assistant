@@ -218,6 +218,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],   // allow inline on* handlers (chat widget, quiz) — was blocked by helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
       connectSrc: [
@@ -257,6 +258,8 @@ app.use(helmet({
 
 // CORS configuration - restrict to known origins
 const allowedOrigins = [
+  'https://get.theroofdocs.com',   // lead-gen / campaign pages (branded)
+  'https://sa21.theroofdocs.com',  // rep app (branded)
   'https://a21.up.railway.app',
   'https://sa21.up.railway.app',
   'https://hailyes.up.railway.app',  // Hail Yes! (storm-maps) production
