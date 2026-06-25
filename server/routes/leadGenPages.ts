@@ -20,7 +20,7 @@ import type { Pool } from 'pg';
 // ---------------------------------------------------------------------------
 
 const BRAND = {
-  red: '#b60807',
+  red: '#B70808',
   redHover: '#9a0706',
   redLight: 'rgba(182,8,7,0.12)',
   darkBlue: '#082c4b',
@@ -46,6 +46,65 @@ const BRAND = {
   badgeSolar: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Certified-Solar-Installer_RGB-1-1-1024x1024.png',
   badgeBestPros: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Roof-ER-Logo-Alt-Colors-4.png',
 };
+
+// Rep-less default contact = the roofcheck / brand-video identity (NOT the (571) Susan
+// campaign-text line, which stays on the Susan chat widget where it belongs).
+const ROOFCHECK_PHONE = '(703) 239-3738';
+const ROOFCHECK_SITE = 'theroofdocs.com';
+
+// ---------------------------------------------------------------------------
+// Rep-aware context — one identity follows the visitor (no per-page QR for reps)
+// ?rep=<slug> is persisted in a cookie so a rep's single link carries attribution
+// across every campaign page. Falls back to the roofcheck contact when unknown.
+// (Helpers consumed by the per-page renderers; see repBoot + navBar(rep.phone).)
+// ---------------------------------------------------------------------------
+
+export type RepCtx = { slug: string; name: string; title: string; phone: string; image: string; isRep: boolean };
+
+const NO_REP: RepCtx = { slug: '', name: '', title: '', phone: ROOFCHECK_PHONE, image: '', isRep: false };
+
+function getCookie(header: string | undefined, key: string): string {
+  if (!header) return '';
+  const m = header.match(new RegExp('(?:^|; )' + key + '=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+async function resolveRep(pool: Pool, slug: string): Promise<RepCtx | null> {
+  const safe = slug.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
+  if (!safe) return null;
+  try {
+    const r = await pool.query(
+      `SELECT slug, name, phone_number AS phone, image_url AS image, title
+         FROM employee_profiles WHERE slug = $1 LIMIT 1`,
+      [safe]
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    return {
+      slug: row.slug, name: row.name || '', title: row.title || 'Your Roof-ER Specialist',
+      phone: row.phone || ROOFCHECK_PHONE, image: row.image || '', isRep: true,
+    };
+  } catch (err) {
+    console.error('[leadGenPages] resolveRep failed:', err);
+    return null;
+  }
+}
+
+/** Resolve the rep from ?rep=<slug> (or the persisted `ler` cookie); persist on first hit. */
+async function repContext(req: any, res: any, pool: Pool): Promise<RepCtx> {
+  const qslug = String(req.query?.rep || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
+  const slug = qslug || getCookie(req.headers?.cookie, 'ler');
+  const rep = slug ? await resolveRep(pool, slug) : null;
+  if (rep && qslug) {
+    try { res.cookie('ler', rep.slug, { maxAge: 30 * 864e5, sameSite: 'lax', httpOnly: false }); } catch { /* noop */ }
+  }
+  return rep || NO_REP;
+}
+
+/** Seeds window.__rep so every form on the page attributes the lead to the right rep. */
+function repBoot(rep: RepCtx): string {
+  return `<script>window.__rep=${JSON.stringify({ slug: rep.slug, name: rep.name, phone: rep.phone })};</script>`;
+}
 
 // ---------------------------------------------------------------------------
 // Floating Chat Widget (Susan AI)
@@ -167,7 +226,7 @@ function htmlHead(title: string, description: string, canonical?: string): strin
   <meta property="og:image" content="${BRAND.logo}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   ${sharedCss()}
 </head>
 <body>`;
@@ -202,7 +261,7 @@ function sharedCss(): string {
     /* ── Hero ── */
     .hero{padding:52px 0 44px;text-align:center}
     .hero-eyebrow{display:inline-block;background:${BRAND.redLight};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:20px;border:1px solid rgba(182,8,7,0.25)}
-    .hero-title{font-size:clamp(26px,5vw,40px);font-weight:900;line-height:1.15;letter-spacing:-0.02em;margin-bottom:16px}
+    .hero-title{font-family:'Anton','Inter',sans-serif;font-weight:400;font-size:clamp(34px,6.5vw,58px);line-height:1.0;letter-spacing:0.3px;margin-bottom:16px}
     .hero-title em{color:${BRAND.red};font-style:normal}
     .hero-sub{font-size:clamp(15px,2.5vw,18px);color:${BRAND.textMuted};max-width:480px;margin:0 auto 32px}
 
@@ -282,6 +341,19 @@ function sharedCss(): string {
     .rep-title{font-size:13px;color:${BRAND.textMuted};margin-bottom:8px}
     .rep-phone{font-size:14px;font-weight:600;color:${BRAND.red}}
     @media(max-width:480px){.rep-card{flex-direction:column;text-align:center}}
+
+    /* ── Bespoke uplift — ports the brand-video look (cinematic ink/red, Anton) ── */
+    .hero{position:relative;overflow:hidden}
+    .hero::before{content:'';position:absolute;inset:-1px;background:radial-gradient(ellipse 85% 65% at 50% -12%, rgba(183,8,8,0.18), transparent 70%);pointer-events:none}
+    .hero>*{position:relative;z-index:1}
+    .hero-eyebrow{box-shadow:0 0 0 1px rgba(183,8,8,0.28)}
+    .btn-submit{background:linear-gradient(180deg,#d40a0a,${BRAND.red});box-shadow:0 10px 26px rgba(183,8,8,0.34)}
+    .btn-submit:hover:not(:disabled){background:linear-gradient(180deg,#e21010,${BRAND.redHover})}
+    .nav-call{box-shadow:0 4px 14px rgba(183,8,8,0.3)}
+    /* rep strip — shown only when a rep's link is in play */
+    .rep-strip{display:flex;align-items:center;gap:12px;justify-content:center;background:rgba(183,8,8,0.08);border:1px solid rgba(183,8,8,0.25);border-radius:99px;padding:8px 16px;max-width:max-content;margin:0 auto 22px;font-size:13px;font-weight:600}
+    .rep-strip img{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid ${BRAND.red}}
+    .rep-strip-dot{width:8px;height:8px;border-radius:50%;background:${BRAND.green}}
   </style>`;
 }
 
@@ -333,7 +405,7 @@ function faqScript(): string {
 </script>`;
 }
 
-function navBar(phoneNumber: string = BRAND.phone): string {
+function navBar(phoneNumber: string = ROOFCHECK_PHONE): string {
   const tel = phoneNumber.replace(/\D/g, '');
   return `<nav class="nav" role="navigation" aria-label="Main navigation">
   <div class="nav-inner">
@@ -367,7 +439,7 @@ function footer(): string {
       <strong>Integrity. Quality. Simplicity.</strong>
     </div>
     <div style="margin-bottom:6px;font-size:12px">
-      ${escHtml(BRAND.address)} &bull; <a href="tel:+1${BRAND.phone.replace(/\D/g, '')}" style="color:${BRAND.red}">${escHtml(BRAND.phone)}</a>
+      ${escHtml(BRAND.address)} &bull; <a href="tel:+1${ROOFCHECK_PHONE.replace(/\D/g, '')}" style="color:${BRAND.red}">${escHtml(ROOFCHECK_PHONE)}</a>
     </div>
     <div style="margin-bottom:8px;font-size:12px">
       VA #${BRAND.vaLicense} &bull; MD MHIC #${BRAND.mdLicense} &bull; PA #${BRAND.paLicense}
