@@ -80,6 +80,7 @@ import { createAgreementRoutes } from './routes/agreementRoutes.js';
 import { createDocuSealRoutes } from './routes/docusealRoutes.js';
 import { createDocumentRoutes } from './routes/documentRoutes.js';
 import { registerLeadGenPages } from './routes/leadGenPages.js';
+import { registerLeadContent } from './routes/leadContent.js';
 import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
 import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
@@ -8289,6 +8290,7 @@ app.use('/api/admin', createAdminRoutes(pool));
 // /storm/:zip  |  /claim-help  |  /refer/:code
 // ============================================================================
 registerLeadGenPages(app, pool);
+registerLeadContent(app, pool);
 // ============================================================================
 // ADMIN QR PRINT SHEET — printable grid of every rep's QR code
 // ============================================================================

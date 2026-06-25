@@ -13,6 +13,7 @@
  */
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { pc, sec, loadContent, markEm } from './leadContent.js';
 // ---------------------------------------------------------------------------
 // Shared design tokens
 // ---------------------------------------------------------------------------
@@ -1270,7 +1271,7 @@ ${renderChatWidget()}
 // ---------------------------------------------------------------------------
 // Page 4: Free Inspection — /free-inspection
 // ---------------------------------------------------------------------------
-function renderFreeInspectionPage(rep) {
+function renderFreeInspectionPage(rep, content) {
     const title = 'Free Roof Inspection | Licensed & GAF Master Elite | The Roof Docs';
     const desc = 'Schedule your 100% free roof inspection with The Roof Docs. GAF Master Elite (top 2% of roofers), A+ BBB rated, fully licensed. Serving Virginia, Maryland & Pennsylvania.';
     // Rep strip — shown ONLY when a rep's link is in play. One identity, no new QR codes.
@@ -1425,11 +1426,11 @@ ${navBar(rep.phone)}
   <section class="hero fi-hero">
     <div class="container">
       ${repStrip}
-      <div class="hero-eyebrow">100% Free &bull; No Obligation</div>
-      <h1 class="hero-title">Get Your <em>Free Roof Inspection</em> Today</h1>
+      <div class="hero-eyebrow">${escHtml(pc(content, 'free-inspection', 'hero_eyebrow'))}</div>
+      <h1 class="hero-title">${markEm(pc(content, 'free-inspection', 'hero_h1'))}</h1>
       <div class="fi-rule" aria-hidden="true"></div>
-      <p class="hero-sub">Licensed, insured, and trusted across VA, MD &amp; PA. We climb up, document everything with photos, and give you an honest, no-pressure assessment &mdash; at zero cost.</p>
-      <a href="#book" class="btn-submit" style="max-width:340px;margin:0 auto">Book My Free Inspection &rarr;</a>
+      <p class="hero-sub">${escHtml(pc(content, 'free-inspection', 'hero_sub'))}</p>
+      <a href="#book" class="btn-submit" style="max-width:340px;margin:0 auto">${escHtml(pc(content, 'free-inspection', 'hero_cta'))} &rarr;</a>
       <div class="fi-trustline" role="list" aria-label="Credentials at a glance">
         <span role="listitem"><span class="dot" aria-hidden="true"></span>GAF Master Elite</span>
         <span role="listitem"><span class="dot" aria-hidden="true"></span>BBB A+ Rated</span>
@@ -1438,6 +1439,7 @@ ${navBar(rep.phone)}
     </div>
   </section>
 
+  ${sec(content, 'free-inspection', 'show_stats') ? `
   <!-- Stats band — canon figures only (8,000+ projects, 8 years) -->
   <section aria-label="The Roof Docs by the numbers" style="padding:6px 0 14px">
     <div class="container-wide">
@@ -1449,7 +1451,7 @@ ${navBar(rep.phone)}
         </div>`).join('')}
       </div>
     </div>
-  </section>
+  </section>` : ''}
 
   <!-- GAF Master Elite spotlight -->
   <section aria-label="GAF Master Elite certification" style="padding:18px 0">
@@ -1633,9 +1635,10 @@ export function registerLeadGenPages(app, pool) {
     // ── Page 4: Free Inspection ──────────────────────────────────────────────
     app.get('/free-inspection', async (req, res) => {
         const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store');
-        res.send(renderFreeInspectionPage(rep));
+        res.send(renderFreeInspectionPage(rep, content));
     });
     // ── Page 3: Referral Landing ─────────────────────────────────────────────
     app.get('/refer/:code', async (req, res) => {
