@@ -10134,10 +10134,7 @@ function renderProfilePage(profile: any): string {
             } else {
               return `<video controls autoplay muted playsinline preload="auto" style="width:100%;border-radius:16px;background:#000;object-fit:contain;display:block;"><source src="${vUrl}" type="video/mp4">Your browser does not support video.</video>`;
             }
-          }).join('') : `<div class="video-placeholder">
-            <div class="video-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-            <p class="video-text">Video coming soon</p>
-          </div>`}
+          }).join('') : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:16px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`}
         </div>
       </div>
     </div>
@@ -10432,7 +10429,7 @@ function renderProfilePageV2(profile: any): string {
         }
         return `<video controls playsinline preload="metadata" style="width:100%;aspect-ratio:16/9;border-radius:13px;background:#000;object-fit:cover;display:block"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
       }).join('')
-    : `<div class="vid-empty"><div class="playbtn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div><div class="vlabel">A quick hello from ${esc(firstName)}</div><div class="vsub">Video coming soon</div></div>`;
+    : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:13px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`;
 
   // Reviews — reuse V1's loop + escaping + source labels.
   const reviewsHtml = (() => {
