@@ -1592,6 +1592,15 @@ export function registerLeadGenPages(app, pool) {
         res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
         res.sendFile(sigPath);
     });
+    // Default promo video — the fallback that fills a rep's empty "Video coming soon" slot
+    const promoPath = existsSync(path.resolve(process.cwd(), 'server/routes/brand/roofer-default-promo.mp4'))
+        ? path.resolve(process.cwd(), 'server/routes/brand/roofer-default-promo.mp4')
+        : path.join(path.dirname(new URL(import.meta.url).pathname), 'brand/roofer-default-promo.mp4');
+    app.get('/brand/roofer-default-promo.mp4', (_req, res) => {
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        res.sendFile(promoPath);
+    });
     // ── Page 1: Storm Landing ────────────────────────────────────────────────
     app.get('/storm/:zip', async (req, res) => {
         const { zip } = req.params;

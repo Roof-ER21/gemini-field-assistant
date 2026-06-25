@@ -8853,10 +8853,7 @@ function renderProfilePage(profile) {
         else {
             return `<video controls autoplay muted playsinline preload="auto" style="width:100%;border-radius:16px;background:#000;object-fit:contain;display:block;"><source src="${vUrl}" type="video/mp4">Your browser does not support video.</video>`;
         }
-    }).join('') : `<div class="video-placeholder">
-            <div class="video-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-            <p class="video-text">Video coming soon</p>
-          </div>`}
+    }).join('') : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:16px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`}
         </div>
       </div>
     </div>
@@ -9152,7 +9149,7 @@ function renderProfilePageV2(profile) {
             }
             return `<video controls playsinline preload="metadata" style="width:100%;aspect-ratio:16/9;border-radius:13px;background:#000;object-fit:cover;display:block"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
         }).join('')
-        : `<div class="vid-empty"><div class="playbtn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div><div class="vlabel">A quick hello from ${esc(firstName)}</div><div class="vsub">Video coming soon</div></div>`;
+        : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:13px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`;
     // Reviews — reuse V1's loop + escaping + source labels.
     const reviewsHtml = (() => {
         const star = '<svg viewBox="0 0 20 20"><path d="M9.05 2.93c.3-.92 1.6-.92 1.9 0l1.07 3.29a1 1 0 00.95.69h3.46c.97 0 1.37 1.24.59 1.81l-2.8 2.03a1 1 0 00-.36 1.12l1.07 3.29c.3.92-.76 1.69-1.54 1.12l-2.8-2.03a1 1 0 00-1.18 0l-2.8 2.03c-.78.57-1.84-.2-1.54-1.12l1.07-3.29a1 1 0 00-.36-1.12l-2.8-2.03c-.78-.57-.38-1.81.59-1.81h3.46a1 1 0 00.95-.69l1.07-3.29z"/></svg>';
