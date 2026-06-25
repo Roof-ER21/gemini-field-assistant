@@ -8327,6 +8327,91 @@ app.get('/admin/qr-print', async (req, res, next) => {
         next(err);
     }
 });
+// ============================================================================
+// MARKETING — campaign dashboard (W4): per-rep branded links + lead counts + QR
+// ============================================================================
+// GET /admin/campaigns?email=<marketing-or-admin>  (canManageQR gate = admin+marketing)
+app.get('/admin/campaigns', async (req, res, next) => {
+    try {
+        const email = String(req.query.email || req.header('x-user-email') || '').trim();
+        if (!email)
+            return res.status(401).send('<h1>401</h1><p>Pass ?email=&lt;your email&gt; to view the marketing dashboard.</p>');
+        if (!(await canManageQRPerm(pool, email))) {
+            return res.status(403).send(`<h1>403</h1><p>${email} cannot access this — marketing or admin only.</p>`);
+        }
+        const reps = (await pool.query(`SELECT id, name, slug, role_type FROM employee_profiles WHERE is_active = true AND slug IS NOT NULL ORDER BY name ASC`)).rows;
+        let countRows = [];
+        try {
+            countRows = (await pool.query(`SELECT profile_id, COALESCE(NULLIF(source,''),'(direct)') AS source, COUNT(*)::int AS n
+           FROM profile_leads GROUP BY profile_id, COALESCE(NULLIF(source,''),'(direct)')`)).rows;
+        }
+        catch (e) {
+            console.error('[campaigns] count query failed:', e);
+        }
+        res.set('Content-Type', 'text/html');
+        res.set('Cache-Control', 'private, no-store');
+        res.send(renderCampaignDashboard(reps, countRows, email));
+    }
+    catch (err) {
+        console.error('campaign dashboard error:', err);
+        next(err);
+    }
+});
+function renderCampaignDashboard(reps, countRows, email) {
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const LEAD = 'https://get.theroofdocs.com';
+    const PAGES = [['free-inspection', 'Free Inspection'], ['claim-help', 'Claim Help'], ['storm-checklist', 'Storm Checklist'], ['roofcheck', 'RoofCheck']];
+    const byRep = {};
+    let grand = 0;
+    for (const r of countRows) {
+        const id = String(r.profile_id || '');
+        if (!byRep[id])
+            byRep[id] = { total: 0, src: {} };
+        byRep[id].total += r.n;
+        byRep[id].src[r.source] = (byRep[id].src[r.source] || 0) + r.n;
+        grand += r.n;
+    }
+    const rows = reps.map((rep) => {
+        const slug = rep.slug;
+        const c = byRep[String(rep.id)] || { total: 0, src: {} };
+        const primary = `${LEAD}/free-inspection?rep=${encodeURIComponent(slug)}`;
+        const qr = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(primary)}`;
+        const links = PAGES.map(([p, label]) => {
+            const url = `${LEAD}/${p}?rep=${encodeURIComponent(slug)}`;
+            return `<div class="lnk"><span class="lbl">${esc(label)}</span><input readonly value="${esc(url)}" onclick="this.select()"><button class="cp" type="button" onclick="navigator.clipboard.writeText('${esc(url)}');this.textContent='Copied';setTimeout(()=>{this.textContent='Copy'},1200)">Copy</button></div>`;
+        }).join('');
+        const srcBreak = Object.entries(c.src).sort((a, b) => b[1] - a[1]).map(([s, n]) => `<span class="chip">${esc(s)}: <b>${n}</b></span>`).join('') || '<span class="chip muted">no leads yet</span>';
+        return `<div class="rep">
+      <div class="qrcol"><img src="${qr}" alt="QR for ${esc(rep.name)}" width="120" height="120"><a class="dl" href="${qr}&download=1" download="${esc(slug)}-qr.png">Download QR</a></div>
+      <div class="main">
+        <div class="rh"><span class="rn">${esc(rep.name)}</span><span class="role">${esc(rep.role_type || '')}</span><span class="tot">${c.total} lead${c.total === 1 ? '' : 's'}</span></div>
+        <div class="srcs">${srcBreak}</div>
+        <div class="lnks">${links}</div>
+      </div>
+    </div>`;
+    }).join('');
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Campaign Dashboard — Roof-ER Marketing</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Inter,system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#fff;padding:24px;max-width:1080px;margin:0 auto}
+    h1{font-size:22px;font-weight:800} .sub{color:#9ca3af;font-size:13px;margin:4px 0 18px}
+    .totbar{display:flex;gap:14px;margin-bottom:18px}
+    .stat{background:#141414;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 18px}
+    .stat b{font-size:24px;display:block;color:#B70808} .stat span{font-size:12px;color:#9ca3af}
+    .rep{display:flex;gap:18px;background:#141414;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-bottom:12px}
+    .qrcol{text-align:center;flex-shrink:0} .qrcol img{border-radius:8px;background:#fff;padding:4px;display:block} .dl{display:block;font-size:11px;color:#B70808;margin-top:6px;text-decoration:none}
+    .main{flex:1;min-width:0}
+    .rh{display:flex;align-items:center;gap:12px;margin-bottom:8px} .rn{font-weight:700;font-size:16px} .role{font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em} .tot{margin-left:auto;font-weight:800;color:#B70808}
+    .srcs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px} .chip{background:rgba(183,8,8,.12);border:1px solid rgba(183,8,8,.25);border-radius:99px;padding:3px 10px;font-size:11px} .chip.muted{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:#9ca3af}
+    .lnk{display:flex;align-items:center;gap:8px;margin-bottom:6px} .lnk .lbl{width:120px;font-size:12px;color:#d1d5db;flex-shrink:0} .lnk input{flex:1;background:#0a0a0a;border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#9ca3af;font-size:11px;padding:6px 8px;min-width:0} .cp{background:#B70808;border:none;color:#fff;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+    @media(max-width:640px){.rep{flex-direction:column}.lnk .lbl{width:88px}}
+  </style></head><body>
+  <h1>Campaign Dashboard</h1>
+  <div class="sub">Per-rep branded links + QR + lead counts &mdash; marketing &amp; admin only &middot; ${esc(email)}</div>
+  <div class="totbar"><div class="stat"><b>${reps.length}</b><span>active reps</span></div><div class="stat"><b>${grand}</b><span>total leads</span></div></div>
+  ${rows || '<p class="sub">No active reps found.</p>'}
+  </body></html>`;
+}
 function renderQrPrintSheet(profiles, origin, layout, adminEmail) {
     const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
