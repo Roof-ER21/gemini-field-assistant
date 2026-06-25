@@ -256,6 +256,17 @@ app.use(cors({
     },
     credentials: true
 }));
+// Domain split — homeowner lead/campaign pages belong on get.theroofdocs.com.
+// If one is hit on the rep domain (sa21.theroofdocs.com), 301 it to get. so a
+// homeowner never sees the internal "sa21" name on a lead page. (API paths and
+// the rep app are untouched — only these homeowner page paths redirect.)
+const HOMEOWNER_PATHS = /^\/(free-inspection|claim-help|storm-checklist|roofcheck|refer(?:\/|$)|storm\/)/;
+app.use((req, res, next) => {
+    if ((req.headers.host || '') === 'sa21.theroofdocs.com' && HOMEOWNER_PATHS.test(req.path)) {
+        return res.redirect(301, 'https://get.theroofdocs.com' + req.originalUrl);
+    }
+    next();
+});
 // Body parsers - increased limit for photo uploads (base64 encoded)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -9140,6 +9151,7 @@ function renderProfilePage(profile) {
           <a href="https://www.google.com/maps/search/The+Roof+Docs+Vienna+VA" target="_blank" class="footer-link">Reviews</a>
         </div>
         <p class="footer-text">&copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin:14px auto 0;opacity:.8"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy" style="display:block"><span style="font-family:Georgia,serif;font-size:9.5px;letter-spacing:.04em;color:#9ca3af">Susan&nbsp;21</span></div>
       </div>
     </div>
   </footer>
@@ -9750,6 +9762,7 @@ function renderProfilePageV2(profile) {
       <a href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></a>
       <div class="foot-links"><a href="#services">Services</a><a href="#why">Why Us</a><a href="#reviews">Reviews</a><a href="#inspection">Free Inspection</a></div>
       <p class="foot-fine">Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Virginia, Maryland &amp; Pennsylvania. Licensed &amp; insured · GAF Master Elite · BBB A+. &copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin:14px auto 0;opacity:.8"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy" style="display:block"><span style="font-family:Georgia,serif;font-size:9.5px;letter-spacing:.04em;color:#9ca3af">Susan&nbsp;21</span></div>
     </div>
   </footer>
 

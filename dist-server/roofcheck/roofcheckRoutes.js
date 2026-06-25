@@ -493,6 +493,9 @@ function renderPage(_mapsKey) {
   .foot-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
   .foot-row img{height:22px;opacity:.9}
   .foot-fine{color:var(--faint);font-size:12.5px;line-height:1.6;max-width:88ch}
+  .ao-sig{display:flex;align-items:center;gap:7px;margin-top:16px;opacity:.85}
+  .ao-sig img{height:24px;width:auto;display:block;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+  .ao-sig span{font-family:Georgia,'Times New Roman',serif;font-size:9.5px;letter-spacing:.04em;color:var(--faint)}
   .spin-i{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
   .ac-wrap{flex:1;min-width:0;position:relative}
   .ac-box{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;display:none;max-height:282px;overflow:auto;
@@ -619,6 +622,7 @@ function renderPage(_mapsKey) {
         <span class="muted" style="font-size:13px">storm-damage roofing &amp; insurance-claim experts</span>
       </div>
       <p class="foot-fine">Roof&#8209;ER / The Roof Docs — serving Virginia, Maryland &amp; Pennsylvania (the DMV, Richmond &amp; PA areas). This is a free storm-history check, not a damage assessment — the full assessment happens at your on-site inspection. Storm data: NOAA NEXRAD (NCEI SWDI) + NWS/SPC, multi-source corroborated.</p>
+      <div class="ao-sig"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy"><span>Susan&nbsp;21</span></div>
     </footer>
 
     <div class="sheet-ov" id="sheetOv">
