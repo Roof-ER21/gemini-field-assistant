@@ -135,7 +135,7 @@ export function registerLeadContent(app, pool) {
             next(err);
         }
     });
-    app.post('/api/admin/content', async (req, res) => {
+    app.post('/admin/content/save', async (req, res) => {
         try {
             const email = String(req.body?.email || req.header('x-user-email') || '').trim();
             if (!email || !(await canManageQR(pool, email)))
@@ -208,7 +208,7 @@ function renderContentEditor(content, email) {
       sec.querySelectorAll('[data-t]').forEach(function(el){ toggles[el.getAttribute('data-t')]=el.checked; });
       btn.disabled=true; st.textContent='Saving…'; st.style.color='#9ca3af';
       try{
-        var r=await fetch('/api/admin/content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:EMAIL,page:page,fields:fields,toggles:toggles})});
+        var r=await fetch('/admin/content/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:EMAIL,page:page,fields:fields,toggles:toggles})});
         var d=await r.json();
         if(d.ok){ st.textContent='Saved ✓ — live now'; st.style.color='#22c55e'; } else { st.textContent=d.error||'Failed'; st.style.color='#ef4444'; }
       }catch(e){ st.textContent='Network error'; st.style.color='#ef4444'; }

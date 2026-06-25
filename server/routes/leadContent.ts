@@ -9,7 +9,7 @@
  *     wire its render fn with pc()/sec() and it shows up in the editor automatically.
  *   - lead_page_content table holds overrides (page, ckey, val). Empty = use default.
  *   - pc(content,page,key) = override ?? manifest default.  sec(...) = toggle on/off.
- *   - Editor (GET /admin/content) + save (POST /api/admin/content), marketing+admin gated.
+ *   - Editor (GET /admin/content) + save (POST /admin/content/save), marketing+admin gated.
  */
 import type { Application } from 'express';
 import type { Pool } from 'pg';
@@ -152,7 +152,7 @@ export function registerLeadContent(app: Application, pool: Pool): void {
     } catch (err) { next(err); }
   });
 
-  app.post('/api/admin/content', async (req, res) => {
+  app.post('/admin/content/save', async (req, res) => {
     try {
       const email = String(req.body?.email || req.header('x-user-email') || '').trim();
       if (!email || !(await canManageQR(pool, email))) return res.status(403).json({ ok: false, error: 'not authorized' });
@@ -219,7 +219,7 @@ function renderContentEditor(content: ContentMap, email: string): string {
       sec.querySelectorAll('[data-t]').forEach(function(el){ toggles[el.getAttribute('data-t')]=el.checked; });
       btn.disabled=true; st.textContent='Saving…'; st.style.color='#9ca3af';
       try{
-        var r=await fetch('/api/admin/content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:EMAIL,page:page,fields:fields,toggles:toggles})});
+        var r=await fetch('/admin/content/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:EMAIL,page:page,fields:fields,toggles:toggles})});
         var d=await r.json();
         if(d.ok){ st.textContent='Saved ✓ — live now'; st.style.color='#22c55e'; } else { st.textContent=d.error||'Failed'; st.style.color='#ef4444'; }
       }catch(e){ st.textContent='Network error'; st.style.color='#ef4444'; }
