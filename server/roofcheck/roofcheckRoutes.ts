@@ -737,6 +737,15 @@ function renderPage(_mapsKey: string): string {
       +'<div class="sched-lbl">Choose a time</div><div class="sched-wins" id="schedWins"></div>'
       +'<button class="btn full" id="schedBtn" type="button" disabled>Pick a day &amp; time</button>'
       +'</div>';
+    h+='<div style="margin-top:18px;padding:16px 18px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.03)">'
+      +'<div style="font-weight:700;font-size:14px;margin-bottom:10px">&#128203; Your storm-damage claim checklist</div>'
+      +'<ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.8)">'
+      +'<li><b>Document everything</b> &mdash; date-stamped photos of every slope, the gutters, and any interior stains before you call.</li>'
+      +'<li><b>File within your window</b> &mdash; most insurers require the claim within about a year of the storm date.</li>'
+      +'<li><b>Be there for the adjuster</b> &mdash; walk the roof with them and point out every hit.</li>'
+      +'<li><b>Ask for a supplement</b> &mdash; the first estimate is rarely complete; itemize anything missing.</li>'
+      +'<li><b>Vet your contractor</b> &mdash; licensed, insured, GAF-certified, and local (not a storm-chaser).</li>'
+      +'</ul></div>';
     $('gate').style.display='none';
     $('reward').innerHTML=h; $('reward').style.display='block'; $('reward').classList.add('reveal');
     buildScheduler();
