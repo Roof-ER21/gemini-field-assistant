@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { pc, sec, loadContent, markEm } from '../routes/leadContent.js';
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
 import { forwardLeadToJotForm, processLeadIntegrations } from '../routes/profileRoutes.js';
@@ -89,13 +90,14 @@ async function impactFor(lat, lng) {
 }
 export function createRoofCheckRoutes(pool) {
     const router = Router();
-    router.get('/roofcheck', (_req, res) => {
+    router.get('/roofcheck', async (_req, res) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         // Prefer a dedicated referrer-restricted BROWSER key for client autocomplete;
         // never the server key. If neither browser key is set, the page ships without
         // autocomplete (free-text input + server-side geocode still work fine).
         const browserKey = process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || '';
-        res.send(renderPage(browserKey));
+        const content = await loadContent(pool); // Content Studio overrides (live, no deploy)
+        res.send(renderPage(browserKey, content));
     });
     // Brand audio identity assets (music bed + heartbeat) — served same-origin so the
     // page CSP (media-src 'self') allows playback. Files sit next to this route's source.
@@ -364,7 +366,7 @@ export default createRoofCheckRoutes;
 // sits on a dark bar. ${mapsScript} → client Places autocomplete (referrer-restricted,
 // safe to expose), graceful free-text + server-geocode fallback. Reads ?rep & ?src.
 // ─────────────────────────────────────────────────────────────────────────────
-function renderPage(_mapsKey) {
+function renderPage(_mapsKey, content) {
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -390,7 +392,7 @@ function renderPage(_mapsKey) {
   html,body{background:var(--ink);color:var(--tx);font-family:var(--body);font-weight:500;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
   h1,h2,h3{font-family:var(--disp);font-weight:700;line-height:1.03;letter-spacing:-.02em}
   a{color:inherit;text-decoration:none}
-  .grad{background:linear-gradient(96deg,var(--red2),var(--red) 45%,#ff7a5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .grad,.title em{background:linear-gradient(96deg,var(--red2),var(--red) 45%,#ff7a5a);-webkit-background-clip:text;background-clip:text;color:transparent;font-style:normal}
 
   /* atmosphere */
   .bg{position:fixed;inset:-30%;z-index:0;pointer-events:none;filter:blur(14px);animation:mesh 26s ease-in-out infinite alternate;
@@ -570,9 +572,9 @@ function renderPage(_mapsKey) {
 
     <main class="hero">
       <section class="left">
-        <span class="eyebrow"><span class="dot"></span> Free 10-second storm check</span>
-        <h1 class="title">Did the storm hit <span class="grad">your roof?</span></h1>
-        <p class="sub">Enter your address and we'll pull your address-level hail history and tell you whether your roof qualifies for an insurance inspection — in seconds.</p>
+        <span class="eyebrow"><span class="dot"></span> ${markEm(pc(content, 'roofcheck', 'hero_eyebrow'))}</span>
+        <h1 class="title">${markEm(pc(content, 'roofcheck', 'hero_h1'))}</h1>
+        <p class="sub">${markEm(pc(content, 'roofcheck', 'hero_sub'))}</p>
 
         <div class="card">
           <form class="search" id="searchForm" autocomplete="off">
@@ -580,7 +582,7 @@ function renderPage(_mapsKey) {
               <input type="text" id="addr" placeholder="123 Main St, Vienna, VA 22180" aria-label="Your home address" autocomplete="off" required>
               <div id="acBox" class="ac-box"></div>
             </div>
-            <button class="btn" id="goBtn" type="submit">Check my roof &rarr;</button>
+            <button class="btn" id="goBtn" type="submit">${markEm(pc(content, 'roofcheck', 'hero_cta'))} &rarr;</button>
           </form>
           <p class="hint" id="hint">🔒 Free, no obligation. We never share your info.</p>
 
@@ -601,7 +603,7 @@ function renderPage(_mapsKey) {
           <div class="reward" id="reward"></div>
         </div>
 
-        <div class="trust"><span><b>8,000+</b> projects completed</span><span>We handle the insurance claim</span><span>Licensed &amp; local</span></div>
+        ${sec(content, 'roofcheck', 'show_trust') ? `<div class="trust"><span><b>8,000+</b> projects completed</span><span>We handle the insurance claim</span><span>Licensed &amp; local</span></div>` : ''}
       </section>
 
       <aside class="art">

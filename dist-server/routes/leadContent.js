@@ -14,6 +14,61 @@ export const CONTENT_MANIFEST = {
             { key: 'show_stats', label: 'Show the stats band (8,000+ projects · 8 years · top 2%)', on: true },
         ],
     },
+    'claim-help': {
+        title: 'Claim Help Quiz', path: '/claim-help',
+        fields: [
+            { key: 'hero_eyebrow', label: 'Hero eyebrow (small label above headline)', def: 'Free Insurance Assessment' },
+            { key: 'hero_h1', label: 'Headline  (wrap a word in *asterisks* to color it red)', def: 'Is Your Roof Damage *Covered?*' },
+            { key: 'hero_sub', label: 'Subheadline', type: 'textarea', def: 'Answer 4 quick questions and find out in under 60 seconds. No cost, no obligation — just a straight answer from licensed local pros.' },
+        ],
+        toggles: [
+            { key: 'show_trust', label: 'Show the reassurance ribbon (8,000+ roofs · 8 years · GAF Master Elite · BBB A+)', on: true },
+        ],
+    },
+    'storm': {
+        title: 'Storm Damage', path: '/storm/22182',
+        fields: [
+            { key: 'hero_eyebrow', label: 'Hero eyebrow (small label above headline)', def: 'Free Roof Check • VA · MD · PA' },
+            { key: 'hero_cta', label: 'Main button text', def: 'Check My Roof — Free' },
+        ],
+        toggles: [
+            { key: 'show_stats', label: 'Show the stats band (8,000+ roofs · 8 years · top 2%)', on: true },
+        ],
+    },
+    'storm-checklist': {
+        title: 'Storm Checklist (Lead Magnet)', path: '/storm-checklist',
+        fields: [
+            { key: 'hero_eyebrow', label: 'Hero eyebrow (small label above headline)', def: 'Free Homeowner Download' },
+            { key: 'hero_h1', label: 'Headline  (wrap a word in *asterisks* to color it red)', def: 'Your Storm Damage *Insurance* Claim Checklist' },
+            { key: 'hero_sub', label: 'Subheadline', type: 'textarea', def: 'The step-by-step guide VA, MD & PA homeowners use to document damage, beat the deadlines, and get every dollar their policy owes them.' },
+            { key: 'hero_cta', label: 'Checklist button text (the email-gate submit button)', def: 'Send Me the Checklist' },
+        ],
+        toggles: [
+            { key: 'show_testimonials', label: 'Show the homeowner testimonial quotes (Sarah M. + James T.)', on: true },
+        ],
+    },
+    'refer': {
+        title: 'Referral Landing', path: '/refer/demo',
+        fields: [
+            { key: 'hero_eyebrow', label: 'Hero eyebrow — shown to cold visitors (no referrer). Visitors arriving from a rep\'s referral link always see "A Personal Referral" instead.', def: 'Free Inspection' },
+            { key: 'hero_cta', label: 'Main button text', def: 'Request Free Inspection' },
+        ],
+        toggles: [
+            { key: 'show_stats', label: 'Show the proof-stats row (8,000+ roofs · 8 yrs · Top 2% · A+)', on: true },
+        ],
+    },
+    'roofcheck': {
+        title: 'RoofCheck (storm self-check)', path: '/roofcheck',
+        fields: [
+            { key: 'hero_eyebrow', label: 'Hero eyebrow (small label above headline)', def: 'Free 10-second storm check' },
+            { key: 'hero_h1', label: 'Headline  (wrap a word in *asterisks* to color it red)', def: 'Did the storm hit *your roof?*' },
+            { key: 'hero_sub', label: 'Subheadline', type: 'textarea', def: "Enter your address and we'll pull your address-level hail history and tell you whether your roof qualifies for an insurance inspection — in seconds." },
+            { key: 'hero_cta', label: 'Main button text (the address-check button)', def: 'Check my roof' },
+        ],
+        toggles: [
+            { key: 'show_trust', label: 'Show the trust band (8,000+ projects · handles insurance · licensed & local)', on: true },
+        ],
+    },
 };
 let _cache = null;
 let _cacheAt = 0;

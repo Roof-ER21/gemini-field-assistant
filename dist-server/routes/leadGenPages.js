@@ -450,7 +450,7 @@ function escHtml(str) {
 // ---------------------------------------------------------------------------
 // Page 1: Storm Landing — /storm/:zip
 // ---------------------------------------------------------------------------
-function renderStormPage(storm, zip, rep) {
+function renderStormPage(storm, zip, rep, content) {
     const hasStorm = !!storm;
     const city = storm?.city || '';
     const state = storm?.state || '';
@@ -563,7 +563,7 @@ ${navBar(rep.phone)}
 <main>
   <section class="hero storm-hero">
     <div class="container">
-      <div class="hero-eyebrow">Free Roof Check &bull; VA &middot; MD &middot; PA</div>
+      <div class="hero-eyebrow">${escHtml(pc(content, 'storm', 'hero_eyebrow'))}</div>
       ${repStrip}
       <h1 class="hero-title">${heroTitle}</h1>
       <p class="hero-sub">${heroSub}</p>
@@ -572,6 +572,7 @@ ${navBar(rep.phone)}
   </section>
 
   <!-- Proof band — canon stats only (8,000+ roofs / 8 years / top 2%) -->
+  ${sec(content, 'storm', 'show_stats') ? `
   <section aria-label="Why homeowners trust The Roof Docs">
     <div class="container">
       <div class="storm-stats">
@@ -580,7 +581,7 @@ ${navBar(rep.phone)}
         <div class="storm-stat"><div class="n">Top <em>2</em>%</div><div class="l">GAF Master Elite</div></div>
       </div>
     </div>
-  </section>
+  </section>` : ''}
 
   <section aria-label="Lead capture form">
     <div class="container">
@@ -621,7 +622,7 @@ ${navBar(rep.phone)}
             <textarea class="form-control" id="damage_description" name="damage_description" placeholder="e.g. Missing shingles on the south side, granules in the gutters, a new water stain in the attic…" rows="3"></textarea>
           </div>
 
-          <button type="submit" class="btn-submit">Check My Roof &mdash; Free &rarr;</button>
+          <button type="submit" class="btn-submit">${escHtml(pc(content, 'storm', 'hero_cta'))} &rarr;</button>
           <p class="form-note">&#128274; Your information is private and will never be sold.</p>
         </form>
       </div>
@@ -686,7 +687,7 @@ ${renderChatWidget()}
 // ---------------------------------------------------------------------------
 // Page 2: Claim Help Quiz — /claim-help
 // ---------------------------------------------------------------------------
-function renderClaimHelpPage(rep) {
+function renderClaimHelpPage(rep, content) {
     const title = 'Is Your Roof Damage Covered by Insurance? | Free Assessment | The Roof Docs';
     const desc = 'Answer 4 quick questions to find out if your roof damage is covered by your homeowner\'s insurance. Free inspection from The Roof Docs — VA, MD, PA.';
     // Slim rep strip — shown ONLY when a rep's link is in play (one identity, no new QR).
@@ -797,9 +798,9 @@ ${repBoot(rep)}
     <div class="ch-streaks" aria-hidden="true"></div>
     <div class="container">
       ${repStrip}
-      <div class="hero-eyebrow">Free Insurance Assessment</div>
-      <h1 class="hero-title">Is Your Roof Damage <em>Covered?</em></h1>
-      <p class="hero-sub">Answer 4 quick questions and find out in under 60 seconds. No cost, no obligation &mdash; just a straight answer from licensed local pros.</p>
+      <div class="hero-eyebrow">${escHtml(pc(content, 'claim-help', 'hero_eyebrow'))}</div>
+      <h1 class="hero-title">${markEm(pc(content, 'claim-help', 'hero_h1'))}</h1>
+      <p class="hero-sub">${escHtml(pc(content, 'claim-help', 'hero_sub'))}</p>
     </div>
   </section>
 
@@ -907,13 +908,14 @@ ${repBoot(rep)}
         </div>
       </div>
 
+      ${sec(content, 'claim-help', 'show_trust') ? `
       <!-- Reassurance ribbon: canon stats (8,000+ projects / 8 years) + credentials. -->
       <div class="ch-ribbon" aria-label="Why homeowners trust The Roof Docs">
         <span class="ch-pill"><b>8,000+</b> roofs restored</span>
         <span class="ch-pill"><b>8 years</b> serving VA &middot; MD &middot; PA</span>
         <span class="ch-pill"><span class="tick" aria-hidden="true">&#10003;</span> GAF Master Elite <b>(top 2%)</b></span>
         <span class="ch-pill"><span class="tick" aria-hidden="true">&#10003;</span> BBB <b>A+</b> Rated</span>
-      </div>
+      </div>` : ''}
     </div>
   </section>
 
@@ -1038,7 +1040,7 @@ ${renderChatWidget()}
 // ---------------------------------------------------------------------------
 // Page 3: Referral Landing — /refer/:code
 // ---------------------------------------------------------------------------
-function renderReferralPage(referRep, code, rep) {
+function renderReferralPage(referRep, code, rep, content) {
     const hasRep = !!referRep;
     const repName = referRep?.rep_name || '';
     const repFirst = repName.split(' ')[0] || 'your rep';
@@ -1175,7 +1177,7 @@ ${navBar(rep.phone)}
 <main>
   <section class="hero refer-hero">
     <div class="container">
-      <div class="hero-eyebrow">${hasRep ? 'A Personal Referral' : 'Free Inspection'}</div>
+      <div class="hero-eyebrow">${hasRep ? 'A Personal Referral' : escHtml(pc(content, 'refer', 'hero_eyebrow'))}</div>
       ${repStripHtml}
       <h1 class="hero-title">${heroTitle}</h1>
       <p class="hero-sub">${heroSub}</p>
@@ -1192,9 +1194,9 @@ ${navBar(rep.phone)}
         </div>
       </div>` : ''}
 
-      <div class="refer-stats" role="list" aria-label="The Roof Docs by the numbers">
+      ${sec(content, 'refer', 'show_stats') ? `<div class="refer-stats" role="list" aria-label="The Roof Docs by the numbers">
         ${proofStats.map(s => `<div class="refer-stat" role="listitem"><div class="n">${s.num}</div><div class="l">${escHtml(s.label)}</div></div>`).join('\n        ')}
-      </div>
+      </div>` : ''}
 
       <div class="card">
         <h2 class="card-title">Request Your Free Inspection</h2>
@@ -1233,7 +1235,7 @@ ${navBar(rep.phone)}
             </select>
           </div>
 
-          <button type="submit" class="btn-submit">Request Free Inspection &rarr;</button>
+          <button type="submit" class="btn-submit">${escHtml(pc(content, 'refer', 'hero_cta'))} &rarr;</button>
           <p class="form-note">&#128274; Your information is private and will never be sold.</p>
         </form>
       </div>
@@ -1263,7 +1265,7 @@ ${navBar(rep.phone)}
 </main>
 
 ${footer()}
-${formScript('Request Free Inspection →')}
+${formScript(pc(content, 'refer', 'hero_cta') + ' →')}
 ${renderChatWidget()}
 </body>
 </html>`;
@@ -1607,9 +1609,10 @@ export function registerLeadGenPages(app, pool) {
     app.get('/storm/:zip', async (req, res) => {
         const { zip } = req.params;
         const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
         // Basic ZIP validation — accept 5-digit US ZIPs only
         if (!/^\d{5}$/.test(zip)) {
-            res.status(400).set('Content-Type', 'text/html').send(renderStormPage(null, zip.slice(0, 10), rep));
+            res.status(400).set('Content-Type', 'text/html').send(renderStormPage(null, zip.slice(0, 10), rep, content));
             return;
         }
         let storm = null;
@@ -1623,14 +1626,15 @@ export function registerLeadGenPages(app, pool) {
         }
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store'); // rep-aware (cookie-varied) — never shared-cache
-        res.send(renderStormPage(storm, zip, rep));
+        res.send(renderStormPage(storm, zip, rep, content));
     });
     // ── Page 2: Claim Help Quiz ───────────────────────────────────────────────
     app.get('/claim-help', async (req, res) => {
         const rep = await repContext(req, res, pool);
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store');
-        res.send(renderClaimHelpPage(rep));
+        const content = await loadContent(pool);
+        res.send(renderClaimHelpPage(rep, content));
     });
     // ── Page 4: Free Inspection ──────────────────────────────────────────────
     app.get('/free-inspection', async (req, res) => {
@@ -1661,22 +1665,24 @@ export function registerLeadGenPages(app, pool) {
             }
         }
         const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store');
-        res.send(renderReferralPage(referRep, safeCode, rep));
+        res.send(renderReferralPage(referRep, safeCode, rep, content));
     });
     // ── Page 5: Storm Checklist Lead Magnet ─────────────────────────────────
     app.get('/storm-checklist', async (req, res) => {
         const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store');
-        res.send(renderStormChecklistPage(rep));
+        res.send(renderStormChecklistPage(rep, content));
     });
 }
 // ---------------------------------------------------------------------------
 // Page 5 Renderer: Storm Damage Claim Checklist (lead magnet)
 // ---------------------------------------------------------------------------
-function renderStormChecklistPage(rep) {
+function renderStormChecklistPage(rep, content) {
     const title = 'Free Storm Damage Insurance Claim Checklist | The Roof Docs';
     const desc = 'Download the free Storm Damage Insurance Claim Checklist. The step-by-step guide VA, MD & PA homeowners use to document damage and maximize their roof insurance claim.';
     // Slim rep strip — only when a rep's link is in play (one identity, no new QR codes).
@@ -1752,9 +1758,9 @@ ${navBar(rep.phone)}
   <section class="hero chk-hero">
     <div class="container">
       ${repStrip}
-      <div class="hero-eyebrow">Free Homeowner Download</div>
-      <h1 class="hero-title">Your Storm Damage<br><em>Insurance</em> Claim Checklist</h1>
-      <p class="hero-sub">The step-by-step guide VA, MD &amp; PA homeowners use to document damage, beat the deadlines, and get every dollar their policy owes them.</p>
+      <div class="hero-eyebrow">${escHtml(pc(content, 'storm-checklist', 'hero_eyebrow'))}</div>
+      <h1 class="hero-title">${markEm(pc(content, 'storm-checklist', 'hero_h1'))}</h1>
+      <p class="hero-sub">${escHtml(pc(content, 'storm-checklist', 'hero_sub'))}</p>
     </div>
   </section>
 
@@ -1782,11 +1788,12 @@ ${navBar(rep.phone)}
         </div>`).join('')}
       </div>
 
+      ${sec(content, 'storm-checklist', 'show_testimonials') ? `
       <!-- Testimonial (kept) -->
       <figure class="chk-quote">
         <p>&ldquo;I didn’t know I could supplement my claim until I read this checklist. Ended up getting <span class="chk-stat">$4,200 more</span> than the initial estimate.&rdquo;</p>
         <figcaption class="attr">Sarah M. <span>&mdash; Columbia, MD</span></figcaption>
-      </figure>
+      </figure>` : ''}
     </div>
   </section>
 
@@ -1810,16 +1817,17 @@ ${navBar(rep.phone)}
           <input class="form-control" name="homeownerPhone" type="tel" placeholder="Phone (optional)" autocomplete="tel" aria-label="Phone number, optional">
           <input class="form-control" name="zipCode" type="text" placeholder="ZIP code (optional)" inputmode="numeric" maxlength="10" autocomplete="postal-code" aria-label="ZIP code, optional">
 
-          <button type="submit" class="btn-submit">Send Me the Checklist &rarr;</button>
+          <button type="submit" class="btn-submit">${escHtml(pc(content, 'storm-checklist', 'hero_cta'))} &rarr;</button>
           <p class="form-note">&#128274; We respect your privacy. No spam &mdash; just the checklist and the occasional storm alert for your area.</p>
         </form>
       </div>
 
+      ${sec(content, 'storm-checklist', 'show_testimonials') ? `
       <!-- Second testimonial (kept) -->
       <figure class="chk-quote">
         <p>&ldquo;After the hail storm hit Ellicott City, this checklist walked me through everything. My contractor even said I was the most prepared homeowner he’d worked with.&rdquo;</p>
         <figcaption class="attr">James T. <span>&mdash; Ellicott City, MD</span></figcaption>
-      </figure>
+      </figure>` : ''}
 
       <p class="chk-lic">
         <b>Licensed &amp; insured:</b> VA #${BRAND.vaLicense} &bull; MD MHIC #${BRAND.mdLicense} &bull; PA #${BRAND.paLicense}
@@ -1848,7 +1856,7 @@ ${footer()}
   }catch(e){/* noop */}
 })();
 </script>
-${formScript('Send Me the Checklist →')}
+${formScript(pc(content, 'storm-checklist', 'hero_cta'))}
 ${renderChatWidget()}
 </body>
 </html>`;

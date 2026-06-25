@@ -755,6 +755,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               Terms of Service
             </button>
           </div>
+
+          {/* AO21 · Susan 21 maker's mark — same corner signature used across all surfaces */}
+          <div
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', marginTop: '18px', opacity: 0.8 }}
+            aria-label="Susan 21 · AO21"
+          >
+            <img
+              src="/brand/ao21-sig.png"
+              alt=""
+              width={34}
+              height={24}
+              style={{ display: 'block', height: '24px', width: 'auto', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.5))' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+            <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: '9.5px', letterSpacing: '0.04em', color: 'var(--text-disabled)', marginTop: '1px' }}>
+              Susan&nbsp;21
+            </span>
+          </div>
         </div>
       </div>
 
