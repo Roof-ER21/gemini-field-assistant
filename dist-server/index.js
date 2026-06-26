@@ -8135,6 +8135,9 @@ try {
         }));
         // Serve index.html with no-cache for root
         app.get(['/', '/index.html'], (req, res) => {
+            // get.* is the homeowner domain — its root is RoofCheck, not the rep login.
+            if (req.hostname === 'get.theroofdocs.com')
+                return res.redirect(302, '/roofcheck');
             res.set('Cache-Control', 'no-store, max-age=0');
             res.sendFile(path.join(distDir, 'index.html'));
         });
@@ -9976,6 +9979,10 @@ app.get('*', (req, res, next) => {
         return next();
     if (!req.accepts('html'))
         return next();
+    // Homeowner domain (get.theroofdocs.com) must NEVER serve the rep-app login. Any stray /
+    // unknown path there bounces to RoofCheck. The rep login lives only on sa21.theroofdocs.com.
+    if (req.hostname === 'get.theroofdocs.com')
+        return res.redirect(302, '/roofcheck');
     // Send index.html for SPA routing
     const distDir = path.join(process.cwd(), 'dist');
     res.set('Cache-Control', 'no-store, max-age=0');
