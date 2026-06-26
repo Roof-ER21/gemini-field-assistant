@@ -217,6 +217,58 @@ class AuthService {
   }
 
   /**
+   * Sign in with Google (Workspace SSO). The Google ID token is verified server-side
+   * (/api/auth/google); on success we persist the session exactly like the email login.
+   */
+  async loginWithGoogle(credential: string, rememberMe: boolean = true): Promise<LoginResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success || !result.user) {
+        return { success: false, message: result.error || 'Google sign-in failed. Please try again.' };
+      }
+
+      const user: AuthUser = {
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        role: result.user.role || 'sales_rep',
+        state: null,
+        created_at: new Date(),
+        last_login_at: new Date(),
+      };
+
+      // Persist the session — identical to the email/direct login path.
+      this.currentUser = user;
+      localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
+      const sessionId = crypto.randomUUID();
+      localStorage.setItem(this.SESSION_KEY, sessionId);
+      const expiryDuration = rememberMe ? 365 * 24 * 60 * 60 * 1000 : 0;
+      const expiresAt = rememberMe ? Date.now() + expiryDuration : 0;
+      const authData: StoredAuth = { user, expiresAt, rememberMe };
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(authData));
+      await databaseService.setCurrentUser(user);
+
+      try {
+        await activityService.logLogin();
+      } catch (err) {
+        console.error('Failed to log login activity:', err);
+      }
+
+      console.log('✅ Google login successful:', user.email);
+      return { success: true, user, message: result.message || 'Login successful!' };
+    } catch (err) {
+      console.error('Error in Google login:', err);
+      return { success: false, message: 'Network error during Google sign-in. Please try again.' };
+    }
+  }
+
+  /**
    * Try auto-login with existing token (does NOT send verification code)
    * Returns success if valid token exists and auto-login was performed
    */

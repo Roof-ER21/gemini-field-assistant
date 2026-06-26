@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+import { OAuth2Client } from 'google-auth-library';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -194,9 +195,9 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com"],
             scriptSrcAttr: ["'unsafe-inline'"], // allow inline on* handlers (chat widget, quiz) — was blocked by helmet's default 'none'
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com", "https://accounts.google.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
             connectSrc: [
                 "'self'",
@@ -209,6 +210,7 @@ app.use(helmet({
                 "https://fonts.gstatic.com",
                 "https://nominatim.openstreetmap.org",
                 "https://photon.komoot.io",
+                "https://accounts.google.com",
                 "https://api.interactivehailmaps.com",
                 "https://maps.interactivehailmaps.com",
                 "https://a.tile.openstreetmap.org",
@@ -227,7 +229,7 @@ app.use(helmet({
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://api.fontshare.com", "https://cdn.fontshare.com"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
-            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com", "https://appealing-bravery-production-d7d6.up.railway.app"],
+            frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com", "https://appealing-bravery-production-d7d6.up.railway.app", "https://accounts.google.com"],
         },
     },
     crossOriginEmbedderPolicy: false,
@@ -2470,6 +2472,61 @@ app.post('/api/auth/direct-login', async (req, res) => {
             success: false,
             error: 'An error occurred during login'
         });
+    }
+});
+// ─── Google SSO (Sign in with Google) — verifies a real Workspace identity at the door ───
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '157850255424-06g5vldhb4vbqq6se7ml7g1kvt2rfueo.apps.googleusercontent.com';
+const googleAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+app.post('/api/auth/google', async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential)
+            return res.status(400).json({ success: false, error: 'Missing Google credential' });
+        // Verify the ID token against Google (signature + audience must match our client).
+        let payload;
+        try {
+            const ticket = await googleAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+            payload = ticket.getPayload();
+        }
+        catch {
+            return res.status(401).json({ success: false, error: 'Google sign-in could not be verified. Please try again.' });
+        }
+        if (!payload || !payload.email || payload.email_verified !== true) {
+            return res.status(401).json({ success: false, error: 'Your Google account email is not verified.' });
+        }
+        const email = String(payload.email).toLowerCase();
+        // Workspace gate: the Google-verified email must be a company domain (no random gmail).
+        if (!isAllowedEmailDomain(email)) {
+            return res.status(403).json({ success: false, error: 'Please sign in with your @theroofdocs.com Google account.' });
+        }
+        // Find or create the user — identity is Google-verified (unlike the passwordless direct-login).
+        const existing = await pool.query('SELECT id, name, email, role FROM users WHERE LOWER(email) = $1', [email]);
+        let user;
+        let isNew = false;
+        if (existing.rows.length > 0) {
+            user = existing.rows[0];
+            await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+        }
+        else {
+            const newUserId = uuidv4();
+            const displayName = (payload.name && String(payload.name).trim()) || email.split('@')[0];
+            const result = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
+         VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW())
+         RETURNING id, name, email, role`, [newUserId, email, displayName]);
+            user = result.rows[0];
+            isNew = true;
+        }
+        console.log(`[AUTH] Google login: ${user.email} (${user.name})${isNew ? ' [new account]' : ''}`);
+        res.json({
+            success: true,
+            message: isNew ? 'Account created via Google' : 'Login successful',
+            isNew,
+            user: { id: user.id, email: user.email, name: user.name, role: user.role },
+        });
+    }
+    catch (error) {
+        console.error('Error in Google login:', error);
+        res.status(500).json({ success: false, error: 'An error occurred during sign-in' });
     }
 });
 // Verify code endpoint (kept for backward compatibility)

@@ -8,7 +8,7 @@
  * 2b. New user → "Create Account" with name → Account created & logged in
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../services/authService';
 import LegalPage from './LegalPage';
 import { Mail, User, ArrowLeft, Shield, UserPlus } from 'lucide-react';
@@ -33,6 +33,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
   const [isSignup, setIsSignup] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+  // Public OAuth client ID (safe to embed) — Google Workspace SSO for @theroofdocs.com.
+  const GOOGLE_CLIENT_ID = '157850255424-06g5vldhb4vbqq6se7ml7g1kvt2rfueo.apps.googleusercontent.com';
 
   // Demo login for App Review
   const handleDemoLogin = async () => {
@@ -69,6 +73,55 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     localStorage.removeItem('s21_login_email');
     localStorage.removeItem('s21_login_name');
   };
+
+  // ── Sign in with Google (Workspace SSO) ──────────────────────────────────────
+  const handleGoogleCredential = async (response: { credential?: string }) => {
+    if (!response?.credential) return;
+    setGoogleError('');
+    setError('');
+    setLoading(true);
+    try {
+      const result = await authService.loginWithGoogle(response.credential, rememberMe);
+      if (result.success) {
+        clearSavedLoginInfo();
+        onLoginSuccess();
+        return;
+      }
+      setGoogleError(result.message || 'Google sign-in failed. Please try again.');
+    } catch (err) {
+      setGoogleError('Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load Google Identity Services + render the button when on the email step.
+  useEffect(() => {
+    if (step !== 'email') return;
+    let cancelled = false;
+    const renderGoogle = () => {
+      const g = (window as any).google;
+      if (cancelled || !g?.accounts?.id || !googleBtnRef.current) return;
+      g.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+      googleBtnRef.current.innerHTML = '';
+      g.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280,
+      });
+    };
+    if ((window as any).google?.accounts?.id) {
+      renderGoogle();
+    } else {
+      let s = document.getElementById('gis-script') as HTMLScriptElement | null;
+      if (!s) {
+        s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.async = true; s.defer = true; s.id = 'gis-script';
+        document.head.appendChild(s);
+      }
+      s.addEventListener('load', renderGoogle);
+    }
+    return () => { cancelled = true; };
+  }, [step]);
 
   // Step 1: Check if email exists
   const handleEmailCheck = async (e: React.FormEvent) => {
@@ -466,6 +519,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               )}
             </button>
           </form>
+        )}
+
+        {/* Sign in with Google (Workspace SSO) — additive; email login above still works */}
+        {step === 'email' && (
+          <div style={{ marginTop: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.12)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.12)' }} />
+            </div>
+            <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }} />
+            {googleError && (
+              <p style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '10px' }}>{googleError}</p>
+            )}
+          </div>
         )}
 
         {/* Step 2a: Existing User Login */}
