@@ -21,6 +21,8 @@ import { pc, sec, loadContent, markEm, type ContentMap } from '../routes/leadCon
 import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter.js';
 import { fetchMapImage } from '../services/mapImageService.js';
 import { forwardLeadToJotForm, processLeadIntegrations } from '../routes/profileRoutes.js';
+import { canManageQR } from '../lib/permissions.js';
+import { ihmConfigured, ihmImpactDatesForLatLong } from '../services/ihmImpactAdapter.js';
 
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
@@ -88,6 +90,22 @@ export function createRoofCheckRoutes(pool: Pool) {
     const browserKey = process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || '';
     const content = await loadContent(pool); // Content Studio overrides (live, no deploy)
     res.send(renderPage(browserKey, content));
+  });
+
+  // Admin-only IHM probe — inspect the RAW Interactive Hail Maps response for a lat/lng so
+  // the IHM→AddressImpactReport mapping can be finalized before RoofCheck is switched to it.
+  // Off /api (email-auth, not session-gated), marketing/admin only to avoid burning IHM quota.
+  // Returns raw IHM JSON only — never the credentials.
+  router.get('/admin/ihm-raw', async (req: Request, res: Response) => {
+    const email = String(req.query.email || '').trim();
+    if (!email || !(await canManageQR(pool, email))) return res.status(403).json({ ok: false, error: 'marketing/admin only — pass ?email=<your email>' });
+    if (!ihmConfigured()) return res.json({ ok: false, configured: false, note: 'Set IHM_API_USER/IHM_API_PASS (or IHM_BASIC_AUTH) in Railway first.' });
+    const lat = Number(req.query.lat), lng = Number(req.query.lng), months = Number(req.query.months || 24);
+    if (!isFinite(lat) || !isFinite(lng)) return res.status(400).json({ ok: false, error: 'lat & lng query params required (e.g. ?lat=38.90&lng=-77.26&email=…)' });
+    try {
+      const out = await ihmImpactDatesForLatLong(lat, lng, months);
+      res.json({ ok: out.ok, status: out.status, sample: out.body });
+    } catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }); }
   });
 
   // Brand audio identity assets (music bed + heartbeat) — served same-origin so the
