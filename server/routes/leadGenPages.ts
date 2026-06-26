@@ -218,6 +218,7 @@ function htmlHead(title: string, description: string, canonical?: string): strin
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <link rel="icon" type="image/png" href="/favicon.png">
   <title>${escHtml(title)}</title>
   <meta name="description" content="${escHtml(description)}">
   ${canonical ? `<link rel="canonical" href="${escHtml(canonical)}">` : ''}
@@ -1394,7 +1395,7 @@ function renderFreeInspectionPage(rep: RepCtx, content: ContentMap): string {
     },
     {
       q: 'What areas do you serve?',
-      a: 'We serve Virginia, Maryland, and Pennsylvania — including the greater Washington D.C. metro area, Northern Virginia, Baltimore metro, and surrounding counties.',
+      a: 'We serve Virginia, Maryland, and Pennsylvania — including Northern Virginia, the Baltimore metro, and surrounding counties.',
     },
   ];
 

@@ -372,6 +372,7 @@ function renderPage(_mapsKey, content) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/png" href="/favicon.png">
 <title>Roof-ER — Did the storm hit your roof?</title>
 <meta name="description" content="Free 10-second storm check from Roof-ER. See your address-level hail history and whether you qualify for an insurance inspection. VA · MD · PA.">
 <meta name="theme-color" content="#0a0a0f">
