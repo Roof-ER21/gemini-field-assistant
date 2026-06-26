@@ -44,7 +44,7 @@ const BRAND = {
   facebook: 'https://www.facebook.com/theroofdocs/',
   instagram: 'https://www.instagram.com/theroofdocs',
   // Certification badges from theroofdocs.com
-  badgeGafElite: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Master_Elite-1024x1024.png',
+  badgeGafElite: '/brand/gaf-presidents-club.png',
   badgeBbb: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/bbb-a-plus.webp',
   badgeSolar: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Certified-Solar-Installer_RGB-1-1-1024x1024.png',
   badgeBestPros: 'https://www.theroofdocs.com/wp-content/uploads/2025/03/Roof-ER-Logo-Alt-Colors-4.png',
@@ -1671,6 +1671,16 @@ export function registerLeadGenPages(app: Application, pool: Pool): void {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
     res.sendFile(sigPath);
+  });
+
+  // GAF President's Club Award badge (spotlight + cert-badge row, via BRAND.badgeGafElite)
+  const gafBadgePath = existsSync(path.resolve(process.cwd(), 'server/routes/brand/gaf-presidents-club.png'))
+    ? path.resolve(process.cwd(), 'server/routes/brand/gaf-presidents-club.png')
+    : path.join(path.dirname(new URL(import.meta.url).pathname), 'brand/gaf-presidents-club.png');
+  app.get('/brand/gaf-presidents-club.png', (_req, res) => {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    res.sendFile(gafBadgePath);
   });
 
   // Default promo video — the fallback that fills a rep's empty "Video coming soon" slot
