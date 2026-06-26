@@ -75,6 +75,12 @@ async function geocode(address: string): Promise<{ lat: number; lng: number; nor
 }
 
 async function impactFor(lat: number, lng: number) {
+  // Homeowner hail source: prefer IHM (Interactive Hail Maps) when its creds are set;
+  // fall back to Hail Yes on any IHM error so a quota/outage can never blank the tool.
+  if (ihmConfigured()) {
+    try { return await getAddressHailImpactViaIHM(lat, lng, 24); }
+    catch (e) { console.warn('[roofcheck] IHM failed, falling back to Hail Yes:', (e as Error)?.message); }
+  }
   try { return await getAddressHailImpactViaHailYes(lat, lng, 24); }
   catch { return null; }
 }

@@ -21,7 +21,7 @@ import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter
 import { fetchMapImage } from '../services/mapImageService.js';
 import { forwardLeadToJotForm, processLeadIntegrations } from '../routes/profileRoutes.js';
 import { canManageQR } from '../lib/permissions.js';
-import { ihmConfigured, ihmProbe } from '../services/ihmImpactAdapter.js';
+import { ihmConfigured, ihmProbe, getAddressHailImpactViaIHM } from '../services/ihmImpactAdapter.js';
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
 let JOBS = [];
@@ -83,6 +83,16 @@ async function geocode(address) {
     return null;
 }
 async function impactFor(lat, lng) {
+    // Homeowner hail source: prefer IHM (Interactive Hail Maps) when its creds are set;
+    // fall back to Hail Yes on any IHM error so a quota/outage can never blank the tool.
+    if (ihmConfigured()) {
+        try {
+            return await getAddressHailImpactViaIHM(lat, lng, 24);
+        }
+        catch (e) {
+            console.warn('[roofcheck] IHM failed, falling back to Hail Yes:', e?.message);
+        }
+    }
     try {
         return await getAddressHailImpactViaHailYes(lat, lng, 24);
     }
