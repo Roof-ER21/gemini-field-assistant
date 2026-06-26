@@ -36,7 +36,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [googleError, setGoogleError] = useState('');
   const googleBtnRef = useRef<HTMLDivElement>(null);
   // Public OAuth client ID (safe to embed) — Google Workspace SSO for @theroofdocs.com.
-  const GOOGLE_CLIENT_ID = '157850255424-06g5vldhb4vbqq6se7ml7g1kvt2rfueo.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID = '157850255424-p6bumpmsghvpk6i54fc65qnhol5luu77.apps.googleusercontent.com';
 
   // Demo login for App Review
   const handleDemoLogin = async () => {

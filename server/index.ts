@@ -2934,7 +2934,7 @@ app.post('/api/auth/direct-login', async (req, res) => {
 });
 
 // ─── Google SSO (Sign in with Google) — verifies a real Workspace identity at the door ───
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '157850255424-06g5vldhb4vbqq6se7ml7g1kvt2rfueo.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '157850255424-p6bumpmsghvpk6i54fc65qnhol5luu77.apps.googleusercontent.com';
 const googleAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 app.post('/api/auth/google', async (req, res) => {
