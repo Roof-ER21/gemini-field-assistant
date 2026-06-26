@@ -259,7 +259,7 @@ export function createRoofCheckRoutes(pool: Pool) {
           qualifying,
           map: (lat && lng) ? `/api/roofcheck/staticmap?lat=${lat}&lng=${lng}` : null,
           neighbors: { count: within, nearest: nearest ? streetOf(nearest.a) : null },
-          source: 'NOAA NEXRAD (NCEI SWDI) + NWS/SPC reports, multi-source corroborated',
+          source: 'Interactive Hail Maps + NOAA NEXRAD / NWS, multi-source corroborated',
         },
       });
     } catch (err) {
@@ -628,7 +628,7 @@ function renderPage(_mapsKey: string, content: ContentMap): string {
         <img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER">
         <span class="muted" style="font-size:13px">storm-damage roofing &amp; insurance-claim experts</span>
       </div>
-      <p class="foot-fine">Roof&#8209;ER / The Roof Docs — serving Virginia, Maryland &amp; Pennsylvania (the DMV, Richmond &amp; PA areas). This is a free storm-history check, not a damage assessment — the full assessment happens at your on-site inspection. Storm data: NOAA NEXRAD (NCEI SWDI) + NWS/SPC, multi-source corroborated.</p>
+      <p class="foot-fine">Roof&#8209;ER / The Roof Docs — serving Virginia, Maryland &amp; Pennsylvania (the DMV, Richmond &amp; PA areas). This is a free storm-history check, not a damage assessment — the full assessment happens at your on-site inspection. Storm data: Interactive Hail Maps + NOAA NEXRAD / NWS, multi-source corroborated.</p>
       <div class="ao-sig"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy"><span>Susan&nbsp;21</span></div>
     </footer>
 
@@ -721,6 +721,7 @@ function renderPage(_mapsKey: string, content: ContentMap): string {
       var d=await r.json();
       if(!d.ok){ $('hint').textContent=d.error||"We couldn't find that address — add city & ZIP."; return; }
       ctx.lat=d.lat; ctx.lng=d.lng; ctx.normalizedAddress=d.normalizedAddress||a;
+      $('hint').textContent=''; // clear the "Scanning…" line once results are revealed
       var t=d.teaser||{};
       $('teaser').innerHTML = t.got
         ? '<div class="ic">&#9888;&#65039;</div><div><b>Your address was in a storm path.</b>Enter your details to see <b>when</b> it hit, <b>how big</b> the hail was, and whether you <b>qualify</b> for an insurance-paid roof.</div>'
@@ -760,7 +761,7 @@ function renderPage(_mapsKey: string, content: ContentMap): string {
     }
     if(rw.qualifying) h+='<div class="qual">&#10003; Qualifying event — your insurance claim window is open. This is worth a free inspection.</div>';
     if(rw.neighbors&&rw.neighbors.count>0) h+='<div class="nb">&#127968; We\\'ve completed '+rw.neighbors.count+' roof'+(rw.neighbors.count==1?'':'s')+' within a mile of you'+(rw.neighbors.nearest?(' — including one on '+esc(rw.neighbors.nearest)):'')+'.</div>';
-    h+='<div class="src">Source: '+esc(rw.source||'NOAA NEXRAD (NCEI SWDI) + NWS/SPC')+'</div>';
+    h+='<div class="src">Source: '+esc(rw.source||'Interactive Hail Maps + NOAA NEXRAD / NWS')+'</div>';
     h+='<div class="sched" id="sched">'
       +'<div class="sched-h">📅 Book your free inspection</div>'
       +'<p class="muted">The full damage assessment + insurance documentation happens on-site. Pick a day &amp; time that works — '+(REPNAME?esc(REPNAME):'your Roof-ER specialist')+' will confirm.</p>'
