@@ -287,7 +287,13 @@ export function createRoofCheckRoutes(pool) {
                 ok: true,
                 leadId,
                 reward: {
-                    events,
+                    // Homeowner sees COUNTS bucketed by proximity — never dates/sizes (Oliver, 2026-06-26).
+                    // The dated `events` + `note` above stay server-side for the rep's lead record.
+                    buckets: {
+                        atHome: report ? report.summary.directHitCount : 0,
+                        coupleMiles: report ? report.summary.nearMissCount : 0,
+                        widerArea: report ? report.summary.areaImpactCount : 0,
+                    },
                     qualifying,
                     map: (lat && lng) ? `/api/roofcheck/staticmap?lat=${lat}&lng=${lng}` : null,
                     neighbors: { count: within, nearest: nearest ? streetOf(nearest.a) : null },
@@ -440,6 +446,12 @@ function renderPage(_mapsKey, content) {
   .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.04;mix-blend-mode:overlay;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   .wrap{position:relative;z-index:2}
+  /* Flyer tie-in — faint storm-branch lines + red halftone bursts (match the printed piece) */
+  .branches{position:fixed;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;opacity:.085}
+  .halftone{position:fixed;z-index:0;pointer-events:none;width:48vmax;height:48vmax;
+    background-image:radial-gradient(rgba(239,43,43,.6) 1.3px,transparent 1.7px);background-size:12px 12px;opacity:.15}
+  .halftone.tr{top:-9vmax;right:-9vmax;-webkit-mask-image:radial-gradient(closest-side,#000 28%,transparent 72%);mask-image:radial-gradient(closest-side,#000 28%,transparent 72%)}
+  .halftone.bl{bottom:-9vmax;left:-9vmax;-webkit-mask-image:radial-gradient(closest-side,#000 28%,transparent 72%);mask-image:radial-gradient(closest-side,#000 28%,transparent 72%)}
   @media (prefers-reduced-motion:reduce){.bg{animation:none}#hail{display:none}}
 
   /* nav — dark bar so the white logo reads */
@@ -518,6 +530,25 @@ function renderPage(_mapsKey, content) {
   .ev .l{display:flex;flex-direction:column;gap:2px}.ev .d{font-weight:700;display:flex;align-items:center;gap:8px}.ev .w{font-size:12px;color:var(--faint)}
   .ev .m{font-family:var(--disp);color:var(--red2);font-weight:700;white-space:nowrap;font-size:1.02rem}
   .ev.dh{border-color:rgba(239,43,43,.42);background:rgba(239,43,43,.10)}
+  /* Proximity count buckets (replaces dated event rows) */
+  .bk{display:flex;align-items:center;gap:13px;padding:13px 16px;border:1px solid var(--line);border-radius:13px;margin-top:9px;background:rgba(255,255,255,.03)}
+  .bk-ic{font-size:22px;line-height:1;flex:0 0 auto}
+  .bk-n{font-family:var(--disp);font-size:1.7rem;font-weight:800;color:var(--red2);line-height:1;flex:0 0 auto;min-width:1.1em;text-align:center}
+  .bk-t{font-size:14px;color:var(--tx);font-weight:600;line-height:1.3}
+  .bk.lead{border-color:rgba(239,43,43,.42);background:rgba(239,43,43,.10)}
+  .bk.lead .bk-n{font-size:2.1rem}
+  .bk.none{display:block}
+  .bk.none .bk-t{font-size:13.5px;color:var(--faint);font-weight:500}
+  /* The Roof Docs Method (Inspect → Diagnose → Prescribe → Operate) — flyer tie-in */
+  .method{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.02)}
+  .method-h{font-weight:700;font-size:14px;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px;color:var(--tx)}
+  .method-ic{font-size:18px;line-height:1.2;flex:0 0 auto}
+  .method-grid{display:flex;flex-direction:column;gap:13px}
+  .step{display:flex;align-items:flex-start;gap:13px}
+  .step-ic{flex:0 0 auto;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:var(--red2);background:rgba(239,43,43,.10);border:1px solid rgba(239,43,43,.28)}
+  .step-x{display:flex;flex-direction:column;gap:2px}
+  .step-x b{font-family:var(--disp);font-size:13.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--tx)}
+  .step-x span{font-size:12.5px;color:var(--faint);line-height:1.45}
   .tag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:var(--red);border-radius:6px;padding:2px 7px}
   .qual{background:var(--okbg);border:1px solid rgba(16,185,129,.4);color:var(--ok);border-radius:13px;padding:13px 15px;margin-top:13px;font-weight:700;font-family:var(--disp)}
   .nb{background:rgba(70,89,138,.14);border:1px solid rgba(70,89,138,.4);border-radius:13px;padding:13px 15px;margin-top:11px;font-weight:600;color:var(--tx)}
@@ -597,6 +628,9 @@ function renderPage(_mapsKey, content) {
   <div class="bg"></div>
   <canvas id="hail"></canvas>
   <div class="grain"></div>
+  <svg class="branches" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="#aab0bd" stroke-width="1.4" stroke-linecap="round"><path d="M600 -30 C580 90 560 140 520 210 C500 250 470 280 430 340"/><path d="M520 210 C560 250 600 270 660 300 C700 320 730 360 760 420"/><path d="M430 340 C400 380 380 420 360 480"/><path d="M120 830 C160 700 180 640 220 560 C240 520 270 490 300 440"/><path d="M220 560 C270 580 320 590 380 600"/><path d="M1080 840 C1040 720 1020 660 980 580 C960 540 940 510 910 470"/><path d="M980 580 C920 600 870 600 820 600"/></g></svg>
+  <i class="halftone tr" aria-hidden="true"></i>
+  <i class="halftone bl" aria-hidden="true"></i>
   <div class="wrap">
     <nav class="nav">
       <img id="rc-logo" src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs">
@@ -753,8 +787,8 @@ function renderPage(_mapsKey, content) {
       $('hint').textContent=''; // clear the "Scanning…" line once results are revealed
       var t=d.teaser||{};
       $('teaser').innerHTML = t.got
-        ? '<div class="ic">&#9888;&#65039;</div><div><b>Your address was in a storm path.</b>Enter your details to see <b>when</b> it hit, <b>how big</b> the hail was, and whether you <b>qualify</b> for an insurance-paid roof.</div>'
-        : '<div class="ic">&#127783;&#65039;</div><div><b>Let\\'s check your address for storm damage.</b>Enter your details to see your full 2-year hail &amp; wind history and insurance eligibility.</div>';
+        ? '<div class="ic">&#9888;&#65039;</div><div><b>Your address was in a storm path.</b>Enter your details to see <b>how many times</b> your area was hit in the <b>last 2 years</b> &mdash; and whether you <b>qualify</b> for an insurance-paid roof.</div>'
+        : '<div class="ic">&#127783;&#65039;</div><div><b>Let&rsquo;s check your address for storm damage.</b>Enter your details to see your <b>2-year storm summary</b> and whether you may qualify for an insurance-paid roof.</div>';
       $('gate').style.display='block'; $('gate').classList.add('reveal');
       $('gate').scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(err){ $('hint').textContent='Something went wrong — please try again.'; }
@@ -778,19 +812,37 @@ function renderPage(_mapsKey, content) {
   });
 
   function renderReward(rw){
-    var h='<div class="rwd-h">📋 Your storm history — last 2 years</div>';
+    var h='<div class="rwd-h">&#128203; Your 2-year storm summary</div>';
     if(rw.map) h+='<img class="rwd-map" alt="Your roof" src="'+esc(rw.map)+'" onerror="this.style.display=\\'none\\'">';
-    var evs=rw.events||[];
-    if(evs.length){
-      evs.forEach(function(e){
-        h+='<div class="ev '+(e.direct?'dh':'')+'"><div class="l"><span class="d">'+esc(e.date)+(e.direct?'<span class="tag">At your home</span>':'')+'</span><span class="w">'+esc(e.where)+'</span></div><span class="m">'+esc(e.mag)+'</span></div>';
+    // Proximity COUNT buckets — closest-first, only the ones with hits. No dates, no sizes.
+    var b=rw.buckets||{atHome:0,coupleMiles:0,widerArea:0};
+    var rows=[
+      {n:b.atHome|0,      ic:'&#127919;', lbl:'hit right at your address'},
+      {n:b.coupleMiles|0, ic:'&#128205;', lbl:'within a couple miles of you'},
+      {n:b.widerArea|0,   ic:'&#127760;', lbl:'across your wider area'}
+    ].filter(function(r){return r.n>0;});
+    if(rows.length){
+      rows.forEach(function(r,i){
+        var noun=r.n===1?'storm':'storms';
+        h+='<div class="bk'+(i===0?' lead':'')+'"><span class="bk-ic">'+r.ic+'</span><span class="bk-n">'+r.n+'</span><span class="bk-t">'+noun+' '+r.lbl+'</span></div>';
       });
     } else {
-      h+='<div class="ev"><div class="l"><span class="d">No major events on record in the last 2 years</span></div></div>';
+      h+='<div class="bk none"><span class="bk-t">Storms have moved through your area over the last 2 years &mdash; a free inspection is the only way to know for sure if your roof was caught.</span></div>';
     }
-    if(rw.qualifying) h+='<div class="qual">&#10003; Qualifying event — your insurance claim window is open. This is worth a free inspection.</div>';
-    if(rw.neighbors&&rw.neighbors.count>0) h+='<div class="nb">&#127968; We\\'ve completed '+rw.neighbors.count+' roof'+(rw.neighbors.count==1?'':'s')+' within a mile of you'+(rw.neighbors.nearest?(' — including one on '+esc(rw.neighbors.nearest)):'')+'.</div>';
+    if(rw.qualifying) h+='<div class="qual">&#10003; Your insurance claim window is open &mdash; and on an approved claim you pay <b>only your deductible</b>. We handle the paperwork and the roof.</div>';
+    if(rw.neighbors&&rw.neighbors.count>0) h+='<div class="nb">&#127968; We&rsquo;ve helped '+rw.neighbors.count+' neighbor'+(rw.neighbors.count==1?'':'s')+' within a mile of you secure <b>full insurance approval</b> for hail &amp; wind damage'+(rw.neighbors.nearest?(' &mdash; including one on '+esc(rw.neighbors.nearest)):'')+'.</div>';
     h+='<div class="src">Source: '+esc(rw.source||'Interactive Hail Maps + NOAA NEXRAD / NWS')+'</div>';
+    // The Roof Docs Method — lifts the rep flyer's Inspect → Diagnose → Prescribe → Operate.
+    var svg=function(p){return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';};
+    h+='<div class="method">'
+      +'<div class="method-h"><span class="method-ic">&#129658;</span> You&rsquo;ve had your check-up &mdash; here&rsquo;s the treatment plan:</div>'
+      +'<div class="method-grid">'
+        +'<div class="step"><span class="step-ic">'+svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>')+'</span><div class="step-x"><b>Inspect</b><span>We get on your roof and document every slope &mdash; photos of all of it.</span></div></div>'
+        +'<div class="step"><span class="step-ic">'+svg('<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>')+'</span><div class="step-x"><b>Diagnose</b><span>We pinpoint the hail &amp; wind damage and what it qualifies for.</span></div></div>'
+        +'<div class="step"><span class="step-ic">'+svg('<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>')+'</span><div class="step-x"><b>Prescribe</b><span>We build the full claim scope and meet your adjuster on the roof.</span></div></div>'
+        +'<div class="step"><span class="step-ic">'+svg('<path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>')+'</span><div class="step-x"><b>Operate</b><span>We replace it &mdash; and on an approved claim you pay only your deductible.</span></div></div>'
+      +'</div>'
+    +'</div>';
     h+='<div class="sched" id="sched">'
       +'<div class="sched-h">📅 Book your free inspection</div>'
       +'<p class="muted">The full damage assessment + insurance documentation happens on-site. Pick a day &amp; time that works — '+(REPNAME?esc(REPNAME):'your Roof-ER specialist')+' will confirm.</p>'
@@ -802,7 +854,7 @@ function renderPage(_mapsKey, content) {
       +'<div style="font-weight:700;font-size:14px;margin-bottom:10px">&#128203; Your storm-damage claim checklist</div>'
       +'<ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.8)">'
       +'<li><b>Document everything</b> &mdash; date-stamped photos of every slope, the gutters, and any interior stains before you call.</li>'
-      +'<li><b>File within your window</b> &mdash; most insurers require the claim within about a year of the storm date.</li>'
+      +'<li><b>File within your window</b> &mdash; most insurers require the claim within about a year of the storm.</li>'
       +'<li><b>Be there for the adjuster</b> &mdash; walk the roof with them and point out every hit.</li>'
       +'<li><b>Ask for a supplement</b> &mdash; the first estimate is rarely complete; itemize anything missing.</li>'
       +'<li><b>Vet your contractor</b> &mdash; licensed, insured, GAF-certified, and local (not a storm-chaser).</li>'

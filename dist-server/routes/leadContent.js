@@ -22,7 +22,7 @@ export const CONTENT_MANIFEST = {
             { key: 'hero_sub', label: 'Subheadline', type: 'textarea', def: 'Answer 4 quick questions and find out in under 60 seconds. No cost, no obligation — just a straight answer from licensed local pros.' },
         ],
         toggles: [
-            { key: 'show_trust', label: 'Show the reassurance ribbon (8,000+ roofs · 8 years · GAF Master Elite · BBB A+)', on: true },
+            { key: 'show_trust', label: 'Show the reassurance ribbon (8,000+ roofs · 8 years · GAF President’s Club · BBB A+)', on: true },
         ],
     },
     'storm': {

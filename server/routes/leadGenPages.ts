@@ -432,7 +432,7 @@ function navBar(phoneNumber: string = ROOFCHECK_PHONE): string {
 
 function trustBadges(): string {
   const badges = [
-    [BRAND.badgeGafElite, 'GAF Master Elite Residential Roofing Contractor', ''],
+    [BRAND.badgeGafElite, 'GAF President’s Club Award Winner (Residential)', ''],
     [BRAND.badgeBbb, 'BBB Accredited Business A+ Rating', ''],
     [BRAND.badgeSolar, 'GAF Energy Solar Certified Installer', ''],
     [BRAND.badgeBestPros, 'Best Pros in Town - Roofing Contractor Recommends', `background:${BRAND.red};`],
@@ -490,10 +490,7 @@ function renderStormPage(storm: Record<string, any> | null, zip: string, rep: Re
   const city: string = storm?.city || '';
   const state: string = storm?.state || '';
   const eventType: string = storm?.event_type || 'Storm';
-  const hailSize: string = storm?.hail_size_inches ? `${storm.hail_size_inches}"` : '';
-  const eventDate: string = storm?.event_date
-    ? new Date(storm.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
-    : '';
+  // hail size + exact event date intentionally NOT surfaced to homeowners (Oliver, 2026-06-26)
 
   // Headline focal location: the storm's city/state when known, else the visitor's ZIP.
   const place = hasStorm ? `${city}${state ? `, ${state}` : ''}` : zip;
@@ -524,7 +521,7 @@ function renderStormPage(storm: Record<string, any> | null, zip: string, rep: Re
     : `Is Your Roof <em>Okay</em>?`;
 
   const heroSub = hasStorm
-    ? `${hailSize ? `Hail up to ${escHtml(hailSize)} was reported` : `Damage was reported`}${eventDate ? ` on ${eventDate}` : ''} around ${escHtml(place)}. Most homeowners qualify for a <strong>fully covered repair</strong> through insurance &mdash; but only if the damage is documented in time.`
+    ? `Storm activity was reported around ${escHtml(place)}. Most homeowners qualify for a <strong>fully covered repair</strong> through insurance &mdash; but only if the damage is documented in time.`
     : hasZip
       ? `Storms move fast and damage hides. Our team checks roofs across ${escHtml(zip)} and all of VA, MD &amp; PA &mdash; <strong>free, no obligation</strong> &mdash; then handles the insurance claim end to end.`
       : `Storms move fast and damage hides. Our team checks roofs across VA, MD &amp; PA &mdash; <strong>free, no obligation</strong> &mdash; then handles the insurance claim end to end.`;
@@ -544,7 +541,7 @@ function renderStormPage(storm: Record<string, any> | null, zip: string, rep: Re
     },
     {
       q: 'Who are The Roof Docs?',
-      a: 'A GAF Master Elite contractor — a rating held by only the top 2% of roofers in the country — with an A+ BBB rating and 8,000+ roofs completed over 8 years across Virginia, Maryland, and Pennsylvania. Licensed in all three states.',
+      a: 'A GAF President’s Club Award winner — GAF’s highest residential honor, earned by Master Elite contractors (the top 2% nationwide) — with an A+ BBB rating and 8,000+ roofs completed over 8 years across Virginia, Maryland, and Pennsylvania. Licensed in all three states.',
     },
   ];
 
@@ -629,7 +626,7 @@ ${navBar(rep.phone)}
       <div class="storm-stats">
         <div class="storm-stat"><div class="n"><em>8,000</em>+</div><div class="l">Roofs Completed</div></div>
         <div class="storm-stat"><div class="n"><em>8</em> yrs</div><div class="l">In VA &middot; MD &middot; PA</div></div>
-        <div class="storm-stat"><div class="n">Top <em>2</em>%</div><div class="l">GAF Master Elite</div></div>
+        <div class="storm-stat"><div class="n">Top <em>2</em>%</div><div class="l">GAF President’s Club</div></div>
       </div>
     </div>
   </section>` : ''}
@@ -968,7 +965,7 @@ ${repBoot(rep)}
       <div class="ch-ribbon" aria-label="Why homeowners trust The Roof Docs">
         <span class="ch-pill"><b>8,000+</b> roofs restored</span>
         <span class="ch-pill"><b>8 years</b> serving VA &middot; MD &middot; PA</span>
-        <span class="ch-pill"><span class="tick" aria-hidden="true">&#10003;</span> GAF Master Elite <b>(top 2%)</b></span>
+        <span class="ch-pill"><span class="tick" aria-hidden="true">&#10003;</span> GAF President’s Club <b>(top 2%)</b></span>
         <span class="ch-pill"><span class="tick" aria-hidden="true">&#10003;</span> BBB <b>A+</b> Rated</span>
       </div>` : ''}
     </div>
@@ -1115,8 +1112,8 @@ function renderReferralPage(referRep: Record<string, any> | null, code: string, 
     ? `${repName} Recommended You | The Roof Docs`
     : 'Recommended Roofing Professional | The Roof Docs';
   const desc = hasRep
-    ? `A neighbor trusted ${repName} at The Roof Docs. Claim your free, no-obligation roof inspection — licensed in VA, MD & PA. 8,000+ roofs, GAF Master Elite.`
-    : 'Schedule your free roof inspection with The Roof Docs. Licensed and insured — VA, MD, PA. GAF Master Elite, BBB A+.';
+    ? `A neighbor trusted ${repName} at The Roof Docs. Claim your free, no-obligation roof inspection — licensed in VA, MD & PA. 8,000+ roofs, GAF President’s Club.`
+    : 'Schedule your free roof inspection with The Roof Docs. Licensed and insured — VA, MD, PA. GAF President’s Club, BBB A+.';
 
   const heroTitle = hasRep
     ? `A neighbor trusted <em>${escHtml(repName)}</em>.<br>Now it's your turn.`
@@ -1171,7 +1168,7 @@ function renderReferralPage(referRep: Record<string, any> | null, code: string, 
   const proofStats = [
     { num: '8,000+', label: 'Roofs restored' },
     { num: '8 yrs', label: 'Serving the DMV' },
-    { num: 'Top 2%', label: 'GAF Master Elite' },
+    { num: 'Top 2%', label: 'GAF President’s Club' },
     { num: 'A+', label: 'BBB rated' },
   ];
 
@@ -1325,7 +1322,7 @@ ${navBar(rep.phone)}
     <div class="container">
       <p style="text-align:center;font-size:12px;color:${BRAND.textDim};line-height:1.7">
         Licensed &amp; insured &mdash; VA #${BRAND.vaLicense} &bull; MD MHIC #${BRAND.mdLicense} &bull; PA #${BRAND.paLicense}<br>
-        GAF Master Elite (top 2% of roofers) &bull; BBB A+ Accredited
+        GAF President’s Club (top 2% Master Elite) &bull; BBB A+ Accredited
       </p>
     </div>
   </section>
@@ -1343,8 +1340,8 @@ ${renderChatWidget()}
 // ---------------------------------------------------------------------------
 
 function renderFreeInspectionPage(rep: RepCtx, content: ContentMap): string {
-  const title = 'Free Roof Inspection | Licensed & GAF Master Elite | The Roof Docs';
-  const desc = 'Schedule your 100% free roof inspection with The Roof Docs. GAF Master Elite (top 2% of roofers), A+ BBB rated, fully licensed. Serving Virginia, Maryland & Pennsylvania.';
+  const title = 'Free Roof Inspection | Licensed & GAF President’s Club | The Roof Docs';
+  const desc = 'Schedule your 100% free roof inspection with The Roof Docs. GAF President’s Club (top 2% Master Elite), A+ BBB rated, fully licensed. Serving Virginia, Maryland & Pennsylvania.';
 
   // Rep strip — shown ONLY when a rep's link is in play. One identity, no new QR codes.
   const repStrip = rep.isRep
@@ -1373,12 +1370,12 @@ function renderFreeInspectionPage(rep: RepCtx, content: ContentMap): string {
   const stats: Array<{ num: string; unit?: string; label: string }> = [
     { num: '8,000', unit: '+', label: 'Roofs inspected & restored' },
     { num: '8', unit: 'yrs', label: 'Serving the DMV' },
-    { num: 'Top ', unit: '2%', label: 'GAF Master Elite contractor' },
+    { num: 'Top ', unit: '2%', label: 'GAF President’s Club' },
     { num: '1', unit: 'hr', label: 'Average callback time' },
   ];
 
   const whyUs = [
-    { icon: '&#127942;', title: 'GAF Master Elite', desc: 'A distinction held by only the top 2% of roofers nationwide.' },
+    { icon: '&#127942;', title: 'GAF President’s Club', desc: 'GAF’s highest residential award — earned by top Master Elite contractors (the top 2% nationwide).' },
     { icon: '&#128737;', title: 'Licensed & Insured', desc: 'Fully credentialed across VA, MD &amp; PA &mdash; every job, every time.' },
     { icon: '&#128247;', title: 'Documented Findings', desc: 'Photo report of everything we find &mdash; yours to keep, same day.' },
     { icon: '&#128176;', title: '100% Free', desc: 'No cost, no pressure, no obligation. An honest assessment, period.' },
@@ -1405,7 +1402,7 @@ function renderFreeInspectionPage(rep: RepCtx, content: ContentMap): string {
     },
     {
       q: 'Are you licensed and insured?',
-      a: 'Absolutely. We’re licensed in Virginia (#2705194709), Maryland (MHIC #164697), and Pennsylvania (#145926). We’re also a GAF Master Elite contractor — a distinction held by only the top 2% of roofers nationwide.',
+      a: 'Absolutely. We’re licensed in Virginia (#2705194709), Maryland (MHIC #164697), and Pennsylvania (#145926). We’re also a GAF President’s Club Award winner — GAF’s highest residential honor, earned by Master Elite contractors (the top 2% nationwide).',
     },
     {
       q: 'What areas do you serve?',
@@ -1510,7 +1507,7 @@ ${navBar(rep.phone)}
       <p class="hero-sub">${escHtml(pc(content, 'free-inspection', 'hero_sub'))}</p>
       <a href="#book" class="btn-submit" style="max-width:340px;margin:0 auto">${escHtml(pc(content, 'free-inspection', 'hero_cta'))} &rarr;</a>
       <div class="fi-trustline" role="list" aria-label="Credentials at a glance">
-        <span role="listitem"><span class="dot" aria-hidden="true"></span>GAF Master Elite</span>
+        <span role="listitem"><span class="dot" aria-hidden="true"></span>GAF President’s Club</span>
         <span role="listitem"><span class="dot" aria-hidden="true"></span>BBB A+ Rated</span>
         <span role="listitem"><span class="dot" aria-hidden="true"></span>VA &middot; MD &middot; PA Licensed</span>
       </div>
@@ -1532,15 +1529,15 @@ ${navBar(rep.phone)}
   </section>` : ''}
 
   <!-- GAF Master Elite spotlight -->
-  <section aria-label="GAF Master Elite certification" style="padding:18px 0">
+  <section aria-label="GAF President’s Club certification" style="padding:18px 0">
     <div class="container-wide">
       <div class="fi-elite">
         <div class="fi-elite-row">
           <!-- PHOTO-SLOT: known-good GAF Master Elite badge (BRAND.badgeGafElite) -->
-          <div class="fi-elite-badge"><img src="${BRAND.badgeGafElite}" alt="GAF Master Elite Certified Contractor" loading="lazy"></div>
+          <div class="fi-elite-badge"><img src="${BRAND.badgeGafElite}" alt="GAF President’s Club Award Winner" loading="lazy"></div>
           <div>
-            <h3>We're <em>GAF Master Elite</em> &mdash; the top 2% of roofers</h3>
-            <p>GAF awards Master Elite status to fewer than 2% of contractors nationwide &mdash; it requires proven craftsmanship, full licensing, insurance, and a track record of doing right by homeowners. It also unlocks the strongest manufacturer warranties in the industry.</p>
+            <h3>We're <em>GAF President’s Club</em> &mdash; GAF’s highest honor</h3>
+            <p>GAF’s President’s Club Award goes to a select few of its Master Elite contractors &mdash; the top 2% nationwide &mdash; for proven craftsmanship, full licensing, insurance, and a track record of doing right by homeowners. It also unlocks the strongest manufacturer warranties in the industry.</p>
             <div class="fi-licenses">
               ${licenses.map(l => `<span class="fi-chip"><span class="ck" aria-hidden="true">&#10003;</span><b>${escHtml(l.st)}</b> ${escHtml(l.num)}</span>`).join('')}
             </div>
@@ -1957,7 +1954,7 @@ ${navBar(rep.phone)}
 
       <p class="chk-lic">
         <b>Licensed &amp; insured:</b> VA #${BRAND.vaLicense} &bull; MD MHIC #${BRAND.mdLicense} &bull; PA #${BRAND.paLicense}
-        &bull; GAF Master Elite (top 2% of roofers) &bull; BBB A+ &bull; 8,000+ projects over 8 years
+        &bull; GAF President’s Club (top 2% Master Elite) &bull; BBB A+ &bull; 8,000+ projects over 8 years
       </p>
     </div>
   </section>
