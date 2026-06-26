@@ -1,60 +1,102 @@
 // @ts-nocheck
 /**
- * Interactive Hail Maps (IHM / Hail Recon) adapter — homeowner-facing hail history,
- * an alternative source to Hail Yes for the RoofCheck tool.
+ * Interactive Hail Maps (IHM / Hail Recon) → AddressImpactReport adapter for the
+ * homeowner RoofCheck tool. A thin layer over the existing, production hailMapsService
+ * (which owns IHM auth + response parsing), so creds + endpoints stay in ONE place:
+ *   IHM_API_KEY + IHM_API_SECRET (+ optional IHM_BASE_URL) — already set in Railway.
  *
- * AUTH: IHM uses HTTP Basic Auth (collection-level), so creds come from env and are
- * NEVER hardcoded, committed, or logged. Set ONE of these in Railway (not in chat/git):
- *   IHM_API_USER + IHM_API_PASS     (standard user:pass), or
- *   IHM_BASIC_AUTH                  ("user:pass", or a pre-encoded base64, or "Basic <b64>")
- *
- * ENDPOINT (by lat/lng) — what RoofCheck needs:
- *   GET https://maps.interactivehailmaps.com/ExternalApi/ImpactDatesForLatLong?Lat&Long&Months
- *   → hail impact dates for that location. (Also: ImpactDatesForAddressMarker?AddressMarker_id&Months)
- *
- * NOTE: IHM's published docs ship NO response sample, so the mapping to AddressImpactReport
- * is finalized only after inspecting a real response (admin endpoint GET /admin/ihm-raw).
- * Until then getAddressHailImpactViaIHM() throws, so it can never silently feed wrong/empty
- * hail data into the live homeowner tool — RoofCheck stays on Hail Yes.
+ * Tiering (mirrors Hail Yes's directHit / nearMiss / areaImpact, using IHM's bands):
+ *   SizeAtLocation  > 0  → directHit   (hail at the property)
+ *   SizeWithin1Mile > 0  → nearMiss    (~1 mi)
+ *   SizeWithin3Mile > 0  → nearMiss    (~3 mi)
+ *   SizeWithin10Mile> 0  → areaImpact  (context only)
  */
-const IHM_BASE = 'https://maps.interactivehailmaps.com/ExternalApi';
+import { hailMapsService } from './hailMapsService.js';
+import type { AddressImpactReport, AddressImpactTier } from './addressImpactService.js';
 
 export function ihmConfigured(): boolean {
-  return !!((process.env.IHM_API_USER && process.env.IHM_API_PASS) || process.env.IHM_BASIC_AUTH);
+  return hailMapsService.isConfigured();
 }
 
-function ihmAuthHeader(): string {
-  const raw = (process.env.IHM_BASIC_AUTH || '').trim();
-  if (raw) {
-    if (raw.startsWith('Basic ')) return raw;                       // already a header value
-    if (raw.includes(':')) return 'Basic ' + Buffer.from(raw).toString('base64'); // user:pass
-    return 'Basic ' + raw;                                          // assume pre-encoded base64
+function pos(v: any): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function tierOf(raw: any): { tier: 'direct' | 'near' | 'area' | null; inches: number | null; nearestMiles?: number } {
+  const r = raw || {};
+  const atLoc = pos(r.SizeAtLocation);
+  if (atLoc) return { tier: 'direct', inches: atLoc };
+  const w1 = pos(r.SizeWithin1Mile);
+  if (w1) return { tier: 'near', inches: w1, nearestMiles: 1 };
+  const w3 = pos(r.SizeWithin3Mile);
+  if (w3) return { tier: 'near', inches: w3, nearestMiles: 3 };
+  const w10 = pos(r.SizeWithin10Mile);
+  if (w10) return { tier: 'area', inches: w10, nearestMiles: 10 };
+  return { tier: null, inches: null };
+}
+
+function sizeLabel(inches: number | null): string | null {
+  if (!inches || inches <= 0) return null;
+  return `${Math.round(inches * 4) / 4}″`;
+}
+function severityOf(inches: number | null): string {
+  if (!inches) return 'trace';
+  if (inches >= 2) return 'severe';
+  if (inches >= 1) return 'moderate';
+  return 'minor';
+}
+const byDateDesc = (a: AddressImpactTier, b: AddressImpactTier) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+
+/** Drop-in for getAddressHailImpactViaHailYes — IHM-sourced AddressImpactReport. */
+export async function getAddressHailImpactViaIHM(lat: number, lng: number, monthsBack = 24): Promise<AddressImpactReport> {
+  const events = await hailMapsService.impactEventsByCoordinates(lat, lng, monthsBack);
+  const directHits: AddressImpactTier[] = [];
+  const nearMiss: AddressImpactTier[] = [];
+  const areaImpact: AddressImpactTier[] = [];
+
+  for (const e of events) {
+    const { tier, inches, nearestMiles } = tierOf(e.raw);
+    if (!tier || !e.date) continue;
+    const t: AddressImpactTier = {
+      date: String(e.date).slice(0, 10),
+      maxHailInches: inches,
+      sizeLabel: sizeLabel(inches),
+      severity: severityOf(inches),
+      confirmingReportCount: 0,
+      noaaConfirmed: false,
+      sources: ['ihm'],
+      state: null,
+      ...(nearestMiles ? { nearestMiles } : {}),
+    };
+    (tier === 'direct' ? directHits : tier === 'near' ? nearMiss : areaImpact).push(t);
   }
-  const user = process.env.IHM_API_USER || '';
-  const pass = process.env.IHM_API_PASS || '';
-  return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+  directHits.sort(byDateDesc);
+  nearMiss.sort(byDateDesc);
+  areaImpact.sort(byDateDesc);
+
+  return {
+    lat, lng, monthsBack,
+    directHits, nearMiss, areaImpact,
+    summary: {
+      directHitCount: directHits.length,
+      nearMissCount: nearMiss.length,
+      areaImpactCount: areaImpact.length,
+      datesExamined: events.length,
+    },
+    cacheStats: { swathCacheHits: 0, swathColdFetches: 0, swathSkippedDueToCap: 0 },
+  } as AddressImpactReport;
 }
 
-/** Raw IHM call (lat/lng) → { ok, status, body }. For the mapper + the admin debug endpoint. */
-export async function ihmImpactDatesForLatLong(lat: number, lng: number, months = 24): Promise<{ ok: boolean; status: number; body: any }> {
-  if (!ihmConfigured()) throw new Error('IHM not configured — set IHM_API_USER/IHM_API_PASS (or IHM_BASIC_AUTH) in Railway');
-  const url = `${IHM_BASE}/ImpactDatesForLatLong?Lat=${encodeURIComponent(lat)}&Long=${encodeURIComponent(lng)}&Months=${encodeURIComponent(months)}`;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const r = await fetch(url, { headers: { Authorization: ihmAuthHeader(), Accept: 'application/json' }, signal: ctrl.signal });
-    const text = await r.text();
-    let body: any = text;
-    try { body = JSON.parse(text); } catch { /* leave as text */ }
-    return { ok: r.ok, status: r.status, body };
-  } finally { clearTimeout(timer); }
-}
-
-/**
- * Drop-in replacement for getAddressHailImpactViaHailYes — returns an AddressImpactReport.
- * FINALIZE this once a real ImpactDatesForLatLong response is inspected via /admin/ihm-raw.
- * Throws until then so the caller's fallback keeps RoofCheck on Hail Yes.
- */
-export async function getAddressHailImpactViaIHM(_lat: number, _lng: number, _monthsBack = 24) {
-  throw new Error('IHM→AddressImpactReport mapping not finalized — inspect /admin/ihm-raw first');
+/** Admin probe — raw IHM sample + the mapped tiers, to verify the source/mapping live. */
+export async function ihmProbe(lat: number, lng: number, months = 24) {
+  const events = await hailMapsService.impactEventsByCoordinates(lat, lng, months);
+  const report = await getAddressHailImpactViaIHM(lat, lng, months);
+  return {
+    rawEventCount: events.length,
+    sampleRaw: events.slice(0, 3).map((e: any) => e.raw),
+    mappedSummary: report.summary,
+    directHits: report.directHits.slice(0, 6),
+    nearMiss: report.nearMiss.slice(0, 6),
+  };
 }

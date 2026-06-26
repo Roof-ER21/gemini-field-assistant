@@ -339,6 +339,17 @@ class HailMapsService {
       raw: data
     };
   }
+
+  /**
+   * IHM-only hail impact events for a lat/lng (no NOAA/wind coupling) — the homeowner
+   * RoofCheck source. Each event keeps `raw` (SizeAtLocation / SizeWithin1Mile / 3Mile /
+   * 10Mile, FileDate) so the caller can distance-tier (at-location / near-miss / area).
+   */
+  async impactEventsByCoordinates(lat: number, lng: number, months = 24): Promise<HailEvent[]> {
+    const params = new URLSearchParams({ Lat: String(lat), Long: String(lng), Months: String(months) });
+    const data = await this.request<HailHistoryResponse>(`/ExternalApi/ImpactDatesForLatLong?${params.toString()}`);
+    return this.normalizeEvents(data, { lat, lng });
+  }
 }
 
 export const hailMapsService = new HailMapsService();

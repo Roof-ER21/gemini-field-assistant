@@ -21,7 +21,7 @@ import { getAddressHailImpactViaHailYes } from '../services/hailYesImpactAdapter
 import { fetchMapImage } from '../services/mapImageService.js';
 import { forwardLeadToJotForm, processLeadIntegrations } from '../routes/profileRoutes.js';
 import { canManageQR } from '../lib/permissions.js';
-import { ihmConfigured, ihmImpactDatesForLatLong } from '../services/ihmImpactAdapter.js';
+import { ihmConfigured, ihmProbe } from '../services/ihmImpactAdapter.js';
 // Neighbor proof — completed jobs [{la,ln,a,c}]. Read from source dir (present at
 // runtime on Railway); fall back gracefully so a missing file never crashes boot.
 let JOBS = [];
@@ -115,8 +115,8 @@ export function createRoofCheckRoutes(pool) {
         if (!isFinite(lat) || !isFinite(lng))
             return res.status(400).json({ ok: false, error: 'lat & lng query params required (e.g. ?lat=38.90&lng=-77.26&email=…)' });
         try {
-            const out = await ihmImpactDatesForLatLong(lat, lng, months);
-            res.json({ ok: out.ok, status: out.status, sample: out.body });
+            const out = await ihmProbe(lat, lng, months);
+            res.json({ ok: true, ...out });
         }
         catch (e) {
             res.status(500).json({ ok: false, error: String(e?.message || e) });
