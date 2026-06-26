@@ -104,6 +104,16 @@ function hitGetDomain(req) {
     const hosts = [req.headers.host, req.headers['x-forwarded-host'], req.hostname];
     return hosts.some((h) => String(h || '').toLowerCase().split(',')[0].split(':')[0].trim() === 'get.theroofdocs.com');
 }
+// TEMP DIAGNOSTIC (remove after host detection confirmed) — echoes how the app sees the host.
+app.get('/api/debug/host', (req, res) => {
+    res.json({
+        hostname: req.hostname,
+        host: req.headers.host || null,
+        xForwardedHost: req.headers['x-forwarded-host'] || null,
+        referer: req.headers.referer || null,
+        hitGet: hitGetDomain(req),
+    });
+});
 // Memory observability — heartbeat every 60s, per-request delta when a
 // request allocates >10MB heap or takes >1s. See
 // docs/PRODUCTION_STABILITY_HANDOFF.md for context.
