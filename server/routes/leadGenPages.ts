@@ -119,6 +119,12 @@ function repBoot(rep: RepCtx): string {
  * Insert before </body> in any landing page template.
  */
 function renderChatWidget(): string {
+  // Homeowner chat REMOVED 2026-06-25 (Ahmed's call): the old "Susan AI — Roofing Expert"
+  // Gemini Q&A was broken in prod, off-brand (navy header), and a lead-leak/liability risk.
+  // Returning '' disables the FAB + panel on all lead pages in one place. When it returns it
+  // will be a "Susan 21 · Assistant" lead-capture concierge (brand ink/red, drives to book +
+  // captures the lead, not free-form advice). Remove this early return to restore the old widget.
+  return '';
   return `
 <style>
   .chat-fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;
