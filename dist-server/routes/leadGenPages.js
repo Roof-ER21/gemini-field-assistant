@@ -432,9 +432,9 @@ function footer() {
       VA #${BRAND.vaLicense} &bull; MD MHIC #${BRAND.mdLicense} &bull; PA #${BRAND.paLicense}
     </div>
     <div style="margin-bottom:10px">
-      <a href="${BRAND.facebook}" target="_blank" rel="noopener" style="color:${BRAND.textMuted};margin:0 8px;font-size:14px">Facebook</a>
+      <a href="${BRAND.facebook}" target="_blank" rel="noopener" style="color:${BRAND.textMuted};display:inline-block;padding:9px 8px;font-size:14px">Facebook</a>
       &bull;
-      <a href="${BRAND.instagram}" target="_blank" rel="noopener" style="color:${BRAND.textMuted};margin:0 8px;font-size:14px">Instagram</a>
+      <a href="${BRAND.instagram}" target="_blank" rel="noopener" style="color:${BRAND.textMuted};display:inline-block;padding:9px 8px;font-size:14px">Instagram</a>
     </div>
     <div class="footer-areas">Serving Virginia &bull; Maryland &bull; Pennsylvania</div>
     <div style="margin-top:8px;font-size:11px;color:#4b5563">&copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</div>
@@ -458,6 +458,7 @@ function escHtml(str) {
 // ---------------------------------------------------------------------------
 function renderStormPage(storm, zip, rep, content) {
     const hasStorm = !!storm;
+    const hasZip = /^\d{5}$/.test(zip); // bare /storm (no ZIP) renders a generic VA·MD·PA page
     const city = storm?.city || '';
     const state = storm?.state || '';
     const eventType = storm?.event_type || 'Storm';
@@ -469,14 +470,20 @@ function renderStormPage(storm, zip, rep, content) {
     const place = hasStorm ? `${city}${state ? `, ${state}` : ''}` : zip;
     const seoTitle = hasStorm
         ? `Storm Damage Roof Repair in ${city} ${state} | Free Inspection | The Roof Docs`
-        : `Free Roof Inspection in ${zip} | Storm Damage Experts | The Roof Docs`;
+        : hasZip
+            ? `Free Roof Inspection in ${zip} | Storm Damage Experts | The Roof Docs`
+            : `Free Roof Inspection | Storm Damage Experts | The Roof Docs`;
     const seoDesc = hasStorm
         ? `${eventType} damage reported in ${city}, ${state}. Get a free roof inspection from The Roof Docs — licensed, insured, insurance-claim experts. 8,000+ roofs over 8 years.`
-        : `Schedule your free roof inspection in ${zip}. The Roof Docs serve VA, MD & PA — licensed, insured storm-damage experts. 8,000+ roofs over 8 years.`;
+        : hasZip
+            ? `Schedule your free roof inspection in ${zip}. The Roof Docs serve VA, MD & PA — licensed, insured storm-damage experts. 8,000+ roofs over 8 years.`
+            : `Schedule your free roof inspection. The Roof Docs serve VA, MD & PA — licensed, insured storm-damage experts. 8,000+ roofs over 8 years.`;
     // Urgency banner — storm-aware, ink/red brand voice.
     const urgencyText = hasStorm
         ? `&#9888;&nbsp; Storm activity confirmed near <b>${escHtml(place)}</b> &mdash; free roof checks open now`
-        : `&#9888;&nbsp; Free roof checks open now for <b>${escHtml(zip)}</b>`;
+        : hasZip
+            ? `&#9888;&nbsp; Free roof checks open now for <b>${escHtml(zip)}</b>`
+            : `&#9888;&nbsp; Free roof checks open now across <b>VA, MD &amp; PA</b>`;
     // Anton hero headline — exactly ONE word wrapped in <em> (CSS renders <em> red).
     // hasStorm  -> "Did Your Roof Get <em>Hit</em>?"  (the storm/hail urgency question)
     // !hasStorm -> "Is Your Roof <em>Okay</em>?"       (same did-you-get-hit intent, no storm row yet)
@@ -485,7 +492,9 @@ function renderStormPage(storm, zip, rep, content) {
         : `Is Your Roof <em>Okay</em>?`;
     const heroSub = hasStorm
         ? `${hailSize ? `Hail up to ${escHtml(hailSize)} was reported` : `Damage was reported`}${eventDate ? ` on ${eventDate}` : ''} around ${escHtml(place)}. Most homeowners qualify for a <strong>fully covered repair</strong> through insurance &mdash; but only if the damage is documented in time.`
-        : `Storms move fast and damage hides. Our team checks roofs across ${escHtml(zip)} and all of VA, MD &amp; PA &mdash; <strong>free, no obligation</strong> &mdash; then handles the insurance claim end to end.`;
+        : hasZip
+            ? `Storms move fast and damage hides. Our team checks roofs across ${escHtml(zip)} and all of VA, MD &amp; PA &mdash; <strong>free, no obligation</strong> &mdash; then handles the insurance claim end to end.`
+            : `Storms move fast and damage hides. Our team checks roofs across VA, MD &amp; PA &mdash; <strong>free, no obligation</strong> &mdash; then handles the insurance claim end to end.`;
     const faqs = [
         {
             q: 'How do I know if my roof was actually hit?',
@@ -573,7 +582,7 @@ ${navBar(rep.phone)}
       ${repStrip}
       <h1 class="hero-title">${heroTitle}</h1>
       <p class="hero-sub">${heroSub}</p>
-      <div class="storm-zip-line"><span class="pin">&#9679;</span> ${hasStorm ? `Checking roofs around <b style="color:#fff;margin-left:2px">${escHtml(place)}</b>` : `Now serving ZIP <b style="color:#fff;margin-left:2px">${escHtml(zip)}</b>`}</div>
+      <div class="storm-zip-line"><span class="pin">&#9679;</span> ${hasStorm ? `Checking roofs around <b style="color:#fff;margin-left:2px">${escHtml(place)}</b>` : hasZip ? `Now serving ZIP <b style="color:#fff;margin-left:2px">${escHtml(zip)}</b>` : `Now serving <b style="color:#fff;margin-left:2px">VA, MD &amp; PA</b>`}</div>
     </div>
   </section>
 
@@ -1634,6 +1643,16 @@ export function registerLeadGenPages(app, pool) {
         res.set('Cache-Control', 'private, no-store'); // rep-aware (cookie-varied) — never shared-cache
         res.send(renderStormPage(storm, zip, rep, content));
     });
+    // Bare /storm (no ZIP) — generic VA·MD·PA storm landing. Without this, /storm matched no
+    // route and fell through to the SPA catch-all (the rep login). renderStormPage(null, '')
+    // is the same safe null-render the invalid-ZIP branch above already uses.
+    app.get('/storm', async (req, res) => {
+        const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
+        res.set('Content-Type', 'text/html');
+        res.set('Cache-Control', 'private, no-store');
+        res.send(renderStormPage(null, '', rep, content));
+    });
     // ── Page 2: Claim Help Quiz ───────────────────────────────────────────────
     app.get('/claim-help', async (req, res) => {
         const rep = await repContext(req, res, pool);
@@ -1675,6 +1694,16 @@ export function registerLeadGenPages(app, pool) {
         res.set('Content-Type', 'text/html');
         res.set('Cache-Control', 'private, no-store');
         res.send(renderReferralPage(referRep, safeCode, rep, content));
+    });
+    // Bare /refer (no code) — generic referral landing. Without this, /refer matched no route
+    // and fell through to the SPA catch-all (the rep login). Empty code → referRep stays null
+    // → the same generic "recommended professional" page /refer/<unknown-code> already renders.
+    app.get('/refer', async (req, res) => {
+        const rep = await repContext(req, res, pool);
+        const content = await loadContent(pool);
+        res.set('Content-Type', 'text/html');
+        res.set('Cache-Control', 'private, no-store');
+        res.send(renderReferralPage(null, '', rep, content));
     });
     // ── Page 5: Storm Checklist Lead Magnet ─────────────────────────────────
     app.get('/storm-checklist', async (req, res) => {

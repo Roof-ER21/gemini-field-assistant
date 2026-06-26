@@ -201,6 +201,7 @@ app.use(helmet({
                 "https://fonts.googleapis.com",
                 "https://fonts.gstatic.com",
                 "https://nominatim.openstreetmap.org",
+                "https://photon.komoot.io",
                 "https://api.interactivehailmaps.com",
                 "https://maps.interactivehailmaps.com",
                 "https://a.tile.openstreetmap.org",

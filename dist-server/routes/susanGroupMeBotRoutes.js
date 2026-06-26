@@ -3095,14 +3095,14 @@ export function createSusanGroupMeBotRoutes(pool) {
                             ? mrmsAtAddressDate(addr, geo, dates[0])
                             : mrmsRecentAtAddress(geo, 3)),
                         (async () => {
-                            // Hail Yes is now the authoritative tiered impact source.
-                            // Federal multi-source corroborated (NCEI + SWDI + IEM LSR
-                            // + HailTrace + IHM) with calibrated at-property reading.
-                            // Falls back to local addressImpactService if Hail Yes is
-                            // unreachable.
+                            // IHM (Interactive Hail Maps / "Hail Recon") PRIMARY, with
+                            // Hail Yes (federally corroborated, reached via Ahmed's service
+                            // token while it's locked down) as fallback. Same source order
+                            // as the homeowner RoofCheck tool. Falls back to local
+                            // addressImpactService if both are unreachable.
                             try {
-                                const { getAddressHailImpactViaHailYes } = await import('../services/hailYesImpactAdapter.js');
-                                return await getAddressHailImpactViaHailYes(geo.lat, geo.lng, 24);
+                                const { getAddressHailImpactPreferIHM } = await import('../services/stormImpactSource.js');
+                                return await getAddressHailImpactPreferIHM(geo.lat, geo.lng, 24);
                             }
                             catch (err) {
                                 console.warn('[SusanBot] hail-yes impact err, falling back local:', err.message);
