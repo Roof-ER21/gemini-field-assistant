@@ -547,7 +547,7 @@ ${navBar(rep.phone)}
   .storm-zip-line .pin{color:${BRAND.red}}
 
   /* Storm "stat band" — confident, high-contrast proof row under the hero.
-     Canon numbers only: 8,000+ roofs, 8 years, top 2% (GAF Master Elite). */
+     Canon numbers only: 8,000+ roofs, 8 years, top 2% (GAF President's Club / Master Elite). */
   .storm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:8px 0 4px}
   .storm-stat{background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015));border:1px solid ${BRAND.border};border-radius:14px;padding:20px 12px;text-align:center}
   .storm-stat .n{font-family:'Anton','Inter',sans-serif;font-weight:400;font-size:clamp(26px,6vw,40px);line-height:1;color:#fff;letter-spacing:0.5px}
@@ -931,7 +931,7 @@ ${repBoot(rep)}
     </div>
   </section>
 
-  <!-- Trust credentials: GAF Master Elite, BBB A+, certifications (licenses live in footer). -->
+  <!-- Trust credentials: GAF President's Club, BBB A+, certifications (licenses live in footer). -->
   <section aria-label="Trust credentials">
     <div class="container-wide">
       ${trustBadges()}
@@ -1395,7 +1395,7 @@ ${navBar(rep.phone)}
   .fi-h2 em{color:${BRAND.red};font-style:normal}
   .fi-sub{text-align:center;color:${BRAND.textMuted};font-size:14px;max-width:520px;margin:0 auto 26px}
 
-  /* GAF Master Elite spotlight — the conversion anchor */
+  /* GAF President's Club spotlight — the conversion anchor */
   .fi-elite{position:relative;overflow:hidden;border:1px solid rgba(183,8,8,0.28);border-radius:18px;
     padding:30px 26px;margin:10px 0 6px;
     background:radial-gradient(110% 130% at 100% 0%, rgba(183,8,8,0.16), transparent 55%),
@@ -1467,12 +1467,12 @@ ${navBar(rep.phone)}
     </div>
   </section>` : ''}
 
-  <!-- GAF Master Elite spotlight -->
+  <!-- GAF President's Club spotlight -->
   <section aria-label="GAF President’s Club certification" style="padding:18px 0">
     <div class="container-wide">
       <div class="fi-elite">
         <div class="fi-elite-row">
-          <!-- PHOTO-SLOT: known-good GAF Master Elite badge (BRAND.badgeGafElite) -->
+          <!-- PHOTO-SLOT: GAF President's Club / Master Elite badge (BRAND.badgeGafElite) -->
           <div class="fi-elite-badge"><img src="${BRAND.badgeGafElite}" alt="GAF President’s Club Award Winner" loading="lazy"></div>
           <div>
             <h3>We're <em>GAF President’s Club</em> &mdash; GAF’s highest honor</h3>
