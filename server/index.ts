@@ -110,6 +110,14 @@ const HOST = '0.0.0.0';
 // Railway runs behind a proxy/load balancer
 app.set('trust proxy', 1);
 
+// Which public domain did the request actually hit? With `trust proxy`, req.hostname can
+// reflect Railway's internal X-Forwarded-Host, so check the raw Host header too. Used to
+// keep the homeowner domain (get.theroofdocs.com) from ever serving the rep-app login.
+function hitGetDomain(req: express.Request): boolean {
+  const hosts = [req.headers.host, req.headers['x-forwarded-host'], req.hostname];
+  return hosts.some((h) => String(h || '').toLowerCase().split(',')[0].split(':')[0].trim() === 'get.theroofdocs.com');
+}
+
 // Memory observability — heartbeat every 60s, per-request delta when a
 // request allocates >10MB heap or takes >1s. See
 // docs/PRODUCTION_STABILITY_HANDOFF.md for context.
@@ -9356,7 +9364,7 @@ try {
     // Serve index.html with no-cache for root
     app.get(['/', '/index.html'], (req, res) => {
       // get.* is the homeowner domain — its root is RoofCheck, not the rep login.
-      if (req.hostname === 'get.theroofdocs.com') return res.redirect(302, '/roofcheck');
+      if (hitGetDomain(req)) return res.redirect(302, '/roofcheck');
       res.set('Cache-Control', 'no-store, max-age=0');
       res.sendFile(path.join(distDir, 'index.html'));
     });
@@ -11256,7 +11264,7 @@ app.get('*', (req, res, next) => {
   if (!req.accepts('html')) return next();
   // Homeowner domain (get.theroofdocs.com) must NEVER serve the rep-app login. Any stray /
   // unknown path there bounces to RoofCheck. The rep login lives only on sa21.theroofdocs.com.
-  if (req.hostname === 'get.theroofdocs.com') return res.redirect(302, '/roofcheck');
+  if (hitGetDomain(req)) return res.redirect(302, '/roofcheck');
   // Send index.html for SPA routing
   const distDir = path.join(process.cwd(), 'dist');
   res.set('Cache-Control', 'no-store, max-age=0');
