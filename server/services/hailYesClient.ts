@@ -17,6 +17,15 @@
 const HAIL_YES_BASE = process.env.HAIL_YES_API_BASE || 'https://hailyes.up.railway.app';
 const FETCH_TIMEOUT_MS = 8000;
 
+// Service credential. When Hail Yes is in LOCKDOWN (private to Ahmed), this
+// admin token lets Susan's server-to-server storm lookups through under his
+// account while reps are locked out. Unset ⇒ no header (normal public access).
+const HAIL_YES_SERVICE_TOKEN =
+  process.env.HAILYES_SERVICE_TOKEN || process.env.HAIL_YES_ADMIN_TOKEN || '';
+function hailYesHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return HAIL_YES_SERVICE_TOKEN ? { ...extra, 'x-admin-token': HAIL_YES_SERVICE_TOKEN } : extra;
+}
+
 // ─── Types (mirror Hail Yes response shape) ────────────────────────────────
 export interface HailYesHit {
   event_id: number;
@@ -133,7 +142,7 @@ export async function getImpact(
       : { lat: args.lat, lng: args.lng };
     const resp = await fetchWithTimeout(`${HAIL_YES_BASE}/api/impact`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: hailYesHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     if (!resp.ok) {
@@ -158,7 +167,7 @@ export async function getEventsByDate(date: string): Promise<HailYesEventsByDate
   const hit = cacheGet<HailYesEventsByDateResponse>(key);
   if (hit) return hit;
   try {
-    const resp = await fetchWithTimeout(`${HAIL_YES_BASE}/api/events/by-date/${encodeURIComponent(date)}`, { method: 'GET' });
+    const resp = await fetchWithTimeout(`${HAIL_YES_BASE}/api/events/by-date/${encodeURIComponent(date)}`, { method: 'GET', headers: hailYesHeaders() });
     if (!resp.ok) {
       console.warn(`[HailYes] /api/events/by-date/${date} ${resp.status}`);
       return null;
