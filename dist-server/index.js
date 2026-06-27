@@ -2262,7 +2262,7 @@ function generateVerificationCode() {
 // Email domain validation — Roof-ER internal tool
 // Add additional domains via ALLOWED_EMAIL_DOMAINS env var (comma-separated)
 const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'theroofdocs.com').split(',').map(d => d.trim().toLowerCase());
-const DEMO_EMAILS = ['demo@roofer.com'];
+const DEMO_EMAILS = []; // demo login removed (Ahmed, 2026-06-27)
 const isAllowedEmailDomain = (email) => {
     const normalizedEmail = email.trim().toLowerCase();
     if (DEMO_EMAILS.includes(normalizedEmail))
@@ -2401,6 +2401,10 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
 app.post('/api/auth/direct-login', async (req, res) => {
     try {
         const { email, name } = req.body;
+        // Hardening flag: when SSO_ONLY=true, passwordless email login is off — reps use Google.
+        if (process.env.SSO_ONLY === 'true') {
+            return res.status(403).json({ success: false, error: 'Email login is disabled — please use "Continue with Google".' });
+        }
         // Direct login is allowed for all reps (@theroofdocs.com domain check below).
         // Admin features are separately protected by the admin PIN system.
         if (!email) {
@@ -2437,6 +2441,10 @@ app.post('/api/auth/direct-login', async (req, res) => {
             console.log(`[AUTH] Direct login: ${user.email} (${user.name})`);
         }
         else if (name && name.trim().length >= 2) {
+            // Hardening flag: when REQUIRE_ADMIN_APPROVAL=true, accounts aren't self-created.
+            if (process.env.REQUIRE_ADMIN_APPROVAL === 'true') {
+                return res.status(403).json({ success: false, error: 'Your account isn\'t set up yet — please ask an admin to add you.' });
+            }
             // New user - create account
             const newUserId = uuidv4();
             const result = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
@@ -2543,6 +2551,9 @@ async function findOrCreateGoogleUser(email, displayName) {
         await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [existing.rows[0].id]);
         return existing.rows[0];
     }
+    // Hardening flag: when REQUIRE_ADMIN_APPROVAL=true, don't auto-provision — admin must pre-add the rep.
+    if (process.env.REQUIRE_ADMIN_APPROVAL === 'true')
+        return null;
     const r = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
      VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW()) RETURNING id, name, email, role`, [uuidv4(), email, displayName]);
     return r.rows[0];
@@ -2599,6 +2610,8 @@ app.get('/api/auth/google/callback', async (req, res) => {
         if (!isAllowedEmailDomain(email))
             return res.redirect('/?gl_error=domain');
         const user = await findOrCreateGoogleUser(email, (payload.name && String(payload.name).trim()) || email.split('@')[0]);
+        if (!user)
+            return res.redirect('/?gl_error=notapproved'); // REQUIRE_ADMIN_APPROVAL on, no account yet
         const handoff = uuidv4() + uuidv4();
         googleLoginHandoffs.set(handoff, { user: { id: user.id, email: user.email, name: user.name, role: user.role }, exp: Date.now() + 120000 });
         console.log(`[AUTH] Google redirect login: ${user.email}`);

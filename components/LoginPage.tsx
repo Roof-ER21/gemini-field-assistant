@@ -35,30 +35,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isSignup, setIsSignup] = useState(false);
   const [googleError, setGoogleError] = useState('');
 
-  // Demo login for App Review
-  const handleDemoLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const result = await authService.requestLoginCode('demo@roofer.com', 'Demo User', true);
-      if (result.success) {
-        onLoginSuccess();
-        return;
-      }
-      // If demo account doesn't exist yet, create it
-      const signupResult = await authService.requestSignup('demo@roofer.com', 'Demo User');
-      if (signupResult.success) {
-        onLoginSuccess();
-      } else {
-        setError(signupResult.message || 'Demo login failed');
-      }
-    } catch (err) {
-      setError('Demo login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Save email as user types (so they don't lose it if app closes)
   const handleEmailChange = (value: string) => {
     setEmail(value);
@@ -87,6 +63,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (glErr) {
       const map: Record<string, string> = {
         domain: 'Please sign in with your @theroofdocs.com Google account.',
+        notapproved: 'Your account isn’t set up yet — please ask an admin to add you.',
         state: 'Sign-in session expired — please try again.',
         config: 'Google sign-in is finishing setup — please try again shortly.',
         token: 'Google sign-in failed — please try again.',
@@ -754,40 +731,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         )}
 
         {/* Demo Login for App Review */}
-        {step === 'email' && (
-          <div style={{ marginTop: '16px', textAlign: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-            </div>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              style={{
-                width: '100%',
-                height: '48px',
-                fontSize: '15px',
-                fontWeight: '500',
-                color: 'var(--text-tertiary)',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '12px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <User style={{ width: '16px', height: '16px' }} />
-              Try Demo Account
-            </button>
-          </div>
-        )}
-
         {/* Footer */}
         <div
           style={{
