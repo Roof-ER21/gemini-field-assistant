@@ -2529,6 +2529,98 @@ app.post('/api/auth/google', async (req, res) => {
         res.status(500).json({ success: false, error: 'An error occurred during sign-in' });
     }
 });
+// ─── Google SSO via OAuth redirect (robust — no GIS button / no JS-origin check) ───
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const googleLoginHandoffs = new Map(); // one-time post-login tokens
+function readCookie(req, name) {
+    const raw = req.headers.cookie || '';
+    const hit = raw.split(';').map((s) => s.trim()).find((s) => s.startsWith(name + '='));
+    return hit ? decodeURIComponent(hit.slice(name.length + 1)) : null;
+}
+async function findOrCreateGoogleUser(email, displayName) {
+    const existing = await pool.query('SELECT id, name, email, role FROM users WHERE LOWER(email) = $1', [email]);
+    if (existing.rows.length > 0) {
+        await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [existing.rows[0].id]);
+        return existing.rows[0];
+    }
+    const r = await pool.query(`INSERT INTO users (id, email, name, role, created_at, first_login_at, last_login_at)
+     VALUES ($1, $2, $3, 'sales_rep', NOW(), NOW(), NOW()) RETURNING id, name, email, role`, [uuidv4(), email, displayName]);
+    return r.rows[0];
+}
+// 1) Kick off — send the user to Google's consent screen.
+app.get('/api/auth/google/start', (req, res) => {
+    const state = uuidv4();
+    res.cookie('g_oauth_state', state, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 10 * 60 * 1000 });
+    const redirectUri = `https://${req.hostname}/api/auth/google/callback`;
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: 'openid email profile',
+        state,
+        hd: 'theroofdocs.com',
+        prompt: 'select_account',
+        access_type: 'online',
+    }).toString();
+    res.redirect(url);
+});
+// 2) Callback — exchange the code server-side (uses the secret), verify, mint a one-time handoff.
+app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+        const code = String(req.query.code || '');
+        const state = String(req.query.state || '');
+        const cookieState = readCookie(req, 'g_oauth_state');
+        res.clearCookie('g_oauth_state');
+        if (!code || !state || !cookieState || state !== cookieState)
+            return res.redirect('/?gl_error=state');
+        if (!GOOGLE_CLIENT_SECRET) {
+            console.error('[AUTH] GOOGLE_CLIENT_SECRET is not set');
+            return res.redirect('/?gl_error=config');
+        }
+        const redirectUri = `https://${req.hostname}/api/auth/google/callback`;
+        const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+                redirect_uri: redirectUri, grant_type: 'authorization_code',
+            }).toString(),
+        });
+        const tokens = await tokenResp.json();
+        if (!tokens.id_token) {
+            console.error('[AUTH] Google token exchange failed:', tokens.error_description || tokens.error || tokens);
+            return res.redirect('/?gl_error=token');
+        }
+        const ticket = await googleAuthClient.verifyIdToken({ idToken: tokens.id_token, audience: GOOGLE_CLIENT_ID });
+        const payload = ticket.getPayload();
+        if (!payload?.email || payload.email_verified !== true)
+            return res.redirect('/?gl_error=email');
+        const email = String(payload.email).toLowerCase();
+        if (!isAllowedEmailDomain(email))
+            return res.redirect('/?gl_error=domain');
+        const user = await findOrCreateGoogleUser(email, (payload.name && String(payload.name).trim()) || email.split('@')[0]);
+        const handoff = uuidv4() + uuidv4();
+        googleLoginHandoffs.set(handoff, { user: { id: user.id, email: user.email, name: user.name, role: user.role }, exp: Date.now() + 120000 });
+        console.log(`[AUTH] Google redirect login: ${user.email}`);
+        res.redirect('/?gl=' + handoff);
+    }
+    catch (e) {
+        console.error('[AUTH] Google callback error:', e);
+        res.redirect('/?gl_error=server');
+    }
+});
+// 3) Exchange the one-time handoff for the user — frontend persists the session.
+app.post('/api/auth/google/exchange', (req, res) => {
+    const token = String(req.body?.token || '');
+    const entry = token ? googleLoginHandoffs.get(token) : null;
+    if (!entry || entry.exp < Date.now()) {
+        if (entry)
+            googleLoginHandoffs.delete(token);
+        return res.status(400).json({ success: false, error: 'Sign-in link expired — please try again.' });
+    }
+    googleLoginHandoffs.delete(token);
+    res.json({ success: true, user: entry.user });
+});
 // Verify code endpoint (kept for backward compatibility)
 app.post('/api/auth/verify-code', async (req, res) => {
     try {

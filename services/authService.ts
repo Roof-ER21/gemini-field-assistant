@@ -217,15 +217,15 @@ class AuthService {
   }
 
   /**
-   * Sign in with Google (Workspace SSO). The Google ID token is verified server-side
-   * (/api/auth/google); on success we persist the session exactly like the email login.
+   * Complete Google SSO (OAuth redirect flow). Exchanges the one-time handoff token from
+   * /api/auth/google/callback for the verified user, then persists the session like email login.
    */
-  async loginWithGoogle(credential: string, rememberMe: boolean = true): Promise<LoginResult> {
+  async completeGoogleLogin(handoffToken: string, rememberMe: boolean = true): Promise<LoginResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      const response = await fetch(`${API_BASE_URL}/auth/google/exchange`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ token: handoffToken }),
       });
       const result = await response.json();
 

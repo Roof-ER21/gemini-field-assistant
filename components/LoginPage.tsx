@@ -8,7 +8,7 @@
  * 2b. New user → "Create Account" with name → Account created & logged in
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authService } from '../services/authService';
 import LegalPage from './LegalPage';
 import { Mail, User, ArrowLeft, Shield, UserPlus } from 'lucide-react';
@@ -34,9 +34,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
   const [isSignup, setIsSignup] = useState(false);
   const [googleError, setGoogleError] = useState('');
-  const googleBtnRef = useRef<HTMLDivElement>(null);
-  // Public OAuth client ID (safe to embed) — Google Workspace SSO for @theroofdocs.com.
-  const GOOGLE_CLIENT_ID = '157850255424-p6bumpmsghvpk6i54fc65qnhol5luu77.apps.googleusercontent.com';
 
   // Demo login for App Review
   const handleDemoLogin = async () => {
@@ -74,54 +71,50 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     localStorage.removeItem('s21_login_name');
   };
 
-  // ── Sign in with Google (Workspace SSO) ──────────────────────────────────────
-  const handleGoogleCredential = async (response: { credential?: string }) => {
-    if (!response?.credential) return;
+  // ── Sign in with Google (Workspace SSO via OAuth redirect) ───────────────────
+  const startGoogleLogin = () => {
     setGoogleError('');
     setError('');
     setLoading(true);
-    try {
-      const result = await authService.loginWithGoogle(response.credential, rememberMe);
-      if (result.success) {
-        clearSavedLoginInfo();
-        onLoginSuccess();
-        return;
-      }
-      setGoogleError(result.message || 'Google sign-in failed. Please try again.');
-    } catch (err) {
-      setGoogleError('Google sign-in failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    window.location.href = '/api/auth/google/start';
   };
 
-  // Load Google Identity Services + render the button when on the email step.
+  // On return from Google (?gl=<token> or ?gl_error=…), exchange the handoff for the session.
   useEffect(() => {
-    if (step !== 'email') return;
-    let cancelled = false;
-    const renderGoogle = () => {
-      const g = (window as any).google;
-      if (cancelled || !g?.accounts?.id || !googleBtnRef.current) return;
-      g.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
-      googleBtnRef.current.innerHTML = '';
-      g.accounts.id.renderButton(googleBtnRef.current, {
-        theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280,
-      });
-    };
-    if ((window as any).google?.accounts?.id) {
-      renderGoogle();
-    } else {
-      let s = document.getElementById('gis-script') as HTMLScriptElement | null;
-      if (!s) {
-        s = document.createElement('script');
-        s.src = 'https://accounts.google.com/gsi/client';
-        s.async = true; s.defer = true; s.id = 'gis-script';
-        document.head.appendChild(s);
-      }
-      s.addEventListener('load', renderGoogle);
+    const params = new URLSearchParams(window.location.search);
+    const handoff = params.get('gl');
+    const glErr = params.get('gl_error');
+    if (glErr) {
+      const map: Record<string, string> = {
+        domain: 'Please sign in with your @theroofdocs.com Google account.',
+        state: 'Sign-in session expired — please try again.',
+        config: 'Google sign-in is finishing setup — please try again shortly.',
+        token: 'Google sign-in failed — please try again.',
+        email: 'Your Google account email is not verified.',
+      };
+      setGoogleError(map[glErr] || 'Google sign-in failed — please try again.');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
     }
-    return () => { cancelled = true; };
-  }, [step]);
+    if (!handoff) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const result = await authService.completeGoogleLogin(handoff, true);
+        window.history.replaceState({}, '', window.location.pathname);
+        if (result.success) {
+          clearSavedLoginInfo();
+          onLoginSuccess();
+        } else {
+          setGoogleError(result.message || 'Google sign-in failed — please try again.');
+          setLoading(false);
+        }
+      } catch {
+        setGoogleError('Google sign-in failed — please try again.');
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   // Step 1: Check if email exists
   const handleEmailCheck = async (e: React.FormEvent) => {
@@ -529,7 +522,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>or</span>
               <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.12)' }} />
             </div>
-            <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }} />
+            <button
+              type="button"
+              onClick={startGoogleLogin}
+              disabled={loading}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.18)',
+                background: '#ffffff', color: '#1f2937', fontSize: '15px', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
+              </svg>
+              {loading ? 'Connecting…' : 'Continue with Google'}
+            </button>
             {googleError && (
               <p style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '10px' }}>{googleError}</p>
             )}
