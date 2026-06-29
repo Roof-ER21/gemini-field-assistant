@@ -8478,14 +8478,14 @@ const serveCompanyLanding = async (_req, res) => {
         ORDER BY display_order ASC, created_at ASC
         LIMIT 4`);
         const companyProfile = {
-            name: 'Roof-ER',
+            name: 'Roof ER',
             title: 'The Roof Docs · Roofing & Insurance Claim Experts',
             role_type: 'company',
             image_url: '/brand/roofer-badge.png',
             email: 'help@theroofdocs.com',
             show_email: true,
             phone_number: '(703) 239-3738',
-            bio: 'The Roof Docs (Roof-ER) is a GAF President’s Club roofing & insurance-claim team serving Virginia, Maryland & Pennsylvania. 8,000+ roofs inspected and restored — licensed, insured, and homeowner-first.',
+            bio: 'The Roof Docs (Roof ER) is a GAF President’s Club roofing & insurance-claim team serving Virginia, Maryland & Pennsylvania. 8,000+ roofs inspected and restored — licensed, insured, and homeowner-first.',
             start_year: new Date().getFullYear() - 8,
             slug: 'the-roof-docs',
             videos: [{ id: 0, title: 'Welcome', description: '', url: '/brand/company-welcome.mp4', thumbnail_url: null, is_welcome_video: true, duration: null }],
@@ -9433,6 +9433,8 @@ function renderProfilePageV2(profile) {
     const imageUrl = profile.image_url || '';
     const email = profile.email || '';
     const showEmail = profile.show_email === true && !!email;
+    // Company pages (show_email) use the full brand name on CTAs/prose; reps use first name.
+    const callName = profile.show_email === true ? String(name).trim() : firstName;
     const phone = profile.phone_number || '';
     const bio = profile.bio || '';
     const startYear = profile.start_year;
@@ -9460,7 +9462,7 @@ function renderProfilePageV2(profile) {
             else if (vimMatch) {
                 return `<iframe src="https://player.vimeo.com/video/${vimMatch[1]}" title="${escAttr(name)} welcome video" style="width:100%;aspect-ratio:16/9;border:none;border-radius:13px;display:block" allow="autoplay;fullscreen" allowfullscreen></iframe>`;
             }
-            return `<video controls playsinline preload="metadata" style="width:100%;aspect-ratio:16/9;border-radius:13px;background:#000;object-fit:cover;display:block"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
+            return `<video controls playsinline preload="metadata" style="display:block;margin:0 auto;width:auto;max-width:100%;max-height:560px;border-radius:13px;background:#000"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
         }).join('')
         : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:13px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`;
     // Reviews — reuse V1's loop + escaping + source labels.
@@ -9480,7 +9482,7 @@ function renderProfilePageV2(profile) {
         };
         if (!reviews.length) {
             // Tasteful fallback so the section never renders empty.
-            return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(firstName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A Roof-ER Homeowner <span>· Verified Review</span></p></div>`;
+            return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(callName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A Roof-ER Homeowner <span>· Verified Review</span></p></div>`;
         }
         return reviews.map((r) => {
             const stars = star.repeat(Math.max(1, Math.min(5, r.rating || 5)));
@@ -9796,7 +9798,7 @@ function renderProfilePageV2(profile) {
             <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             Request your free inspection
           </button>
-          ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(firstName)}</a>` : ''}
+          ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(callName)}</a>` : ''}
           ${showEmail ? `<a class="btn-ghost" href="mailto:${escAttr(email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>Email Us</a>` : ''}
         </div>
         <div class="trust"><span><b>8,000+</b> roofs completed</span><span>We handle the <b>insurance claim</b></span><span>Licensed &amp; local</span></div>
@@ -9902,7 +9904,7 @@ function renderProfilePageV2(profile) {
         <div class="center reveal" style="margin-bottom:34px">
           <span class="sec-eyebrow">★★★★★ 5.0 average</span>
           <h2 class="sec-title">What homeowners say</h2>
-          <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(firstName)} &amp; the Roof-ER team.</p>
+          <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(callName)} &amp; the Roof-ER team.</p>
         </div>
         <div class="rev-grid reveal">${reviewsHtml}</div>
         <div class="center" style="margin-top:26px">
@@ -9968,7 +9970,7 @@ function renderProfilePageV2(profile) {
         <div class="done" id="formDone" role="status">
           <div class="check"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
           <h3>Thanks, <span id="doneName">there</span>!</h3>
-          <p>${esc(firstName)} will reach out within 24 hours to confirm your free inspection. Keep an eye on your phone. 📞</p>
+          <p>${esc(callName)} will reach out within 24 hours to confirm your free inspection. Keep an eye on your phone. 📞</p>
         </div>
       </div>
     </div>
@@ -9985,7 +9987,7 @@ function renderProfilePageV2(profile) {
 
   <div class="mbar">
     <div class="in">
-      ${phone ? `<a class="call" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(firstName)}</a>` : ''}
+      ${phone ? `<a class="call" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(callName)}</a>` : ''}
       <a class="insp" href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">Free Inspection</a>
     </div>
   </div>
