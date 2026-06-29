@@ -306,6 +306,82 @@ function formatApptForHomeowner(dateStr, timeStr) {
     const window = timeStr ? (WINDOWS[timeStr] || timeStr) : null;
     return { day, window };
 }
+// ─── Lead-notification email template ───────────────────────────────────────
+// Clean, branded HTML for the "new lead" notification emails (rep, admin copy,
+// company inbox). White card on a light bg, centered ROOFER wordmark, two-column
+// muted-label → dark-value rows, pastel chips for service/source, mailto/tel
+// links. Inline styles only so it renders consistently across email clients.
+const LEAD_EMAIL_LOGO = 'https://get.theroofdocs.com/roofer-logo-clean.png';
+function escEmail(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function leadChip(text, bg, fg) {
+    return `<span style="display:inline-block;background:${bg};color:${fg};font-size:12.5px;font-weight:700;padding:6px 13px;border-radius:9px;margin:0 7px 7px 0;white-space:nowrap;letter-spacing:.01em;">${escEmail(text)}</span>`;
+}
+function cleanSourceLabel(s) {
+    const v = String(s || '');
+    if (/jotform/i.test(v))
+        return 'JotForm';
+    if (/roofcheck/i.test(v))
+        return 'RoofCheck';
+    if (/company/i.test(v))
+        return 'Company website';
+    if (/qr/i.test(v))
+        return 'QR code';
+    return v || 'Website';
+}
+// Build the ordered label→value rows for a lead. `repLabel`, when given, adds a
+// "Rep" row at the top (used by the admin copy).
+function buildLeadRows(d, repLabel) {
+    const svcRaw = d.serviceLabel || '';
+    const svc = /free inspection/i.test(svcRaw) ? 'Free Inspection' : svcRaw;
+    const appt = formatApptForHomeowner(d.preferredDate, d.preferredTime);
+    const rows = [];
+    if (repLabel)
+        rows.push({ label: 'Rep', value: escEmail(repLabel) });
+    rows.push({ label: 'Name', value: escEmail(d.homeownerName) });
+    if (d.homeownerEmail)
+        rows.push({ label: 'Email', value: `<a href="mailto:${escEmail(d.homeownerEmail)}" style="color:#dc2626;text-decoration:none;font-weight:700;">${escEmail(d.homeownerEmail)}</a>` });
+    if (d.homeownerPhone)
+        rows.push({ label: 'Phone', value: `<a href="tel:${escEmail(String(d.homeownerPhone).replace(/[^\d+]/g, ''))}" style="color:#111827;text-decoration:none;font-weight:700;">${escEmail(d.homeownerPhone)}</a>` });
+    if (d.address)
+        rows.push({ label: 'Address', value: escEmail(d.address) });
+    if (svc)
+        rows.push({ label: 'Service', value: leadChip(svc, '#e0e7ff', '#3730a3') });
+    rows.push({ label: 'How they found us', value: leadChip(cleanSourceLabel(d.sourceLabel), '#dbeafe', '#1e40af') });
+    if (appt)
+        rows.push({ label: 'Appointment', value: `<b>${escEmail(appt.day)}${appt.window ? ' · ' + escEmail(appt.window) : ''}</b>` });
+    if (d.message)
+        rows.push({ label: 'Comments', value: escEmail(d.message) });
+    return rows;
+}
+function renderLeadEmail(title, badge, rows) {
+    const rowHtml = rows.filter((r) => r.value).map((r, i) => `
+        <tr>
+          <td style="padding:16px 0;vertical-align:top;width:40%;color:#6b7280;font-size:13.5px;font-weight:600;line-height:1.45;${i ? 'border-top:1px solid #eef0f4;' : ''}">${r.label}</td>
+          <td style="padding:16px 0;vertical-align:top;color:#111827;font-size:15px;font-weight:600;line-height:1.5;${i ? 'border-top:1px solid #eef0f4;' : ''}">${r.value}</td>
+        </tr>`).join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#eceefb;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eceefb;padding:30px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:18px;box-shadow:0 10px 34px rgba(17,24,39,.10);overflow:hidden;">
+        <tr><td style="height:5px;background:linear-gradient(90deg,#111827,#dc2626);font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td style="padding:34px 44px 10px;text-align:center;">
+          <img src="${LEAD_EMAIL_LOGO}" width="186" alt="The Roof Docs" style="display:block;margin:0 auto 16px;width:186px;max-width:62%;height:auto;">
+          ${badge ? `<div style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:12px;">${escEmail(badge)}</div>` : ''}
+          <div style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-.01em;">${escEmail(title)}</div>
+        </td></tr>
+        <tr><td style="padding:14px 44px 38px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rowHtml}
+          </table>
+        </td></tr>
+      </table>
+      <div style="font-size:11.5px;color:#9099b5;margin-top:18px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">The Roof Docs · Roof ER &nbsp;·&nbsp; Storm-damage roofing &amp; insurance claims &nbsp;·&nbsp; VA · MD · PA</div>
+    </td></tr>
+  </table>
+</body></html>`;
+}
 export function createProfileRoutes(pool) {
     const router = Router();
     // Helper: Check if user can manage QR profiles (admin or marketing role).
@@ -488,27 +564,7 @@ export function createProfileRoutes(pool) {
                 // 2) Notification email to the rep — try rep's Gmail first, then
                 // fall back to admin's Gmail addressed to the rep's email so reps
                 // who never connected Google still get notified.
-                const repEmailBody = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                <h2 style="margin: 0;">New Lead${/jotform/i.test(sourceLabel) ? ' from JotForm' : /roofcheck/i.test(sourceLabel) ? ' from RoofCheck' : ' from QR Code'}</h2>
-              </div>
-              <div style="background: #1a1a1a; color: #e5e5e5; padding: 20px; border: 1px solid #333; border-top: none; border-radius: 0 0 8px 8px;">
-                <p style="margin-top: 0;">Hey ${repName.split(' ')[0]}, you have a new lead!</p>
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr><td style="padding: 8px 0; color: #999;">Name</td><td style="padding: 8px 0; font-weight: 600;">${leadData.homeownerName}</td></tr>
-                  ${leadData.homeownerEmail ? `<tr><td style="padding: 8px 0; color: #999;">Email</td><td style="padding: 8px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
-                  ${leadData.homeownerPhone ? `<tr><td style="padding: 8px 0; color: #999;">Phone</td><td style="padding: 8px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
-                  ${leadData.address ? `<tr><td style="padding: 8px 0; color: #999;">Address</td><td style="padding: 8px 0;">${leadData.address}</td></tr>` : ''}
-                  <tr><td style="padding: 8px 0; color: #999;">Service</td><td style="padding: 8px 0;">${serviceLabel}</td></tr>
-                  ${leadData.preferredDate ? `<tr><td style="padding: 8px 0; color: #999;">Preferred Date</td><td style="padding: 8px 0; font-weight: 600;">${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}</td></tr>` : ''}
-                  ${leadData.message ? `<tr><td style="padding: 8px 0; color: #999;">Message</td><td style="padding: 8px 0;">${leadData.message}</td></tr>` : ''}
-                </table>
-                ${leadData.preferredDate ? '<p style="color: #4ade80; margin-top: 16px;">A calendar event has been created for this appointment.</p>' : ''}
-                <p style="margin-top: 16px; font-size: 13px; color: #666;">Sent from Susan AI Field Assistant — source: ${sourceLabel}</p>
-              </div>
-            </div>
-          `;
+                const repEmailBody = renderLeadEmail('New Inspection Request', 'New Lead', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }));
                 const repEmailSubject = `New Lead: ${leadData.homeownerName} - ${serviceLabel}`;
                 let emailResult = await sendGmailEmail(pool, repUserId, {
                     to: repEmail || 'me',
@@ -570,25 +626,7 @@ export function createProfileRoutes(pool) {
                         const adminResult = await sendGmailEmail(pool, adminUserId, {
                             to: adminEmailAddr,
                             subject: `[Lead] ${leadData.homeownerName} -> ${repName} (${sourceLabel})`,
-                            body: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: #1a1a1a; color: white; padding: 16px; border-radius: 8px 8px 0 0;">
-                    <h3 style="margin: 0; font-size: 16px;">Admin copy — new ${sourceLabel} lead</h3>
-                  </div>
-                  <div style="background: white; color: #1a1a1a; padding: 16px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 8px 8px;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                      <tr><td style="padding: 6px 0; color: #666;">Rep</td><td style="padding: 6px 0; font-weight: 600;">${repName}</td></tr>
-                      <tr><td style="padding: 6px 0; color: #666;">Homeowner</td><td style="padding: 6px 0; font-weight: 600;">${leadData.homeownerName}</td></tr>
-                      ${leadData.homeownerEmail ? `<tr><td style="padding: 6px 0; color: #666;">Email</td><td style="padding: 6px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
-                      ${leadData.homeownerPhone ? `<tr><td style="padding: 6px 0; color: #666;">Phone</td><td style="padding: 6px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
-                      ${leadData.address ? `<tr><td style="padding: 6px 0; color: #666;">Address</td><td style="padding: 6px 0;">${leadData.address}</td></tr>` : ''}
-                      <tr><td style="padding: 6px 0; color: #666;">Service</td><td style="padding: 6px 0;">${serviceLabel}</td></tr>
-                      ${leadData.preferredDate ? `<tr><td style="padding: 6px 0; color: #666;">Appointment</td><td style="padding: 6px 0;">${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}</td></tr>` : ''}
-                    </table>
-                    <p style="margin-top: 12px; font-size: 12px; color: #999;">Lead ID: ${leadId}</p>
-                  </div>
-                </div>
-              `,
+                            body: renderLeadEmail('New Inspection Request', 'Admin copy', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }, repName)),
                         });
                         if (adminResult.success) {
                             console.log(`[QR Lead] Admin BCC sent msgId=${adminResult.messageId}`);
@@ -653,21 +691,7 @@ export function createProfileRoutes(pool) {
                         .catch((e) => console.error('[Company lead] Homeowner confirm error:', e?.message));
                 }
                 // Notification to the company inbox
-                const notifBody = `
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:#dc2626;color:#fff;padding:20px;border-radius:8px 8px 0 0;"><h2 style="margin:0;">New Lead — Company Page</h2></div>
-              <div style="background:#1a1a1a;color:#e5e5e5;padding:20px;border:1px solid #333;border-top:none;border-radius:0 0 8px 8px;">
-                <table style="width:100%;border-collapse:collapse;">
-                  <tr><td style="padding:8px 0;color:#999;">Name</td><td style="padding:8px 0;font-weight:600;">${leadData.homeownerName}</td></tr>
-                  ${leadData.homeownerEmail ? `<tr><td style="padding:8px 0;color:#999;">Email</td><td style="padding:8px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
-                  ${leadData.homeownerPhone ? `<tr><td style="padding:8px 0;color:#999;">Phone</td><td style="padding:8px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
-                  ${leadData.address ? `<tr><td style="padding:8px 0;color:#999;">Address</td><td style="padding:8px 0;">${leadData.address}</td></tr>` : ''}
-                  <tr><td style="padding:8px 0;color:#999;">Service</td><td style="padding:8px 0;">${serviceLabel}</td></tr>
-                  ${leadData.message ? `<tr><td style="padding:8px 0;color:#999;">Message</td><td style="padding:8px 0;">${leadData.message}</td></tr>` : ''}
-                </table>
-                <p style="margin-top:16px;font-size:13px;color:#666;">Source: ${sourceLabel} · Lead ID: ${leadId}</p>
-              </div>
-            </div>`;
+                const notifBody = renderLeadEmail('New Inspection Request', 'New Lead', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }));
                 const notifResult = await sendGmailEmail(pool, adminUserId, {
                     to: companyEmail,
                     subject: `New Lead: ${leadData.homeownerName} - ${serviceLabel}`,
