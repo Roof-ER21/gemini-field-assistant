@@ -364,7 +364,7 @@ Respond in JSON format:
 
       // Use the correct API: client.models.generateContent()
       const result = await genAI.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         contents: {
           parts: [
             { text: prompt },

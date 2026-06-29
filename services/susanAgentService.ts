@@ -67,7 +67,7 @@ export async function susanAgentChat(
   return {
     content: data.content || '',
     provider: data.provider || 'gemini',
-    model: data.model || 'gemini-2.0-flash',
+    model: data.model || 'gemini-2.5-flash',
     toolResults: data.toolResults || [],
     finishReason: data.finishReason,
     warning: data.warning,

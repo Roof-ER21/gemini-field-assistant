@@ -543,7 +543,7 @@ async function callGemini(prompt: string) {
   if (!geminiClient) throw new Error('GEMINI_API_KEY not set');
 
   const result = await geminiClient.models.generateContent({
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     contents: [{ role: 'user', parts: [{ text: prompt }] }]
   });
 
@@ -704,7 +704,7 @@ app.post('/api/ai/generate', async (req, res) => {
         ).join('\n\n');
         content = await callGemini(prompt);
         provider = 'gemini';
-        model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+        model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
       } catch (geminiError) {
         console.warn('[AI] Gemini failed:', (geminiError as Error).message);
       }
@@ -7122,11 +7122,11 @@ EXECUTE FUNCTION update_updated_at_column();
 -- Google Gemini Pricing (Free during experimental preview, then very low cost)
 -- Source: Google AI Studio pricing (ai.google.dev/pricing)
 INSERT INTO api_providers (provider_name, service_type, model_name, pricing_type, input_token_price, output_token_price) VALUES
-('gemini', 'chat', 'gemini-2.0-flash', 'free', 0.0, 0.0),  -- Currently FREE in preview
+('gemini', 'chat', 'gemini-2.5-flash', 'free', 0.0, 0.0),  -- Currently FREE in preview
 ('gemini', 'chat', 'gemini-2.0-flash-thinking-exp', 'free', 0.0, 0.0),  -- Currently FREE in preview
 ('gemini', 'chat', 'gemini-1.5-pro', 'per_token', 1.25, 5.00),  -- Actual paid tier pricing
 ('gemini', 'chat', 'gemini-1.5-flash', 'per_token', 0.075, 0.30),  -- When paid ($0.075/$0.30 per 1M)
-('gemini', 'image_analysis', 'gemini-2.0-flash', 'free', 0.0, 0.0),  -- Same model, currently FREE
+('gemini', 'image_analysis', 'gemini-2.5-flash', 'free', 0.0, 0.0),  -- Same model, currently FREE
 ('gemini', 'embedding', 'text-embedding-004', 'per_token', 0.00001, 0.0);  -- Embeddings are very cheap
 
 -- Groq Pricing (Free tier available, paid tier is ultra-fast and cheap)

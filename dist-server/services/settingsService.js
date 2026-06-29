@@ -197,7 +197,7 @@ export class SettingsService {
             return {
                 model: settingsMap.get('susan_model') ?? {
                     provider: 'gemini',
-                    model: 'gemini-2.0-flash'
+                    model: 'gemini-2.5-flash'
                 },
                 voiceEnabled: settingsMap.get('susan_voice_enabled')?.enabled ?? true,
                 roleplayEnabled: settingsMap.get('susan_roleplay_enabled')?.enabled ?? true,
@@ -208,7 +208,7 @@ export class SettingsService {
         catch (error) {
             console.error('[SettingsService] Error getting Susan settings:', error);
             return {
-                model: { provider: 'gemini', model: 'gemini-2.0-flash' },
+                model: { provider: 'gemini', model: 'gemini-2.5-flash' },
                 voiceEnabled: true,
                 roleplayEnabled: true,
                 stormLookupEnabled: true,

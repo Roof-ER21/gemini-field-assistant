@@ -389,7 +389,7 @@ export function createSusanAgentRoutes(pool) {
                 let response;
                 try {
                     response = await client.models.generateContent({
-                        model: 'gemini-2.0-flash',
+                        model: 'gemini-2.5-flash',
                         contents,
                         config: {
                             tools: [{ functionDeclarations: SUSAN_TOOLS }]
@@ -426,7 +426,7 @@ export function createSusanAgentRoutes(pool) {
                         return res.status(200).json({
                             content: '(Susan had no response for this message.)',
                             provider: 'gemini',
-                            model: 'gemini-2.0-flash',
+                            model: 'gemini-2.5-flash',
                             toolResults: allToolResults,
                             finishReason
                         });
@@ -436,7 +436,7 @@ export function createSusanAgentRoutes(pool) {
                     return res.status(200).json({
                         content: responseText,
                         provider: 'gemini',
-                        model: 'gemini-2.0-flash',
+                        model: 'gemini-2.5-flash',
                         toolResults: allToolResults
                     });
                 }
@@ -482,7 +482,7 @@ export function createSusanAgentRoutes(pool) {
             let finalResponse;
             try {
                 finalResponse = await client.models.generateContent({
-                    model: 'gemini-2.0-flash',
+                    model: 'gemini-2.5-flash',
                     contents,
                     config: {
                         tools: [{ functionDeclarations: SUSAN_TOOLS }]
@@ -503,7 +503,7 @@ export function createSusanAgentRoutes(pool) {
             return res.status(200).json({
                 content: finalText || '(Susan completed her analysis but had no additional text response.)',
                 provider: 'gemini',
-                model: 'gemini-2.0-flash',
+                model: 'gemini-2.5-flash',
                 toolResults: allToolResults,
                 warning: `Max tool call rounds (${MAX_TOOL_ROUNDS}) reached.`
             });
