@@ -9753,6 +9753,7 @@ const serveCompanyLanding = async (_req: express.Request, res: express.Response)
   }
 };
 app.get('/free-inspection-preview', serveCompanyLanding);
+app.get('/free-inspection', serveCompanyLanding);
 
 registerLeadGenPages(app, pool);
 registerLeadContent(app, pool);
