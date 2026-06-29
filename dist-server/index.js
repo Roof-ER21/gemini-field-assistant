@@ -8482,7 +8482,7 @@ const serveCompanyLanding = async (_req, res) => {
             title: 'The Roof Docs · Roofing & Insurance Claim Experts',
             role_type: 'company',
             image_url: '/brand/roofer-badge.png',
-            email: 'help@theroofdocs.com',
+            email: 'info@theroofdocs.com',
             show_email: true,
             phone_number: '(703) 239-3738',
             bio: 'The Roof Docs (Roof ER) is a GAF President’s Club roofing & insurance-claim team serving Virginia, Maryland & Pennsylvania. 8,000+ roofs inspected and restored — licensed, insured, and homeowner-first.',
@@ -10104,7 +10104,7 @@ function renderProfilePageV2(profile) {
       var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
       try{
         var r = await fetch('/api/profiles/contact', {method:'POST',headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: 'Free inspection (rep page)' })});
+          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: '${showEmail ? 'Free inspection (company page)' : 'Free inspection (rep page)'}' })});
         /* Success even on soft backend errors — capture/notify is handled separately; never trap the homeowner. */
         $('doneName').textContent = fn;
         f.style.display='none';

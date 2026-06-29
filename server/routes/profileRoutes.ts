@@ -665,6 +665,82 @@ export function createProfileRoutes(pool: Pool) {
       }
     })();
   }
+
+  // Company landing page leads have no rep attached. Route them to the company
+  // inbox (info@), forward to CC24 Active Leads, and confirm to the homeowner —
+  // reusing the same Gmail sender (admin's connected account) as the rep path.
+  function runCompanyLeadIntegrations(leadId: string, leadData: LeadIntegrationData): void {
+    const companyEmail = process.env.COMPANY_LEAD_EMAIL || 'info@theroofdocs.com';
+    const sourceLabel = leadData.sourceLabel || 'Company landing form';
+    (async () => {
+      try {
+        forwardLeadToCC24({
+          homeownerName: leadData.homeownerName,
+          homeownerEmail: leadData.homeownerEmail,
+          homeownerPhone: leadData.homeownerPhone,
+          address: leadData.address,
+          serviceType: leadData.serviceType,
+          preferredDate: leadData.preferredDate,
+          preferredTime: leadData.preferredTime,
+          message: leadData.message,
+          repName: null,
+          repEmail: companyEmail,
+          sourceLabel,
+          leadId,
+        }, pool);
+
+        const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
+        const adminUserRow = await pool.query(
+          'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmailAddr],
+        );
+        const adminUserId: string | null = adminUserRow.rows[0]?.id || null;
+        if (!adminUserId) { console.error('[Company lead] no admin sender available — lead saved but not emailed'); return; }
+
+        const serviceLabel = leadData.serviceType
+          ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
+          : 'Service Request';
+
+        // Homeowner confirmation
+        if (leadData.homeownerEmail && /.+@.+\..+/.test(leadData.homeownerEmail)) {
+          const firstName = (leadData.homeownerName || '').trim().split(/\s+/)[0] || 'there';
+          const appt = formatApptForHomeowner(leadData.preferredDate, leadData.preferredTime);
+          const subject = appt ? 'Your free roof inspection is reserved — The Roof Docs' : 'We got your request — The Roof Docs';
+          const middle = appt
+            ? `<p>We've got you down for <b>${appt.day}</b>${appt.window ? ` during <b>${appt.window}</b>` : ''}. Our team will give you a quick call to confirm the exact time.</p>`
+            : `<p>Our team will reach out within 24 hours to look at your roof and walk you through the next steps — at no cost.</p>`;
+          const hoBody = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;color:#1a1a1a;line-height:1.55"><p>Hi ${firstName},</p><p>Thanks for ${appt ? 'booking a free roof inspection with' : 'reaching out to'} <b>The Roof Docs</b>!</p>${middle}<p style="color:#555">Have a question in the meantime? Just reply to this email — we're happy to help.</p><p style="margin-top:18px">— The Roof Docs team<br><span style="color:#888;font-size:13px">The Roof Docs · Roof ER · Storm-damage roofing &amp; insurance claims · VA · MD · PA</span></p></div>`;
+          sendGmailEmail(pool, adminUserId, { to: leadData.homeownerEmail, subject, body: hoBody, replyTo: companyEmail })
+            .then((r) => console.log(`[Company lead] Homeowner confirm ${r.success ? 'sent to ' + leadData.homeownerEmail + ' msgId=' + r.messageId : 'failed: ' + r.error}`))
+            .catch((e) => console.error('[Company lead] Homeowner confirm error:', (e as Error)?.message));
+        }
+
+        // Notification to the company inbox
+        const notifBody = `
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;">
+              <div style="background:#dc2626;color:#fff;padding:20px;border-radius:8px 8px 0 0;"><h2 style="margin:0;">New Lead — Company Page</h2></div>
+              <div style="background:#1a1a1a;color:#e5e5e5;padding:20px;border:1px solid #333;border-top:none;border-radius:0 0 8px 8px;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <tr><td style="padding:8px 0;color:#999;">Name</td><td style="padding:8px 0;font-weight:600;">${leadData.homeownerName}</td></tr>
+                  ${leadData.homeownerEmail ? `<tr><td style="padding:8px 0;color:#999;">Email</td><td style="padding:8px 0;">${leadData.homeownerEmail}</td></tr>` : ''}
+                  ${leadData.homeownerPhone ? `<tr><td style="padding:8px 0;color:#999;">Phone</td><td style="padding:8px 0;">${leadData.homeownerPhone}</td></tr>` : ''}
+                  ${leadData.address ? `<tr><td style="padding:8px 0;color:#999;">Address</td><td style="padding:8px 0;">${leadData.address}</td></tr>` : ''}
+                  <tr><td style="padding:8px 0;color:#999;">Service</td><td style="padding:8px 0;">${serviceLabel}</td></tr>
+                  ${leadData.message ? `<tr><td style="padding:8px 0;color:#999;">Message</td><td style="padding:8px 0;">${leadData.message}</td></tr>` : ''}
+                </table>
+                <p style="margin-top:16px;font-size:13px;color:#666;">Source: ${sourceLabel} · Lead ID: ${leadId}</p>
+              </div>
+            </div>`;
+        const notifResult = await sendGmailEmail(pool, adminUserId, {
+          to: companyEmail,
+          subject: `New Lead: ${leadData.homeownerName} - ${serviceLabel}`,
+          body: notifBody,
+        });
+        console.log(`[Company lead] Notification ${notifResult.success ? 'sent to ' + companyEmail + ' msgId=' + notifResult.messageId : 'failed: ' + notifResult.error}`);
+      } catch (e) {
+        console.error('[Company lead] integration error:', (e as Error)?.message);
+      }
+    })();
+  }
   // Bind the in-factory implementation to the module-level handle so sibling
   // modules (RoofCheck) can run this exact pipeline via the export above.
   leadIntegrationsRunner = runLeadIntegrations;
@@ -784,6 +860,21 @@ export function createProfileRoutes(pool: Pool) {
           preferredTime,
           message,
           sourceLabel: 'QR code contact form',
+        });
+      }
+
+      // Company landing page lead (no rep attached) → route to the company inbox.
+      if (serviceType === 'Free inspection (company page)') {
+        runCompanyLeadIntegrations(leadId, {
+          homeownerName,
+          homeownerEmail,
+          homeownerPhone,
+          address,
+          serviceType,
+          preferredDate,
+          preferredTime,
+          message,
+          sourceLabel: 'Company landing form',
         });
       }
 
