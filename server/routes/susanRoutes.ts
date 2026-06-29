@@ -16,6 +16,31 @@ const getEnvKey = (key: string) => process.env[key] || process.env[`VITE_${key}`
 const geminiKey = getEnvKey('GOOGLE_AI_API_KEY') || getEnvKey('GEMINI_API_KEY');
 const geminiClient = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
 
+/**
+ * POST /api/susan/live-token
+ * Mints a short-lived ephemeral token for the browser Live API. The baked browser key
+ * is HTTP-referrer restricted, which the Live WebSocket can't satisfy (it sends no
+ * Referer -> Google closes with 1008). We mint with the unrestricted server key instead.
+ */
+router.post('/live-token', async (_req: Request, res: Response) => {
+  try {
+    if (!geminiKey) return res.status(503).json({ error: 'Gemini key not configured' });
+    const tokenClient = new GoogleGenAI({ apiKey: geminiKey, httpOptions: { apiVersion: 'v1alpha' } });
+    const now = Date.now();
+    const tok = await tokenClient.authTokens.create({
+      config: {
+        uses: 2,
+        expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
+        newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
+      },
+    });
+    return res.json({ token: tok.name });
+  } catch (e: any) {
+    console.error('[susan/live-token] mint failed:', e?.message || e);
+    return res.status(500).json({ error: 'Failed to mint live token' });
+  }
+});
+
 // Types
 interface ChatRequest extends Request {
   body: {

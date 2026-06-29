@@ -38,6 +38,7 @@ import ScoreReviewModal from './ScoreReviewModal';
 import { calculateSessionXP, awardXP, getUserProgress } from '../utils/gamification';
 import { getStreak } from '../utils/sessionStorage';
 import { env } from '../../src/config/env';
+import { getLiveClient } from '../../services/geminiService';
 
 interface PitchTrainerProps {
   config: SessionConfig;
@@ -410,12 +411,8 @@ const PitchTrainer: React.FC<PitchTrainerProps> = ({ config, onEndSession, onMin
         isConnectedRef.current = false;
         setIsConnected(false);
 
-        // 1. Setup Client
-        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-        if (!apiKey) {
-          throw new Error('Gemini API key not configured. Set VITE_GEMINI_API_KEY (or VITE_GOOGLE_AI_API_KEY) in Railway.');
-        }
-        aiClientRef.current = new GoogleGenAI({ apiKey });
+        // 1. Setup Client via ephemeral token (referrer-locked browser key can't open Live sessions)
+        aiClientRef.current = await getLiveClient();
         
         // 2. Setup Audio/Video Media Stream
         const stream = await navigator.mediaDevices.getUserMedia({ 

@@ -6,6 +6,7 @@ import AgnesAvatar from '../agnes21/components/AgnesAvatar';
 import Waveform from '../agnes21/components/Waveform';
 import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../agnes21/utils/audioUtils';
 import { env } from '../src/config/env';
+import { getLiveClient } from '../services/geminiService';
 
 // Agnes Translator States
 type TranslatorState =
@@ -135,12 +136,8 @@ The rep leads. You help.`;
       setError(null);
       sessionActiveRef.current = true;
 
-      // Setup API client
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Gemini API key not configured');
-      }
-      aiClientRef.current = new GoogleGenAI({ apiKey });
+      // Live API client via ephemeral token (referrer-locked browser key can't open Live sessions)
+      aiClientRef.current = await getLiveClient();
 
       // Get audio stream (no video needed for translator)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

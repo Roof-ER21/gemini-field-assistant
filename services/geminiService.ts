@@ -27,6 +27,16 @@ const ensureGemini = () => {
   return ai;
 };
 
+// Live API needs an ephemeral token: the baked browser key is HTTP-referrer restricted,
+// which the Live WebSocket can't satisfy (no Referer -> Google closes with 1008). The
+// server mints a short-lived token with the unrestricted server key; used on v1alpha.
+export async function getLiveClient(): Promise<GoogleGenAI> {
+  const resp = await fetch('/api/susan/live-token', { method: 'POST' });
+  if (!resp.ok) throw new Error('Failed to obtain Live API token');
+  const { token } = await resp.json();
+  return new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
+}
+
 // --- Chat ---
 export function createChat(model: string): Chat {
   const client = ensureGemini();
@@ -116,13 +126,13 @@ export async function getComplexAnswer(
 }
 
 // --- Live Transcription ---
-export function connectTranscriptionStream(callbacks: {
+export async function connectTranscriptionStream(callbacks: {
   onopen: () => void;
   onclose: () => void;
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
 }): Promise<Session> {
-  const client = ensureGemini();
+  const client = await getLiveClient();
   return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     callbacks,
@@ -133,13 +143,13 @@ export function connectTranscriptionStream(callbacks: {
 }
 
 // --- Live Conversation ---
-export function connectLiveConversation(callbacks: {
+export async function connectLiveConversation(callbacks: {
   onopen: () => void;
   onclose: () => void;
   onerror: (e: ErrorEvent) => void;
   onmessage: (message: LiveServerMessage) => void;
 }): Promise<Session> {
-  const client = ensureGemini();
+  const client = await getLiveClient();
   return client.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     callbacks,

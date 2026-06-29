@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../agnes21/utils/audioUtils';
 import { env } from '../src/config/env';
+import { getLiveClient } from '../services/geminiService';
 import SignRecognizer from './SignRecognizer';
 import HandwritingPad from './HandwritingPad';
 import type { SignRecognitionResult, HeadGestureResult } from '../services/signLanguageService';
@@ -392,14 +393,8 @@ const DeafCommunicationPanel: React.FC = () => {
       setError(null);
       sessionActiveRef.current = true;
 
-      const apiKey =
-        import.meta.env.VITE_GOOGLE_AI_API_KEY ||
-        import.meta.env.VITE_GEMINI_API_KEY ||
-        env.GEMINI_API_KEY;
-
-      if (!apiKey) throw new Error('Gemini API key not configured');
-
-      aiClientRef.current = new GoogleGenAI({ apiKey });
+      // Live API client via ephemeral token (referrer-locked browser key can't open Live sessions)
+      aiClientRef.current = await getLiveClient();
 
       // Microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
