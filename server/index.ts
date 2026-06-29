@@ -9713,6 +9713,47 @@ app.use('/api/admin', createAdminRoutes(pool));
 // /storm/:zip  |  /claim-help  |  /refer/:code
 // ============================================================================
 
+// ============================================================================
+// COMPANY LANDING — the rep-profile template (renderProfilePageV2), branded for
+// The Roof Docs: logo in the photo slot, company welcome video, company contact.
+// Mounted at /free-inspection-preview for review; promoted to /free-inspection
+// once approved (registered BEFORE registerLeadGenPages so it wins that path).
+// ============================================================================
+const serveCompanyLanding = async (_req: express.Request, res: express.Response) => {
+  try {
+    // Real global reviews only (no fabricated content) — the same set reps fall back to.
+    const gr = await pool.query(
+      `SELECT id, text, author, date_label, source, rating
+         FROM profile_reviews
+        WHERE profile_id IS NULL AND is_active = TRUE
+        ORDER BY display_order ASC, created_at ASC
+        LIMIT 4`
+    );
+    const companyProfile = {
+      name: 'Roof-ER',
+      title: 'The Roof Docs · Roofing & Insurance Claim Experts',
+      role_type: 'company',
+      image_url: '/brand/roofer-badge.png',
+      email: 'help@theroofdocs.com',
+      show_email: true,
+      phone_number: '(703) 239-3738',
+      bio: 'The Roof Docs (Roof-ER) is a GAF President’s Club roofing & insurance-claim team serving Virginia, Maryland & Pennsylvania. 8,000+ roofs inspected and restored — licensed, insured, and homeowner-first.',
+      start_year: new Date().getFullYear() - 8,
+      slug: 'the-roof-docs',
+      videos: [{ id: 0, title: 'Welcome', description: '', url: '/brand/company-welcome.mp4', thumbnail_url: null, is_welcome_video: true, duration: null }],
+      reviews: gr.rows,
+      reviews_are_global: true,
+    };
+    res.set('Content-Type', 'text/html');
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.send(renderProfilePageV2(companyProfile));
+  } catch (e) {
+    console.error('Company landing render error:', e);
+    res.status(500).send('Unable to load page.');
+  }
+};
+app.get('/free-inspection-preview', serveCompanyLanding);
+
 registerLeadGenPages(app, pool);
 registerLeadContent(app, pool);
 
@@ -10668,6 +10709,7 @@ function renderProfilePageV2(profile: any): string {
   const role = profile.title || getRoleLabel(profile.role_type);
   const imageUrl = profile.image_url || '';
   const email = profile.email || '';
+  const showEmail = profile.show_email === true && !!email;
   const phone = profile.phone_number || '';
   const bio = profile.bio || '';
   const startYear = profile.start_year;
@@ -11032,6 +11074,7 @@ function renderProfilePageV2(profile: any): string {
             Request your free inspection
           </button>
           ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(firstName)}</a>` : ''}
+          ${showEmail ? `<a class="btn-ghost" href="mailto:${escAttr(email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>Email Us</a>` : ''}
         </div>
         <div class="trust"><span><b>8,000+</b> roofs completed</span><span>We handle the <b>insurance claim</b></span><span>Licensed &amp; local</span></div>
       </section>
