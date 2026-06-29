@@ -177,12 +177,12 @@ The rep leads. You help.`;
             await handleServerMessage(message);
           },
           onerror: (error: any) => {
-            console.error('Translator error:', error);
+            console.error('Translator error:', error?.message || error?.reason || error, error);
             setError('Connection error. Please try again.');
             setState('error');
           },
-          onclose: () => {
-            console.log('Translator session closed');
+          onclose: (e: any) => {
+            console.log('Translator session closed', { code: e?.code, reason: e?.reason, wasClean: e?.wasClean });
             isConnectedRef.current = false;
             setIsConnected(false);
             sessionActiveRef.current = false;
