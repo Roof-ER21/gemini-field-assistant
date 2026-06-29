@@ -10712,6 +10712,7 @@ function renderProfilePageV2(profile: any): string {
   const showEmail = profile.show_email === true && !!email;
   // Company pages (show_email) use the full brand name on CTAs/prose; reps use first name.
   const callName = profile.show_email === true ? String(name).trim() : firstName;
+  const brand = profile.show_email === true ? 'Roof ER' : 'Roof-ER';
   const phone = profile.phone_number || '';
   const bio = profile.bio || '';
   const startYear = profile.start_year;
@@ -10757,7 +10758,7 @@ function renderProfilePageV2(profile: any): string {
     };
     if (!reviews.length) {
       // Tasteful fallback so the section never renders empty.
-      return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(callName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A Roof-ER Homeowner <span>· Verified Review</span></p></div>`;
+      return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(callName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A ${brand} Homeowner <span>· Verified Review</span></p></div>`;
     }
     return reviews.map((r) => {
       const stars = star.repeat(Math.max(1, Math.min(5, r.rating || 5)));
@@ -10774,9 +10775,9 @@ function renderProfilePageV2(profile: any): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>${esc(name)} — The Roof Docs · Roof-ER</title>
+<title>${showEmail ? 'Free Roof Inspection — The Roof Docs · Roof ER' : `${esc(name)} — The Roof Docs · Roof-ER`}</title>
 <link rel="icon" type="image/png" href="/roofdocs-logo.png">
-<meta name="description" content="Connect with ${escAttr(name)} at Roof-ER / The Roof Docs. Storm-damage roofing &amp; insurance-claim experts serving VA, MD &amp; PA. Schedule your free roof inspection today.">
+<meta name="description" content="Connect with ${escAttr(name)} at ${brand} / The Roof Docs. Storm-damage roofing &amp; insurance-claim experts serving VA, MD &amp; PA. Schedule your free roof inspection today.">
 <meta property="og:title" content="${escAttr(name)} — The Roof Docs">
 <meta property="og:description" content="Schedule your free roof inspection with ${escAttr(name)}. 8,000+ roofs completed across VA · MD · PA.">
 <meta name="theme-color" content="#08080d">
@@ -11055,7 +11056,7 @@ function renderProfilePageV2(profile: any): string {
 <body>
 
   <nav class="nav">
-    <a class="nav-logo" href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></a>
+    <a class="nav-logo" href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="${brand} · The Roof Docs"></a>
     <div class="nav-mid">
       <a href="#services">Services</a><a href="#why">Why Us</a><a href="#process">Process</a><a href="#reviews">Reviews</a><a href="#projects">Projects</a>
     </div>
@@ -11066,7 +11067,7 @@ function renderProfilePageV2(profile: any): string {
     <div class="atmos"><div class="bg"></div><canvas id="hail"></canvas><div class="grain"></div></div>
     <div class="hero-inner">
       <section class="left reveal">
-        <span class="eyebrow"><span class="dot"></span> Your local Roof-ER specialist</span>
+        <span class="eyebrow"><span class="dot"></span> ${showEmail ? 'Your local roofing &amp; insurance experts' : `Your local ${brand} specialist`}</span>
         <h1 class="title">Hi, I'm ${esc(firstName)} <span class="grad">${esc(String(name).trim().split(/\s+/).slice(1).join(' ') || '')}</span></h1>
         <p class="role">${esc(role)} · The Roof Docs</p>
         ${bio ? `<p class="sub">${esc(bio)}</p>` : `<p class="sub">I help homeowners across Virginia, Maryland &amp; Pennsylvania turn storm damage into a fully-handled insurance claim — and a brand-new roof. Let's see if yours qualifies.</p>`}
@@ -11093,7 +11094,7 @@ function renderProfilePageV2(profile: any): string {
           <div class="locksweep" id="locksweep"></div>
           <div class="seal" id="seal">
             <div class="badge-ic"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
-            <div><div class="st">Verified</div><div class="sn">Roof-ER Specialist</div></div>
+            <div><div class="st">Verified</div><div class="sn">${showEmail ? 'Licensed &amp; Insured' : `${brand} Specialist`}</div></div>
           </div>
         </div>
         <div class="vidcard">${videoHtml}</div>
@@ -11119,7 +11120,7 @@ function renderProfilePageV2(profile: any): string {
           <div class="reveal">
             <span class="sec-eyebrow">Why homeowners choose us</span>
             <h2 class="sec-title">Local expertise, proven<br>at scale.</h2>
-            <p class="sec-sub">Roof-ER (The Roof Docs) has completed more than 8,000 roofing &amp; exterior projects across the DMV. We don't just install — we manage the entire insurance claim end-to-end so you don't have to.</p>
+            <p class="sec-sub">${brand} (The Roof Docs) has completed more than 8,000 roofing &amp; exterior projects across the DMV. We don't just install — we manage the entire insurance claim end-to-end so you don't have to.</p>
             <div class="stats4" style="margin-top:28px">
               <div class="stat"><div class="n" data-count="8000" data-suffix="+">8,000+</div><div class="l">Projects completed</div></div>
               <div class="stat"><div class="n" data-count="${yearsTarget}" data-suffix="+">${esc(yearsStat)}</div><div class="l">Years in business</div></div>
@@ -11181,7 +11182,7 @@ function renderProfilePageV2(profile: any): string {
         <div class="center reveal" style="margin-bottom:34px">
           <span class="sec-eyebrow">★★★★★ 5.0 average</span>
           <h2 class="sec-title">What homeowners say</h2>
-          <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(callName)} &amp; the Roof-ER team.</p>
+          <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(callName)} &amp; the ${brand} team.</p>
         </div>
         <div class="rev-grid reveal">${reviewsHtml}</div>
         <div class="center" style="margin-top:26px">
@@ -11201,7 +11202,7 @@ function renderProfilePageV2(profile: any): string {
           <p class="sec-sub">A few of the 8,000+ roofs &amp; exteriors we've completed across the DMV.</p>
         </div>
         <div class="gal-grid reveal">
-          ${projectImages.map((img, i) => `<div class="gal" data-label="${escAttr(projectLabels[i] || 'The Roof Docs')}"><div class="ph"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10"/></svg></div><img src="${escAttr(img)}" alt="Recent Roof-ER project in ${escAttr(projectLabels[i] || 'the DMV')}" loading="lazy" onerror="this.style.display='none'"><div class="veil"></div></div>`).join('')}
+          ${projectImages.map((img, i) => `<div class="gal" data-label="${escAttr(projectLabels[i] || 'The Roof Docs')}"><div class="ph"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10"/></svg></div><img src="${escAttr(img)}" alt="Recent ${brand} project in ${escAttr(projectLabels[i] || 'the DMV')}" loading="lazy" onerror="this.style.display='none'"><div class="veil"></div></div>`).join('')}
         </div>
       </div>
     </section>
@@ -11255,7 +11256,7 @@ function renderProfilePageV2(profile: any): string {
 
   <footer class="site">
     <div class="foot-in">
-      <a href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof-ER · The Roof Docs"></a>
+      <a href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="${brand} · The Roof Docs"></a>
       <div class="foot-links"><a href="#services">Services</a><a href="#why">Why Us</a><a href="#reviews">Reviews</a><a href="#inspection">Free Inspection</a></div>
       <p class="foot-fine">Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Virginia, Maryland &amp; Pennsylvania. Licensed &amp; insured · GAF Master Elite · BBB A+. &copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
       <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin:14px auto 0;opacity:.8"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy" style="display:block"><span style="font-family:Georgia,serif;font-size:9.5px;letter-spacing:.04em;color:#9ca3af">Susan&nbsp;21</span></div>
