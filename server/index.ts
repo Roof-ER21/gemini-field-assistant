@@ -11164,16 +11164,14 @@ function renderProfilePageV2(profile: any): string {
       <div class="container">
         <div class="center reveal" style="margin-bottom:34px">
           <span class="sec-eyebrow">How it works</span>
-          <h2 class="sec-title">Complete project solution</h2>
-          <p class="sec-sub">From tear-off to solar, we handle everything — and keep you informed at every step.</p>
+          <h2 class="sec-title">Inspect. Diagnose. Prescribe. Operate.</h2>
+          <p class="sec-sub">The Roof Docs process — a clear, four-step path from first look to a finished project.</p>
         </div>
         <div class="steps reveal">
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="num">Step 01</div><div class="t">Free Inspection</div><div class="d">Comprehensive roof &amp; property assessment.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="num">Step 02</div><div class="t">Insurance Coordination</div><div class="d">We handle all paperwork &amp; claims.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div><div><div class="num">Step 03</div><div class="t">Professional Tear-Off</div><div class="d">Safe removal of old materials &amp; full cleanup.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12l2-2 7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg></div><div><div class="num">Step 04</div><div class="t">Premium Installation</div><div class="d">Top-quality materials, expert craftsmanship.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.7-.7M6.34 6.34l-.7-.7m12.72 0l-.7.7M6.34 17.66l-.7.7M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div><div><div class="num">Step 05</div><div class="t">Solar Integration</div><div class="d">Optional solar panels for long-term savings.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="num">Step 06</div><div class="t">Final Walkthrough</div><div class="d">Quality check &amp; lifetime warranty activation.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="num">Step 01</div><div class="t">Inspect</div><div class="d">When you book through our online scheduling tool, one of our trained Roof Docs arrives on-site at the date &amp; time you requested to inspect your property. We'll call to let you know we've arrived, then complete the inspection — no direct interaction needed.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div><div class="num">Step 02</div><div class="t">Diagnose</div><div class="d">During ${esc(callName)}'s inspection, our Roof Docs search for evidence of storm damage, wear &amp; tear, or any potential problem areas — like flashing on your roof or wall openings on your siding.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></div><div><div class="num">Step 03</div><div class="t">Prescribe</div><div class="d">If your exterior needs repair or replacement from storm damage, we walk you through the entire insurance restoration process. If it shows significant wear &amp; tear but no storm damage, we'll provide a free estimate.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z"/></svg></div><div><div class="num">Step 04</div><div class="t">Operate</div><div class="d">Once you've accepted our proposal and finalized the details, our trusted installation team takes care of the rest — while you stay safe indoors.</div></div></div>
         </div>
       </div>
     </section>
