@@ -5,6 +5,13 @@ import { getApiBaseUrl } from '../services/config';
 import { authService } from '../services/authService';
 import { memoryService, UserMemory } from '../services/memoryService';
 
+// Admin endpoints sit behind the PIN guard, which (for PIN-bearing admins)
+// requires x-admin-token in addition to x-user-email. Include it on every call.
+const adminTokenHeader = (): Record<string, string> => {
+  const t = localStorage.getItem('s21_admin_token');
+  return t ? { 'x-admin-token': t } : {};
+};
+
 const windows = [
   { label: '7 days', value: 7 },
   { label: '30 days', value: 30 },
@@ -74,7 +81,7 @@ const LearningDashboard: React.FC = () => {
       if (isAdmin) {
         const adminApproved = await fetch(`${apiBaseUrl}/admin/learning?status=approved`, {
           headers: {
-            ...(email ? { 'x-user-email': email } : {})
+            ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
           }
         });
         if (adminApproved.ok) {
@@ -84,7 +91,7 @@ const LearningDashboard: React.FC = () => {
       } else {
         const globalRes = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
           headers: {
-            ...(email ? { 'x-user-email': email } : {})
+            ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
           }
         });
         if (globalRes.ok) {
@@ -96,7 +103,7 @@ const LearningDashboard: React.FC = () => {
       if (isAdmin) {
         const adminRes = await fetch(`${apiBaseUrl}/admin/learning?status=ready`, {
           headers: {
-            ...(email ? { 'x-user-email': email } : {})
+            ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
           }
         });
         if (adminRes.ok) {
@@ -147,7 +154,7 @@ const LearningDashboard: React.FC = () => {
     await fetch(`${apiBaseUrl}/admin/learning/${id}/${decision}`, {
       method: 'POST',
       headers: {
-        ...(email ? { 'x-user-email': email } : {})
+        ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
       }
     });
     setPendingCandidates(prev => prev.filter(c => c.id !== id));
@@ -161,7 +168,7 @@ const LearningDashboard: React.FC = () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(email ? { 'x-user-email': email } : {})
+        ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
       },
       body: JSON.stringify({ content })
     });
@@ -180,7 +187,7 @@ const LearningDashboard: React.FC = () => {
     await fetch(`${apiBaseUrl}/admin/learning/${id}/disable`, {
       method: 'POST',
       headers: {
-        ...(email ? { 'x-user-email': email } : {})
+        ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
       }
     });
     setGlobalLearnings(prev => prev.filter(l => l.id !== id));
@@ -193,7 +200,7 @@ const LearningDashboard: React.FC = () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(email ? { 'x-user-email': email } : {})
+        ...(email ? { 'x-user-email': email } : {}), ...adminTokenHeader()
       },
       body: JSON.stringify({ source_id: sourceId, target_id: targetId })
     });
