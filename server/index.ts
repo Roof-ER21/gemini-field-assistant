@@ -10947,6 +10947,11 @@ function renderProfilePageV2(profile: any): string {
   .step .num{font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:3px}
   .step .t{font-family:var(--disp);font-weight:700;font-size:16px;color:var(--ink-d)}
   .step .d{font-size:13px;color:var(--ink-d3);margin-top:3px;line-height:1.5}
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:8px}
+  .trio .item{background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:22px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
+  .trio .lab{font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:9px}
+  .trio .d{font-size:14px;color:var(--ink-d3);line-height:1.55}
+  @media (max-width:780px){.trio{grid-template-columns:1fr}}
 
   .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .rev{background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:24px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
@@ -11115,6 +11120,21 @@ function renderProfilePageV2(profile: any): string {
   </section>
 
   <main class="light">
+    <section class="sec" id="about">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:32px">
+          <span class="sec-eyebrow">Our mission</span>
+          <h2 class="sec-title">A FREE, HONEST roof inspection. Every time.</h2>
+          <p class="sec-sub">At ${brand}, our mission is to hold a fiduciary responsibility to our customers, plain and simple. By committing to our core values of integrity, quality, and simplicity, we promise to deliver an experience every homeowner wants when remodeling their home: a simple and straightforward quality installation for a fair and honest price.</p>
+        </div>
+        <div class="trio reveal">
+          <div class="item"><div class="lab">Who we are</div><div class="d">We are setting the new standard for roofing contractors. Our team is trained and held accountable to prioritize your best interest.</div></div>
+          <div class="item"><div class="lab">How we do it</div><div class="d">Integrity. Quality. Simplicity.</div></div>
+          <div class="item"><div class="lab">Why we do it</div><div class="d">Our customers are our reason &mdash; <a href="#reviews" style="color:var(--red);font-weight:700;text-decoration:none" onclick="event.preventDefault();document.getElementById('reviews').scrollIntoView({behavior:'smooth'})">read our reviews</a>.</div></div>
+        </div>
+      </div>
+    </section>
+
     <section class="sec" id="why">
       <div class="container">
         <div class="why-grid">
