@@ -19,6 +19,15 @@ export interface SendEmailParams {
 /**
  * Build an RFC 2822 message and base64url encode it for the Gmail API.
  */
+// RFC 2047 encoded-word for subjects containing non-ASCII (accented homeowner
+// names, em-dashes, etc.). Pure-ASCII subjects pass through unchanged. Without
+// this the raw UTF-8 bytes land in the header and mail clients mojibake them
+// (e.g. "José" → "JosÃ©"), even though the body renders fine via charset=utf-8.
+function encodeSubject(subject: string): string {
+  if (!/[^\x00-\x7F]/.test(subject)) return subject;
+  return `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
+}
+
 function buildRawMessage(from: string, params: SendEmailParams): string {
   const lines = [
     `From: ${from}`,
@@ -26,7 +35,7 @@ function buildRawMessage(from: string, params: SendEmailParams): string {
     params.cc ? `Cc: ${params.cc}` : '',
     params.bcc ? `Bcc: ${params.bcc}` : '',
     params.replyTo ? `Reply-To: ${params.replyTo}` : '',
-    `Subject: ${params.subject}`,
+    `Subject: ${encodeSubject(params.subject)}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
