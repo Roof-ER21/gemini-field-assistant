@@ -766,6 +766,51 @@ app.get('/api/mrms/status', async (_req, res) => {
         res.json({ status: 'degraded', proxy: 'oracle-unreachable', message: 'Using IEM fallback' });
     }
 });
+// ─── Admin authorization guard ──────────────────────────────────────────────
+// Protects ALL /api/admin/* routes. This app.use is intentionally registered
+// BEFORE the first admin route so every endpoint is covered — it previously sat
+// lower in the file and ~9 admin endpoints above it (run-analytics-migration,
+// users/:id/division, learning/*) were reachable with only a spoofable
+// x-user-email header. PIN-bearing admins must also present a valid x-admin-token.
+// With ADMIN_PIN_REQUIRED=true, admins with no PIN are forced to set one (closes
+// the residual no-PIN email-spoof gap). The /auth/* PIN endpoints bootstrap their
+// own auth and are exempt. NOTE: this does not fix the broader x-user-email trust
+// on non-admin routes — that's the separate signed-session-token work (Stage B).
+app.use('/api/admin', async (req, res, next) => {
+    if (req.path.startsWith('/auth/')) {
+        return next();
+    }
+    const email = getRequestEmail(req);
+    if (!email || email === 'demo@roofer.com') {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    try {
+        const userResult = await pool.query('SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+        if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        const user = userResult.rows[0];
+        if (user.admin_pin_hash) {
+            // Admin has a PIN → require a valid, unexpired session token.
+            const adminToken = req.headers['x-admin-token'];
+            if (!adminToken) {
+                return res.status(401).json({ error: 'Admin PIN verification required', requiresPin: true });
+            }
+            const sessionResult = await pool.query('SELECT id FROM admin_sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()', [adminToken, user.id]);
+            if (sessionResult.rows.length === 0) {
+                return res.status(401).json({ error: 'Admin session expired', requiresPin: true });
+            }
+        }
+        else if (process.env.ADMIN_PIN_REQUIRED === 'true') {
+            // Hardening flag (reversible): no PIN on file → must set one before access.
+            return res.status(401).json({ error: 'Admin PIN setup required', requiresPinSetup: true });
+        }
+        next();
+    }
+    catch (err) {
+        return res.status(500).json({ error: 'Authorization check failed' });
+    }
+});
 // One-time migration runner for analytics tables (admin only)
 app.post('/api/admin/run-analytics-migration', async (req, res) => {
     try {
@@ -2848,11 +2893,40 @@ app.post('/api/admin/auth/set-pin', async (req, res) => {
     }
 });
 // Verify PIN and create session
+// In-memory brute-force guard for admin PIN verification. Single Railway
+// instance, so a process-local map suffices; it resets on redeploy.
+const pinAttempts = new Map();
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_WINDOW_MS = 15 * 60 * 1000;
+function pinRateCheck(key) {
+    const rec = pinAttempts.get(key);
+    if (!rec)
+        return { ok: true, retryAfterSec: 0 };
+    if (Date.now() - rec.first > PIN_WINDOW_MS) {
+        pinAttempts.delete(key);
+        return { ok: true, retryAfterSec: 0 };
+    }
+    if (rec.count >= PIN_MAX_ATTEMPTS)
+        return { ok: false, retryAfterSec: Math.ceil((PIN_WINDOW_MS - (Date.now() - rec.first)) / 1000) };
+    return { ok: true, retryAfterSec: 0 };
+}
+function pinRecordFail(key) {
+    const rec = pinAttempts.get(key);
+    if (!rec || Date.now() - rec.first > PIN_WINDOW_MS)
+        pinAttempts.set(key, { count: 1, first: Date.now() });
+    else
+        rec.count += 1;
+}
+function pinRecordSuccess(key) { pinAttempts.delete(key); }
 app.post('/api/admin/auth/verify-pin', async (req, res) => {
     try {
         const email = getRequestEmail(req);
         if (!email || email === 'demo@roofer.com') {
             return res.status(401).json({ error: 'Authentication required' });
+        }
+        const rl = pinRateCheck(email);
+        if (!rl.ok) {
+            return res.status(429).json({ error: `Too many attempts. Try again in ${rl.retryAfterSec}s.`, retryAfter: rl.retryAfterSec });
         }
         const userResult = await pool.query('SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
         if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
@@ -2868,8 +2942,10 @@ app.post('/api/admin/auth/verify-pin', async (req, res) => {
         }
         const valid = await verifyPin(pin, user.admin_pin_hash);
         if (!valid) {
+            pinRecordFail(email);
             return res.status(401).json({ error: 'Incorrect PIN' });
         }
+        pinRecordSuccess(email);
         // Create session token (24 hour expiry)
         const token = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -2884,40 +2960,9 @@ app.post('/api/admin/auth/verify-pin', async (req, res) => {
         res.status(500).json({ error: 'Verification failed' });
     }
 });
-// Admin authorization middleware — protects all /api/admin/* routes
-app.use('/api/admin', async (req, res, next) => {
-    // PIN auth endpoints are accessible to any admin user (they handle their own auth)
-    if (req.path.startsWith('/auth/')) {
-        return next();
-    }
-    const email = getRequestEmail(req);
-    if (!email || email === 'demo@roofer.com') {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-    try {
-        // Verify user is admin
-        const userResult = await pool.query('SELECT id, role, admin_pin_hash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
-        if (!userResult.rows[0] || !['admin', 'marketing'].includes(userResult.rows[0].role)) {
-            return res.status(403).json({ error: 'Admin access required' });
-        }
-        const user = userResult.rows[0];
-        // If admin has a PIN set, require valid session token
-        if (user.admin_pin_hash) {
-            const adminToken = req.headers['x-admin-token'];
-            if (!adminToken) {
-                return res.status(401).json({ error: 'Admin PIN verification required', requiresPin: true });
-            }
-            const sessionResult = await pool.query('SELECT id FROM admin_sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()', [adminToken, user.id]);
-            if (sessionResult.rows.length === 0) {
-                return res.status(401).json({ error: 'Admin session expired', requiresPin: true });
-            }
-        }
-        next();
-    }
-    catch (err) {
-        return res.status(500).json({ error: 'Authorization check failed' });
-    }
-});
+// NOTE: the /api/admin authorization guard moved ABOVE the first admin route
+// (search "Admin authorization guard") so EVERY admin endpoint is covered, not
+// just the ones registered after this point.
 // Trigger daily summary email manually (admin only)
 app.post('/api/admin/trigger-daily-summary', async (req, res) => {
     try {
