@@ -1,47 +1,28 @@
 /**
- * Login Page - Clean Red/Black Design
- * Mobile-first, properly sized for all screens
+ * Login Page — Google Workspace SSO only.
  *
- * Flow (Direct Login - No Email Verification):
- * 1. Email entry → Check if user exists
- * 2a. Existing user → Logged in immediately
- * 2b. New user → "Create Account" with name → Account created & logged in
+ * Reps sign in with their @theroofdocs.com Google account via the OAuth redirect
+ * flow (/api/auth/google/start → callback → one-time handoff → exchange).
+ *
+ * The passwordless email login was retired 2026-07-01: the "enter your email"
+ * path was removed from this page and the backend /api/auth/direct-login now
+ * 403s under SSO_ONLY=true. See the sa21-auth-domain-split memory for history.
  */
 
 import React, { useState, useEffect } from 'react';
 import { authService } from '../services/authService';
 import LegalPage from './LegalPage';
-import { Mail, User, ArrowLeft, Shield, UserPlus } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
-type Step = 'email' | 'login' | 'signup' | 'code';
-
 const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  // Load saved email from localStorage (persists across app closes)
-  const savedEmail = localStorage.getItem('s21_login_email') || '';
-
-  const [step, setStep] = useState<Step>('email');
-  const [email, setEmail] = useState(savedEmail);
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [existingUserName, setExistingUserName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
-  const [isSignup, setIsSignup] = useState(false);
   const [googleError, setGoogleError] = useState('');
+  const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
 
-  // Save email as user types (so they don't lose it if app closes)
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    localStorage.setItem('s21_login_email', value);
-  };
-
-  // Clear saved login info after successful login
+  // Clear any legacy saved email/name left over from the old email-login flow.
   const clearSavedLoginInfo = () => {
     localStorage.removeItem('s21_login_email');
     localStorage.removeItem('s21_login_name');
@@ -50,7 +31,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   // ── Sign in with Google (Workspace SSO via OAuth redirect) ───────────────────
   const startGoogleLogin = () => {
     setGoogleError('');
-    setError('');
     setLoading(true);
     window.location.href = '/api/auth/google/start';
   };
@@ -92,288 +72,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
     })();
   }, []);
-
-  // Step 1: Check if email exists
-  const handleEmailCheck = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      // First check for auto-login (existing valid token) - doesn't send code
-      const autoLoginResult = await authService.tryAutoLogin(email, rememberMe);
-      if (autoLoginResult.success) {
-        clearSavedLoginInfo();
-        onLoginSuccess();
-        return;
-      }
-
-      // Check if user exists in database
-      const result = await authService.checkEmail(email);
-
-      if (!result.success) {
-        setError(result.error || 'Failed to check email');
-        setLoading(false);
-        return;
-      }
-
-      if (result.exists) {
-        // Existing user - log in directly (no verification code)
-        setExistingUserName(result.name || '');
-        setIsSignup(false);
-
-        // Direct login - no code needed
-        const loginResult = await authService.requestLoginCode(email, result.name || '', rememberMe);
-        if (loginResult.success) {
-          clearSavedLoginInfo();
-          onLoginSuccess();
-          return;
-        } else {
-          setError(loginResult.message);
-        }
-      } else if (result.canSignup) {
-        // New user - go to signup step
-        setIsSignup(true);
-        setStep('signup');
-      } else {
-        setError('Please use your @theroofdocs.com email address.');
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 2a: Existing user requests code
-  const handleLoginRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const result = await authService.requestLoginCode(email, existingUserName, rememberMe);
-      if (result.success) {
-        if (result.autoLoginSuccess) {
-          clearSavedLoginInfo();
-          onLoginSuccess();
-          return;
-        }
-        setStep('code');
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 2b: New user signs up (direct - no code verification)
-  const handleSignupRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!name || name.trim().length < 2) {
-      setError('Please enter your full name');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await authService.requestSignup(email, name);
-      if (result.success) {
-        // Direct signup - logged in immediately
-        clearSavedLoginInfo();
-        onLoginSuccess();
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 3: Verify code
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const userName = isSignup ? name : existingUserName;
-      const result = await authService.verifyLoginCode(email, code, userName, rememberMe);
-      if (result.success) {
-        clearSavedLoginInfo();
-        onLoginSuccess();
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Go back to previous step
-  const handleBack = () => {
-    setError('');
-    setCode('');
-    if (step === 'code') {
-      // For existing users, go back to email (since we skip login step)
-      // For new users, go back to signup
-      if (isSignup) {
-        setStep('signup');
-      } else {
-        setStep('email');
-        setExistingUserName('');
-      }
-    } else if (step === 'login' || step === 'signup') {
-      setStep('email');
-      setName('');
-      setExistingUserName('');
-    }
-  };
-
-  // Common input styles
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    height: '52px',
-    padding: '0 16px',
-    fontSize: '16px',
-    color: 'var(--text-primary)',
-    background: 'var(--bg-secondary)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: '12px',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    boxSizing: 'border-box'
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: 'var(--text-tertiary)',
-    marginBottom: '8px'
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    width: '100%',
-    height: '52px',
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#ffffff',
-    background: loading
-      ? '#4b1818'
-      : 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
-    border: 'none',
-    borderRadius: '12px',
-    cursor: loading ? 'not-allowed' : 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    boxShadow: loading ? 'none' : '0 4px 16px rgba(196, 30, 58, 0.35)',
-    transition: 'all 0.2s'
-  };
-
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = '#c41e3a';
-    e.target.style.boxShadow = '0 0 0 3px rgba(196, 30, 58, 0.15)';
-  };
-
-  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'var(--border-subtle)';
-    e.target.style.boxShadow = 'none';
-  };
-
-  // Render error message
-  const renderError = () => error && (
-    <div
-      style={{
-        padding: '12px 14px',
-        marginBottom: '16px',
-        borderRadius: '10px',
-        background: 'rgba(196, 30, 58, 0.1)',
-        border: '1px solid rgba(196, 30, 58, 0.3)',
-        fontSize: '13px',
-        color: '#f87171'
-      }}
-    >
-      {error}
-    </div>
-  );
-
-  // Render back button
-  const renderBackButton = () => (
-    <button
-      type="button"
-      onClick={handleBack}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        marginBottom: '20px',
-        padding: '0',
-        fontSize: '14px',
-        color: 'var(--text-tertiary)',
-        background: 'transparent',
-        border: 'none',
-        cursor: 'pointer'
-      }}
-    >
-      <ArrowLeft style={{ width: '16px', height: '16px' }} />
-      Back
-    </button>
-  );
-
-  // Render remember me checkbox
-  const renderRememberMe = () => (
-    <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        marginBottom: '20px',
-        cursor: 'pointer'
-      }}
-    >
-      <div
-        onClick={() => setRememberMe(!rememberMe)}
-        style={{
-          width: '22px',
-          height: '22px',
-          borderRadius: '6px',
-          background: rememberMe ? '#c41e3a' : 'var(--bg-card)',
-          border: rememberMe ? 'none' : '2px solid var(--border-default)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s',
-          cursor: 'pointer',
-          flexShrink: 0
-        }}
-      >
-        {rememberMe && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
-      </div>
-      <div>
-        <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Remember me</span>
-        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: '2px 0 0 0' }}>
-          Stay logged in for 1 year
-        </p>
-      </div>
-    </label>
-  );
 
   return (
     <div
@@ -418,12 +116,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <img
               src="/roofer-s21-logo.webp"
               alt="ROOF-ER S21"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                padding: '8px'
-              }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '8px' }}
               onError={(e) => {
                 e.currentTarget.parentElement!.style.background = 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)';
                 e.currentTarget.style.display = 'none';
@@ -456,281 +149,46 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        {/* Step 1: Email Entry */}
-        {step === 'email' && (
-          <form onSubmit={handleEmailCheck}>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                placeholder="you@theroofdocs.com"
-                required
-                autoComplete="email"
-                style={inputStyle}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-              />
-              <p style={{ fontSize: '12px', color: 'var(--text-disabled)', margin: '8px 0 0 0' }}>
-                Use your @theroofdocs.com email
-              </p>
-            </div>
+        {/* Sign in with Google — sole login path (Workspace SSO) */}
+        <button
+          type="button"
+          onClick={startGoogleLogin}
+          disabled={loading}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            height: '52px',
+            padding: '0 16px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.18)',
+            background: '#ffffff',
+            color: '#1f2937',
+            fontSize: '16px',
+            fontWeight: 600,
+            cursor: loading ? 'default' : 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)'
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
+            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
+          </svg>
+          {loading ? 'Connecting…' : 'Continue with Google'}
+        </button>
 
-            {renderRememberMe()}
-            {renderError()}
+        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', margin: '14px 0 0 0' }}>
+          Sign in with your <strong style={{ color: 'var(--text-primary)' }}>@theroofdocs.com</strong> Google account
+        </p>
 
-            <button type="submit" disabled={loading} style={buttonStyle}>
-              {loading ? 'Checking...' : (
-                <>
-                  <Mail style={{ width: '18px', height: '18px' }} />
-                  Continue
-                </>
-              )}
-            </button>
-          </form>
+        {googleError && (
+          <p style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '10px' }}>{googleError}</p>
         )}
 
-        {/* Sign in with Google (Workspace SSO) — additive; email login above still works */}
-        {step === 'email' && (
-          <div style={{ marginTop: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.12)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.12)' }} />
-            </div>
-            <button
-              type="button"
-              onClick={startGoogleLogin}
-              disabled={loading}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.18)',
-                background: '#ffffff', color: '#1f2937', fontSize: '15px', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
-                <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
-                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
-              </svg>
-              {loading ? 'Connecting…' : 'Continue with Google'}
-            </button>
-            {googleError && (
-              <p style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '10px' }}>{googleError}</p>
-            )}
-          </div>
-        )}
-
-        {/* Step 2a: Existing User Login */}
-        {step === 'login' && (
-          <form onSubmit={handleLoginRequest}>
-            {renderBackButton()}
-
-            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  margin: '0 auto 12px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '24px',
-                  fontWeight: '700',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                {existingUserName.charAt(0).toUpperCase() || email.charAt(0).toUpperCase()}
-              </div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
-                Welcome back{existingUserName ? `, ${existingUserName.split(' ')[0]}` : ''}!
-              </h2>
-              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>
-                {email}
-              </p>
-            </div>
-
-            {renderRememberMe()}
-            {renderError()}
-
-            <button type="submit" disabled={loading} style={buttonStyle}>
-              {loading ? 'Sending code...' : (
-                <>
-                  <Mail style={{ width: '18px', height: '18px' }} />
-                  Send Verification Code
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* Step 2b: New User Signup */}
-        {step === 'signup' && (
-          <form onSubmit={handleSignupRequest}>
-            {renderBackButton()}
-
-            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  margin: '0 auto 12px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <UserPlus style={{ width: '28px', height: '28px', color: '#ffffff' }} />
-              </div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
-                Create Your Account
-              </h2>
-              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>
-                {email}
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Your Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Smith"
-                required
-                autoComplete="name"
-                autoFocus
-                style={inputStyle}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-              />
-            </div>
-
-            {renderRememberMe()}
-            {renderError()}
-
-            <button type="submit" disabled={loading} style={buttonStyle}>
-              {loading ? 'Creating account...' : (
-                <>
-                  <UserPlus style={{ width: '18px', height: '18px' }} />
-                  Create Account & Sign In
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* Step 3: Code Verification (legacy - no longer used) */}
-        {step === 'code' && (
-          <form onSubmit={handleCodeSubmit}>
-            {renderBackButton()}
-
-            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '0 0 4px 0' }}>
-                {isSignup ? 'Creating account for' : 'Logging in as'}
-              </p>
-              <p style={{ fontSize: '15px', fontWeight: '600', color: '#c41e3a', margin: 0 }}>
-                {email}
-              </p>
-            </div>
-
-            <div
-              style={{
-                padding: '16px',
-                marginBottom: '20px',
-                borderRadius: '12px',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-subtle)',
-                textAlign: 'center'
-              }}
-            >
-              <Mail style={{ width: '32px', height: '32px', color: '#c41e3a', margin: '0 auto 8px' }} />
-              <p style={{ fontSize: '14px', color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
-                Check your email
-              </p>
-              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>
-                We sent a 6-digit code to your inbox
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Verification Code</label>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="000000"
-                required
-                autoFocus
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                style={{
-                  ...inputStyle,
-                  textAlign: 'center',
-                  fontSize: '24px',
-                  fontWeight: '700',
-                  letterSpacing: '0.2em'
-                }}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-              />
-            </div>
-
-            {renderError()}
-
-            <button
-              type="submit"
-              disabled={loading || code.length < 6}
-              style={{
-                ...buttonStyle,
-                background: loading || code.length < 6
-                  ? '#4b1818'
-                  : 'linear-gradient(135deg, #c41e3a 0%, #9b1830 100%)',
-                cursor: loading || code.length < 6 ? 'not-allowed' : 'pointer',
-                boxShadow: loading || code.length < 6 ? 'none' : '0 4px 16px rgba(196, 30, 58, 0.35)'
-              }}
-            >
-              {loading ? 'Verifying...' : (
-                <>
-                  <Shield style={{ width: '18px', height: '18px' }} />
-                  {isSignup ? 'Complete Signup' : 'Sign In'}
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (isSignup) {
-                  handleSignupRequest({ preventDefault: () => {} } as React.FormEvent);
-                } else {
-                  handleLoginRequest({ preventDefault: () => {} } as React.FormEvent);
-                }
-              }}
-              disabled={loading}
-              style={{
-                width: '100%',
-                marginTop: '12px',
-                padding: '10px',
-                fontSize: '13px',
-                color: 'var(--text-tertiary)',
-                background: 'transparent',
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Resend Code
-            </button>
-          </form>
-        )}
-
-        {/* Demo Login for App Review */}
         {/* Footer */}
         <div
           style={{
@@ -744,7 +202,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             ROOF-ER S21 - The Roof Docs
           </p>
           <p style={{ fontSize: '11px', color: 'var(--text-disabled)', margin: '0 0 12px 0' }}>
-            Secure email authentication
+            Secure Google Workspace sign-in
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
             <button
