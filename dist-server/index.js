@@ -195,12 +195,16 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
+            // get.theroofdocs.com is allowed as a <base> target so the company /inspection page works
+            // when reverse-proxied onto www.theroofdocs.com (its assets/POST live on get.*).
+            baseUri: ["'self'", "https://get.theroofdocs.com"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com"],
             scriptSrcAttr: ["'unsafe-inline'"], // allow inline on* handlers (chat widget, quiz) — was blocked by helmet's default 'none'
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com", "https://accounts.google.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
             connectSrc: [
                 "'self'",
+                "https://get.theroofdocs.com",
                 "wss:",
                 "ws:",
                 "https://generativelanguage.googleapis.com",
@@ -228,7 +232,7 @@ app.use(helmet({
             ],
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://api.fontshare.com", "https://cdn.fontshare.com"],
             objectSrc: ["'none'"],
-            mediaSrc: ["'self'", "blob:", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
+            mediaSrc: ["'self'", "blob:", "https://get.theroofdocs.com", "https://sa21.up.railway.app", "https://a21.up.railway.app"],
             frameSrc: ["'self'", "https://www.youtube.com", "https://player.vimeo.com", "https://form.jotform.com", "https://*.jotform.com", "https://appealing-bravery-production-d7d6.up.railway.app", "https://accounts.google.com"],
         },
     },
@@ -238,6 +242,8 @@ app.use(helmet({
 // CORS configuration - restrict to known origins
 const allowedOrigins = [
     'https://get.theroofdocs.com', // lead-gen / campaign pages (branded)
+    'https://www.theroofdocs.com', // WP site — /inspection/ reverse-proxies to /free-inspection (cross-origin form POST)
+    'https://theroofdocs.com', // apex variant of the above
     'https://sa21.theroofdocs.com', // rep app (branded)
     'https://a21.up.railway.app',
     'https://sa21.up.railway.app',
@@ -8481,14 +8487,14 @@ const serveCompanyLanding = async (_req, res) => {
             name: 'Roof ER',
             title: 'The Roof Docs · Roofing & Insurance Claim Experts',
             role_type: 'company',
-            image_url: '/brand/roofer-badge.png',
+            image_url: 'https://get.theroofdocs.com/brand/roofer-badge.png',
             email: 'info@theroofdocs.com',
             show_email: true,
             phone_number: '(703) 239-3738',
-            bio: 'The Roof Docs (Roof ER) is a GAF President’s Club roofing & insurance-claim team serving Virginia, Maryland & Pennsylvania. 8,000+ roofs inspected and restored — licensed, insured, and homeowner-first.',
+            bio: 'The Roof Docs is a GAF President’s Club roofing & insurance-restoration team across Virginia, Maryland & Pennsylvania — 8,000+ roofs inspected and restored. Free, honest inspections, every time. Licensed, insured, homeowner-first.',
             start_year: new Date().getFullYear() - 8,
             slug: 'the-roof-docs',
-            videos: [{ id: 0, title: 'Welcome', description: '', url: '/brand/company-welcome.mp4', thumbnail_url: null, is_welcome_video: true, duration: null }],
+            videos: [{ id: 0, title: 'Welcome', description: '', url: 'https://get.theroofdocs.com/brand/company-welcome.mp4', thumbnail_url: null, is_welcome_video: true, duration: null }],
             reviews: gr.rows,
             reviews_are_global: true,
         };
@@ -9239,7 +9245,7 @@ function renderProfilePage(profile) {
       <p class="section-subtitle">From tear-off to solar - we handle everything</p>
       <div class="steps-grid">
         <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="step-title">Step 1: Free Inspection</div><div class="step-desc">Comprehensive roof and property assessment</div></div></div>
-        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="step-title">Step 2: Insurance Coordination</div><div class="step-desc">We handle all insurance paperwork and claims</div></div></div>
+        <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="step-title">Step 2: Insurance Coordination</div><div class="step-desc">We guide you through the insurance paperwork and process</div></div></div>
         <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div><div><div class="step-title">Step 3: Professional Tear-Off</div><div class="step-desc">Safe removal of old materials with cleanup</div></div></div>
         <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></div><div><div class="step-title">Step 4: Premium Installation</div><div class="step-desc">Top-quality materials with expert craftsmanship</div></div></div>
         <div class="step-item"><div class="step-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div><div><div class="step-title">Step 5: Solar Integration</div><div class="step-desc">Optional solar panel installation for energy savings</div></div></div>
@@ -9442,6 +9448,9 @@ function renderProfilePageV2(profile) {
     const startYear = profile.start_year;
     const yearsExp = startYear ? new Date().getFullYear() - startYear : null;
     const slug = profile.slug || '';
+    // Company "inspection page" gets the two-tier header, reworked hero, expanded JotForm-matched
+    // form, sticky mini-form, and locations footer. Rep pages render exactly as before (gated off).
+    const isCompany = profile.role_type === 'company' || showEmail === true;
     // Same project gallery set V1 uses.
     const projectImages = [
         '/lovable-uploads/359b0e2f-8075-497a-a848-a9e77471e392.png',
@@ -9464,7 +9473,7 @@ function renderProfilePageV2(profile) {
             else if (vimMatch) {
                 return `<iframe src="https://player.vimeo.com/video/${vimMatch[1]}" title="${escAttr(name)} welcome video" style="width:100%;aspect-ratio:16/9;border:none;border-radius:13px;display:block" allow="autoplay;fullscreen" allowfullscreen></iframe>`;
             }
-            return `<video controls playsinline preload="metadata" style="display:block;margin:0 auto;width:auto;max-width:100%;max-height:560px;border-radius:13px;background:#000"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
+            return `<video controls ${isCompany ? 'autoplay muted loop ' : ''}playsinline preload="${isCompany ? 'auto' : 'metadata'}" style="display:block;margin:0 auto;width:auto;max-width:100%;max-height:560px;border-radius:13px;background:#000"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
         }).join('')
         : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:13px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`;
     // Reviews — reuse V1's loop + escaping + source labels.
@@ -9499,6 +9508,7 @@ function renderProfilePageV2(profile) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
 <title>${showEmail ? 'Free Roof Inspection — The Roof Docs · Roof ER' : `${esc(name)} — The Roof Docs · Roof-ER`}</title>
 <link rel="icon" type="image/png" href="/roofdocs-logo.png">
 <meta name="description" content="Connect with ${escAttr(name)} at ${brand} / The Roof Docs. Storm-damage roofing &amp; insurance-claim experts serving VA, MD &amp; PA. Schedule your free roof inspection today.">
@@ -9518,7 +9528,7 @@ function renderProfilePageV2(profile) {
     --paper:#f7f6f9;--paper2:#ffffff;--ink-d:#14131b;--ink-d2:#3a3845;--ink-d3:#6b6a78;--line-d:rgba(20,19,27,.10);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{background:var(--ink);color:var(--tx);font-family:var(--body);font-weight:500;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  html,body{background:var(--ink);color:var(--tx);font-family:var(--body);font-weight:500;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:clip}
   h1,h2,h3{font-family:var(--disp);font-weight:700;line-height:1.05;letter-spacing:-.02em}
   a{color:inherit;text-decoration:none}
   img{max-width:100%}
@@ -9670,6 +9680,11 @@ function renderProfilePageV2(profile) {
   .step .num{font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:3px}
   .step .t{font-family:var(--disp);font-weight:700;font-size:16px;color:var(--ink-d)}
   .step .d{font-size:13px;color:var(--ink-d3);margin-top:3px;line-height:1.5}
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:8px}
+  .trio .item{background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:22px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
+  .trio .lab{font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:9px}
+  .trio .d{font-size:14px;color:var(--ink-d3);line-height:1.55}
+  @media (max-width:780px){.trio{grid-template-columns:1fr}}
 
   .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .rev{background:var(--paper2);border:1px solid var(--line-d);border-radius:16px;padding:24px;box-shadow:0 10px 28px rgba(20,19,27,.05)}
@@ -9775,25 +9790,157 @@ function renderProfilePageV2(profile) {
     .seal{opacity:1;transform:rotate(-3deg)}
     .spin-i{animation:none}
   }
+
+  /* ── inspection-page (company) additions — selectors below are unused on rep pages ── */
+  .hero-tag{font-family:var(--disp);font-weight:700;font-size:clamp(1.45rem,2.7vw,2.25rem);line-height:1.08;letter-spacing:-.02em;margin:12px 0 0}
+  .topbar{background:#050509;border-bottom:1px solid rgba(255,255,255,.06)}
+  .topbar .in{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:20px;padding:7px clamp(14px,5vw,56px);font-size:12.5px;flex-wrap:wrap}
+  .topbar .loc{color:var(--faint);font-weight:600;letter-spacing:.01em}
+  .topbar a{color:var(--mut);display:inline-flex;align-items:center;gap:6px;transition:color .2s}
+  .topbar a:hover{color:var(--tx)}
+  .topbar a b{color:var(--tx);font-weight:700}
+  .topbar svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .topbar .sp{margin-left:auto;display:flex;gap:14px}
+  .topbar .sp a svg{width:16px;height:16px}
+  @media(max-width:720px){.topbar .loc{display:none}.topbar .in{gap:14px}}
+  .navwrap{position:sticky;top:0;z-index:40}
+  .nav .nav-logo img{height:42px}
+  .nav .nav-mid a{font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--tx)}
+  .nav .nav-mid a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav-right{display:flex;align-items:center;gap:18px}
+  .nav-call{display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:700;font-size:14px;color:var(--tx);white-space:nowrap}
+  .nav-call svg{width:16px;height:16px;stroke:var(--red2);fill:none;stroke-width:2}
+  .nav-call .num{color:var(--red2)}
+  .hamb{display:none;flex-direction:column;gap:5px;background:none;border:0;cursor:pointer;padding:6px}
+  .hamb span{display:block;width:26px;height:2.5px;background:var(--tx);border-radius:2px;transition:transform .25s,opacity .2s}
+  .hamb.open span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+  .hamb.open span:nth-child(2){opacity:0}
+  .hamb.open span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+  .mobmenu{display:none;flex-direction:column;background:rgba(8,8,13,.98);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .mobmenu.open{display:flex}
+  .mobmenu a{padding:14px clamp(18px,5vw,56px);font-family:var(--disp);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--tx);border-top:1px solid var(--line)}
+  @media(max-width:900px){.nav .nav-mid{display:none}.nav-call .lbl{display:none}.hamb{display:flex}}
+  .bookrail{position:fixed;top:50%;transform:translateY(-50%) translateX(14px);right:clamp(14px,1.8vw,26px);width:300px;z-index:45;display:none;opacity:0;pointer-events:none;transition:opacity .45s cubic-bezier(.2,.8,.2,1),transform .45s cubic-bezier(.2,.8,.2,1)}
+  .bookrail.show{opacity:1;transform:translateY(-50%);pointer-events:auto}
+  .bookrail .card{border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(17,15,24,.95),rgba(10,9,15,.93));backdrop-filter:blur(16px);box-shadow:0 28px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07);padding:18px}
+  .bookrail .rk-eye{display:inline-flex;align-items:center;gap:7px;font-family:var(--disp);font-weight:700;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--red2);margin-bottom:9px}
+  .bookrail .rk-eye .dot{width:6px;height:6px;border-radius:50%;background:var(--red2);box-shadow:0 0 0 4px rgba(239,43,43,.2)}
+  .bookrail h4{font-family:var(--disp);font-weight:700;font-size:1.18rem;color:var(--tx);line-height:1.1;letter-spacing:-.01em}
+  .bookrail .rk-sub{font-size:12px;color:var(--mut);margin:5px 0 13px;line-height:1.4}
+  .bookrail input{width:100%;font:inherit;color:var(--tx);padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:rgba(255,255,255,.05);font-size:15px;margin-bottom:8px;transition:border-color .2s,background .2s}
+  .bookrail input::placeholder{color:var(--faint)}
+  .bookrail input:focus{outline:none;border-color:var(--red);background:rgba(255,255,255,.08)}
+  .bookrail .rk-go{width:100%;justify-content:center;margin-top:3px;padding:13px;font-size:.92rem}
+  .bookrail .rk-fine{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:11px;margin-top:10px;justify-content:center}
+  .bookrail .rk-fine svg{width:13px;height:13px;stroke:var(--ok);fill:none;stroke-width:2.6}
+  @media(min-width:1180px){.bookrail{display:block}main.light .container{margin-left:auto;margin-right:330px}}
+  .glassform .opt{text-transform:none;letter-spacing:0;color:var(--faint);font-weight:600}
+  .glassform select{width:100%;font:inherit;color:var(--tx);padding:14px 15px;border:1.5px solid var(--line);border-radius:12px;background-color:rgba(255,255,255,.04);font-size:16px;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='rgba(255,255,255,.5)' stroke-width='2'%3E%3Cpath d='M3 5l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center;transition:border-color .2s,background-color .2s}
+  .glassform select:focus{outline:none;border-color:var(--red);background-color:rgba(255,255,255,.07)}
+  .glassform select option{background:#15131d;color:var(--tx)}
+  .glassform .row3{display:grid;grid-template-columns:1.4fr .82fr .82fr;gap:11px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+  .chips label{display:inline-flex;align-items:center;cursor:pointer;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--mut);padding:9px 14px;border:1.5px solid var(--line);border-radius:999px;background:rgba(255,255,255,.03);transition:background .18s,border-color .18s,color .18s,box-shadow .18s;margin:0}
+  .chips label input{position:absolute;opacity:0;width:0;height:0;margin:0}
+  .chips label:hover{border-color:rgba(255,255,255,.26);color:var(--tx)}
+  .chips label:has(input:checked){background:linear-gradient(95deg,var(--red),#ff6a4d);border-color:transparent;color:#fff;box-shadow:0 8px 20px rgba(239,43,43,.32)}
+  .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:2px}
+  .slots label{cursor:pointer;text-align:center;font-size:12.5px;font-weight:600;color:var(--mut);padding:11px 4px;border:1.5px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03);transition:background .18s,border-color .18s,color .18s,box-shadow .18s}
+  .slots label input{position:absolute;opacity:0;width:0;height:0;margin:0}
+  .slots label:hover{border-color:rgba(255,255,255,.26);color:var(--tx)}
+  .slots label:has(input:checked){background:linear-gradient(95deg,var(--red),#ff6a4d);border-color:transparent;color:#fff;box-shadow:0 8px 20px rgba(239,43,43,.32)}
+  .filebox{display:flex;align-items:center;gap:11px;padding:13px 15px;border:1.5px dashed var(--line);border-radius:12px;background:rgba(255,255,255,.025);cursor:pointer;transition:border-color .18s,color .18s;color:var(--mut);font-size:13.5px}
+  .filebox:hover{border-color:rgba(239,43,43,.55);color:var(--tx)}
+  .filebox svg{width:20px;height:20px;stroke:var(--red2);fill:none;stroke-width:2;flex-shrink:0}
+  .filebox input{display:none}
+  .glassform .cond{display:none}
+  .glassform .cond.on{display:block}
+  .glassform input[type=date]{color-scheme:dark}
+  @media(max-width:680px){.glassform .row3{grid-template-columns:1fr 1fr 1fr}.slots{grid-template-columns:repeat(2,1fr)}}
+  .foot-cols{display:grid;grid-template-columns:repeat(3,1fr) .82fr auto;gap:clamp(20px,3vw,40px);max-width:1240px;margin:0 auto;padding:6px clamp(18px,5vw,40px) 28px;text-align:left;width:100%;align-items:start}
+  .foot-col h5{font-family:var(--disp);font-weight:700;font-size:16px;color:var(--tx);margin-bottom:12px;letter-spacing:-.01em}
+  .foot-col p{font-size:13px;color:var(--mut);line-height:1.75;margin:0}
+  .foot-col a{color:var(--red2);transition:color .2s}
+  .foot-col a:hover{color:var(--red)}
+  .foot-col .info-links{display:flex;flex-direction:column;gap:10px}
+  .foot-col .info-links a{font-size:14px;font-weight:600}
+  .foot-awards{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-self:center}
+  .foot-awards .award{display:flex;align-items:center;justify-content:center;width:106px;height:106px;padding:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px}
+  .foot-awards .award img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}
+  @media(max-width:920px){.foot-cols{grid-template-columns:1fr 1fr;gap:26px}.foot-awards{grid-column:1/-1;justify-self:center}}
+  @media(max-width:560px){.foot-cols{grid-template-columns:1fr}.foot-awards .award{width:92px;height:92px;padding:12px}}
 </style>
 </head>
 <body>
 
+  ${isCompany ? `
+  <div class="topbar">
+    <div class="in">
+      <span class="loc">Virginia / Maryland / Pennsylvania</span>
+      <a href="tel:318-661-1076"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h2.3a1 1 0 01.95.68l1 3a1 1 0 01-.27 1l-1.3 1.1a11 11 0 005.5 5.5l1.1-1.3a1 1 0 011-.27l3 1a1 1 0 01.68.95V19a2 2 0 01-2 2A16 16 0 013 5z"/></svg>Call Us: <b>318-661-1076</b></a>
+      <a href="mailto:info@theroofdocs.com"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7l9 6 9-6M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z"/></svg>info@theroofdocs.com</a>
+      <span class="sp">
+        <a href="https://www.facebook.com/theroofdocs/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M22 12a10 10 0 10-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.8 3.7-3.8 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.5V12h2.7l-.4 2.9h-2.3v7A10 10 0 0022 12z"/></svg></a>
+        <a href="https://www.instagram.com/theroofdocs" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.8"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+      </span>
+    </div>
+  </div>
+  <div class="navwrap">
+    <nav class="nav">
+      <a class="nav-logo" href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof ER · The Roof Docs"></a>
+      <div class="nav-mid">
+        <a href="https://www.theroofdocs.com/roofing" target="_blank" rel="noopener">Roofing</a>
+        <a href="https://www.theroofdocs.com/siding" target="_blank" rel="noopener">Siding</a>
+        <a href="https://www.theroofdocs.com/solar" target="_blank" rel="noopener">Solar</a>
+        <a href="https://www.theroofdocs.com/about" target="_blank" rel="noopener">About</a>
+        <a href="https://www.theroofdocs.com/services" target="_blank" rel="noopener">Services</a>
+        <a href="#top" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">Inspection</a>
+      </div>
+      <div class="nav-right">
+        <a class="nav-call" href="tel:318-661-1076"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h2.3a1 1 0 01.95.68l1 3a1 1 0 01-.27 1l-1.3 1.1a11 11 0 005.5 5.5l1.1-1.3a1 1 0 011-.27l3 1a1 1 0 01.68.95V19a2 2 0 01-2 2A16 16 0 013 5z"/></svg><span class="lbl">Call Us:&nbsp;</span><span class="num">318-661-1076</span></a>
+        <button class="hamb" id="hamb" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      </div>
+    </nav>
+    <div class="mobmenu" id="mobmenu">
+      <a href="https://www.theroofdocs.com/roofing" target="_blank" rel="noopener">Roofing</a>
+      <a href="https://www.theroofdocs.com/siding" target="_blank" rel="noopener">Siding</a>
+      <a href="https://www.theroofdocs.com/solar" target="_blank" rel="noopener">Solar</a>
+      <a href="https://www.theroofdocs.com/about" target="_blank" rel="noopener">About</a>
+      <a href="https://www.theroofdocs.com/services" target="_blank" rel="noopener">Services</a>
+      <a href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})" style="color:var(--red2)">Inspection — book now</a>
+    </div>
+  </div>
+  <aside class="bookrail" id="bookrail" aria-label="Quick free inspection booking">
+    <div class="card">
+      <span class="rk-eye"><span class="dot"></span> Free inspection</span>
+      <h4>Book in 60 seconds</h4>
+      <p class="rk-sub">Start here — we'll carry it down to the full form.</p>
+      <input id="rkName" type="text" placeholder="Your name" autocomplete="name">
+      <input id="rkPhone" type="tel" placeholder="Phone number" autocomplete="tel">
+      <button class="btn rk-go" type="button" id="rkGo">Continue
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <div class="rk-fine"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> 100% free · no obligation</div>
+    </div>
+  </aside>` : `
   <nav class="nav">
     <a class="nav-logo" href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="${brand} · The Roof Docs"></a>
     <div class="nav-mid">
       <a href="#services">Services</a><a href="#why">Why Us</a><a href="#process">Process</a><a href="#reviews">Reviews</a><a href="#projects">Projects</a>
     </div>
     <button class="navcta" onclick="document.getElementById('inspection').scrollIntoView({behavior:'smooth'})" type="button">Free Inspection</button>
-  </nav>
+  </nav>`}
 
   <header class="hero">
     <div class="atmos"><div class="bg"></div><canvas id="hail"></canvas><div class="grain"></div></div>
     <div class="hero-inner">
       <section class="left reveal">
         <span class="eyebrow"><span class="dot"></span> ${showEmail ? 'Your local roofing &amp; insurance experts' : `Your local ${brand} specialist`}</span>
-        <h1 class="title">Hi, I'm ${esc(firstName)} <span class="grad">${esc(String(name).trim().split(/\s+/).slice(1).join(' ') || '')}</span></h1>
-        <p class="role">${esc(role)} · The Roof Docs</p>
+        ${isCompany
+        ? `<h1 class="title">We find the damage.</h1>
+        <p class="hero-tag"><span class="grad">Free Inspections. Full Peace of Mind.</span></p>`
+        : `<h1 class="title">Hi, I'm ${esc(firstName)} <span class="grad">${esc(String(name).trim().split(/\s+/).slice(1).join(' ') || '')}</span></h1>
+        <p class="role">${esc(role)} · The Roof Docs</p>`}
         ${bio ? `<p class="sub">${esc(bio)}</p>` : `<p class="sub">I help homeowners across Virginia, Maryland &amp; Pennsylvania turn storm damage into a fully-handled insurance claim — and a brand-new roof. Let's see if yours qualifies.</p>`}
         <div class="hero-cta">
           <button class="btn magnet" type="button" onclick="document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">
@@ -9803,7 +9950,7 @@ function renderProfilePageV2(profile) {
           ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(callName)}</a>` : ''}
           ${showEmail ? `<a class="btn-ghost" href="mailto:${escAttr(email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>Email Us</a>` : ''}
         </div>
-        <div class="trust"><span><b>8,000+</b> roofs completed</span><span>We handle the <b>insurance claim</b></span><span>Licensed &amp; local</span></div>
+        <div class="trust"><span><b>8,000+</b> roofs completed</span><span><b>Insurance-claim</b> guidance</span><span>Licensed &amp; local</span></div>
       </section>
 
       <aside class="art reveal">
@@ -9838,13 +9985,28 @@ function renderProfilePageV2(profile) {
   </section>
 
   <main class="light">
+    <section class="sec" id="about">
+      <div class="container">
+        <div class="center reveal" style="margin-bottom:32px">
+          <span class="sec-eyebrow">Our mission</span>
+          <h2 class="sec-title">A FREE, HONEST roof inspection. Every time.</h2>
+          <p class="sec-sub">At ${brand}, our mission is to hold a fiduciary responsibility to our customers, plain and simple. By committing to our core values of integrity, quality, and simplicity, we promise to deliver an experience every homeowner wants when remodeling their home: a simple and straightforward quality installation for a fair and honest price.</p>
+        </div>
+        <div class="trio reveal">
+          <div class="item"><div class="lab">Who we are</div><div class="d">We are setting the new standard for roofing contractors. Our team is trained and held accountable to prioritize your best interest.</div></div>
+          <div class="item"><div class="lab">How we do it</div><div class="d">Integrity. Quality. Simplicity.</div></div>
+          <div class="item"><div class="lab">Why we do it</div><div class="d">Our customers are our reason &mdash; <a href="#reviews" style="color:var(--red);font-weight:700;text-decoration:none" onclick="event.preventDefault();document.getElementById('reviews').scrollIntoView({behavior:'smooth'})">read our reviews</a>.</div></div>
+        </div>
+      </div>
+    </section>
+
     <section class="sec" id="why">
       <div class="container">
         <div class="why-grid">
           <div class="reveal">
             <span class="sec-eyebrow">Why homeowners choose us</span>
             <h2 class="sec-title">Local expertise, proven<br>at scale.</h2>
-            <p class="sec-sub">${brand} (The Roof Docs) has completed more than 8,000 roofing &amp; exterior projects across the DMV. We don't just install — we manage the entire insurance claim end-to-end so you don't have to.</p>
+            <p class="sec-sub">${brand} (The Roof Docs) has completed more than 8,000 roofing &amp; exterior projects across the DMV. We don't just install — we guide you through the entire insurance process, so you're never on your own.</p>
             <div class="stats4" style="margin-top:28px">
               <div class="stat"><div class="n" data-count="8000" data-suffix="+">8,000+</div><div class="l">Projects completed</div></div>
               <div class="stat"><div class="n" data-count="${yearsTarget}" data-suffix="+">${esc(yearsStat)}</div><div class="l">Years in business</div></div>
@@ -9876,7 +10038,7 @@ function renderProfilePageV2(profile) {
             <div class="svc-item"><div class="dot"></div><div><div class="n">Gutters</div><div class="d">Seamless gutter installation &amp; repair</div></div></div>
             <div class="svc-item"><div class="dot"></div><div><div class="n">Windows &amp; Doors</div><div class="d">Energy-efficient windows &amp; door installation</div></div></div>
             <div class="svc-item"><div class="dot"></div><div><div class="n">Solar</div><div class="d">Solar panel installation &amp; energy solutions</div></div></div>
-            <div class="svc-item"><div class="dot"></div><div><div class="n">Insurance Claims</div><div class="d">We document, file &amp; manage the entire claim</div></div></div>
+            <div class="svc-item"><div class="dot"></div><div><div class="n">Insurance Claims</div><div class="d">We document the damage &amp; guide your insurance process</div></div></div>
           </div>
           <div class="svc-cta"><a href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">Schedule free inspection &rarr;</a></div>
         </div>
@@ -9887,16 +10049,14 @@ function renderProfilePageV2(profile) {
       <div class="container">
         <div class="center reveal" style="margin-bottom:34px">
           <span class="sec-eyebrow">How it works</span>
-          <h2 class="sec-title">Complete project solution</h2>
-          <p class="sec-sub">From tear-off to solar, we handle everything — and keep you informed at every step.</p>
+          <h2 class="sec-title">Inspect. Diagnose. Prescribe. Operate.</h2>
+          <p class="sec-sub">The Roof Docs process — a clear, four-step path from first look to a finished project.</p>
         </div>
         <div class="steps reveal">
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="num">Step 01</div><div class="t">Free Inspection</div><div class="d">Comprehensive roof &amp; property assessment.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="num">Step 02</div><div class="t">Insurance Coordination</div><div class="d">We handle all paperwork &amp; claims.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div><div><div class="num">Step 03</div><div class="t">Professional Tear-Off</div><div class="d">Safe removal of old materials &amp; full cleanup.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12l2-2 7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg></div><div><div class="num">Step 04</div><div class="t">Premium Installation</div><div class="d">Top-quality materials, expert craftsmanship.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.7-.7M6.34 6.34l-.7-.7m12.72 0l-.7.7M6.34 17.66l-.7.7M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div><div><div class="num">Step 05</div><div class="t">Solar Integration</div><div class="d">Optional solar panels for long-term savings.</div></div></div>
-          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="num">Step 06</div><div class="t">Final Walkthrough</div><div class="d">Quality check &amp; lifetime warranty activation.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div><div class="num">Step 01</div><div class="t">Inspect</div><div class="d">When you use our online scheduling tool to schedule an inspection, one of our trained Roof Docs will arrive on-site at the time and date requested in order to inspect your property. We'll let you know we've arrived with a phone call, but will perform the inspection without any direct interaction.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div><div class="num">Step 02</div><div class="t">Diagnose</div><div class="d">During ${esc(callName)}'s inspection, our Roof Docs will search for evidence of storm damage, wear and tear, or any potential problem areas such as flashing on your roof or wall openings on your siding.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></div><div><div class="num">Step 03</div><div class="t">Prescribe</div><div class="d">If your exterior is in need of a repair or replacement due to storm damage, we will walk you through the insurance restoration process. If your roof or siding shows significant wear and tear but no storm damage, we will provide you with a free estimate.</div></div></div>
+          <div class="step"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z"/></svg></div><div><div class="num">Step 04</div><div class="t">Operate</div><div class="d">Once you've accepted our proposal and all the project details have been finalized, it's time for our trusted installation team to take care of the rest while you stay safe indoors.</div></div></div>
         </div>
       </div>
     </section>
@@ -9944,7 +10104,7 @@ function renderProfilePageV2(profile) {
           <div><div class="rn">${esc(name)}</div><div class="rr">${esc(role)} · VA · MD · PA</div></div>
         </div>
         <ul>
-          <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span>We handle the entire insurance claim</span></li>
+          <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span>We guide you through the insurance process</span></li>
           <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span><b>8,000+</b> roofs completed locally</span></li>
           <li><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> GAF Master Elite · Lifetime warranty</li>
         </ul>
@@ -9953,7 +10113,59 @@ function renderProfilePageV2(profile) {
       <div class="glassform reveal">
         <form id="inspForm" autocomplete="on" novalidate>
           <h3>Schedule your inspection</h3>
-          <p class="fsub">with <strong style="color:var(--red2)">${esc(name)}</strong> — it only takes 30 seconds.</p>
+          <p class="fsub">with <strong style="color:var(--red2)">${esc(name)}</strong> — ${isCompany ? 'takes about a minute.' : 'it only takes 30 seconds.'}</p>
+          ${isCompany ? `
+          <div class="row2">
+            <div class="field"><label for="fn">First name</label><input id="fn" name="fn" type="text" placeholder="Jane" autocomplete="given-name" required></div>
+            <div class="field"><label for="ln">Last name</label><input id="ln" name="ln" type="text" placeholder="Doe" autocomplete="family-name" required></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="ph">Phone</label><input id="ph" name="ph" type="tel" placeholder="(571) 555-0199" autocomplete="tel" required></div>
+            <div class="field"><label for="em">Email</label><input id="em" name="em" type="email" placeholder="jane@email.com" autocomplete="email" required></div>
+          </div>
+          <div class="field"><label for="ad1">Property address</label><input id="ad1" name="ad1" type="text" placeholder="Street address" autocomplete="address-line1" required></div>
+          <div class="field" style="margin-top:8px"><input id="ad2" name="ad2" type="text" placeholder="Apt, suite, unit (optional)" autocomplete="address-line2"></div>
+          <div class="row3">
+            <div class="field"><label for="city">City</label><input id="city" name="city" type="text" placeholder="Vienna" autocomplete="address-level2" required></div>
+            <div class="field"><label for="state">State</label><select id="state" name="state" autocomplete="address-level1" required><option value="" disabled selected>—</option><option>VA</option><option>MD</option><option>PA</option><option>DC</option><option>WV</option><option>DE</option><option>NJ</option><option>OH</option></select></div>
+            <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" type="text" inputmode="numeric" placeholder="22180" autocomplete="postal-code" maxlength="10" required></div>
+          </div>
+          <div class="field"><label>What can we look at? <span class="opt">(select all that apply)</span></label>
+            <div class="chips">
+              <label><input type="checkbox" name="area" value="STORM DAMAGE"><span>Storm Damage</span></label>
+              <label><input type="checkbox" name="area" value="ROOF"><span>Roof</span></label>
+              <label><input type="checkbox" name="area" value="SIDING"><span>Siding</span></label>
+              <label><input type="checkbox" name="area" value="GUTTERS"><span>Gutters</span></label>
+              <label><input type="checkbox" name="area" value="WINDOWS/DOORS"><span>Windows &amp; Doors</span></label>
+              <label><input type="checkbox" name="area" value="SOLAR"><span>Solar</span></label>
+              <label><input type="checkbox" name="area" value="TRIM"><span>Trim</span></label>
+              <label><input type="checkbox" name="area" value="DAMAGE"><span>Other damage</span></label>
+            </div>
+          </div>
+          <div class="field"><label for="how">How did you hear about us?</label>
+            <select id="how" name="how">
+              <option value="" disabled selected>Choose one…</option>
+              <option>Google</option><option>Referral</option><option>Doorhanger</option><option>Mailer</option>
+              <option>Yard Sign/Install</option><option>Spoke to a Rep</option><option>Home Show</option>
+              <option>Social Media</option><option>Other Online Search</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field cond" id="condWrap"><input id="howMore" name="howMore" type="text" placeholder=""></div>
+          <div class="row2">
+            <div class="field"><label for="appt">Preferred date</label><input id="appt" name="appt" type="date" required></div>
+            <div class="field"><label>Preferred time</label>
+              <div class="slots">
+                <label><input type="radio" name="slot" value="Morning">Morning</label>
+                <label><input type="radio" name="slot" value="Midday">Midday</label>
+                <label><input type="radio" name="slot" value="Afternoon">Afternoon</label>
+                <label><input type="radio" name="slot" value="Evening">Evening</label>
+              </div>
+            </div>
+          </div>
+          <div class="field"><label>Photos of the damage <span class="opt">(optional)</span></label>
+            <label class="filebox" for="files"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span id="fileLabel">Tap to add roof or damage photos</span><input id="files" name="files" type="file" accept="image/*" multiple></label>
+          </div>
+          <div class="field"><label for="ms">Anything we should know? <span class="opt">(optional)</span></label><textarea id="ms" name="ms" placeholder="Recent storm, visible leak, missing shingles…"></textarea></div>` : `
           <div class="row2">
             <div class="field"><label for="fn">First name</label><input id="fn" name="fn" type="text" placeholder="Jane" autocomplete="given-name" required></div>
             <div class="field"><label for="ln">Last name</label><input id="ln" name="ln" type="text" placeholder="Doe" autocomplete="family-name"></div>
@@ -9961,7 +10173,7 @@ function renderProfilePageV2(profile) {
           <div class="field"><label for="ph">Phone</label><input id="ph" name="ph" type="tel" placeholder="(571) 555-0199" autocomplete="tel" required></div>
           <div class="field"><label for="em">Email</label><input id="em" name="em" type="email" placeholder="jane@email.com" autocomplete="email"></div>
           <div class="field"><label for="ad">Property address</label><input id="ad" name="ad" type="text" placeholder="123 Main St, Vienna, VA 22180" autocomplete="street-address" required></div>
-          <div class="field"><label for="ms">Anything we should know? <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="ms" name="ms" placeholder="Recent storm, visible leak, missing shingles…"></textarea></div>
+          <div class="field"><label for="ms">Anything we should know? <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="ms" name="ms" placeholder="Recent storm, visible leak, missing shingles…"></textarea></div>`}
           <div class="err" id="formErr" role="alert"></div>
           <button class="btn full" type="submit" id="inspBtn">
             Request my free inspection
@@ -9979,12 +10191,29 @@ function renderProfilePageV2(profile) {
   </section>
 
   <footer class="site">
+    ${isCompany ? `
+    <div class="foot-cols">
+      <div class="foot-col"><h5>Northern, VA &ndash; Maryland</h5><p>8100 Boone Blvd, Suite 400 Vienna, VA 22182<br>VA Class A License #2705194709<br>MHIC #164697<br><a href="tel:703-239-3738">(703)-239-3738</a><br><a href="mailto:info@theroofdocs.com">info@theroofdocs.com</a></p></div>
+      <div class="foot-col"><h5>Richmond, VA</h5><p>2400 Old Brick Rd, Suite 105<br>Glenn Allen, VA 23060<br><a href="tel:804-544-2826">(804)-544-2826</a><br><a href="mailto:info@theroofdocs.com">info@theroofdocs.com</a></p></div>
+      <div class="foot-col"><h5>Pennsylvania</h5><p>851 Duportail Rd Chesterbrook, PA 19087<br>PA License #145926<br><a href="tel:484-330-2359">(484)-330-2359</a><br><a href="mailto:info@theroofdocs.com">info@theroofdocs.com</a></p></div>
+      <div class="foot-col"><h5>Information</h5><div class="info-links"><a href="https://www.theroofdocs.com/about" target="_blank" rel="noopener">About</a><a href="https://www.theroofdocs.com/blog" target="_blank" rel="noopener">Blog</a><a href="#inspection" onclick="event.preventDefault();document.getElementById('inspection').scrollIntoView({behavior:'smooth'})">Inspection</a></div></div>
+      <div class="foot-awards">
+        <div class="award brand"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="Roof ER · The Roof Docs" loading="lazy"></div>
+        <div class="award"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/GAF_logo.webp" alt="GAF" loading="lazy"></div>
+        <div class="award"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/Master_Elite-300x300.png" alt="GAF Master Elite Residential Roofing Contractor" loading="lazy"></div>
+        <div class="award"><img src="/brand/presclub.png" alt="GAF President's Club Residential Award Winner" loading="lazy"></div>
+      </div>
+    </div>
+    <div class="foot-in">
+      <p class="foot-fine">Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Virginia, Maryland &amp; Pennsylvania. Licensed &amp; insured · GAF Master Elite · GAF President's Club · BBB A+. &copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin:14px auto 0;opacity:.8"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy" style="display:block"><span style="font-family:Georgia,serif;font-size:9.5px;letter-spacing:.04em;color:#9ca3af">Susan&nbsp;21</span></div>
+    </div>` : `
     <div class="foot-in">
       <a href="https://www.theroofdocs.com" target="_blank" rel="noopener"><img src="https://www.theroofdocs.com/wp-content/uploads/2025/03/logo_footer_alt.0cc2e436.png" alt="${brand} · The Roof Docs"></a>
       <div class="foot-links"><a href="#services">Services</a><a href="#why">Why Us</a><a href="#reviews">Reviews</a><a href="#inspection">Free Inspection</a></div>
       <p class="foot-fine">Roof&#8209;ER / The Roof Docs — storm-damage roofing &amp; insurance-claim experts serving Virginia, Maryland &amp; Pennsylvania. Licensed &amp; insured · GAF Master Elite · BBB A+. &copy; ${new Date().getFullYear()} The Roof Docs. All rights reserved.</p>
       <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin:14px auto 0;opacity:.8"><img src="/brand/ao21-sig.png" alt="Susan 21 · AO21" width="34" height="24" loading="lazy" style="display:block"><span style="font-family:Georgia,serif;font-size:9.5px;letter-spacing:.04em;color:#9ca3af">Susan&nbsp;21</span></div>
-    </div>
+    </div>`}
   </footer>
 
   <div class="mbar">
@@ -10001,6 +10230,8 @@ function renderProfilePageV2(profile) {
   var PROFILE_ID = ${JSON.stringify(profile.id || null)};
   var SLUG = ${JSON.stringify(slug)};
   var REP_NAME = ${JSON.stringify(name)};
+  // Absolute on the company page so the form POST works when /inspection/ reverse-proxies this HTML.
+  var POST_URL = ${JSON.stringify(isCompany ? 'https://get.theroofdocs.com/api/profiles/contact' : '/api/profiles/contact')};
   var $ = function(id){ return document.getElementById(id); };
 
   /* ── hail canvas — scoped to the hero; skip on mobile + reduced-motion; pause offscreen & on tab-hide ── */
@@ -10096,17 +10327,29 @@ function renderProfilePageV2(profile) {
     var f = $('inspForm'); if(!f) return;
     f.addEventListener('submit', async function(e){
       e.preventDefault();
-      var fn=($('fn').value||'').trim(), ln=($('ln').value||'').trim();
-      var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ad=($('ad').value||'').trim(), ms=($('ms').value||'').trim();
+      ${isCompany ? `
+      var g=function(id){ var el=$(id); return el?(el.value||'').trim():''; };
+      var fn=g('fn'), ln=g('ln'), ph=g('ph'), em=g('em');
+      var ad1=g('ad1'), ad2=g('ad2'), city=g('city'), state=g('state'), zip=g('zip'), ms=g('ms');
+      var how=g('how'), howMore=g('howMore'), appt=g('appt');
+      var areas=[].slice.call(document.querySelectorAll('input[name="area"]:checked')).map(function(c){ return c.value; });
+      var slotEl=document.querySelector('input[name="slot"]:checked'), slot=slotEl?slotEl.value:'';
       var err = $('formErr');
-      if(!fn || ph.replace(/\\D/g,'').length < 7){ err.textContent='Please add your name and a valid phone number.'; err.style.display='block'; return; }
-      if(!ad){ err.textContent='Please add your property address.'; err.style.display='block'; return; }
+      if(!fn || !ln){ err.textContent='Please add your first and last name.'; err.style.display='block'; return; }
+      if(ph.replace(/\\D/g,'').length < 7){ err.textContent='Please add a valid phone number.'; err.style.display='block'; return; }
+      if(!ad1 || !city || !state || !zip){ err.textContent='Please complete your property address.'; err.style.display='block'; return; }
+      if(!appt || !slot){ err.textContent='Please pick a preferred date and time.'; err.style.display='block'; return; }
       err.style.display='none';
+      var address=[ad1, ad2, city+', '+state+' '+zip].filter(Boolean).join(', ');
+      var msgLines=[];
+      if(areas.length) msgLines.push('Interested in: '+areas.join(', '));
+      if(how) msgLines.push('How they heard: '+how+(howMore?(' — '+howMore):''));
+      if(ms) msgLines.push(ms);
+      var message=msgLines.join('\\n');
       var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
       try{
-        var r = await fetch('/api/profiles/contact', {method:'POST',headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: '${showEmail ? 'Free inspection (company page)' : 'Free inspection (rep page)'}' })});
-        /* Success even on soft backend errors — capture/notify is handled separately; never trap the homeowner. */
+        var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: address, message: message, preferredDate: appt, preferredTime: slot, serviceType: 'Free inspection (company page)', jotform: { firstName: fn, lastName: ln, email: em, phone: ph, addr1: ad1, addr2: ad2, city: city, state: state, zip: zip, areas: areas, howHeard: how, howMore: howMore, apptDate: appt, apptSlot: slot, comments: ms } } )});
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
@@ -10115,8 +10358,73 @@ function renderProfilePageV2(profile) {
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
-      }
+      }` : `
+      var fn=($('fn').value||'').trim(), ln=($('ln').value||'').trim();
+      var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ad=($('ad').value||'').trim(), ms=($('ms').value||'').trim();
+      var err = $('formErr');
+      if(!fn || ph.replace(/\\D/g,'').length < 7){ err.textContent='Please add your name and a valid phone number.'; err.style.display='block'; return; }
+      if(!ad){ err.textContent='Please add your property address.'; err.style.display='block'; return; }
+      err.style.display='none';
+      var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
+      try{
+        var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: 'Free inspection (rep page)' })});
+        $('doneName').textContent = fn;
+        f.style.display='none';
+        $('formDone').style.display='block';
+        $('formDone').scrollIntoView({behavior:'smooth',block:'center'});
+      }catch(err2){
+        $('doneName').textContent = fn;
+        f.style.display='none';
+        $('formDone').style.display='block';
+      }`}
     });
+  })();
+
+  /* ── sticky mini booking form (bookrail): show after the red band, carry values, jump to full form ── */
+  (function(){
+    var rail=$('bookrail'); if(!rail) return;
+    var insp=$('inspection'), cta=document.querySelector('.ctabar');
+    function toggle(){
+      var inspTop=insp.getBoundingClientRect().top;
+      var ctaBottom=cta?cta.getBoundingClientRect().bottom:0;
+      rail.classList.toggle('show', ctaBottom < 110 && inspTop > 240);
+    }
+    addEventListener('scroll', toggle, {passive:true}); addEventListener('resize', toggle); toggle();
+    function go(){
+      var nm=($('rkName').value||'').trim(), tp=($('rkPhone').value||'').trim();
+      if(nm){ var p=nm.split(/\\s+/); if($('fn'))$('fn').value=p.shift()||''; if($('ln'))$('ln').value=p.join(' '); }
+      if(tp && $('ph')) $('ph').value=tp;
+      insp.scrollIntoView({behavior:'smooth'});
+      setTimeout(function(){ var t=$('em')||$('ph'); if(t){ try{ t.focus({preventScroll:true}); }catch(e){ t.focus(); } } }, 650);
+    }
+    var goBtn=$('rkGo'); if(goBtn) goBtn.addEventListener('click', go);
+    ['rkName','rkPhone'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); go(); } }); });
+  })();
+
+  /* ── "how did you hear" conditional follow-up + photo-upload label ── */
+  (function(){
+    var how=$('how'), wrap=$('condWrap'), more=$('howMore');
+    if(how && wrap && more){
+      how.addEventListener('change', function(){
+        var v=how.value, lab='';
+        if(v==='Referral') lab='Who can we thank for the referral?';
+        else if(v==='Doorhanger'||v==='Spoke to a Rep') lab='Which Roof ER rep? (name)';
+        else if(v==='Other'||v==='Other Online Search') lab='Tell us a bit more';
+        if(lab){ more.placeholder=lab; wrap.classList.add('on'); } else { wrap.classList.remove('on'); more.value=''; }
+      });
+    }
+    var files=$('files'), fl=$('fileLabel');
+    if(files && fl){ files.addEventListener('change', function(){ var n=files.files.length; fl.textContent = n ? (n+' photo'+(n>1?'s':'')+' attached ✓') : 'Tap to add roof or damage photos'; }); }
+  })();
+
+  /* ── mobile hamburger menu ── */
+  (function(){
+    var h=$('hamb'), m=$('mobmenu'); if(!h||!m) return;
+    h.addEventListener('click', function(){
+      var open=m.classList.toggle('open'); h.classList.toggle('open', open); h.setAttribute('aria-expanded', open?'true':'false');
+    });
+    m.addEventListener('click', function(e){ if(e.target.closest('a')){ m.classList.remove('open'); h.classList.remove('open'); h.setAttribute('aria-expanded','false'); } });
   })();
 })();
 </script>

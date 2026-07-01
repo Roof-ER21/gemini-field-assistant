@@ -157,6 +157,62 @@ export function forwardLeadToJotForm(lead: {
   })();
 }
 
+// Company /inspection landing → mirror to the PUBLIC JotForm 251003812776049 (no API key
+// needed; the live form's own notifications/integrations to info@ + ford.barsi@ then fire).
+// Field map + "Appointment is required" + UPPERCASE area values were confirmed by a live test
+// submission (HTTP 200, id 6586619661123572797). Fire-and-forget; never blocks the homeowner.
+export function forwardCompanyLeadToJotForm(jf: {
+  firstName?: string; lastName?: string; email?: string; phone?: string;
+  addr1?: string; addr2?: string; city?: string; state?: string; zip?: string;
+  areas?: string[]; howHeard?: string; howMore?: string;
+  apptDate?: string; apptSlot?: string; comments?: string;
+} | null | undefined): void {
+  if (!jf || !jf.firstName || !jf.lastName || !jf.email) return;
+  const FORM = '251003812776049';
+  const slotTime: Record<string, string> = { Morning: '09:00:00', Midday: '12:00:00', Afternoon: '14:00:00', Evening: '17:00:00' };
+  (async () => {
+    try {
+      const b = new URLSearchParams();
+      b.append('formID', FORM); b.append('simple_spc', FORM); b.append('website', '');
+      b.append('q8_typeA', jf.firstName!);
+      b.append('q19_lastName', jf.lastName!);
+      b.append('q10_email', jf.email!);
+      if (jf.phone) b.append('q4_phoneNumber[full]', jf.phone);
+      if (jf.addr1) b.append('q11_address[addr_line1]', jf.addr1);
+      if (jf.addr2) b.append('q11_address[addr_line2]', jf.addr2);
+      if (jf.city) b.append('q11_address[city]', jf.city);
+      if (jf.state) b.append('q11_address[state]', jf.state);
+      if (jf.zip) b.append('q11_address[postal]', jf.zip);
+      (jf.areas || []).forEach((a) => { if (a) b.append('q16_selectThe[]', a); });
+      if (jf.howHeard) b.append('q23_howDid', jf.howHeard);
+      if (jf.howMore) {
+        const h = jf.howHeard || '';
+        if (h === 'Referral') b.append('q25_provideName', jf.howMore);
+        else if (h === 'Doorhanger') b.append('q29_provideDoorhanger', jf.howMore);
+        else if (h === 'Spoke to a Rep') b.append('q30_provideName30', jf.howMore);
+        else b.append('q31_tellUs', jf.howMore);
+      }
+      if (jf.comments) b.append('q26_provideComments', jf.comments);
+      // Appointment is REQUIRED on the form — build a datetime from the chosen date + slot.
+      const date = jf.apptDate || '';
+      const time = slotTime[jf.apptSlot || ''] || '10:00:00';
+      if (date) { b.append('q5_appointment[date]', `${date} ${time}`); b.append('q5_appointment[duration]', '15'); b.append('q5_appointment[timezone]', 'America/New_York'); }
+      const r = await fetch(`https://submit.jotform.com/submit/${FORM}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': `https://form.jotform.com/${FORM}` },
+        body: b.toString(),
+      });
+      const txt = await r.text().catch(() => '');
+      if (r.status === 200) {
+        const id = (txt.match(/[0-9]{18,}/) || [])[0] || '?';
+        console.log(`[jotform company] submitted "${jf.firstName} ${jf.lastName}" -> ${FORM} (${id})`);
+      } else {
+        console.error('[jotform company] non-200', r.status, txt.replace(/<[^>]*>/g, ' ').slice(0, 200));
+      }
+    } catch (e) { console.error('[jotform company] failed:', (e as Error)?.message); }
+  })();
+}
+
 // Persistent uploads directory:
 // - Railway: /app/data/uploads (Railway Volume, survives redeployments)
 // - Local dev: ./public/uploads (local filesystem)
@@ -860,7 +916,8 @@ export function createProfileRoutes(pool: Pool) {
         serviceType,
         preferredDate,
         preferredTime,
-        message
+        message,
+        jotform
       } = req.body;
 
       if (!homeownerName) {
@@ -912,6 +969,9 @@ export function createProfileRoutes(pool: Pool) {
           message,
           sourceLabel: 'Company landing form',
         });
+        // Mirror to the live JotForm (251003812776049) so its existing notifications +
+        // integrations (info@ + ford.barsi@) fire exactly as a native submission would.
+        forwardCompanyLeadToJotForm(jotform);
       }
 
       // The redesigned rep landing page replaces its embedded JotForm iframe with a
