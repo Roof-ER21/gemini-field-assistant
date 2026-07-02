@@ -35,12 +35,27 @@ export function forwardLeadToCC24(lead: {
   sourceLabel?: string | null;
   jobType?: string | null;
   leadId?: string | null;
+  photoUrls?: string[] | null;
+  attribution?: Record<string, string> | null;
 }, pool?: Pool): void {
   // CC24 is the live Command Center (CC21 retired). Prefer CC24 vars; fall back
   // to the legacy CC21 vars only if CC24 isn't configured yet.
   const cc21Url = process.env.CC24_LEAD_INTAKE_URL || process.env.CC21_LEAD_INTAKE_URL;
   const cc21Secret = process.env.CC24_WEBSITE_SECRET || process.env.CC21_WEBSITE_SECRET;
   if (!cc21Url || !cc21Secret || !lead.homeownerName) return;
+  // Fold damage-photo links + marketing attribution into the message so they land
+  // in CC24's lead notes (CC24 intake has no dedicated fields for them).
+  let ccMessage = (lead.message || '').trim();
+  if (lead.photoUrls && lead.photoUrls.length) {
+    ccMessage += (ccMessage ? '\n' : '') + `Damage photos (${lead.photoUrls.length}): ` + lead.photoUrls.join('  ');
+  }
+  if (lead.attribution && typeof lead.attribution === 'object') {
+    const a = lead.attribution;
+    const at: string[] = [];
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'].forEach((k) => { if (a[k]) at.push(`${k}=${a[k]}`); });
+    if (a.referrer) at.push(`ref=${a.referrer}`);
+    if (at.length) ccMessage += (ccMessage ? '\n' : '') + 'Attribution: ' + at.join(', ');
+  }
   const addrStr = (lead.address || '').trim();
   const zip = addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
   const state = addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1]?.toUpperCase();
@@ -63,7 +78,7 @@ export function forwardLeadToCC24(lead: {
     serviceType: lead.serviceType || undefined,
     preferredDate: lead.preferredDate || undefined,
     preferredTime: lead.preferredTime || undefined,
-    message: lead.message || undefined,
+    message: ccMessage || undefined,
   };
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 7000);
@@ -222,6 +237,7 @@ const UPLOADS_ROOT = isRailway ? '/app/data/uploads' : path.join(process.cwd(), 
 try {
   fs.mkdirSync(path.join(UPLOADS_ROOT, 'headshots'), { recursive: true });
   fs.mkdirSync(path.join(UPLOADS_ROOT, 'videos'), { recursive: true });
+  fs.mkdirSync(path.join(UPLOADS_ROOT, 'leads'), { recursive: true });
   console.log(`📂 Uploads root: ${UPLOADS_ROOT} (railway=${isRailway})`);
 } catch (e) {
   console.error('❌ Failed to create uploads dirs:', e);
@@ -283,6 +299,30 @@ const uploadVideo = multer({
     const allowed = /mp4|mov|webm|m4v/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = file.mimetype.startsWith('video/');
+    cb(null, ext || mime);
+  }
+});
+
+// Homeowner-submitted damage photos from the inspection/lead form. Stored on the
+// same persistent volume as headshots; served at /uploads/leads/<file>.
+const leadPhotoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(UPLOADS_ROOT, 'leads');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+  }
+});
+
+const uploadLeadPhotos = multer({
+  storage: leadPhotoStorage,
+  limits: { fileSize: 15 * 1024 * 1024, files: 10 }, // up to 10 photos, 15MB each
+  fileFilter: (_req, file, cb) => {
+    const ext = /jpe?g|png|webp|heic|heif|gif/.test(path.extname(file.originalname).toLowerCase());
+    const mime = (file.mimetype || '').startsWith('image/');
     cb(null, ext || mime);
   }
 });
@@ -368,6 +408,11 @@ export type LeadIntegrationData = {
   preferredTime?: string | null;
   message?: string | null;
   sourceLabel?: string;
+  photoUrls?: string[] | null;
+  attribution?: Record<string, string> | null;
+  serviceAreas?: string[] | null;
+  howHeard?: string | null;
+  howHeardDetail?: string | null;
 };
 let leadIntegrationsRunner:
   | ((profileId: string, leadId: string, leadData: LeadIntegrationData, opts?: { skipCc24Forward?: boolean; skipHomeownerConfirm?: boolean }) => void)
@@ -440,6 +485,19 @@ function buildLeadRows(
   rows.push({ label: 'How they found us', value: leadChip(cleanSourceLabel(d.sourceLabel), '#dbeafe', '#1e40af') });
   if (appt) rows.push({ label: 'Appointment', value: `<b>${escEmail(appt.day)}${appt.window ? ' · ' + escEmail(appt.window) : ''}</b>` });
   if (d.message) rows.push({ label: 'Comments', value: escEmail(d.message) });
+  if (d.photoUrls && d.photoUrls.length) {
+    const thumbs = d.photoUrls.map((u, i) => {
+      const url = escEmail(u);
+      return `<a href="${url}" target="_blank" style="text-decoration:none;"><img src="${url}" width="72" height="72" alt="Damage photo ${i + 1}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;margin:0 6px 6px 0;border:1px solid #e5e7eb;vertical-align:top;"></a>`;
+    }).join('');
+    rows.push({ label: `Damage photos (${d.photoUrls.length})`, value: thumbs });
+  }
+  if (d.attribution && (d.attribution.utm_source || d.attribution.gclid || d.attribution.fbclid)) {
+    const a = d.attribution;
+    const src = a.utm_source || (a.gclid ? 'google-ads' : (a.fbclid ? 'facebook' : 'campaign'));
+    const label = src + (a.utm_campaign ? ' / ' + a.utm_campaign : '');
+    rows.push({ label: 'Marketing source', value: leadChip(label, '#dcfce7', '#166534') });
+  }
   return rows;
 }
 
@@ -789,6 +847,8 @@ export function createProfileRoutes(pool: Pool) {
           repEmail: companyEmail,
           sourceLabel,
           leadId,
+          photoUrls: leadData.photoUrls,
+          attribution: leadData.attribution,
         }, pool);
 
         const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
@@ -917,7 +977,9 @@ export function createProfileRoutes(pool: Pool) {
         preferredDate,
         preferredTime,
         message,
-        jotform
+        jotform,
+        photoUrls,
+        attribution
       } = req.body;
 
       if (!homeownerName) {
@@ -927,12 +989,35 @@ export function createProfileRoutes(pool: Pool) {
         });
       }
 
+      // Structured extras: areas + how-heard ride in the client's jotform object;
+      // photo URLs + marketing attribution are top-level. All optional & sanitized.
+      const jf = (jotform && typeof jotform === 'object') ? jotform : {};
+      const serviceAreas: string[] | null = Array.isArray(jf.areas) && jf.areas.length
+        ? jf.areas.slice(0, 20).map((a: unknown) => String(a)) : null;
+      const howHeard: string | null = jf.howHeard ? String(jf.howHeard).slice(0, 120) : null;
+      const howHeardDetail: string | null = jf.howMore ? String(jf.howMore).slice(0, 500) : null;
+      const cleanPhotoUrls: string[] | null = Array.isArray(photoUrls) && photoUrls.length
+        ? photoUrls.filter((u: unknown) => typeof u === 'string' && /^https?:\/\//.test(u as string)).slice(0, 12)
+        : null;
+      const cleanAttribution: Record<string, string> | null = (attribution && typeof attribution === 'object' && !Array.isArray(attribution))
+        ? Object.fromEntries(
+            Object.entries(attribution as Record<string, unknown>)
+              .filter(([, v]) => typeof v === 'string' && v)
+              .slice(0, 12)
+              .map(([k, v]) => [String(k).slice(0, 40), String(v).slice(0, 400)]),
+          )
+        : null;
+
       const result = await pool.query(
         `INSERT INTO profile_leads
-         (profile_id, homeowner_name, homeowner_email, homeowner_phone, address, service_type, preferred_date, preferred_time, message, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
+         (profile_id, homeowner_name, homeowner_email, homeowner_phone, address, service_type, preferred_date, preferred_time, message, status, photo_urls, attribution, service_areas, how_heard, how_heard_detail)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10::jsonb, $11::jsonb, $12::jsonb, $13, $14)
          RETURNING id`,
-        [profileId || null, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, preferredDate || null, preferredTime || null, message]
+        [profileId || null, homeownerName, homeownerEmail, homeownerPhone, address, serviceType, preferredDate || null, preferredTime || null, message,
+          cleanPhotoUrls ? JSON.stringify(cleanPhotoUrls) : null,
+          (cleanAttribution && Object.keys(cleanAttribution).length) ? JSON.stringify(cleanAttribution) : null,
+          serviceAreas ? JSON.stringify(serviceAreas) : null,
+          howHeard, howHeardDetail]
       );
 
       const leadId = result.rows[0].id;
@@ -968,6 +1053,11 @@ export function createProfileRoutes(pool: Pool) {
           preferredTime,
           message,
           sourceLabel: 'Company landing form',
+          photoUrls: cleanPhotoUrls,
+          attribution: cleanAttribution,
+          serviceAreas,
+          howHeard,
+          howHeardDetail,
         });
         // Mirror to the live JotForm (251003812776049) so its existing notifications +
         // integrations (info@ + ford.barsi@) fire exactly as a native submission would.
@@ -1009,6 +1099,27 @@ export function createProfileRoutes(pool: Pool) {
         success: false,
         error: 'Failed to submit contact form'
       });
+    }
+  });
+
+  /**
+   * POST /api/profiles/lead-photos
+   * Public: accept homeowner-submitted damage photos from the inspection/lead
+   * form (multipart, field "photos"). Stores them on the persistent uploads
+   * volume and returns absolute URLs, which the client then includes in its
+   * /contact submission. Best-effort — the lead form never blocks on this.
+   */
+  router.post('/lead-photos', rejectOversized(uploadLeadPhotos.array('photos', 10), 'Each photo must be under 15MB.'), (req: Request, res: Response) => {
+    try {
+      const files = (req.files as Express.Multer.File[]) || [];
+      const proto = ((req.headers['x-forwarded-proto'] as string) || '').split(',')[0] || req.protocol || 'https';
+      const host = req.get('host');
+      const urls = files.map((f) => `${proto}://${host}/uploads/leads/${f.filename}`);
+      console.log(`[lead-photos] stored ${urls.length} photo(s)`);
+      res.json({ success: true, urls });
+    } catch (error) {
+      console.error('❌ Lead photo upload error:', error);
+      res.status(500).json({ success: false, error: 'Photo upload failed' });
     }
   });
 

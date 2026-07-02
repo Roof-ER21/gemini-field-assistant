@@ -11624,9 +11624,19 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
       if(ms) msgLines.push(ms);
       var message=msgLines.join('\\n');
       var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
+      var photoUrls=[];
+      try{
+        var filesEl=$('files');
+        if(filesEl && filesEl.files && filesEl.files.length){
+          var fd=new FormData();
+          [].slice.call(filesEl.files).slice(0,10).forEach(function(fo){ fd.append('photos', fo); });
+          var ur=await fetch(POST_URL.replace('/contact','/lead-photos'), {method:'POST', body: fd});
+          if(ur && ur.ok){ var uj=await ur.json().catch(function(){return {};}); if(uj && Array.isArray(uj.urls)) photoUrls=uj.urls; }
+        }
+      }catch(ep){ /* photo upload is best-effort - never block the lead */ }
       try{
         var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: address, message: message, preferredDate: appt, preferredTime: slot, serviceType: 'Free inspection (company page)', jotform: { firstName: fn, lastName: ln, email: em, phone: ph, addr1: ad1, addr2: ad2, city: city, state: state, zip: zip, areas: areas, howHeard: how, howMore: howMore, apptDate: appt, apptSlot: slot, comments: ms } } )});
+          body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: address, message: message, preferredDate: appt, preferredTime: slot, serviceType: 'Free inspection (company page)', photoUrls: photoUrls, attribution: (window.__s21attr?window.__s21attr():{}), jotform: { firstName: fn, lastName: ln, email: em, phone: ph, addr1: ad1, addr2: ad2, city: city, state: state, zip: zip, areas: areas, howHeard: how, howMore: howMore, apptDate: appt, apptSlot: slot, comments: ms } } )});
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
@@ -11678,6 +11688,23 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
     var goBtn=$('rkGo'); if(goBtn) goBtn.addEventListener('click', go);
     ['rkName','rkPhone'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); go(); } }); });
   })();
+
+  /* ── marketing attribution: capture utm/click-ids/referrer once per session (first-touch) ── */
+  (function(){
+    try{
+      var qs=new URLSearchParams(location.search);
+      var keys=['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid'];
+      var cur={}; keys.forEach(function(k){ var v=qs.get(k); if(v) cur[k]=String(v).slice(0,400); });
+      var stored=null; try{ stored=JSON.parse(sessionStorage.getItem('s21_attr')||'null'); }catch(e){}
+      var hasClick=function(o){ return o && (o.utm_source||o.gclid||o.fbclid); };
+      if(!stored || (hasClick(cur) && !hasClick(stored))){
+        cur.referrer=((stored&&stored.referrer)||document.referrer||'').slice(0,400);
+        cur.landing=((stored&&stored.landing)||location.href||'').slice(0,400);
+        try{ sessionStorage.setItem('s21_attr', JSON.stringify(cur)); }catch(e){}
+      }
+    }catch(e){}
+  })();
+  window.__s21attr=function(){ try{ return JSON.parse(sessionStorage.getItem('s21_attr')||'{}'); }catch(e){ return {}; } };
 
   /* ── "how did you hear" conditional follow-up + photo-upload label ── */
   (function(){
@@ -11916,6 +11943,13 @@ async function runStartupMigrations() {
     await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_status TEXT`);
     await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_status_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS cc24_synced_at TIMESTAMPTZ`);
+    // Inspection/lead-form data capture (2026-07-01): damage photos, marketing
+    // attribution (utm/referrer), and structured areas + how-heard.
+    await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS photo_urls JSONB`);
+    await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS attribution JSONB`);
+    await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS service_areas JSONB`);
+    await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS how_heard TEXT`);
+    await pool.query(`ALTER TABLE profile_leads ADD COLUMN IF NOT EXISTS how_heard_detail TEXT`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_profile_leads_cc24_job ON profile_leads(cc24_job_id) WHERE cc24_job_id IS NOT NULL`);
 
     console.log('✅ Startup migrations completed');
