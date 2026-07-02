@@ -140,8 +140,9 @@ export async function sendWeeklyQrReport(pool, opts = {}) {
     const range = opts.range || priorWeekRangeET();
     const data = await fetchWeeklyReportData(pool, range);
     const adminEmail = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
-    const recipients = (process.env.QR_REPORT_RECIPIENTS || adminEmail)
-        .split(',').map((s) => s.trim()).filter(Boolean);
+    // opts.recipients (e.g. a test send) overrides the env list.
+    const recipients = (opts.recipients && opts.recipients.length ? opts.recipients : (process.env.QR_REPORT_RECIPIENTS || adminEmail).split(','))
+        .map((s) => s.trim()).filter(Boolean);
     const adminRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmail]);
     const adminUserId = adminRow.rows[0]?.id || null;
     if (!adminUserId) {

@@ -3496,9 +3496,11 @@ app.post('/api/admin/trigger-daily-summary', async (req, res) => {
 app.post('/api/admin/trigger-qr-weekly-report', async (req, res) => {
   try {
     const { sendWeeklyQrReport, priorWeekRangeET } = await import('./services/weeklyQrReportService.js');
-    const { from, to } = req.body || {};
+    const { from, to, sendTo } = req.body || {};
     const range = (from && to) ? { fromD: from, toD: to, label: `${from} – ${to}` } : priorWeekRangeET();
-    const result = await sendWeeklyQrReport(pool, { range });
+    // sendTo (comma-sep or array) overrides recipients for a test send.
+    const recipients = sendTo ? (Array.isArray(sendTo) ? sendTo : String(sendTo).split(',')).map((s: string) => s.trim()).filter(Boolean) : undefined;
+    const result = await sendWeeklyQrReport(pool, { range, recipients });
     res.json({ success: result.success, range: result.range, recipients: result.recipients, error: result.error });
   } catch (error) {
     console.error('Error triggering weekly QR report:', error);

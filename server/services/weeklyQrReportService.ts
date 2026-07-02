@@ -164,13 +164,14 @@ function renderEmail(d: Awaited<ReturnType<typeof fetchWeeklyReportData>>, r: We
 /** Build + send the weekly report. Returns per-recipient outcome. */
 export async function sendWeeklyQrReport(
   pool: pg.Pool,
-  opts: { range?: WeekRange } = {},
+  opts: { range?: WeekRange; recipients?: string[] } = {},
 ): Promise<{ success: boolean; recipients: string[]; range: WeekRange; error?: string }> {
   const range = opts.range || priorWeekRangeET();
   const data = await fetchWeeklyReportData(pool, range);
   const adminEmail = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
-  const recipients = (process.env.QR_REPORT_RECIPIENTS || adminEmail)
-    .split(',').map((s) => s.trim()).filter(Boolean);
+  // opts.recipients (e.g. a test send) overrides the env list.
+  const recipients = (opts.recipients && opts.recipients.length ? opts.recipients : (process.env.QR_REPORT_RECIPIENTS || adminEmail).split(','))
+    .map((s) => s.trim()).filter(Boolean);
 
   const adminRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmail]);
   const adminUserId: string | null = adminRow.rows[0]?.id || null;
