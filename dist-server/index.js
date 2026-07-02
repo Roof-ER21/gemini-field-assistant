@@ -2956,6 +2956,22 @@ app.post('/api/admin/trigger-daily-summary', async (req, res) => {
         });
     }
 });
+// Manually generate + send the Weekly QR Report (Oliver). Normally fires via the
+// worker cron (Mon 8am ET); this lets an admin send on demand or backfill a
+// specific week via { from, to } (YYYY-MM-DD). Emails QR_REPORT_RECIPIENTS.
+app.post('/api/admin/trigger-qr-weekly-report', async (req, res) => {
+    try {
+        const { sendWeeklyQrReport, priorWeekRangeET } = await import('./services/weeklyQrReportService.js');
+        const { from, to } = req.body || {};
+        const range = (from && to) ? { fromD: from, toD: to, label: `${from} – ${to}` } : priorWeekRangeET();
+        const result = await sendWeeklyQrReport(pool, { range });
+        res.json({ success: result.success, range: result.range, recipients: result.recipients, error: result.error });
+    }
+    catch (error) {
+        console.error('Error triggering weekly QR report:', error);
+        res.status(500).json({ success: false, error: 'Failed to trigger weekly QR report', message: error.message });
+    }
+});
 // ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================

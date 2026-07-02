@@ -515,15 +515,17 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           ORDER BY signups DESC, channel ASC
         `, p),
 
-        // ── By source family: split signups into RoofCheck vs the new V2 rep form vs
-        // legacy QR/JotForm so we can see where leads originate.
-        //   RoofCheck       = source LIKE 'roofcheck%'
-        //   Rep page (V2)   = service_type = 'Free inspection (rep page)'
-        //   QR / JotForm V1 = everything else
+        // ── By source family: split signups by origin so we can see where leads
+        // come from.
+        //   RoofCheck               = source LIKE 'roofcheck%' / '(RoofCheck)' service
+        //   Company /inspection page= service_type = 'Free inspection (company page)'
+        //   Rep page (V2)           = service_type = 'Free inspection (rep page)'
+        //   QR / JotForm V1         = everything else
         pool.query(`
           SELECT
             CASE
-              WHEN pl.source LIKE 'roofcheck%' THEN 'RoofCheck'
+              WHEN pl.source LIKE 'roofcheck%' OR pl.service_type LIKE '%RoofCheck%' THEN 'RoofCheck'
+              WHEN pl.service_type = 'Free inspection (company page)' THEN 'Company /inspection page'
               WHEN pl.service_type = 'Free inspection (rep page)' THEN 'Rep page (V2 form)'
               ELSE 'QR / JotForm (V1)'
             END AS family,

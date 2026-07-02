@@ -18,9 +18,11 @@
  * See docs/PRODUCTION_STABILITY_HANDOFF.md Phase 2 for the full design rationale.
  */
 import pg from 'pg';
+import cron from 'node-cron';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startPdfJobWorker } from './services/pdfJobQueue.js';
+import { sendWeeklyQrReport } from './services/weeklyQrReportService.js';
 const { Pool } = pg;
 // ─── Database pool ────────────────────────────────────────────────────────────
 // Mirrors the pool config in server/index.ts. Worker does mostly writes
@@ -131,6 +133,19 @@ async function main() {
     // into pdf_jobs on POST /api/hail/generate-report; this worker renders
     // them asynchronously so the web never blocks on pdfkit.
     startPdfJobWorker(pool);
+    // Weekly QR report (Oliver, 2026-07-01): per-rep scans/form-fills + lead-source
+    // breakdown, emailed Monday 8am ET for the prior full Mon–Sun. Recipients via
+    // QR_REPORT_RECIPIENTS (comma-sep); defaults to LEAD_ADMIN_EMAIL.
+    cron.schedule('0 8 * * 1', async () => {
+        try {
+            const r = await sendWeeklyQrReport(pool);
+            console.log(`[weekly-qr-report] cron sent=${r.success} range=${r.range.fromD}..${r.range.toD} to=${r.recipients.join(',')}${r.error ? ' err=' + r.error : ''}`);
+        }
+        catch (e) {
+            console.error('[weekly-qr-report] cron error:', e.message);
+        }
+    }, { timezone: 'America/New_York' });
+    console.log('[worker] Weekly QR report cron registered (Mon 8am ET)');
     // Live MRMS → Sales Team hail alert. Polls MRMS every 10 min during
     // 8 AM - 10 PM EDT, posts a single bulleted alert when >=1" cells
     // detected in DMV/PA/WV/DE. Dedup via bot_storm_alerts_sent table.
