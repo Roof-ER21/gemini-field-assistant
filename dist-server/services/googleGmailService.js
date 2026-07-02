@@ -3,7 +3,34 @@
  * Send emails and create drafts via the rep's connected Gmail account.
  */
 import { google } from 'googleapis';
+import { randomBytes } from 'crypto';
 import { getValidOAuth2Client } from './googleTokenService.js';
+// Derive a readable plaintext version from an HTML body so every email carries a
+// text/plain part (previews, minimalist clients, and accessibility all rely on
+// it — an HTML-only email shows blank where HTML isn't rendered).
+function htmlToText(html) {
+    return html
+        .replace(/<!doctype[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<\/(tr|p|div|h[1-6]|table|li)>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/td>\s*<td[^>]*>/gi, '   ') // keep table-row cells on one line
+        .replace(/<[^>]+>/g, '') // strip remaining tags
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&middot;/gi, '·')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .split('\n')
+        .map((l) => l.replace(/[ \t]{2,}/g, '  ').trim())
+        .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
 /**
  * Build an RFC 2822 message and base64url encode it for the Gmail API.
  */
@@ -17,7 +44,11 @@ function encodeSubject(subject) {
     return `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
 }
 function buildRawMessage(from, params) {
-    const lines = [
+    const boundary = `=_sa21_${randomBytes(16).toString('hex')}`;
+    const text = (params.text && params.text.trim()) ? params.text : htmlToText(params.body);
+    // Headers: filter out absent optional headers (empty strings) — an empty line
+    // here would prematurely terminate the header block.
+    const headers = [
         `From: ${from}`,
         `To: ${params.to}`,
         params.cc ? `Cc: ${params.cc}` : '',
@@ -25,11 +56,29 @@ function buildRawMessage(from, params) {
         params.replyTo ? `Reply-To: ${params.replyTo}` : '',
         `Subject: ${encodeSubject(params.subject)}`,
         'MIME-Version: 1.0',
+        `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ].filter(Boolean).join('\r\n');
+    // Body: the two alternative parts. Blank lines here are REQUIRED (they separate
+    // part headers from part content), so this list is NOT filtered. Plaintext
+    // first, HTML last (RFC 2046: least→most preferred).
+    const body = [
+        `--${boundary}`,
+        'Content-Type: text/plain; charset=utf-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        text,
+        '',
+        `--${boundary}`,
         'Content-Type: text/html; charset=utf-8',
+        'Content-Transfer-Encoding: 8bit',
         '',
         params.body,
-    ].filter(Boolean).join('\r\n');
-    return Buffer.from(lines)
+        '',
+        `--${boundary}--`,
+        '',
+    ].join('\r\n');
+    const message = `${headers}\r\n\r\n${body}`;
+    return Buffer.from(message, 'utf8')
         .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
