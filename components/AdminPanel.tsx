@@ -425,15 +425,27 @@ const AdminPanel: React.FC = () => {
     }
   }, [isMarketing, isAdmin]);
 
-  // Centralized fetch wrapper that injects both auth headers on every admin API call
-  const adminFetch = (url: string, options: RequestInit = {}) => {
+  // Centralized fetch wrapper that injects both auth headers on every admin API call.
+  // On a 401 with requiresPin (session missing/expired) it re-opens the PIN modal
+  // instead of letting callers silently render an empty/broken panel.
+  const adminFetch = async (url: string, options: RequestInit = {}) => {
     const token = adminToken || localStorage.getItem('s21_admin_token') || '';
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
       'x-user-email': currentUser?.email || '',
       ...(token ? { 'x-admin-token': token } : {}),
     };
-    return fetch(url, { ...options, headers });
+    const resp = await fetch(url, { ...options, headers });
+    if (resp.status === 401) {
+      try {
+        const body = await resp.clone().json();
+        if (body?.requiresPin) {
+          setPinMode('verify');
+          setShowPinModal(true);
+        }
+      } catch { /* non-JSON 401 — leave to caller */ }
+    }
+    return resp;
   };
 
   // PIN success/cancel handlers
@@ -483,17 +495,21 @@ const AdminPanel: React.FC = () => {
     checkAdminAuth();
   }, [canManageQR]);
 
+  // Only load admin data once the PIN session is confirmed — otherwise these
+  // fire on mount with an expired token, 401, and leave the panel looking empty.
+  // Gating on adminAuthChecked also means they re-run automatically right after
+  // handlePinSuccess flips it true (no manual refetch / page reload needed).
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && adminAuthChecked) {
       fetchUsers();
     }
-  }, [isAdmin]);
+  }, [isAdmin, adminAuthChecked]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && adminAuthChecked) {
       fetchLeaderboardSyncStatus();
     }
-  }, [isAdmin]);
+  }, [isAdmin, adminAuthChecked]);
 
   // Fetch emails when emails tab is active
   useEffect(() => {
