@@ -11,6 +11,7 @@ import { OAuth2Client } from 'google-auth-library';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { captureToGlitchTip } from './lib/glitchtip.js';
 // Admin PIN hashing helpers (scrypt — no external dependencies)
 function hashPin(pin) {
     return new Promise((resolve, reject) => {
@@ -112,9 +113,11 @@ startMemoryHeartbeat(60_000);
 app.use(memoryDeltaMiddleware({ minDeltaMB: 10, minDurationMs: 1000 }));
 process.on('uncaughtException', (error) => {
     console.error('🚨 Uncaught exception:', error);
+    captureToGlitchTip({ endpoint: 'process.uncaughtException', message: String(error?.message || error), stack: error?.stack, level: 'fatal' });
 });
 process.on('unhandledRejection', (error) => {
     console.error('🚨 Unhandled rejection:', error);
+    captureToGlitchTip({ endpoint: 'process.unhandledRejection', message: String(error?.message || error), stack: error?.stack });
 });
 httpServer.on('error', (error) => {
     console.error('🚨 HTTP server error:', error);
@@ -8234,6 +8237,7 @@ app.get('/api/insurance/companies', async (req, res) => {
 // ============================================================================
 app.use((err, req, res, next) => {
     console.error('Server error:', err);
+    captureToGlitchTip({ endpoint: `${req.method} ${req.path}`, message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Internal server error' });
 });
 // ============================================================================
