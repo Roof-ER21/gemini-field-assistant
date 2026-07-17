@@ -930,25 +930,37 @@ class MemoryService {
         pattern.outcomeDate = new Date().toISOString();
 
         emailMemory.value = JSON.stringify(pattern);
+        const originalConfidence = emailMemory.confidence;
 
-        // Update confidence based on outcome
-        if (outcome.success) {
-          emailMemory.confidence = Math.min(1.0, emailMemory.confidence + 0.2);
-          emailMemory.times_helpful++;
-        } else {
-          emailMemory.confidence = Math.max(0.1, emailMemory.confidence - 0.3);
-          emailMemory.times_incorrect++;
-        }
-
-        emailMemory.last_updated = new Date().toISOString();
-
-        // Save updated memory
         if (this.useLocalStorage) {
+          // Update confidence based on outcome
+          if (outcome.success) {
+            emailMemory.confidence = Math.min(1.0, emailMemory.confidence + 0.2);
+            emailMemory.times_helpful++;
+          } else {
+            emailMemory.confidence = Math.max(0.1, emailMemory.confidence - 0.3);
+            emailMemory.times_incorrect++;
+          }
+          emailMemory.last_updated = new Date().toISOString();
           const storageKey = `user_memories_${email}`;
           localStorage.setItem(storageKey, JSON.stringify(memories));
         } else {
-          // API update would go here
-          console.log(`[MemoryService] Updated email outcome for ${patternId}`);
+          // Persist the updated pattern value server-side. The upsert only accepts a
+          // new value when confidence isn't lower, so save at the unchanged confidence
+          // and let the feedback endpoint move confidence + helpful/incorrect counters.
+          await this.saveMemories([{
+            memory_type: emailMemory.memory_type,
+            category: emailMemory.category,
+            key: emailMemory.key,
+            value: emailMemory.value,
+            confidence: originalConfidence,
+            source_type: 'outcome_feedback',
+          }]);
+          await this.updateMemoryFeedback(
+            emailMemory.id,
+            outcome.success ? 'helpful' : 'incorrect'
+          );
+          console.log(`[MemoryService] Persisted email outcome for ${patternId} to server`);
         }
       } catch (error) {
         console.error('[MemoryService] Error updating email outcome:', error);

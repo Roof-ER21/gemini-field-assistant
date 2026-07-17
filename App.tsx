@@ -85,6 +85,17 @@ const AdminDivisionToggle: React.FC = () => {
   );
 };
 
+/** Brand title — SA21 in insurance mode, SA24 in retail mode */
+const BrandTitle: React.FC = () => {
+  const { isRetail } = useDivision();
+  return (
+    <div className="roof-er-brand-title" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
+      <span className="roof-er-brand-name" style={{ fontSize: '18px' }}>SA<span className="roof-er-brand-accent">{isRetail ? '24' : '21'}</span></span>
+      <span style={{ fontSize: '10px', letterSpacing: '0.18em', color: 'var(--text-tertiary)', fontWeight: 600 }}>FIELD ASSISTANT</span>
+    </div>
+  );
+};
+
 /** Small gate component — shows division selector only for truly new users */
 const DivisionGate: React.FC = () => {
   const { hasDivision, setDivision } = useDivision();
@@ -530,10 +541,7 @@ const App: React.FC = () => {
               alt="RoofER"
             />
           </div>
-          <div className="roof-er-brand-title" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-            <span className="roof-er-brand-name" style={{ fontSize: '18px' }}>SA<span className="roof-er-brand-accent">24</span></span>
-            <span style={{ fontSize: '10px', letterSpacing: '0.18em', color: 'var(--text-tertiary)', fontWeight: 600 }}>FIELD ASSISTANT</span>
-          </div>
+          <BrandTitle />
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>
         </div>
         <div className="roof-er-header-actions">

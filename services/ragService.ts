@@ -4,6 +4,10 @@ export interface RAGContext {
   query: string;
   sources: SearchResult[];
   enhancedPrompt: string;
+  /** KB docs + citation rules + state guidance, WITHOUT a persona/base prompt.
+   *  Append this to an existing system prompt — never replace the prompt with it,
+   *  or all per-rep memory/identity context gets lost. */
+  knowledgeBlock: string;
 }
 
 /**
@@ -25,11 +29,13 @@ export const ragService = {
 
       // Build enhanced prompt with context
       const enhancedPrompt = this.buildEnhancedPrompt(query, sources, selectedState);
+      const knowledgeBlock = this.buildKnowledgeBlock(sources, selectedState);
 
       return {
         query,
         sources,
-        enhancedPrompt
+        enhancedPrompt,
+        knowledgeBlock
       };
     } catch (error) {
       console.error('Error building RAG context:', error);
@@ -37,9 +43,66 @@ export const ragService = {
       return {
         query,
         sources: [],
-        enhancedPrompt: query
+        enhancedPrompt: query,
+        knowledgeBlock: ''
       };
     }
+  },
+
+  /**
+   * Build the knowledge-base context block for APPENDING to an existing system prompt.
+   * Contains citation rules, retrieved documents, and state guidance — but no base
+   * persona and no USER QUESTION, so per-rep memory context stays intact.
+   */
+  buildKnowledgeBlock(sources: SearchResult[], selectedState?: string): string {
+    if (sources.length === 0) return '';
+
+    let block = `\n${'='.repeat(80)}\nRELEVANT KNOWLEDGE BASE DOCUMENTS (retrieved for this query):\n\n`;
+
+    sources.forEach((source, index) => {
+      const docNum = index + 1;
+      block += `[Document ${docNum}]: ${source.document.name}\n`;
+      block += `Category: ${source.document.category}\n`;
+      block += `Content:\n${source.content}\n`;
+      block += `${'='.repeat(80)}\n\n`;
+    });
+
+    block += `CITATION RULES (MANDATORY):
+- Cite EVERY fact taken from the documents above using [1], [2], [3] immediately after the fact.
+- [1] = Document 1, [2] = Document 2, etc. Never write "According to Document 1" — use [1].
+- Multiple citations may be combined: "IRC R908.3 requires matching [1] with 89% success [2]".
+- If the documents don't fully answer the question, supplement with general knowledge and say so clearly.`;
+
+    block += this.getStateGuidance(selectedState);
+
+    return block;
+  },
+
+  /** State-specific (or tri-state-safe) argument guidance */
+  getStateGuidance(selectedState?: string): string {
+    if (selectedState) {
+      const stateRules: Record<string, string> = {
+        'MD': `**MARYLAND-SPECIFIC RULES (CRITICAL):**
+- Maryland building codes require contractors to ensure UNIFORM APPEARANCE across roof planes (IRC R908.3)
+- As the licensed contractor, you CANNOT perform work that violates these code requirements
+- Frame as: "Code-compliant work requires full replacement when matching materials are unavailable"
+- Key language: "The homeowner may share this technical documentation with their insurance"
+- This is your strongest CONTRACTOR documentation argument in Maryland`,
+        'VA': `**VIRGINIA-SPECIFIC RULES (CRITICAL):**
+- Virginia does NOT require matching UNLESS the policy has a matching endorsement
+- DO NOT use matching arguments in VA without confirming matching endorsement exists
+- Instead, use: Repairability arguments, differing dimensions, missed storm damage
+- Focus on brittleness tests and repair attempt documentation`,
+        'PA': `**PENNSYLVANIA-SPECIFIC RULES (CRITICAL):**
+- Pennsylvania does NOT require matching UNLESS the policy has a matching endorsement
+- DO NOT use matching arguments in PA without confirming matching endorsement exists
+- Instead, use: Permit denials (very effective), repairability, differing dimensions
+- Focus on township requirements and building code compliance`
+      };
+      const rules = stateRules[selectedState];
+      return rules ? `\n\n${rules}\n` : '';
+    }
+    return `\n\n**TRI-STATE GUIDANCE (NO STATE SELECTED):**\n- Do NOT assume a state. Provide guidance that applies across VA, MD, and PA.\n- When rules differ by state, clearly call out the differences per state.\n- Do NOT use Maryland-only matching arguments unless the user confirms MD.\n- Prefer universal items (repairability, documentation, clear photos, code-compliant methods).\n`;
   },
 
   /**
@@ -94,35 +157,7 @@ ${'='.repeat(80)}
     });
 
     // Add state-specific or tri-state guidance
-    let stateGuidance = '';
-    if (selectedState) {
-      const stateRules: Record<string, string> = {
-        'MD': `**MARYLAND-SPECIFIC RULES (CRITICAL):**
-- Maryland building codes require contractors to ensure UNIFORM APPEARANCE across roof planes (IRC R908.3)
-- As the licensed contractor, you CANNOT perform work that violates these code requirements
-- Frame as: "Code-compliant work requires full replacement when matching materials are unavailable"
-- Key language: "The homeowner may share this technical documentation with their insurance"
-- This is your strongest CONTRACTOR documentation argument in Maryland`,
-        'VA': `**VIRGINIA-SPECIFIC RULES (CRITICAL):**
-- Virginia does NOT require matching UNLESS the policy has a matching endorsement
-- DO NOT use matching arguments in VA without confirming matching endorsement exists
-- Instead, use: Repairability arguments, differing dimensions, missed storm damage
-- Focus on brittleness tests and repair attempt documentation`,
-        'PA': `**PENNSYLVANIA-SPECIFIC RULES (CRITICAL):**
-- Pennsylvania does NOT require matching UNLESS the policy has a matching endorsement
-- DO NOT use matching arguments in PA without confirming matching endorsement exists
-- Instead, use: Permit denials (very effective), repairability, differing dimensions
-- Focus on township requirements and building code compliance`
-      };
-
-      stateGuidance = stateRules[selectedState] || '';
-      if (stateGuidance) {
-        stateGuidance = `\n\n${stateGuidance}\n`;
-      }
-    } else {
-      // No state selected: enforce generic, tri-state safe guidance
-      stateGuidance = `\n\n**TRI-STATE GUIDANCE (NO STATE SELECTED):**\n- Do NOT assume a state. Provide guidance that applies across VA, MD, and PA.\n- When rules differ by state, clearly call out the differences per state.\n- Do NOT use Maryland-only matching arguments unless the user confirms MD.\n- Prefer universal items (repairability, documentation, clear photos, code-compliant methods).\n`;
-    }
+    const stateGuidance = this.getStateGuidance(selectedState);
 
     // Build the enhanced prompt with citation instructions FIRST
     const enhancedPrompt = `${citationInstructions}${contextSection}

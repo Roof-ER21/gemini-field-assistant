@@ -617,7 +617,14 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(15, 17, 23, 0.96) 0%, rgba(8, 8, 10, 0.98) 100%);
+  /* layered: fine dot grid > brand-red top glow > corner accents > base gradient */
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1.5px),
+    radial-gradient(ellipse 90% 55% at 50% -12%, rgba(196, 30, 58, 0.12), transparent 60%),
+    radial-gradient(circle at 88% 92%, rgba(196, 30, 58, 0.06), transparent 42%),
+    radial-gradient(circle at 8% 70%, rgba(59, 130, 246, 0.045), transparent 38%),
+    linear-gradient(180deg, rgba(15, 17, 23, 0.96) 0%, rgba(8, 8, 10, 0.98) 100%);
+  background-size: 26px 26px, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
   pointer-events: none;
   z-index: 0;
 }

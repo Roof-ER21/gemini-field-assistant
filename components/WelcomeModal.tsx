@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import memoryService from '../services/memoryService';
+import { authService } from '../services/authService';
 
 interface WelcomeModalProps {
   isFirstLogin: boolean;
@@ -8,10 +9,18 @@ interface WelcomeModalProps {
 }
 
 const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete }) => {
-  const [nickname, setNickname] = useState('');
+  const user = authService.getCurrentUser();
+  const suggestedName = (user?.name || '').trim().split(/\s+/)[0] || '';
+  const [nickname, setNickname] = useState(suggestedName);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [showGreeting, setShowGreeting] = useState(!isFirstLogin);
   const [greetingMessage, setGreetingMessage] = useState('');
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => timersRef.current.forEach(clearTimeout);
+  }, []);
 
   // Generate time-aware greeting for returning users
   useEffect(() => {
@@ -29,16 +38,13 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
             `Welcome back, ${savedNickname}! Let's get after it.`,
             `Good ${timeOfDay}, ${savedNickname}! What are we conquering today?`,
             `${savedNickname}! Good to see you back. Let's crush it.`,
-            `Yo ${savedNickname}! Time to make it happen.`,
           ];
 
           const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
           setGreetingMessage(randomGreeting);
 
           // Auto-dismiss after 5 seconds
-          setTimeout(() => {
-            onComplete();
-          }, 5000);
+          timersRef.current.push(setTimeout(onComplete, 5000));
         } else {
           // No nickname found, shouldn't happen but handle gracefully
           onComplete();
@@ -54,6 +60,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
     if (!nickname.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
+    setSaveError(false);
     try {
       await memoryService.setUserNickname(nickname.trim());
 
@@ -62,11 +69,10 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
       setGreetingMessage(`Great to meet you, ${nickname.trim()}! I'm here to help with anything you need.`);
 
       // Close modal after 2 seconds
-      setTimeout(() => {
-        onComplete();
-      }, 2000);
+      timersRef.current.push(setTimeout(onComplete, 2000));
     } catch (error) {
       console.error('Error saving nickname:', error);
+      setSaveError(true);
       setIsSubmitting(false);
     }
   };
@@ -74,109 +80,173 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
   // First login flow - nickname collection
   if (isFirstLogin && !showGreeting) {
     return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '16px'
-      }}>
-        <div style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderRadius: '16px',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
-          maxWidth: '400px',
-          width: '100%',
-          overflow: 'hidden'
-        }}>
+      <div
+        className="welcome-modal-overlay"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px',
+          overflowY: 'auto',
+        }}
+      >
+        <style>{`
+          @keyframes welcome-card-in {
+            from { opacity: 0; transform: translateY(16px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes welcome-ring-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+            50% { box-shadow: 0 0 0 12px rgba(220, 38, 38, 0); }
+          }
+        `}</style>
+        <div
+          style={{
+            backgroundColor: 'var(--bg-elevated, #2d2d2d)',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6)',
+            maxWidth: '420px',
+            width: '100%',
+            maxHeight: 'calc(100dvh - 32px)',
+            overflowY: 'auto',
+            animation: 'welcome-card-in 0.35s ease-out',
+          }}
+        >
           {/* Susan Avatar Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-            padding: '24px',
-            textAlign: 'center',
-            color: '#ffffff'
-          }}>
+          <div
+            style={{
+              background: 'linear-gradient(150deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%)',
+              padding: '28px 24px 24px',
+              textAlign: 'center',
+              color: '#ffffff',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {/* soft glow accents */}
             <div style={{
-              width: '96px',
-              height: '96px',
-              margin: '0 auto 16px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '4px solid rgba(255, 255, 255, 0.2)'
-            }}>
+              position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px',
+              borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'absolute', bottom: '-60px', left: '-30px', width: '140px', height: '140px',
+              borderRadius: '50%', background: 'rgba(0,0,0,0.12)', pointerEvents: 'none',
+            }} />
+            <div
+              style={{
+                width: '92px',
+                height: '92px',
+                margin: '0 auto 14px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '3px solid rgba(255, 255, 255, 0.3)',
+                animation: 'welcome-ring-pulse 2.5s ease-in-out infinite',
+                position: 'relative',
+              }}
+            >
               <img
                 src="/roofer-s21-logo.webp"
                 alt="Susan 21"
-                style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '78px', height: '78px', borderRadius: '50%', objectFit: 'cover' }}
               />
             </div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>Welcome to the team!</h2>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, letterSpacing: '-0.01em', position: 'relative' }}>
+              Welcome to the team!
+            </h2>
+            <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.85)', position: 'relative' }}>
+              I'm <strong>Susan 21</strong>, your AI field assistant.
+            </p>
           </div>
 
           {/* Content */}
           <div style={{ padding: '24px' }}>
-            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '18px', marginBottom: '8px' }}>
-                I'm <span style={{ fontWeight: 'bold', color: '#c41e3a' }}>Susan 21</span>, your AI assistant.
-              </p>
-              <p style={{ color: 'var(--text-tertiary)' }}>
-                What would you like me to call you?
-              </p>
-            </div>
+            <p style={{ color: 'var(--text-secondary, #c0c0c0)', fontSize: '15px', margin: '0 0 16px', textAlign: 'center' }}>
+              What should I call you?
+            </p>
 
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '24px' }}>
-                <input
-                  type="text"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  placeholder="Enter your nickname..."
-                  autoFocus
-                  maxLength={50}
-                  disabled={isSubmitting}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid var(--border-default)',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    color: 'var(--text-primary)',
-                    background: 'var(--bg-secondary)'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#dc2626'}
-                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                />
-              </div>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Your name or nickname..."
+                autoFocus
+                maxLength={50}
+                disabled={isSubmitting}
+                style={{
+                  width: '100%',
+                  padding: '13px 16px',
+                  border: '2px solid var(--border-default, #2a2a2a)',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  color: 'var(--text-primary, #ffffff)',
+                  background: 'var(--bg-secondary, #0a0a0a)',
+                  textAlign: 'center',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#dc2626')}
+                onBlur={(e) => (e.target.style.borderColor = 'var(--border-default, #2a2a2a)')}
+              />
+
+              {saveError && (
+                <p style={{ color: '#f87171', fontSize: '13px', margin: '10px 0 0', textAlign: 'center' }}>
+                  Couldn't save that — check your connection and try again.
+                </p>
+              )}
 
               <button
                 type="submit"
                 disabled={!nickname.trim() || isSubmitting}
                 style={{
                   width: '100%',
+                  marginTop: '16px',
                   padding: '14px',
-                  backgroundColor: (!nickname.trim() || isSubmitting) ? 'var(--text-disabled)' : '#dc2626',
-                  color: 'var(--text-primary)',
+                  background: (!nickname.trim() || isSubmitting)
+                    ? 'var(--bg-tertiary, #1a1a1a)'
+                    : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: (!nickname.trim() || isSubmitting) ? 'var(--text-disabled, #666666)' : '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: (!nickname.trim() || isSubmitting) ? 'not-allowed' : 'pointer'
+                  fontWeight: 700,
+                  cursor: (!nickname.trim() || isSubmitting) ? 'not-allowed' : 'pointer',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                  boxShadow: (!nickname.trim() || isSubmitting) ? 'none' : '0 6px 18px rgba(220, 38, 38, 0.35)',
                 }}
               >
-                {isSubmitting ? 'Saving...' : 'Let\'s Go!'}
+                {isSubmitting ? 'Saving...' : "Let's Go!"}
               </button>
             </form>
+
+            <button
+              type="button"
+              onClick={onComplete}
+              style={{
+                display: 'block',
+                margin: '14px auto 0',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-tertiary, #808080)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              I'll do this later
+            </button>
           </div>
         </div>
       </div>
@@ -186,7 +256,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
   // Greeting message (first login success or returning user)
   if (showGreeting) {
     return (
-      <div className="fixed top-0 left-0 right-0 z-50 p-4 pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 p-4 pointer-events-none" style={{ zIndex: 9999 }}>
         <div className="max-w-2xl mx-auto pointer-events-auto">
           <div
             className="text-white rounded-lg shadow-2xl p-4 flex items-center justify-between animate-slide-down cursor-pointer"

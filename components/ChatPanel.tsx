@@ -1343,10 +1343,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
       if (useRAG) {
         console.log('[RAG] Enhancing query with knowledge base...');
         const ragContext = await ragService.buildRAGContext(originalQuery, 3, selectedState || undefined);
-        systemPrompt = ragContext.enhancedPrompt.split('USER QUESTION:')[0];
-        // Keep the uploaded file content in userPrompt
-        if (uploadedFiles.length === 0) {
-          userPrompt = originalQuery;
+        // APPEND the KB block — replacing systemPrompt here would wipe out the rep's
+        // identity, memories, job/storm context, and personalization built above.
+        if (ragContext.knowledgeBlock) {
+          systemPrompt += `\n\n${ragContext.knowledgeBlock}`;
         }
         sources = ragContext.sources;
         console.log(`[RAG] Found ${sources.length} relevant documents${selectedState ? ` (State: ${selectedState})` : ''}`);
@@ -1656,18 +1656,39 @@ Generate ONLY the email body text, no subject line or metadata.`;
     localStorage.setItem('chatHistory', JSON.stringify(sessionMessages));
   };
 
+  // Summarize a session into long-term memory (server upserts per session, so
+  // repeat calls are safe; the marker just avoids redundant Gemini calls).
+  const lastSummarizedRef = useRef('');
+  const summarizeSession = useCallback((sessionId: string, msgs: typeof messages) => {
+    const userEmail = authService.getCurrentUser()?.email;
+    if (!userEmail || !sessionId || msgs.length < 4) return;
+    const marker = `${sessionId}:${msgs.length}`;
+    if (lastSummarizedRef.current === marker) return;
+    lastSummarizedRef.current = marker;
+    fetch(`${API_BASE_URL}/susan/agent/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
+      // last 40 messages keeps the keepalive body under its 64KB cap
+      body: JSON.stringify({ sessionId, messages: msgs.slice(-40) }),
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
+  // Reps on the PWA rarely tap "New Chat" — without this, sessions never became
+  // long-term memory. Summarize whenever the app is backgrounded or closed.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') {
+        summarizeSession(currentSessionId, messages);
+      }
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [messages, currentSessionId, summarizeSession]);
+
   const handleNewChat = () => {
     // Summarize the old session before starting fresh (fire and forget)
-    const oldMessages = messages;
-    const oldSessionId = currentSessionId;
-    const userEmail = authService.getCurrentUser()?.email;
-    if (oldMessages.length >= 4 && userEmail) {
-      fetch(`${API_BASE_URL}/susan/agent/summarize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': userEmail },
-        body: JSON.stringify({ sessionId: oldSessionId, messages: oldMessages }),
-      }).catch(() => {});
-    }
+    summarizeSession(currentSessionId, messages);
 
     const newSessionId = `session-${Date.now()}`;
     setCurrentSessionId(newSessionId);
