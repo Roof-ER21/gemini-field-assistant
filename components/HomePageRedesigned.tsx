@@ -15,7 +15,11 @@ import {
   AlertTriangle,
   User,
   Globe,
-  FileText
+  FileText,
+  Flame,
+  Lightbulb,
+  BookOpen,
+  RefreshCw
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -109,6 +113,48 @@ interface WeatherData {
   icon: React.ComponentType<any>;
 }
 
+// Daily motivation pool — rotates by day, tap to cycle (max 5 refreshes/day)
+const MOTIVATION_POOL = [
+  "Every door you don't knock is a yes you'll never hear.",
+  "The rep who follows up wins the job the first visit started.",
+  "Storms don't schedule appointments. Neither should your hustle wait.",
+  "You're not selling roofs. You're protecting families from the next storm.",
+  "One more door. That's the whole secret.",
+  "Adjusters respect reps who show up with documentation, not opinions.",
+  "Your pipeline is built on the days you didn't feel like knocking.",
+  "Be so thorough the insurance company can't say no.",
+  "The best time to canvass was after the storm. The second best time is now.",
+  "Homeowners don't remember the pitch. They remember who showed up.",
+  "Slow day? That's what separates the pros from the seasonal guys.",
+  "Every 'no' is data. Every 'yes' is momentum. Both move you forward.",
+  "Your next referral is watching how you handle this job.",
+  "Win the morning: first door by 10, first conversation by 10:05.",
+  "Claims get approved on evidence. Bring receipts, not vibes.",
+  "The roof doesn't lie. Document what's there and let it talk.",
+];
+
+// General field tips by division — rotates daily, tap to cycle
+const FIELD_TIPS: Record<'insurance' | 'retail', string[]> = {
+  insurance: [
+    "Hail divots fill with water, freeze, and expand — that's why 'minor' damage becomes leaks. Use this with hesitant homeowners.",
+    "Frame it for adjusters: 'Code-compliant repair requires…' beats 'we think it needs…' every time.",
+    "Photograph every slope, even clean ones. Proving what's NOT damaged builds credibility for what is.",
+    "Were you home for the storm? — the single best door opener after weather hits.",
+    "Think of yourself like a lawyer: the damage is evidence, the claim is the case.",
+    "Get the brittleness test on camera. A failed repair attempt is your strongest argument in VA and PA.",
+    "Always ask who their carrier is early — it shapes every argument you'll make.",
+  ],
+  retail: [
+    "Point at the neighbor's project: 'We're doing the Johnsons' place up the street' beats any script.",
+    "'Afternoons or evenings better for you?' — always give two yeses, never a yes/no.",
+    "'Not interested' → 'Totally fair — we do windows, siding, doors and solar too. What's next on your list?'",
+    "Hot day? Lead with energy savings. Cold day? Lead with drafts. The weather is your co-pitch.",
+    "My job is simple: get your name, find a time that works, leave a flyer. Low pressure sets appointments.",
+    "'Have a guy'? Great — a second quote keeps him honest. No harm in options.",
+    "Both decision-makers at the appointment = half the cancellations.",
+  ],
+};
+
 const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel, userEmail }) => {
   const { isRetail } = useDivision();
   const user = authService.getCurrentUser();
@@ -117,6 +163,26 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   const [topIntel, setTopIntel] = useState<string | null>(null);
   const [stormSummary, setStormSummary] = useState<{ count: number; maxMagnitude: number | null } | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [summaries, setSummaries] = useState<Array<{ summary: string; topics: string[]; action_items: string[] }>>([]);
+  const [playbook, setPlaybook] = useState<string[]>([]);
+  const [playbookIdx, setPlaybookIdx] = useState(0);
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  const [tipIdx, setTipIdx] = useState(dayOfYear);
+  const [motdIdx, setMotdIdx] = useState(() => {
+    const saved = parseInt(localStorage.getItem('susan_motd_idx') || '', 10);
+    return Number.isFinite(saved) ? saved : dayOfYear;
+  });
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const motdRefreshesUsed = parseInt(localStorage.getItem(`susan_motd_count_${todayKey}`) || '0', 10);
+  const cycleMotivation = () => {
+    if (motdRefreshesUsed >= 5) return;
+    const next = motdIdx + 1;
+    setMotdIdx(next);
+    localStorage.setItem('susan_motd_idx', String(next));
+    localStorage.setItem(`susan_motd_count_${todayKey}`, String(motdRefreshesUsed + 1));
+  };
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -222,9 +288,38 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       .catch(() => {});
   }, [userEmail, isRetail]);
 
+  // Susan board: rep's recent conversation summaries + company playbook
+  useEffect(() => {
+    if (!userEmail) return;
+    const headers = { 'x-user-email': userEmail };
+    const parseArr = (v: unknown): string[] => {
+      if (Array.isArray(v)) return v.filter(Boolean).map(String);
+      if (typeof v === 'string') { try { return JSON.parse(v) || []; } catch { return []; } }
+      return [];
+    };
+
+    fetch('/api/memory/summaries?limit=3', { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        setSummaries(rows.filter((r: any) => r?.summary).map((r: any) => ({
+          summary: String(r.summary),
+          topics: parseArr(r.topics),
+          action_items: parseArr(r.action_items),
+        })));
+      })
+      .catch(() => {});
+
+    fetch('/api/learning/global?limit=6', { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const learnings = Array.isArray(d?.learnings) ? d.learnings : [];
+        setPlaybook(learnings.map((l: any) => String(l.content)).filter(Boolean));
+      })
+      .catch(() => {});
+  }, [userEmail]);
+
   const greeting = getGreeting();
-  const GreetingIcon = greeting.icon;
-  const WeatherIcon = weather?.icon || Cloud;
   const weatherQuote = weather ? getWeatherQuote(weather.condition) : null;
   const hasRecentStorms = !isRetail && stormSummary && stormSummary.count > 0;
 
@@ -236,8 +331,6 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
     { id: 'email', title: 'Email', description: 'Generate emails', icon: Mail, accent: '#dc2626', accentSoft: 'rgba(220,38,38,0.45)', accentGlow: 'rgba(220,38,38,0.14)' },
     { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: FileText, accent: '#f59e0b', accentSoft: 'rgba(245,158,11,0.45)', accentGlow: 'rgba(245,158,11,0.14)' },
   ];
-  const accent = isRetail ? '#3b82f6' : '#dc2626';
-  const accentFaint = isRetail ? 'rgba(59,130,246,' : 'rgba(220,38,38,';
 
   return (
     <div style={{
@@ -264,26 +357,6 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
           </h1>
           <div className={`ember-rule${isRetail ? ' ember-rule--retail' : ''}`} />
         </div>
-
-        {/* Weather pill */}
-        {weather && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-subtle)',
-            flexShrink: 0,
-          }}>
-            <WeatherIcon style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{weather.temp}°</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {weather.description}
-            </span>
-          </div>
-        )}
       </div>
 
       <div style={{ padding: '0 1rem 1.5rem' }}>
@@ -315,88 +388,188 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
             </div>
             <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />
           </div>
-        ) : weatherQuote ? (
-          <div style={{
-            background: `${accentFaint}0.06)`,
-            border: `1px solid ${accentFaint}0.15)`,
-            borderRadius: '14px',
-            padding: '0.875rem 1rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'flex-start',
-          }}>
-            <WeatherIcon style={{ width: '16px', height: '16px', color: accent, flexShrink: 0, marginTop: '1px' }} />
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, fontStyle: 'italic' }}>
-              {weatherQuote}
-            </div>
-          </div>
         ) : null}
 
-        {/* Recent Conversations */}
-        {recentChats.length > 0 && (
-          <div style={{ marginBottom: '0.75rem' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-disabled)', letterSpacing: '0.12em', marginBottom: '6px', paddingLeft: '2px' }}>
-              RECENT CONVERSATIONS
-            </div>
-            {recentChats.map((chat, i) => (
-              <div
-                key={i}
-                onClick={() => setActivePanel('chat')}
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '10px',
-                  padding: '0.7rem 0.875rem',
-                  marginBottom: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <MessageSquare style={{ width: '14px', height: '14px', color: 'var(--text-disabled)', flexShrink: 0 }} />
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {chat.text}
-                </div>
-                <ChevronRight style={{ width: '12px', height: '12px', color: 'var(--text-disabled)', flexShrink: 0 }} />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* ===== Susan's Board — 6 cards: history, playbook, tips, fire, weather ===== */}
+        {(() => {
+          type BoardCard = {
+            id: string;
+            eyebrow: string;
+            accent: string;
+            glow: string;
+            icon: React.ComponentType<any>;
+            body: string;
+            detail?: string;
+            actionLabel?: string;
+            onAction?: () => void;
+            onCycle?: () => void;
+            cycleDisabled?: boolean;
+          };
 
-        {/* Top Team Intel */}
-        {topIntel && (
-          <div
-            onClick={() => setActivePanel('knowledge')}
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '14px',
-              padding: '0.875rem 1rem',
-              marginBottom: '0.75rem',
-              display: 'flex',
-              gap: '10px',
-              alignItems: 'flex-start',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            <ThumbsUp style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', letterSpacing: '0.12em', marginBottom: '3px' }}>
-                TOP TEAM TIP
+          const tips = FIELD_TIPS[isRetail ? 'retail' : 'insurance'];
+          const cards: BoardCard[] = [];
+
+          // Fallback while server summaries are still sparse: local chat history
+          if (summaries.length === 0 && recentChats.length > 0) {
+            cards.push({
+              id: 'history-local',
+              eyebrow: 'FROM YOUR RECENT CHATS',
+              accent: '#dc2626', glow: 'rgba(220,38,38,0.14)',
+              icon: MessageSquare,
+              body: recentChats[0].text,
+              detail: recentChats[1]?.text,
+              actionLabel: 'Continue with Susan',
+              onAction: () => setActivePanel('chat'),
+            });
+          }
+
+          // 1–2: the rep's own recent conversations with Susan
+          summaries.slice(0, 2).forEach((s, i) => {
+            cards.push({
+              id: `history-${i}`,
+              eyebrow: i === 0 ? 'PICK UP WHERE WE LEFT OFF' : 'FROM YOUR RECENT CHATS',
+              accent: '#dc2626', glow: 'rgba(220,38,38,0.14)',
+              icon: MessageSquare,
+              body: s.summary,
+              detail: s.action_items[0]
+                ? `Still open: ${s.action_items[0]}`
+                : (s.topics[0] ? `Topic: ${s.topics[0]}` : undefined),
+              actionLabel: 'Continue with Susan',
+              onAction: () => setActivePanel('chat'),
+            });
+          });
+
+          // Top team tip (peer intel)
+          if (topIntel) {
+            cards.push({
+              id: 'intel',
+              eyebrow: 'TOP TEAM TIP',
+              accent: '#10b981', glow: 'rgba(16,185,129,0.14)',
+              icon: ThumbsUp,
+              body: topIntel,
+              actionLabel: 'Ask Susan about it',
+              onAction: () => setActivePanel('chat'),
+            });
+          }
+
+          // Company playbook (admin-approved universal learnings)
+          if (playbook.length > 0) {
+            cards.push({
+              id: 'playbook',
+              eyebrow: 'COMPANY PLAYBOOK',
+              accent: '#8b5cf6', glow: 'rgba(139,92,246,0.14)',
+              icon: BookOpen,
+              body: playbook[playbookIdx % playbook.length],
+              onCycle: playbook.length > 1 ? () => setPlaybookIdx(i => i + 1) : undefined,
+            });
+          }
+
+          // General field tip — rotates daily, tap to cycle. Sits in the flex
+          // pool: it yields its seat when personalized content fills the board.
+          cards.push({
+            id: 'tip',
+            eyebrow: 'FIELD TIP',
+            accent: '#3b82f6', glow: 'rgba(59,130,246,0.14)',
+            icon: Lightbulb,
+            body: tips[tipIdx % tips.length],
+            onCycle: () => setTipIdx(i => i + 1),
+          });
+
+          // Daily fire + weather always get a seat
+          const required: BoardCard[] = [{
+            id: 'motd',
+            eyebrow: 'DAILY FIRE',
+            accent: '#f59e0b', glow: 'rgba(245,158,11,0.14)',
+            icon: Flame,
+            body: MOTIVATION_POOL[motdIdx % MOTIVATION_POOL.length],
+            onCycle: cycleMotivation,
+            cycleDisabled: motdRefreshesUsed >= 5,
+          }];
+          if (weather) {
+            required.push({
+              id: 'weather',
+              eyebrow: "TODAY'S CONDITIONS",
+              accent: '#38bdf8', glow: 'rgba(56,189,248,0.14)',
+              icon: weather.icon,
+              body: `${weather.temp}° — ${weather.description}`,
+              detail: weatherQuote || undefined,
+            });
+          }
+
+          const board = [...cards.slice(0, 6 - required.length), ...required];
+
+          // Backfill with extra field tips so the board always shows 6
+          let fillIdx = 1;
+          while (board.length < 6 && fillIdx < tips.length) {
+            board.push({
+              id: `tip-fill-${fillIdx}`,
+              eyebrow: 'FIELD TIP',
+              accent: '#3b82f6', glow: 'rgba(59,130,246,0.14)',
+              icon: Lightbulb,
+              body: tips[(tipIdx + fillIdx) % tips.length],
+            });
+            fillIdx++;
+          }
+
+          return (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-disabled)', letterSpacing: '0.12em', marginBottom: '8px', paddingLeft: '2px' }}>
+                SUSAN'S BOARD
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                {topIntel}
+              <div className="susan-board">
+                {board.map(card => {
+                  const CardIcon = card.icon;
+                  const isExpanded = expandedCard === card.id;
+                  return (
+                    <div
+                      key={card.id}
+                      className={`sb-card${isExpanded ? ' sb-card--expanded' : ''}`}
+                      style={{
+                        '--qa-accent': card.accent,
+                        '--qa-accent-soft': card.accent + '73',
+                        '--qa-accent-glow': card.glow,
+                      } as React.CSSProperties}
+                      onClick={() => setExpandedCard(isExpanded ? null : card.id)}
+                    >
+                      <div className="sb-card-head">
+                        <span className="qa-tile-icon" style={{ width: '28px', height: '28px', borderRadius: '8px' }}>
+                          <CardIcon />
+                        </span>
+                        <span className="sb-card-eyebrow" style={{ color: card.accent }}>{card.eyebrow}</span>
+                        {card.onCycle && (
+                          <button
+                            className="sb-card-cycle"
+                            title={card.cycleDisabled ? 'Come back tomorrow for more' : 'Show me another'}
+                            disabled={card.cycleDisabled}
+                            onClick={(e) => { e.stopPropagation(); card.onCycle!(); }}
+                          >
+                            <RefreshCw />
+                          </button>
+                        )}
+                      </div>
+                      <div className={`sb-card-body${isExpanded ? '' : ' sb-card-body--clamped'}`}>
+                        {card.body}
+                      </div>
+                      {(isExpanded || card.id === 'weather') && card.detail && (
+                        <div className="sb-card-detail">{card.detail}</div>
+                      )}
+                      {isExpanded && card.onAction && (
+                        <button
+                          className="sb-card-action"
+                          onClick={(e) => { e.stopPropagation(); card.onAction!(); }}
+                        >
+                          {card.actionLabel} <ChevronRight />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <ChevronRight style={{ width: '12px', height: '12px', color: 'var(--text-disabled)', flexShrink: 0, marginTop: '2px' }} />
-          </div>
-        )}
+          );
+        })()}
 
-        {/* Quick Actions */}
+        {/* Quick Actions — now at the bottom */}
         <div style={{ marginTop: '0.25rem' }}>
           <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-disabled)', letterSpacing: '0.12em', marginBottom: '8px', paddingLeft: '2px' }}>
             QUICK ACTIONS
