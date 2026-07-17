@@ -133,25 +133,50 @@ const MOTIVATION_POOL = [
   "The roof doesn't lie. Document what's there and let it talk.",
 ];
 
-// General field tips by division — rotates daily, tap to cycle
+// General field tips by division — rotates daily, tap to cycle.
+// Sourced from the actual training material in public/docs/ (Roof-ER Sales
+// Training slides + Retail Training docs), photo/documentation tips weighted
+// heaviest for insurance per the manual's own emphasis.
 const FIELD_TIPS: Record<'insurance' | 'retail', string[]> = {
   insurance: [
-    "Hail divots fill with water, freeze, and expand — that's why 'minor' damage becomes leaks. Use this with hesitant homeowners.",
-    "Frame it for adjusters: 'Code-compliant repair requires…' beats 'we think it needs…' every time.",
-    "Photograph every slope, even clean ones. Proving what's NOT damaged builds credibility for what is.",
-    "Were you home for the storm? — the single best door opener after weather hits.",
-    "Think of yourself like a lawyer: the damage is evidence, the claim is the case.",
-    "Get the brittleness test on camera. A failed repair attempt is your strongest argument in VA and PA.",
-    "Always ask who their carrier is early — it shapes every argument you'll make.",
+    // Slide 29 — the inspection photo checklist
+    "Full photo set on EVERY inspection: mailbox/house number, house overview, collateral on all four elevations (screens, gutters, downspouts, siding), roof metals, close-ups of each circled hail hit and slashed wind mark, a chalked-up overview, and granules in the gutters.",
+    // Slide 29 — why the photos matter
+    "Getting enough photos to sell the homeowner is the MOST important part of the inspection. A fast inspection means nothing if you can't show the damage.",
+    // Slide 29 — chalk convention
+    "Circle hail hits, slash wind damage. Take a close-up of each, then finish with an overview shot of the majority of the damage chalked up.",
+    // Slides 67 & 69 — orientation rules
+    "Photo Reports are ALWAYS taken in portrait orientation — landscape photos won't populate properly. (Hover photos are the exception: landscape is usually more effective there.)",
+    // Slides 29 & 32 — granules
+    "Shoot the granules in the gutters and at the bottom of downspouts: 'These granules are what protect your home — wind and hail knock them out and shorten your roof's life.'",
+    // Slide 88 — average ticket
+    "Raise your average ticket with photos: hail damage to downspouts, gutters, window wraps, window screens, and ALL metals — especially metal roofing over windows and porches.",
+    // Slide 67 — adjuster meeting DOs
+    "Adjuster meetings: show up 15–30 minutes early, chalk metals the day BEFORE (not shingles), and never start your Photo Report or Hover while the adjuster is still inspecting.",
+    // Slide 30 — collateral story
+    "Collateral damage is your evidence: 'Think of us like lawyers — this collateral builds the case that gets the roof approved.'",
+    // Slide 31 — the hail explainer
+    "The hail explainer that closes: 'These divots fill with water, freeze, and expand — that breaks apart the shingle and leads to leaks. That's why your policy covers this.'",
+    // Photo discipline, restated — the habit the manual drills
+    "Before you leave the roof: did you photograph every elevation and every slope, even the clean ones? Missing photos are missed approvals.",
   ],
   retail: [
-    "Point at the neighbor's project: 'We're doing the Johnsons' place up the street' beats any script.",
-    "'Afternoons or evenings better for you?' — always give two yeses, never a yes/no.",
-    "'Not interested' → 'Totally fair — we do windows, siding, doors and solar too. What's next on your list?'",
-    "Hot day? Lead with energy savings. Cold day? Lead with drafts. The weather is your co-pitch.",
-    "My job is simple: get your name, find a time that works, leave a flyer. Low pressure sets appointments.",
-    "'Have a guy'? Great — a second quote keeps him honest. No harm in options.",
-    "Both decision-makers at the appointment = half the cancellations.",
+    // Field Etiquette #3–4
+    "Doorbell Sandwich: knock — pause — ring the doorbell — knock again. Then take two big steps back (Broomstick Theory). Space earns respect.",
+    // Objections & Rebuttals — A.E.R.
+    "Every objection runs through A.E.R.: Agree ('Makes sense, right?'), Empathize, Redirect to 'My job is simple' — then straight into the re-intro.",
+    // Pitch Essentials — indifference
+    "'I'm not here to sell — just to share.' Statements, not questions. You should never have to convince a homeowner they need the free quote.",
+    // No-money rebuttal
+    "No budget? Frame the quote as a gift: guaranteed in writing, untouched by inflation, on file for whenever they're ready — 'Fair enough?'",
+    // Spouse objection (C.O.W.S)
+    "'Talk to my spouse'? — 'That's actually what my job IS: a time that works for both you AND your spouse.' Never fight it, schedule around it.",
+    // Field Etiquette #8
+    "Pregnant pause: after key statements and questions, stop talking. Silence builds curiosity and engagement.",
+    // Neighbor hook (5 non-negotiables)
+    "Point at the neighbor's project — 'We're doing the roof up the street, just giving the neighbors a heads up' beats any script.",
+    // Field Etiquette #10
+    "Keep your eyes OUTSIDE while you wait at the door. It's respectful — and they can't wave you off from inside before answering.",
   ],
 };
 
