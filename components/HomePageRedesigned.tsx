@@ -231,10 +231,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
   // Quick Actions — unified 4-tile launcher for all reps (retail + insurance).
   // Profile · Pocket Linguist · Email · Upload & Analyze.
   const quickActions = [
-    { id: 'myprofile', title: 'Profile', description: 'QR code & settings', icon: User, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
-    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Globe, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
-    { id: 'email', title: 'Email', description: 'Generate emails', icon: Mail, gradient: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' },
-    { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: FileText, gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+    { id: 'myprofile', title: 'Profile', description: 'QR code & settings', icon: User, accent: '#8b5cf6', accentSoft: 'rgba(139,92,246,0.45)', accentGlow: 'rgba(139,92,246,0.14)' },
+    { id: 'translator', title: 'Pocket Linguist', description: 'Translate + close deals', icon: Globe, accent: '#10b981', accentSoft: 'rgba(16,185,129,0.45)', accentGlow: 'rgba(16,185,129,0.14)' },
+    { id: 'email', title: 'Email', description: 'Generate emails', icon: Mail, accent: '#dc2626', accentSoft: 'rgba(220,38,38,0.45)', accentGlow: 'rgba(220,38,38,0.14)' },
+    { id: 'image', title: 'Upload & Analyze', description: 'Docs, photos & claims', icon: FileText, accent: '#f59e0b', accentSoft: 'rgba(245,158,11,0.45)', accentGlow: 'rgba(245,158,11,0.14)' },
   ];
   const accent = isRetail ? '#3b82f6' : '#dc2626';
   const accentFaint = isRetail ? 'rgba(59,130,246,' : 'rgba(220,38,38,';
@@ -245,7 +245,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
       height: '100%',
       overflowY: 'auto',
       overflowX: 'hidden',
-      background: 'var(--bg-primary)',
+      // transparent so the layered content-area background (glow + dot grid) shows
+      background: 'transparent',
+      position: 'relative',
+      zIndex: 1,
     }}>
       {/* Greeting + Weather */}
       <div style={{
@@ -256,9 +259,10 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
         gap: '12px',
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontSize: 'clamp(1.25rem, 5vw, 1.6rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: 'clamp(1.35rem, 5vw, 1.75rem)', fontWeight: 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
             {greeting.text}
           </h1>
+          <div className={`ember-rule${isRetail ? ' ember-rule--retail' : ''}`} />
         </div>
 
         {/* Weather pill */}
@@ -409,29 +413,17 @@ const HomePageRedesigned: React.FC<HomePageRedesignedProps> = ({ setActivePanel,
                 <button
                   key={action.id}
                   onClick={() => setActivePanel(action.id as PanelType)}
+                  className="qa-tile"
                   style={{
-                    background: action.gradient,
-                    border: 'none',
-                    borderRadius: '12px',
-                    padding: '0.875rem',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
-                    minHeight: '80px',
-                  }}
+                    '--qa-accent': action.accent,
+                    '--qa-accent-soft': action.accentSoft,
+                    '--qa-accent-glow': action.accentGlow,
+                  } as React.CSSProperties}
                 >
-                  <Icon style={{ width: '1.25rem', height: '1.25rem', color: 'rgba(255,255,255,0.9)' }} />
+                  <span className="qa-tile-icon"><Icon /></span>
                   <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff', lineHeight: 1.2 }}>
-                      {action.title}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>
-                      {action.description}
-                    </div>
+                    <div className="qa-tile-title">{action.title}</div>
+                    <div className="qa-tile-desc">{action.description}</div>
                   </div>
                 </button>
               );

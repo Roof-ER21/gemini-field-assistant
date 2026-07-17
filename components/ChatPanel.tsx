@@ -2603,19 +2603,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                               setFeedbackInsurer(localStorage.getItem('susan_last_insurer') || '');
                               setFeedbackAdjuster(localStorage.getItem('susan_last_adjuster') || '');
                             }}
-                            style={{
-                              padding: '8px 12px',
-                              background: 'rgba(34,197,94,0.12)',
-                              border: '1px solid rgba(34,197,94,0.45)',
-                              borderRadius: '999px',
-                              color: '#bbf7d0',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
+                            className="fb-chip fb-chip--pos"
                           >
                             <ThumbsUp className="w-3.5 h-3.5" />
                             Helpful
@@ -2628,19 +2616,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                               setFeedbackInsurer(localStorage.getItem('susan_last_insurer') || '');
                               setFeedbackAdjuster(localStorage.getItem('susan_last_adjuster') || '');
                             }}
-                            style={{
-                              padding: '8px 12px',
-                              background: 'rgba(248,113,113,0.12)',
-                              border: '1px solid rgba(248,113,113,0.45)',
-                              borderRadius: '999px',
-                              color: '#fecaca',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
+                            className="fb-chip fb-chip--neg"
                           >
                             <ThumbsDown className="w-3.5 h-3.5" />
                             Needs work
@@ -2648,17 +2624,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
                         </>
                       )}
                       {feedbackGiven[msg.id] && learnedAck[msg.id] && (
-                        <span style={{
-                          padding: '8px 12px',
-                          background: 'rgba(220,38,38,0.10)',
-                          border: '1px solid rgba(220,38,38,0.35)',
-                          borderRadius: '999px',
-                          color: 'var(--text-secondary)',
-                          fontSize: '12px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}>
+                        <span className="fb-chip fb-chip--ack" style={{ fontWeight: 400 }}>
                           🧠 {learnedAck[msg.id]}
                         </span>
                       )}
