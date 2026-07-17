@@ -61,12 +61,26 @@ export class AgentProactiveService {
           ? `${task.title} — ${task.description}`
           : task.title;
 
-        // Emit to user via Socket.io
+        // Emit to user via Socket.io (only lands if the rep has the app open)
         this.presence.emitAgentProactive(task.user_id, {
           taskId: task.id,
           title: task.title,
           message,
         });
+
+        // ALSO persist an in-app notification — the socket emit is lost if the
+        // rep is offline, and this task will be marked notified below either way.
+        await this.pool.query(
+          `INSERT INTO notifications (user_id, type, title, body, data, created_at)
+           VALUES ($1, 'agent_task', $2, $3, $4, NOW())
+           ON CONFLICT DO NOTHING`,
+          [
+            task.user_id,
+            `⏰ ${task.title}`,
+            message,
+            JSON.stringify({ type: 'agent_task', taskId: task.id, jobNumber: task.job_number || null }),
+          ]
+        ).catch(() => {}); // notifications table may not exist yet
 
         // Mark as notified so we don't re-send
         await this.pool.query(

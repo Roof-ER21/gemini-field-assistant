@@ -247,6 +247,7 @@ class MemoryService {
   private apiBaseUrl: string;
   private useLocalStorage: boolean = true;
   private memoryCache: Map<string, UserMemory[]> = new Map();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor() {
     this.apiBaseUrl = getApiBaseUrl();
@@ -276,13 +277,74 @@ class MemoryService {
   private async checkApiConnection(): Promise<void> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/health`);
-      if (response.ok) {
-        this.useLocalStorage = false;
-        console.log('[MemoryService] ✅ Connected to backend API');
+      if (!response.ok) throw new Error(`health ${response.status}`);
+      const wasOffline = this.useLocalStorage;
+      this.useLocalStorage = false;
+      console.log('[MemoryService] ✅ Connected to backend API');
+      if (wasOffline) {
+        // Server-side memory is back — push anything written while offline
+        this.flushSyncQueue();
       }
     } catch {
-      console.log('[MemoryService] ⚠️ Using localStorage fallback');
+      console.log('[MemoryService] ⚠️ Backend unreachable — localStorage until it recovers');
       this.useLocalStorage = true;
+      this.scheduleReconnect();
+    }
+  }
+
+  /** Retry the health check so a single failed boot check can't strand a rep's
+   *  memory in this browser forever. */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.checkApiConnection();
+    }, 60_000);
+  }
+
+  private syncQueueKey(email: string): string {
+    return `memory_sync_queue_${email}`;
+  }
+
+  /** Remember writes that couldn't reach the server so they sync later. */
+  private queueForSync(memories: ExtractedMemory[], sessionId?: string): void {
+    const email = this.getAuthEmail();
+    if (!email) return;
+    try {
+      const key = this.syncQueueKey(email);
+      const queue: any[] = JSON.parse(localStorage.getItem(key) || '[]');
+      queue.push(...memories.map(m => ({ ...m, source_session_id: sessionId })));
+      // Cap the queue so localStorage quota can't blow up; newest wins
+      localStorage.setItem(key, JSON.stringify(queue.slice(-200)));
+    } catch {
+      /* quota exceeded — drop rather than crash */
+    }
+  }
+
+  private async flushSyncQueue(): Promise<void> {
+    const email = this.getAuthEmail();
+    if (!email || this.useLocalStorage) return;
+    const key = this.syncQueueKey(email);
+    let queue: any[] = [];
+    try {
+      queue = JSON.parse(localStorage.getItem(key) || '[]');
+    } catch {
+      localStorage.removeItem(key);
+      return;
+    }
+    if (!queue.length) return;
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/memory`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ memories: queue }),
+      });
+      if (response.ok) {
+        localStorage.removeItem(key);
+        console.log(`[MemoryService] Synced ${queue.length} queued memories to server`);
+      }
+    } catch {
+      /* still unreachable — queue stays for the next reconnect */
     }
   }
 
@@ -374,6 +436,8 @@ class MemoryService {
 
     if (this.useLocalStorage) {
       this.saveMemoriesLocally(memories, sessionId);
+      this.queueForSync(memories, sessionId);
+      this.scheduleReconnect();
       return;
     }
 
@@ -394,9 +458,13 @@ class MemoryService {
       }
 
       console.log(`[MemoryService] Saved ${memories.length} memories to database`);
+      // Opportunistically drain anything written while offline
+      this.flushSyncQueue();
     } catch (error) {
-      console.error('[MemoryService] API error, saving locally:', error);
+      console.error('[MemoryService] API error, saving locally + queueing for sync:', error);
       this.saveMemoriesLocally(memories, sessionId);
+      this.queueForSync(memories, sessionId);
+      this.scheduleReconnect();
     }
   }
 

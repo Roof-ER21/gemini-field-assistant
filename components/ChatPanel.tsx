@@ -35,7 +35,7 @@ import {
   ComplianceResult
 } from '../services/emailComplianceService';
 import { memoryService, ExtractedMemory } from '../services/memoryService';
-import { buildSusanContext } from '../services/susanContextService';
+import { buildSusanContext, extractContextBlocks } from '../services/susanContextService';
 import { jobContextService } from '../services/jobContextService';
 import { emailPatternService, EmailType } from '../services/emailPatternService';
 import { hailMapsApi } from '../services/hailMapsApi';
@@ -165,7 +165,8 @@ function buildContextSummary(context: ConversationContext): string {
 
 function extractGlobalLearnings(context: string): string[] {
   if (!context) return [];
-  const match = context.match(/\[GLOBAL LEARNINGS\]([\s\S]*?)(?:\n\[|$)/);
+  // Label emitted by susanContextService is "[UNIVERSAL LEARNINGS (Admin-Approved)]"
+  const match = context.match(/\[(?:UNIVERSAL|GLOBAL) LEARNINGS[^\]]*\]([\s\S]*?)(?:\n\[|$)/);
   if (!match) return [];
   return match[1]
     .split('\n')
@@ -221,6 +222,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [feedbackInsurer, setFeedbackInsurer] = useState('');
   const [feedbackAdjuster, setFeedbackAdjuster] = useState('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({});
+  // Visible "Susan learned it" acknowledgment per message after feedback
+  const [learnedAck, setLearnedAck] = useState<Record<string, string>>({});
 
   // Pick up pre-filled storm context from Storm Maps "Ask Susan" button
   useEffect(() => {
@@ -985,6 +988,14 @@ Generate ONLY the email body text, no subject line or metadata.`;
     }
 
     setFeedbackGiven(prev => ({ ...prev, [feedbackModal.messageId]: true }));
+    // Close the loop visibly — reps should SEE that their feedback taught her
+    const ackScope = [feedbackInsurer.trim(), selectedState].filter(Boolean).join(' in ');
+    setLearnedAck(prev => ({
+      ...prev,
+      [feedbackModal.messageId]: feedbackModal.rating === 1
+        ? `Got it — I'll lean on this approach${ackScope ? ` for ${ackScope}` : ''} going forward.`
+        : `Noted — I'll adjust how I handle this${ackScope ? ` for ${ackScope}` : ''}.`,
+    }));
     setFeedbackModal(null);
     setFeedbackTags([]);
     setFeedbackComment('');
@@ -1176,6 +1187,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
 
     try {
       let currentGlobalLearnings = globalLearningHints;
+      let unifiedContext = susanContext;
       try {
         setLoadingStep('Loading memories & knowledge...');
         const refreshedContext = await buildSusanContext(30, originalQuery);
@@ -1183,6 +1195,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
         setSusanContext(refreshedContext);
         setGlobalLearningHints(refreshedLearnings);
         currentGlobalLearnings = refreshedLearnings;
+        unifiedContext = refreshedContext;
       } catch (refreshError) {
         console.warn('[SusanContext] Failed to refresh global learnings:', refreshError);
       }
@@ -1211,102 +1224,76 @@ Generate ONLY the email body text, no subject line or metadata.`;
         systemPrompt += `\n\nNO STATE SELECTED: Do not assume a state. Provide guidance that is valid across Virginia (VA), Maryland (MD), and Pennsylvania (PA). Where requirements differ, explicitly call out differences per state. Do not apply MD-only matching rules unless the user confirms Maryland.`;
       }
 
-      // MEMORY ENHANCEMENT: Build user context from persistent memories
+      // MEMORY ENHANCEMENT: build all per-rep context concurrently (was ~10
+      // serial awaits — every message paid the full round-trip chain before
+      // the model was even called). Order of appends is preserved below.
       try {
-        const userMemoryContext = await memoryService.buildUserContext();
-        if (userMemoryContext) {
-          systemPrompt += userMemoryContext;
-          console.log('[Memory] Added user memory context to prompt');
-        }
-
-        // Check for job mentions and add job context
-        const jobContext = await jobContextService.buildContextFromQuery(originalQuery);
-        if (jobContext) {
-          systemPrompt += jobContext;
-          console.log('[Memory] Added job context to prompt');
-        }
-
-        // Load past conversation summaries for session continuity
         const userEmailCtx = authService.getCurrentUser()?.email;
-        if (userEmailCtx) {
-          try {
-            const ctxRes = await fetch(`${API_BASE_URL}/susan/agent/context`, {
-              headers: { 'x-user-email': userEmailCtx },
-            });
-            if (ctxRes.ok) {
-              const ctxData = await ctxRes.json();
-              if (ctxData.context) {
-                systemPrompt += ctxData.context;
-                console.log('[Memory] Added past conversation context');
-              }
-            }
-          } catch { /* context fetch optional */ }
-        }
+        const emailKeywords = /\b(email|write|send|draft|compose|letter)\b/i;
+
+        const contextResults = await Promise.allSettled([
+          memoryService.buildUserContext(),
+          jobContextService.buildContextFromQuery(originalQuery),
+          userEmailCtx
+            ? fetch(`${API_BASE_URL}/susan/agent/context`, { headers: { 'x-user-email': userEmailCtx } })
+                .then(r => (r.ok ? r.json() : null))
+                .then(d => d?.context || '')
+            : Promise.resolve(''),
+          stormMemoryApi.getMemoryContext({ address: originalQuery }),
+          emailKeywords.test(originalQuery)
+            ? emailPatternService.buildEmailInsights({ state: selectedState || undefined })
+            : Promise.resolve(''),
+          buildPerformanceContext(originalQuery, currentUser?.email),
+          buildGoalsContext(originalQuery, currentUser?.email),
+          buildContestContext(originalQuery, currentUser?.email),
+          buildCheckinContext(originalQuery, currentUser?.email),
+          buildTerritoryContext(originalQuery, currentUser?.email),
+        ]);
+
+        const ctx = (i: number): string => {
+          const r = contextResults[i];
+          return r.status === 'fulfilled' && r.value ? String(r.value) : '';
+        };
+
+        const labels = ['Memory', 'Job', 'PastConversations', 'StormMemory', 'EmailPatterns', 'Performance', 'Goals', 'Contest', 'Checkin', 'Territory'];
+        contextResults.forEach((r, i) => {
+          if (r.status === 'rejected') console.warn(`[Context] ${labels[i]} failed:`, r.reason);
+        });
+
+        systemPrompt += ctx(0); // user memory
+        systemPrompt += ctx(1); // job context
+        systemPrompt += ctx(2); // past conversation summaries
 
         const hailContext = localStorage.getItem('susan_hail_context');
         if (hailContext) {
           systemPrompt += `\n\nHAIL HISTORY CONTEXT:\n${hailContext}\nUse these documented storm dates and hail sizes when relevant, especially for adjuster emails.`;
         }
 
-        // 🧠 STORM MEMORY: Add context from previous storm lookups
-        const stormMemoryContext = await stormMemoryApi.getMemoryContext({
-          address: originalQuery // Try to extract address from query if present
-        });
-        if (stormMemoryContext) {
-          systemPrompt += stormMemoryContext;
-          console.log('[StormMemory] Added storm memory context to prompt');
-        }
-
-        // If query relates to email, add pattern insights
-        const emailKeywords = /\b(email|write|send|draft|compose|letter)\b/i;
-        if (emailKeywords.test(originalQuery)) {
-          // Detect email type and get insights
-          const emailInsights = await emailPatternService.buildEmailInsights({
-            state: selectedState || undefined,
-          });
-          if (emailInsights) {
-            systemPrompt += emailInsights;
-            console.log('[Memory] Added email pattern insights to prompt');
-          }
-        }
-
-        // PERFORMANCE CONTEXT: Add leaderboard data if performance query detected
-        const performanceContext = await buildPerformanceContext(originalQuery, currentUser?.email);
-        if (performanceContext) {
-          systemPrompt += performanceContext;
-          console.log('[Performance] Added performance context to prompt');
-        }
-
-        // GOALS CONTEXT: Add goals and tier data if goals query detected
-        const goalsContext = await buildGoalsContext(originalQuery, currentUser?.email);
-        if (goalsContext) {
-          systemPrompt += goalsContext;
-          console.log('[Goals] Added goals context to prompt');
-        }
-
-        // CONTEST CONTEXT: Add contest standings if contest query detected
-        const contestContext = await buildContestContext(originalQuery, currentUser?.email);
-        if (contestContext) {
-          systemPrompt += contestContext;
-          console.log('[Contest] Added contest context to prompt');
-        }
-
-        // CHECKIN CONTEXT: Add field activity if checkin query detected
-        const checkinContext = await buildCheckinContext(originalQuery, currentUser?.email);
-        if (checkinContext) {
-          systemPrompt += checkinContext;
-          console.log('[Checkin] Added field activity context to prompt');
-        }
-
-        // TERRITORY CONTEXT: Add territory coverage if territory query detected
-        const territoryContext = await buildTerritoryContext(originalQuery, currentUser?.email);
-        if (territoryContext) {
-          systemPrompt += territoryContext;
-          console.log('[Territory] Added territory context to prompt');
-        }
+        systemPrompt += ctx(3); // storm memory
+        systemPrompt += ctx(4); // email pattern insights
+        systemPrompt += ctx(5); // performance
+        systemPrompt += ctx(6); // goals
+        systemPrompt += ctx(7); // contest
+        systemPrompt += ctx(8); // checkin
+        systemPrompt += ctx(9); // territory
       } catch (memoryError) {
         console.warn('[Memory] Error loading memory context:', memoryError);
         // Continue without memory - don't block the main flow
+      }
+
+      // Blocks from the unified context builder that the inline code above doesn't
+      // cover (it already fetched them — they just never reached the text prompt)
+      const extraContextBlocks = extractContextBlocks(unifiedContext, [
+        'PERSONALIZATION',
+        'TEAM STORM KNOWLEDGE',
+        'MANAGER DIRECTIVES',
+        'AGENT NETWORK INTEL',
+        'AGNES TRAINING KNOWLEDGE',
+        'UPCOMING SCHEDULE',
+      ]);
+      if (extraContextBlocks) {
+        systemPrompt += `\n\n${extraContextBlocks}`;
+        console.log('[SusanContext] Added unified context blocks to text prompt');
       }
 
       if (currentGlobalLearnings.length > 0) {
@@ -2659,6 +2646,21 @@ Generate ONLY the email body text, no subject line or metadata.`;
                             Needs work
                           </button>
                         </>
+                      )}
+                      {feedbackGiven[msg.id] && learnedAck[msg.id] && (
+                        <span style={{
+                          padding: '8px 12px',
+                          background: 'rgba(220,38,38,0.10)',
+                          border: '1px solid rgba(220,38,38,0.35)',
+                          borderRadius: '999px',
+                          color: 'var(--text-secondary)',
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}>
+                          🧠 {learnedAck[msg.id]}
+                        </span>
                       )}
                     </div>
                   )}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import memoryService from '../services/memoryService';
 import { authService } from '../services/authService';
+import { getApiBaseUrl } from '../services/config';
 
 interface WelcomeModalProps {
   isFirstLogin: boolean;
@@ -16,6 +17,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
   const [saveError, setSaveError] = useState(false);
   const [showGreeting, setShowGreeting] = useState(!isFirstLogin);
   const [greetingMessage, setGreetingMessage] = useState('');
+  const [continuityMessage, setContinuityMessage] = useState('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -43,8 +45,42 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
           const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
           setGreetingMessage(randomGreeting);
 
-          // Auto-dismiss after 5 seconds
-          timersRef.current.push(setTimeout(onComplete, 5000));
+          // Continuity: reference the rep's last conversation so Susan visibly
+          // remembers them (summary written on session close / new chat)
+          let continuity = '';
+          try {
+            const email = authService.getCurrentUser()?.email;
+            if (email) {
+              const res = await fetch(`${getApiBaseUrl()}/memory/summaries?limit=1`, {
+                headers: { 'x-user-email': email },
+              });
+              if (res.ok) {
+                const rows = await res.json();
+                const last = Array.isArray(rows) ? rows[0] : null;
+                if (last?.created_at) {
+                  const ageDays = (Date.now() - new Date(last.created_at).getTime()) / 86400000;
+                  if (ageDays <= 7) {
+                    const parse = (v: unknown): string[] => {
+                      if (Array.isArray(v)) return v.filter(Boolean);
+                      if (typeof v === 'string') { try { return JSON.parse(v) || []; } catch { return []; } }
+                      return [];
+                    };
+                    const actionItems = parse(last.action_items);
+                    const topics = parse(last.topics);
+                    if (actionItems.length > 0) {
+                      continuity = `Still open from last time: ${actionItems[0]}`;
+                    } else if (topics.length > 0) {
+                      continuity = `Last time we worked on ${topics[0]}. Pick up where we left off anytime.`;
+                    }
+                  }
+                }
+              }
+            }
+          } catch { /* continuity is a bonus, never block the greeting */ }
+          setContinuityMessage(continuity);
+
+          // Auto-dismiss (longer when there's a continuity line to read)
+          timersRef.current.push(setTimeout(onComplete, continuity ? 8000 : 5000));
         } else {
           // No nickname found, shouldn't happen but handle gracefully
           onComplete();
@@ -271,7 +307,14 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isFirstLogin, onComplete })
                   className="w-10 h-10 rounded-full object-cover"
                 />
               </div>
-              <p className="text-lg font-medium flex-1">{greetingMessage}</p>
+              <div className="flex-1">
+                <p className="text-lg font-medium">{greetingMessage}</p>
+                {continuityMessage && (
+                  <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                    {continuityMessage}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={(e) => {

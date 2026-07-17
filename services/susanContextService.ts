@@ -18,115 +18,84 @@ type LearningSummary = {
  * @param query - Optional user query to trigger Knowledge Base RAG lookup
  */
 export async function buildSusanContext(windowDays: number = 45, query?: string): Promise<string> {
-  const blocks: string[] = [];
   const apiBaseUrl = getApiBaseUrl();
+  const email = authService.getCurrentUser()?.email || '';
+  const headers = { ...(email ? { 'x-user-email': email } : {}) };
+  const selectedState = localStorage.getItem('selectedState') || '';
 
-  // 0. Per-rep agent personality preferences
-  try {
-    const email = authService.getCurrentUser()?.email || '';
-    if (email) {
-      const res = await fetch(`${apiBaseUrl}/memory/personality`, {
-        headers: { 'x-user-email': email },
-      });
-      if (res.ok) {
-        const personality = await res.json() as Record<string, string>;
-        const entries = Object.entries(personality).filter(([, v]) => v);
-        if (entries.length > 0) {
-          const lines = entries.map(([k, v]) => `- ${k}: ${v}`);
-          blocks.push(`[PERSONALIZATION]\nThis rep's preferences:\n${lines.join('\n')}\nAdapt your tone, name usage, and verbosity accordingly.`);
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Personality context failed:', (error as Error).message);
-  }
+  // One shared memory fetch (this used to be fetched 3× serially)
+  const memoriesPromise = memoryService.getAllUserMemories(200).catch(() => []);
 
-  // 1. User-specific memory context
-  try {
-    const memoryBlock = await memoryService.buildUserContext();
-    if (memoryBlock) {
-      blocks.push(memoryBlock.trim());
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Memory context failed:', (error as Error).message);
-  }
+  // Every block builds concurrently — a slow endpoint no longer stalls the rest.
+  // Each builder returns its block string or null; order here = order in prompt.
+  const builders: Array<() => Promise<string | null>> = [
+    // 0. Per-rep agent personality preferences
+    async () => {
+      if (!email) return null;
+      const res = await fetch(`${apiBaseUrl}/memory/personality`, { headers });
+      if (!res.ok) return null;
+      const personality = await res.json() as Record<string, string>;
+      const entries = Object.entries(personality).filter(([, v]) => v);
+      if (entries.length === 0) return null;
+      const lines = entries.map(([k, v]) => `- ${k}: ${v}`);
+      return `[PERSONALIZATION]\nThis rep's preferences:\n${lines.join('\n')}\nAdapt your tone, name usage, and verbosity accordingly.`;
+    },
 
-  // 2. Knowledge Base RAG (when query provided and relevant)
-  if (query && ragService.shouldUseRAG(query)) {
-    try {
-      const selectedState = localStorage.getItem('selectedState') || undefined;
-      const ragContext = await ragService.buildRAGContext(query, 3, selectedState);
-      if (ragContext.sources.length > 0) {
-        const kbLines = ragContext.sources.map((s, i) =>
-          `[${i + 1}] ${s.document.name} (${s.document.category}): ${s.content.substring(0, 300)}...`
-        );
-        blocks.push(`[KNOWLEDGE BASE]\nRelevant documents for this query:\n${kbLines.join('\n')}`);
-        console.log(`[SusanContext] KB RAG found ${ragContext.sources.length} relevant documents`);
-      }
-    } catch (error) {
-      console.warn('[SusanContext] Knowledge Base RAG failed:', (error as Error).message);
-    }
-  }
+    // 1. User-specific memory context
+    async () => {
+      const memoryBlock = await memoryService.buildUserContext();
+      return memoryBlock ? memoryBlock.trim() : null;
+    },
 
-  // 3. Recent storm lookups (for quick reference)
-  try {
-    const memories = await memoryService.getAllUserMemories(100);
-    const stormMemories = memories
-      .filter(m => m.category === 'storm_verification')
-      .slice(0, 3);
+    // 2. Knowledge Base RAG (when query provided and relevant)
+    async () => {
+      if (!query || !ragService.shouldUseRAG(query)) return null;
+      const ragContext = await ragService.buildRAGContext(query, 3, selectedState || undefined);
+      if (ragContext.sources.length === 0) return null;
+      const kbLines = ragContext.sources.map((s, i) =>
+        `[${i + 1}] ${s.document.name} (${s.document.category}): ${s.content.substring(0, 300)}...`
+      );
+      console.log(`[SusanContext] KB RAG found ${ragContext.sources.length} relevant documents`);
+      return `[KNOWLEDGE BASE]\nRelevant documents for this query:\n${kbLines.join('\n')}`;
+    },
 
-    if (stormMemories.length > 0) {
-      const stormSummaries = stormMemories.map(m => {
-        try {
-          const data = JSON.parse(m.value);
-          return `${data.address}: ${data.events.length} events (${data.city}, ${data.state})`;
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
+    // 3. Recent storm lookups (for quick reference)
+    async () => {
+      const memories = await memoriesPromise;
+      const stormSummaries = memories
+        .filter(m => m.category === 'storm_verification')
+        .slice(0, 3)
+        .map(m => {
+          try {
+            const data = JSON.parse(m.value);
+            return `${data.address}: ${data.events.length} events (${data.city}, ${data.state})`;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      return stormSummaries.length > 0 ? `[RECENT STORM LOOKUPS]\n${stormSummaries.join('\n')}` : null;
+    },
 
-      if (stormSummaries.length > 0) {
-        blocks.push(`[RECENT STORM LOOKUPS]\n${stormSummaries.join('\n')}`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Storm memory failed:', (error as Error).message);
-  }
-
-  // 4. Universal hail knowledge from team database (server-side, all reps)
-  try {
-    if (query) {
-      const email = authService.getCurrentUser()?.email || '';
-      const selectedState = localStorage.getItem('selectedState') || '';
+    // 4. Universal hail knowledge from team database (server-side, all reps)
+    async () => {
+      if (!query) return null;
       const params = new URLSearchParams({
         query,
         ...(selectedState ? { state: selectedState } : {}),
         limit: '3'
       });
-      const res = await fetch(`${apiBaseUrl}/storm-memory/knowledge/context?${params.toString()}`, {
-        headers: { ...(email ? { 'x-user-email': email } : {}) }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.hasContext && data.context) {
-          blocks.push(`[TEAM STORM KNOWLEDGE]\n${data.context}`);
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Team storm knowledge failed:', (error as Error).message);
-  }
+      const res = await fetch(`${apiBaseUrl}/storm-memory/knowledge/context?${params.toString()}`, { headers });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.hasContext && data.context ? `[TEAM STORM KNOWLEDGE]\n${data.context}` : null;
+    },
 
-  // 5. Successful email patterns (what's worked before)
-  try {
-    const memories = await memoryService.getAllUserMemories(200);
-    const successfulEmails = memories
-      .filter(m => m.category === 'email_success' && m.confidence > 0.7)
-      .slice(0, 3);
-
-    if (successfulEmails.length > 0) {
+    // 5. Successful email patterns (what's worked before)
+    async () => {
+      const memories = await memoriesPromise;
       const emailInsights: string[] = [];
-      for (const mem of successfulEmails) {
+      for (const mem of memories.filter(m => m.category === 'email_success' && m.confidence > 0.7).slice(0, 3)) {
         try {
           const pattern = JSON.parse(mem.value);
           if (pattern.outcome === 'success') {
@@ -136,129 +105,94 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
           // Skip invalid patterns
         }
       }
+      return emailInsights.length > 0 ? `[SUCCESSFUL EMAIL PATTERNS]\n${emailInsights.join('\n')}` : null;
+    },
 
-      if (emailInsights.length > 0) {
-        blocks.push(`[SUCCESSFUL EMAIL PATTERNS]\n${emailInsights.join('\n')}`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Email pattern memory failed:', (error as Error).message);
-  }
+    // 6. Global learnings (admin-approved universal memory from team success)
+    async () => {
+      const memories = await memoriesPromise;
+      const memoryState = memories.find(m => m.category === 'state')?.value;
+      const memoryInsurer = memories.find(m => m.category === 'insurer')?.value;
+      const state = selectedState || memoryState || '';
+      const lastInsurer = localStorage.getItem('susan_last_insurer') || memoryInsurer || '';
+      const lastAdjuster = localStorage.getItem('susan_last_adjuster') || '';
 
-  // 6. Global learnings (admin-approved universal memory from team success)
-  try {
-    const memories = await memoryService.getAllUserMemories(25);
-    const memoryState = memories.find(m => m.category === 'state')?.value;
-    const memoryInsurer = memories.find(m => m.category === 'insurer')?.value;
-    const selectedState = localStorage.getItem('selectedState') || memoryState || '';
-    const lastInsurer = localStorage.getItem('susan_last_insurer') || memoryInsurer || '';
-    const lastAdjuster = localStorage.getItem('susan_last_adjuster') || '';
+      const params = new URLSearchParams();
+      if (state) params.set('state', state);
+      if (lastInsurer) params.set('insurer', lastInsurer);
+      if (lastAdjuster) params.set('adjuster', lastAdjuster);
+      params.set('limit', '6');
 
-    const params = new URLSearchParams();
-    if (selectedState) params.set('state', selectedState);
-    if (lastInsurer) params.set('insurer', lastInsurer);
-    if (lastAdjuster) params.set('adjuster', lastAdjuster);
-    params.set('limit', '6');
-
-    const email = authService.getCurrentUser()?.email || '';
-    const res = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, {
-      headers: {
-        ...(email ? { 'x-user-email': email } : {})
-      }
-    });
-    if (res.ok) {
+      const res = await fetch(`${apiBaseUrl}/learning/global?${params.toString()}`, { headers });
+      if (!res.ok) return null;
       const data = await res.json();
       const learnings = Array.isArray(data.learnings) ? data.learnings : [];
-      if (learnings.length > 0) {
-        const lines = learnings.map((l: any) => `- ${l.content}`).join('\n');
-        blocks.push(`[UNIVERSAL LEARNINGS (Admin-Approved)]\n${lines}`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Global learnings failed:', (error as Error).message);
-  }
+      if (learnings.length === 0) return null;
+      const lines = learnings.map((l: any) => `- ${l.content}`).join('\n');
+      return `[UNIVERSAL LEARNINGS (Admin-Approved)]\n${lines}`;
+    },
 
-  // 7. Team feedback summary
-  try {
-    const summary = (await databaseService.getChatLearningSummary(windowDays)) as LearningSummary | null;
-    if (summary) {
+    // 7. Team feedback summary
+    async () => {
+      const summary = (await databaseService.getChatLearningSummary(windowDays)) as LearningSummary | null;
+      if (!summary) return null;
       const positives = summary.positive_tags?.map(t => t.tag).filter(Boolean).slice(0, 6).join(', ');
       const negatives = summary.negative_tags?.map(t => t.tag).filter(Boolean).slice(0, 6).join(', ');
       const wins = summary.recent_wins?.map(w => w.comment).filter(Boolean).slice(0, 3).join(' | ');
       const issues = summary.recent_issues?.map(w => w.comment).filter(Boolean).slice(0, 3).join(' | ');
-
-      const learningBlock =
-        `[TEAM FEEDBACK SUMMARY]\n` +
+      return `[TEAM FEEDBACK SUMMARY]\n` +
         `What works: ${positives || 'No strong signal yet'}\n` +
         `Needs improvement: ${negatives || 'No strong signal yet'}\n` +
         `Recent wins: ${wins || 'N/A'}\n` +
         `Recent issues: ${issues || 'N/A'}`;
+    },
 
-      blocks.push(learningBlock);
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Learning summary failed:', (error as Error).message);
-  }
-
-  // 8. Manager directives (admin instructions Susan must follow)
-  try {
-    const email = authService.getCurrentUser()?.email || '';
-    const res = await fetch(`${apiBaseUrl}/directives?active=true`, {
-      headers: { ...(email ? { 'x-user-email': email } : {}) },
-    });
-    if (res.ok) {
+    // 8. Manager directives (admin instructions Susan must follow)
+    async () => {
+      const res = await fetch(`${apiBaseUrl}/directives?active=true`, { headers });
+      if (!res.ok) return null;
       const directives = await res.json() as Array<{ title: string; content: string; priority: string }>;
-      if (directives.length > 0) {
-        const lines = directives.map(
-          (d) => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`
-        );
-        blocks.push(`[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${lines.join('\n')}`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Directives context failed:', (error as Error).message);
-  }
+      if (directives.length === 0) return null;
+      const lines = directives.map(d => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`);
+      return `[MANAGER DIRECTIVES]\nFollow these instructions from management:\n${lines.join('\n')}`;
+    },
 
-  // 9. Agent network intel (recent approved field intelligence from peers)
-  try {
-    const email9 = authService.getCurrentUser()?.email || '';
-    const intelRes = await fetch(`${apiBaseUrl}/agent-network?limit=10`, {
-      headers: { ...(email9 ? { 'x-user-email': email9 } : {}) },
-    });
-    if (intelRes.ok) {
+    // 9. Agent network intel (recent approved field intelligence from peers)
+    async () => {
+      const intelRes = await fetch(`${apiBaseUrl}/agent-network?limit=10`, { headers });
+      if (!intelRes.ok) return null;
       const intel = await intelRes.json() as Array<{ intel_type: string; content: string; state: string | null; insurer: string | null; author_name: string }>;
-      if (intel.length > 0) {
-        const lines = intel.map(
-          (i) => `- [${i.intel_type}]${i.state ? ` (${i.state})` : ''}${i.insurer ? ` re: ${i.insurer}` : ''}: ${i.content}`
-        );
-        blocks.push(`[AGENT NETWORK INTEL]\nRecent field intelligence from the team:\n${lines.join('\n')}\nReference this intel when relevant to the rep's question.`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Agent network intel failed:', (error as Error).message);
-  }
+      if (intel.length === 0) return null;
+      const lines = intel.map(
+        i => `- [${i.intel_type}]${i.state ? ` (${i.state})` : ''}${i.insurer ? ` re: ${i.insurer}` : ''}: ${i.content}`
+      );
+      return `[AGENT NETWORK INTEL]\nRecent field intelligence from the team:\n${lines.join('\n')}\nReference this intel when relevant to the rep's question.`;
+    },
 
-  // 10. Agnes training knowledge (what Agnes teaches reps)
-  blocks.push(AGNES_TRAINING_KNOWLEDGE);
+    // 10. Agnes training knowledge (what Agnes teaches reps)
+    async () => AGNES_TRAINING_KNOWLEDGE,
 
-  // 11. Calendar / upcoming schedule
-  try {
-    const email11 = authService.getCurrentUser()?.email || '';
-    const calRes = await fetch(`${apiBaseUrl}/calendar/upcoming`, {
-      headers: { ...(email11 ? { 'x-user-email': email11 } : {}) },
-    });
-    if (calRes.ok) {
+    // 11. Calendar / upcoming schedule
+    async () => {
+      const calRes = await fetch(`${apiBaseUrl}/calendar/upcoming`, { headers });
+      if (!calRes.ok) return null;
       const calData = await calRes.json();
-      if (calData.events?.length > 0) {
-        const lines = calData.events.map((e: any) =>
-          `- ${e.summary} @ ${new Date(e.start_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${e.location ? ' (' + e.location + ')' : ''}`
-        );
-        blocks.push(`[UPCOMING SCHEDULE]\nThe rep's next events:\n${lines.join('\n')}\nReference this when discussing scheduling or availability.`);
-      }
-    }
-  } catch (error) {
-    console.warn('[SusanContext] Calendar context failed:', (error as Error).message);
-  }
+      if (!calData.events?.length) return null;
+      const lines = calData.events.map((e: any) =>
+        `- ${e.summary} @ ${new Date(e.start_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${e.location ? ' (' + e.location + ')' : ''}`
+      );
+      return `[UPCOMING SCHEDULE]\nThe rep's next events:\n${lines.join('\n')}\nReference this when discussing scheduling or availability.`;
+    },
+  ];
+
+  const results = await Promise.allSettled(builders.map(b => b()));
+  const blocks = results
+    .map((r, i) => {
+      if (r.status === 'fulfilled') return r.value;
+      console.warn(`[SusanContext] Block ${i} failed:`, (r.reason as Error)?.message);
+      return null;
+    })
+    .filter((b): b is string => Boolean(b));
 
   if (blocks.length === 0) return '';
 
@@ -267,6 +201,28 @@ export async function buildSusanContext(windowDays: number = 45, query?: string)
     'Use this context to personalize and improve the response. Do NOT mention it explicitly.',
     ...blocks
   ].join('\n') + '\n';
+}
+
+/**
+ * Pull specific labeled blocks (e.g. "MANAGER DIRECTIVES") out of a
+ * buildSusanContext() result. Lets the text-chat path reuse blocks the
+ * unified builder fetched without duplicating the ones it builds inline.
+ */
+export function extractContextBlocks(context: string, labels: string[]): string {
+  if (!context) return '';
+  const wanted = labels.map(l => l.toUpperCase());
+  const lines = context.split('\n');
+  const out: string[] = [];
+  let currentWanted = false;
+  for (const line of lines) {
+    const m = line.match(/^\[([^\]]+)\]$/);
+    if (m) {
+      const label = m[1].toUpperCase();
+      currentWanted = wanted.some(w => label.startsWith(w));
+    }
+    if (currentWanted) out.push(line);
+  }
+  return out.join('\n').trim();
 }
 
 /**

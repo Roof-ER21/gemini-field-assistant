@@ -24,6 +24,9 @@ import {
   Download
 } from 'lucide-react';
 
+import SusanMemoryCard from './SusanMemoryCard';
+import PersonalitySettings from './PersonalitySettings';
+
 interface MyProfilePanelProps {
   userEmail: string;
 }
@@ -753,6 +756,20 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* What Susan knows about me — memory transparency */}
+      <SusanMemoryCard />
+
+      {/* Susan personality preferences (tone, verbosity, nickname) */}
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-default)',
+        borderRadius: '12px',
+        padding: '1.25rem',
+        marginTop: '1.5rem',
+      }}>
+        <PersonalitySettings />
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
