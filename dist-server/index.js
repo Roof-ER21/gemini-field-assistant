@@ -8823,12 +8823,12 @@ function renderProfilePage(profile) {
     const yearsExp = startYear ? new Date().getFullYear() - startYear : null;
     // Project images
     const projectImages = [
-        '/lovable-uploads/359b0e2f-8075-497a-a848-a9e77471e392.png',
-        '/lovable-uploads/f121ff88-cee5-488f-bd60-50b764306df1.png',
-        '/lovable-uploads/a05b9082-6460-4174-91a0-ff5a6143613f.png',
-        '/lovable-uploads/fd93bf35-9a8e-4112-a8dc-e96bac655cbc.png',
-        '/lovable-uploads/c97b7966-6107-48c6-9e39-38051fff0bb3.png',
-        '/lovable-uploads/c1fafb65-ebd7-4c4f-b197-0ba017cc097e.png'
+        '/img/project-01.png',
+        '/img/project-02.png',
+        '/img/project-03.png',
+        '/img/project-04.png',
+        '/img/project-05.png',
+        '/img/project-06.png'
     ];
     return `<!DOCTYPE html>
 <html lang="en">
@@ -9475,12 +9475,12 @@ function renderProfilePageV2(profile) {
     const isCompany = profile.role_type === 'company' || showEmail === true;
     // Same project gallery set V1 uses.
     const projectImages = [
-        '/lovable-uploads/359b0e2f-8075-497a-a848-a9e77471e392.png',
-        '/lovable-uploads/f121ff88-cee5-488f-bd60-50b764306df1.png',
-        '/lovable-uploads/a05b9082-6460-4174-91a0-ff5a6143613f.png',
-        '/lovable-uploads/fd93bf35-9a8e-4112-a8dc-e96bac655cbc.png',
-        '/lovable-uploads/c97b7966-6107-48c6-9e39-38051fff0bb3.png',
-        '/lovable-uploads/c1fafb65-ebd7-4c4f-b197-0ba017cc097e.png',
+        '/img/project-01.png',
+        '/img/project-02.png',
+        '/img/project-03.png',
+        '/img/project-04.png',
+        '/img/project-05.png',
+        '/img/project-06.png',
     ];
     const projectLabels = ['Vienna, VA', 'Fairfax, VA', 'Rockville, MD', 'Arlington, VA', 'Bethesda, MD', 'Reston, VA'];
     // Welcome video — reuse V1's exact YouTube / Vimeo / <video> resolve logic.

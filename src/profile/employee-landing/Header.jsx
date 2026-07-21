@@ -18,7 +18,7 @@ const Header = () => {
           {/* Logo - Smaller on mobile */}
           <Link to="/" className="flex-shrink-0">
             <img
-              src="/lovable-uploads/c3c87251-3538-4279-b118-7d323f2cbd24.png"
+              src="/img/logo-header.png"
               alt="Company Logo"
               className="h-8 md:h-10 w-auto"
             />
