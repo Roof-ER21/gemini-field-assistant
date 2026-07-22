@@ -5,11 +5,14 @@ const REPORT_LOGO = 'https://get.theroofdocs.com/roofer-logo-clean.png';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** How a qr_scans.source value reads in the email. */
 const SOURCE_LABEL = {
-    qr: 'QR card scan',
+    qr: 'QR card scan (confirmed)',
+    card_likely: 'QR card or direct share',
     social: 'Social (Instagram / Facebook)',
     referral: 'Other website',
-    direct: 'Direct / older QR card',
+    direct: 'Typed or pasted link',
 };
+/** Print order for the channel table — most attributable first. */
+const SOURCE_ORDER = ['qr', 'card_likely', 'social', 'referral', 'direct'];
 /** Prior full Mon–Sun in Eastern Time, as YYYY-MM-DD strings + a human label. */
 export function priorWeekRangeET(now = new Date()) {
     // Reinterpret "now" as ET wall-clock so getDay/getDate reflect the ET calendar.
@@ -35,7 +38,8 @@ export async function fetchWeeklyReportData(pool, r) {
         pool.query(`SELECT ep.name, ep.slug,
               COALESCE(s.visits, 0)::int  AS visits,
               COALESCE(s.people, 0)::int  AS people,
-              COALESCE(l.signups, 0)::int AS signups
+              COALESCE(l.signups, 0)::int AS signups,
+              (ep.card_issued_at IS NOT NULL) AS carded
          FROM employee_profiles ep
          LEFT JOIN (
            SELECT profile_slug,
@@ -76,11 +80,17 @@ export async function fetchWeeklyReportData(pool, r) {
     ]);
     const allReps = repsR.rows;
     const reps = allReps.filter((x) => x.visits > 0 || x.signups > 0);
+    const idle = allReps.filter((x) => x.visits === 0 && x.signups === 0);
     const sources = srcR.rows;
-    const traffic = trafficR.rows;
+    const traffic = trafficR.rows
+        .sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
     return {
         reps,
-        idleReps: allReps.length - reps.length,
+        idleReps: idle.length,
+        // Split the idle bench: a carded rep with no scans is a coaching
+        // conversation; an uncarded rep is just waiting on a card.
+        idleCarded: idle.filter((x) => x.carded).length,
+        idleUncarded: idle.filter((x) => !x.carded).length,
         totalVisits: allReps.reduce((a, x) => a + x.visits, 0),
         totalPeople: allReps.reduce((a, x) => a + x.people, 0),
         totalRepSignups: allReps.reduce((a, x) => a + x.signups, 0),
@@ -126,8 +136,13 @@ function renderEmail(d, r) {
         <td style="${td}text-align:right;color:#6b7280;">${s.booked}</td>
       </tr>`).join('')
         : `<tr><td colspan="3" style="${td}text-align:center;color:#6b7280;">No leads this week.</td></tr>`;
-    const idleNote = d.idleReps > 0
-        ? `<p style="font-size:12px;color:#9099b5;margin:8px 0 0;">+ ${d.idleReps} active rep${d.idleReps === 1 ? '' : 's'} had no scans this week.</p>`
+    const idleBits = [];
+    if (d.idleCarded > 0)
+        idleBits.push(`<strong>${d.idleCarded} carded rep${d.idleCarded === 1 ? '' : 's'}</strong> had no visits &mdash; they have cards out but nobody scanned`);
+    if (d.idleUncarded > 0)
+        idleBits.push(`${d.idleUncarded} rep${d.idleUncarded === 1 ? '' : 's'} still ${d.idleUncarded === 1 ? 'has' : 'have'} no card on record`);
+    const idleNote = idleBits.length
+        ? `<p style="font-size:12px;color:#9099b5;margin:8px 0 0;">${idleBits.join(' &nbsp;·&nbsp; ')}.</p>`
         : '';
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#eceefb;-webkit-font-smoothing:antialiased;">
@@ -162,7 +177,7 @@ function renderEmail(d, r) {
             <tr><td style="${th}">Source</td><td style="${th}text-align:right;">Form fills</td><td style="${th}text-align:right;">Booked</td></tr>
             ${srcRows}
           </table>
-          <p style="font-size:11.5px;color:#9099b5;margin:14px 0 0;">"Visits" counts real people only — crawlers and link-preview bots are excluded, and repeat views from the same visitor inside ${VISIT_DEDUP_MINUTES} minutes count once. "People" is distinct visitors. "Booked" = homeowner picked an inspection date. Times in Eastern. Cards printed before Jul 22, 2026 have no scan marker, so their traffic shows as "Direct / older QR card".</p>
+          <p style="font-size:11.5px;color:#9099b5;margin:14px 0 0;">"Visits" counts real people only &mdash; crawlers and link-preview bots are excluded, and repeat views from the same visitor inside ${VISIT_DEDUP_MINUTES} minutes count once. "People" is distinct visitors. "Booked" = homeowner picked an inspection date. Times in Eastern.<br>Cards printed from Jul 22, 2026 carry a scan marker and report as <em>confirmed</em>. Older cards don't, so a phone arriving with no referrer shows as <em>QR card or direct share</em> &mdash; that also covers a texted link.</p>
         </td></tr>
       </table>
       <div style="font-size:11.5px;color:#9099b5;margin-top:18px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">The Roof Docs · Roof ER &nbsp;·&nbsp; Weekly QR &amp; lead report &nbsp;·&nbsp; VA · MD · PA</div>

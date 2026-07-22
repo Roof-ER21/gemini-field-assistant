@@ -15,30 +15,50 @@ export function isBotUserAgent(userAgent) {
 }
 const SOCIAL_HOST = /(instagram|facebook|fb\.com|threads|tiktok|twitter|x\.com|linkedin|snapchat|pinterest|reddit|youtube)/i;
 /**
- * Where did this visit actually come from?
- *   qr       — the URL carried the printed-card marker (?src=qr)
- *   social   — referred by a social network (Eric's Instagram funnel)
- *   referral — referred by some other site
- *   direct   — typed, messaged, or an older QR card with no marker
+ * Social apps open links in an embedded browser that sends NO referrer, so
+ * referrer-matching alone misses them badly — in production it caught 19 rows
+ * where the User-Agent identified 382. These tokens are the reliable signal.
  */
-export function classifyScanSource(req) {
+const IN_APP_BROWSER = /(FBAN|FBAV|FB_IAB|FBIOS|FBDV|Instagram|Snapchat|TikTok|musical_ly|Line\/|Twitter|LinkedInApp|Pinterest)/i;
+/** Opened from inside a social app's embedded browser. */
+export function isInAppBrowser(userAgent) {
+    return IN_APP_BROWSER.test(String(userAgent || ''));
+}
+/**
+ * Where did this visit actually come from?
+ *   qr          — the URL carried the printed-card marker (?src=qr). Certain.
+ *   card_likely — phone, no referrer, not inside a social app. That's the
+ *                 signature a camera-app QR scan leaves, and it's how cards
+ *                 printed before 2026-07-22 (which have no marker) stay
+ *                 attributable. Texted/AirDropped links look the same, so this
+ *                 is "card or direct share", not proof.
+ *   social      — a social referrer OR a social in-app browser.
+ *   referral    — referred by some other site.
+ *   direct      — desktop with no referrer: typed, pasted, or internal.
+ */
+export function classifyScanSource(req, isMobile) {
     const marker = String(req.query.src || req.query.utm_source || '').toLowerCase();
     if (marker === 'qr' || marker === 'card')
         return 'qr';
-    const referrer = String(req.headers['referer'] || '').trim();
-    if (!referrer)
-        return 'direct';
-    if (SOCIAL_HOST.test(referrer))
+    const userAgent = String(req.headers['user-agent'] || '');
+    if (isInAppBrowser(userAgent))
         return 'social';
-    try {
-        // Same-origin navigation isn't a new arrival.
-        if (new URL(referrer).host === req.get('host'))
-            return 'direct';
+    const referrer = String(req.headers['referer'] || '').trim();
+    if (referrer) {
+        if (SOCIAL_HOST.test(referrer))
+            return 'social';
+        try {
+            // Same-origin navigation isn't a new arrival.
+            if (new URL(referrer).host === req.get('host'))
+                return 'direct';
+        }
+        catch {
+            /* unparseable referrer — fall through */
+        }
+        return 'referral';
     }
-    catch {
-        /* unparseable referrer — fall through */
-    }
-    return 'referral';
+    const mobile = isMobile ?? /mobile|android|iphone|ipad/i.test(userAgent);
+    return mobile ? 'card_likely' : 'direct';
 }
 /**
  * Repeat visits inside this window count as one visit.

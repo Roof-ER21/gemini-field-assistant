@@ -1360,7 +1360,7 @@ export function createProfileRoutes(pool) {
                 referrer?.substring(0, 500) || null,
                 hashIP(ip),
                 getDeviceType(userAgent),
-                classifyScanSource(req),
+                classifyScanSource(req, getDeviceType(userAgent) === 'mobile'),
                 isBotUserAgent(userAgent),
             ]);
             res.json({ success: true });

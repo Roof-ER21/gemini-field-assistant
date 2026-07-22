@@ -672,6 +672,106 @@ export function createQRAnalyticsRoutes(pool) {
             res.status(500).json({ success: false, error: 'CC24 sync failed' });
         }
     });
+    // ── Card register ─────────────────────────────────────────────────────────
+    // "Who actually has a QR card?" used to live in a side spreadsheet, so the
+    // report couldn't tell a carded rep with no scans (coaching) from a rep who
+    // was never carded (logistics). These two endpoints move it into the product.
+    /**
+     * GET /api/qr-analytics/card-register
+     * Every active rep with their card status and 60-day activity.
+     */
+    router.get('/card-register', async (req, res) => {
+        try {
+            const userEmail = req.headers['x-user-email'];
+            if (!await canManageQRUser(userEmail)) {
+                return res.status(403).json({ success: false, error: 'Admin access required' });
+            }
+            const result = await pool.query(`
+        SELECT ep.id, ep.name, ep.slug, ep.card_issued_at, ep.card_batch, ep.card_notes,
+               COALESCE(s.visits, 0)::int AS visits_60d,
+               COALESCE(s.people, 0)::int AS people_60d,
+               s.last_seen
+          FROM employee_profiles ep
+          LEFT JOIN (
+            SELECT profile_slug,
+                   COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS people,
+                   MAX(scanned_at) AS last_seen
+              FROM qr_scans_human
+             WHERE scanned_at > NOW() - INTERVAL '60 days'
+             GROUP BY 1
+          ) s ON s.profile_slug = ep.slug
+         WHERE ep.is_active = TRUE
+         ORDER BY (ep.card_issued_at IS NULL), COALESCE(s.visits, 0) DESC, ep.name ASC
+      `);
+            const rows = result.rows.map(r => ({
+                id: r.id,
+                name: r.name,
+                slug: r.slug,
+                carded: r.card_issued_at !== null,
+                cardIssuedAt: r.card_issued_at,
+                cardBatch: r.card_batch,
+                cardNotes: r.card_notes,
+                visits60d: r.visits_60d,
+                people60d: r.people_60d,
+                lastSeen: r.last_seen,
+                // What to do about this rep, in one word.
+                status: r.card_issued_at === null ? 'needs_card'
+                    : r.visits_60d === 0 ? 'carded_idle'
+                        : 'active',
+            }));
+            res.json({
+                success: true,
+                reps: rows,
+                summary: {
+                    total: rows.length,
+                    needsCard: rows.filter(r => r.status === 'needs_card').length,
+                    cardedIdle: rows.filter(r => r.status === 'carded_idle').length,
+                    active: rows.filter(r => r.status === 'active').length,
+                },
+            });
+        }
+        catch (error) {
+            console.error('❌ Card register error:', error);
+            res.status(500).json({ success: false, error: 'Failed to load card register' });
+        }
+    });
+    /**
+     * POST /api/qr-analytics/card-register/:slug
+     * Record (or clear) a rep's card issuance.
+     * Body: { issued: boolean, batch?: string, notes?: string, issuedAt?: ISO date }
+     */
+    router.post('/card-register/:slug', async (req, res) => {
+        try {
+            const userEmail = req.headers['x-user-email'];
+            if (!await canManageQRUser(userEmail)) {
+                return res.status(403).json({ success: false, error: 'Admin access required' });
+            }
+            const { slug } = req.params;
+            const { issued = true, batch, notes, issuedAt } = req.body || {};
+            // Cards printed from 2026-07-22 carry the ?src=qr marker; older ones don't.
+            // Default the batch label so the distinction survives in the record.
+            const when = issued ? (issuedAt ? new Date(issuedAt) : new Date()) : null;
+            const defaultBatch = when && when >= new Date('2026-07-22')
+                ? '2026-07-22 tagged'
+                : '2026-07 pre-marker';
+            const result = await pool.query(`UPDATE employee_profiles
+            SET card_issued_at = $2,
+                card_batch     = CASE WHEN $2 IS NULL THEN NULL ELSE COALESCE($3, card_batch, $4) END,
+                card_notes     = CASE WHEN $2 IS NULL THEN NULL ELSE COALESCE($5, card_notes) END,
+                updated_at     = NOW()
+          WHERE slug = $1
+        RETURNING id, name, slug, card_issued_at, card_batch, card_notes`, [slug, when, batch || null, defaultBatch, notes || null]);
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, error: 'Profile not found' });
+            }
+            console.log(`[card-register] ${userEmail} set ${slug} issued=${issued}`);
+            res.json({ success: true, profile: result.rows[0] });
+        }
+        catch (error) {
+            console.error('❌ Card register update error:', error);
+            res.status(500).json({ success: false, error: 'Failed to update card register' });
+        }
+    });
     return router;
 }
 export default createQRAnalyticsRoutes;

@@ -10085,7 +10085,7 @@ app.get('/profile/:slug', async (req, res, next) => {
       [
         profile.id, slug, userAgent, referrer, ipHash,
         isMobile ? 'mobile' : 'desktop',
-        classifyScanSource(req),
+        classifyScanSource(req, isMobile),
         isBotUserAgent(userAgent),
       ]
     ).catch(err => console.error('Error tracking scan:', err));

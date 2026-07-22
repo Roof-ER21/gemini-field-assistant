@@ -1482,7 +1482,7 @@ export function createProfileRoutes(pool: Pool) {
           referrer?.substring(0, 500) || null,
           hashIP(ip),
           getDeviceType(userAgent),
-          classifyScanSource(req),
+          classifyScanSource(req, getDeviceType(userAgent) === 'mobile'),
           isBotUserAgent(userAgent),
         ]
       );

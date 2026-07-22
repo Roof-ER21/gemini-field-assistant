@@ -8808,7 +8808,7 @@ app.get('/profile/:slug', async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [
             profile.id, slug, userAgent, referrer, ipHash,
             isMobile ? 'mobile' : 'desktop',
-            classifyScanSource(req),
+            classifyScanSource(req, isMobile),
             isBotUserAgent(userAgent),
         ]).catch(err => console.error('Error tracking scan:', err));
         // Render complete HTML page with inline styles.
