@@ -17,13 +17,24 @@ function htmlToText(html) {
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/td>\s*<td[^>]*>/gi, '   ') // keep table-row cells on one line
         .replace(/<[^>]+>/g, '') // strip remaining tags
+        // Entity decoding. &amp; MUST come last: decoding it first would turn a
+        // literal "&amp;mdash;" into "&mdash;" and then into an em dash.
         .replace(/&nbsp;/gi, ' ')
         .replace(/&middot;/gi, '·')
-        .replace(/&amp;/gi, '&')
+        .replace(/&mdash;/gi, '—')
+        .replace(/&ndash;/gi, '–')
+        .replace(/&hellip;/gi, '…')
+        .replace(/&lsquo;/gi, '‘')
+        .replace(/&rsquo;/gi, '’')
+        .replace(/&ldquo;/gi, '“')
+        .replace(/&rdquo;/gi, '”')
+        .replace(/&times;/gi, '×')
         .replace(/&lt;/gi, '<')
         .replace(/&gt;/gi, '>')
         .replace(/&quot;/gi, '"')
         .replace(/&#39;/gi, "'")
+        .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+        .replace(/&amp;/gi, '&')
         .split('\n')
         .map((l) => l.replace(/[ \t]{2,}/g, '  ').trim())
         .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
