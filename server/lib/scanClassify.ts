@@ -1,0 +1,79 @@
+/**
+ * QR scan classification — bot detection + honest traffic sourcing.
+ *
+ * Background (2026-07-22 audit)
+ * ────────────────────────────
+ * Every load of /profile/:slug wrote a qr_scans row with a hardcoded
+ * source='direct' and no bot filter, so the "scans" number reps were graded on
+ * counted Meta's link-preview crawler, uptime probes and browser refreshes.
+ * 41% of all historical rows were automated.
+ *
+ * Two fixes live here:
+ *   1. isBotUserAgent  — mark automated traffic at insert time so reporting can
+ *                        exclude it without losing the raw row.
+ *   2. classifyScanSource — record where a visit actually came from, so a card
+ *                        scan and an Instagram click are no longer the same number.
+ *
+ * Printed QR codes now carry ?src=qr (see the generators in server/index.ts and
+ * components/AdminQRProfilesPanel.tsx), which is what makes 'qr' trustworthy.
+ * Cards printed before 2026-07-22 have no marker and land in 'direct'.
+ */
+import type { Request } from 'express';
+
+/**
+ * Automated-traffic User-Agent markers.
+ * KEEP IN SYNC with the backfill pattern in database/migrations/087_qr_scan_bot_filter.sql.
+ * No mainstream browser UA contains any of these tokens.
+ */
+export const BOT_UA_PATTERN =
+  /(bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|discord|slack|embedly|preview|headless|phantom|python-requests|python-urllib|curl|wget|libwww|httpx|axios|node-fetch|go-http|okhttp|scrapy|lighthouse|pingdom|uptime|monitor|semrush|ahrefs|mj12|dotbot|applebot|gptbot|claudebot|perplexity|chatgpt)/i;
+
+/** Crawlers, link-preview fetchers, monitors and scripted clients. */
+export function isBotUserAgent(userAgent?: string | null): boolean {
+  const ua = (userAgent || '').trim();
+  if (!ua) return true;            // no UA at all is never a real phone camera
+  if (ua === 'Google') return true; // Google's bare-string crawler
+  return BOT_UA_PATTERN.test(ua);
+}
+
+export type ScanSource = 'qr' | 'social' | 'referral' | 'direct';
+
+const SOCIAL_HOST =
+  /(instagram|facebook|fb\.com|threads|tiktok|twitter|x\.com|linkedin|snapchat|pinterest|reddit|youtube)/i;
+
+/**
+ * Where did this visit actually come from?
+ *   qr       — the URL carried the printed-card marker (?src=qr)
+ *   social   — referred by a social network (Eric's Instagram funnel)
+ *   referral — referred by some other site
+ *   direct   — typed, messaged, or an older QR card with no marker
+ */
+export function classifyScanSource(req: Request): ScanSource {
+  const marker = String(req.query.src || req.query.utm_source || '').toLowerCase();
+  if (marker === 'qr' || marker === 'card') return 'qr';
+
+  const referrer = String(req.headers['referer'] || '').trim();
+  if (!referrer) return 'direct';
+  if (SOCIAL_HOST.test(referrer)) return 'social';
+
+  try {
+    // Same-origin navigation isn't a new arrival.
+    if (new URL(referrer).host === req.get('host')) return 'direct';
+  } catch {
+    /* unparseable referrer — fall through */
+  }
+  return 'referral';
+}
+
+/**
+ * Repeat visits inside this window count as one visit.
+ * Kills refresh/back-button inflation without dropping rows: reporting counts
+ * DISTINCT (ip_hash, bucket) rather than COUNT(*).
+ */
+export const VISIT_DEDUP_MINUTES = 30;
+
+/**
+ * SQL expression bucketing scanned_at into VISIT_DEDUP_MINUTES slots.
+ * Pair with COUNT(DISTINCT (ip_hash, <bucket>)) to count real visits.
+ */
+export const VISIT_BUCKET_SQL = `(date_trunc('hour', scanned_at) + floor(extract(minute FROM scanned_at) / ${VISIT_DEDUP_MINUTES}) * interval '${VISIT_DEDUP_MINUTES} minutes')`;

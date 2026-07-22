@@ -39,7 +39,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           COUNT(*) as scans_all_time,
           COUNT(DISTINCT ip_hash) FILTER (WHERE scanned_at > NOW() - INTERVAL '30 days') as unique_visitors_month,
           COUNT(DISTINCT profile_slug) FILTER (WHERE scanned_at > NOW() - INTERVAL '30 days') as profiles_scanned_month
-        FROM qr_scans
+        FROM qr_scans_human
       `);
 
       const stats = result.rows[0];
@@ -84,7 +84,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           DATE(scanned_at) as date,
           COUNT(*) as scans,
           COUNT(DISTINCT ip_hash) as unique_visitors
-        FROM qr_scans
+        FROM qr_scans_human
         WHERE scanned_at > NOW() - INTERVAL '${Math.min(days, 90)} days'
         GROUP BY DATE(scanned_at)
         ORDER BY date ASC
@@ -133,7 +133,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           ep.image_url,
           COUNT(*) as scan_count,
           COUNT(DISTINCT qs.ip_hash) as unique_visitors
-        FROM qr_scans qs
+        FROM qr_scans_human qs
         LEFT JOIN employee_profiles ep ON ep.slug = qs.profile_slug
         WHERE qs.scanned_at > NOW() - INTERVAL '${Math.min(days, 90)} days'
         GROUP BY qs.profile_slug, ep.name, ep.image_url
@@ -186,7 +186,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           qs.device_type,
           qs.source,
           ep.name as profile_name
-        FROM qr_scans qs
+        FROM qr_scans_human qs
         LEFT JOIN employee_profiles ep ON ep.slug = qs.profile_slug
         ORDER BY qs.scanned_at DESC
         LIMIT $1
@@ -233,7 +233,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         SELECT
           COALESCE(device_type, 'unknown') as device_type,
           COUNT(*) as count
-        FROM qr_scans
+        FROM qr_scans_human
         WHERE scanned_at > NOW() - INTERVAL '${Math.min(days, 90)} days'
         GROUP BY device_type
         ORDER BY count DESC
@@ -291,7 +291,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           COUNT(*) FILTER (WHERE scanned_at > NOW() - INTERVAL '30 days') as scans_month,
           COUNT(*) as scans_all_time,
           COUNT(DISTINCT ip_hash) FILTER (WHERE scanned_at > NOW() - INTERVAL '30 days') as unique_visitors
-        FROM qr_scans
+        FROM qr_scans_human
         WHERE profile_slug = $1
       `, [slug]);
 
@@ -300,7 +300,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
       // Get daily breakdown
       const dailyResult = await pool.query(`
         SELECT DATE(scanned_at) as date, COUNT(*) as scans
-        FROM qr_scans
+        FROM qr_scans_human
         WHERE profile_slug = $1 AND scanned_at > NOW() - INTERVAL '30 days'
         GROUP BY DATE(scanned_at)
         ORDER BY date ASC
@@ -381,13 +381,13 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         // Summary: scans + unique + reps-scanned + signups, all in-range/slug
         pool.query(`
           SELECT
-            (SELECT COUNT(*)::int FROM qr_scans qs
+            (SELECT COUNT(*)::int FROM qr_scans_human qs
                WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR qs.profile_slug = $3)) AS scans,
-            (SELECT COUNT(DISTINCT qs.ip_hash)::int FROM qr_scans qs
+            (SELECT COUNT(DISTINCT qs.ip_hash)::int FROM qr_scans_human qs
                WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR qs.profile_slug = $3)) AS unique_visitors,
-            (SELECT COUNT(DISTINCT qs.profile_slug)::int FROM qr_scans qs
+            (SELECT COUNT(DISTINCT qs.profile_slug)::int FROM qr_scans_human qs
                WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR qs.profile_slug = $3)) AS reps_scanned,
             (SELECT COUNT(*)::int FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id
@@ -405,7 +405,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           FROM days d
           LEFT JOIN (
             SELECT (scanned_at AT TIME ZONE '${ET}')::date AS dd, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq
-            FROM qr_scans WHERE ($3::text IS NULL OR profile_slug = $3) GROUP BY 1
+            FROM qr_scans_human WHERE ($3::text IS NULL OR profile_slug = $3) GROUP BY 1
           ) sc ON sc.dd = d.d
           LEFT JOIN (
             SELECT (pl.created_at AT TIME ZONE '${ET}')::date AS dd, COUNT(*) AS signups
@@ -418,7 +418,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         // Device split (in-range/slug)
         pool.query(`
           SELECT COALESCE(device_type, 'unknown') AS device_type, COUNT(*)::int AS count
-          FROM qr_scans
+          FROM qr_scans_human
           WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
             AND ($3::text IS NULL OR profile_slug = $3)
           GROUP BY device_type ORDER BY count DESC
@@ -427,7 +427,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         // Recent scans (latest in-range/slug)
         pool.query(`
           SELECT qs.id, qs.profile_slug, qs.scanned_at, qs.device_type, qs.source, ep.name AS profile_name
-          FROM qr_scans qs LEFT JOIN employee_profiles ep ON ep.slug = qs.profile_slug
+          FROM qr_scans_human qs LEFT JOIN employee_profiles ep ON ep.slug = qs.profile_slug
           WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
             AND ($3::text IS NULL OR qs.profile_slug = $3)
           ORDER BY qs.scanned_at DESC LIMIT 30
@@ -458,7 +458,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
           LEFT JOIN (SELECT profile_id, COUNT(*) AS c FROM profile_videos GROUP BY 1) v ON v.profile_id = ep.id
           LEFT JOIN (SELECT profile_id, COUNT(*) AS c FROM profile_reviews WHERE profile_id IS NOT NULL GROUP BY 1) r ON r.profile_id = ep.id
           LEFT JOIN (
-            SELECT profile_slug, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq FROM qr_scans
+            SELECT profile_slug, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq FROM qr_scans_human
             WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date GROUP BY 1
           ) s ON s.profile_slug = ep.slug
           LEFT JOIN (
@@ -490,7 +490,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         // closed-won isn't tracked in sa21 — it lives in CC24; omit for now.
         pool.query(`
           SELECT
-            (SELECT COUNT(*)::int FROM qr_scans qs
+            (SELECT COUNT(*)::int FROM qr_scans_human qs
                WHERE (qs.scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
                  AND ($3::text IS NULL OR qs.profile_slug = $3)) AS scans,
             (SELECT COUNT(*)::int FROM profile_leads pl LEFT JOIN employee_profiles ep ON ep.id = pl.profile_id

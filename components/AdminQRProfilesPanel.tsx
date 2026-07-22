@@ -1400,7 +1400,9 @@ function ProfileRow({
   async function handleDownloadQR() {
     setDownloadingQR(true);
     try {
-      const profileUrl = `${window.location.origin}/profile/${profile.slug}`;
+      // ?src=qr tags the scan as coming from the printed card, so card traffic
+      // is separable from social/link clicks in the weekly report.
+      const profileUrl = `${window.location.origin}/profile/${profile.slug}?src=qr`;
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1024x1024&margin=20&data=${encodeURIComponent(profileUrl)}`;
       const res = await fetch(qrUrl);
       if (!res.ok) throw new Error('QR fetch failed');

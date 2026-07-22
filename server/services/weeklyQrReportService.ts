@@ -2,25 +2,41 @@
  * Weekly QR Report (Oliver's ask, 2026-07-01)
  * ────────────────────────────────────────────
  * Emailed every Monday 8am ET for the prior full Mon–Sun week:
- *   1. Per-rep scorecard — Rep | Scans | Unique | Form fills | Conv%
- *   2. Lead-source breakdown — Rep pages / Company /inspection page / RoofCheck
+ *   1. Per-rep scorecard — Rep | Visits | People | Form fills | Conv%
+ *   2. Traffic channel breakdown — QR card / Social / Referral / Direct
+ *   3. Lead-source breakdown — Rep pages / Company /inspection page / RoofCheck
  *
- * Reuses the same qr_scans + profile_leads aggregation the analytics dashboard
- * uses (server/routes/qrAnalyticsRoutes.ts). Sent via the admin's connected
+ * Counting (migration 087, 2026-07-22): reads the qr_scans_human view so bots
+ * never reach a rep's number, and counts DISTINCT (visitor, 30-min bucket) so a
+ * page refresh isn't a second visit. Before this, one rep showed 1,095 "scans"
+ * from 34 real visitors — ~900 of them Meta's link-preview crawler.
+ *
+ * Reuses the same aggregation the analytics dashboard uses
+ * (server/routes/qrAnalyticsRoutes.ts). Sent via the admin's connected
  * Google account (same pipeline as the lead emails). Recipients come from
  * QR_REPORT_RECIPIENTS (comma-separated); defaults to LEAD_ADMIN_EMAIL so it
  * works out of the box and Oliver can be added with no code change.
  */
 import pg from 'pg';
 import { sendGmailEmail } from './googleGmailService.js';
+import { VISIT_BUCKET_SQL, VISIT_DEDUP_MINUTES } from '../lib/scanClassify.js';
 
 const ET = 'America/New_York';
 const REPORT_LOGO = 'https://get.theroofdocs.com/roofer-logo-clean.png';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export interface WeekRange { fromD: string; toD: string; label: string; }
-export interface RepRow { name: string; slug: string; scans: number; uniq: number; signups: number; }
+export interface RepRow { name: string; slug: string; visits: number; people: number; signups: number; }
 export interface SourceRow { source: string; leads: number; booked: number; }
+export interface TrafficRow { source: string; visits: number; }
+
+/** How a qr_scans.source value reads in the email. */
+const SOURCE_LABEL: Record<string, string> = {
+  qr: 'QR card scan',
+  social: 'Social (Instagram / Facebook)',
+  referral: 'Other website',
+  direct: 'Direct / older QR card',
+};
 
 /** Prior full Mon–Sun in Eastern Time, as YYYY-MM-DD strings + a human label. */
 export function priorWeekRangeET(now: Date = new Date()): WeekRange {
@@ -37,17 +53,21 @@ export function priorWeekRangeET(now: Date = new Date()): WeekRange {
 
 export async function fetchWeeklyReportData(pool: pg.Pool, r: WeekRange) {
   const p = [r.fromD, r.toD];
-  const [repsR, srcR] = await Promise.all([
-    // Per-rep scorecard — scans + unique visitors + form fills (signups), ET-scoped.
+  const [repsR, srcR, trafficR] = await Promise.all([
+    // Per-rep scorecard, ET-scoped. Reads qr_scans_human (migration 087) so
+    // crawlers and link-preview bots never reach a rep's number, and counts
+    // DISTINCT (visitor, 30-min bucket) so a refresh isn't a second visit.
     pool.query(
       `SELECT ep.name, ep.slug,
-              COALESCE(s.scans, 0)::int  AS scans,
-              COALESCE(s.uniq, 0)::int   AS uniq,
+              COALESCE(s.visits, 0)::int  AS visits,
+              COALESCE(s.people, 0)::int  AS people,
               COALESCE(l.signups, 0)::int AS signups
          FROM employee_profiles ep
          LEFT JOIN (
-           SELECT profile_slug, COUNT(*) AS scans, COUNT(DISTINCT ip_hash) AS uniq
-             FROM qr_scans
+           SELECT profile_slug,
+                  COUNT(DISTINCT (ip_hash, ${VISIT_BUCKET_SQL})) AS visits,
+                  COUNT(DISTINCT ip_hash)                        AS people
+             FROM qr_scans_human
             WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
             GROUP BY 1
          ) s ON s.profile_slug = ep.slug
@@ -58,7 +78,7 @@ export async function fetchWeeklyReportData(pool: pg.Pool, r: WeekRange) {
             GROUP BY 1
          ) l ON l.slug = ep.slug
         WHERE ep.is_active = true
-        ORDER BY scans DESC, signups DESC, ep.name ASC`,
+        ORDER BY visits DESC, signups DESC, ep.name ASC`,
       p,
     ),
     // Lead-source breakdown — where every form fill came from this week.
@@ -77,16 +97,29 @@ export async function fetchWeeklyReportData(pool: pg.Pool, r: WeekRange) {
         ORDER BY leads DESC`,
       p,
     ),
+    // How reps' traffic actually arrived — separates real card scans from the
+    // Instagram/Facebook funnel, which used to be indistinguishable.
+    pool.query(
+      `SELECT source, COUNT(DISTINCT (ip_hash, ${VISIT_BUCKET_SQL}))::int AS visits
+         FROM qr_scans_human
+        WHERE (scanned_at AT TIME ZONE '${ET}')::date BETWEEN $1::date AND $2::date
+        GROUP BY 1
+        ORDER BY visits DESC`,
+      p,
+    ),
   ]);
   const allReps: RepRow[] = repsR.rows;
-  const reps = allReps.filter((x) => x.scans > 0 || x.signups > 0);
+  const reps = allReps.filter((x) => x.visits > 0 || x.signups > 0);
   const sources: SourceRow[] = srcR.rows;
+  const traffic: TrafficRow[] = trafficR.rows;
   return {
     reps,
     idleReps: allReps.length - reps.length,
-    totalScans: allReps.reduce((a, x) => a + x.scans, 0),
+    totalVisits: allReps.reduce((a, x) => a + x.visits, 0),
+    totalPeople: allReps.reduce((a, x) => a + x.people, 0),
     totalRepSignups: allReps.reduce((a, x) => a + x.signups, 0),
     sources,
+    traffic,
     totalLeads: sources.reduce((a, s) => a + s.leads, 0),
     totalBooked: sources.reduce((a, s) => a + s.booked, 0),
   };
@@ -103,19 +136,25 @@ function renderEmail(d: Awaited<ReturnType<typeof fetchWeeklyReportData>>, r: We
   const repRows = d.reps.length
     ? d.reps.map((x) => `<tr>
         <td style="${td}font-weight:600;color:#111827;">${esc(x.name)}</td>
-        <td style="${td}text-align:right;color:#111827;">${x.scans}</td>
-        <td style="${td}text-align:right;color:#6b7280;">${x.uniq}</td>
+        <td style="${td}text-align:right;color:#111827;">${x.visits}</td>
+        <td style="${td}text-align:right;color:#6b7280;">${x.people}</td>
         <td style="${td}text-align:right;color:#111827;font-weight:700;">${x.signups}</td>
-        <td style="${td}text-align:right;color:#166534;">${conv(x.signups, x.scans)}</td>
+        <td style="${td}text-align:right;color:#166534;">${conv(x.signups, x.people)}</td>
       </tr>`).join('')
-    : `<tr><td colspan="5" style="${td}text-align:center;color:#6b7280;">No rep QR activity this week.</td></tr>`;
+    : `<tr><td colspan="5" style="${td}text-align:center;color:#6b7280;">No rep page activity this week.</td></tr>`;
   const repTotal = `<tr>
         <td style="${td}border-top:2px solid #111827;font-weight:800;color:#111827;">TOTAL</td>
-        <td style="${td}border-top:2px solid #111827;text-align:right;font-weight:800;">${d.totalScans}</td>
-        <td style="${td}border-top:2px solid #111827;text-align:right;color:#6b7280;">—</td>
+        <td style="${td}border-top:2px solid #111827;text-align:right;font-weight:800;">${d.totalVisits}</td>
+        <td style="${td}border-top:2px solid #111827;text-align:right;color:#6b7280;">${d.totalPeople}</td>
         <td style="${td}border-top:2px solid #111827;text-align:right;font-weight:800;">${d.totalRepSignups}</td>
-        <td style="${td}border-top:2px solid #111827;text-align:right;color:#166534;font-weight:700;">${conv(d.totalRepSignups, d.totalScans)}</td>
+        <td style="${td}border-top:2px solid #111827;text-align:right;color:#166534;font-weight:700;">${conv(d.totalRepSignups, d.totalPeople)}</td>
       </tr>`;
+  const trafficRows = d.traffic.length
+    ? d.traffic.map((t) => `<tr>
+        <td style="${td}font-weight:600;color:#111827;">${esc(SOURCE_LABEL[t.source] || t.source)}</td>
+        <td style="${td}text-align:right;font-weight:700;color:#111827;">${t.visits}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="2" style="${td}text-align:center;color:#6b7280;">No rep page traffic this week.</td></tr>`;
   const srcRows = d.sources.length
     ? d.sources.map((s) => `<tr>
         <td style="${td}font-weight:600;color:#111827;">${esc(s.source)}</td>
@@ -136,15 +175,22 @@ function renderEmail(d: Awaited<ReturnType<typeof fetchWeeklyReportData>>, r: We
           <img src="${REPORT_LOGO}" width="176" alt="The Roof Docs" style="display:block;margin:0 auto 14px;width:176px;max-width:60%;height:auto;">
           <div style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:10px;">Weekly QR Report</div>
           <div style="font-size:22px;font-weight:800;color:#111827;">${esc(r.label)}</div>
-          <div style="font-size:13px;color:#6b7280;margin-top:6px;">${d.totalScans} scans &nbsp;·&nbsp; ${d.totalLeads} leads &nbsp;·&nbsp; ${d.totalBooked} booked</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:6px;">${d.totalVisits} visits &nbsp;·&nbsp; ${d.totalPeople} people &nbsp;·&nbsp; ${d.totalLeads} leads &nbsp;·&nbsp; ${d.totalBooked} booked</div>
         </td></tr>
         <tr><td style="padding:22px 40px 6px;">
           <div style="font-size:13px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Rep Scorecard</div>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            <tr><td style="${th}">Rep</td><td style="${th}text-align:right;">Scans</td><td style="${th}text-align:right;">Unique</td><td style="${th}text-align:right;">Form fills</td><td style="${th}text-align:right;">Conv%</td></tr>
+            <tr><td style="${th}">Rep</td><td style="${th}text-align:right;">Visits</td><td style="${th}text-align:right;">People</td><td style="${th}text-align:right;">Form fills</td><td style="${th}text-align:right;">Conv%</td></tr>
             ${repRows}${repTotal}
           </table>
           ${idleNote}
+        </td></tr>
+        <tr><td style="padding:20px 40px 6px;">
+          <div style="font-size:13px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">How That Traffic Arrived</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr><td style="${th}">Channel</td><td style="${th}text-align:right;">Visits</td></tr>
+            ${trafficRows}
+          </table>
         </td></tr>
         <tr><td style="padding:20px 40px 34px;">
           <div style="font-size:13px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Leads by Source</div>
@@ -152,7 +198,7 @@ function renderEmail(d: Awaited<ReturnType<typeof fetchWeeklyReportData>>, r: We
             <tr><td style="${th}">Source</td><td style="${th}text-align:right;">Form fills</td><td style="${th}text-align:right;">Booked</td></tr>
             ${srcRows}
           </table>
-          <p style="font-size:11.5px;color:#9099b5;margin:14px 0 0;">"Booked" = homeowner picked an inspection date. Times in Eastern. Rep scans are QR/profile-page visits; form fills are submitted lead forms.</p>
+          <p style="font-size:11.5px;color:#9099b5;margin:14px 0 0;">"Visits" counts real people only — crawlers and link-preview bots are excluded, and repeat views from the same visitor inside ${VISIT_DEDUP_MINUTES} minutes count once. "People" is distinct visitors. "Booked" = homeowner picked an inspection date. Times in Eastern. Cards printed before Jul 22, 2026 have no scan marker, so their traffic shows as "Direct / older QR card".</p>
         </td></tr>
       </table>
       <div style="font-size:11.5px;color:#9099b5;margin-top:18px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">The Roof Docs · Roof ER &nbsp;·&nbsp; Weekly QR &amp; lead report &nbsp;·&nbsp; VA · MD · PA</div>
@@ -181,7 +227,7 @@ export async function sendWeeklyQrReport(
   }
 
   const html = renderEmail(data, range);
-  const subject = `QR Weekly Report — ${range.label} (${data.totalScans} scans, ${data.totalLeads} leads)`;
+  const subject = `QR Weekly Report — ${range.label} (${data.totalVisits} visits, ${data.totalLeads} leads)`;
 
   let anySuccess = false;
   let lastErr: string | undefined;

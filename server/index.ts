@@ -91,6 +91,7 @@ import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
 import { createAdminRoutes } from './routes/adminRoutes.js';
 import { canManageQR as canManageQRPerm } from './lib/permissions.js';
+import { classifyScanSource, isBotUserAgent } from './lib/scanClassify.js';
 // IHM and HailTrace removed — all hail data sourced from NOAA/NWS/NEXRAD (free, federal)
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import {
@@ -9922,7 +9923,10 @@ function renderQrPrintSheet(profiles: any[], origin: string, layout: 'sheet' | '
   } as any)[c]);
 
   const cards = profiles.map(p => {
-    const profileUrl = `${origin}/profile/${p.slug}`;
+    // ?src=qr is what makes a printed-card scan distinguishable from an
+    // Instagram click in qr_scans.source. Cards printed before 2026-07-22
+    // lack it and fall into 'direct'.
+    const profileUrl = `${origin}/profile/${p.slug}?src=qr`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data=${encodeURIComponent(profileUrl)}`;
     const headshot = p.image_url
       ? (String(p.image_url).startsWith('/') ? `${origin}${p.image_url}` : p.image_url)
@@ -10066,16 +10070,24 @@ app.get('/profile/:slug', async (req, res, next) => {
       profile.reviews_are_global = true;
     }
 
-    // Track scan
-    const userAgent = req.headers['user-agent'] || '';
-    const referrer = req.headers['referer'] || '';
+    // Track scan. Every row is kept, but automated traffic is flagged so it
+    // stays out of rep scorecards — Meta's link-preview crawler alone accounted
+    // for ~900 phantom "scans" before migration 087. Source is classified for
+    // real now instead of being hardcoded 'direct'.
+    const userAgent = String(req.headers['user-agent'] || '');
+    const referrer = String(req.headers['referer'] || '');
     const ipHash = crypto.createHash('sha256').update(req.ip || '').digest('hex').substring(0, 16);
     const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
 
     pool.query(
-      `INSERT INTO qr_scans (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [profile.id, slug, userAgent, referrer, ipHash, isMobile ? 'mobile' : 'desktop', 'direct']
+      `INSERT INTO qr_scans (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source, is_bot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        profile.id, slug, userAgent, referrer, ipHash,
+        isMobile ? 'mobile' : 'desktop',
+        classifyScanSource(req),
+        isBotUserAgent(userAgent),
+      ]
     ).catch(err => console.error('Error tracking scan:', err));
 
     // Render complete HTML page with inline styles.

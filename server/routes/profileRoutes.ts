@@ -11,6 +11,7 @@ import path from 'path';
 import fs from 'fs';
 import { createCalendarEvent } from '../services/googleCalendarService.js';
 import { sendGmailEmail } from '../services/googleGmailService.js';
+import { classifyScanSource, isBotUserAgent } from '../lib/scanClassify.js';
 import { canManageQR, isAdmin as isAdminRole } from '../lib/permissions.js';
 
 // ─── CC21 bridge ────────────────────────────────────────────────────────────
@@ -1448,7 +1449,7 @@ export function createProfileRoutes(pool: Pool) {
    */
   router.post('/track-scan', async (req: Request, res: Response) => {
     try {
-      const { profileSlug, source = 'qr' } = req.body;
+      const { profileSlug } = req.body;
 
       if (!profileSlug) {
         return res.status(400).json({
@@ -1468,10 +1469,12 @@ export function createProfileRoutes(pool: Pool) {
       const referrer = req.headers['referer'] as string;
       const ip = req.ip || req.headers['x-forwarded-for'] as string || '';
 
+      // Source is derived from the request (?src=qr marker / referrer), never
+      // taken from the body — a client-supplied 'qr' told us nothing true.
       await pool.query(
         `INSERT INTO qr_scans
-         (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source, is_bot)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           profileId,
           profileSlug,
@@ -1479,7 +1482,8 @@ export function createProfileRoutes(pool: Pool) {
           referrer?.substring(0, 500) || null,
           hashIP(ip),
           getDeviceType(userAgent),
-          source
+          classifyScanSource(req),
+          isBotUserAgent(userAgent),
         ]
       );
 

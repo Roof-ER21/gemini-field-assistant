@@ -143,8 +143,9 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
   // Generate QR code data URL
   const generateQRCode = async (slug: string) => {
     try {
-      // Use a simple QR code service or generate locally
-      const profileUrl = `${window.location.origin}/profile/${slug}`;
+      // Use a simple QR code service or generate locally.
+      // ?src=qr tags scans from this printed code as card scans.
+      const profileUrl = `${window.location.origin}/profile/${slug}?src=qr`;
       // For now, use a placeholder - in production, use qrcode npm package
       const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(profileUrl)}`;
       setQrCodeUrl(qrApiUrl);
