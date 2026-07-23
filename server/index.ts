@@ -9750,6 +9750,26 @@ app.use('/api/admin', createAdminRoutes(pool));
 // ============================================================================
 const serveCompanyLanding = async (_req: express.Request, res: express.Response) => {
   try {
+    // ?rep=<slug> means a REP handed this link out (the /admin/campaigns sheet
+    // builds /free-inspection?rep=… QRs and copy-links). Without this the
+    // company page rendered and the lead lost its rep entirely — no rep email,
+    // no rep credit in CC24, just info@. Hand those scans to the rep's own
+    // landing page, preserving any tracking params.
+    const repSlug = String((_req.query.rep as string) || '').trim().toLowerCase();
+    if (/^[a-z0-9][a-z0-9-]{0,80}$/.test(repSlug)) {
+      const rp = await pool.query(
+        `SELECT slug FROM employee_profiles WHERE slug = $1 AND is_active = true LIMIT 1`,
+        [repSlug],
+      );
+      if (rp.rows[0]) {
+        const qs = new URLSearchParams();
+        for (const [k, v] of Object.entries(_req.query)) {
+          if (k !== 'rep' && typeof v === 'string') qs.set(k, v);
+        }
+        if (!qs.has('src')) qs.set('src', 'qr');
+        return res.redirect(302, `/profile/${encodeURIComponent(rp.rows[0].slug)}?${qs.toString()}`);
+      }
+    }
     // Real global reviews only (no fabricated content) — the same set reps fall back to.
     const gr = await pool.query(
       `SELECT id, text, author, date_label, source, rating
@@ -11483,7 +11503,13 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
           </div>
           <div class="field"><label for="ph">Phone</label><input id="ph" name="ph" type="tel" placeholder="(571) 555-0199" autocomplete="tel" required></div>
           <div class="field"><label for="em">Email</label><input id="em" name="em" type="email" placeholder="jane@email.com" autocomplete="email"></div>
-          <div class="field"><label for="ad">Property address</label><input id="ad" name="ad" type="text" placeholder="123 Main St, Vienna, VA 22180" autocomplete="street-address" required></div>
+          <div class="field"><label for="ad1">Property address</label><input id="ad1" name="ad1" type="text" placeholder="123 Main St" autocomplete="address-line1" required></div>
+          <div class="field" style="margin-top:8px"><input id="ad2" name="ad2" type="text" placeholder="Apt, suite, unit (optional)" autocomplete="address-line2"></div>
+          <div class="row3">
+            <div class="field"><label for="city">City</label><input id="city" name="city" type="text" placeholder="Vienna" autocomplete="address-level2" required></div>
+            <div class="field"><label for="state">State</label><select id="state" name="state" autocomplete="address-level1" required><option value="" disabled selected>—</option><option>VA</option><option>MD</option><option>PA</option><option>DC</option><option>WV</option><option>DE</option><option>NJ</option><option>OH</option></select></div>
+            <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" type="text" inputmode="numeric" placeholder="22180" autocomplete="postal-code" maxlength="10" required></div>
+          </div>
           <div class="field"><label for="ms">Anything we should know? <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="ms" name="ms" placeholder="Recent storm, visible leak, missing shingles…"></textarea></div>`}
           <div class="err" id="formErr" role="alert"></div>
           <button class="btn full" type="submit" id="inspBtn">
@@ -11681,10 +11707,15 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
         $('formDone').style.display='block';
       }` : `
       var fn=($('fn').value||'').trim(), ln=($('ln').value||'').trim();
-      var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ad=($('ad').value||'').trim(), ms=($('ms').value||'').trim();
+      var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ms=($('ms').value||'').trim();
+      var ad1=($('ad1').value||'').trim(), ad2=($('ad2').value||'').trim();
+      var city=($('city').value||'').trim(), state=($('state').value||'').trim(), zip=($('zip').value||'').trim();
       var err = $('formErr');
       if(!fn || ph.replace(/\\D/g,'').length < 7){ err.textContent='Please add your name and a valid phone number.'; err.style.display='block'; return; }
-      if(!ad){ err.textContent='Please add your property address.'; err.style.display='block'; return; }
+      if(!ad1 || !city || !state || !zip){ err.textContent='Please complete your property address.'; err.style.display='block'; return; }
+      /* Reps get the FULL address in their email, calendar invite and CC24 job —
+         a bare street name isn't enough to route a crew or match a claim. */
+      var ad=[ad1, ad2, city+', '+state+' '+zip].filter(Boolean).join(', ');
       err.style.display='none';
       var btn = $('inspBtn'); btn.disabled=true; btn.innerHTML='<span class="spin-i"></span>';
       try{

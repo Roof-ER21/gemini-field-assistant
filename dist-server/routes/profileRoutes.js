@@ -432,6 +432,20 @@ function escEmail(s) {
 function leadChip(text, bg, fg) {
     return `<span style="display:inline-block;background:${bg};color:${fg};font-size:12.5px;font-weight:700;padding:6px 13px;border-radius:9px;margin:0 7px 7px 0;white-space:nowrap;letter-spacing:.01em;">${escEmail(text)}</span>`;
 }
+// ─── Internal lead distribution ─────────────────────────────────────────────
+// Ford, Star, info@ and Ahmed must see EVERY lead, whatever surface produced it
+// (rep QR page, company landing, RoofCheck, storm/claim-help/referral pages).
+// Override wholesale with INTERNAL_LEAD_RECIPIENTS (comma-separated).
+export function internalLeadRecipients(exclude) {
+    const raw = process.env.INTERNAL_LEAD_RECIPIENTS
+        || 'ford.barsi@theroofdocs.com,star.mackey@theroofdocs.com,info@theroofdocs.com,ahmed.mahmoud@theroofdocs.com';
+    const skip = new Set((exclude || []).filter(Boolean).map((e) => String(e).trim().toLowerCase()));
+    const seen = new Set();
+    return raw
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => /.+@.+\..+/.test(s) && !skip.has(s) && !seen.has(s) && seen.add(s));
+}
 function cleanSourceLabel(s) {
     const v = String(s || '');
     if (/jotform/i.test(v))
@@ -508,6 +522,47 @@ function renderLeadEmail(title, badge, rows) {
     </td></tr>
   </table>
 </body></html>`;
+}
+// Send the branded "new lead" card to the internal distro from a surface that
+// isn't already running runLeadIntegrations / runCompanyLeadIntegrations — i.e.
+// the storm / claim-help / storm-checklist / referral landing pages, which
+// previously notified nobody by email. Fire-and-forget; never blocks the
+// homeowner's submission.
+export function sendInternalLeadEmail(pool, leadData, opts) {
+    (async () => {
+        try {
+            const extra = (opts?.alsoTo || [])
+                .filter(Boolean)
+                .map((e) => String(e).trim().toLowerCase())
+                .filter((e) => /.+@.+\..+/.test(e));
+            const team = [...new Set([...extra, ...internalLeadRecipients(opts?.exclude)])];
+            if (!team.length || !leadData.homeownerName)
+                return;
+            const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
+            const adminRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmailAddr]);
+            const adminUserId = adminRow.rows[0]?.id || null;
+            if (!adminUserId) {
+                console.error('[Internal lead email] no admin sender available — lead saved but not emailed');
+                return;
+            }
+            const serviceLabel = leadData.serviceLabel
+                || (leadData.serviceType
+                    ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
+                    : 'Service Request');
+            const result = await sendGmailEmail(pool, adminUserId, {
+                to: team.join(', '),
+                subject: `[Lead] ${leadData.homeownerName}${opts?.repLabel ? ` -> ${opts.repLabel}` : ''} (${leadData.sourceLabel || 'Website'})`,
+                body: renderLeadEmail('New Inspection Request', opts?.badge || 'Team copy', buildLeadRows({ ...leadData, serviceLabel }, opts?.repLabel)),
+                replyTo: adminEmailAddr,
+            });
+            console.log(`[Internal lead email] ${result.success
+                ? 'sent to ' + team.join(',') + ' msgId=' + result.messageId
+                : 'failed: ' + result.error}`);
+        }
+        catch (e) {
+            console.error('[Internal lead email] error:', e?.message);
+        }
+    })();
 }
 export function createProfileRoutes(pool) {
     const router = Router();
@@ -745,26 +800,30 @@ export function createProfileRoutes(pool) {
                 catch (notifErr) {
                     console.error(`[QR Lead] Failed to insert in-app notification:`, notifErr);
                 }
-                // 4) Admin BCC email — every lead, regardless of rep Gmail state.
-                // adminUserId / adminEmailAddr resolved once at top of fn for reuse
-                // by the calendar + email fallbacks above.
+                // 4) Internal team copy — Ford, Star, info@ and Ahmed get EVERY lead,
+                // regardless of rep Gmail state. The rep is excluded when they're on the
+                // distro (they already got their own copy at step 2). adminUserId /
+                // adminEmailAddr resolved once at top of fn for reuse by the calendar +
+                // email fallbacks above.
                 try {
-                    if (adminUserId) {
-                        const adminResult = await sendGmailEmail(pool, adminUserId, {
-                            to: adminEmailAddr,
+                    const team = internalLeadRecipients([repEmail]);
+                    if (adminUserId && team.length) {
+                        const teamResult = await sendGmailEmail(pool, adminUserId, {
+                            to: team.join(', '),
                             subject: `[Lead] ${leadData.homeownerName} -> ${repName} (${sourceLabel})`,
-                            body: renderLeadEmail('New Inspection Request', 'Admin copy', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }, repName)),
+                            body: renderLeadEmail('New Inspection Request', 'Team copy', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }, repName)),
+                            replyTo: repEmail || adminEmailAddr,
                         });
-                        if (adminResult.success) {
-                            console.log(`[QR Lead] Admin BCC sent msgId=${adminResult.messageId}`);
+                        if (teamResult.success) {
+                            console.log(`[QR Lead] Team copy sent to ${team.join(',')} msgId=${teamResult.messageId}`);
                         }
                         else {
-                            console.log(`[QR Lead] Admin BCC skipped: ${adminResult.error}`);
+                            console.log(`[QR Lead] Team copy skipped: ${teamResult.error}`);
                         }
                     }
                 }
                 catch (adminErr) {
-                    console.error(`[QR Lead] Admin BCC failed:`, adminErr);
+                    console.error(`[QR Lead] Team copy failed:`, adminErr);
                 }
             }
             catch (err) {
@@ -819,14 +878,18 @@ export function createProfileRoutes(pool) {
                         .then((r) => console.log(`[Company lead] Homeowner confirm ${r.success ? 'sent to ' + leadData.homeownerEmail + ' msgId=' + r.messageId : 'failed: ' + r.error}`))
                         .catch((e) => console.error('[Company lead] Homeowner confirm error:', e?.message));
                 }
-                // Notification to the company inbox
+                // Notification to the company inbox + the internal distro (Ford, Star,
+                // info@, Ahmed). No rep is attached to a company-page lead, so everyone
+                // on the distro is a primary recipient of the same email.
                 const notifBody = renderLeadEmail('New Inspection Request', 'New Lead', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }));
+                const recipients = [companyEmail.toLowerCase(), ...internalLeadRecipients([companyEmail])];
                 const notifResult = await sendGmailEmail(pool, adminUserId, {
-                    to: companyEmail,
+                    to: recipients.join(', '),
                     subject: `New Lead: ${leadData.homeownerName} - ${serviceLabel}`,
                     body: notifBody,
+                    replyTo: companyEmail,
                 });
-                console.log(`[Company lead] Notification ${notifResult.success ? 'sent to ' + companyEmail + ' msgId=' + notifResult.messageId : 'failed: ' + notifResult.error}`);
+                console.log(`[Company lead] Notification ${notifResult.success ? 'sent to ' + recipients.join(',') + ' msgId=' + notifResult.messageId : 'failed: ' + notifResult.error}`);
             }
             catch (e) {
                 console.error('[Company lead] integration error:', e?.message);

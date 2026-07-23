@@ -11,6 +11,7 @@ import { Router, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { emailService, type EmailTemplate } from '../services/emailService.js';
 import { LeadSmsService } from '../services/leadSmsService.js';
+import { sendInternalLeadEmail } from './profileRoutes.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +20,25 @@ import { LeadSmsService } from '../services/leadSmsService.js';
 type LeadSource = 'profile' | 'storm' | 'storm_landing' | 'claim_quiz' | 'claim_help'
   | 'referral' | 'qr_door' | 'cold_email' | 'social_reddit' | 'social_scanner'
   | 'reengagement' | 'appointment_ai' | 'phone_call';
+
+// Human-readable "How they found us" label for each landing surface — shown in
+// the internal lead email so Ford/Star/info@ can tell a storm page lead from a
+// referral without opening the dashboard.
+const SOURCE_LABELS: Record<string, string> = {
+  profile: 'Rep profile page',
+  storm: 'Storm landing page',
+  storm_landing: 'Storm landing page',
+  claim_quiz: 'Claim quiz',
+  claim_help: 'Claim help page',
+  referral: 'Referral link',
+  qr_door: 'QR door hanger',
+  cold_email: 'Cold email',
+  social_reddit: 'Reddit',
+  social_scanner: 'Social scanner',
+  reengagement: 'Re-engagement',
+  appointment_ai: 'AI appointment setter',
+  phone_call: 'Phone call',
+};
 
 interface ScoreFactors {
   hasPhone: boolean;
@@ -348,6 +368,61 @@ export function createLeadGenRoutes(pool: Pool) {
         score,
       });
 
+      // --- Resolve the attributed rep (name + email) ------------------------
+      // Shared by the internal lead email and the CC24 forward below. The rep
+      // form posts `repProfileId` (hidden field); older callers send
+      // `profileId`. Match employee_profiles directly, or via the referral
+      // code. Non-fatal — an unattributed lead still notifies and forwards.
+      let repEmail: string | undefined;
+      let repName: string | undefined;
+      const effProfileId =
+        profileId ||
+        (typeof (req.body as { repProfileId?: unknown }).repProfileId === 'string'
+          ? ((req.body as { repProfileId?: string }).repProfileId || '').trim()
+          : '');
+      try {
+        if (effProfileId) {
+          const rp = await pool.query(
+            `SELECT name, email FROM employee_profiles WHERE id = $1 LIMIT 1`,
+            [effProfileId],
+          );
+          if (rp.rows[0]) { repName = rp.rows[0].name || undefined; repEmail = rp.rows[0].email || undefined; }
+        }
+        if ((!repEmail || !repName) && referralCode) {
+          const rc = await pool.query(
+            `SELECT ep.name, ep.email
+               FROM referral_codes rc
+               JOIN employee_profiles ep ON ep.id = rc.profile_id
+              WHERE UPPER(rc.code) = UPPER($1) LIMIT 1`,
+            [referralCode],
+          );
+          if (rc.rows[0]) {
+            repName = repName || rc.rows[0].name || undefined;
+            repEmail = repEmail || rc.rows[0].email || undefined;
+          }
+        }
+      } catch (lookupErr) {
+        console.error('Lead intake: rep lookup failed (non-fatal):', (lookupErr as Error).message);
+      }
+
+      // --- Notify the team (fire-and-forget) --------------------------------
+      // These landing-page leads (storm / claim-help / storm-checklist /
+      // referral) previously emailed NOBODY — only Telegram + SMS + a forward.
+      // Ford, Star, info@ and Ahmed now get the same branded lead card the QR
+      // and company pages produce; the attributed rep is CC'd when there is one.
+      const landingSource = SOURCE_LABELS[resolvedSource] || 'Website';
+      sendInternalLeadEmail(pool, {
+        homeownerName: homeownerName.trim(),
+        homeownerEmail: homeownerEmail || null,
+        homeownerPhone: homeownerPhone || null,
+        address: [address, zipCode].filter(Boolean).join(' ').trim() || null,
+        serviceType: serviceType || null,
+        preferredDate: safeDate,
+        preferredTime: preferredTime || null,
+        message: ((message || '') + dateNote).trim() || null,
+        sourceLabel: landingSource,
+      }, { repLabel: repName || null, alsoTo: [repEmail] });
+
       // --- SMS follow-up sequence (fire-and-forget) -------------------------
       if (homeownerPhone) {
         leadSmsService.enqueueSequence({
@@ -367,8 +442,12 @@ export function createLeadGenRoutes(pool: Pool) {
       // up in Active Leads. Completely inert if the env vars are absent — sa21
       // behaves exactly as before. Never blocks or fails the homeowner's
       // submission (we already returned 201 to them below).
-      const cc21Url = process.env.CC21_LEAD_INTAKE_URL;
-      const cc21Secret = process.env.CC21_WEBSITE_SECRET;
+      // CC21 is the RETIRED non-sending backup — prefer CC24 (the live Command
+      // Center) and fall back to the legacy vars only if CC24 isn't configured,
+      // matching forwardLeadToCC24() in profileRoutes.ts. Without this these
+      // landing-page leads land in the archive nobody watches.
+      const cc21Url = process.env.CC24_LEAD_INTAKE_URL || process.env.CC21_LEAD_INTAKE_URL;
+      const cc21Secret = process.env.CC24_WEBSITE_SECRET || process.env.CC21_WEBSITE_SECRET;
       if (cc21Url && cc21Secret) {
         // CC21 attributes leads to a region from state/zip (falls back to the
         // primary region). sa21 stores zipCode separately and often embeds the
@@ -378,42 +457,8 @@ export function createLeadGenRoutes(pool: Pool) {
         const fwdZip = (zipCode || addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] || '').trim();
         const fwdState = (addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1] || '').toUpperCase();
 
-        // Resolve the attributed rep (email + name) so CC21 can ASSIGN the lead
-        // to that specific rep — not the org owner. The rep form posts
-        // `repProfileId` (hidden field); older callers send `profileId`. Match
-        // employee_profiles directly, or via the referral code. Non-fatal.
-        let repEmail: string | undefined;
-        let repName: string | undefined;
-        const effProfileId =
-          profileId ||
-          (typeof (req.body as { repProfileId?: unknown }).repProfileId === 'string'
-            ? ((req.body as { repProfileId?: string }).repProfileId || '').trim()
-            : '');
-        try {
-          if (effProfileId) {
-            const rp = await pool.query(
-              `SELECT name, email FROM employee_profiles WHERE id = $1 LIMIT 1`,
-              [effProfileId],
-            );
-            if (rp.rows[0]) { repName = rp.rows[0].name || undefined; repEmail = rp.rows[0].email || undefined; }
-          }
-          if ((!repEmail || !repName) && referralCode) {
-            const rc = await pool.query(
-              `SELECT ep.name, ep.email
-                 FROM referral_codes rc
-                 JOIN employee_profiles ep ON ep.id = rc.profile_id
-                WHERE UPPER(rc.code) = UPPER($1) LIMIT 1`,
-              [referralCode],
-            );
-            if (rc.rows[0]) {
-              repName = repName || rc.rows[0].name || undefined;
-              repEmail = repEmail || rc.rows[0].email || undefined;
-            }
-          }
-        } catch (lookupErr) {
-          console.error('CC21 forward: rep lookup failed (non-fatal):', (lookupErr as Error).message);
-        }
-
+        // repEmail / repName resolved once above (shared with the internal lead
+        // email) so CC24 can ASSIGN the lead to that specific rep, not the org owner.
         const forwardBody = {
           fullName: homeownerName.trim(),
           email: homeownerEmail || undefined,
