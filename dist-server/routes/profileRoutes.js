@@ -1460,6 +1460,24 @@ export function createProfileRoutes(pool) {
     // ==========================================================================
     // AUTHENTICATED ENDPOINTS
     // ==========================================================================
+    // Resolve the profile for a user id/email: linked row first, else an
+    // unclaimed profile whose email matches — auto-link it so admin-created
+    // profiles work without a manual claim step (reps saw "contact your admin"
+    // even though their profile existed, just with user_id NULL).
+    async function resolveOwnProfile(userId, userEmail) {
+        const linked = await pool.query('SELECT * FROM employee_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+        if (linked.rows.length > 0)
+            return linked.rows[0];
+        const adopted = await pool.query(`UPDATE employee_profiles
+       SET user_id = $1, is_claimed = TRUE, updated_at = NOW()
+       WHERE user_id IS NULL AND LOWER(email) = LOWER($2)
+       RETURNING *`, [userId, userEmail]);
+        if (adopted.rows.length > 0) {
+            console.log(`[Profiles] Auto-linked profile ${adopted.rows[0].slug} to user ${userEmail}`);
+            return adopted.rows[0];
+        }
+        return null;
+    }
     /**
      * GET /api/profiles/me
      * Get current user's profile
@@ -1482,9 +1500,8 @@ export function createProfileRoutes(pool) {
                 });
             }
             const userId = userResult.rows[0].id;
-            // Get profile linked to this user
-            const result = await pool.query('SELECT * FROM employee_profiles WHERE user_id = $1 LIMIT 1', [userId]);
-            if (result.rows.length === 0) {
+            const profile = await resolveOwnProfile(userId, userEmail);
+            if (!profile) {
                 return res.json({
                     success: true,
                     profile: null,
@@ -1493,7 +1510,7 @@ export function createProfileRoutes(pool) {
             }
             res.json({
                 success: true,
-                profile: result.rows[0]
+                profile
             });
         }
         catch (error) {
@@ -1527,6 +1544,8 @@ export function createProfileRoutes(pool) {
                 });
             }
             const userId = userResult.rows[0].id;
+            // Adopt an email-matching unclaimed profile first (same self-heal as GET /me)
+            await resolveOwnProfile(userId, userEmail);
             const result = await pool.query(`UPDATE employee_profiles
          SET name = COALESCE($1, name),
              title = COALESCE($2, title),
