@@ -234,7 +234,7 @@ app.use(helmet({
       // get.theroofdocs.com is allowed as a <base> target so the company /inspection page works
       // when reverse-proxied onto www.theroofdocs.com (its assets/POST live on get.*).
       baseUri: ["'self'", "https://get.theroofdocs.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com", "https://rffx.theroofdocs.com"],
       scriptSrcAttr: ["'unsafe-inline'"],   // allow inline on* handlers (chat widget, quiz) — was blocked by helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com", "https://accounts.google.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
@@ -264,7 +264,8 @@ app.use(helmet({
         "https://router.project-osrm.org",
         "https://api.qrserver.com",
         "https://cdnjs.cloudflare.com",
-        "https://api.weather.gov"
+        "https://api.weather.gov",
+        "https://rffx.theroofdocs.com"
       ],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://api.fontshare.com", "https://cdn.fontshare.com"],
       objectSrc: ["'none'"],
@@ -10848,6 +10849,15 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
 <meta name="theme-color" content="#08080d">
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+${isCompany ? `<script>
+  (function (w,d,o,u,a,m) {
+      w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments);
+      },w[o].e=1*new Date();w[o].u=u;a=d.createElement('script'),
+      m=d.getElementsByTagName('script')[0];a.async=1;
+      a.src=u+'/mcfx.js';m.parentNode.insertBefore(a, m);
+    })(window, document, 'mcfx', 'https://rffx.theroofdocs.com');
+  mcfx('create', {siteId:3699,modules:["view","forms","reviews"],useSecureCookies:true});
+</script>` : ''}
 <style>
   :root{
     --ink:#08080d;--ink2:#0f0e16;--line:rgba(255,255,255,.11);
@@ -11697,6 +11707,8 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
       try{
         var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: address, message: message, preferredDate: appt, preferredTime: slot, serviceType: 'Free inspection (company page)', photoUrls: photoUrls, attribution: (window.__s21attr?window.__s21attr():{}), jotform: { firstName: fn, lastName: ln, email: em, phone: ph, addr1: ad1, addr2: ad2, city: city, state: state, zip: zip, areas: areas, howHeard: how, howMore: howMore, apptDate: appt, apptSlot: slot, comments: ms } } )});
+        /* RCFX conversion (WebFX): only on confirmed accept, never on failure */
+        if(r && r.ok){ try{ if(typeof window.mcfx==='function'){ window.mcfx('send', {type:'event', category:'form', action:'submit', label:'inspection-request', value:1}); } }catch(eMx){} }
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
