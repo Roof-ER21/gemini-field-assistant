@@ -202,7 +202,7 @@ app.use(helmet({
             // get.theroofdocs.com is allowed as a <base> target so the company /inspection page works
             // when reverse-proxied onto www.theroofdocs.com (its assets/POST live on get.*).
             baseUri: ["'self'", "https://get.theroofdocs.com"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com", "https://rffx.theroofdocs.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://aistudiocdn.com", "https://*.jotform.com", "https://accounts.google.com", "https://rffx.theroofdocs.com", "https://loader.nutshell.com", "https://static.nlcdn.com"],
             scriptSrcAttr: ["'unsafe-inline'"], // allow inline on* handlers (chat widget, quiz) — was blocked by helmet's default 'none'
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://api.fontshare.com", "https://accounts.google.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tilecache.rainviewer.com", "https://cdnjs.cloudflare.com", "https://api.qrserver.com"],
@@ -233,7 +233,10 @@ app.use(helmet({
                 "https://api.qrserver.com",
                 "https://cdnjs.cloudflare.com",
                 "https://api.weather.gov",
-                "https://rffx.theroofdocs.com"
+                "https://rffx.theroofdocs.com",
+                "https://loader.nutshell.com",
+                "https://static.nlcdn.com",
+                "https://*.nutshell.com"
             ],
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://api.fontshare.com", "https://cdn.fontshare.com"],
             objectSrc: ["'none'"],
