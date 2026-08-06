@@ -226,6 +226,28 @@ export function extractContextBlocks(context: string, labels: string[]): string 
 }
 
 /**
+ * Inverse of extractContextBlocks: drop the named blocks and keep the rest.
+ * Used by outward-facing generation (emails/documents) so chat-scoped blocks
+ * like MANAGER DIRECTIVES never reach content sent to adjusters or customers.
+ */
+export function excludeContextBlocks(context: string, labels: string[]): string {
+  if (!context) return '';
+  const banned = labels.map(l => l.toUpperCase());
+  const lines = context.split('\n');
+  const out: string[] = [];
+  let dropping = false;
+  for (const line of lines) {
+    const m = line.match(/^\[([^\]]+)\]$/);
+    if (m) {
+      const label = m[1].toUpperCase();
+      dropping = banned.some(b => label.startsWith(b));
+    }
+    if (!dropping) out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+/**
  * Agnes training knowledge that Susan should reference.
  * This is the bridge between Agnes (training) and Susan (field assistant).
  * Susan knows what Agnes teaches so she can reinforce training in the field.

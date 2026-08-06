@@ -11,7 +11,7 @@ import { useToast } from './Toast';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { generateEmail } from '../services/geminiService';
 import { databaseService } from '../services/databaseService';
-import { buildSusanContext } from '../services/susanContextService';
+import { buildSusanContext, excludeContextBlocks } from '../services/susanContextService';
 import {
   checkEmailCompliance,
   autoFixViolations,
@@ -218,7 +218,9 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
 
   useEffect(() => {
     buildSusanContext(30)
-      .then(context => setSusanContext(context))
+      // Emails go to adjusters/customers — chat-scoped manager directives
+      // must never influence them (the "Egypt World Cup" leak, 2026-08).
+      .then(context => setSusanContext(excludeContextBlocks(context, ['MANAGER DIRECTIVES'])))
       .catch(() => setSusanContext(''));
   }, []);
 
