@@ -92,6 +92,7 @@ import deafModeRoutes from './routes/deafModeRoutes.js';
 import { createAdminRoutes } from './routes/adminRoutes.js';
 import { canManageQR as canManageQRPerm } from './lib/permissions.js';
 import { classifyScanSource, isBotUserAgent } from './lib/scanClassify.js';
+import { MARKETING_QR_LINKS } from './lib/marketingQrLinks.js';
 // IHM and HailTrace removed — all hail data sourced from NOAA/NWS/NEXRAD (free, federal)
 import { initSettingsService, getSettingsService } from './services/settingsService.js';
 import {
@@ -10027,6 +10028,38 @@ function renderQrPrintSheet(profiles: any[], origin: string, layout: 'sheet' | '
 </body>
 </html>`;
 }
+
+// ============================================================================
+// MARKETING QR REDIRECT ROUTE (before SPA fallback)
+// ============================================================================
+
+// Tracked redirect for printed marketing QR codes whose destination is
+// off-site (e.g. the Yelp review flyer). Logs a qr_scans row exactly like a
+// profile visit — same bot flag and source classification, profile_id NULL,
+// slug from the MARKETING_QR_LINKS allowlist — then 302s to the destination.
+// Printed codes encode /go/<slug>?src=qr so the scan classifies as 'qr'.
+app.get('/go/:slug', (req, res, next) => {
+  const link = MARKETING_QR_LINKS[req.params.slug];
+  if (!link) return next(); // unknown slug → SPA fallback / 404, never an open redirect
+
+  const userAgent = String(req.headers['user-agent'] || '');
+  const referrer = String(req.headers['referer'] || '');
+  const ipHash = crypto.createHash('sha256').update(req.ip || '').digest('hex').substring(0, 16);
+  const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
+
+  pool.query(
+    `INSERT INTO qr_scans (profile_id, profile_slug, user_agent, referrer, ip_hash, device_type, source, is_bot)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      null, req.params.slug, userAgent, referrer, ipHash,
+      isMobile ? 'mobile' : 'desktop',
+      classifyScanSource(req, isMobile),
+      isBotUserAgent(userAgent),
+    ]
+  ).catch(err => console.error('Error tracking marketing QR scan:', err));
+
+  res.redirect(302, link.url);
+});
 
 // ============================================================================
 // PUBLIC PROFILE PAGE ROUTE (before SPA fallback)

@@ -33,6 +33,14 @@ const REPS = [
   { name: 'Miguel Ocampo', slug: 'miguel-ocampo' },
 ];
 
+// Marketing QR codes — off-site destinations routed through the tracked
+// /go/:slug redirect (see server/lib/marketingQrLinks.ts) so scans land in
+// qr_scans like rep-card scans do. ?src=qr marks them as printed-QR traffic.
+const MARKETING_BASE_URL = 'https://sa21.up.railway.app/go';
+const MARKETING_LINKS = [
+  { name: 'Yelp Review Flyer', slug: 'yelp-review' },
+];
+
 // Output directory
 const OUTPUT_DIR = path.join(__dirname, '..', 'public', 'qr-codes');
 const LOGO_PATH = path.join(__dirname, '..', 'public', 'roofer-logo-icon.png');
@@ -185,6 +193,29 @@ async function generateStyledQRCode(rep) {
   return outputPath;
 }
 
+async function generateMarketingQRCode(link) {
+  const url = `${MARKETING_BASE_URL}/${link.slug}?src=qr`;
+  console.log(`Generating marketing QR code for ${link.name}: ${url}`);
+
+  const outputPath = path.join(OUTPUT_DIR, `${link.slug}-qr.png`);
+
+  // Plain black-on-white — these get dropped into designed print pieces that
+  // carry their own framing, so no logo overlay or border here.
+  await QRCode.toFile(outputPath, url, {
+    type: 'png',
+    width: 1000,
+    margin: 4,
+    errorCorrectionLevel: 'H',
+    color: {
+      dark: BRAND_BLACK,
+      light: '#FFFFFF',
+    },
+  });
+
+  console.log(`  ✓ Saved to ${outputPath}`);
+  return outputPath;
+}
+
 async function main() {
   console.log('\n🎨 Generating Custom Roof Docs QR Codes\n');
   console.log('Brand Colors: Red (#DC2626), Black (#171717)');
@@ -208,7 +239,15 @@ async function main() {
     }
   }
 
-  console.log(`\n✅ Generated ${generated.length * 2} QR codes in ${OUTPUT_DIR}\n`);
+  for (const link of MARKETING_LINKS) {
+    try {
+      await generateMarketingQRCode(link);
+    } catch (error) {
+      console.error(`  ✗ Error generating for ${link.name}:`, error.message);
+    }
+  }
+
+  console.log(`\n✅ Generated ${generated.length * 2 + MARKETING_LINKS.length} QR codes in ${OUTPUT_DIR}\n`);
 
   // Print summary
   console.log('Generated QR Codes:');

@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { canManageQR } from '../lib/permissions.js';
+import { getMarketingQrName } from '../lib/marketingQrLinks.js';
 import { syncCc24Statuses, CC24_STAGE_RANK } from '../services/cc24Sync.js';
 
 export function createQRAnalyticsRoutes(pool: Pool) {
@@ -146,7 +147,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         period: `${days} days`,
         profiles: result.rows.map(row => ({
           slug: row.profile_slug,
-          name: row.name || 'Unknown',
+          name: row.name || getMarketingQrName(row.profile_slug) || 'Unknown',
           imageUrl: row.image_url,
           scanCount: parseInt(row.scan_count),
           uniqueVisitors: parseInt(row.unique_visitors)
@@ -197,7 +198,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         scans: result.rows.map(row => ({
           id: row.id,
           profileSlug: row.profile_slug,
-          profileName: row.profile_name || 'Unknown',
+          profileName: row.profile_name || getMarketingQrName(row.profile_slug) || 'Unknown',
           scannedAt: row.scanned_at,
           deviceType: row.device_type,
           source: row.source
@@ -570,7 +571,7 @@ export function createQRAnalyticsRoutes(pool: Pool) {
         })),
         devices: deviceR.rows.map(r => ({ deviceType: r.device_type, count: r.count })),
         recentScans: recentScanR.rows.map(r => ({
-          id: r.id, profileSlug: r.profile_slug, profileName: r.profile_name || 'Unknown',
+          id: r.id, profileSlug: r.profile_slug, profileName: r.profile_name || getMarketingQrName(r.profile_slug) || 'Unknown',
           scannedAt: r.scanned_at, deviceType: r.device_type, source: r.source,
         })),
         recentSignups: recentSignupR.rows.map(r => ({
