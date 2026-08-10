@@ -54,6 +54,8 @@ export interface CaptureInput {
   message: string;
   stack?: string;
   level?: 'error' | 'warning' | 'fatal';
+  /** Correlation id from the requestId middleware — searchable in GlitchTip as request_id. */
+  requestId?: string;
 }
 
 /** Build the Sentry event payload. Exported for tests. */
@@ -69,7 +71,9 @@ export function buildEvent(input: CaptureInput): Record<string, unknown> {
       process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || 'development',
     server_name: process.env.RAILWAY_SERVICE_NAME || 'sa21',
     release: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) || undefined,
-    tags: { endpoint: input.endpoint },
+    tags: input.requestId
+      ? { endpoint: input.endpoint, request_id: input.requestId }
+      : { endpoint: input.endpoint },
     exception: {
       values: [
         {
