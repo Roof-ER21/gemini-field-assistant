@@ -487,7 +487,7 @@ async function executeLookupMrmsRadar(
 const saveClientNoteDeclaration: FunctionDeclaration = {
   name: 'save_client_note',
   description:
-    'Persist a note about a client or property to the rep\'s memory. Use when important information is shared about a homeowner, insurer, adjuster, or claim that should be remembered for future conversations.',
+    'Persist a note to the rep\'s long-term memory. Use when important information is shared about a homeowner, insurer, adjuster, or claim — AND when the rep shares a personal fact or preference about themselves (favorite things, family details, goals, how they like to work) that should be remembered in future conversations. This is the ONLY way anything is remembered across chats.',
   parameters: {
     type: Type.OBJECT,
     properties: {
