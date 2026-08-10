@@ -50,6 +50,7 @@ import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import inspectionPresentationRoutes from './routes/inspectionPresentationRoutes.js';
 import hailRoutes from './routes/hailRoutes.js';
+import companionRoutes from './routes/companionRoutes.js';
 import stormMemoryRoutes from './routes/stormMemoryRoutes.js';
 import canvassingRoutes from './routes/canvassingRoutes.js';
 import checkinRoutes from './routes/checkinRoutes.js';
@@ -785,6 +786,7 @@ app.post('/api/ai/generate', async (req, res) => {
 
 // Register hail history routes early to avoid proxy ordering issues
 app.use('/api/hail', hailRoutes);
+app.use('/api/companion', companionRoutes);
 
 // Dashboard: recent storm count (last 7 days)
 app.get('/api/dashboard/storm-summary', async (req, res) => {

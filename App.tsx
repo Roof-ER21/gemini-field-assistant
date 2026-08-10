@@ -17,6 +17,7 @@ import ThemeToggle from './components/ThemeToggle';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
 import IncomingCallModal from './components/IncomingCallModal';
+import CompanionButton from './components/CompanionButton';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { DivisionProvider, useDivision } from './contexts/DivisionContext';
 import DivisionSelectorModal from './components/DivisionSelectorModal';
@@ -671,6 +672,9 @@ const App: React.FC = () => {
           + Quick Actions
         </button>
       )}
+
+      {/* Rep Companion "something's wrong" button (pilot-gated) */}
+      <CompanionButton userEmail={currentUser?.email} />
 
     </div>
     </DivisionProvider>
