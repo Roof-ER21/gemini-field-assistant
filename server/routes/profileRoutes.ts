@@ -459,12 +459,12 @@ function leadChip(text: string, bg: string, fg: string): string {
 }
 
 // ─── Internal lead distribution ─────────────────────────────────────────────
-// Ford, Star, info@ and Ahmed must see EVERY lead, whatever surface produced it
-// (rep QR page, company landing, RoofCheck, storm/claim-help/referral pages).
-// Override wholesale with INTERNAL_LEAD_RECIPIENTS (comma-separated).
+// Ford, Star, Reese, info@ and Ahmed must see EVERY lead, whatever surface
+// produced it (rep QR page, company landing, RoofCheck, storm/claim-help/
+// referral pages). Override wholesale with INTERNAL_LEAD_RECIPIENTS (comma-separated).
 export function internalLeadRecipients(exclude?: (string | null | undefined)[]): string[] {
   const raw = process.env.INTERNAL_LEAD_RECIPIENTS
-    || 'ford.barsi@theroofdocs.com,star.mackey@theroofdocs.com,info@theroofdocs.com,ahmed.mahmoud@theroofdocs.com';
+    || 'ford.barsi@theroofdocs.com,star.mackey@theroofdocs.com,reese.samala@theroofdocs.com,info@theroofdocs.com,ahmed.mahmoud@theroofdocs.com';
   const skip = new Set((exclude || []).filter(Boolean).map((e) => String(e).trim().toLowerCase()));
   const seen = new Set<string>();
   return raw
@@ -707,14 +707,21 @@ export function createProfileRoutes(pool: Pool) {
           }
         }
 
-        if (!repUserId) return;
+        // NOTE: no early return when the profile has no linked user — that used
+        // to silently skip the rep email, in-app bell, AND the internal team
+        // copy (nobody but the homeowner heard about the lead). Now only the
+        // repUserId-dependent pieces (calendar, in-app) are skipped; the rep
+        // email falls back to admin→repEmail and the team copy always sends.
+        if (!repUserId) {
+          console.warn(`[QR Lead] profile ${profileId} has no linked user — calendar/in-app skipped, emails still sent`);
+        }
 
         const serviceLabel = leadData.serviceType
           ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
           : 'Service Request';
 
         // 1) Calendar event if a date was provided
-        if (leadData.preferredDate) {
+        if (repUserId && leadData.preferredDate) {
           const startTime = leadData.preferredTime
             ? `${leadData.preferredDate}T${leadData.preferredTime}:00`
             : `${leadData.preferredDate}T09:00:00`;
@@ -813,11 +820,13 @@ export function createProfileRoutes(pool: Pool) {
         );
         const repEmailSubject = `New Lead: ${leadData.homeownerName} - ${serviceLabel}`;
 
-        let emailResult = await sendGmailEmail(pool, repUserId, {
-          to: repEmail || 'me',
-          subject: repEmailSubject,
-          body: repEmailBody,
-        });
+        let emailResult = repUserId
+          ? await sendGmailEmail(pool, repUserId, {
+              to: repEmail || 'me',
+              subject: repEmailSubject,
+              body: repEmailBody,
+            })
+          : { success: false as const, error: 'profile has no linked user' };
 
         if (emailResult.success) {
           console.log(`[QR Lead] Notification email sent to rep=${repUserId} via own Gmail msgId=${emailResult.messageId}`);
@@ -846,7 +855,7 @@ export function createProfileRoutes(pool: Pool) {
         // team_notifications.type has a CHECK constraint limiting it to
         // mention/direct_message/shared_content/system — we use 'system'
         // and put the new_lead semantics in the data JSON.
-        try {
+        if (repUserId) try {
           await pool.query(
             `INSERT INTO team_notifications (user_id, type, title, body, data, created_at)
              VALUES ($1, 'system', $2, $3, $4, NOW())`,
