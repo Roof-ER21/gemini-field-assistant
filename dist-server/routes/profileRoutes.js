@@ -433,12 +433,12 @@ function leadChip(text, bg, fg) {
     return `<span style="display:inline-block;background:${bg};color:${fg};font-size:12.5px;font-weight:700;padding:6px 13px;border-radius:9px;margin:0 7px 7px 0;white-space:nowrap;letter-spacing:.01em;">${escEmail(text)}</span>`;
 }
 // ─── Internal lead distribution ─────────────────────────────────────────────
-// Ford, Star, info@ and Ahmed must see EVERY lead, whatever surface produced it
-// (rep QR page, company landing, RoofCheck, storm/claim-help/referral pages).
-// Override wholesale with INTERNAL_LEAD_RECIPIENTS (comma-separated).
+// Ford, Star, Reese, info@ and Ahmed must see EVERY lead, whatever surface
+// produced it (rep QR page, company landing, RoofCheck, storm/claim-help/
+// referral pages). Override wholesale with INTERNAL_LEAD_RECIPIENTS (comma-separated).
 export function internalLeadRecipients(exclude) {
     const raw = process.env.INTERNAL_LEAD_RECIPIENTS
-        || 'ford.barsi@theroofdocs.com,star.mackey@theroofdocs.com,info@theroofdocs.com,ahmed.mahmoud@theroofdocs.com';
+        || 'ford.barsi@theroofdocs.com,star.mackey@theroofdocs.com,reese.samala@theroofdocs.com,info@theroofdocs.com,ahmed.mahmoud@theroofdocs.com';
     const skip = new Set((exclude || []).filter(Boolean).map((e) => String(e).trim().toLowerCase()));
     const seen = new Set();
     return raw
@@ -652,13 +652,19 @@ export function createProfileRoutes(pool) {
                             .catch((e) => console.error('[Homeowner confirm] error:', e?.message));
                     }
                 }
-                if (!repUserId)
-                    return;
+                // NOTE: no early return when the profile has no linked user — that used
+                // to silently skip the rep email, in-app bell, AND the internal team
+                // copy (nobody but the homeowner heard about the lead). Now only the
+                // repUserId-dependent pieces (calendar, in-app) are skipped; the rep
+                // email falls back to admin→repEmail and the team copy always sends.
+                if (!repUserId) {
+                    console.warn(`[QR Lead] profile ${profileId} has no linked user — calendar/in-app skipped, emails still sent`);
+                }
                 const serviceLabel = leadData.serviceType
                     ? SERVICE_LABELS[leadData.serviceType] || leadData.serviceType.replace(/_/g, ' ')
                     : 'Service Request';
                 // 1) Calendar event if a date was provided
-                if (leadData.preferredDate) {
+                if (repUserId && leadData.preferredDate) {
                     const startTime = leadData.preferredTime
                         ? `${leadData.preferredDate}T${leadData.preferredTime}:00`
                         : `${leadData.preferredDate}T09:00:00`;
@@ -748,11 +754,13 @@ export function createProfileRoutes(pool) {
                 // who never connected Google still get notified.
                 const repEmailBody = renderLeadEmail('New Inspection Request', 'New Lead', buildLeadRows({ ...leadData, serviceLabel, sourceLabel }));
                 const repEmailSubject = `New Lead: ${leadData.homeownerName} - ${serviceLabel}`;
-                let emailResult = await sendGmailEmail(pool, repUserId, {
-                    to: repEmail || 'me',
-                    subject: repEmailSubject,
-                    body: repEmailBody,
-                });
+                let emailResult = repUserId
+                    ? await sendGmailEmail(pool, repUserId, {
+                        to: repEmail || 'me',
+                        subject: repEmailSubject,
+                        body: repEmailBody,
+                    })
+                    : { success: false, error: 'profile has no linked user' };
                 if (emailResult.success) {
                     console.log(`[QR Lead] Notification email sent to rep=${repUserId} via own Gmail msgId=${emailResult.messageId}`);
                 }
@@ -782,24 +790,25 @@ export function createProfileRoutes(pool) {
                 // team_notifications.type has a CHECK constraint limiting it to
                 // mention/direct_message/shared_content/system — we use 'system'
                 // and put the new_lead semantics in the data JSON.
-                try {
-                    await pool.query(`INSERT INTO team_notifications (user_id, type, title, body, data, created_at)
+                if (repUserId)
+                    try {
+                        await pool.query(`INSERT INTO team_notifications (user_id, type, title, body, data, created_at)
              VALUES ($1, 'system', $2, $3, $4, NOW())`, [
-                        repUserId,
-                        `New lead: ${leadData.homeownerName}`,
-                        [
-                            `${serviceLabel} request from ${leadData.homeownerName}`,
-                            leadData.homeownerPhone ? `Phone: ${leadData.homeownerPhone}` : '',
-                            leadData.address ? `Address: ${leadData.address}` : '',
-                            leadData.preferredDate ? `Appointment: ${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}` : '',
-                        ].filter(Boolean).join(' · '),
-                        JSON.stringify({ kind: 'new_lead', lead_id: leadId, source: sourceLabel }),
-                    ]);
-                    console.log(`[QR Lead] In-app notification inserted for rep=${repUserId}`);
-                }
-                catch (notifErr) {
-                    console.error(`[QR Lead] Failed to insert in-app notification:`, notifErr);
-                }
+                            repUserId,
+                            `New lead: ${leadData.homeownerName}`,
+                            [
+                                `${serviceLabel} request from ${leadData.homeownerName}`,
+                                leadData.homeownerPhone ? `Phone: ${leadData.homeownerPhone}` : '',
+                                leadData.address ? `Address: ${leadData.address}` : '',
+                                leadData.preferredDate ? `Appointment: ${leadData.preferredDate}${leadData.preferredTime ? ` at ${leadData.preferredTime}` : ''}` : '',
+                            ].filter(Boolean).join(' · '),
+                            JSON.stringify({ kind: 'new_lead', lead_id: leadId, source: sourceLabel }),
+                        ]);
+                        console.log(`[QR Lead] In-app notification inserted for rep=${repUserId}`);
+                    }
+                    catch (notifErr) {
+                        console.error(`[QR Lead] Failed to insert in-app notification:`, notifErr);
+                    }
                 // 4) Internal team copy — Ford, Star, info@ and Ahmed get EVERY lead,
                 // regardless of rep Gmail state. The rep is excluded when they're on the
                 // distro (they already got their own copy at step 2). adminUserId /
