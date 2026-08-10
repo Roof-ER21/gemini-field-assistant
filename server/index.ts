@@ -626,7 +626,9 @@ app.get('/api/health', async (req, res) => {
     res.json({
       status: 'healthy',
       database: 'connected',
-      timestamp: result.rows[0].now
+      timestamp: result.rows[0].now,
+      // Deploy verification: Railway injects the commit SHA at build time.
+      commit: (process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown').slice(0, 7)
     });
   } catch (error) {
     res.status(500).json({
