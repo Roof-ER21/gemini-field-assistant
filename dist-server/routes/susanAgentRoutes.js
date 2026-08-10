@@ -104,6 +104,29 @@ async function resolveUserState(pool, userId) {
     }
 }
 /**
+ * Resolve the rep's remembered facts/preferences/notes from user_memory.
+ * This is the READ side of save_client_note: without it, memories are written
+ * but never recalled in a fresh chat (the "Susan forgot my favorite place"
+ * companion report, 2026-08-10). Excludes personality (injected separately)
+ * and JSON-blob analytics rows; caps value length to keep the prompt lean.
+ */
+async function resolveRepMemories(pool, userId) {
+    try {
+        const result = await pool.query(`SELECT category, key, value
+       FROM user_memory
+       WHERE user_id = $1
+         AND category NOT IN ('agent_personality', 'conversation_outcome', 'team_pattern')
+         AND LEFT(TRIM(value), 1) NOT IN ('{', '[')
+         AND LENGTH(value) <= 400
+       ORDER BY last_updated DESC
+       LIMIT 25`, [userId]);
+        return result.rows;
+    }
+    catch {
+        return [];
+    }
+}
+/**
  * Resolve display name from the users table.
  * Falls back to the email local-part.
  */
@@ -223,11 +246,12 @@ export function createSusanAgentRoutes(pool) {
             }
         }
         // ---- 3. Build tool context ----
-        const [userName, userState, personality, directives] = await Promise.all([
+        const [userName, userState, personality, directives, repMemories] = await Promise.all([
             resolveUserName(pool, userId, email),
             resolveUserState(pool, userId),
             resolvePersonality(pool, userId),
-            resolveDirectives(pool)
+            resolveDirectives(pool),
+            resolveRepMemories(pool, userId)
         ]);
         const toolContext = {
             userId,
@@ -247,6 +271,14 @@ export function createSusanAgentRoutes(pool) {
             const lines = personalityEntries.map(([k, v]) => `- ${k}: ${v}`);
             enrichedSystemPrompt += `\n\n[PERSONALIZATION]\nThis rep's preferences:\n${lines.join('\n')}\nAdapt your tone, name usage, and verbosity accordingly.`;
         }
+        // Rep memory block — what save_client_note has stored about this rep.
+        // Always append the honesty rule, even with zero memories: Susan must not
+        // claim she will remember something unless she actually calls the tool.
+        if (repMemories.length > 0) {
+            const mLines = repMemories.map(m => `- ${m.key}: ${m.value} (${m.category})`);
+            enrichedSystemPrompt += `\n\n[REP MEMORY]\nThings you remember about this rep from earlier conversations — use them naturally when relevant, don't recite them unprompted:\n${mLines.join('\n')}`;
+        }
+        enrichedSystemPrompt += `\n\n[MEMORY RULE]\nWhen the rep shares a fact, preference, or personal detail worth keeping, call the save_client_note tool to store it. Never say you will remember something unless you have called save_client_note for it in this conversation. If asked about something you have no memory of, say so plainly.`;
         // Manager directives block
         if (directives.length > 0) {
             const dLines = directives.map(d => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`);
