@@ -69,6 +69,7 @@ import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
 import { startMemoryHeartbeat, memoryDeltaMiddleware } from './middleware/memoryLogger.js';
+import { requestId } from './middleware/requestId.js';
 import { ensurePdfJobsSchema, startPdfJobWorker } from './services/pdfJobQueue.js';
 import { ensureStormDaysSchema } from './services/stormDaysService.js';
 import { ensureWorkerHeartbeatSchema } from './routes/adminRoutes.js';
@@ -100,6 +101,9 @@ const PORT = Number(process.env.PORT) || 8080;
 const HOST = '0.0.0.0';
 // Railway runs behind a proxy/load balancer
 app.set('trust proxy', 1);
+// Correlation id on every request — first, so every later middleware, log
+// line, and error report can carry it.
+app.use(requestId);
 // Which public domain did the request actually hit? With `trust proxy`, req.hostname can
 // reflect Railway's internal X-Forwarded-Host, so check the raw Host header too. Used to
 // keep the homeowner domain (get.theroofdocs.com) from ever serving the rep-app login.
@@ -373,7 +377,7 @@ app.use('/api/susan', aiLimiter);
 app.use('/api/auth/verify-code', verifyLimiter);
 // Request logging
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
+    console.log(`${req.method} ${req.path} rid=${req.requestId}`);
     next();
 });
 // ============================================================================
@@ -8243,9 +8247,9 @@ app.get('/api/insurance/companies', async (req, res) => {
 // ERROR HANDLER
 // ============================================================================
 app.use((err, req, res, next) => {
-    console.error('Server error:', err);
-    captureToGlitchTip({ endpoint: `${req.method} ${req.path}`, message: err.message, stack: err.stack });
-    res.status(500).json({ error: 'Internal server error' });
+    console.error(`Server error rid=${req.requestId}:`, err);
+    captureToGlitchTip({ endpoint: `${req.method} ${req.path}`, message: err.message, stack: err.stack, requestId: req.requestId });
+    res.status(500).json({ error: 'Internal server error', requestId: req.requestId });
 });
 // ============================================================================
 // UPLOADS (Static)

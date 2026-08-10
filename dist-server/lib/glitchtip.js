@@ -54,7 +54,9 @@ export function buildEvent(input) {
         environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || 'development',
         server_name: process.env.RAILWAY_SERVICE_NAME || 'sa21',
         release: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) || undefined,
-        tags: { endpoint: input.endpoint },
+        tags: input.requestId
+            ? { endpoint: input.endpoint, request_id: input.requestId }
+            : { endpoint: input.endpoint },
         exception: {
             values: [
                 {
