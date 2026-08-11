@@ -47,6 +47,7 @@ import AdminScanAnalyticsPanel from './AdminScanAnalyticsPanel';
 import AdminRepReadinessPanel from './AdminRepReadinessPanel';
 import AdminKnowledgePanel from './AdminKnowledgePanel';
 import AdminLearningsPanel from './AdminLearningsPanel';
+import AdminCompanionPanel from './AdminCompanionPanel';
 import AdminPinModal from './AdminPinModal';
 import AdminRepPhonePanel from './AdminRepPhonePanel';
 import AdminLeadsPanel from './AdminLeadsPanel';
@@ -297,7 +298,7 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'qr-analytics' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'qr-analytics' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones' | 'companion'>('users');
   const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1677,7 +1678,7 @@ const AdminPanel: React.FC = () => {
               { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
               { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
               { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
-              { id: 'system' as const, label: 'System', tabs: ['settings', 'qr-profiles', 'qr-analytics', 'rep-readiness', 'rep-phones'] }
+              { id: 'system' as const, label: 'System', tabs: ['settings', 'companion', 'qr-profiles', 'qr-analytics', 'rep-readiness', 'rep-phones'] }
             ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -1699,7 +1700,8 @@ const AdminPanel: React.FC = () => {
           'rep-readiness': { label: 'Rep Readiness', icon: <CheckCircle style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'knowledge': { label: 'Knowledge Base', icon: <Database style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'learnings': { label: 'Susan Learnings', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
-          'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> }
+          'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'companion': { label: 'Rep Reports', icon: <MessageSquare style={{ width: '0.875rem', height: '0.875rem' }} /> }
         };
 
         const currentGroup = tabGroups.find(g => g.id === activeGroup) || tabGroups[0];
@@ -5069,6 +5071,11 @@ const AdminPanel: React.FC = () => {
         {/* Susan Learnings Approval */}
         {activeTab === 'learnings' && (
           <AdminLearningsPanel />
+        )}
+
+        {/* Rep Companion Triage */}
+        {activeTab === 'companion' && (
+          <AdminCompanionPanel />
         )}
 
         {/* Rep Phone Management */}
