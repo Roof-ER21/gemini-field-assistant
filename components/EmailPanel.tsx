@@ -67,7 +67,7 @@ const EMAIL_TEMPLATES: EmailTemplate[] = [
   // Insurance Templates
   { name: 'Post AM Email Template', path: '/docs/Sales Rep Resources 2/Email Templates/Post AM Email Template.md', description: 'Follow-up after adjuster meeting', category: 'insurance' },
   { name: 'Repair Attempt Template', path: '/docs/Sales Rep Resources 2/Email Templates/Repair Attempt Template.md', description: 'Document repair attempt for insurance', category: 'insurance' },
-  { name: 'Template from Customer to Insurance', path: '/docs/Sales Rep Resources 2/Email Templates/Template from Customer to Insurance.md', description: 'Customer communication to insurance company', category: 'insurance' },
+  { name: "Customer's Own Letter (Homeowner Sends This)", path: '/docs/Sales Rep Resources 2/Email Templates/Template from Customer to Insurance.md', description: "Written in the CUSTOMER'S voice — the homeowner copies, edits, and sends this themselves. Not a rep email.", category: 'insurance' },
   { name: 'Generic Partial Template', path: '/docs/Sales Rep Resources 2/Email Templates/Generic Partial Template.md', description: 'Generic partial approval response', category: 'insurance' },
 
   // Customer Templates
@@ -361,15 +361,28 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     setWhyItWorks('');
 
     try {
-      // Pull small, state-aware RAG context for email generation
-      const ragDocs = await knowledgeService.searchDocuments(
-        [selectedState, subject || '', 'building code', 'insurance', 'email'].filter(Boolean).join(' '),
+      // Classify the email BEFORE building the prompt, so claim-fight material
+      // (building codes, state regs) only reaches claim-related emails.
+      const templateMeta = EMAIL_TEMPLATES.find(t => t.path === selectedTemplate);
+      // This template is deliberately written in the HOMEOWNER'S voice for the
+      // customer to send themselves — it must never leak into rep-voiced emails.
+      const isCustomerVoiceTemplate = (selectedTemplate || '').includes('Template from Customer to Insurance');
+      const claimSignals = /\b(claims?|adjusters?|insurance|carrier|estimate|approval|denial|denied|partial|supplement|reinspection|scope)\b/i;
+      const classifyText = `${subject} ${customInstructions} ${templateMeta?.name || ''}`;
+      const isHomeownerEmail = templateMeta?.category === 'state-specific' || templateMeta?.category === 'customer' || selectedTone === 'friendly';
+      const isClaimEmail = !isHomeownerEmail && !isCustomerVoiceTemplate &&
+        (templateMeta?.category === 'insurance' || templateMeta?.category === 'technical' || claimSignals.test(classifyText));
+
+      // Pull small, state-aware RAG context driven by what the email is actually
+      // about — only bias toward code/insurance material for claim emails.
+      const ragDocs = (await knowledgeService.searchDocuments(
+        [selectedState, subject || '', customInstructions || '', isClaimEmail ? 'building code insurance email' : 'email'].filter(Boolean).join(' '),
         4,
         selectedState
-      );
+      )).filter(d => !d.document?.name?.includes('Template from Customer to Insurance'));
 
       const ragSection = ragDocs.length
-        ? `\nRELEVANT KNOWLEDGE (Use where appropriate):\n${ragDocs
+        ? `\nRELEVANT KNOWLEDGE (Use facts where appropriate — do NOT copy the voice or perspective of these documents):\n${ragDocs
             .map((d, i) => `(${i + 1}) ${d.document.name}\n${(d.content || '').slice(0, 800)}\n`)
             .join('\n')}`
         : '';
@@ -412,13 +425,19 @@ Use this intelligence:
 - Contractor/Vendor → Professional but collaborative
 
 **YOUR TASK:**
-Generate a professional email FROM a Roof-ER sales representative TO ${recipientName}.
+${isCustomerVoiceTemplate
+  ? `Generate the letter the HOMEOWNER will send to their insurance company. The rep will hand this to the customer to copy, edit, and send themselves.`
+  : `Generate a professional email FROM a Roof-ER sales representative TO ${recipientName}.`}
 
 WRITING STYLE:
-- Write FROM THE REP'S PERSPECTIVE, not from an AI assistant
+${isCustomerVoiceTemplate
+  ? `- Write in the HOMEOWNER'S first-person voice ("I", "my home", "my contractor") — NOT the rep's voice
+- Do NOT sign as Roof-ER or the rep; the homeowner is the sender
+- Do NOT write as Susan AI or include any AI commentary`
+  : `- Write FROM THE REP'S PERSPECTIVE, not from an AI assistant
 - Use first-person language: "I am writing..." "We at Roof-ER..." "I would like to..."
 - Do NOT write as Susan AI or include any AI commentary
-- The rep is the sender, ${recipientName} is the recipient
+- The rep is the sender, ${recipientName} is the recipient`}
 
 ROOF-ER CONTEXT:
 - Company: Roof-ER, professional roofing contractor
@@ -426,7 +445,7 @@ ROOF-ER CONTEXT:
 - Current State: ${selectedState}
 ${contextInfo.length > 0 ? `- Additional Context: ${contextInfo.join(', ')}` : ''}
 
-STATE-SPECIFIC INFORMATION (${selectedState}) - CRITICAL:
+${isClaimEmail ? `STATE-SPECIFIC INFORMATION (${selectedState}) - for claim-related arguments:
 - Building Code: ${stateRegs.buildingCode}
 - License Info: ${stateRegs.roofingLicense}
 - MATCHING RULE: ${stateRegs.matchingRule}
@@ -440,7 +459,8 @@ STATE-SPECIFIC INFORMATION (${selectedState}) - CRITICAL:
 - CRICKET/SADDLE: ${stateRegs.cricket}
 - CODE ARGUMENT TEMPLATE: ${stateRegs.codeArgument}
 
-**IMPORTANT**: Your email MUST use ${selectedState}-specific arguments and cite actual building code sections (R908, R905, R703, R903) when relevant. ${selectedState === 'MD' ? 'Maryland R908.3 REQUIRES full tear-off to deck for roof replacement — this is your strongest code argument. Also use matching requirements framed through contractor code compliance.' : `${selectedState} does NOT have matching requirements - do NOT use matching arguments unless homeowner has matching endorsement. Use code compliance (R908, R905), repairability, manufacturer specs, or permit denial instead.`}
+**IMPORTANT**: Cite ${selectedState}-specific building code sections (R908, R905, R703, R903) ONLY where they directly support the point being made — never pad the email with code citations. ${selectedState === 'MD' ? 'Maryland R908.3 REQUIRES full tear-off to deck for roof replacement — this is your strongest code argument. Also use matching requirements framed through contractor code compliance.' : `${selectedState} does NOT have matching requirements - do NOT use matching arguments unless homeowner has matching endorsement. Use code compliance (R908, R905), repairability, manufacturer specs, or permit denial instead.`}`
+: `**THIS IS NOT A CLAIM-DISPUTE EMAIL.** Do NOT cite building codes, code sections, laws, statutes, regulations, or insurance requirements. No "licensed contractor" compliance framing. Keep it natural, warm, and appropriate to the recipient — a normal human email.`}
 
 ${templateContent ? `TEMPLATE TO FOLLOW (adapt to audience):\n${templateContent}\n\n` : ''}
 
@@ -450,21 +470,23 @@ ${ragSection}
 
  EMAIL GENERATION REQUIREMENTS:
  1. **CRITICAL**: Analyze recipient type FIRST, then choose appropriate tone
- 2. Write FROM the Roof-ER rep TO ${recipientName}
+ 2. ${isCustomerVoiceTemplate ? 'Write in the homeowner\'s voice (see WRITING STYLE above)' : `Write FROM the Roof-ER rep TO ${recipientName}`}
  3. Start with appropriate greeting based on audience formality level
  4. Match language style to recipient type (not just tone selector)
  5. Follow template structure if provided (but adapt language to audience)
- 6. Incorporate state-specific regulations when relevant
+ ${isClaimEmail ? '6. Incorporate state-specific building code information where it directly supports the point' : '6. Do NOT bring up building codes, laws, or insurance rules'}
  7. Be specific and actionable - avoid generic corporate speak
- 8. End with a respectful, outcome‑focused request to update the estimate/decision to FULL APPROVAL based on the evidence provided (e.g., "We respectfully request that this be updated to a full replacement consistent with the attached documentation.")
- 9. If ending with a question, prefer: "Is there anything else you need from us to make sure we get this to a full approval?"
+ ${isClaimEmail ? `8. End with a respectful close. The HOMEOWNER is the one requesting the claim outcome — never "we request" or "please update the estimate". Correct framing: "The homeowner has asked that the estimate be reviewed for a full replacement consistent with the attached documentation." or, when the homeowner's actual name is known, name them: "Mrs. Smith has requested a reinspection." Never invent a name and never use bracket placeholders.
+ 9. If ending with a question, prefer: "Is there anything else you need from us to make sure the homeowner's file is complete?"` : `8. End with a natural, audience-appropriate close
+ 9. If ending with a question, keep it simple and relevant to the email's purpose`}
  10. Do NOT ask to schedule calls/meetings by default; only if the recipient has already requested one
 
  WHAT TO AVOID:
  - Generic, robotic language that could be sent to anyone
  - Writing to wrong audience (e.g., technical adjuster language to homeowner)
  - Using "WE'RE going to..." coaching style
- - Ending with generic invites to schedule a call/meeting instead of respectfully requesting full approval
+ - Ending with generic invites to schedule a call/meeting${isClaimEmail ? ' instead of noting what the homeowner has requested' : ''}
+ - Phrasing claim requests as coming from the rep/company ("we request", "please update the estimate") — the HOMEOWNER makes claim requests, the contractor provides technical documentation
 
  ABSOLUTE PROHIBITION — PLACEHOLDER BRACKETS AND AI COMMENTARY:
  NEVER include ANY of these in the email:
@@ -595,7 +617,7 @@ The rep's PRIMARY GOAL is to get FULL APPROVAL from insurance for roof replaceme
 2. Submit estimate to insurance adjuster
 3. If partial approval, provide additional evidence (building codes, manufacturer guidelines, repair attempt videos)
 4. Request adjuster review the supplemental documentation
-5. Respectfully request full approval based on evidence
+5. Note that the HOMEOWNER has requested full approval based on the evidence (the rep never negotiates the claim — the homeowner does)
 6. Follow up with adjuster on timeline for decision
 
 WHAT REPS DO:
