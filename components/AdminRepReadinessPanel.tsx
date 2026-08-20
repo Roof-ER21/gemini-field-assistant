@@ -13,6 +13,7 @@ import {
   ChevronUp,
   ChevronDown,
   AlertTriangle,
+  Search,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -104,6 +105,7 @@ export default function AdminRepReadinessPanel({ userEmail }: AdminRepReadinessP
   const [sortKey, setSortKey] = React.useState<SortKey>('completeness');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
   const [onlyIncomplete, setOnlyIncomplete] = React.useState(false);
+  const [search, setSearch] = React.useState('');
 
   const load = React.useCallback(async () => {
     setLoading(true); setError(null);
@@ -142,7 +144,11 @@ export default function AdminRepReadinessPanel({ userEmail }: AdminRepReadinessP
         case 'completeness': return r.completenessPct;
       }
     };
-    const arr = reps.filter(r => (onlyIncomplete ? !r.fullyReady : true));
+    const q = search.trim().toLowerCase();
+    const arr = reps.filter(r =>
+      (onlyIncomplete ? !r.fullyReady : true) &&
+      (!q || r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q))
+    );
     arr.sort((a, b) => {
       const va = flagVal(a, sortKey), vb = flagVal(b, sortKey);
       let cmp = 0;
@@ -152,7 +158,7 @@ export default function AdminRepReadinessPanel({ userEmail }: AdminRepReadinessP
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return arr;
-  }, [reps, sortKey, sortDir, onlyIncomplete]);
+  }, [reps, sortKey, sortDir, onlyIncomplete, search]);
 
   const SortHeader = ({ k, label, center }: { k: SortKey; label: string; center?: boolean }) => (
     <th
@@ -198,7 +204,32 @@ export default function AdminRepReadinessPanel({ userEmail }: AdminRepReadinessP
             Which active reps are launch-ready — and what each one is still missing.
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: 190 }}>
+            <Search size={14} color="var(--text-tertiary)" style={{ position: 'absolute', left: 10, pointerEvents: 'none' }} />
+            <input
+              value={search}
+              placeholder="Search reps by name or slug…"
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%', padding: '7px 28px 7px 30px', borderRadius: 8, fontSize: 13,
+                border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)', outline: 'none',
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                style={{
+                  position: 'absolute', right: 8, background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', padding: 0,
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
           <button
             onClick={() => setOnlyIncomplete(v => !v)}
             style={{
@@ -246,7 +277,9 @@ export default function AdminRepReadinessPanel({ userEmail }: AdminRepReadinessP
             </thead>
             <tbody>
               {sortedReps.length === 0 ? (
-                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-tertiary)', padding: '1.5rem' }}>No reps to show.</td></tr>
+                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-tertiary)', padding: '1.5rem' }}>
+                  {search.trim() ? `No reps match “${search.trim()}”.` : 'No reps to show.'}
+                </td></tr>
               ) : sortedReps.map(r => (
                 <tr
                   key={r.slug}

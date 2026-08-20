@@ -386,6 +386,168 @@ function generateSlug(name) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
 }
+// Slug suffix used when the natural slug for a name is already taken.
+function randomSlugSuffix() {
+    return Math.random().toString(36).substring(2, 6);
+}
+const SELF_PROVISION_SLUG_ATTEMPTS = 8;
+/**
+ * Create the caller's own profile row. Mirrors the insert
+ * POST /api/profiles/bulk-generate performs (name, email, slug, user_id,
+ * is_claimed=TRUE) so a self-provisioned profile is indistinguishable from an
+ * admin-generated one.
+ *
+ * Concurrency: GET /api/profiles/me is now write-on-read and the app fires it
+ * from more than one place right after login, so two requests can race. A
+ * transaction-scoped advisory lock keyed on the user id serialises them; the
+ * loser re-reads inside the lock and gets the row the winner just created, so
+ * the call is idempotent — one user can never end up with two profiles.
+ *
+ * Slug collisions: two different people named "John Smith" (or a re-used name
+ * from an admin-created row) collide on the UNIQUE slug. INSERT ... ON CONFLICT
+ * (slug) DO NOTHING lets us retry with a fresh random suffix instead of raising
+ * a unique violation — which inside a transaction would poison it and 500.
+ *
+ * created_by_email / updated_by_email are deliberately left NULL: the QR
+ * analytics "team activity" report groups profile creations by that column, and
+ * a rep auto-provisioning their own page is not admin activity.
+ */
+async function provisionOwnProfile(pool, userId, userEmail, userName) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        // hashtext() turns the user id into the int key pg_advisory_xact_lock wants.
+        // Released automatically on COMMIT/ROLLBACK.
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`sa21:own-profile:${userId}`]);
+        // Re-check under the lock — a concurrent request may already have created
+        // or adopted this user's profile while we waited.
+        const linked = await client.query('SELECT * FROM employee_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+        if (linked.rows.length > 0) {
+            await client.query('COMMIT');
+            return linked.rows[0];
+        }
+        const adopted = await client.query(`UPDATE employee_profiles
+       SET user_id = $1, is_claimed = TRUE, updated_at = NOW()
+       WHERE user_id IS NULL AND LOWER(email) = LOWER($2)
+       RETURNING *`, [userId, userEmail]);
+        if (adopted.rows.length > 0) {
+            await client.query('COMMIT');
+            console.log(`[Profiles] Auto-linked profile ${adopted.rows[0].slug} to user ${userEmail}`);
+            return adopted.rows[0];
+        }
+        const localPart = (userEmail.split('@')[0] || '').trim();
+        const name = (userName || '').trim() || localPart || userEmail;
+        const base = generateSlug(name) || generateSlug(localPart) || 'rep';
+        for (let attempt = 0; attempt < SELF_PROVISION_SLUG_ATTEMPTS; attempt++) {
+            const slug = attempt === 0 ? base : `${base}-${randomSlugSuffix()}`;
+            const inserted = await client.query(`INSERT INTO employee_profiles (name, email, slug, user_id, is_claimed)
+         VALUES ($1, $2, $3, $4, TRUE)
+         ON CONFLICT (slug) DO NOTHING
+         RETURNING *`, [name, userEmail, slug, userId]);
+            if (inserted.rows.length > 0) {
+                await client.query('COMMIT');
+                console.log(`[Profiles] Self-provisioned profile ${slug} for ${userEmail}`);
+                return inserted.rows[0];
+            }
+            // slug taken — loop and try again with a fresh suffix
+        }
+        await client.query('ROLLBACK');
+        console.error(`[Profiles] Could not find a free slug for ${userEmail} after ${SELF_PROVISION_SLUG_ATTEMPTS} attempts`);
+        return null;
+    }
+    catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        }
+        catch { /* connection already broken */ }
+        console.error(`[Profiles] Self-provision failed for ${userEmail}:`, err);
+        return null;
+    }
+    finally {
+        client.release();
+    }
+}
+/**
+ * Resolve the profile for a user id/email, creating one if it does not exist.
+ *   1. row already linked by user_id
+ *   2. else adopt an unclaimed row whose email matches (admin-created profiles
+ *      work without a manual claim step)
+ *   3. else self-provision one
+ *
+ * Step 3 is what makes new hires work: nothing in signup creates a profile row
+ * (findOrCreateGoogleUser only inserts into `users`) and every other insert path
+ * is admin/marketing-gated, so before this every new account saw "No Profile
+ * Yet / contact your admin" and had neither a QR code nor an edit form.
+ * PUT /me calls this first too, so profile editing is fixed by the same change,
+ * and every already-orphaned account heals on its next login — no backfill.
+ *
+ * Returns null only if provisioning genuinely failed; callers keep their
+ * existing "no profile" degradation path.
+ */
+export async function resolveOwnProfile(pool, userId, userEmail, userName) {
+    const linked = await pool.query('SELECT * FROM employee_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+    if (linked.rows.length > 0)
+        return linked.rows[0];
+    const adopted = await pool.query(`UPDATE employee_profiles
+     SET user_id = $1, is_claimed = TRUE, updated_at = NOW()
+     WHERE user_id IS NULL AND LOWER(email) = LOWER($2)
+     RETURNING *`, [userId, userEmail]);
+    if (adopted.rows.length > 0) {
+        console.log(`[Profiles] Auto-linked profile ${adopted.rows[0].slug} to user ${userEmail}`);
+        return adopted.rows[0];
+    }
+    return provisionOwnProfile(pool, userId, userEmail, userName);
+}
+/**
+ * Normalise an admin-entered profile email and bind it to the SA21 account it
+ * belongs to.
+ *
+ * A typo in a hand-typed email used to create a permanent orphan: the row never
+ * matched the rep's login, so resolveOwnProfile skipped it and the rep saw
+ * "contact your admin" forever. Now that resolveOwnProfile self-provisions, the
+ * same typo silently leaves the rep with a *second* profile instead — worse,
+ * because both rows look real. Two cheap guards:
+ *   - trim + lower-case, which kills the "trailing space / stray capital"
+ *     variant outright (LOWER() matching never saw a trailing space);
+ *   - look the address up in `users` and hand the caller a warning when nothing
+ *     matches, so the admin catches the typo at save time instead of a week
+ *     later.
+ * When the address does match an account that has no profile yet, we return its
+ * id so the row links immediately rather than waiting for the rep to log in.
+ *
+ * `email: undefined` means "field not supplied" (COALESCE keeps the old value).
+ */
+async function bindProfileEmail(pool, rawEmail, excludeProfileId) {
+    if (rawEmail === undefined)
+        return { email: undefined, userId: null, warning: null };
+    if (typeof rawEmail !== 'string')
+        return { email: null, userId: null, warning: null };
+    const email = rawEmail.trim().toLowerCase();
+    // Preserve "clear this field" semantics for an explicitly blank string.
+    if (!email)
+        return { email: rawEmail, userId: null, warning: null };
+    const match = await pool.query(`SELECT u.id,
+            (SELECT COUNT(*)::int FROM employee_profiles ep
+              WHERE ep.user_id = u.id AND ($2::uuid IS NULL OR ep.id <> $2::uuid)) AS other_profiles
+       FROM users u
+      WHERE LOWER(u.email) = $1
+      LIMIT 1`, [email, excludeProfileId || null]);
+    if (match.rows.length === 0) {
+        return {
+            email,
+            userId: null,
+            warning: `No SA21 account uses ${email}. Check for a typo — otherwise this profile will never link to the rep's login and they'll end up with a second, auto-created one.`,
+        };
+    }
+    if (match.rows[0].other_profiles > 0) {
+        return {
+            email,
+            userId: null,
+            warning: `${email} already has another QR profile. Merge or delete the duplicate — a rep can only ever see one.`,
+        };
+    }
+    return { email, userId: match.rows[0].id, warning: null };
+}
 function hashIP(ip) {
     return crypto.createHash('sha256').update(ip + 'sa21-salt').digest('hex').substring(0, 16);
 }
@@ -1469,24 +1631,6 @@ export function createProfileRoutes(pool) {
     // ==========================================================================
     // AUTHENTICATED ENDPOINTS
     // ==========================================================================
-    // Resolve the profile for a user id/email: linked row first, else an
-    // unclaimed profile whose email matches — auto-link it so admin-created
-    // profiles work without a manual claim step (reps saw "contact your admin"
-    // even though their profile existed, just with user_id NULL).
-    async function resolveOwnProfile(userId, userEmail) {
-        const linked = await pool.query('SELECT * FROM employee_profiles WHERE user_id = $1 LIMIT 1', [userId]);
-        if (linked.rows.length > 0)
-            return linked.rows[0];
-        const adopted = await pool.query(`UPDATE employee_profiles
-       SET user_id = $1, is_claimed = TRUE, updated_at = NOW()
-       WHERE user_id IS NULL AND LOWER(email) = LOWER($2)
-       RETURNING *`, [userId, userEmail]);
-        if (adopted.rows.length > 0) {
-            console.log(`[Profiles] Auto-linked profile ${adopted.rows[0].slug} to user ${userEmail}`);
-            return adopted.rows[0];
-        }
-        return null;
-    }
     /**
      * GET /api/profiles/me
      * Get current user's profile
@@ -1500,8 +1644,8 @@ export function createProfileRoutes(pool) {
                     error: 'Authentication required'
                 });
             }
-            // Get user ID
-            const userResult = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
+            // Get user id + name (name seeds a self-provisioned profile)
+            const userResult = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
             if (userResult.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
@@ -1509,7 +1653,9 @@ export function createProfileRoutes(pool) {
                 });
             }
             const userId = userResult.rows[0].id;
-            const profile = await resolveOwnProfile(userId, userEmail);
+            // Resolves, adopts, or creates — a rep always ends up with a profile so
+            // the QR tab and the edit form render for brand-new accounts too.
+            const profile = await resolveOwnProfile(pool, userId, userEmail, userResult.rows[0].name);
             if (!profile) {
                 return res.json({
                     success: true,
@@ -1544,8 +1690,8 @@ export function createProfileRoutes(pool) {
                 });
             }
             const { name, title, bio, phone_number, image_url, start_year } = req.body;
-            // Get user ID
-            const userResult = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
+            // Get user id + name (name seeds a self-provisioned profile)
+            const userResult = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [userEmail]);
             if (userResult.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
@@ -1553,8 +1699,9 @@ export function createProfileRoutes(pool) {
                 });
             }
             const userId = userResult.rows[0].id;
-            // Adopt an email-matching unclaimed profile first (same self-heal as GET /me)
-            await resolveOwnProfile(userId, userEmail);
+            // Adopt-or-create first (same self-heal as GET /me) so the UPDATE below
+            // has a row to hit even when the account has never had a profile.
+            await resolveOwnProfile(pool, userId, userEmail, userResult.rows[0].name);
             const result = await pool.query(`UPDATE employee_profiles
          SET name = COALESCE($1, name),
              title = COALESCE($2, title),
@@ -1729,6 +1876,10 @@ export function createProfileRoutes(pool) {
                     error: 'Name is required'
                 });
             }
+            // Normalise the email and link it to the matching SA21 account (or warn
+            // the admin that nothing matches — a typo here strands the profile).
+            const binding = await bindProfileEmail(pool, email);
+            const linkedUserId = user_id || binding.userId;
             // Generate slug if not provided
             let slug = customSlug || generateSlug(name);
             // Check if slug exists
@@ -1743,20 +1894,21 @@ export function createProfileRoutes(pool) {
          RETURNING *`, [
                 name,
                 title || null,
-                email || null,
+                binding.email || null,
                 phone_number || null,
                 bio || null,
                 image_url || null,
                 role_type || 'sales_rep',
                 start_year || null,
                 slug,
-                user_id || null,
-                user_id ? true : false,
+                linkedUserId || null,
+                linkedUserId ? true : false,
                 userEmail || null
             ]);
             res.json({
                 success: true,
-                profile: result.rows[0]
+                profile: result.rows[0],
+                ...(binding.warning ? { warning: binding.warning } : {})
             });
         }
         catch (error) {
@@ -1782,6 +1934,10 @@ export function createProfileRoutes(pool) {
                 });
             }
             const { name, title, email, phone_number, bio, image_url, role_type, start_year, slug, is_active, user_id } = req.body;
+            // Same normalise-and-link pass as create, so fixing a typo on an existing
+            // profile re-attaches it to the rep's account instead of leaving an orphan.
+            const binding = await bindProfileEmail(pool, email, id);
+            const linkedUserId = user_id || binding.userId;
             const result = await pool.query(`UPDATE employee_profiles
          SET name = COALESCE($1, name),
              title = COALESCE($2, title),
@@ -1794,10 +1950,12 @@ export function createProfileRoutes(pool) {
              slug = COALESCE($9, slug),
              is_active = COALESCE($10, is_active),
              user_id = COALESCE($11, user_id),
+             -- linking an account is what "claimed" means everywhere else
+             is_claimed = CASE WHEN $11::uuid IS NOT NULL THEN TRUE ELSE is_claimed END,
              updated_by_email = COALESCE($13, updated_by_email),
              updated_at = NOW()
          WHERE id = $12
-         RETURNING *`, [name, title, email, phone_number, bio, image_url, role_type, start_year, slug, is_active, user_id, id, userEmail || null]);
+         RETURNING *`, [name, title, binding.email, phone_number, bio, image_url, role_type, start_year, slug, is_active, linkedUserId, id, userEmail || null]);
             if (result.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
@@ -1806,7 +1964,8 @@ export function createProfileRoutes(pool) {
             }
             res.json({
                 success: true,
-                profile: result.rows[0]
+                profile: result.rows[0],
+                ...(binding.warning ? { warning: binding.warning } : {})
             });
         }
         catch (error) {

@@ -248,11 +248,25 @@ const MyProfilePanel: React.FC<MyProfilePanelProps> = ({ userEmail }) => {
           padding: '3rem'
         }}>
           <QrCode style={{ width: '4rem', height: '4rem', color: '#dc2626', margin: '0 auto 1.5rem' }} />
-          <h2 style={{ color: 'var(--text-primary)', margin: '0 0 1rem 0' }}>No Profile Yet</h2>
+          <h2 style={{ color: 'var(--text-primary)', margin: '0 0 1rem 0' }}>Profile Not Ready</h2>
           <p style={{ color: 'var(--text-tertiary)', margin: '0 0 1.5rem 0' }}>
-            You don't have a QR profile linked to your account yet.
-            Contact your admin to create one for you.
+            {/* The server creates a profile on demand now, so landing here means
+                the request itself failed rather than "no profile exists". */}
+            We couldn't set up your QR profile just now. Try again — if it keeps
+            failing, tell your admin.
           </p>
+          <button
+            onClick={fetchProfile}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.625rem 1.25rem', borderRadius: '8px', border: 'none',
+              background: '#dc2626', color: '#ffffff', fontWeight: 600,
+              fontSize: '0.9rem', cursor: 'pointer',
+            }}
+          >
+            <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+            Try Again
+          </button>
         </div>
       </div>
     );

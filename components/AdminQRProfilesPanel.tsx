@@ -21,6 +21,7 @@ import {
   Star,
   Copy,
   CloudRain,
+  AlertTriangle,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -101,15 +102,16 @@ function getInitials(name: string): string {
 interface ToastItem {
   id: number;
   message: string;
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'warning';
 }
 
 function useToasts() {
   const [toasts, setToasts] = React.useState<ToastItem[]>([]);
-  const add = React.useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now();
+  const add = React.useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+    // Warnings (e.g. "that email matches no account") need longer to read.
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), type === 'warning' ? 9000 : 4000);
   }, []);
   return { toasts, add };
 }
@@ -121,20 +123,23 @@ function ToastContainer({ toasts }: { toasts: ToastItem[] }) {
         <div
           key={t.id}
           style={{
-            background: t.type === 'success' ? '#166534' : '#7f1d1d',
-            border: `1px solid ${t.type === 'success' ? '#16a34a' : '#dc2626'}`,
+            background: t.type === 'success' ? '#166534' : t.type === 'warning' ? '#78350f' : '#7f1d1d',
+            border: `1px solid ${t.type === 'success' ? '#16a34a' : t.type === 'warning' ? '#f59e0b' : '#dc2626'}`,
             color: 'var(--text-primary)',
             padding: '10px 16px',
             borderRadius: 8,
             fontSize: 14,
             minWidth: 240,
+            maxWidth: 380,
             boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: 8,
           }}
         >
-          {t.type === 'success' ? <Check size={14} /> : <X size={14} />}
+          <span style={{ flexShrink: 0, marginTop: 2 }}>
+            {t.type === 'success' ? <Check size={14} /> : t.type === 'warning' ? <AlertTriangle size={14} /> : <X size={14} />}
+          </span>
           {t.message}
         </div>
       ))}
@@ -494,7 +499,7 @@ function CreateEditModal({
   userEmail: string;
   onClose: () => void;
   onSaved: () => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
   const isEdit = profile !== null;
 
@@ -610,6 +615,9 @@ function CreateEditModal({
       }
 
       addToast(isEdit ? 'Profile updated' : 'Profile created', 'success');
+      // The server flags an email that matches no SA21 account (typo) or one
+      // that already owns another profile — both strand the rep, so say so.
+      if (data.warning) addToast(data.warning, 'warning');
       onSaved();
       onClose();
     } catch (err: unknown) {
@@ -690,7 +698,7 @@ function VideoManagementModal({
   profile: QRProfile;
   userEmail: string;
   onClose: () => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
   const [videos, setVideos] = React.useState<ProfileVideo[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1016,7 +1024,7 @@ function ReviewsManagementModal({
   profile: QRProfile;
   userEmail: string;
   onClose: () => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
   const [reviews, setReviews] = React.useState<ReviewRow[]>([]);
   const [globalReviews, setGlobalReviews] = React.useState<ReviewRow[]>([]);
@@ -1229,7 +1237,7 @@ function BulkImportModal({
   userEmail: string;
   onClose: () => void;
   onImported: () => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
   const [raw, setRaw] = React.useState('');
   const [preview, setPreview] = React.useState<Array<Record<string, string>>>([]);
@@ -1391,7 +1399,7 @@ function ProfileRow({
   onManageVideos: (p: QRProfile) => void;
   onManageReviews: (p: QRProfile) => void;
   onUploadPhoto: (p: QRProfile) => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
   isMobile: boolean;
 }) {
   const [deleting, setDeleting] = React.useState(false);
@@ -1650,7 +1658,7 @@ function UploadPhotoModal({
   userEmail: string;
   onClose: () => void;
   onUploaded: () => void;
-  addToast: (msg: string, type?: 'success' | 'error') => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
   const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<string | null>(profile.image_url);
