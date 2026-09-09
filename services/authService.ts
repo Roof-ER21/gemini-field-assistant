@@ -5,6 +5,7 @@
  */
 
 import { databaseService, User } from './databaseService';
+import { storeSessionToken, clearSessionToken } from '../src/auth/sessionToken';
 import { emailNotificationService } from './emailNotificationService';
 import { activityService } from './activityService';
 import { API_BASE_URL } from './config';
@@ -242,6 +243,10 @@ class AuthService {
         created_at: new Date(),
         last_login_at: new Date(),
       };
+
+      // The server now issues a real session at a verified sign-in; hold on to
+      // it so every API call carries a bearer instead of asserting an address.
+      if (result.sessionToken) storeSessionToken(result.sessionToken, result.sessionExpiresAt);
 
       // Persist the session — identical to the email/direct login path.
       this.currentUser = user;
@@ -668,6 +673,10 @@ class AuthService {
         user.created_at = existingUser.created_at;
       }
 
+      // The emailed code was verified server-side, so this response carries a
+      // real session token. Hold it: every API call rides on it from here.
+      if (verifyResult.sessionToken) storeSessionToken(verifyResult.sessionToken, verifyResult.sessionExpiresAt);
+
       // Save user to localStorage
       this.currentUser = user;
       localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
@@ -901,7 +910,14 @@ class AuthService {
    * Logout current user
    */
   logout(): void {
+    // Best effort: end the session on the server too, so a copied token dies
+    // with the sign-out rather than living for a year.
+    try {
+      void fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST' }).catch(() => {});
+    } catch { /* offline sign-out still clears locally */ }
+
     this.currentUser = null;
+    clearSessionToken();
     localStorage.removeItem(this.AUTH_KEY);
     localStorage.removeItem(this.SESSION_KEY);
     localStorage.removeItem(this.TOKEN_KEY);

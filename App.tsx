@@ -14,6 +14,7 @@ import memoryService from './services/memoryService';
 import { Menu, X } from 'lucide-react';
 import NotificationBell from './components/NotificationBell';
 import ThemeToggle from './components/ThemeToggle';
+import ReauthBanner from './components/ReauthBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
 import IncomingCallModal from './components/IncomingCallModal';
@@ -524,6 +525,9 @@ const App: React.FC = () => {
     <SettingsProvider>
     <DivisionProvider>
     <div className="roof-er-app-shell flex flex-col" style={{ background: 'var(--bg-base)', height: '100dvh', minHeight: '100dvh' }}>
+      {/* Asks long-signed-in reps to re-authenticate so they pick up a real
+          session. Renders nothing unless the server asks for it. */}
+      <ReauthBanner />
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">

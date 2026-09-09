@@ -41,7 +41,8 @@
     "ios:build": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
     "ios:sync": "npx cap sync ios",
-    "ios:run": "npx cap run ios"
+    "ios:run": "npx cap run ios",
+    "test:auth": "vitest run --config vitest.config.auth.ts"
   },
   "engines": {
     "node": ">=20"

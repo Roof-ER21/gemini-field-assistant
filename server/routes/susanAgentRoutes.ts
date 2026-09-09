@@ -320,13 +320,23 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       resolveRepMemories(pool, userId)
     ]);
 
+    // The session middleware (server/auth/session.ts) sets req.session only for a
+    // verified bearer, and rewrites x-user-email from it. So `email` above is a
+    // verified address when a session exists and an asserted one otherwise — and
+    // the tools that act outward check exactly that.
+    const hasVerifiedSession = (req as { session?: { email?: string } }).session?.email === email;
+
     const toolContext: ToolContext = {
       userId,
       userEmail: email,
       userName: personality.preferred_name || userName,
       userState,
-      pool
+      pool,
+      hasVerifiedSession
     };
+    if (!hasVerifiedSession) {
+      console.log(`[SusanAgent:${requestId}] legacy-header caller (${email}) — outward-action tools refused`);
+    }
 
     // ---- 4. Build Gemini contents ----
     // If the caller passes a separate systemPrompt, prepend it as a user turn

@@ -34,6 +34,17 @@ export interface ToolContext {
   /** Two-letter state abbreviation, e.g. "TX" – derived from user profile */
   userState: string;
   pool: pg.Pool;
+  /**
+   * Did this request arrive on a VERIFIED session, or on the legacy
+   * `x-user-email` header that anyone could assert?
+   *
+   * Reads are the same either way — the header hole is being closed in stages
+   * (server/auth/session.ts) and reads keep working throughout. But the tools
+   * that act OUTWARD — send mail, put an event on a real calendar, notify or
+   * post to the team — must not run on an asserted address. Those refuse
+   * unless this is true. See OUTWARD_ACTION_TOOLS below.
+   */
+  hasVerifiedSession?: boolean;
 }
 
 export interface ToolResult {
@@ -1878,6 +1889,20 @@ const TOOL_EXECUTORS: Record<
 };
 
 /**
+ * Tools that do something a person outside this app can see: mail leaves the
+ * building, an event lands on a real calendar, a notification or a team post
+ * reaches other people. Until sa21 requires a session everywhere, these are
+ * the ones that must never run for a caller who only asserted an email
+ * address. Adding an outward-acting tool means adding it here.
+ */
+export const OUTWARD_ACTION_TOOLS = new Set([
+  'send_email',
+  'create_calendar_event',
+  'send_notification',
+  'share_team_intel',
+]);
+
+/**
  * Execute a named tool with the given arguments and user context.
  * Returns a ToolResult regardless of success/failure (errors are surfaced
  * in the result object so Gemini can decide how to respond).
@@ -1897,6 +1922,21 @@ export async function executeTool(
         success: false,
         error: `Unknown tool "${name}". Available tools: ${Object.keys(TOOL_EXECUTORS).join(', ')}.`
       }
+    };
+  }
+
+  if (OUTWARD_ACTION_TOOLS.has(name) && ctx.hasVerifiedSession !== true) {
+    console.warn(`[SusanTool:executeTool] refused "${name}" — no verified session for ${ctx.userEmail}`);
+    return {
+      name,
+      result: {
+        success: false,
+        error:
+          `"${name}" sends something out of the app, so it needs a verified sign-in. ` +
+          'Tell the rep to sign in again with Continue with Google, then ask once more. ' +
+          'Everything you can read still works.',
+        needsSignIn: true,
+      },
     };
   }
 

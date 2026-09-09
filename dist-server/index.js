@@ -12,6 +12,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { captureToGlitchTip } from './lib/glitchtip.js';
+import { requireSessionEnabled, createSessionMiddleware, ensureSessionTable, mintSession, revokeSession, promptReauthEnabled, sessionAdoption, } from './auth/session.js';
 // Admin PIN hashing helpers (scrypt — no external dependencies)
 function hashPin(pin) {
     return new Promise((resolve, reject) => {
@@ -300,6 +301,12 @@ app.use((req, res, next) => {
 // Body parsers - increased limit for photo uploads (base64 encoded)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Identity is established HERE, at the front door, and nowhere else.
+// A verified session rewrites `x-user-email` for every downstream reader; in
+// Stage 1 a request without one still falls through to the old header, so no
+// rep is signed out. Flipping SA21_REQUIRE_SESSION=true closes that fallback.
+// See server/auth/session.ts.
+app.use(createSessionMiddleware(pool));
 // Rate limiting - General API protection
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -2547,10 +2554,16 @@ app.post('/api/auth/google', async (req, res) => {
             isNew = true;
         }
         console.log(`[AUTH] Google login: ${user.email} (${user.name})${isNew ? ' [new account]' : ''}`);
+        // Identity is Google-verified at this point, so this is a legitimate mint.
+        const minted = await mintSession(pool, {
+            userId: user.id, email: user.email, rememberMe: true, userAgent: req.header('user-agent') || '',
+        });
         res.json({
             success: true,
             message: isNew ? 'Account created via Google' : 'Login successful',
             isNew,
+            sessionToken: minted.token,
+            sessionExpiresAt: minted.expiresAt.toISOString(),
             user: { id: user.id, email: user.email, name: user.name, role: user.role },
         });
     }
@@ -2645,7 +2658,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
 });
 // 3) Exchange the one-time handoff for the user — frontend persists the session.
-app.post('/api/auth/google/exchange', (req, res) => {
+app.post('/api/auth/google/exchange', async (req, res) => {
     const token = String(req.body?.token || '');
     const entry = token ? googleLoginHandoffs.get(token) : null;
     if (!entry || entry.exp < Date.now()) {
@@ -2654,7 +2667,50 @@ app.post('/api/auth/google/exchange', (req, res) => {
         return res.status(400).json({ success: false, error: 'Sign-in link expired — please try again.' });
     }
     googleLoginHandoffs.delete(token);
-    res.json({ success: true, user: entry.user });
+    // The handoff was minted only after Google's id_token verified in the callback,
+    // so the identity behind it is real. This is where the rep gets a session.
+    try {
+        const minted = await mintSession(pool, {
+            userId: entry.user.id, email: entry.user.email, rememberMe: true, userAgent: req.header('user-agent') || '',
+        });
+        return res.json({
+            success: true,
+            user: entry.user,
+            sessionToken: minted.token,
+            sessionExpiresAt: minted.expiresAt.toISOString(),
+        });
+    }
+    catch (err) {
+        // Stage 1: a mint failure must not block a sign-in that Google already
+        // verified — the rep continues on the legacy header until they sign in again.
+        console.error('[AUTH] session mint failed on google/exchange:', err.message);
+        return res.json({ success: true, user: entry.user });
+    }
+});
+// 4) Sign out — actually end the session server-side, not just clear localStorage.
+app.post('/api/auth/logout', async (req, res) => {
+    try {
+        if (req.session)
+            await revokeSession(pool, req.session.token);
+        res.json({ success: true });
+    }
+    catch (err) {
+        console.error('[AUTH] logout failed:', err.message);
+        res.json({ success: true });
+    }
+});
+// What the client should do about sessions. Public: it is read before sign-in.
+app.get('/api/auth/session-policy', (_req, res) => {
+    res.json({ promptReauth: promptReauthEnabled(), requireSession: requireSessionEnabled() });
+});
+// Stage 2 is a measurement, not a guess: how much live traffic already carries
+// a real session. Flip SA21_REQUIRE_SESSION=true when sessionShare is ~1.
+app.get('/api/auth/session-adoption', (req, res) => {
+    res.json({
+        ...sessionAdoption(),
+        you: req.authMechanism,
+        note: 'Counters are per server process and reset on deploy.',
+    });
 });
 // Verify code endpoint (kept for backward compatibility)
 app.post('/api/auth/verify-code', async (req, res) => {
@@ -2718,10 +2774,21 @@ app.post('/api/auth/verify-code', async (req, res) => {
                 error: 'User not found. Please sign up first.'
             });
         }
+        // The emailed code checked out, so this identity is verified too.
+        let verifyMint = null;
+        try {
+            verifyMint = await mintSession(pool, {
+                userId: user.id, email: user.email, rememberMe: true, userAgent: req.header('user-agent') || '',
+            });
+        }
+        catch (err) {
+            console.error('[AUTH] session mint failed on verify-code:', err.message);
+        }
         res.json({
             success: true,
             message: isNew ? 'Account created successfully!' : 'Login successful',
             isNew,
+            ...(verifyMint ? { sessionToken: verifyMint.token, sessionExpiresAt: verifyMint.expiresAt.toISOString() } : {}),
             user: {
                 id: user.id,
                 email: user.email,
@@ -10670,6 +10737,8 @@ async function processFeedbackFollowups() {
 // Auto-run migrations on server startup
 async function runStartupMigrations() {
     try {
+        // Real sessions (2026-09-09). Replaces identity-by-request-header.
+        await ensureSessionTable(pool);
         // Create leaderboard_goals table if it doesn't exist
         await pool.query(`
       CREATE TABLE IF NOT EXISTS leaderboard_goals (
