@@ -41,13 +41,14 @@ async function resolveUserId(pool, email) {
         const existing = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [norm]);
         if (existing.rows.length > 0)
             return existing.rows[0].id;
-        // Auto-create user so agents work for new reps without a full signup flow
-        const adminEmail = normalizeEmail(process.env.EMAIL_ADMIN_ADDRESS || process.env.ADMIN_EMAIL);
-        const role = adminEmail && adminEmail === norm ? 'admin' : 'sales_rep';
-        const created = await pool.query(`INSERT INTO users (email, name, role)
-       VALUES ($1, $2, $3)
-       RETURNING id`, [norm, norm.split('@')[0], role]);
-        return created.rows[0]?.id ?? null;
+        // This used to auto-create the user "so agents work for new reps without a
+        // full signup flow". Combined with identity-by-header it meant ANY string
+        // shaped like an email — from anyone, with no account and no domain check —
+        // became a user row and got an agent turn. A new rep gets their account from
+        // Google sign-in (findOrCreateGoogleUser), which verifies an id_token and
+        // checks the domain; this path only ever resolves someone who already exists.
+        console.warn(`[SusanAgent] no account for ${norm} — refusing rather than creating one`);
+        return null;
     }
     catch (err) {
         console.error('[SusanAgent] Error resolving userId:', err);
@@ -214,7 +215,7 @@ export function createSusanAgentRoutes(pool) {
         const userId = await resolveUserId(pool, email);
         if (!userId) {
             return res.status(401).json({
-                error: `Could not resolve or create user for email: ${email}`
+                error: 'No Roof-ER account for that address. Sign in with Google first.'
             });
         }
         // Resolve user division (default to insurance for existing users)

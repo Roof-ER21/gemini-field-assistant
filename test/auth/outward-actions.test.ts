@@ -9,6 +9,7 @@
  * these four refuse until the caller holds a real session.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'fs';
 import {
   OUTWARD_ACTION_TOOLS,
   SUSAN_TOOLS,
@@ -106,5 +107,29 @@ describe('a new outward-acting tool cannot be added without classifying it', () 
     for (const name of OUTWARD_ACTION_TOOLS) {
       expect(real.has(name), `OUTWARD_ACTION_TOOLS names "${name}", which is not a tool`).toBe(true);
     }
+  });
+});
+
+describe("Susan's agent does not mint accounts for whoever asks", () => {
+  // `resolveUserId` used to INSERT a users row for any address in the header,
+  // with no account, no credential and no domain check, and then run an agent
+  // turn for it. A new rep gets their account from Google sign-in instead.
+  const source = readFileSync(
+    new URL('../../server/routes/susanAgentRoutes.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('the agent route never inserts into users', () => {
+    const inserts = source.match(/INSERT\s+INTO\s+users/gi) || [];
+    expect(
+      inserts,
+      'susanAgentRoutes must not create accounts — an unknown address is a 401, not a signup',
+    ).toEqual([]);
+  });
+
+  it('an unresolvable caller is refused without being told what resolved', () => {
+    expect(source).toMatch(/refusing rather than creating one/);
+    // The refusal must not echo the caller's own string back to them.
+    expect(source).not.toMatch(/Could not resolve or create user for email/);
   });
 });
