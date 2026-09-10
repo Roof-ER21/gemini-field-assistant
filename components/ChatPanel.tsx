@@ -9,6 +9,7 @@ const DocumentAnalysisPanel = lazy(() => import('./DocumentAnalysisPanel'));
 import { Session, LiveServerMessage } from '@google/genai';
 import { Message } from '../types';
 import Spinner from './Spinner';
+import { RoofHrConnectChip } from './RoofHrConnect';
 import { encode } from '../utils/audio';
 import { ragService } from '../services/ragService';
 import { multiAI, AIProvider } from '../services/multiProviderAI';
@@ -1918,6 +1919,8 @@ Generate ONLY the email body text, no subject line or metadata.`;
           <span className="roof-er-logo">S21</span>
           <span className="roof-er-subtitle">AI Roofing Assistant</span>
         </div>
+        {/* Susan reads Roof HR on the rep's own token, or not at all. */}
+        <RoofHrConnectChip />
       </div>
 
       {/* Messages Area */}

@@ -40,6 +40,13 @@ const PUBLIC_PREFIXES = [
     '/api/present/',
     '/api/susan/groupme',
     '/api/webhooks/',
+    // Roof HR sends the BROWSER here after someone approves a connection. A
+    // top-level navigation carries no Authorization header, so in Stage 2 this one
+    // path must stay open or the redirect would 401 and no rep could ever connect.
+    // It is safe to open because it does nothing: it only hands the code to a
+    // client route, and the code is redeemed by /api/connect/roofhr/complete,
+    // which DOES require a session. Only the callback — not /api/connect/.
+    '/api/connect/roofhr/callback',
 ];
 export function isPublicPath(path) {
     return PUBLIC_PREFIXES.some((p) => path.startsWith(p));

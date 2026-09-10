@@ -15,6 +15,7 @@ import { Menu, X } from 'lucide-react';
 import NotificationBell from './components/NotificationBell';
 import ThemeToggle from './components/ThemeToggle';
 import ReauthBanner from './components/ReauthBanner';
+import { RoofHrCallbackHandler } from './components/RoofHrConnect';
 import ErrorBoundary from './components/ErrorBoundary';
 import LazyLoadBoundary from './components/LazyLoadBoundary';
 import IncomingCallModal from './components/IncomingCallModal';
@@ -528,6 +529,8 @@ const App: React.FC = () => {
       {/* Asks long-signed-in reps to re-authenticate so they pick up a real
           session. Renders nothing unless the server asks for it. */}
       <ReauthBanner />
+      {/* Completes a Roof HR connection when Roof HR sends the browser back. */}
+      <RoofHrCallbackHandler />
       {/* Header */}
       <header className="roof-er-header">
         <div className="roof-er-header-left">

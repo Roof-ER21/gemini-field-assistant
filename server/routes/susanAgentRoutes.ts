@@ -20,6 +20,8 @@ import express, { Request, Response, Router } from 'express';
 import pg from 'pg';
 import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import { SUSAN_TOOLS, executeTool, type ToolContext, type ToolResult } from '../services/susanToolService.js';
+import { resolveRoofhr, type RoofhrBridge } from '../services/roofhrAgentTools.js';
+import { buildConnectStartUrl } from './connectRoutes.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -333,6 +335,24 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       console.log(`[SusanAgent:${requestId}] legacy-header caller (${email}) — outward-action tools refused`);
     }
 
+    // ---- 3b. Roof HR, as this rep ----
+    // Susan has no Roof HR access of her own. If this rep has connected their
+    // own account, Roof HR's tools join her toolset for this request only and
+    // run on THEIR token; if not, she is told to say she cannot see it rather
+    // than guess. There is no shared token to fall back to, by design — the one
+    // on Roof HR prod is a System Administrator.
+    const roofhr = await resolveRoofhr(pool, {
+      userId,
+      hasVerifiedSession,
+      // Only offered to a caller who could actually complete the trip.
+      connectUrl: hasVerifiedSession ? buildConnectStartUrl(req, userId) : null,
+    });
+    const roofhrBridge: RoofhrBridge | null = roofhr.state === 'connected' ? roofhr.bridge : null;
+    console.log(
+      `[SusanAgent:${requestId}] roofhr=${roofhr.state}` +
+      (roofhrBridge ? ` tools=${roofhrBridge.declarations.length}` : ''),
+    );
+
     // ---- 4. Build Gemini contents ----
     // If the caller passes a separate systemPrompt, prepend it as a user turn
     // with a model acknowledgement so the conversation is well-formed.
@@ -354,6 +374,9 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       enrichedSystemPrompt += `\n\n[REP MEMORY]\nThings you remember about this rep from earlier conversations — use them naturally when relevant, don't recite them unprompted:\n${mLines.join('\n')}`;
     }
     enrichedSystemPrompt += `\n\n[MEMORY RULE]\nWhen the rep shares a fact, preference, or personal detail worth keeping, call the save_client_note tool to store it. Never say you will remember something unless you have called save_client_note for it in this conversation. If asked about something you have no memory of, say so plainly.`;
+
+    // Roof HR: either the tools and how to use them, or why she cannot see it.
+    enrichedSystemPrompt += roofhr.promptBlock;
 
     // Manager directives block
     if (directives.length > 0) {
@@ -487,6 +510,9 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
     }
 
     // ---- 5. ReAct loop (max 5 iterations) ----
+    // Susan's own tools plus whatever Roof HR offered this rep. Built per
+    // request because the Roof HR half depends on who is asking.
+    const toolDeclarations = [...SUSAN_TOOLS, ...(roofhrBridge?.declarations ?? [])];
     const MAX_TOOL_ROUNDS = 5;
     const allToolResults: ToolResult[] = [];
 
@@ -510,7 +536,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
             model: 'gemini-2.5-flash',
             contents,
             config: {
-              tools: [{ functionDeclarations: SUSAN_TOOLS }]
+              tools: [{ functionDeclarations: toolDeclarations }]
             }
           });
         } catch (geminiErr: unknown) {
@@ -591,7 +617,11 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
               `[SusanAgent:${requestId}] Executing tool="${toolName}" args=${JSON.stringify(toolArgs).slice(0, 200)}`
             );
 
-            const toolResult = await executeTool(toolName, toolArgs, toolContext);
+            // A Roof HR tool goes out over MCP on this rep's token; everything
+            // else is one of Susan's own.
+            const toolResult = roofhrBridge?.handles(toolName)
+              ? await roofhrBridge.call(toolName, toolArgs)
+              : await executeTool(toolName, toolArgs, toolContext);
             allToolResults.push(toolResult);
 
             return {
@@ -632,7 +662,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
           model: 'gemini-2.5-flash',
           contents,
           config: {
-            tools: [{ functionDeclarations: SUSAN_TOOLS }]
+            tools: [{ functionDeclarations: toolDeclarations }]
           }
         });
       } catch (finalErr: unknown) {

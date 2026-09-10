@@ -67,6 +67,8 @@ import { createRoofCheckRoutes } from './roofcheck/roofcheckRoutes.js';
 import { createLeadAnalyticsRoutes } from './routes/leadAnalyticsRoutes.js';
 import susanRoutes from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
+import { createConnectRoutes } from './routes/connectRoutes.js';
+import { ensureAgentConnectionsTable } from './services/roofhrConnection.js';
 import { createSusanGroupMeBotRoutes } from './routes/susanGroupMeBotRoutes.js';
 import { startSusanScheduler } from './services/susanScheduledPosts.js';
 import { startStormDaysRefresh } from './services/stormDaysService.js';
@@ -8485,6 +8487,8 @@ app.use('/api/present', inspectionPresentationRoutes);
 app.use('/api/susan', susanRoutes);
 // Register Susan Agent routes (ReAct loop with Gemini function calling)
 app.use('/api/susan/agent', createSusanAgentRoutes(pool));
+// "Connect Roof HR" — per-rep Roof HR tokens (server/routes/connectRoutes.ts)
+app.use('/api/connect', createConnectRoutes(pool));
 app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
@@ -10754,6 +10758,8 @@ async function runStartupMigrations() {
     try {
         // Real sessions (2026-09-09). Replaces identity-by-request-header.
         await ensureSessionTable(pool);
+        // Per-rep Roof HR tokens, encrypted at rest (2026-09-10).
+        await ensureAgentConnectionsTable(pool);
         // Create leaderboard_goals table if it doesn't exist
         await pool.query(`
       CREATE TABLE IF NOT EXISTS leaderboard_goals (
