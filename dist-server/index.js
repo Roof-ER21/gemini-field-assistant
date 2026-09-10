@@ -397,10 +397,25 @@ function normalizeEmail(email) {
         return null;
     return email.trim().toLowerCase();
 }
-// Resolve user email from request header and fallback
+// Resolve user email from request header and fallback.
+//
+// The `demo@roofer.com` fallback means a request with NO identity at all still
+// resolves to a real users row. Most routes check for a header themselves and
+// 401 first, and Stage 2 (SA21_REQUIRE_SESSION) refuses such a request at the
+// front door before this is ever reached — but until then, anything still
+// leaning on the demo identity is worth knowing about rather than guessing at.
+// Whether this fallback can be removed outright is a question for the log.
+let demoFallbackWarnings = 0;
 function getRequestEmail(req) {
     const headerEmail = normalizeEmail(req.header('x-user-email'));
-    return headerEmail || 'demo@roofer.com';
+    if (!headerEmail) {
+        if (demoFallbackWarnings < 200) {
+            demoFallbackWarnings++;
+            console.warn(`[auth] demo fallback used for ${req.method} ${req.path} — no identity on this request`);
+        }
+        return 'demo@roofer.com';
+    }
+    return headerEmail;
 }
 const GLOBAL_LEARNING_THRESHOLD = parseInt(process.env.GLOBAL_LEARNING_THRESHOLD || '2', 10);
 const NULL_SCOPE_VALUES = new Set(['all', 'any', 'n/a', 'na', 'none', 'unknown', 'unsure', 'tbd', '-']);
