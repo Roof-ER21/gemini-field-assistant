@@ -338,8 +338,6 @@ export function createSusanAgentRoutes(pool) {
             enrichedSystemPrompt += `\n\n[REP MEMORY]\nThings you remember about this rep from earlier conversations — use them naturally when relevant, don't recite them unprompted:\n${mLines.join('\n')}`;
         }
         enrichedSystemPrompt += `\n\n[MEMORY RULE]\nWhen the rep shares a fact, preference, or personal detail worth keeping, call the save_client_note tool to store it. Never say you will remember something unless you have called save_client_note for it in this conversation. If asked about something you have no memory of, say so plainly.`;
-        // Roof HR: either the tools and how to use them, or why she cannot see it.
-        enrichedSystemPrompt += roofhr.promptBlock;
         // Manager directives block
         if (directives.length > 0) {
             const dLines = directives.map(d => `- [${d.priority.toUpperCase()}] ${d.title}: ${d.content}`);
@@ -453,6 +451,12 @@ export function createSusanAgentRoutes(pool) {
         catch (e) {
             console.warn('[SusanAgent] Pre-search pattern match error:', e);
         }
+        // Roof HR goes LAST, closest to the rep's actual question.
+        // Measured: with this block sitting above the 5.6KB storm-alert wall, one
+        // PTO question in ten came back with an empty candidate; moved to the end,
+        // none of ten did. Recency matters — the model should not have to read past
+        // thirty hail events to remember it can answer this.
+        enrichedSystemPrompt += roofhr.promptBlock;
         if (enrichedSystemPrompt.trim().length > 0) {
             contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
             contents.push({ role: 'model', parts: [{ text: `Understood. I am Susan, ready to help${personality.preferred_name ? ` ${personality.preferred_name}` : ''}.` }] });
