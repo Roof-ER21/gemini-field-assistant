@@ -245,7 +245,7 @@ describe('the state that carries a rep through Roof HR and back', () => {
   });
 
   it('only builds a start URL for a registered return address', () => {
-    const req: any = { protocol: 'https', get: () => 'sa21.theroofdocs.com' };
+    const req: any = { protocol: 'https', get: () => 'someone-elses-host.example' };
     process.env.BASE_URL = 'https://someone-elses-host.example';
     // A prefix or wildcard here would be an open redirect with a token on the end.
     expect(buildConnectStartUrl(req, USER)).toBeNull();
@@ -254,6 +254,27 @@ describe('the state that carries a rep through Roof HR and back', () => {
     const url = buildConnectStartUrl(req, USER)!;
     expect(url).toContain('/connect/agent?app=sa21');
     expect(url).toContain(encodeURIComponent('https://sa21.theroofdocs.com/api/connect/roofhr/callback'));
+  });
+
+  /**
+   * sa21 answers on two domains and the session lives in per-origin localStorage.
+   * A rep who starts on one domain must come back to THAT domain, or /complete
+   * sees no session and refuses a trip they completed correctly.
+   */
+  it('returns the rep to the domain they started on, not whatever BASE_URL says', () => {
+    process.env.BASE_URL = 'https://sa21.up.railway.app';
+    const req: any = { protocol: 'https', get: () => 'sa21.theroofdocs.com' };
+    const url = buildConnectStartUrl(req, USER)!;
+    expect(url).toContain(encodeURIComponent('https://sa21.theroofdocs.com/api/connect/roofhr/callback'));
+    expect(url).not.toContain(encodeURIComponent('sa21.up.railway.app'));
+  });
+
+  it('falls back to BASE_URL when the request host is not registered', () => {
+    process.env.BASE_URL = 'https://sa21.up.railway.app';
+    // e.g. reached through an internal hostname or a health-check probe.
+    const req: any = { protocol: 'https', get: () => 'susan-21.railway.internal' };
+    const url = buildConnectStartUrl(req, USER)!;
+    expect(url).toContain(encodeURIComponent('https://sa21.up.railway.app/api/connect/roofhr/callback'));
   });
 });
 

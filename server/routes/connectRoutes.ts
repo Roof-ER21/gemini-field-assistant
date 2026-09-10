@@ -70,18 +70,36 @@ const REGISTERED_CALLBACKS = [
   'http://localhost:5173/api/connect/roofhr/callback',
 ] as const;
 
+function isRegistered(url: string): boolean {
+  return REGISTERED_CALLBACKS.includes(url as (typeof REGISTERED_CALLBACKS)[number]);
+}
+
+/**
+ * The rep's OWN origin is preferred over BASE_URL, as long as it is registered.
+ *
+ * sa21 answers on two domains (sa21.theroofdocs.com and sa21.up.railway.app) and
+ * the session token lives in localStorage, which is per-origin. Sending a rep who
+ * started on one domain back to the other would land them somewhere their session
+ * does not exist, and /complete would refuse a trip they completed correctly.
+ * BASE_URL stays the fallback because it is also what Google OAuth is registered
+ * against, so it is the one address that is certainly ours.
+ */
 export function callbackUrl(req: Request): { url: string | null; error?: string } {
-  const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-  const url = `${base}/api/connect/roofhr/callback`;
-  if (!REGISTERED_CALLBACKS.includes(url as (typeof REGISTERED_CALLBACKS)[number])) {
-    return {
-      url: null,
-      error:
-        `This server's return address (${url}) is not registered with Roof HR. ` +
-        'Set BASE_URL to the public URL of this app, or register this address in Roof HR.',
-    };
+  const origins = [
+    `${req.protocol}://${req.get('host')}`,
+    process.env.BASE_URL || '',
+  ];
+  for (const origin of origins) {
+    if (!origin) continue;
+    const url = `${origin.replace(/\/+$/, '')}/api/connect/roofhr/callback`;
+    if (isRegistered(url)) return { url };
   }
-  return { url };
+  return {
+    url: null,
+    error:
+      `This server's return address (${origins[0]}/api/connect/roofhr/callback) is not registered ` +
+      'with Roof HR. Register it there, or set BASE_URL to an address that is.',
+  };
 }
 
 // ---------------------------------------------------------------------------
