@@ -5,6 +5,7 @@
  */
 
 import { databaseService, User } from './databaseService';
+import { storeSessionToken, clearSessionToken } from '../src/auth/sessionToken';
 import { emailNotificationService } from './emailNotificationService';
 import { activityService } from './activityService';
 import { API_BASE_URL } from './config';
@@ -604,6 +605,12 @@ class AuthService {
         user.created_at = existingUser.created_at;
       }
 
+      // The backend verified the emailed code, so this response carries a real
+      // session token. Hold it: every API call rides on it from here, and once
+      // the backend requires a session this is the only thing that keeps the
+      // app working.
+      if (verifyResult.sessionToken) storeSessionToken(verifyResult.sessionToken, verifyResult.sessionExpiresAt);
+
       // Save user to localStorage
       this.currentUser = user;
       localStorage.setItem(this.AUTH_KEY, JSON.stringify(user));
@@ -837,7 +844,14 @@ class AuthService {
    * Logout current user
    */
   logout(): void {
+    // Best effort: end the session on the server too, so a copied token dies
+    // with the sign-out rather than living for a year.
+    try {
+      void fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST' }).catch(() => {});
+    } catch { /* offline sign-out still clears locally */ }
+
     this.currentUser = null;
+    clearSessionToken();
     localStorage.removeItem(this.AUTH_KEY);
     localStorage.removeItem(this.SESSION_KEY);
     localStorage.removeItem(this.TOKEN_KEY);
