@@ -20,7 +20,7 @@ import express, { Request, Response, Router } from 'express';
 import pg from 'pg';
 import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import { SUSAN_TOOLS, executeTool, type ToolContext, type ToolResult } from '../services/susanToolService.js';
-import { resolveRoofhr, type RoofhrBridge } from '../services/roofhrAgentTools.js';
+import { resolveConnectedApps, type ConnectedTools } from '../services/roofhrAgentTools.js';
 import { buildConnectStartUrl } from './connectRoutes.js';
 
 // ---------------------------------------------------------------------------
@@ -377,22 +377,21 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
       console.log(`[SusanAgent:${requestId}] legacy-header caller (${email}) — outward-action tools refused`);
     }
 
-    // ---- 3b. Roof HR, as this rep ----
-    // Susan has no Roof HR access of her own. If this rep has connected their
-    // own account, Roof HR's tools join her toolset for this request only and
-    // run on THEIR token; if not, she is told to say she cannot see it rather
-    // than guess. There is no shared token to fall back to, by design — the one
-    // on Roof HR prod is a System Administrator.
-    const roofhr = await resolveRoofhr(pool, {
+    // ---- 3b. The other Roof-ER apps, as this rep ----
+    // Susan has no login of her own for any of them. Each peer this rep has
+    // connected contributes its tools for THIS request only, running on THEIR
+    // token; the ones they have not connected contribute the sentences that
+    // tell Susan to say she cannot see them. There is no shared token to fall
+    // back to, by design.
+    const connected: ConnectedTools = await resolveConnectedApps(pool, {
       userId,
       hasVerifiedSession,
       // Only offered to a caller who could actually complete the trip.
-      connectUrl: hasVerifiedSession ? buildConnectStartUrl(req, userId) : null,
+      connectUrlFor: (app) => (hasVerifiedSession ? buildConnectStartUrl(req, userId, app) : null),
     });
-    const roofhrBridge: RoofhrBridge | null = roofhr.state === 'connected' ? roofhr.bridge : null;
     console.log(
-      `[SusanAgent:${requestId}] roofhr=${roofhr.state}` +
-      (roofhrBridge ? ` tools=${roofhrBridge.declarations.length}` : ''),
+      `[SusanAgent:${requestId}] connected apps ` +
+      `${JSON.stringify(connected.states)} tools=${connected.declarations.length}`,
     );
 
     // ---- 4. Build Gemini contents ----
@@ -538,7 +537,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
     // PTO question in ten came back with an empty candidate; moved to the end,
     // none of ten did. Recency matters — the model should not have to read past
     // thirty hail events to remember it can answer this.
-    enrichedSystemPrompt += roofhr.promptBlock;
+    enrichedSystemPrompt += connected.promptBlock;
 
     if (enrichedSystemPrompt.trim().length > 0) {
       contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
@@ -558,7 +557,7 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
     // ---- 5. ReAct loop (max 5 iterations) ----
     // Susan's own tools plus whatever Roof HR offered this rep. Built per
     // request because the Roof HR half depends on who is asking.
-    const toolDeclarations = [...SUSAN_TOOLS, ...(roofhrBridge?.declarations ?? [])];
+    const toolDeclarations = [...SUSAN_TOOLS, ...connected.declarations];
     const MAX_TOOL_ROUNDS = 5;
     const allToolResults: ToolResult[] = [];
 
@@ -671,10 +670,10 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
               `[SusanAgent:${requestId}] Executing tool="${toolName}" args=${JSON.stringify(toolArgs).slice(0, 200)}`
             );
 
-            // A Roof HR tool goes out over MCP on this rep's token; everything
-            // else is one of Susan's own.
-            const toolResult = roofhrBridge?.handles(toolName)
-              ? await roofhrBridge.call(toolName, toolArgs)
+            // A connected app's tool goes out over MCP on this rep's token;
+            // everything else is one of Susan's own.
+            const toolResult = connected.handles(toolName)
+              ? await connected.call(toolName, toolArgs)
               : await executeTool(toolName, toolArgs, toolContext);
             allToolResults.push(toolResult);
 

@@ -27,9 +27,10 @@
  */
 import { Type } from '@google/genai';
 import { callTool, listTools, resultText, McpError, } from './mcpClient.js';
-import { ROOFHR_APP, deleteConnection, encryptionConfigured, getConnection, touchConnection, } from './roofhrConnection.js';
+import { deleteConnection, encryptionConfigured, getConnection, touchConnection, } from './roofhrConnection.js';
+import { CONNECTED_APPS, findConnectedApp } from './connectedApps.js';
 import crypto from 'crypto';
-/** Every Roof HR tool reaches Gemini under this prefix, so the two tool sets cannot collide. */
+/** Kept for the tests and for anything still naming Roof HR's prefix directly. */
 export const ROOFHR_TOOL_PREFIX = 'roofhr_';
 /** A tool list is the same for a given token until the rep's role changes. Minutes, not hours. */
 const TOOL_CACHE_TTL_MS = 5 * 60_000;
@@ -119,17 +120,19 @@ export function toGeminiSchema(input) {
     return out;
 }
 /** `pto` -> `roofhr_pto`. Gemini function names allow letters, digits and underscores. */
-export function prefixedName(toolName) {
-    return `${ROOFHR_TOOL_PREFIX}${toolName}`.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 63);
+export function prefixedName(toolName, prefix = ROOFHR_TOOL_PREFIX) {
+    return `${prefix}${toolName}`.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 63);
 }
-export function declarationFor(tool) {
-    const name = prefixedName(tool.name);
+export function declarationFor(tool, app) {
+    const prefix = app?.toolPrefix ?? ROOFHR_TOOL_PREFIX;
+    const label = app?.displayName ?? 'Roof HR';
+    const name = prefixedName(tool.name, prefix);
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
         return null;
     const parameters = toGeminiSchema(tool.inputSchema);
     const decl = {
         name,
-        description: `[Roof HR — reads this rep's own HR data as them] ${tool.description ?? ''}`.trim(),
+        description: `[${label} — reads this rep's own data as them] ${tool.description ?? ''}`.trim(),
     };
     // A tool that takes no arguments is declared with no parameters at all; an
     // empty OBJECT with no properties is rejected by the API.
@@ -138,14 +141,21 @@ export function declarationFor(tool) {
     }
     return decl;
 }
-const CONNECT_HINT = 'the "Connect Roof HR" button at the top of this chat';
-function cannotSee(reason, connectUrl) {
-    return ('\n\n[ROOF HR — NOT AVAILABLE]\n' +
-        `You cannot read this rep's Roof HR data right now: ${reason}\n` +
-        'If they ask about PTO, time off, their HR profile, documents or HR meetings, say plainly that you ' +
-        `cannot see Roof HR for them yet and point them at ${CONNECT_HINT}. ` +
-        'Never guess an answer, never state a PTO balance or a date from memory, and never say you checked. ' +
-        'You have no other way into Roof HR — there is no shared login you can use instead.' +
+const ROOFHR = findConnectedApp('roofhr');
+/**
+ * The prompt block for "no, and here is why".
+ *
+ * "I can't see that yet" is a real answer and has to be delivered as carefully
+ * as an answer from data — a guess here is worse than a refusal, because the
+ * rep cannot tell the difference.
+ */
+function cannotSee(app, reason, connectUrl) {
+    return (`\n\n[${app.displayName.toUpperCase()} — NOT AVAILABLE]\n` +
+        `You cannot read this rep's ${app.noun} data right now: ${reason}\n` +
+        `If they ask about anything in ${app.noun}, say plainly that you cannot see it for them yet and ` +
+        `point them at ${app.connectHint}. ` +
+        'Never guess an answer, never state a number or a date from memory, and never say you checked. ' +
+        `You have no other way into ${app.noun} — there is no shared login you can use instead.` +
         (connectUrl
             ? '\nIf they want to connect now, give them this link exactly as written — it is theirs, and it ' +
                 `works for ten minutes: ${connectUrl}`
@@ -158,23 +168,23 @@ function cannotSee(reason, connectUrl) {
  * system prompt — because "I can't see that yet" is a real answer and has to be
  * delivered as well as an answer from data.
  */
-export async function resolveRoofhr(pool, input) {
+export async function resolveApp(pool, input, app = ROOFHR) {
     if (!encryptionConfigured()) {
         // Nothing can be stored, so nothing can be read. Ships inert by design.
-        return { state: 'unconfigured', promptBlock: cannotSee('the Roof HR connection is not switched on yet.') };
+        return { state: 'unconfigured', promptBlock: cannotSee(app, `the ${app.displayName} connection is not switched on yet.`) };
     }
     if (input.hasVerifiedSession !== true) {
         return {
             state: 'unverified',
-            promptBlock: cannotSee('this request did not arrive on a verified sign-in, and HR data is only read for a rep who is ' +
+            promptBlock: cannotSee(app, 'this request did not arrive on a verified sign-in, and their data is only read for a rep who is ' +
                 'definitely signed in. Tell them to sign in again with Continue with Google.'),
         };
     }
-    const conn = await getConnection(pool, input.userId);
+    const conn = await getConnection(pool, input.userId, app.slug);
     if (!conn) {
         return {
             state: 'not_connected',
-            promptBlock: cannotSee('they have not connected their Roof HR account to Susan yet.', input.connectUrl),
+            promptBlock: cannotSee(app, `they have not connected their ${app.displayName} account to Susan yet.`, input.connectUrl),
         };
     }
     let tools;
@@ -185,26 +195,26 @@ export async function resolveRoofhr(pool, input) {
         if (err instanceof McpError && (err.code === 401 || err.code === 403)) {
             // The grant is gone on Roof HR's side. Drop the row so the rep is told to
             // reconnect instead of being shown a connection that no longer works.
-            await deleteConnection(pool, input.userId, ROOFHR_APP);
+            await deleteConnection(pool, input.userId, app.slug);
             return {
                 state: 'not_connected',
-                promptBlock: cannotSee(`Roof HR no longer accepts their connection; they need to reconnect at ${CONNECT_HINT}.`, input.connectUrl),
+                promptBlock: cannotSee(app, `${app.displayName} no longer accepts their connection; they need to reconnect at ${app.connectHint}.`, input.connectUrl),
             };
         }
-        console.error('[roofhr-tools] tools/list failed:', err.message);
-        return { state: 'unreachable', promptBlock: cannotSee('Roof HR is not answering right now.') };
+        console.error(`[connected-tools] ${app.slug} tools/list failed:`, err.message);
+        return { state: 'unreachable', promptBlock: cannotSee(app, `${app.displayName} is not answering right now.`) };
     }
     const declarations = [];
     const byPrefixed = new Map();
     for (const tool of tools) {
-        const decl = declarationFor(tool);
+        const decl = declarationFor(tool, app);
         if (!decl)
             continue;
         declarations.push(decl);
         byPrefixed.set(decl.name, tool.name);
     }
     if (declarations.length === 0) {
-        return { state: 'unreachable', promptBlock: cannotSee('Roof HR offered no tools this connection can use.') };
+        return { state: 'unreachable', promptBlock: cannotSee(app, `${app.displayName} offered no tools this connection can use.`) };
     }
     const bridge = {
         declarations,
@@ -212,21 +222,21 @@ export async function resolveRoofhr(pool, input) {
         call: async (name, args) => {
             const remoteName = byPrefixed.get(name);
             if (!remoteName) {
-                return { name, result: { success: false, error: `Unknown Roof HR tool "${name}".` } };
+                return { name, result: { success: false, error: `Unknown ${app.displayName} tool "${name}".` } };
             }
             try {
                 const result = await callTool(conn.endpoint, conn.token, remoteName, args ?? {});
-                touchConnection(pool, input.userId, ROOFHR_APP);
+                touchConnection(pool, input.userId, app.slug);
                 const text = resultText(result);
                 if (result.isError === true) {
-                    // Roof HR's own refusal, relayed as written. Its wording is the answer.
-                    return { name, result: { success: false, error: text || 'Roof HR refused that request.' } };
+                    // The peer's own refusal, relayed as written. Its wording is the answer.
+                    return { name, result: { success: false, error: text || `${app.displayName} refused that request.` } };
                 }
                 return {
                     name,
                     result: {
                         success: true,
-                        source: 'roofhr',
+                        source: app.slug,
                         ...(result.structuredContent ? { data: result.structuredContent } : {}),
                         ...(text ? { text } : {}),
                     },
@@ -235,20 +245,55 @@ export async function resolveRoofhr(pool, input) {
             catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
                 if (err instanceof McpError && (err.code === 401 || err.code === 403)) {
-                    await deleteConnection(pool, input.userId, ROOFHR_APP);
+                    await deleteConnection(pool, input.userId, app.slug);
                 }
-                console.error(`[roofhr-tools] ${remoteName} failed:`, message);
+                console.error(`[connected-tools] ${app.slug} ${remoteName} failed:`, message);
                 return { name, result: { success: false, error: message } };
             }
         },
     };
     const names = declarations.map((d) => d.name).join(', ');
-    const promptBlock = '\n\n[ROOF HR — CONNECTED]\n' +
-        `This rep has connected their own Roof HR account, so the ${ROOFHR_TOOL_PREFIX}* tools (${names}) ` +
-        'read Roof HR AS THEM, with their own permissions. Scopes granted: ' +
-        `${conn.scopes.join(', ') || 'none'}. Use these tools for anything about PTO, time off, their HR ` +
-        'profile, HR documents or HR meetings — never answer from memory. If a tool comes back with a ' +
-        'refusal, relay it as written: that is Roof HR saying this rep may not see that, and it is correct. ' +
-        'Call roofhr_me first if you need their Roof HR identity or id for another tool.';
+    const promptBlock = `\n\n[${app.displayName.toUpperCase()} — CONNECTED]\n` +
+        `This rep has connected their own ${app.noun} account, so the ${app.toolPrefix}* tools (${names}) ` +
+        `read ${app.noun} AS THEM, with their own permissions. Scopes granted: ` +
+        `${conn.scopes.join(', ') || 'none'}. Use these tools for anything in ${app.noun} — never answer ` +
+        'from memory. If a tool comes back with a refusal, relay it as written: that is ' +
+        `${app.displayName} saying this rep may not see that, and it is correct.`;
     return { state: 'connected', bridge, promptBlock };
+}
+/** Kept so existing callers and tests can ask about Roof HR by name. */
+export async function resolveRoofhr(pool, input) {
+    return resolveApp(pool, input, ROOFHR);
+}
+/**
+ * Every peer at once.
+ *
+ * Resolved per request because what is on offer depends entirely on who is
+ * asking: two reps on the same server get different toolsets, and a rep with no
+ * connections gets none at all plus the sentences that tell Susan to say so.
+ */
+export async function resolveConnectedApps(pool, input) {
+    const resolved = await Promise.all(CONNECTED_APPS.map(async (app) => ({
+        app,
+        availability: await resolveApp(pool, {
+            userId: input.userId,
+            hasVerifiedSession: input.hasVerifiedSession,
+            connectUrl: input.connectUrlFor?.(app) ?? null,
+        }, app),
+    })));
+    const bridges = resolved
+        .map((r) => (r.availability.state === 'connected' ? r.availability.bridge : null))
+        .filter((b) => b !== null);
+    return {
+        declarations: bridges.flatMap((b) => b.declarations),
+        handles: (name) => bridges.some((b) => b.handles(name)),
+        call: async (name, args) => {
+            const bridge = bridges.find((b) => b.handles(name));
+            if (!bridge)
+                return { name, result: { success: false, error: `No connected app owns the tool "${name}".` } };
+            return bridge.call(name, args);
+        },
+        promptBlock: resolved.map((r) => r.availability.promptBlock).join(''),
+        states: Object.fromEntries(resolved.map((r) => [r.app.slug, r.availability.state])),
+    };
 }

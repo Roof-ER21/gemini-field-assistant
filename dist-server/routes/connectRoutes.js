@@ -35,56 +35,34 @@
  */
 import express from 'express';
 import crypto from 'crypto';
-import { ROOFHR_APP, connectionSummary, deleteConnection, encryptionConfigured, encryptionKey, saveConnection, } from '../services/roofhrConnection.js';
+import { connectionSummary, deleteConnection, encryptionConfigured, encryptionKey, saveConnection, } from '../services/roofhrConnection.js';
 import { clearToolCache } from '../services/roofhrAgentTools.js';
-/** Where Roof HR lives. Overridable so a staging Roof HR can be pointed at. */
-function roofhrBase() {
-    return (process.env.ROOFHR_BASE_URL || 'https://roofhr.up.railway.app').replace(/\/+$/, '');
-}
-function appSecret() {
-    const value = (process.env.CONNECT_SECRET_SA21 || '').trim();
-    return value.length >= 16 ? value : null;
-}
+import { CONNECTED_APPS, appBaseUrl, appSecret, findConnectedApp, registeredCallbacks, } from '../services/connectedApps.js';
 /**
- * Our callback, which must match one of Roof HR's registered redirect URIs
- * EXACTLY — its allowlist has no prefixes and no wildcards, deliberately.
- * Keeping the same list here means a misconfigured BASE_URL fails with a
- * sentence instead of an opaque refusal from the other side.
- */
-const REGISTERED_CALLBACKS = [
-    'https://sa21.theroofdocs.com/api/connect/roofhr/callback',
-    'https://sa21.up.railway.app/api/connect/roofhr/callback',
-    'http://localhost:5173/api/connect/roofhr/callback',
-];
-function isRegistered(url) {
-    return REGISTERED_CALLBACKS.includes(url);
-}
-/**
- * The rep's OWN origin is preferred over BASE_URL, as long as it is registered.
+ * The rep's OWN origin is preferred over BASE_URL, as long as it is registered
+ * with this peer.
  *
- * sa21 answers on two domains (sa21.theroofdocs.com and sa21.up.railway.app) and
- * the session token lives in localStorage, which is per-origin. Sending a rep who
- * started on one domain back to the other would land them somewhere their session
- * does not exist, and /complete would refuse a trip they completed correctly.
- * BASE_URL stays the fallback because it is also what Google OAuth is registered
- * against, so it is the one address that is certainly ours.
+ * sa21 answers on two domains and the session token lives in localStorage,
+ * which is per-origin. Sending a rep who started on one domain back to the
+ * other would land them somewhere their session does not exist, and /complete
+ * would refuse a trip they completed correctly. BASE_URL stays the fallback
+ * because it is also what Google OAuth is registered against, so it is the one
+ * address that is certainly ours.
  */
-export function callbackUrl(req) {
-    const origins = [
-        `${req.protocol}://${req.get('host')}`,
-        process.env.BASE_URL || '',
-    ];
+export function callbackUrl(req, app) {
+    const registered = registeredCallbacks(app);
+    const origins = [`${req.protocol}://${req.get('host')}`, process.env.BASE_URL || ''];
     for (const origin of origins) {
         if (!origin)
             continue;
-        const url = `${origin.replace(/\/+$/, '')}/api/connect/roofhr/callback`;
-        if (isRegistered(url))
+        const url = `${origin.replace(/\/+$/, '')}/api/connect/${app.slug}/callback`;
+        if (registered.includes(url))
             return { url };
     }
     return {
         url: null,
-        error: `This server's return address (${origins[0]}/api/connect/roofhr/callback) is not registered ` +
-            'with Roof HR. Register it there, or set BASE_URL to an address that is.',
+        error: `This server's return address (${origins[0]}/api/connect/${app.slug}/callback) is not registered ` +
+            `with ${app.displayName}. Register it there, or set BASE_URL to an address that is.`,
     };
 }
 // ---------------------------------------------------------------------------
@@ -103,11 +81,11 @@ function stateKey() {
         return null;
     return crypto.createHmac('sha256', key).update('sa21:connect-state:v1').digest();
 }
-export function signState(userId, now = Date.now()) {
+export function signState(userId, appSlug, now = Date.now()) {
     const key = stateKey();
     if (!key)
         return null;
-    const payload = Buffer.from(JSON.stringify({ u: userId, n: crypto.randomBytes(12).toString('base64url'), e: now + STATE_TTL_MS })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ u: userId, a: appSlug, n: crypto.randomBytes(12).toString('base64url'), e: now + STATE_TTL_MS })).toString('base64url');
     const sig = crypto.createHmac('sha256', key).update(payload).digest('base64url');
     return `${payload}.${sig}`;
 }
@@ -138,7 +116,7 @@ export function verifyState(state, now = Date.now()) {
     if (typeof parsed.e !== 'number' || parsed.e <= now) {
         return { userId: null, error: 'That connection request expired. Start again.' };
     }
-    return { userId: parsed.u };
+    return { userId: parsed.u, appSlug: typeof parsed.a === 'string' ? parsed.a : undefined };
 }
 /**
  * The consent URL for one rep, or null if connections are not switched on or
@@ -149,16 +127,18 @@ export function verifyState(state, now = Date.now()) {
  * inside it is not a secret: completing the trip requires the rep's own session,
  * and a state naming someone else is refused at /complete.
  */
-export function buildConnectStartUrl(req, userId) {
-    if (!encryptionConfigured() || !appSecret())
+export function buildConnectStartUrl(req, userId, app) {
+    if (!encryptionConfigured() || !appSecret(app))
         return null;
-    const cb = callbackUrl(req);
+    const cb = callbackUrl(req, app);
     if (!cb.url)
         return null;
-    const state = signState(userId);
+    // The state names the peer as well as the rep, so a state issued for one
+    // connection cannot be replayed to complete a different one.
+    const state = signState(userId, app.slug);
     if (!state)
         return null;
-    const url = new URL(`${roofhrBase()}/connect/agent`);
+    const url = new URL(`${appBaseUrl(app)}/connect/agent`);
     url.searchParams.set('app', 'sa21');
     url.searchParams.set('redirect_uri', cb.url);
     url.searchParams.set('state', state);
@@ -174,7 +154,7 @@ function requireVerifiedSession(req, res, next) {
     const userId = req.session?.userId;
     if (!userId) {
         res.status(401).json({
-            error: 'Sign in again with Continue with Google before connecting Roof HR.',
+            error: 'Sign in again with Continue with Google before connecting another app.',
             code: 'SESSION_REQUIRED',
         });
         return;
@@ -184,32 +164,51 @@ function requireVerifiedSession(req, res, next) {
 }
 export function createConnectRoutes(pool) {
     const router = express.Router();
-    // ---- GET /roofhr/start ----
-    router.get('/roofhr/start', requireVerifiedSession, (req, res) => {
+    /**
+     * Resolve `:app` to a peer, or 404. Every route below is per-peer; the paths
+     * that were `/roofhr/...` still match, so the live Roof HR connection is
+     * untouched by the generalisation.
+     */
+    function peerOr404(req, res) {
+        const app = findConnectedApp(req.params.app);
+        if (!app) {
+            res.status(404).json({ error: 'That is not an app Susan can be connected to.' });
+            return null;
+        }
+        return app;
+    }
+    // ---- GET /:app/start ----
+    router.get('/:app/start', requireVerifiedSession, (req, res) => {
+        const app = peerOr404(req, res);
+        if (!app)
+            return;
         if (!encryptionConfigured()) {
-            return res.status(503).json({ error: 'Roof HR connections are not switched on yet (no token key).' });
+            return res.status(503).json({ error: `${app.displayName} connections are not switched on yet (no token key).` });
         }
-        if (!appSecret()) {
-            return res.status(503).json({ error: 'Roof HR connections are not switched on yet (no app secret).' });
+        if (!appSecret(app)) {
+            return res.status(503).json({ error: `${app.displayName} connections are not switched on yet (no app secret).` });
         }
-        const cb = callbackUrl(req);
+        const cb = callbackUrl(req, app);
         if (!cb.url)
             return res.status(500).json({ error: cb.error });
-        const url = buildConnectStartUrl(req, req.connectUserId);
+        const url = buildConnectStartUrl(req, req.connectUserId, app);
         if (!url)
-            return res.status(503).json({ error: 'Roof HR connections are not switched on yet.' });
-        res.json({ url, expiresInSeconds: Math.floor(STATE_TTL_MS / 1000) });
+            return res.status(503).json({ error: `${app.displayName} connections are not switched on yet.` });
+        res.json({ url, app: app.slug, expiresInSeconds: Math.floor(STATE_TTL_MS / 1000) });
     });
-    // ---- GET /roofhr/callback ----
+    // ---- GET /:app/callback ----
     // A top-level navigation: no Authorization header, so nothing here can know
     // who is looking. It hands the code to a client route that does.
-    router.get('/roofhr/callback', (req, res) => {
+    router.get('/:app/callback', (req, res) => {
+        const app = peerOr404(req, res);
+        if (!app)
+            return;
         const code = typeof req.query.code === 'string' ? req.query.code : '';
         const state = typeof req.query.state === 'string' ? req.query.state : '';
         // The app is a single panel-switching page with no URL router, so the code
-        // goes to the root as a query parameter where RoofHrCallbackHandler reads it.
+        // goes to the root as a query parameter where the callback handler reads it.
         const target = new URL('/', `${req.protocol}://${req.get('host')}`);
-        target.searchParams.set('connect', 'roofhr');
+        target.searchParams.set('connect', app.slug);
         if (code && state) {
             target.searchParams.set('code', code);
             target.searchParams.set('state', state);
@@ -219,11 +218,14 @@ export function createConnectRoutes(pool) {
         }
         res.redirect(302, target.pathname + target.search);
     });
-    // ---- POST /roofhr/complete ----
-    router.post('/roofhr/complete', requireVerifiedSession, async (req, res) => {
-        const secret = appSecret();
+    // ---- POST /:app/complete ----
+    router.post('/:app/complete', requireVerifiedSession, async (req, res) => {
+        const app = peerOr404(req, res);
+        if (!app)
+            return;
+        const secret = appSecret(app);
         if (!encryptionConfigured() || !secret) {
-            return res.status(503).json({ error: 'Roof HR connections are not switched on yet.' });
+            return res.status(503).json({ error: `${app.displayName} connections are not switched on yet.` });
         }
         const body = (req.body ?? {});
         const verified = verifyState(body.state);
@@ -236,17 +238,23 @@ export function createConnectRoutes(pool) {
             console.warn(`[connect] state/session mismatch — state=${verified.userId} session=${req.connectUserId}; refusing`);
             return res.status(400).json({ error: 'That connection was started by a different account. Start again.' });
         }
+        // And it must be a state issued for THIS peer, so a code cannot be carried
+        // from one connection into another app's completion.
+        if (verified.appSlug && verified.appSlug !== app.slug) {
+            console.warn(`[connect] state/app mismatch — state=${verified.appSlug} route=${app.slug}; refusing`);
+            return res.status(400).json({ error: 'That connection was started for a different app. Start again.' });
+        }
         const code = String(body.code ?? '').trim();
         if (!code)
             return res.status(400).json({ error: 'That connection is missing its code. Start again.' });
-        const cb = callbackUrl(req);
+        const cb = callbackUrl(req, app);
         if (!cb.url)
             return res.status(500).json({ error: cb.error });
         let exchanged;
         try {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 15_000);
-            const response = await fetch(`${roofhrBase()}/api/mcp/connect/exchange`, {
+            const response = await fetch(`${appBaseUrl(app)}/api/mcp/connect/exchange`, {
                 method: 'POST',
                 redirect: 'manual',
                 signal: controller.signal,
@@ -255,50 +263,78 @@ export function createConnectRoutes(pool) {
             }).finally(() => clearTimeout(timer));
             exchanged = (await response.json().catch(() => ({})));
             if (!response.ok) {
-                // Roof HR's refusals are already written for a person; relay rather than rephrase.
-                return res.status(400).json({ error: exchanged?.error || 'Roof HR would not complete that connection.' });
+                // The peer's refusals are already written for a person; relay rather than rephrase.
+                const message = typeof exchanged?.error === 'string' ? exchanged.error : null;
+                return res.status(400).json({ error: message || `${app.displayName} would not complete that connection.` });
             }
         }
         catch (err) {
-            console.error('[connect] exchange failed:', err.message);
-            return res.status(502).json({ error: 'Could not reach Roof HR to finish connecting.' });
+            console.error(`[connect] ${app.slug} exchange failed:`, err.message);
+            return res.status(502).json({ error: `Could not reach ${app.displayName} to finish connecting.` });
         }
-        if (!exchanged.token || !exchanged.roofhrUserId || !exchanged.endpoint) {
-            return res.status(502).json({ error: 'Roof HR returned an incomplete connection.' });
+        const token = typeof exchanged.token === 'string' ? exchanged.token : '';
+        const endpoint = typeof exchanged.endpoint === 'string' ? exchanged.endpoint : '';
+        // Each peer names its own id field (`roofhrUserId`, `cc24UserId`) — that is
+        // deliberate on their side, so the app never has to guess the person from
+        // an email. Accept the peer's own name, or a generic one.
+        const remoteUserId = [`${app.slug}UserId`, 'remoteUserId', 'userId']
+            .map((k) => exchanged[k])
+            .find((v) => typeof v === 'string' && v.length > 0);
+        if (!token || !endpoint || !remoteUserId) {
+            return res.status(502).json({ error: `${app.displayName} returned an incomplete connection.` });
         }
-        // Roof HR's own expiry is 180 days; store the same horizon so a dead token
+        // The peers' own expiry is 180 days; store the same horizon so a dead token
         // reads as "not connected" here rather than failing mid-answer.
         const expiresAt = new Date(Date.now() + 180 * 86_400_000);
         const saved = await saveConnection(pool, {
             userId: req.connectUserId,
-            remoteUserId: exchanged.roofhrUserId,
-            token: exchanged.token,
+            app: app.slug,
+            remoteUserId,
+            token,
             scopes: Array.isArray(exchanged.scopes) ? exchanged.scopes : [],
-            endpoint: exchanged.endpoint,
+            endpoint,
             expiresAt,
         });
         if (!saved.ok)
             return res.status(500).json({ error: saved.error });
         clearToolCache();
-        const summary = await connectionSummary(pool, req.connectUserId);
-        console.log(`[connect] Roof HR connected for sa21 user ${req.connectUserId} (roofhr ${exchanged.roofhrUserId})`);
-        res.status(201).json({ connected: true, connection: summary });
+        const summary = await connectionSummary(pool, req.connectUserId, app.slug);
+        console.log(`[connect] ${app.slug} connected for sa21 user ${req.connectUserId} (remote ${remoteUserId})`);
+        res.status(201).json({ connected: true, app: app.slug, connection: summary });
     });
-    // ---- GET /roofhr/status ----
-    router.get('/roofhr/status', requireVerifiedSession, async (req, res) => {
-        const configured = encryptionConfigured() && appSecret() !== null;
-        const summary = configured ? await connectionSummary(pool, req.connectUserId) : null;
-        res.json({
-            configured,
-            connected: summary !== null,
-            connection: summary,
-        });
+    // ---- GET /:app/status ----
+    router.get('/:app/status', requireVerifiedSession, async (req, res) => {
+        const app = peerOr404(req, res);
+        if (!app)
+            return;
+        const configured = encryptionConfigured() && appSecret(app) !== null;
+        const summary = configured ? await connectionSummary(pool, req.connectUserId, app.slug) : null;
+        res.json({ app: app.slug, displayName: app.displayName, configured, connected: summary !== null, connection: summary });
     });
-    // ---- DELETE /roofhr ----
-    router.delete('/roofhr', requireVerifiedSession, async (req, res) => {
-        const removed = await deleteConnection(pool, req.connectUserId, ROOFHR_APP);
+    // ---- GET /status — every peer at once, for the header ----
+    router.get('/status', requireVerifiedSession, async (req, res) => {
+        const keyed = encryptionConfigured();
+        const apps = await Promise.all(CONNECTED_APPS.map(async (app) => {
+            const configured = keyed && appSecret(app) !== null;
+            const summary = configured ? await connectionSummary(pool, req.connectUserId, app.slug) : null;
+            return {
+                app: app.slug,
+                displayName: app.displayName,
+                configured,
+                connected: summary !== null,
+                connection: summary,
+            };
+        }));
+        res.json({ apps });
+    });
+    // ---- DELETE /:app ----
+    router.delete('/:app', requireVerifiedSession, async (req, res) => {
+        const app = peerOr404(req, res);
+        if (!app)
+            return;
+        const removed = await deleteConnection(pool, req.connectUserId, app.slug);
         clearToolCache();
-        res.json({ disconnected: removed });
+        res.json({ app: app.slug, disconnected: removed });
     });
     return router;
 }

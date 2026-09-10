@@ -30,16 +30,20 @@ import { hasSessionToken } from '../src/auth/sessionToken';
 import { API_BASE_URL } from '../services/config';
 
 type ConnectionStatus = {
+  app: string;
+  displayName: string;
   configured: boolean;
   connected: boolean;
   connection?: { scopes?: string[]; expiresAt?: string; remoteUserId?: string } | null;
 };
 
-async function fetchStatus(): Promise<ConnectionStatus | null> {
+/** Every peer at once, so the header does not make one request per app. */
+async function fetchStatuses(): Promise<ConnectionStatus[] | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/connect/roofhr/status`);
+    const res = await fetch(`${API_BASE_URL}/connect/status`);
     if (!res.ok) return null;
-    return (await res.json()) as ConnectionStatus;
+    const body = await res.json();
+    return Array.isArray(body?.apps) ? (body.apps as ConnectionStatus[]) : null;
   } catch {
     return null;
   }
@@ -66,7 +70,7 @@ function stripConnectParams(): void {
 // Callback handler
 // ---------------------------------------------------------------------------
 
-type Outcome = { kind: 'working' } | { kind: 'done'; scopes: string[] } | { kind: 'failed'; error: string };
+type Outcome = { kind: 'working' } | { kind: 'done'; scopes: string[]; app: string } | { kind: 'failed'; error: string };
 
 export function RoofHrCallbackHandler(): React.ReactElement | null {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -78,7 +82,9 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
     } catch {
       return;
     }
-    if (params.get('connect') !== 'roofhr') return;
+    const app = params.get('connect');
+    // Any peer's callback lands here; the query says which one.
+    if (!app) return;
 
     const code = params.get('code');
     const state = params.get('state');
@@ -86,7 +92,7 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
     stripConnectParams();
 
     if (error || !code || !state) {
-      setOutcome({ kind: 'failed', error: 'Roof HR did not send a connection back. Try connecting again.' });
+      setOutcome({ kind: 'failed', error: 'That app did not send a connection back. Try connecting again.' });
       return;
     }
     if (!hasSessionToken()) {
@@ -94,7 +100,7 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
       // who started the trip, and it will refuse — say so plainly instead.
       setOutcome({
         kind: 'failed',
-        error: 'Sign in again with Continue with Google, then connect Roof HR.',
+        error: 'Sign in again with Continue with Google, then connect the app.',
       });
       return;
     }
@@ -103,7 +109,7 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/connect/roofhr/complete`, {
+        const res = await fetch(`${API_BASE_URL}/connect/${encodeURIComponent(app)}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, state }),
@@ -114,7 +120,7 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
           setOutcome({ kind: 'failed', error: body?.error || 'That connection could not be completed.' });
           return;
         }
-        setOutcome({ kind: 'done', scopes: body?.connection?.scopes ?? [] });
+        setOutcome({ kind: 'done', scopes: body?.connection?.scopes ?? [], app: body?.app ?? app });
         window.dispatchEvent(new Event('roofhr-connection-changed'));
       } catch {
         if (!cancelled) setOutcome({ kind: 'failed', error: 'Could not reach the server to finish connecting.' });
@@ -143,7 +149,7 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
       <span style={{ flex: '1 1 260px' }}>
         {outcome.kind === 'working' && 'Finishing your Roof HR connection…'}
         {outcome.kind === 'done' &&
-          `Roof HR connected. Susan can now read your own HR data${
+          `Connected. Susan can now read your own ${outcome.app} data${
             outcome.scopes.length > 0 ? ` (${outcome.scopes.join(', ')})` : ''
           }.`}
         {outcome.kind === 'failed' && outcome.error}
@@ -165,32 +171,24 @@ export function RoofHrCallbackHandler(): React.ReactElement | null {
 // The pill
 // ---------------------------------------------------------------------------
 
-export function RoofHrConnectChip(): React.ReactElement | null {
-  const [status, setStatus] = useState<ConnectionStatus | null>(null);
+/**
+ * One pill per peer that is switched on: connect it, or show it connected and
+ * offer to disconnect. Peers the server has no secret for render nothing, so
+ * the header stays empty until a connection is actually possible.
+ */
+function AppChip({ status, onChanged }: { status: ConnectionStatus; onChanged: () => void }): React.ReactElement {
   const [busy, setBusy] = useState(false);
-  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!hasSessionToken()) { setStatus(null); return; }
-    setStatus(await fetchStatus());
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const onChange = () => void refresh();
-    window.addEventListener('roofhr-connection-changed', onChange);
-    return () => window.removeEventListener('roofhr-connection-changed', onChange);
-  }, [refresh]);
 
   const connect = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/connect/roofhr/start`);
+      const res = await fetch(`${API_BASE_URL}/connect/${encodeURIComponent(status.app)}/start`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body?.url) {
-        setError(body?.error || 'Could not start a Roof HR connection.');
+        setError(body?.error || 'Could not start that connection.');
         setBusy(false);
         return;
       }
@@ -205,17 +203,14 @@ export function RoofHrConnectChip(): React.ReactElement | null {
   const disconnect = async () => {
     setBusy(true);
     try {
-      await fetch(`${API_BASE_URL}/connect/roofhr`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/connect/${encodeURIComponent(status.app)}`, { method: 'DELETE' });
     } catch {
       /* a failed delete leaves the pill as it was */
     }
     setBusy(false);
-    setConfirmingDisconnect(false);
-    await refresh();
+    setConfirming(false);
+    onChanged();
   };
-
-  // Nothing to offer: no session, server unreachable, or connections are off.
-  if (!status || !status.configured) return null;
 
   const pill: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -230,15 +225,15 @@ export function RoofHrConnectChip(): React.ReactElement | null {
         type="button"
         onClick={connect}
         disabled={busy}
-        title={error || 'Let Susan read your own Roof HR data — PTO, your HR profile, documents'}
+        title={error || `Let Susan read your own ${status.displayName} data`}
         style={{ ...pill, background: 'transparent', borderColor: '#475569', color: '#cbd5e1' }}
       >
-        Connect Roof HR
+        Connect {status.displayName}
       </button>
     );
   }
 
-  if (confirmingDisconnect) {
+  if (confirming) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <button
@@ -251,7 +246,7 @@ export function RoofHrConnectChip(): React.ReactElement | null {
         </button>
         <button
           type="button"
-          onClick={() => setConfirmingDisconnect(false)}
+          onClick={() => setConfirming(false)}
           style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}
         >
           Keep
@@ -263,14 +258,42 @@ export function RoofHrConnectChip(): React.ReactElement | null {
   return (
     <button
       type="button"
-      onClick={() => setConfirmingDisconnect(true)}
-      title={`Roof HR connected${
+      onClick={() => setConfirming(true)}
+      title={`${status.displayName} connected${
         status.connection?.scopes?.length ? ` — ${status.connection.scopes.join(', ')}` : ''
       }. Click to disconnect.`}
       style={{ ...pill, background: '#064e3b', borderColor: '#047857', color: '#d1fae5' }}
     >
-      Roof HR ✓
+      {status.displayName} ✓
     </button>
+  );
+}
+
+export function RoofHrConnectChip(): React.ReactElement | null {
+  const [statuses, setStatuses] = useState<ConnectionStatus[] | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!hasSessionToken()) { setStatuses(null); return; }
+    setStatuses(await fetchStatuses());
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const onChange = () => void refresh();
+    window.addEventListener('roofhr-connection-changed', onChange);
+    return () => window.removeEventListener('roofhr-connection-changed', onChange);
+  }, [refresh]);
+
+  // Nothing to offer: no session, server unreachable, or no peer is switched on.
+  const offerable = (statuses ?? []).filter((s) => s.configured);
+  if (offerable.length === 0) return null;
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      {offerable.map((s) => (
+        <AppChip key={s.app} status={s} onChanged={() => void refresh()} />
+      ))}
+    </span>
   );
 }
 

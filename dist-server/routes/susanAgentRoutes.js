@@ -18,7 +18,7 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { SUSAN_TOOLS, executeTool } from '../services/susanToolService.js';
-import { resolveRoofhr } from '../services/roofhrAgentTools.js';
+import { resolveConnectedApps } from '../services/roofhrAgentTools.js';
 import { buildConnectStartUrl } from './connectRoutes.js';
 // ---------------------------------------------------------------------------
 // Helpers
@@ -304,21 +304,20 @@ export function createSusanAgentRoutes(pool) {
         if (!hasVerifiedSession) {
             console.log(`[SusanAgent:${requestId}] legacy-header caller (${email}) — outward-action tools refused`);
         }
-        // ---- 3b. Roof HR, as this rep ----
-        // Susan has no Roof HR access of her own. If this rep has connected their
-        // own account, Roof HR's tools join her toolset for this request only and
-        // run on THEIR token; if not, she is told to say she cannot see it rather
-        // than guess. There is no shared token to fall back to, by design — the one
-        // on Roof HR prod is a System Administrator.
-        const roofhr = await resolveRoofhr(pool, {
+        // ---- 3b. The other Roof-ER apps, as this rep ----
+        // Susan has no login of her own for any of them. Each peer this rep has
+        // connected contributes its tools for THIS request only, running on THEIR
+        // token; the ones they have not connected contribute the sentences that
+        // tell Susan to say she cannot see them. There is no shared token to fall
+        // back to, by design.
+        const connected = await resolveConnectedApps(pool, {
             userId,
             hasVerifiedSession,
             // Only offered to a caller who could actually complete the trip.
-            connectUrl: hasVerifiedSession ? buildConnectStartUrl(req, userId) : null,
+            connectUrlFor: (app) => (hasVerifiedSession ? buildConnectStartUrl(req, userId, app) : null),
         });
-        const roofhrBridge = roofhr.state === 'connected' ? roofhr.bridge : null;
-        console.log(`[SusanAgent:${requestId}] roofhr=${roofhr.state}` +
-            (roofhrBridge ? ` tools=${roofhrBridge.declarations.length}` : ''));
+        console.log(`[SusanAgent:${requestId}] connected apps ` +
+            `${JSON.stringify(connected.states)} tools=${connected.declarations.length}`);
         // ---- 4. Build Gemini contents ----
         // If the caller passes a separate systemPrompt, prepend it as a user turn
         // with a model acknowledgement so the conversation is well-formed.
@@ -456,7 +455,7 @@ export function createSusanAgentRoutes(pool) {
         // PTO question in ten came back with an empty candidate; moved to the end,
         // none of ten did. Recency matters — the model should not have to read past
         // thirty hail events to remember it can answer this.
-        enrichedSystemPrompt += roofhr.promptBlock;
+        enrichedSystemPrompt += connected.promptBlock;
         if (enrichedSystemPrompt.trim().length > 0) {
             contents.push({ role: 'user', parts: [{ text: enrichedSystemPrompt.trim() }] });
             contents.push({ role: 'model', parts: [{ text: `Understood. I am Susan, ready to help${personality.preferred_name ? ` ${personality.preferred_name}` : ''}.` }] });
@@ -472,7 +471,7 @@ export function createSusanAgentRoutes(pool) {
         // ---- 5. ReAct loop (max 5 iterations) ----
         // Susan's own tools plus whatever Roof HR offered this rep. Built per
         // request because the Roof HR half depends on who is asking.
-        const toolDeclarations = [...SUSAN_TOOLS, ...(roofhrBridge?.declarations ?? [])];
+        const toolDeclarations = [...SUSAN_TOOLS, ...connected.declarations];
         const MAX_TOOL_ROUNDS = 5;
         const allToolResults = [];
         let client;
@@ -554,10 +553,10 @@ export function createSusanAgentRoutes(pool) {
                     const toolName = fc.name ?? '';
                     const toolArgs = fc.args ?? {};
                     console.log(`[SusanAgent:${requestId}] Executing tool="${toolName}" args=${JSON.stringify(toolArgs).slice(0, 200)}`);
-                    // A Roof HR tool goes out over MCP on this rep's token; everything
-                    // else is one of Susan's own.
-                    const toolResult = roofhrBridge?.handles(toolName)
-                        ? await roofhrBridge.call(toolName, toolArgs)
+                    // A connected app's tool goes out over MCP on this rep's token;
+                    // everything else is one of Susan's own.
+                    const toolResult = connected.handles(toolName)
+                        ? await connected.call(toolName, toolArgs)
                         : await executeTool(toolName, toolArgs, toolContext);
                     allToolResults.push(toolResult);
                     return {

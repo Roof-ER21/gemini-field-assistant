@@ -26,6 +26,7 @@ import {
   saveConnection,
 } from '../../server/services/roofhrConnection';
 import { buildConnectStartUrl, createConnectRoutes, signState, verifyState } from '../../server/routes/connectRoutes';
+import { findConnectedApp } from '../../server/services/connectedApps';
 import { clearToolCache, declarationFor, resolveRoofhr, toGeminiSchema } from '../../server/services/roofhrAgentTools';
 import { callTool, listTools, McpError } from '../../server/services/mcpClient';
 import { generateWithEmptyRetry, hasUsableParts } from '../../server/routes/susanAgentRoutes';
@@ -37,6 +38,8 @@ const SECRET = 'connect-secret-for-tests';
 const USER = '11111111-1111-1111-1111-111111111111';
 const OTHER_USER = '22222222-2222-2222-2222-222222222222';
 const ROOFHR_TOKEN = 'rhm_live_token_value_do_not_leak';
+const ROOFHR = findConnectedApp('roofhr')!;
+const CC24 = findConnectedApp('cc24')!;
 
 // ---------------------------------------------------------------------------
 // A pool that actually remembers, so a round trip is a real round trip.
@@ -110,8 +113,13 @@ afterEach(async () => {
   while (openServers.length > 0) await openServers.pop()!();
   delete process.env.SA21_TOKEN_ENC_KEY;
   delete process.env.CONNECT_SECRET_SA21;
+  // Every peer's secret, not just Roof HR's — one test setting CC24's and not
+  // clearing it made "switched on per peer" pass for the wrong reason.
+  delete process.env.CONNECT_SECRET_CC24;
+  delete process.env.CONNECT_SECRET_ROOFHR;
   delete process.env.BASE_URL;
   delete process.env.ROOFHR_BASE_URL;
+  delete process.env.CC24_BASE_URL;
 });
 
 // ---------------------------------------------------------------------------
@@ -210,12 +218,12 @@ describe('a stored Roof HR token is not readable from the table alone', () => {
 
 describe('the state that carries a rep through Roof HR and back', () => {
   it('verifies what it signed', () => {
-    const state = signState(USER)!;
+    const state = signState(USER, 'roofhr')!;
     expect(verifyState(state).userId).toBe(USER);
   });
 
   it('refuses a tampered payload', () => {
-    const state = signState(USER)!;
+    const state = signState(USER, 'roofhr')!;
     const [payload, sig] = state.split('.');
     const forged = Buffer.from(JSON.stringify({ u: OTHER_USER, n: 'x', e: Date.now() + 60_000 })).toString('base64url');
     expect(verifyState(`${forged}.${sig}`).userId).toBeNull();
@@ -223,19 +231,19 @@ describe('the state that carries a rep through Roof HR and back', () => {
   });
 
   it('refuses a tampered signature', () => {
-    const state = signState(USER)!;
+    const state = signState(USER, 'roofhr')!;
     const [payload] = state.split('.');
     expect(verifyState(`${payload}.${Buffer.from('nope').toString('base64url')}`).userId).toBeNull();
   });
 
   it('refuses one signed under a different key', () => {
-    const state = signState(USER)!;
+    const state = signState(USER, 'roofhr')!;
     process.env.SA21_TOKEN_ENC_KEY = KEY_B;
     expect(verifyState(state).userId).toBeNull();
   });
 
   it('refuses an expired one', () => {
-    const state = signState(USER, Date.now() - 3_600_000)!;
+    const state = signState(USER, 'roofhr', Date.now() - 3_600_000)!;
     const verdict = verifyState(state);
     expect(verdict.userId).toBeNull();
     expect(verdict.error).toMatch(/expired/i);
@@ -243,17 +251,17 @@ describe('the state that carries a rep through Roof HR and back', () => {
 
   it('is unavailable at all when the key is missing', () => {
     delete process.env.SA21_TOKEN_ENC_KEY;
-    expect(signState(USER)).toBeNull();
+    expect(signState(USER, 'roofhr')).toBeNull();
   });
 
   it('only builds a start URL for a registered return address', () => {
     const req: any = { protocol: 'https', get: () => 'someone-elses-host.example' };
     process.env.BASE_URL = 'https://someone-elses-host.example';
     // A prefix or wildcard here would be an open redirect with a token on the end.
-    expect(buildConnectStartUrl(req, USER)).toBeNull();
+    expect(buildConnectStartUrl(req, USER, ROOFHR)).toBeNull();
 
     process.env.BASE_URL = 'https://sa21.theroofdocs.com';
-    const url = buildConnectStartUrl(req, USER)!;
+    const url = buildConnectStartUrl(req, USER, ROOFHR)!;
     expect(url).toContain('/connect/agent?app=sa21');
     expect(url).toContain(encodeURIComponent('https://sa21.theroofdocs.com/api/connect/roofhr/callback'));
   });
@@ -266,7 +274,7 @@ describe('the state that carries a rep through Roof HR and back', () => {
   it('returns the rep to the domain they started on, not whatever BASE_URL says', () => {
     process.env.BASE_URL = 'https://sa21.up.railway.app';
     const req: any = { protocol: 'https', get: () => 'sa21.theroofdocs.com' };
-    const url = buildConnectStartUrl(req, USER)!;
+    const url = buildConnectStartUrl(req, USER, ROOFHR)!;
     expect(url).toContain(encodeURIComponent('https://sa21.theroofdocs.com/api/connect/roofhr/callback'));
     expect(url).not.toContain(encodeURIComponent('sa21.up.railway.app'));
   });
@@ -275,7 +283,7 @@ describe('the state that carries a rep through Roof HR and back', () => {
     process.env.BASE_URL = 'https://sa21.up.railway.app';
     // e.g. reached through an internal hostname or a health-check probe.
     const req: any = { protocol: 'https', get: () => 'susan-21.railway.internal' };
-    const url = buildConnectStartUrl(req, USER)!;
+    const url = buildConnectStartUrl(req, USER, ROOFHR)!;
     expect(url).toContain(encodeURIComponent('https://sa21.up.railway.app/api/connect/roofhr/callback'));
   });
 });
@@ -330,7 +338,7 @@ describe('completing a connection', () => {
     const res = await fetch(`${base}/api/connect/roofhr/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'good-code', state: signState(USER) }),
+      body: JSON.stringify({ code: 'good-code', state: signState(USER, 'roofhr') }),
     });
     expect(res.status).toBe(201);
 
@@ -354,7 +362,7 @@ describe('completing a connection', () => {
     const res = await fetch(`${base}/api/connect/roofhr/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'good-code', state: signState(USER) }),
+      body: JSON.stringify({ code: 'good-code', state: signState(USER, 'roofhr') }),
     });
     expect(res.status).toBe(400);
     expect(pool.rows).toHaveLength(0);
@@ -388,7 +396,7 @@ describe('completing a connection', () => {
     const res = await fetch(`${base}/api/connect/roofhr/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'already-used', state: signState(USER) }),
+      body: JSON.stringify({ code: 'already-used', state: signState(USER, 'roofhr') }),
     });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/already been used/i);
@@ -425,7 +433,8 @@ describe('Susan has no Roof HR access of her own', () => {
     const availability = await resolveRoofhr(pool as any, { userId: USER, hasVerifiedSession: true });
     expect(availability.state).toBe('not_connected');
     expect('bridge' in availability).toBe(false);
-    expect(availability.promptBlock).toMatch(/cannot see Roof HR/i);
+    expect(availability.promptBlock).toMatch(/ROOF HR — NOT AVAILABLE/i);
+    expect(availability.promptBlock).toMatch(/cannot see it for them yet/i);
     expect(availability.promptBlock).toMatch(/no shared login/i);
   });
 
@@ -797,5 +806,126 @@ describe('a signed-in rep keeps the account they actually have', () => {
     expect(user.email).toBe('typed@theroofdocs.com');
     expect(user.role).toBe('sales_rep');
     expect(user.id).toMatch(/[0-9a-f-]{36}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// More than one peer
+// ---------------------------------------------------------------------------
+
+/**
+ * Susan can be connected to several Roof-ER apps. Each holds a separate
+ * per-person token, and nothing about one connection may be usable to complete
+ * or read another.
+ */
+describe('two connected apps stay separate', () => {
+  it('gives each peer its own registered callback path', () => {
+    process.env.BASE_URL = 'https://sa21.up.railway.app';
+    process.env.CONNECT_SECRET_CC24 = 'a-different-secret-entirely';
+    const req: any = { protocol: 'https', get: () => 'sa21.up.railway.app' };
+    expect(buildConnectStartUrl(req, USER, ROOFHR)!).toContain(
+      encodeURIComponent('https://sa21.up.railway.app/api/connect/roofhr/callback'),
+    );
+    expect(buildConnectStartUrl(req, USER, CC24)!).toContain(
+      encodeURIComponent('https://sa21.up.railway.app/api/connect/cc24/callback'),
+    );
+  });
+
+  it('sends each peer to its own consent screen', () => {
+    process.env.BASE_URL = 'https://sa21.up.railway.app';
+    process.env.CONNECT_SECRET_CC24 = 'a-different-secret-entirely';
+    const req: any = { protocol: 'https', get: () => 'sa21.up.railway.app' };
+    expect(buildConnectStartUrl(req, USER, ROOFHR)!).toContain('roofhr.up.railway.app/connect/agent');
+    expect(buildConnectStartUrl(req, USER, CC24)!).toContain('cc24.trussly.net/connect/agent');
+  });
+
+  /**
+   * Each peer authenticates sa21 with its OWN secret. Sharing one value would
+   * mean a leak at either app impersonates sa21 to the other.
+   */
+  it('is switched on per peer, not all at once', () => {
+    process.env.BASE_URL = 'https://sa21.up.railway.app';
+    const req: any = { protocol: 'https', get: () => 'sa21.up.railway.app' };
+    // Only CONNECT_SECRET_SA21 is set (by beforeEach) — that is Roof HR's.
+    expect(buildConnectStartUrl(req, USER, ROOFHR)).not.toBeNull();
+    expect(buildConnectStartUrl(req, USER, CC24)).toBeNull();
+
+    process.env.CONNECT_SECRET_CC24 = 'a-different-secret-entirely';
+    expect(buildConnectStartUrl(req, USER, CC24)).not.toBeNull();
+    delete process.env.CONNECT_SECRET_CC24;
+  });
+
+  it('names the peer inside the signed state', () => {
+    expect(verifyState(signState(USER, 'roofhr')).appSlug).toBe('roofhr');
+    expect(verifyState(signState(USER, 'cc24')).appSlug).toBe('cc24');
+  });
+
+  /**
+   * A state issued for one peer must not complete a connection to another —
+   * otherwise a code obtained through the app the rep trusts least could be
+   * filed as the app they trust most.
+   */
+  it('refuses a state issued for a different app', async () => {
+    process.env.CONNECT_SECRET_CC24 = 'a-different-secret-entirely';
+    const pool = fakePool();
+    const roofhr = await fakeRoofHr({ code: 'good-code', secret: SECRET });
+    const base = await connectApp(pool, { userId: USER }, roofhr);
+
+    const res = await fetch(`${base}/api/connect/cc24/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'good-code', state: signState(USER, 'roofhr') }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/different app/i);
+    expect(pool.rows).toHaveLength(0);
+    delete process.env.CONNECT_SECRET_CC24;
+  });
+
+  it('refuses an app it has never heard of', async () => {
+    const pool = fakePool();
+    const base = await connectApp(pool, { userId: USER });
+    const res = await fetch(`${base}/api/connect/dropbox/status`);
+    expect(res.status).toBe(404);
+  });
+
+  it('keeps two connections side by side without either reading the other', async () => {
+    const pool = fakePool();
+    await saveConnection(pool as any, {
+      userId: USER, app: 'roofhr', remoteUserId: 'rh-1', token: 'roofhr-token',
+      scopes: ['pto:read'], endpoint: 'https://roofhr.example/mcp',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await saveConnection(pool as any, {
+      userId: USER, app: 'cc24', remoteUserId: 'cc-1', token: 'cc24-token',
+      scopes: ['jobs:read'], endpoint: 'https://cc24.example/mcp',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+
+    const roofhr = await getConnection(pool as any, USER, 'roofhr');
+    const cc24 = await getConnection(pool as any, USER, 'cc24');
+    expect(roofhr?.token).toBe('roofhr-token');
+    expect(cc24?.token).toBe('cc24-token');
+    // The AEAD binds each row to its own app as well as its owner.
+    expect(roofhr?.remoteUserId).toBe('rh-1');
+    expect(cc24?.remoteUserId).toBe('cc-1');
+
+    // Disconnecting one leaves the other alone.
+    await deleteConnection(pool as any, USER, 'cc24');
+    expect(await getConnection(pool as any, USER, 'cc24')).toBeNull();
+    expect((await getConnection(pool as any, USER, 'roofhr'))?.token).toBe('roofhr-token');
+  });
+
+  it('will not open a row stored under a different app', async () => {
+    const pool = fakePool();
+    await saveConnection(pool as any, {
+      userId: USER, app: 'roofhr', remoteUserId: 'rh-1', token: 'roofhr-token',
+      scopes: [], endpoint: 'https://roofhr.example/mcp',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    // Relabelling the row as another app must not let it decrypt: the app slug
+    // is part of the AEAD's associated data, not just a lookup key.
+    pool.rows[0].app = 'cc24';
+    expect(await getConnection(pool as any, USER, 'cc24')).toBeNull();
   });
 });
