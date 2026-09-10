@@ -28,6 +28,7 @@ import {
 import { buildConnectStartUrl, createConnectRoutes, signState, verifyState } from '../../server/routes/connectRoutes';
 import { clearToolCache, declarationFor, resolveRoofhr, toGeminiSchema } from '../../server/services/roofhrAgentTools';
 import { callTool, listTools, McpError } from '../../server/services/mcpClient';
+import { generateWithEmptyRetry, hasUsableParts } from '../../server/routes/susanAgentRoutes';
 
 const KEY_A = 'a'.repeat(64);
 const KEY_B = 'b'.repeat(64);
@@ -676,4 +677,61 @@ describe('a connected rep reads Roof HR as themselves', () => {
 
 afterAll(() => {
   vi.restoreAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// The empty-candidate retry
+// ---------------------------------------------------------------------------
+
+/**
+ * Gemini returns a candidate with no parts at all — STOP, no text, no function
+ * call — roughly one turn in six against this app's real prompt. It is
+ * transient. Before the retry the rep was told "(Susan had no response for this
+ * message.)" for a question that had a perfectly good answer one call away.
+ */
+describe('a silent-empty Gemini answer is retried, not surfaced', () => {
+  const emptyCandidate = { candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] };
+  const noPartsAtAll = { candidates: [{ content: {}, finishReason: 'STOP' }] };
+  const whitespaceOnly = { candidates: [{ content: { parts: [{ text: '   ' }] }, finishReason: 'STOP' }] };
+  const toolCall = { candidates: [{ content: { parts: [{ functionCall: { name: 'roofhr_pto', args: {} } }] } }] };
+  const textAnswer = { candidates: [{ content: { parts: [{ text: 'You have 4 days left.' }] } }] };
+
+  it('recognises what counts as an answer', () => {
+    expect(hasUsableParts(toolCall)).toBe(true);
+    expect(hasUsableParts(textAnswer)).toBe(true);
+    expect(hasUsableParts(emptyCandidate)).toBe(false);
+    expect(hasUsableParts(noPartsAtAll)).toBe(false);
+    // A part carrying only whitespace renders as nothing to the rep.
+    expect(hasUsableParts(whitespaceOnly)).toBe(false);
+  });
+
+  it('retries an empty answer and returns the one that arrives', async () => {
+    const replies = [emptyCandidate, emptyCandidate, toolCall];
+    const generate = vi.fn(async () => replies.shift());
+    const seen: number[] = [];
+    const result = await generateWithEmptyRetry(generate as any, { model: 'x' }, (a) => seen.push(a));
+    expect(generate).toHaveBeenCalledTimes(3);
+    expect(seen).toEqual([1, 2]);
+    expect(result).toBe(toolCall);
+  });
+
+  it('does not retry an answer that already says something', async () => {
+    const generate = vi.fn(async () => textAnswer);
+    await generateWithEmptyRetry(generate as any, { model: 'x' });
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up after a bounded number of attempts rather than looping', async () => {
+    const generate = vi.fn(async () => emptyCandidate);
+    const result = await generateWithEmptyRetry(generate as any, { model: 'x' });
+    expect(generate).toHaveBeenCalledTimes(3);
+    // Still returns the last response so the caller reports finishReason as before.
+    expect(result).toBe(emptyCandidate);
+  });
+
+  it('lets a real API error through instead of swallowing it in a retry', async () => {
+    const generate = vi.fn(async () => { throw new Error('429 rate limited'); });
+    await expect(generateWithEmptyRetry(generate as any, { model: 'x' })).rejects.toThrow(/429/);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
 });

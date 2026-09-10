@@ -226,6 +226,48 @@ function buildContents(messages: AIMessage[]): Content[] {
   return mapped;
 }
 
+
+/**
+ * Gemini intermittently returns a candidate with NO PARTS AT ALL — finishReason
+ * STOP, no text, no function call. Measured against this app's real prompt at
+ * roughly one turn in six, and it is transient: the identical request, retried,
+ * comes back with a normal answer.
+ *
+ * The loop used to treat that as Susan's final word and tell the rep
+ * "(Susan had no response for this message.)", which is a dead end for
+ * something one retry fixes. It bites hardest on turns that were about to call
+ * a tool, because the rep asked a question that HAS an answer and got nothing.
+ */
+const EMPTY_RESPONSE_ATTEMPTS = 3;
+
+/** Does this candidate actually say anything — text or a tool call? */
+export function hasUsableParts(response: unknown): boolean {
+  const parts =
+    (response as { candidates?: Array<{ content?: { parts?: Part[] } }> })?.candidates?.[0]?.content?.parts ?? [];
+  return parts.some(
+    (p) => p.functionCall != null || (typeof (p as { text?: string }).text === 'string' && (p as { text: string }).text.trim().length > 0),
+  );
+}
+
+/**
+ * Ask Gemini, and ask again if it answered with nothing. Errors are NOT retried
+ * here — those are surfaced to the caller as they always were; this retries only
+ * the silent-empty case.
+ */
+export async function generateWithEmptyRetry(
+  generate: (params: any) => Promise<any>,
+  params: any,
+  onEmpty?: (attempt: number) => void,
+): Promise<any> {
+  let response: any;
+  for (let attempt = 1; attempt <= EMPTY_RESPONSE_ATTEMPTS; attempt++) {
+    response = await generate(params);
+    if (hasUsableParts(response)) return response;
+    onEmpty?.(attempt);
+  }
+  return response;
+}
+
 // ---------------------------------------------------------------------------
 // Route factory
 // ---------------------------------------------------------------------------
@@ -532,13 +574,21 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
 
         let response;
         try {
-          response = await client.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents,
-            config: {
-              tools: [{ functionDeclarations: toolDeclarations }]
-            }
-          });
+          response = await generateWithEmptyRetry(
+            (p) => client.models.generateContent(p),
+            {
+              model: 'gemini-2.5-flash',
+              contents,
+              config: {
+                tools: [{ functionDeclarations: toolDeclarations }]
+              }
+            },
+            (attempt) =>
+              console.warn(
+                `[SusanAgent:${requestId}] Gemini returned no usable parts ` +
+                `(round ${round + 1}, attempt ${attempt}/${EMPTY_RESPONSE_ATTEMPTS}) — retrying`,
+              ),
+          );
         } catch (geminiErr: unknown) {
           const message = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
           console.error(`[SusanAgent:${requestId}] Gemini API error (round ${round + 1}):`, message);
@@ -658,13 +708,21 @@ export function createSusanAgentRoutes(pool: pg.Pool): Router {
 
       let finalResponse;
       try {
-        finalResponse = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents,
-          config: {
-            tools: [{ functionDeclarations: toolDeclarations }]
-          }
-        });
+        finalResponse = await generateWithEmptyRetry(
+          (p) => client.models.generateContent(p),
+          {
+            model: 'gemini-2.5-flash',
+            contents,
+            config: {
+              tools: [{ functionDeclarations: toolDeclarations }]
+            }
+          },
+          (attempt) =>
+            console.warn(
+              `[SusanAgent:${requestId}] final call returned no usable parts ` +
+              `(attempt ${attempt}/${EMPTY_RESPONSE_ATTEMPTS}) — retrying`,
+            ),
+        );
       } catch (finalErr: unknown) {
         const message = finalErr instanceof Error ? finalErr.message : String(finalErr);
         console.error(`[SusanAgent:${requestId}] Final Gemini call error:`, message);
