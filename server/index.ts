@@ -199,6 +199,38 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,    // Fail fast if can't connect in 5s
 });
 
+/**
+ * The two fields the client cannot invent: which division a rep is in, and when
+ * their account was actually created.
+ *
+ * The login responses used to return only { id, email, name, role }, so
+ * services/authService.ts filled the rest in itself — and for `created_at` it
+ * filled in `new Date()`, meaning "this account was made just now". The division
+ * gate (App.tsx) uses that timestamp to tell a brand-new account from an
+ * existing one, so EVERY existing rep signing in on a fresh browser was read as
+ * new and shown "Which team are you on?" — a modal whose answer writes a setting
+ * the UI says only an admin can change afterwards.
+ *
+ * Deliberately a separate query wrapped in its own try/catch rather than extra
+ * columns on the login SELECTs: `division` is a late column and some databases
+ * predate it (susanAgentRoutes.ts guards the same read). A missing column must
+ * never take the front door down — a login that returns without these two
+ * fields is exactly the behaviour that shipped before this.
+ */
+async function clientProfileFields(
+  userId: string,
+): Promise<{ division?: string | null; created_at?: Date | null }> {
+  if (!userId) return {};
+  try {
+    const r = await pool.query('SELECT division, created_at FROM users WHERE id = $1 LIMIT 1', [userId]);
+    if (r.rows.length === 0) return {};
+    return { division: r.rows[0].division ?? null, created_at: r.rows[0].created_at ?? null };
+  } catch (err) {
+    console.warn('[AUTH] could not read division/created_at:', (err as Error).message);
+    return {};
+  }
+}
+
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
@@ -2987,7 +3019,8 @@ app.post('/api/auth/direct-login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        ...(await clientProfileFields(user.id))
       }
     });
   } catch (error) {
@@ -3057,7 +3090,7 @@ app.post('/api/auth/google', async (req, res) => {
       isNew,
       sessionToken: minted.token,
       sessionExpiresAt: minted.expiresAt.toISOString(),
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, ...(await clientProfileFields(user.id)) },
     });
   } catch (error) {
     console.error('Error in Google login:', error);
@@ -3138,7 +3171,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const user = await findOrCreateGoogleUser(email, (payload.name && String(payload.name).trim()) || email.split('@')[0]);
     if (!user) return res.redirect('/?gl_error=notapproved'); // REQUIRE_ADMIN_APPROVAL on, no account yet
     const handoff = uuidv4() + uuidv4();
-    googleLoginHandoffs.set(handoff, { user: { id: user.id, email: user.email, name: user.name, role: user.role }, exp: Date.now() + 120000 });
+    googleLoginHandoffs.set(handoff, { user: { id: user.id, email: user.email, name: user.name, role: user.role, ...(await clientProfileFields(user.id)) }, exp: Date.now() + 120000 });
     console.log(`[AUTH] Google redirect login: ${user.email}`);
     res.redirect('/?gl=' + handoff);
   } catch (e) {
@@ -3299,7 +3332,8 @@ app.post('/api/auth/verify-code', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        ...(await clientProfileFields(user.id))
       }
     });
   } catch (error) {

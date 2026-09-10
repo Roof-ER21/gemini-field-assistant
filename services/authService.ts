@@ -10,19 +10,10 @@ import { emailNotificationService } from './emailNotificationService';
 import { activityService } from './activityService';
 import { API_BASE_URL } from './config';
 
-export type Division = 'insurance' | 'retail';
-
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  phone?: string | null;
-  role: 'sales_rep' | 'manager' | 'admin' | 'marketing';
-  state: 'VA' | 'MD' | 'PA' | null;
-  division?: Division | null;
-  created_at: Date;
-  last_login_at: Date;
-}
+export type { Division, AuthUser } from './authUserShape';
+export { authUserFromBackend } from './authUserShape';
+import type { Division, AuthUser } from './authUserShape';
+import { authUserFromBackend } from './authUserShape';
 
 export interface LoginResult {
   success: boolean;
@@ -234,15 +225,10 @@ class AuthService {
         return { success: false, message: result.error || 'Google sign-in failed. Please try again.' };
       }
 
-      const user: AuthUser = {
-        id: result.user.id,
+      const user: AuthUser = authUserFromBackend(result.user, {
         email: result.user.email,
         name: result.user.name,
-        role: result.user.role || 'sales_rep',
-        state: null,
-        created_at: new Date(),
-        last_login_at: new Date(),
-      };
+      });
 
       // The server now issues a real session at a verified sign-in; hold on to
       // it so every API call carries a bearer instead of asserting an address.
@@ -418,15 +404,10 @@ class AuthService {
 
       if (loginResult.success && loginResult.user) {
         // Build AuthUser from backend response
-        const user: AuthUser = {
-          id: loginResult.user.id,
+        const user: AuthUser = authUserFromBackend(loginResult.user, {
           email: loginResult.user.email,
           name: loginResult.user.name,
-          role: loginResult.user.role || 'sales_rep',
-          state: null,
-          created_at: new Date(),
-          last_login_at: new Date()
-        };
+        });
 
         // Save user to localStorage
         this.currentUser = user;
@@ -538,15 +519,10 @@ class AuthService {
 
       if (loginResult.success && loginResult.user) {
         // Build AuthUser from backend response
-        const user: AuthUser = {
-          id: loginResult.user.id,
+        const user: AuthUser = authUserFromBackend(loginResult.user, {
           email: loginResult.user.email,
           name: loginResult.user.name,
-          role: loginResult.user.role || 'sales_rep',
-          state: null,
-          created_at: new Date(),
-          last_login_at: new Date()
-        };
+        });
 
         // Save user to localStorage
         this.currentUser = user;
@@ -641,15 +617,7 @@ class AuthService {
       const isFirstLogin = verifyResult.isNew === true;
 
       // Build AuthUser from backend response
-      const user: AuthUser = {
-        id: backendUser?.id || crypto.randomUUID(),
-        email: backendUser?.email || email.toLowerCase(),
-        name: backendUser?.name || name,
-        role: (backendUser?.role as 'sales_rep' | 'manager' | 'admin') || 'sales_rep',
-        state: null,
-        created_at: new Date(),
-        last_login_at: new Date()
-      };
+      const user: AuthUser = authUserFromBackend(backendUser, { email, name });
 
       console.log(`✅ User verified: ${user.email} (${user.name})`);
       console.log(`🔑 First login: ${isFirstLogin}`);

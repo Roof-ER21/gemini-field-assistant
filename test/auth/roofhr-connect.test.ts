@@ -29,6 +29,7 @@ import { buildConnectStartUrl, createConnectRoutes, signState, verifyState } fro
 import { clearToolCache, declarationFor, resolveRoofhr, toGeminiSchema } from '../../server/services/roofhrAgentTools';
 import { callTool, listTools, McpError } from '../../server/services/mcpClient';
 import { generateWithEmptyRetry, hasUsableParts } from '../../server/routes/susanAgentRoutes';
+import { authUserFromBackend } from '../../services/authUserShape';
 
 const KEY_A = 'a'.repeat(64);
 const KEY_B = 'b'.repeat(64);
@@ -733,5 +734,68 @@ describe('a silent-empty Gemini answer is retried, not surfaced', () => {
     const generate = vi.fn(async () => { throw new Error('429 rate limited'); });
     await expect(generateWithEmptyRetry(generate as any, { model: 'x' })).rejects.toThrow(/429/);
     expect(generate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The login payload
+// ---------------------------------------------------------------------------
+
+/**
+ * The client used to stamp `created_at: new Date()` on every sign-in, whatever
+ * the server said, and never carried `division` at all. App.tsx's DivisionGate
+ * uses both to tell a brand-new account from an existing one, so every existing
+ * rep signing in on a fresh browser was asked "Which team are you on?" — and
+ * answering writes a division the UI says only an admin can change afterwards.
+ */
+describe('a signed-in rep keeps the account they actually have', () => {
+  /** App.tsx: accounts created before this date are existing users, never asked. */
+  const DIVISION_LAUNCH = new Date('2026-04-13').getTime();
+
+  it('keeps the real creation date instead of stamping now', () => {
+    const user = authUserFromBackend(
+      { id: 'u1', email: 'rep@theroofdocs.com', name: 'Rep', role: 'sales_rep', created_at: '2025-11-04T00:00:00.000Z', division: 'insurance' },
+      { email: 'rep@theroofdocs.com', name: 'Rep' },
+    );
+    expect(user.created_at.toISOString()).toBe('2025-11-04T00:00:00.000Z');
+    // The whole point: this account must not read as new.
+    expect(user.created_at.getTime()).toBeLessThan(DIVISION_LAUNCH);
+    expect(user.division).toBe('insurance');
+  });
+
+  it('carries the division so the gate never has to ask', () => {
+    const user = authUserFromBackend(
+      { id: 'u1', email: 'r@theroofdocs.com', name: 'R', role: 'sales_rep', division: 'retail' },
+      { email: 'r@theroofdocs.com', name: 'R' },
+    );
+    expect(user.division).toBe('retail');
+  });
+
+  it('still works against a server that sends neither', () => {
+    const before = Date.now();
+    const user = authUserFromBackend(
+      { id: 'u1', email: 'r@theroofdocs.com', name: 'R', role: 'manager' },
+      { email: 'r@theroofdocs.com', name: 'R' },
+    );
+    expect(user.division).toBeNull();
+    expect(user.created_at.getTime()).toBeGreaterThanOrEqual(before);
+    expect(user.role).toBe('manager');
+  });
+
+  it('does not let an unparseable date through as 1970 or NaN', () => {
+    const before = Date.now();
+    const user = authUserFromBackend(
+      { id: 'u1', email: 'r@theroofdocs.com', name: 'R', role: 'sales_rep', created_at: 'not a date' },
+      { email: 'r@theroofdocs.com', name: 'R' },
+    );
+    expect(Number.isNaN(user.created_at.getTime())).toBe(false);
+    expect(user.created_at.getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it('falls back to the address the rep typed when the server says nothing', () => {
+    const user = authUserFromBackend(undefined, { email: 'Typed@TheRoofDocs.com', name: 'Typed' });
+    expect(user.email).toBe('typed@theroofdocs.com');
+    expect(user.role).toBe('sales_rep');
+    expect(user.id).toMatch(/[0-9a-f-]{36}/);
   });
 });
