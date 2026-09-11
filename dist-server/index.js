@@ -8604,6 +8604,49 @@ app.use(createRoofCheckRoutes(pool));
 app.use('/api/lead-analytics', createLeadAnalyticsRoutes(pool));
 // Register lead generation routes (storm zones, referrals, lead scoring)
 app.use('/api/leads', createLeadGenRoutes(pool));
+// Veterans Day roof giveaway (separate Railway app) → email the nomination card to the team.
+// Server-to-server with a shared secret; lives under /api/webhooks/ so it stays open in Stage 2.
+app.post('/api/webhooks/veterans-nomination', async (req, res) => {
+    const expected = process.env.VETERANS_NOTIFY_SECRET || '';
+    if (!expected)
+        return res.status(503).json({ error: 'veterans-notify: not configured' });
+    const given = Buffer.from(String(req.header('x-veterans-secret') || ''));
+    const want = Buffer.from(expected);
+    if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
+        return res.status(403).json({ error: 'veterans-notify: bad secret' });
+    }
+    const b = req.body || {};
+    const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const required = ['reference', 'veteranName', 'branch', 'veteranAddress', 'veteranPhone', 'story', 'nominatorName', 'nominatorPhone'];
+    const missing = required.filter((k) => !str(b[k], 5000));
+    if (missing.length)
+        return res.status(400).json({ error: `veterans-notify: missing ${missing.join(',')}` });
+    try {
+        const { sendVeteranNominationEmail } = await import('./routes/profileRoutes.js');
+        const result = await sendVeteranNominationEmail(pool, {
+            reference: str(b.reference, 40),
+            veteranName: str(b.veteranName, 120),
+            branch: str(b.branch, 40),
+            veteranAddress: str(b.veteranAddress, 220),
+            veteranPhone: str(b.veteranPhone, 20),
+            veteranEmail: str(b.veteranEmail, 200) || null,
+            story: str(b.story, 2000),
+            nominatorName: str(b.nominatorName, 120),
+            nominatorPhone: str(b.nominatorPhone, 20),
+            nominatorEmail: str(b.nominatorEmail, 200) || null,
+            repSlug: str(b.repSlug, 80) || null,
+            source: str(b.source, 40) || null,
+        });
+        console.log(`[Veterans nomination email] ${str(b.reference, 40)} ${result.success
+            ? 'sent to ' + result.to.join(',') + ' msgId=' + result.messageId
+            : 'failed: ' + result.error}`);
+        return res.status(result.success ? 200 : 502).json(result);
+    }
+    catch (e) {
+        console.error('[Veterans nomination email] error:', e?.message);
+        return res.status(500).json({ error: 'veterans-notify: send error' });
+    }
+});
 // Register agreement routes (e-signatures for Claim Auth and Contingency)
 app.use('/api/agreements', createAgreementRoutes(pool));
 // Register DocuSeal e-signature routes
@@ -9792,6 +9835,10 @@ ${isCompany ? `<script>
     transition:background .18s,border-color .18s,transform .18s}
   .btn-ghost:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.22);transform:translateY(-2px)}
   .btn-ghost svg{width:18px;height:18px;stroke:var(--red2);fill:none}
+  .btn-vet{font-family:var(--disp);font-weight:800;font-size:1rem;color:#0b1a33;background:linear-gradient(180deg,#fff,#eef1f6);border:0;border-radius:13px;padding:15px 22px;display:inline-flex;align-items:center;gap:10px;text-decoration:none;box-shadow:0 12px 30px rgba(255,255,255,.14),inset 0 -3px 0 #c32830;transition:transform .2s,box-shadow .2s}
+  .btn-vet:hover{transform:translateY(-2px);box-shadow:0 16px 36px rgba(255,255,255,.22),inset 0 -3px 0 #c32830}
+  .btn-vet .flag{width:24px;height:16px;border-radius:2px;flex-shrink:0;background:linear-gradient(#1b3a6b,#1b3a6b) 0 0/45% 55% no-repeat,repeating-linear-gradient(#c32830 0 2.3px,#fff 2.3px 4.6px);box-shadow:0 0 0 1px rgba(11,26,51,.25)}
+  .btn-vet small{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#c32830}
   .trust{display:flex;gap:9px;flex-wrap:wrap;margin-top:26px}
   .trust span{font-family:var(--disp);font-weight:600;font-size:13px;color:var(--mut);padding:8px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
   .trust span b{color:var(--tx)}
@@ -10157,7 +10204,7 @@ ${isCompany ? `<script>
           </button>
           ${phone ? `<a class="btn-ghost" href="tel:${escAttr(phone)}"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Call ${esc(callName)}</a>` : ''}
           ${showEmail ? `<a class="btn-ghost" href="mailto:${escAttr(email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>Email Us</a>` : ''}
-          ${veteransUrl ? `<a class="btn-ghost" href="${escAttr(veteransUrl)}"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6l-5.4 2.9 1.2-6-4.5-4.2 6.1-.7z"/></svg>Nominate a veteran</a>` : ''}
+          ${veteransUrl ? `<a class="btn-vet" href="${escAttr(veteransUrl)}"><span class="flag" aria-hidden="true"></span>Nominate a veteran <small>Free roof</small></a>` : ''}
         </div>
         <div class="trust"><span><b>8,000+</b> roofs completed</span><span><b>Insurance-claim</b> guidance</span><span>Licensed &amp; local</span></div>
       </section>

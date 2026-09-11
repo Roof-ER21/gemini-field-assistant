@@ -726,6 +726,46 @@ export function sendInternalLeadEmail(pool, leadData, opts) {
         }
     })();
 }
+export function veteranNominationRecipients() {
+    const raw = process.env.VETERANS_NOMINATION_RECIPIENTS
+        || 'reese.samala@theroofdocs.com,star.mackey@theroofdocs.com,ford.barsi@theroofdocs.com';
+    return [...new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter((s) => /.+@.+\..+/.test(s)))];
+}
+export async function sendVeteranNominationEmail(pool, n) {
+    const to = veteranNominationRecipients();
+    const adminEmailAddr = process.env.LEAD_ADMIN_EMAIL || 'ahmed.mahmoud@theroofdocs.com';
+    const adminRow = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [adminEmailAddr]);
+    const adminUserId = adminRow.rows[0]?.id || null;
+    if (!adminUserId)
+        return { success: false, to, error: 'no admin sender available' };
+    const tel = (p) => `<a href="tel:${escEmail(String(p).replace(/[^\d+]/g, ''))}" style="color:#111827;text-decoration:none;font-weight:700;">${escEmail(p)}</a>`;
+    const mail = (e) => `<a href="mailto:${escEmail(e)}" style="color:#dc2626;text-decoration:none;font-weight:700;">${escEmail(e)}</a>`;
+    const cameFrom = n.source === 'rep-page'
+        ? `Rep page${n.repSlug ? ` · ${n.repSlug}` : ''}`
+        : n.source === 'inspection' ? 'Inspection page' : 'Direct link';
+    const rows = [
+        { label: 'Reference', value: `<b>${escEmail(n.reference)}</b>` },
+        { label: 'Veteran', value: escEmail(n.veteranName) },
+        { label: 'Branch', value: leadChip(n.branch, '#e0e7ff', '#3730a3') },
+        { label: 'Veteran phone', value: tel(n.veteranPhone) },
+        ...(n.veteranEmail ? [{ label: 'Veteran email', value: mail(n.veteranEmail) }] : []),
+        { label: 'Address', value: escEmail(n.veteranAddress) },
+        { label: 'Their story', value: escEmail(n.story).replace(/\n/g, '<br>') },
+        { label: 'Nominated by', value: escEmail(n.nominatorName) },
+        { label: 'Nominator phone', value: tel(n.nominatorPhone) },
+        ...(n.nominatorEmail ? [{ label: 'Nominator email', value: mail(n.nominatorEmail) }] : []),
+        { label: 'Came from', value: leadChip(cameFrom, '#dbeafe', '#1e40af') },
+    ];
+    const result = await sendGmailEmail(pool, adminUserId, {
+        to: to.join(', '),
+        subject: `[Veterans Day] Nomination: ${n.veteranName} (${n.branch})`,
+        body: renderLeadEmail('New Veteran Nomination', 'Veterans Day', rows),
+        replyTo: n.nominatorEmail || adminEmailAddr,
+    });
+    return result.success
+        ? { success: true, to, messageId: result.messageId }
+        : { success: false, to, error: result.error };
+}
 export function createProfileRoutes(pool) {
     const router = Router();
     // Helper: Check if user can manage QR profiles (admin or marketing role).
