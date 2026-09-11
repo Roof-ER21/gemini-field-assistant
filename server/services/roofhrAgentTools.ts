@@ -41,7 +41,7 @@ import {
   getConnection,
   touchConnection,
 } from './roofhrConnection.js';
-import { CONNECTED_APPS, findConnectedApp, type ConnectedApp } from './connectedApps.js';
+import { CONNECTED_APPS, appAllowsEmail, findConnectedApp, type ConnectedApp } from './connectedApps.js';
 import crypto from 'crypto';
 
 /** Kept for the tests and for anything still naming Roof HR's prefix directly. */
@@ -178,7 +178,7 @@ export type RoofhrBridge = {
 
 export type RoofhrAvailability =
   | { state: 'connected'; bridge: RoofhrBridge; promptBlock: string }
-  | { state: 'unverified' | 'unconfigured' | 'not_connected' | 'unreachable'; promptBlock: string };
+  | { state: 'unverified' | 'unconfigured' | 'not_connected' | 'unreachable' | 'not_allowed'; promptBlock: string };
 
 const ROOFHR = findConnectedApp('roofhr')!;
 
@@ -213,9 +213,20 @@ function cannotSee(app: ConnectedApp, reason: string, connectUrl?: string | null
  */
 export async function resolveApp(
   pool: pg.Pool,
-  input: { userId: string; hasVerifiedSession: boolean; connectUrl?: string | null },
+  input: { userId: string; hasVerifiedSession: boolean; connectUrl?: string | null; allowed?: boolean },
   app: ConnectedApp = ROOFHR,
 ): Promise<RoofhrAvailability> {
+  // Checked first: a stored connection for someone the app is not open to is never used,
+  // and no connect link or button hint is offered.
+  if (input.allowed === false) {
+    return {
+      state: 'not_allowed',
+      promptBlock:
+        `\n\n[${app.displayName.toUpperCase()} — NOT AVAILABLE]\n` +
+        `${app.noun} is not open to this rep through Susan yet. If they ask about anything in it, say plainly ` +
+        'that you cannot see it for them, and do not offer a way to connect. Never guess an answer.',
+    };
+  }
   if (!encryptionConfigured()) {
     // Nothing can be stored, so nothing can be read. Ships inert by design.
     return { state: 'unconfigured', promptBlock: cannotSee(app, `the ${app.displayName} connection is not switched on yet.`) };
@@ -353,21 +364,27 @@ export async function resolveConnectedApps(
     userId: string;
     hasVerifiedSession: boolean;
     connectUrlFor?: (app: ConnectedApp) => string | null;
+    /** The verified session email, or null. Decides per-app allowlists. */
+    userEmail?: string | null;
   },
 ): Promise<ConnectedTools> {
   const resolved = await Promise.all(
-    CONNECTED_APPS.map(async (app) => ({
+    CONNECTED_APPS.map(async (app) => {
+      const allowed = appAllowsEmail(app, input.hasVerifiedSession ? input.userEmail : null);
+      return {
       app,
       availability: await resolveApp(
         pool,
         {
           userId: input.userId,
           hasVerifiedSession: input.hasVerifiedSession,
-          connectUrl: input.connectUrlFor?.(app) ?? null,
+          connectUrl: allowed ? input.connectUrlFor?.(app) ?? null : null,
+          allowed,
         },
         app,
       ),
-    })),
+      };
+    }),
   );
 
   const bridges = resolved

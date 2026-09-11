@@ -867,6 +867,9 @@ describe('two connected apps stay separate', () => {
    */
   it('refuses a state issued for a different app', async () => {
     process.env.CONNECT_SECRET_CC24 = 'a-different-secret-entirely';
+    // CC24 is allowlisted (connect-allowlist.test.ts); open it here so this test
+    // still reaches the state/app check it exists to pin.
+    process.env.CONNECT_ALLOWED_EMAILS_CC24 = '*';
     const pool = fakePool();
     const roofhr = await fakeRoofHr({ code: 'good-code', secret: SECRET });
     const base = await connectApp(pool, { userId: USER }, roofhr);
@@ -880,6 +883,7 @@ describe('two connected apps stay separate', () => {
     expect((await res.json()).error).toMatch(/different app/i);
     expect(pool.rows).toHaveLength(0);
     delete process.env.CONNECT_SECRET_CC24;
+    delete process.env.CONNECT_ALLOWED_EMAILS_CC24;
   });
 
   it('refuses an app it has never heard of', async () => {

@@ -38,6 +38,7 @@ import crypto from 'crypto';
 import { connectionSummary, deleteConnection, encryptionConfigured, encryptionKey, saveConnection, } from '../services/roofhrConnection.js';
 import { clearToolCache } from '../services/roofhrAgentTools.js';
 import { CONNECTED_APPS, appBaseUrl, appSecret, findConnectedApp, registeredCallbacks, } from '../services/connectedApps.js';
+import { appAllowsEmail } from '../services/connectedApps.js';
 /**
  * The rep's OWN origin is preferred over BASE_URL, as long as it is registered
  * with this peer.
@@ -162,6 +163,9 @@ function requireVerifiedSession(req, res, next) {
     req.connectUserId = userId;
     next();
 }
+function notOpen(res, app) {
+    res.status(403).json({ error: `${app.displayName} is not open for connections yet.`, code: 'APP_NOT_OPEN' });
+}
 export function createConnectRoutes(pool) {
     const router = express.Router();
     /**
@@ -182,6 +186,8 @@ export function createConnectRoutes(pool) {
         const app = peerOr404(req, res);
         if (!app)
             return;
+        if (!appAllowsEmail(app, req.session?.email))
+            return notOpen(res, app);
         if (!encryptionConfigured()) {
             return res.status(503).json({ error: `${app.displayName} connections are not switched on yet (no token key).` });
         }
@@ -223,6 +229,8 @@ export function createConnectRoutes(pool) {
         const app = peerOr404(req, res);
         if (!app)
             return;
+        if (!appAllowsEmail(app, req.session?.email))
+            return notOpen(res, app);
         const secret = appSecret(app);
         if (!encryptionConfigured() || !secret) {
             return res.status(503).json({ error: `${app.displayName} connections are not switched on yet.` });
@@ -307,7 +315,7 @@ export function createConnectRoutes(pool) {
         const app = peerOr404(req, res);
         if (!app)
             return;
-        const configured = encryptionConfigured() && appSecret(app) !== null;
+        const configured = encryptionConfigured() && appSecret(app) !== null && appAllowsEmail(app, req.session?.email);
         const summary = configured ? await connectionSummary(pool, req.connectUserId, app.slug) : null;
         res.json({ app: app.slug, displayName: app.displayName, configured, connected: summary !== null, connection: summary });
     });
@@ -315,7 +323,8 @@ export function createConnectRoutes(pool) {
     router.get('/status', requireVerifiedSession, async (req, res) => {
         const keyed = encryptionConfigured();
         const apps = await Promise.all(CONNECTED_APPS.map(async (app) => {
-            const configured = keyed && appSecret(app) !== null;
+            // "Not configured" for someone the app is not open to hides the button.
+            const configured = keyed && appSecret(app) !== null && appAllowsEmail(app, req.session?.email);
             const summary = configured ? await connectionSummary(pool, req.connectUserId, app.slug) : null;
             return {
                 app: app.slug,

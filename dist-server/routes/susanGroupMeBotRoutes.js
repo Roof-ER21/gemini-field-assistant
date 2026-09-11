@@ -22,6 +22,7 @@ import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/histor
 import { emailService } from '../services/emailService.js';
 import { resolvePerson, fetchKbRowsForPerson, buildDisambiguationReply, buildUnknownPersonReply, logDisambiguationEvent, } from '../services/susanPersonResolver.js';
 import { matchTemplate } from '../services/susanResponseTemplates.js';
+import { todayContextBlock } from '../services/todayContext.js';
 import { classifyIntent, applyOverrides, } from '../services/susanIntentRouter.js';
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BOT_ID = process.env.GROUPME_SUSAN_BOT_ID || '';
@@ -1981,7 +1982,7 @@ function qualityCheck(reply) {
 // Fallback: Groq Llama 3.3 70B (FREE, very fast)
 // Last resort: Claude Haiku 4.5 (paid, reliable)
 function buildPromptLines(message, kbHits, stormHits, entities, history, addressHail, chatContext, insuranceDir, cityHail) {
-    const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
+    const lines = [todayContextBlock(), `SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
     if (history.length > 0) {
         lines.push('\nCONVERSATION_HISTORY (most recent last — use to resolve "him"/"that guy"/follow-ups):');
         for (const t of history.slice(-5)) {

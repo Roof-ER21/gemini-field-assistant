@@ -30,8 +30,27 @@ export const CONNECTED_APPS = [
         secretEnvs: ['CONNECT_SECRET_CC24'],
         toolPrefix: 'cc24_',
         connectHint: 'the "Connect CC24" button at the top of this chat',
+        // Ahmed only for now (2026-09-11): CC24 has no real reps on it yet.
+        allowedEmailsEnv: 'CONNECT_ALLOWED_EMAILS_CC24',
+        allowedEmailsDefault: ['ahmed.mahmoud@theroofdocs.com'],
     },
 ];
+/**
+ * May this person connect (or use a stored connection to) this peer?
+ * Pass the VERIFIED session email only; an asserted header is not an identity.
+ */
+export function appAllowsEmail(app, email) {
+    if (!app.allowedEmailsEnv)
+        return true;
+    const raw = (process.env[app.allowedEmailsEnv] ?? '').trim();
+    const list = (raw ? raw.split(',') : [...(app.allowedEmailsDefault ?? [])])
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+    if (list.includes('*'))
+        return true;
+    const who = String(email ?? '').trim().toLowerCase();
+    return who.length > 0 && list.includes(who);
+}
 export function findConnectedApp(slug) {
     const s = String(slug ?? '').trim().toLowerCase();
     return CONNECTED_APPS.find((a) => a.slug === s) ?? null;

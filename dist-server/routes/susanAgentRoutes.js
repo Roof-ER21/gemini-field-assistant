@@ -20,6 +20,7 @@ import { GoogleGenAI } from '@google/genai';
 import { SUSAN_TOOLS, executeTool } from '../services/susanToolService.js';
 import { resolveConnectedApps } from '../services/roofhrAgentTools.js';
 import { buildConnectStartUrl } from './connectRoutes.js';
+import { todayContextBlock } from '../services/todayContext.js';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -313,6 +314,7 @@ export function createSusanAgentRoutes(pool) {
         const connected = await resolveConnectedApps(pool, {
             userId,
             hasVerifiedSession,
+            userEmail: hasVerifiedSession ? email : null,
             // Only offered to a caller who could actually complete the trip.
             connectUrlFor: (app) => (hasVerifiedSession ? buildConnectStartUrl(req, userId, app) : null),
         });
@@ -325,6 +327,8 @@ export function createSusanAgentRoutes(pool) {
         // Build personality addendum (backend-side, ensures agent always has it)
         const personalityEntries = Object.entries(personality).filter(([, v]) => v);
         let enrichedSystemPrompt = systemPrompt || '';
+        // Server clock, not the client's: a stale tab or wrong device clock can't skew it.
+        enrichedSystemPrompt += `\n\n${todayContextBlock()}`;
         if (personalityEntries.length > 0) {
             const lines = personalityEntries.map(([k, v]) => `- ${k}: ${v}`);
             enrichedSystemPrompt += `\n\n[PERSONALIZATION]\nThis rep's preferences:\n${lines.join('\n')}\nAdapt your tone, name usage, and verbosity accordingly.`;

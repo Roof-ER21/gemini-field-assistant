@@ -39,7 +39,7 @@ const scheduleFollowupDeclaration = {
             },
             due_date: {
                 type: Type.STRING,
-                description: 'ISO 8601 date string for when the follow-up is due, e.g. "2026-03-01". Use relative terms like "tomorrow" or "next Monday" if an exact date is not specified.'
+                description: 'ISO 8601 date string (YYYY-MM-DD) for when the follow-up is due, computed from [TODAY]. Use relative terms like "tomorrow" or "next Monday" if an exact date is not specified.'
             },
             note: {
                 type: Type.STRING,
@@ -982,7 +982,7 @@ const createCalendarEventDeclaration = {
         type: Type.OBJECT,
         properties: {
             summary: { type: Type.STRING, description: 'Event title/summary, e.g. "Meeting with Mrs. Johnson".' },
-            start_time: { type: Type.STRING, description: 'Start time as ISO 8601 string, e.g. "2026-02-26T14:00:00".' },
+            start_time: { type: Type.STRING, description: 'Start time as ISO 8601 string (YYYY-MM-DDTHH:MM:SS), computed from [TODAY].' },
             end_time: { type: Type.STRING, description: 'End time as ISO 8601 (optional, defaults to +1 hour).' },
             description: { type: Type.STRING, description: 'Event description or notes (optional).' },
             location: { type: Type.STRING, description: 'Event location, e.g. "123 Main St, Roanoke VA" (optional).' },

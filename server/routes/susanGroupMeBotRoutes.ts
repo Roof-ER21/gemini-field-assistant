@@ -29,6 +29,7 @@ import {
   logDisambiguationEvent,
 } from '../services/susanPersonResolver.js';
 import { matchTemplate } from '../services/susanResponseTemplates.js';
+import { todayContextBlock } from '../services/todayContext.js';
 import {
   classifyIntent,
   applyOverrides,
@@ -2225,7 +2226,7 @@ function buildPromptLines(
   insuranceDir?: Array<{ name: string; phone: string | null; email: string | null; category: string | null; website: string | null; notes: string | null }>,
   cityHail?: { city: string; state: string; geo: { lat: number; lng: number; source: string }; dates: string[]; events: any[]; mode?: 'by_date' | 'recent'; cityImpactBlocks?: string[] } | null
 ): string {
-  const lines = [`SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
+  const lines = [todayContextBlock(), `SENDER: ${message.name}`, `MESSAGE: ${message.text}`];
   if (history.length > 0) {
     lines.push('\nCONVERSATION_HISTORY (most recent last — use to resolve "him"/"that guy"/follow-ups):');
     for (const t of history.slice(-5)) {

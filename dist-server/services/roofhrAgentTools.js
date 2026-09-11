@@ -28,7 +28,7 @@
 import { Type } from '@google/genai';
 import { callTool, listTools, resultText, McpError, } from './mcpClient.js';
 import { deleteConnection, encryptionConfigured, getConnection, touchConnection, } from './roofhrConnection.js';
-import { CONNECTED_APPS, findConnectedApp } from './connectedApps.js';
+import { CONNECTED_APPS, appAllowsEmail, findConnectedApp } from './connectedApps.js';
 import crypto from 'crypto';
 /** Kept for the tests and for anything still naming Roof HR's prefix directly. */
 export const ROOFHR_TOOL_PREFIX = 'roofhr_';
@@ -169,6 +169,16 @@ function cannotSee(app, reason, connectUrl) {
  * delivered as well as an answer from data.
  */
 export async function resolveApp(pool, input, app = ROOFHR) {
+    // Checked first: a stored connection for someone the app is not open to is never used,
+    // and no connect link or button hint is offered.
+    if (input.allowed === false) {
+        return {
+            state: 'not_allowed',
+            promptBlock: `\n\n[${app.displayName.toUpperCase()} — NOT AVAILABLE]\n` +
+                `${app.noun} is not open to this rep through Susan yet. If they ask about anything in it, say plainly ` +
+                'that you cannot see it for them, and do not offer a way to connect. Never guess an answer.',
+        };
+    }
     if (!encryptionConfigured()) {
         // Nothing can be stored, so nothing can be read. Ships inert by design.
         return { state: 'unconfigured', promptBlock: cannotSee(app, `the ${app.displayName} connection is not switched on yet.`) };
@@ -273,14 +283,18 @@ export async function resolveRoofhr(pool, input) {
  * connections gets none at all plus the sentences that tell Susan to say so.
  */
 export async function resolveConnectedApps(pool, input) {
-    const resolved = await Promise.all(CONNECTED_APPS.map(async (app) => ({
-        app,
-        availability: await resolveApp(pool, {
-            userId: input.userId,
-            hasVerifiedSession: input.hasVerifiedSession,
-            connectUrl: input.connectUrlFor?.(app) ?? null,
-        }, app),
-    })));
+    const resolved = await Promise.all(CONNECTED_APPS.map(async (app) => {
+        const allowed = appAllowsEmail(app, input.hasVerifiedSession ? input.userEmail : null);
+        return {
+            app,
+            availability: await resolveApp(pool, {
+                userId: input.userId,
+                hasVerifiedSession: input.hasVerifiedSession,
+                connectUrl: allowed ? input.connectUrlFor?.(app) ?? null : null,
+                allowed,
+            }, app),
+        };
+    }));
     const bridges = resolved
         .map((r) => (r.availability.state === 'connected' ? r.availability.bridge : null))
         .filter((b) => b !== null);
