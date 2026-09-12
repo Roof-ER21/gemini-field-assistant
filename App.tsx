@@ -1,8 +1,9 @@
-import React, { useState, useEffect, lazy } from 'react';
+import React, { useState, useEffect, useRef, lazy } from 'react';
+import MobileFieldNav from './components/MobileFieldNav';
+import ConnectionStatus from './components/ConnectionStatus';
 import { panelFromSearch } from './utils/panelDeepLink';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePageRedesigned';
-import ChatPanel from './components/ChatPanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
 import DocumentJobPanel from './components/DocumentJobPanel';
 import LoginPage from './components/LoginPage';
@@ -26,6 +27,7 @@ import { DivisionProvider, useDivision } from './contexts/DivisionContext';
 import DivisionSelectorModal from './components/DivisionSelectorModal';
 
 // Lazy load heavy panels for better performance
+const ChatPanel = lazy(() => import('./components/ChatPanel'));
 const EmailPanel = lazy(() => import('./components/EmailPanel'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const DocumentAnalysisPanel = lazy(() => import('./components/DocumentAnalysisPanel'));
@@ -131,9 +133,38 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activePanel, setActivePanel] = useState<PanelType>(() => panelFromSearch(window.location.search));
+  const drawerRef = useRef<HTMLDivElement>(null);
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const drawer = drawerRef.current;
+    const controls = () => Array.from(drawer?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]') || [])
+      .filter(element => element.getClientRects().length > 0);
+    controls()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setIsMobileMenuOpen(false); }
+      if (event.key !== 'Tab') return;
+      const items = controls();
+      const first = items[0], last = items[items.length - 1];
+      if (!first) return;
+      if (event.shiftKey && (document.activeElement === first || !drawer?.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !drawer?.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    const onResize = () => { if (window.innerWidth > 768) setIsMobileMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+      previous?.focus();
+    };
+  }, [isMobileMenuOpen]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showAIDisclosure, setShowAIDisclosure] = useState(false);
@@ -344,12 +375,14 @@ const App: React.FC = () => {
         return <HomePage setActivePanel={setActivePanel} userEmail={currentUser?.email} />;
       case 'chat':
         return (
+          <LazyLoadBoundary componentName="Susan">
           <ChatPanel
             onStartEmail={handleStartEmail}
             onOpenDocument={handleOpenDocument}
             showHistorySidebar={showChatHistory}
             onToggleHistory={(show: boolean) => setShowChatHistory(show)}
           />
+          </LazyLoadBoundary>
         );
       case 'image':
         return (
@@ -527,6 +560,7 @@ const App: React.FC = () => {
     <SettingsProvider>
     <DivisionProvider>
     <div className="roof-er-app-shell flex flex-col" style={{ background: 'var(--bg-base)', height: '100dvh', minHeight: '100dvh' }}>
+      <a className="field-skip-link" href="#field-main">Skip to main content</a>
       {/* Asks long-signed-in reps to re-authenticate so they pick up a real
           session. Renders nothing unless the server asks for it. */}
       <ReauthBanner />
@@ -540,6 +574,8 @@ const App: React.FC = () => {
             className="roof-er-mobile-menu-btn"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label="Toggle menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="field-navigation"
           >
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -554,41 +590,17 @@ const App: React.FC = () => {
           <div className="roof-er-page-subtitle">{pageTitles[activePanel]}</div>
         </div>
         <div className="roof-er-header-actions">
-          {/* AI Status Pulse */}
-          <div
-            className="roof-er-status-badge"
-            style={{ cursor: 'default', gap: '6px' }}
-            title="Susan AI, Agnes AI, Pocket Linguist, Storm Intel"
-          >
-            <div style={{
-              display: 'flex',
-              gap: '4px',
-              alignItems: 'center',
-            }}>
-              {['#dc2626', '#3b82f6', '#10b981', '#8b5cf6'].map((color, i) => (
-                <div key={i} style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: color,
-                  boxShadow: `0 0 6px ${color}`,
-                  animation: `pulse-dot 2s ease-in-out ${i * 0.3}s infinite`,
-                }} />
-              ))}
-            </div>
-            <span style={{ fontSize: '12px' }}>4 AI</span>
-            <style>{`@keyframes pulse-dot { 0%,100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.4); } }`}</style>
-          </div>
-
           {/* Admin Division Toggle */}
           <AdminDivisionToggle />
 
-          <NotificationBell onViewAll={() => { setActivePanel('myprofile'); }} />
+          <NotificationBell onViewAll={() => { setActivePanel('notifications'); }} />
           <ThemeToggle />
 
           {/* Avatar → Profile */}
           {currentUser && (
-            <div
+            <button
+              type="button"
+              aria-label="Open profile and settings"
               onClick={handleOpenUserProfile}
               style={{
                 width: '34px',
@@ -608,10 +620,11 @@ const App: React.FC = () => {
               title={`${currentUser.name} — Profile & Settings`}
             >
               {currentUser.name.charAt(0).toUpperCase()}
-            </div>
+            </button>
           )}
         </div>
       </header>
+      <ConnectionStatus />
 
       {/* Division Selector — shows once on first login if no division set */}
       <DivisionGate />
@@ -651,10 +664,13 @@ const App: React.FC = () => {
         )}
 
         {/* Sidebar with mobile support */}
-        <div className={`roof-er-sidebar-wrapper ${isMobileMenuOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+        <div ref={drawerRef} id="field-navigation" role={isMobileMenuOpen ? 'dialog' : undefined}
+          aria-modal={isMobileMenuOpen || undefined} aria-label={isMobileMenuOpen ? 'All tools' : undefined}
+          className={`roof-er-sidebar-wrapper ${isMobileMenuOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+          <button type="button" className="field-menu-close" onClick={() => setIsMobileMenuOpen(false)}><X size={20} aria-hidden="true" />Close menu</button>
           <Sidebar
             activePanel={activePanel}
-            collapsed={isSidebarCollapsed}
+              collapsed={isSidebarCollapsed && !isMobileMenuOpen}
             onToggleCollapse={() => setIsSidebarCollapsed((previous) => !previous)}
             setActivePanel={(panel) => {
               setActivePanel(panel);
@@ -663,23 +679,16 @@ const App: React.FC = () => {
           />
         </div>
 
-        <main className="roof-er-main-panel flex-1" style={{ minWidth: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <main id="field-main" tabIndex={-1} className="roof-er-main-panel flex-1" style={{ minWidth: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ErrorBoundary>
             {renderPanel()}
           </ErrorBoundary>
         </main>
       </div>
 
-      {/* Floating Quick Action Button (mobile only) - Hidden on chat panel */}
-      {activePanel !== 'chat' && activePanel !== 'translator' && (
-        <button
-          className="roof-er-floating-quick-action"
-          aria-label="Open quick actions"
-          onClick={() => setActivePanel('email')}
-        >
-          + Quick Actions
-        </button>
-      )}
+      <MobileFieldNav activePanel={activePanel} menuOpen={isMobileMenuOpen}
+        onNavigate={panel => { setActivePanel(panel); setIsMobileMenuOpen(false); }}
+        onMenu={() => setIsMobileMenuOpen(open => !open)} />
 
       {/* Rep Companion "something's wrong" button (pilot-gated) */}
       <CompanionButton userEmail={currentUser?.email} />

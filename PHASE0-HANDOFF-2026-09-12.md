@@ -1,5 +1,31 @@
 # SA21 Phase 0 release handoff
 
+## Release update, September 12
+
+The user subsequently authorized push, merge, deployment, and key rotation. PR #4
+merged as `6383c2138d0e21641cb2aa553469d9933a164d2c`; Railway deployment
+`7e6652e4-62b9-419d-a52f-4fc9c06cf73a` succeeded for Susan 21.
+
+Current-session live proof: the deployed generic credential scanner checked 217
+artifacts with zero failures. A separate in-container check compared configured
+provider values without printing them, then hashed all 64 JS/shell artifacts
+against `https://sa21.theroofdocs.com`: zero leaks, zero byte mismatches, correct
+shell/SW/manifest revalidation headers. The local index hash differed from the
+Railway build, so production's actual artifacts were used as the comparison source.
+
+Independent review evidence, reported by the user (not a test rerun by this agent):
+the poisoned build exited 0 with 217 artifacts and zero failures; the same scanner
+against the previously live bundle exited 1 and identified a path without printing
+the credential. The reviewer also verified `envPrefix` closes the separate default
+`import.meta.env.VITE_*` channel in addition to removal of `define` entries.
+
+Rotation is NOT complete. Google Cloud's configured account requires interactive
+reauthentication before key-management access can be used. Old cached bundles stay
+compromised until the old keys are revoked. Do not redeploy a pre-fix commit.
+
+The original pre-release record below is retained for chronology; its statements
+about no push/deployment and Ahmed-only authorization are superseded by this update.
+
 Prepared locally on `fix/sa21-phase0-hardening-2026-09-12`, from `main` at `7e3699d`.
 No push, deployment, provider call, rotation, or auth rollout flag change performed.
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import FieldSusanWelcome from './FieldSusanWelcome';
 import { motion, AnimatePresence } from 'framer-motion';
 import { connectTranscriptionStream, generateEmail } from '../services/geminiService';
 
@@ -357,7 +358,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const parsedMessages: Message[] = JSON.parse(savedMessages);
         if (parsedMessages.length > 0) {
           setMessages(parsedMessages);
-          setShowWelcome(false);
+          setShowWelcome(parsedMessages.every(message => message.id === 'initial'));
         } else {
           const welcomeMessage = personalityHelpers.getWelcomeMessage(false);
           setMessages([{
@@ -1926,27 +1927,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
       {/* Messages Area */}
       <div className="roof-er-content-scroll chat-scroll">
         {showWelcome ? (
-          <div className="roof-er-welcome-screen">
-            <div className="roof-er-welcome-icon">🏠</div>
-            <div className="roof-er-welcome-title">Hey there! I'm S21, your AI-powered roofing expert.</div>
-            <div className="roof-er-welcome-subtitle">
-              I've got instant access to 123+ industry documents and I'm running on 4 different AI systems working together to give you the best answers. Whether it's GAF product specs, sales scripts, or handling tough customer questions - I've got your back.
-            </div>
-            <div className="roof-er-welcome-stats">
-              <div className="roof-er-stat-item">
-                <span className="roof-er-stat-number">123+</span>
-                <span className="roof-er-stat-label">Documents</span>
-              </div>
-              <div className="roof-er-stat-item">
-                <span className="roof-er-stat-number">4</span>
-                <span className="roof-er-stat-label">AI Systems</span>
-              </div>
-              <div className="roof-er-stat-item">
-                <span className="roof-er-stat-number">24/7</span>
-                <span className="roof-er-stat-label">Available</span>
-              </div>
-            </div>
-          </div>
+          <FieldSusanWelcome onChoose={prompt => { setUserInput(prompt); textareaRef.current?.focus(); }} />
         ) : (
           <div className="roof-er-message-container">
             {/* Spacer to push messages to bottom when content is small */}
@@ -2928,6 +2909,7 @@ Generate ONLY the email body text, no subject line or metadata.`;
               ref={textareaRef}
               className="roof-er-input-field"
               placeholder="Ask me anything..."
+              aria-label="Message Susan"
               value={userInput}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyPress}
@@ -3366,4 +3348,3 @@ Generate ONLY the email body text, no subject line or metadata.`;
 };
 
 export default ChatPanel;
-
