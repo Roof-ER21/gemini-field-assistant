@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy } from 'react';
+import { panelFromSearch } from './utils/panelDeepLink';
 import Sidebar from './components/Sidebar';
 import HomePage from './components/HomePageRedesigned';
 import ChatPanel from './components/ChatPanel';
@@ -129,7 +130,7 @@ const DivisionGate: React.FC = () => {
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [activePanel, setActivePanel] = useState<PanelType>('home');
+  const [activePanel, setActivePanel] = useState<PanelType>(() => panelFromSearch(window.location.search));
   const [emailContext, setEmailContext] = useState<{template: string; context: string} | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

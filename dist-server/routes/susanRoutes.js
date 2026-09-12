@@ -5,7 +5,9 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { susanPresenterService } from '../services/susanPresenterServiceStub.js';
+import { createGeminiProxyRouter } from './geminiProxyRoutes.js';
 const router = express.Router();
+router.use('/gemini', createGeminiProxyRouter());
 // Get environment key helper
 const getEnvKey = (key) => process.env[key] || process.env[`VITE_${key}`];
 // Initialize Gemini client for fallback

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { env } from '../src/config/env';
 import { Mic, Radio, Trash2, Volume2, VolumeX, Wifi, WifiOff, PhoneOff, MessageCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiProxyClient } from '../services/geminiProxyClient';
 import { databaseService } from '../services/databaseService';
 import { useToast } from './Toast';
 
@@ -287,15 +287,9 @@ const LivePanel: React.FC = () => {
       const base64Audio = await blobToBase64(audioBlob);
 
       // Initialize Gemini AI
-      const apiKey = env.GEMINI_API_KEY || (process.env.GEMINI_API_KEY as string);
-
-      if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-        throw new Error('Gemini API key not configured. Set GEMINI_API_KEY in .env/.env.local or Railway variables.');
-      }
-
       let genAI: GoogleGenAI;
       try {
-        genAI = new GoogleGenAI({ apiKey });
+        genAI = createGeminiProxyClient();
       } catch (error) {
         console.error('Failed to initialize GoogleGenAI:', error);
         throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');

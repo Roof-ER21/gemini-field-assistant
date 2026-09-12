@@ -388,6 +388,7 @@ function renderPage(_mapsKey: string, content: ContentMap): string {
 <meta name="theme-color" content="#0a0a0f">
 <meta property="og:title" content="Did the storm hit your roof? — Roof-ER">
 <meta property="og:description" content="Free 10-second storm check. Your hail history + insurance eligibility.">
+<meta property="og:image" content="https://get.theroofdocs.com/brand/roofer-badge.png">
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <style>

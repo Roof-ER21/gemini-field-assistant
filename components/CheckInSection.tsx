@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 /**
  * CheckInSection - Team check-in/check-out functionality
  * Shows active check-ins with stats tracking and location
@@ -506,7 +507,7 @@ const CheckInSection: React.FC = () => {
                 {myCheckIn.location_lat && myCheckIn.location_lng && (
                   <span style={{ marginLeft: '0.5rem' }}>
                     • <MapPin style={{ width: '12px', height: '12px', display: 'inline', marginRight: '2px' }} />
-                    {myCheckIn.location_lat.toFixed(4)}, {myCheckIn.location_lng.toFixed(4)}
+                    {formatNumber(myCheckIn.location_lat, 4)}, {formatNumber(myCheckIn.location_lng, 4)}
                   </span>
                 )}
               </div>
@@ -723,7 +724,7 @@ const CheckInSection: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                           <MapPin style={{ width: '14px', height: '14px' }} />
                           <span>
-                            {checkIn.location_name || `${checkIn.location_lat.toFixed(4)}, ${checkIn.location_lng.toFixed(4)}`}
+                            {checkIn.location_name || `${formatNumber(checkIn.location_lat, 4)}, ${formatNumber(checkIn.location_lng, 4)}`}
                           </span>
                         </div>
                       )}

@@ -9684,22 +9684,27 @@ try {
       console.log('   ❌ index.html NOT found at:', indexPath);
     }
 
+    // Shell routes must precede express.static, including exact /index.html requests.
+    app.get(['/', '/index.html'], (req, res) => {
+      if (hitGetDomain(req)) return res.redirect(302, '/roofcheck');
+      res.set('Cache-Control', 'no-store, max-age=0');
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+
     // Serve static assets (hashed files can be cached aggressively)
     app.use(
       express.static(distDir, {
         maxAge: '1y',
         immutable: true,
         index: false, // '/' is handled by the host-aware root handler below (no-store) — not the static index
+        setHeaders: (res, filePath) => {
+          if (['sw.js', 'manifest.json'].includes(path.basename(filePath))) {
+            res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
+          }
+        },
       })
     );
 
-    // Serve index.html with no-cache for root
-    app.get(['/', '/index.html'], (req, res) => {
-      // get.* is the homeowner domain — its root is RoofCheck, not the rep login.
-      if (hitGetDomain(req)) return res.redirect(302, '/roofcheck');
-      res.set('Cache-Control', 'no-store, max-age=0');
-      res.sendFile(path.join(distDir, 'index.html'));
-    });
 
     console.log('✅ Static file serving configured for production');
   } else {
@@ -9984,7 +9989,10 @@ const serveCompanyLanding = async (_req: express.Request, res: express.Response)
     res.status(500).send('Unable to load page.');
   }
 };
-app.get('/free-inspection-preview', serveCompanyLanding);
+app.get('/free-inspection-preview', (_req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  next();
+}, serveCompanyLanding);
 app.get('/free-inspection', serveCompanyLanding);
 
 registerLeadGenPages(app, pool);
@@ -10336,6 +10344,7 @@ function renderProfilePage(profile: any): string {
   <meta name="description" content="Connect with ${name} at The Roof Docs. Schedule your free roof inspection today.">
   <meta property="og:title" content="${name} - The Roof Docs">
   <meta property="og:description" content="Schedule your free roof inspection with ${name}.">
+  <meta property="og:image" content="https://get.theroofdocs.com/brand/roofer-badge.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -11000,6 +11009,10 @@ function renderProfilePageV2(profile: any): string {
         } else if (vimMatch) {
           return `<iframe src="https://player.vimeo.com/video/${vimMatch[1]}" title="${escAttr(name)} welcome video" style="width:100%;aspect-ratio:16/9;border:none;border-radius:13px;display:block" allow="autoplay;fullscreen" allowfullscreen></iframe>`;
         }
+        if (isCompany) {
+          // Template contents are inert: phones never request the 19 MB video.
+          return `<div data-company-welcome><img src="/img/project-01.png" alt="A completed Roof ER roofing project" style="display:block;width:100%;height:auto"><template><video controls autoplay muted loop playsinline preload="metadata" style="display:block;margin:0 auto;width:auto;max-width:100%;max-height:560px;border-radius:13px;background:#000"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video></template></div>`;
+        }
         return `<video controls ${isCompany ? 'autoplay muted loop ' : ''}playsinline preload="${isCompany ? 'auto' : 'metadata'}" style="display:block;margin:0 auto;width:auto;max-width:100%;max-height:560px;border-radius:13px;background:#000"><source src="${escAttr(vUrl)}" type="video/mp4">Your browser does not support video.</video>`;
       }).join('')
     : `<video controls autoplay muted loop playsinline preload="metadata" style="display:block;width:100%;max-width:340px;margin:0 auto;border-radius:13px;background:#000"><source src="/brand/roofer-default-promo.mp4" type="video/mp4">Your browser does not support video.</video>`;
@@ -11017,7 +11030,7 @@ function renderProfilePageV2(profile: any): string {
     };
     if (!reviews.length) {
       // Tasteful fallback so the section never renders empty.
-      return `<div class="rev"><div class="stars">${star.repeat(5)}</div><p class="q">&ldquo;${esc(callName)} made the whole insurance process painless and our new roof looks incredible.&rdquo;</p><p class="a">— A ${brand} Homeowner <span>· Verified Review</span></p></div>`;
+      return '';
     }
     return reviews.map((r) => {
       const stars = star.repeat(Math.max(1, Math.min(5, r.rating || 5)));
@@ -11040,6 +11053,7 @@ ${isCompany ? '<base href="https://get.theroofdocs.com/">' : ''}
 <meta name="description" content="Connect with ${escAttr(name)} at ${brand} / The Roof Docs. Storm-damage roofing &amp; insurance-claim experts serving VA, MD &amp; PA. Schedule your free roof inspection today.">
 <meta property="og:title" content="${escAttr(name)} — The Roof Docs">
 <meta property="og:description" content="Schedule your free roof inspection with ${escAttr(name)}. 8,000+ roofs completed across VA · MD · PA.">
+<meta property="og:image" content="https://get.theroofdocs.com/brand/roofer-badge.png">
 <meta name="theme-color" content="#08080d">
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
@@ -11604,7 +11618,7 @@ ${isCompany ? `<script>
     <section class="sec" id="reviews">
       <div class="container">
         <div class="center reveal" style="margin-bottom:34px">
-          <span class="sec-eyebrow">★★★★★ 5.0 average</span>
+          <span class="sec-eyebrow">Homeowner reviews</span>
           <h2 class="sec-title">What homeowners say</h2>
           <p class="sec-sub">Real reviews from neighbors across the DMV who worked with ${esc(callName)} &amp; the ${brand} team.</p>
         </div>
@@ -11868,11 +11882,44 @@ ${isCompany ? `<script>
     })();
   };
 
+  // Load welcome video only on larger screens without reduced-motion preference.
+  if(window.matchMedia('(min-width: 768px)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('[data-company-welcome]').forEach(function(container){
+      var template=container.querySelector('template');
+      if(template) container.replaceChildren(template.content.cloneNode(true));
+    });
+  }
+
   /* ── lead form → POST /api/profiles/contact, inline success state ── */
   (function(){
     var f = $('inspForm'); if(!f) return;
+    var draftKey='inspection-lead:'+window.location.pathname;
+    var draftControls=[].slice.call(f.querySelectorAll('input:not([type="file"]),select,textarea'));
+    function saveDraft(){
+      try{ sessionStorage.setItem(draftKey,JSON.stringify({at:Date.now(),fields:draftControls.map(function(el){return {value:el.value,checked:el.checked};})})); }catch(e){}
+    }
+    try{
+      var draft=JSON.parse(sessionStorage.getItem(draftKey)||'null');
+      if(draft && Date.now()-draft.at < 86400000 && Array.isArray(draft.fields)){
+        draftControls.forEach(function(el,i){var saved=draft.fields[i];if(saved){el.value=saved.value;el.checked=!!saved.checked;}});
+      }
+    }catch(e){}
+    f.addEventListener('input',saveDraft);
+    f.addEventListener('change',saveDraft);
+    var submitLabel=$('inspBtn').innerHTML;
+    function accepted(){try{sessionStorage.removeItem(draftKey);}catch(e){}}
+    function failed(){
+      saveDraft();
+      var err=$('formErr');
+      err.textContent='We could not confirm your request. Your details are still here. Please try again.';
+      err.setAttribute('role','alert');
+      err.style.display='block';
+      var btn=$('inspBtn');btn.disabled=false;btn.innerHTML=submitLabel;
+    }
     f.addEventListener('submit', async function(e){
       e.preventDefault();
+      if($('inspBtn').disabled) return;
+      saveDraft();
       ${isCompany ? `
       var g=function(id){ var el=$(id); return el?(el.value||'').trim():''; };
       var fn=g('fn'), ln=g('ln'), ph=g('ph'), em=g('em');
@@ -11907,15 +11954,15 @@ ${isCompany ? `<script>
         var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: address, message: message, preferredDate: appt, preferredTime: slot, serviceType: 'Free inspection (company page)', photoUrls: photoUrls, attribution: (window.__s21attr?window.__s21attr():{}), jotform: { firstName: fn, lastName: ln, email: em, phone: ph, addr1: ad1, addr2: ad2, city: city, state: state, zip: zip, areas: areas, howHeard: how, howMore: howMore, apptDate: appt, apptSlot: slot, comments: ms } } )});
         /* RCFX conversion (WebFX): only on confirmed accept, never on failure */
+        if(!r || !r.ok) throw new Error('Lead not accepted');
+        accepted();
         if(r && r.ok){ try{ if(typeof window.mcfx==='function'){ window.mcfx('send', {type:'event', category:'form', action:'submit', label:'inspection-request', value:1}); } }catch(eMx){} }
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
         $('formDone').scrollIntoView({behavior:'smooth',block:'center'});
       }catch(err2){
-        $('doneName').textContent = fn;
-        f.style.display='none';
-        $('formDone').style.display='block';
+        failed();
       }` : `
       var fn=($('fn').value||'').trim(), ln=($('ln').value||'').trim();
       var ph=($('ph').value||'').trim(), em=($('em').value||'').trim(), ms=($('ms').value||'').trim();
@@ -11932,14 +11979,14 @@ ${isCompany ? `<script>
       try{
         var r = await fetch(POST_URL, {method:'POST',headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ profileId: PROFILE_ID, homeownerName: (fn+' '+ln).trim(), homeownerPhone: ph, homeownerEmail: em, address: ad, message: ms, serviceType: 'Free inspection (rep page)' })});
+        if(!r || !r.ok) throw new Error('Lead not accepted');
+        accepted();
         $('doneName').textContent = fn;
         f.style.display='none';
         $('formDone').style.display='block';
         $('formDone').scrollIntoView({behavior:'smooth',block:'center'});
       }catch(err2){
-        $('doneName').textContent = fn;
-        f.style.display='none';
-        $('formDone').style.display='block';
+        failed();
       }`}
     });
   })();

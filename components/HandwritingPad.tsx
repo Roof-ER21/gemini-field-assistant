@@ -21,15 +21,13 @@ interface HandwritingPadProps {
   onSubmit: (text: string) => void;
   /** Called when the user closes the pad */
   onClose: () => void;
-  /** Optional: Gemini API key for handwriting recognition */
-  apiKey?: string;
 }
 
 interface Stroke {
   points: { x: number; y: number }[];
 }
 
-const HandwritingPad: React.FC<HandwritingPadProps> = ({ onSubmit, onClose, apiKey }) => {
+const HandwritingPad: React.FC<HandwritingPadProps> = ({ onSubmit, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -212,7 +210,7 @@ const HandwritingPad: React.FC<HandwritingPadProps> = ({ onSubmit, onClose, apiK
     }
 
     // Try to recognize via Gemini Vision
-    if (apiKey) {
+    {
       setIsRecognizing(true);
       try {
         const canvas = canvasRef.current;
@@ -221,8 +219,8 @@ const HandwritingPad: React.FC<HandwritingPadProps> = ({ onSubmit, onClose, apiK
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
 
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey });
+        const { createGeminiProxyClient } = await import('../services/geminiProxyClient');
+        const ai = createGeminiProxyClient();
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -256,10 +254,6 @@ const HandwritingPad: React.FC<HandwritingPadProps> = ({ onSubmit, onClose, apiK
       } finally {
         setIsRecognizing(false);
       }
-    } else {
-      // No API key — submit as image description
-      onSubmit('[Handwritten message]');
-      handleClear();
     }
   };
 

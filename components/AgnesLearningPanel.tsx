@@ -59,7 +59,6 @@ const AgnesLearningContent: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<SessionData | null>(null);
   const [sharingSessionId, setSharingSessionId] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
-  const missingClientKey = !import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.VITE_GOOGLE_AI_API_KEY;
 
   // Find script by ID - check both built-in and admin scripts
   const selectedScript = useMemo(() => {
@@ -299,11 +298,6 @@ Keep grinding! 🔥`;
           </div>
         </div>
 
-        {missingClientKey && (
-          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-            Missing client Gemini key. Add `VITE_GEMINI_API_KEY` (or `VITE_GOOGLE_AI_API_KEY`) in Railway, then redeploy.
-          </div>
-        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

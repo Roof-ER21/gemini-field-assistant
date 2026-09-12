@@ -4,8 +4,8 @@
  * Susan is a friendly, professional insurance claims specialist with 15+ years experience
  */
 
-import { env } from '../src/config/env.js';
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiProxyClient } from './geminiProxyClient';
 import { DamageAssessment } from './imageAnalysisService.js';
 
 // ============================================================================
@@ -127,12 +127,7 @@ class SusanPresenterService {
   // --------------------------------------------------------------------------
 
   private initializeGemini(): void {
-    const apiKey = env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-      console.warn('Gemini API key not configured for Susan Presenter');
-      return;
-    }
-    this.genAI = new GoogleGenAI({ apiKey });
+    this.genAI = createGeminiProxyClient();
   }
 
   private ensureGemini(): GoogleGenAI {

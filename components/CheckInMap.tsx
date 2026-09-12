@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 /**
  * CheckInMap - Map view showing team check-ins and hail events
  * Displays active team check-ins as markers with hail event circles
@@ -366,7 +367,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                     </div>
                     {event.hailSize && (
                       <div style={{ marginBottom: '0.25rem' }}>
-                        <strong>Size:</strong> {event.hailSize.toFixed(2)}"
+                        <strong>Size:</strong> {formatNumber(event.hailSize, 2)}"
                       </div>
                     )}
                     <div style={{ marginBottom: '0.25rem' }}>
@@ -377,7 +378,7 @@ const CheckInMap: React.FC<CheckInMapProps> = ({ checkIns }) => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <MapPin style={{ width: '12px', height: '12px' }} />
-                      <span>{event.latitude.toFixed(4)}, {event.longitude.toFixed(4)}</span>
+                      <span>{formatNumber(event.latitude, 4)}, {formatNumber(event.longitude, 4)}</span>
                     </div>
                   </div>
                 </div>

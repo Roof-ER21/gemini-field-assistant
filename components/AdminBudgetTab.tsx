@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 import React, { useState, useEffect } from 'react';
 import { getAdminHeaders } from '../services/adminAuth';
 import {
@@ -458,7 +459,7 @@ const AdminBudgetTab: React.FC = () => {
       log.provider,
       log.serviceType,
       log.tokens,
-      `$${log.cost.toFixed(2)}`,
+      `$${formatNumber(log.cost, 2)}`,
       log.feature,
       log.status
     ]);
@@ -873,10 +874,10 @@ const AdminBudgetTab: React.FC = () => {
                       <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{alert.userEmail}</div>
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                      ${alert.budgetLimit.toFixed(2)}
+                      ${formatNumber(alert.budgetLimit, 2)}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                      ${alert.currentSpend.toFixed(2)}
+                      ${formatNumber(alert.currentSpend, 2)}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px' }}>
                       <div style={{
@@ -895,7 +896,7 @@ const AdminBudgetTab: React.FC = () => {
                                alert.percentUsed >= 90 ? '#ea580c' :
                                '#d97706'
                       }}>
-                        {alert.percentUsed.toFixed(1)}%
+                        {formatNumber(alert.percentUsed, 1)}%
                       </div>
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -1072,11 +1073,11 @@ const AdminBudgetTab: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      <span>${user.budgetLimit.toFixed(2)}</span>
+                      <span>${formatNumber(user.budgetLimit, 2)}</span>
                     )}
                   </td>
                   <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    ${user.currentSpend.toFixed(2)}
+                    ${formatNumber(user.currentSpend, 2)}
                   </td>
                   <td style={{ padding: '12px', fontSize: '14px' }}>
                     <div style={{
@@ -1093,7 +1094,7 @@ const AdminBudgetTab: React.FC = () => {
                       fontWeight: 600,
                       color: getStatusColor(user.status)
                     }}>
-                      {user.percentUsed.toFixed(1)}%
+                      {formatNumber(user.percentUsed, 1)}%
                     </div>
                   </td>
                   <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -1357,7 +1358,7 @@ const AdminBudgetTab: React.FC = () => {
                   <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.serviceType}</td>
                   <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.tokens.toLocaleString()}</td>
                   <td style={{ padding: '12px', fontSize: '13px', color: '#991b1b', fontWeight: 600 }}>
-                    ${log.cost.toFixed(2)}
+                    ${formatNumber(log.cost, 2)}
                   </td>
                   <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{log.feature}</td>
                   <td style={{ padding: '12px' }}>

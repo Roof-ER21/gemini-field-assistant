@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -2606,17 +2607,17 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
             {routeData ? (
               <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55 }}>
                 <div>
-                  <strong>{routeData.distanceMiles.toFixed(1)} mi route</strong>
+                  <strong>{formatNumber(routeData.distanceMiles, 1)} mi route</strong>
                   {routeData.durationMinutes !== null ? ` • ${Math.round(routeData.durationMinutes)} min` : ''}
                 </div>
                 <div style={{ marginTop: 4 }}>
                   {routeData.summary.eventCount} storm report{routeData.summary.eventCount === 1 ? '' : 's'} within 1 mile of route
                 </div>
                 {routeData.summary.maxHailInches > 0 ? (
-                  <div>Max hail along route: {routeData.summary.maxHailInches.toFixed(2)}"</div>
+                  <div>Max hail along route: {formatNumber(routeData.summary.maxHailInches, 2)}"</div>
                 ) : null}
                 {routeData.summary.maxWindMph > 0 ? (
-                  <div>Max wind along route: {routeData.summary.maxWindMph.toFixed(0)} mph</div>
+                  <div>Max wind along route: {formatNumber(routeData.summary.maxWindMph, 0)} mph</div>
                 ) : null}
                 {routeData.summary.dateKeys.length > 0 ? (
                   <div style={{ marginTop: 4, color: '#93c5fd' }}>

@@ -27,7 +27,6 @@ import {
   PenTool,
 } from 'lucide-react';
 import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../agnes21/utils/audioUtils';
-import { env } from '../src/config/env';
 import { getLiveClient } from '../services/geminiService';
 import SignRecognizer from './SignRecognizer';
 import HandwritingPad from './HandwritingPad';
@@ -1276,7 +1275,6 @@ const DeafCommunicationPanel: React.FC = () => {
           <HandwritingPad
             onSubmit={handleHandwritingSubmit}
             onClose={() => setShowHandwritingPad(false)}
-            apiKey={import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY}
           />
         )}
       </div>
