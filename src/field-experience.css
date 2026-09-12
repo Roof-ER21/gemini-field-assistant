@@ -1,0 +1,442 @@
+/* Field surfaces: shared tokens, deliberately scoped to avoid a global repaint. */
+:root {
+  --field-radius: 2px;
+  --text-on-brand: #fff;
+}
+
+.roof-er-main-panel:has(.field-home) {
+  background-image: none;
+}
+
+.roof-er-sidebar .roof-er-nav-category-header {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+}
+
+.roof-er-sidebar .roof-er-nav-item {
+  width: calc(100% - 1.5rem);
+  text-align: left;
+  font: inherit;
+  border-radius: var(--field-radius);
+}
+
+.roof-er-sidebar .roof-er-nav-item-desc {
+  color: var(--text-secondary);
+}
+
+.roof-er-sidebar .roof-er-nav-item.active,
+.roof-er-sidebar .roof-er-sidebar-icon-btn.active {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.roof-er-sidebar button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+}
+
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item,
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item.active {
+  color: var(--text-primary) !important;
+  background: var(--bg-card) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item:hover,
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item.active {
+  background: var(--bg-hover) !important;
+}
+
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item.active .roof-er-nav-item-title,
+[data-theme='light'] .roof-er-sidebar .roof-er-nav-item.active .roof-er-nav-item-desc {
+  color: var(--text-primary) !important;
+}
+
+.field-susan-welcome {
+  max-width: 720px;
+  margin: auto;
+  padding: 32px 20px;
+  color: var(--text-primary);
+}
+
+.field-susan-welcome h1 {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.field-susan-welcome p {
+  margin: 16px 0 24px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.field-susan-welcome small {
+  display: block;
+  margin-top: 24px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.field-susan-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.field-susan-starters button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+.field-home {
+  --field-muted: var(--text-secondary);
+
+  padding: 24px;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
+  color: var(--text-primary);
+}
+
+.field-home h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.field-home h2 {
+  font-size: 1.125rem;
+  line-height: 1.4;
+  font-weight: 650;
+  margin: 0;
+}
+
+.field-home p {
+  line-height: 1.55;
+  margin: 0;
+}
+
+.field-home-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.field-home-head p {
+  color: var(--field-muted);
+  margin-top: 8px;
+  font-size: 0.9375rem;
+}
+
+.field-weather {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--field-muted);
+  flex-shrink: 0;
+  font-size: 0.9375rem;
+}
+
+.field-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.field-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 18px;
+  min-height: 48px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--field-radius);
+  color: var(--text-primary);
+  background: var(--bg-card);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.field-action-primary {
+  background: var(--roof-red);
+  color: var(--text-on-brand);
+  border-color: var(--roof-red);
+}
+
+.field-action:hover {
+  background: var(--bg-hover);
+}
+
+.field-action-primary:hover {
+  background: var(--roof-red-dark);
+}
+
+.field-home button:focus-visible,
+.field-mobile-nav button:focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+.field-home button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 28px;
+}
+
+.field-section {
+  margin-bottom: 28px;
+}
+
+.field-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.field-panel {
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--field-radius);
+}
+
+.field-panel > p {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+
+.field-panel small {
+  display: block;
+  color: var(--field-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.field-panel + .field-panel {
+  margin-top: 12px;
+}
+
+.field-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.field-tool-list {
+  border-top: 1px solid var(--border-default);
+}
+
+.field-tool {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.field-tool:hover {
+  background: var(--bg-hover);
+}
+
+.field-tool > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-tool strong,
+.field-tool small {
+  display: block;
+}
+
+.field-tool small {
+  color: var(--field-muted);
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+.field-note {
+  color: var(--field-muted);
+  font-size: 0.9375rem;
+}
+
+.field-storm {
+  width: 100%;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+}
+
+.field-mobile-nav {
+  display: none;
+}
+
+.field-menu-close {
+  display: none;
+}
+
+.field-menu-close:focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+.field-connection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.field-connection-empty {
+  height: 0;
+  overflow: hidden;
+}
+
+.field-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -100px;
+  z-index: 100;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 12px 16px;
+}
+
+.field-skip-link:focus {
+  top: 12px;
+}
+
+@media (width <= 768px) {
+  .field-home {
+    padding: 20px 16px;
+  }
+
+  .field-home h1 {
+    font-size: 1.5rem;
+  }
+
+  .field-home-head {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .field-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .field-primary-actions .field-action {
+    flex: 1 1 140px;
+    padding-inline: 12px;
+  }
+
+  .field-panel {
+    padding: 16px;
+  }
+
+  .field-mobile-nav {
+    display: flex;
+    position: relative;
+    z-index: var(--z-header);
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-default);
+    padding: 4px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .field-mobile-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 44px;
+    min-height: 56px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .field-mobile-nav button[aria-current],
+  .field-mobile-nav .is-selected {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+    font-weight: 700;
+    border-radius: var(--field-radius);
+  }
+
+  .field-menu-close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .roof-er-mobile-overlay {
+    z-index: var(--z-modal);
+  }
+
+  .roof-er-sidebar-wrapper {
+    visibility: hidden;
+  }
+
+  .roof-er-sidebar-wrapper.mobile-open {
+    visibility: visible;
+    z-index: calc(var(--z-modal) + 1);
+  }
+}

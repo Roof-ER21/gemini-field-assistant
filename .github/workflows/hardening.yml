@@ -11,6 +11,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:hardening
+      - run: npm run test:field-ui
+      - run: npm run lint:field-ui
+      - run: npm run format:field-ui
+      - run: npm run typecheck:field-ui
       - run: npm run test:auth
       - run: npm run test:client-secrets
       - run: npm run server:build

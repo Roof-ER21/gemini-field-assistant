@@ -310,6 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className={`roof-er-sidebar-icon-btn ${isActive ? 'active' : ''}`}
                     title={`${item.label} — ${item.desc}`}
                     aria-label={item.label}
+                    aria-current={isActive ? 'page' : undefined}
                   >
                     <span className="roof-er-sidebar-icon-btn-inner">
                       <Icon className="w-5 h-5" />
@@ -335,7 +336,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             return (
               <div key={category.id} style={{ marginBottom: '0.5rem' }}>
                 {/* Category Header */}
-                <div
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-controls={`field-category-${category.id}`}
                   onClick={() => toggleCategory(category.id)}
                   className="roof-er-nav-category-header"
                   style={{
@@ -351,14 +355,16 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 >
                   <ChevronIcon className="w-4 h-4" style={{ marginRight: '0.5rem', opacity: 0.7 }} />
-                  <CategoryIcon className="w-4 h-4" style={{ marginRight: '0.5rem', opacity: 0.7 }} />
+                  <CategoryIcon className="w-4 h-4 mr-2 opacity-70" />
                   <span style={{ fontSize: '0.8rem', fontWeight: '600', opacity: 0.8 }}>
                     {category.label}
                   </span>
-                </div>
+                </button>
 
                 {/* Category Items */}
                 <div
+                  id={`field-category-${category.id}`}
+                  hidden={!isExpanded}
                   style={{
                     maxHeight: isExpanded ? '1000px' : '0',
                     overflow: 'hidden',
@@ -372,7 +378,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     const badge = item.badge;
 
                     return (
-                      <div
+                      <button
+                        type="button"
+                        aria-current={isActive ? 'page' : undefined}
                         key={item.id}
                         onClick={() => setActivePanel(item.id as PanelType)}
                         className={`roof-er-nav-item ${isActive ? 'active' : ''}`}
@@ -409,7 +417,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <div className="roof-er-nav-item-title">{item.label}</div>
                           <div className="roof-er-nav-item-desc">{item.desc}</div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

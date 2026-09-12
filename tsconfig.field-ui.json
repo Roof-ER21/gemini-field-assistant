@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "components/HomePageRedesigned.tsx",
+    "components/MobileFieldNav.tsx",
+    "components/FieldSusanWelcome.tsx",
+    "components/ConnectionStatus.tsx",
+    "test/field-ui/**/*.test.tsx"
+  ],
+  "exclude": ["node_modules", "dist", "dist-server"]
+}
