@@ -25,3 +25,9 @@ it('passes clean artifacts and fails closed for an empty artifact directory', ()
   expect(scan('export const publicValue = true;').status).toBe(0);
   expect(scan().status).not.toBe(0);
 });
+it('recognizes current Together key prefixes without environment assistance', () => {
+  const fake = 'tgp_v1_' + 'x'.repeat(40);
+  const result = scan(`const fixture = '${fake}';`);
+  expect(result.status).toBe(1);
+  expect(result.stdout + result.stderr).not.toContain(fake);
+});
