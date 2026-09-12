@@ -505,6 +505,7 @@ async function getUserMemoryValue(userId, category) {
         return null;
     }
 }
+import { groqRequestOptions } from './services/groqModel.js';
 async function callGroq(messages) {
     const apiKey = groqKey;
     if (!apiKey)
@@ -516,7 +517,7 @@ async function callGroq(messages) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+            ...groqRequestOptions(),
             messages,
             temperature: 0.2,
             max_tokens: 2048
@@ -677,7 +678,7 @@ app.post('/api/ai/generate', async (req, res) => {
             try {
                 content = await callGroq(formattedMessages);
                 provider = 'groq';
-                model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+                model = groqRequestOptions().model;
             }
             catch (groqError) {
                 console.warn('[AI] Groq failed, trying next provider:', groqError.message);

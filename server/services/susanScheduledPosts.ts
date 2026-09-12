@@ -186,6 +186,8 @@ async function tryGemini(prompt: string): Promise<string | null> {
   }
 }
 
+import { groqRequestOptions } from './groqModel.js';
+
 async function tryGroq(prompt: string): Promise<string | null> {
   const key = process.env.GROQ_API_KEY;
   if (!key) return null;
@@ -194,7 +196,7 @@ async function tryGroq(prompt: string): Promise<string | null> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        ...groqRequestOptions(),
         messages: [
           { role: 'system', content: 'You are Susan 21, writing short GroupMe chat posts for The Roof Docs sales team.' },
           { role: 'user', content: prompt },

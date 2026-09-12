@@ -165,6 +165,8 @@ User: "yes susan"
 User: "what about him"
 {"intent":"FOLLOWUP","confidence":0.9}`;
 
+import { groqRequestOptions } from './groqModel.js';
+
 export async function classifyIntent(
   text: string,
   historySnippet: string | null,
@@ -179,7 +181,7 @@ export async function classifyIntent(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        ...groqRequestOptions(),
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userContent },

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.argv[2] || 'dist';
-const patterns = [/AIza[0-9A-Za-z_-]{35,}/, /gsk_[0-9A-Za-z]{40,}/, /hf_[0-9A-Za-z]{30,}/, /sk-(?:proj-)?[0-9A-Za-z_-]{32,}/, /sa21-secret-sentinel-/];
+const patterns = [/AIza[0-9A-Za-z_-]{35,}/, /gsk_[0-9A-Za-z]{40,}/, /tgp_[0-9A-Za-z_-]{30,}/, /hf_[0-9A-Za-z]{30,}/, /sk-(?:proj-)?[0-9A-Za-z_-]{32,}/, /sa21-secret-sentinel-/];
 // Some providers do not use a recognizable prefix. Compare configured values in
 // memory too; report file paths only, never the value or matching source line.
 const configuredSecrets = ['GOOGLE_AI_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY',
