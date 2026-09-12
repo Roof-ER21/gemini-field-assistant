@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "lint:field-ui": "eslint components/HomePageRedesigned.tsx components/MobileFieldNav.tsx components/FieldSusanWelcome.tsx components/ConnectionStatus.tsx --max-warnings 0 && stylelint src/field-experience.css",
-    "format:field-ui": "prettier --check components/HomePageRedesigned.tsx components/MobileFieldNav.tsx components/FieldSusanWelcome.tsx components/ConnectionStatus.tsx src/field-experience.css test/field-ui vitest.config.field-ui.ts eslint.config.mjs stylelint.config.mjs tsconfig.field-ui.json",
+    "lint:field-ui": "eslint components/HomePageRedesigned.tsx components/MobileFieldNav.tsx components/FieldSusanWelcome.tsx components/ConnectionStatus.tsx --max-warnings 0 && stylelint src/field-experience.css src/rep-workflows.css",
+    "format:field-ui": "prettier --check components/HomePageRedesigned.tsx components/MobileFieldNav.tsx components/FieldSusanWelcome.tsx components/ConnectionStatus.tsx src/field-experience.css src/rep-workflows.css test/field-ui vitest.config.field-ui.ts eslint.config.mjs stylelint.config.mjs tsconfig.field-ui.json",
     "typecheck:field-ui": "tsc -p tsconfig.field-ui.json",
     "test:field-ui": "vitest run --config vitest.config.field-ui.ts",
     "test:hardening": "vitest run --config vitest.config.hardening.ts",

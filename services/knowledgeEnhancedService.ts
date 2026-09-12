@@ -18,6 +18,7 @@ interface DocumentBookmark {
 }
 
 interface SearchOptions {
+  documents?: Document[];
   searchInContent?: boolean;
   category?: string;
   limit?: number;
@@ -45,7 +46,7 @@ export class EnhancedKnowledgeService {
       return [];
     }
 
-    const allDocs = await knowledgeService.getDocumentIndex();
+    const allDocs = options.documents ?? await knowledgeService.getDocumentIndex();
     const searchQuery = query.toLowerCase();
     const results: SearchResult[] = [];
 
@@ -84,7 +85,7 @@ export class EnhancedKnowledgeService {
             relevance += 3;
 
             // Count occurrences for better ranking
-            const occurrences = (contentLower.match(new RegExp(searchQuery, 'g')) || []).length;
+            const occurrences = contentLower.split(searchQuery).length - 1;
             relevance += Math.min(occurrences, 5);
           }
         } catch (error) {

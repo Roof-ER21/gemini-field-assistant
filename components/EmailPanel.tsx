@@ -20,6 +20,7 @@ import {
   ComplianceViolation
 } from '../services/emailComplianceService';
 import Spinner from './Spinner';
+import '../src/rep-workflows.css';
 
 type EmailTemplate = {
   name: string;
@@ -172,6 +173,7 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
 
   // Generation & Preview State
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedEmail, setGeneratedEmail] = useState<string>('');
   const [whyItWorks, setWhyItWorks] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -211,9 +213,16 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
   const [susanContext, setSusanContext] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+    setTemplateContent('');
     if (selectedTemplate) {
-      loadTemplate(selectedTemplate);
+      knowledgeService.loadDocument(selectedTemplate).then(content => {
+        if (!cancelled) setTemplateContent(content.content);
+      }).catch(error => {
+        console.error('Failed to load template:', error);
+      });
     }
+    return () => { cancelled = true; };
   }, [selectedTemplate]);
 
   useEffect(() => {
@@ -239,6 +248,7 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
       setCustomInstructions(emailContext.context);
       if (emailContext.template) {
         setGeneratedEmail(emailContext.template);
+        setEditableEmailBody(emailContext.template);
       }
       onContextUsed?.();
     }
@@ -286,16 +296,6 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     }
   };
 
-  const loadTemplate = async (templatePath: string) => {
-    try {
-      const content = await knowledgeService.loadDocument(templatePath);
-      setTemplateContent(content.content);
-    } catch (error) {
-      console.error('Failed to load template:', error);
-      setTemplateContent('');
-    }
-  };
-
   const loadSavedEmails = () => {
     try {
       const emailsStr = localStorage.getItem('saved_emails') || '[]';
@@ -318,15 +318,21 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
 
     const updated = [newEmail, ...savedEmails];
     setSavedEmails(updated);
-    localStorage.setItem('saved_emails', JSON.stringify(updated));
+    try {
+      localStorage.setItem('saved_emails', JSON.stringify(updated));
+    } catch {
+      toast.warning('Draft not saved on this device', 'Your email is still available. Copy or download it before leaving.');
+    }
 
     // Also log to database service
-    databaseService.logEmailGeneration({
+    void databaseService.logEmailGeneration({
       recipient: email.recipient,
       subject: email.subject,
       body: email.body,
       state: email.state,
       emailType: email.template,
+    }).catch(() => {
+      toast.warning('Email activity was not synced', 'Your draft is still available here.');
     });
   };
 
@@ -340,24 +346,25 @@ const EmailPanel: React.FC<EmailPanelProps> = ({ emailContext, onContextUsed }) 
     setRecipientName(email.recipient);
     setSubject(email.subject);
     setGeneratedEmail(email.body);
+    setEditableEmailBody(email.body);
+    setIsEditingEmail(false);
+    setWhyItWorks('');
+    setGenerationError(null);
+    setComplianceResult(checkEmailCompliance(email.body));
     setSelectedState(email.state);
     setSelectedTone(email.tone);
-    if (email.template) {
-      setSelectedTemplate(email.template);
-    }
-    if (email.variables) {
-      setTemplateVars(email.variables);
-    }
+    setSelectedTemplate(email.template || '');
+    setTemplateVars(email.variables || {});
     setActiveTab('compose');
     setSelectedHistoryEmail(null);
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recipientName || !subject) return;
+    if (!recipientName.trim() || !subject.trim() || isGenerating) return;
 
     setIsGenerating(true);
-    setGeneratedEmail('');
+    setGenerationError(null);
     setWhyItWorks('');
 
     try {
@@ -503,8 +510,21 @@ If no state-specific rule applies, keep guidance valid across VA/MD/PA and do no
       `.trim();
 
       const response = await generateEmail(recipientName, subject, keyPoints, susanContext);
+      if (!response?.trim()) throw new Error('Empty email response');
       setGeneratedEmail(response);
       setEditableEmailBody(response);
+      setIsEditingEmail(false);
+
+      // Save the useful result before requesting optional supporting copy.
+      saveEmail({
+        recipient: recipientName,
+        subject,
+        body: response,
+        template: selectedTemplate,
+        state: selectedState,
+        tone: selectedTone,
+        variables: templateVars,
+      });
 
       // Run compliance check on generated email
       const compliance = checkEmailCompliance(response);
@@ -534,23 +554,17 @@ Provide a concise 3-4 sentence explanation of WHY this email approach works from
 Keep it practical and actionable. Use confident language.
       `.trim();
 
-      const whyResponse = await generateEmail('', 'Why It Works', whyItWorksPrompt, susanContext);
-      setWhyItWorks(whyResponse);
-
-      // Save email to history
-      saveEmail({
-        recipient: recipientName,
-        subject,
-        body: response,
-        template: selectedTemplate,
-        state: selectedState,
-        tone: selectedTone,
-        variables: templateVars,
-      });
+      try {
+        const whyResponse = await generateEmail('', 'Why It Works', whyItWorksPrompt, susanContext);
+        setWhyItWorks(whyResponse);
+      } catch {
+        // Optional explanation failure must never replace or lose the draft.
+        setWhyItWorks('The explanation is unavailable. Your email draft is ready to review.');
+      }
 
     } catch (error) {
       console.error('Failed to generate email:', error);
-      setGeneratedEmail('Failed to generate email. Please try again.');
+      setGenerationError('Could not generate a new email. Your inputs and any previous draft are unchanged. Try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -570,7 +584,7 @@ Keep it practical and actionable. Use confident language.
         lengthen: 'Expand this email with more detail and supporting information while maintaining professional quality:',
       };
 
-      const enhancePrompt = `${prompts[type]}\n\n${generatedEmail}\n\nReturn ONLY the improved email, no explanations.`;
+      const enhancePrompt = `${prompts[type]}\n\n${isEditingEmail ? editableEmailBody : generatedEmail}\n\nReturn ONLY the improved email, no explanations.`;
       const enhanced = await generateEmail('', 'Enhanced Email', enhancePrompt, susanContext);
       setGeneratedEmail(enhanced);
       setEditableEmailBody(enhanced);
@@ -781,6 +795,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
 
   const handleSendViaEmail = () => {
     const emailText = isEditingEmail ? editableEmailBody : generatedEmail;
+    if (!emailText.trim() || !checkEmailCompliance(emailText).canSend) return;
     const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailText)}`;
     window.location.href = mailtoLink;
   };
@@ -802,7 +817,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
   });
 
   return (
-    <div className="roof-er-content-area">
+    <div className="roof-er-content-area rep-email-panel">
       <div className="roof-er-content-scroll">
         <div className="roof-er-page-title">
           <Mail className="w-6 h-6 inline mr-2" style={{ color: 'var(--roof-red)' }} />
@@ -863,10 +878,11 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
 
         {/* COMPOSE TAB */}
         {activeTab === 'compose' && (
-          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'grid', gridTemplateColumns: generatedEmail ? '1fr 1fr' : '1fr', gap: '24px', alignItems: 'start' }}>
+          <div className={`rep-email-layout${generatedEmail ? ' rep-email-layout-with-draft' : ''}`}>
             {/* Form Section */}
             <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
               <form onSubmit={handleGenerate}>
+                {generationError && <p role="alert">{generationError}</p>}
                 {/* Category Filter Pills */}
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{
@@ -1114,6 +1130,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                     className="roof-er-input-field"
                     type="text"
                     placeholder="Mr. Johnson"
+                    aria-label="Recipient name"
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
                     style={{ width: '100%' }}
@@ -1135,6 +1152,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   <input
                     className="roof-er-input-field"
                     placeholder="Re: Storm Damage Claim #12345"
+                    aria-label="Subject line"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     style={{ width: '100%' }}
@@ -1172,6 +1190,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                             className="roof-er-input-field"
                             type="text"
                             placeholder={variable.placeholder}
+                            aria-label={variable.label}
                             value={templateVars[variable.key] || ''}
                             onChange={(e) => setTemplateVars({ ...templateVars, [variable.key]: e.target.value })}
                             style={{ width: '100%', padding: '8px 12px', fontSize: '13px' }}
@@ -1195,6 +1214,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   </label>
                   <textarea
                     className="roof-er-input-field"
+                    aria-label="Additional details"
                     placeholder="Add any special instructions, damage details, or specific points you want to address..."
                     value={customInstructions}
                     onChange={(e) => setCustomInstructions(e.target.value)}
@@ -1206,7 +1226,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                 {/* Generate Button */}
                 <button
                   type="submit"
-                  className="roof-er-send-btn"
+                  className="roof-er-send-btn rep-email-generate"
                   style={{
                     width: '100%',
                     height: '52px',
@@ -1262,7 +1282,10 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                     </h3>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
-                        onClick={() => setIsEditingEmail(!isEditingEmail)}
+                        onClick={() => {
+                          if (isEditingEmail) setGeneratedEmail(editableEmailBody);
+                          setIsEditingEmail(!isEditingEmail);
+                        }}
                         style={{
                           padding: '8px 12px',
                           background: isEditingEmail ? 'var(--roof-red)' : 'var(--bg-tertiary)',
@@ -1405,7 +1428,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               {!complianceResult.canSend ? 'BLOCKED - Fix Before Sending' :
                                complianceResult.warnings.length > 0 ? 'Warning - Review Carefully' :
                                complianceResult.cautions.length > 0 ? 'Caution - Minor Issues' :
-                               'Compliant - Safe to Send'}
+                               'Language check passed'}
                             </div>
                             <div style={{
                               fontSize: '13px',
@@ -1413,7 +1436,9 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                                      complianceResult.warnings.length > 0 ? '#b45309' :
                                      complianceResult.cautions.length > 0 ? '#4b5563' : '#047857'
                             }}>
-                              {complianceResult.summary}
+                              {complianceResult.canSend && !complianceResult.warnings.length && !complianceResult.cautions.length
+                                ? 'No flagged phrases found. Review the facts and applicable requirements before sending.'
+                                : complianceResult.summary}
                             </div>
                           </div>
                         </div>
@@ -1448,7 +1473,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                               background: 'rgba(255,255,255,0.5)',
                               border: '1px solid var(--border-default)',
                               borderRadius: 'var(--radius-md)',
-                              color: 'var(--text-primary)',
+                              color: '#1f2937',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
@@ -1609,6 +1634,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                     }}>
                       {isEditingEmail ? (
                         <textarea
+                          aria-label="Email draft"
                           value={editableEmailBody}
                           onChange={(e) => setEditableEmailBody(e.target.value)}
                           style={{
@@ -1752,6 +1778,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   </div>
 
                   {/* Send Button */}
+                  <p className="rep-email-review-note">Review the recipient, facts, and any attachments in your email app before sending. SA21 opens a draft; it does not send it.</p>
                   <button
                     onClick={handleSendViaEmail}
                     disabled={complianceResult && !complianceResult.canSend}
