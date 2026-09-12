@@ -230,16 +230,14 @@ export function checkBrowserSupport(): {
  * when the on-device model returns low confidence.
  *
  * @param frameBase64 - JPEG frame as base64 string
- * @param apiKey - Gemini API key
  * @returns Recognized sign or null
  */
 export async function geminiSignFallback(
   frameBase64: string,
-  apiKey: string,
 ): Promise<SignRecognitionResult | null> {
   try {
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const { createGeminiProxyClient } = await import('./geminiProxyClient');
+    const ai = createGeminiProxyClient();
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

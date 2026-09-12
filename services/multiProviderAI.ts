@@ -95,7 +95,7 @@ export class MultiProviderAI {
   }): Promise<AIResponse> {
     // In production (Capacitor/Railway), use backend API for AI generation
     // This keeps API keys secure on the server
-    if (this.isProductionMode()) {
+    if (typeof window !== 'undefined' || this.isProductionMode()) {
       return await this.generateViaBackend(messages, options);
     }
 
@@ -440,7 +440,7 @@ export class MultiProviderAI {
    */
   async getAvailableProviders(): Promise<AIProvider[]> {
     // In production, get provider status from backend
-    if (this.isProductionMode()) {
+    if (typeof window !== 'undefined' || this.isProductionMode()) {
       try {
         const response = await fetch(`${getApiBaseUrl()}/providers/status`);
         if (response.ok) {

@@ -38,15 +38,16 @@ export default defineConfig(({ mode }) => {
         ]
       },
       plugins: [react()],
+      // Explicit public allowlist: VITE_* provider secrets must never enter import.meta.env.
+      envPrefix: ['VITE_APP_', 'VITE_PUBLIC_'],
       define: {
-        // Expose provider keys via process.env for src/config/env.ts
-        // Prefer CI/Railway environment over file-based env
-        'process.env.GEMINI_API_KEY': JSON.stringify(get('VITE_GEMINI_API_KEY') || get('GEMINI_API_KEY')),
-        'process.env.GROQ_API_KEY': JSON.stringify(get('VITE_GROQ_API_KEY') || get('GROQ_API_KEY')),
-        'process.env.TOGETHER_API_KEY': JSON.stringify(get('VITE_TOGETHER_API_KEY') || get('TOGETHER_API_KEY')),
-        'process.env.HUGGINGFACE_API_KEY': JSON.stringify(get('VITE_HF_API_KEY') || get('HUGGINGFACE_API_KEY') || get('HF_API_KEY')),
-        'process.env.HF_API_KEY': JSON.stringify(get('VITE_HF_API_KEY') || get('HUGGINGFACE_API_KEY') || get('HF_API_KEY')),
-        'process.env.OPENAI_API_KEY': JSON.stringify(get('VITE_OPENAI_API_KEY') || get('OPENAI_API_KEY')),
+        // Preserve existing non-secret browser settings with exact names.
+        ...Object.fromEntries([
+          'API_URL', 'TTS_API_URL', 'MAPBOX_TOKEN', 'ADMIN_EMAIL',
+          'ACTIVITY_LOGGING_ENABLED', 'EMAIL_NOTIFICATIONS_ENABLED',
+          'GEMINI_MODEL', 'GROQ_MODEL', 'HF_MODEL', 'OLLAMA_MODEL', 'TOGETHER_MODEL',
+          'RAG_ENABLED', 'RAG_TOP_K', 'TRANSCRIPTION_MAX_DURATION', 'TRANSCRIPTION_WARNING_THRESHOLD',
+        ].map(key => [`import.meta.env.VITE_${key}`, JSON.stringify(get(`VITE_${key}`))])),
         'process.env.RAILWAY_ENVIRONMENT': JSON.stringify(get('RAILWAY_ENVIRONMENT') || process.env.NODE_ENV || 'production'),
       },
       resolve: {
@@ -74,4 +75,3 @@ export default defineConfig(({ mode }) => {
       }
     };
 });
-// Force rebuild with VITE environment variables

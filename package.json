@@ -4,8 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:hardening": "vitest run --config vitest.config.hardening.ts",
+    "test:client-secrets": "node scripts/test-client-secrets.mjs",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "dev": "vite",
-    "build": "vite build && npm run server:build",
+    "build": "vite build && npm run check:client-secrets && npm run server:build",
     "start": "node dist-server/index.js",
     "start:worker": "node --max-old-space-size=1024 dist-server/worker.js",
     "preview": "vite preview",

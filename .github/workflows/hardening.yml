@@ -1,0 +1,16 @@
+name: Field app hardening
+on: [push, pull_request]
+jobs:
+  hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:hardening
+      - run: npm run test:auth
+      - run: npm run test:client-secrets
+      - run: npm run server:build

@@ -3,8 +3,7 @@
  * Uses Gemini Vision API to analyze roof damage photos
  */
 
-import { env } from '../src/config/env.js';
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiProxyClient } from './geminiProxyClient';
 
 export interface DamageAssessment {
   id: string;
@@ -46,16 +45,12 @@ export async function analyzeRoofImage(
   imageFile: File,
   context?: string
 ): Promise<DamageAssessment> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-    throw new Error('Gemini API key not configured');
-  }
 
   // Convert image to base64
   const imageData = await fileToBase64(imageFile);
 
   // Initialize Gemini AI
-  const genAI = new GoogleGenAI({ apiKey });
+  const genAI = createGeminiProxyClient();
 
   const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. Your role is to analyze roof damage photos and provide INSURANCE-FOCUSED guidance - NOT retail sales talk.
@@ -199,10 +194,6 @@ export async function answerFollowUpQuestion(
   answer: string,
   context?: string
 ): Promise<DamageAssessment> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-    throw new Error('Gemini API key not configured');
-  }
 
   const question = assessment.followUpQuestions[questionIndex];
   const conversationHistory = assessment.conversationHistory || [];
@@ -213,7 +204,7 @@ export async function answerFollowUpQuestion(
     .join('\n\n');
 
   // Initialize Gemini AI
-  const genAI = new GoogleGenAI({ apiKey });
+  const genAI = createGeminiProxyClient();
 
   const contextBlock = context ? `\n${context}\n` : '';
   const prompt = `You are Susan, an insurance claims specialist for Roof-ER. You previously analyzed a roof damage photo and asked follow-up questions.

@@ -4,8 +4,8 @@
  * Extracts action items, objections, and key points from sales conversations
  */
 
-import { env } from '../src/config/env';
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiProxyClient } from './geminiProxyClient';
 
 export interface TranscriptionSegment {
   timestamp: number;
@@ -172,10 +172,6 @@ export async function transcribeAudio(
   meetingType: 'initial' | 'inspection' | 'followup' | 'closing' | 'other' = 'other',
   context?: string
 ): Promise<MeetingTranscript> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
-    throw new Error('Gemini API key not configured');
-  }
 
   // Convert blob to base64
   const base64Audio = await blobToBase64(audioBlob);
@@ -183,7 +179,7 @@ export async function transcribeAudio(
   // Initialize Gemini AI with error handling
   let genAI: GoogleGenAI;
   try {
-    genAI = new GoogleGenAI({ apiKey });
+    genAI = createGeminiProxyClient();
   } catch (error) {
     console.error('Failed to initialize GoogleGenAI:', error);
     throw new Error('Failed to initialize Gemini AI. Please check your API key and try again.');

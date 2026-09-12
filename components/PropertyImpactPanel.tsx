@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 /**
  * PropertyImpactPanel — "Which of my homes got hit?"
  *
@@ -331,7 +332,7 @@ function SummaryRow({
       <span style={styles.summaryLabel}>
         of <strong>{total}</strong> homes hit
       </span>
-      <span style={styles.summaryPeak}>peak {stormMax.toFixed(2)}"</span>
+      <span style={styles.summaryPeak}>peak {formatNumber(stormMax, 2)}"</span>
     </div>
   );
 }

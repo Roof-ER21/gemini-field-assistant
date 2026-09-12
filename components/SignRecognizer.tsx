@@ -22,7 +22,6 @@ import {
   type HeadGestureResult,
   type SignRecognitionResult,
 } from '../services/signLanguageService';
-import { env } from '../src/config/env';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -219,14 +218,13 @@ const SignRecognizer: React.FC<SignRecognizerProps> = ({
           drawHandLandmarks(handResult.landmarks);
 
           // Gemini fallback: every 3 seconds, if hands are visible, try Gemini
-          const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-          if (apiKey && timestamp - geminiCooldownRef.current > 3000) {
+          if (timestamp - geminiCooldownRef.current > 3000) {
             geminiCooldownRef.current = timestamp;
 
             const frame = captureFrameAsBase64(video, 0.6);
             if (frame) {
               // Fire and forget — don't block the frame loop
-              geminiSignFallback(frame, apiKey).then(result => {
+              geminiSignFallback(frame).then(result => {
                 if (result && result.confidence > 0.7) {
                   setLastDetected(result.sign);
                   onSignDetected(result);

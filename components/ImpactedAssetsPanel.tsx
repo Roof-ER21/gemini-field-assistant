@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/formatNumber';
 /**
  * ImpactedAssetsPanel - Monitor customer properties for storm impacts
  * Proactive outreach when storms affect tracked properties
@@ -366,7 +367,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                 {stats.conversions}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                {stats.conversionRate.toFixed(1)}% conversion rate
+                {formatNumber(stats.conversionRate, 1)}% conversion rate
               </div>
             </div>
 
@@ -489,7 +490,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                           {alert.alertType.toUpperCase()} - {alert.alertSeverity.toUpperCase()}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                          {formatDate(alert.stormDate)} • {alert.stormDistanceMiles.toFixed(1)} miles away
+                          {formatDate(alert.stormDate)} • {formatNumber(alert.stormDistanceMiles, 1)} miles away
                         </div>
                       </div>
                     </div>
@@ -545,7 +546,7 @@ const ImpactedAssetsPanel: React.FC = () => {
                             {alert.alertType.toUpperCase()} Alert
                           </div>
                           <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                            {formatDate(alert.stormDate)} • Verified report {alert.stormDistanceMiles.toFixed(1)} mi from property
+                            {formatDate(alert.stormDate)} • Verified report {formatNumber(alert.stormDistanceMiles, 1)} mi from property
                           </div>
                         </div>
                       </div>

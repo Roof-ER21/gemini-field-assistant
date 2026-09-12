@@ -6,9 +6,9 @@
  */
 
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
+import { getLiveClient } from '../../services/geminiService';
 import { base64ToUint8Array, decodeAudioData } from './audioUtils';
 import { SupportedLanguage, SupportedDialect, SUPPORTED_LANGUAGES, DIALECT_VARIANTS, getDialectConfig } from '../types';
-import { env } from '../../src/config/env';
 
 // ============================================
 // Gemini Live TTS for English
@@ -29,14 +29,6 @@ class GeminiEnglishTTS {
     if (this.isInitialized) return true;
 
     try {
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.warn('Gemini API key not found');
-        return false;
-      }
-
-      this.aiClient = new GoogleGenAI({ apiKey });
-
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       this.audioContext = new AudioContextClass({ sampleRate: 24000 });
 
@@ -50,12 +42,13 @@ class GeminiEnglishTTS {
   }
 
   private async connect(): Promise<boolean> {
-    if (!this.aiClient) return false;
+    if (!this.isInitialized) return false;
     if (this.session) return true;
 
     try {
       console.log('🔌 Connecting to Gemini Live for English TTS...');
 
+      this.aiClient = await getLiveClient();
       const sessionPromise = this.aiClient.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
@@ -373,14 +366,6 @@ class GeminiMultiLanguageTTS {
     if (this.isInitialized) return true;
 
     try {
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.warn('Gemini API key not found');
-        return false;
-      }
-
-      this.aiClient = new GoogleGenAI({ apiKey });
-
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       this.audioContext = new AudioContextClass({ sampleRate: 24000 });
 
@@ -429,7 +414,7 @@ Speak naturally with warm, professional intonation appropriate for ${langName}.`
    * Get or create a session for a specific language
    */
   private async getSession(langCode: string): Promise<any> {
-    if (!this.aiClient) return null;
+    if (!this.isInitialized) return null;
 
     // Check for existing session
     if (this.sessions.has(langCode)) {
@@ -442,6 +427,7 @@ Speak naturally with warm, professional intonation appropriate for ${langName}.`
 
       console.log(`🔌 Connecting Gemini TTS for ${langCode} (${geminiLangCode}, voice: ${voiceName})...`);
 
+      this.aiClient = await getLiveClient();
       const session = await this.aiClient.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
@@ -1106,16 +1092,8 @@ export const speakWithDemoVoice = async (
     demoAudioQueue = [];
     demoResolveCallback = null;
 
-    // Initialize client if needed
-    if (!demoAiClient) {
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.warn('Gemini API key not found for demo voice');
-        onError?.('API key not found');
-        return false;
-      }
-      demoAiClient = new GoogleGenAI({ apiKey });
-    }
+    // Mint for each new connection; never reuse an expired browser token.
+    demoAiClient = await getLiveClient();
 
     // Initialize audio context if needed
     if (!demoAudioContext) {
