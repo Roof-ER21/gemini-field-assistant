@@ -251,6 +251,7 @@ export const getSessionStats = (userId?: string): {
     [DifficultyLevel.BEGINNER]: sessions.filter(s => s.difficulty === DifficultyLevel.BEGINNER).length,
     [DifficultyLevel.ROOKIE]: sessions.filter(s => s.difficulty === DifficultyLevel.ROOKIE).length,
     [DifficultyLevel.PRO]: sessions.filter(s => s.difficulty === DifficultyLevel.PRO).length,
+    [DifficultyLevel.VETERAN]: sessions.filter(s => s.difficulty === DifficultyLevel.VETERAN).length,
     [DifficultyLevel.ELITE]: sessions.filter(s => s.difficulty === DifficultyLevel.ELITE).length,
     [DifficultyLevel.NIGHTMARE]: sessions.filter(s => s.difficulty === DifficultyLevel.NIGHTMARE).length,
   };
@@ -918,6 +919,7 @@ export const getManagerAnalytics = (startDate?: Date, endDate?: Date, userId?: s
       [DifficultyLevel.BEGINNER]: sessions.filter(s => s.difficulty === DifficultyLevel.BEGINNER).length,
       [DifficultyLevel.ROOKIE]: sessions.filter(s => s.difficulty === DifficultyLevel.ROOKIE).length,
       [DifficultyLevel.PRO]: sessions.filter(s => s.difficulty === DifficultyLevel.PRO).length,
+      [DifficultyLevel.VETERAN]: sessions.filter(s => s.difficulty === DifficultyLevel.VETERAN).length,
       [DifficultyLevel.ELITE]: sessions.filter(s => s.difficulty === DifficultyLevel.ELITE).length,
       [DifficultyLevel.NIGHTMARE]: sessions.filter(s => s.difficulty === DifficultyLevel.NIGHTMARE).length,
     };
@@ -926,6 +928,7 @@ export const getManagerAnalytics = (startDate?: Date, endDate?: Date, userId?: s
     const sessionsByMode = {
       [PitchMode.COACH]: sessions.filter(s => s.mode === PitchMode.COACH).length,
       [PitchMode.ROLEPLAY]: sessions.filter(s => s.mode === PitchMode.ROLEPLAY).length,
+      [PitchMode.JUST_LISTEN]: sessions.filter(s => s.mode === PitchMode.JUST_LISTEN).length,
     };
 
     // Scores by date (last 30 days)
@@ -969,6 +972,11 @@ export const getManagerAnalytics = (startDate?: Date, endDate?: Date, userId?: s
         total: sessionsByDifficulty[DifficultyLevel.ELITE],
         rate: 100
       },
+      [DifficultyLevel.VETERAN]: {
+        completed: sessionsByDifficulty[DifficultyLevel.VETERAN],
+        total: sessionsByDifficulty[DifficultyLevel.VETERAN],
+        rate: 100
+      },
       [DifficultyLevel.NIGHTMARE]: {
         completed: sessionsByDifficulty[DifficultyLevel.NIGHTMARE],
         total: sessionsByDifficulty[DifficultyLevel.NIGHTMARE],
@@ -1010,12 +1018,14 @@ export const getManagerAnalytics = (startDate?: Date, endDate?: Date, userId?: s
         [DifficultyLevel.BEGINNER]: 0,
         [DifficultyLevel.ROOKIE]: 0,
         [DifficultyLevel.PRO]: 0,
+        [DifficultyLevel.VETERAN]: 0,
         [DifficultyLevel.ELITE]: 0,
         [DifficultyLevel.NIGHTMARE]: 0
       },
       sessionsByMode: {
         [PitchMode.COACH]: 0,
-        [PitchMode.ROLEPLAY]: 0
+        [PitchMode.ROLEPLAY]: 0,
+        [PitchMode.JUST_LISTEN]: 0
       },
       scoresByDate: [],
       sessionsOverTime: [],
@@ -1026,6 +1036,7 @@ export const getManagerAnalytics = (startDate?: Date, endDate?: Date, userId?: s
         [DifficultyLevel.BEGINNER]: { completed: 0, total: 0, rate: 0 },
         [DifficultyLevel.ROOKIE]: { completed: 0, total: 0, rate: 0 },
         [DifficultyLevel.PRO]: { completed: 0, total: 0, rate: 0 },
+        [DifficultyLevel.VETERAN]: { completed: 0, total: 0, rate: 0 },
         [DifficultyLevel.ELITE]: { completed: 0, total: 0, rate: 0 },
         [DifficultyLevel.NIGHTMARE]: { completed: 0, total: 0, rate: 0 }
       },

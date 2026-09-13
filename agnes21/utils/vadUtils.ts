@@ -3,7 +3,7 @@
  * Provides accurate end-of-speech detection for Agnes-21
  */
 
-import { MicVAD, RealTimeVADOptions } from '@ricky0123/vad-web';
+import { MicVAD } from '@ricky0123/vad-web';
 
 export interface VADCallbacks {
   onSpeechStart?: () => void;
@@ -52,11 +52,14 @@ export const createVAD = async (
 
   try {
     vadInstance = await MicVAD.new({
+      // The legacy model processes 1536 samples at 16kHz: 96ms per frame.
+      // Keep our existing timing intent while using the installed SDK's ms API.
+      model: 'legacy',
       positiveSpeechThreshold: mergedConfig.positiveSpeechThreshold,
       negativeSpeechThreshold: mergedConfig.negativeSpeechThreshold,
-      redemptionFrames: mergedConfig.redemptionFrames,
-      minSpeechFrames: mergedConfig.minSpeechFrames,
-      preSpeechPadFrames: mergedConfig.preSpeechPadFrames,
+      redemptionMs: mergedConfig.redemptionFrames! * 96,
+      minSpeechMs: mergedConfig.minSpeechFrames! * 96,
+      preSpeechPadMs: mergedConfig.preSpeechPadFrames! * 96,
       onSpeechStart: () => {
         console.log('[VAD] Speech started');
         callbacks.onSpeechStart?.();

@@ -1502,9 +1502,10 @@ Generate ONLY the email body text, no subject line or metadata.`;
       }
     } catch (error) {
       console.error("Error sending message:", error);
+      setUserInput(originalQuery);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Sorry, I encountered an error: ${(error as Error).message}\n\nIf this persists, please contact support.`,
+        text: 'Susan could not finish this response. Your message is back in the composer so you can edit it or try again. No need to retype it.',
         sender: 'bot',
       };
       setMessages(prev => [...prev, errorMessage]);

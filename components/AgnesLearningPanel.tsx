@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Headphones, Play, Sparkles, Users, History, ChevronDown, ChevronUp, Calendar, Clock, Award, Target, Share2 } from 'lucide-react';
 import PitchTrainer from '../agnes21/components/PitchTrainer';
 import { PitchMode, DifficultyLevel, SessionConfig } from '../agnes21/types';
-import { getScriptsByDivision, getScriptById, PhoneScript } from '../agnes21/utils/phoneScripts';
+import { getScriptsByDivision, PhoneScript } from '../agnes21/utils/phoneScripts';
 import { AgnesAuthProvider, useAuth } from '../agnes21/contexts/AuthContext';
 import { getSessions, getSessionStats, SessionData } from '../agnes21/utils/sessionStorage';
 import { roofService } from '../services/roofService';
@@ -33,6 +33,7 @@ const AgnesLearningContent: React.FC = () => {
         return parsed.map(s => ({
           id: `admin_${s.id}`,
           title: s.name,
+          description: 'Admin-provided practice script',
           category: s.category as PhoneScript['category'],
           division: 'insurance' as const,
           content: s.content,
@@ -62,12 +63,14 @@ const AgnesLearningContent: React.FC = () => {
 
   // Find script by ID - check both built-in and admin scripts
   const selectedScript = useMemo(() => {
-    // First try built-in scripts
-    const builtIn = getScriptById(scriptId);
-    if (builtIn) return builtIn;
-    // Then check admin scripts
-    return adminScripts.find(s => s.id === scriptId) || null;
-  }, [scriptId, adminScripts]);
+    return scripts.find(s => s.id === scriptId) || null;
+  }, [scriptId, scripts]);
+
+  useEffect(() => {
+    if (!scripts.some(script => script.id === scriptId)) {
+      setScriptId(scripts[0]?.id || '');
+    }
+  }, [scripts, scriptId]);
 
   const scriptContent = useCustomScript ? customScript : (selectedScript?.content || '');
   const groupedScripts = useMemo(() => {
@@ -136,16 +139,6 @@ const AgnesLearningContent: React.FC = () => {
       return;
     }
 
-    // DEBUG: Log script values to trace the bug
-    console.log('=== AGNES SCRIPT DEBUG (AgnesLearningPanel) ===');
-    console.log('useCustomScript:', useCustomScript);
-    console.log('customScript length:', customScript.length);
-    console.log('scriptId:', scriptId);
-    console.log('selectedScript?.id:', selectedScript?.id);
-    console.log('selectedScript?.title:', selectedScript?.title);
-    console.log('scriptContent length:', scriptContent.length);
-    console.log('scriptContent preview:', scriptContent.substring(0, 100));
-
     const config: SessionConfig = {
       mode: activeTrackConfig.mode,
       difficulty,
@@ -153,10 +146,6 @@ const AgnesLearningContent: React.FC = () => {
       scriptId: useCustomScript ? undefined : selectedScript?.id,
       division
     };
-
-    console.log('config.script length:', config.script.length);
-    console.log('config.scriptId:', config.scriptId);
-    console.log('===========================================');
 
     setError(null);
     setActiveConfig(config);
@@ -391,7 +380,8 @@ Keep grinding! 🔥`;
 
             {!useCustomScript && (
               <select
-                value={scriptId}
+                aria-label="Practice script"
+                value={useCustomScript ? '__custom__' : scriptId}
                 onChange={(e) => handleScriptChange(e.target.value)}
                 style={{
                   width: '100%',
@@ -419,10 +409,11 @@ Keep grinding! 🔥`;
             )}
 
             <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-              Loaded {scripts.length} insurance scripts from Agnes 21.
+              Loaded {scripts.length} {division} scripts.
             </div>
 
             <textarea
+              aria-label="Script content"
               value={scriptContent}
               onChange={(e) => setCustomScript(e.target.value)}
               readOnly={!useCustomScript}

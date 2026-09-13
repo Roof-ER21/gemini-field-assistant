@@ -1,0 +1,60 @@
+.rep-email-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.rep-email-layout > * {
+  min-width: 0;
+}
+
+.rep-email-panel input,
+.rep-email-panel textarea {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.rep-email-review-note {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.rep-email-panel [role='alert'] {
+  padding: 12px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.rep-email-panel .rep-email-generate {
+  color: #fff !important;
+  background: var(--roof-red) !important;
+  flex-wrap: nowrap !important;
+  box-shadow: none;
+}
+
+.rep-email-generate svg {
+  flex-shrink: 0;
+}
+
+@media (width >= 960px) {
+  .rep-email-layout-with-draft {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (width <= 600px) {
+  .rep-email-panel input,
+  .rep-email-panel textarea {
+    font-size: 16px !important;
+  }
+
+  .rep-email-panel button {
+    min-height: 44px;
+  }
+}

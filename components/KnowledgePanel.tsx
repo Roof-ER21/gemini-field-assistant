@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { knowledgeService, Document } from '../services/knowledgeService';
 import { enhancedKnowledgeService } from '../services/knowledgeEnhancedService';
 import { useDivision } from '../contexts/DivisionContext';
@@ -21,6 +21,9 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   const { division } = useDivision();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
   const [loading, setLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('all');
@@ -32,7 +35,6 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   const [stateFilter, setStateFilter] = useState<'All' | 'VA' | 'MD' | 'PA'>('All');
 
   useEffect(() => {
-    loadDocumentIndex();
     loadFavorites();
     loadGoTo();
     loadCategories();
@@ -48,16 +50,8 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
 
   useEffect(() => {
     loadDocumentsForView();
-  }, [viewMode]);
-
-  const loadDocumentIndex = async () => {
-    try {
-      const docs = await knowledgeService.getDocumentsByDivision(division);
-      setDocuments(docs);
-    } catch (error) {
-      console.error('Failed to load documents:', error);
-    }
-  };
+    return () => { requestVersion.current += 1; };
+  }, [viewMode, division, selectedCategory, stateFilter, goTo, favorites, submittedQuery, searchMode]);
 
   const loadFavorites = () => {
     const favs = enhancedKnowledgeService.getFavorites();
@@ -79,64 +73,56 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
   };
 
   const loadDocumentsForView = async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
+    setLoadError(null);
     try {
+      const allowedDocs = await knowledgeService.getDocumentsByDivision(division);
+      let candidates: Document[] = [];
       switch (viewMode) {
         case 'all':
-          let allDocs = await knowledgeService.getDocumentsByDivision(division);
-          // Apply category filter
-          if (selectedCategory !== 'All') {
-            allDocs = allDocs.filter(d => d.category === selectedCategory);
-          }
-          // Apply state filter
-          if (stateFilter !== 'All') {
-            const state = stateFilter;
-            allDocs = allDocs.filter(d =>
-              (d.category === 'State-Specific Codes') ||
-              d.name.includes(state) ||
-              d.path.toLowerCase().includes(state.toLowerCase())
-            );
-          }
-          // Sort: pinned (go-to) first
-          allDocs.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
-          setDocuments(allDocs);
+          candidates = allowedDocs;
           break;
         case 'recent':
-          const recentDocs = await enhancedKnowledgeService.getRecentDocuments(20);
-          recentDocs.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
-          setDocuments(recentDocs);
+          candidates = await enhancedKnowledgeService.getRecentDocuments(20);
           break;
         case 'favorites':
-          const favDocs = await enhancedKnowledgeService.getFavoriteDocuments();
-          favDocs.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
-          setDocuments(favDocs);
+          candidates = await enhancedKnowledgeService.getFavoriteDocuments();
           break;
       }
+      const allowedPaths = new Set(allowedDocs.map(doc => doc.path));
+      candidates = candidates.filter(doc => allowedPaths.has(doc.path));
+      if (selectedCategory !== 'All') candidates = candidates.filter(doc => doc.category === selectedCategory);
+      if (stateFilter !== 'All') {
+        const stateNames = { VA: 'virginia', MD: 'maryland', PA: 'pennsylvania' };
+        const statePattern = new RegExp(`\\b(?:${stateFilter}|${stateNames[stateFilter]})\\b`, 'i');
+        candidates = candidates.filter(doc => statePattern.test(`${doc.name} ${doc.path}`));
+      }
+      if (submittedQuery.trim()) {
+        const results = await enhancedKnowledgeService.searchDocuments(submittedQuery, {
+          searchInContent: searchMode === 'content', documents: candidates, limit: 50
+        });
+        candidates = results.map(result => result.document);
+      }
+      candidates.sort((a, b) => Number(goTo.has(b.path)) - Number(goTo.has(a.path)));
+      if (version === requestVersion.current) setDocuments(candidates);
     } catch (error) {
       console.error('Failed to load documents for view:', error);
+      if (version === requestVersion.current) {
+        setDocuments([]);
+        setLoadError('Could not load these documents. Check your connection and try again.');
+      }
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    if (searchQuery.trim() === submittedQuery) {
       loadDocumentsForView();
       return;
     }
-
-    setLoading(true);
-    try {
-      const results = await enhancedKnowledgeService.searchDocuments(searchQuery, {
-        searchInContent: searchMode === 'content',
-        limit: 50
-      });
-      setDocuments(results.map(r => r.document));
-    } catch (error) {
-      console.error('Search failed:', error);
-    } finally {
-      setLoading(false);
-    }
+    setSubmittedQuery(searchQuery.trim());
   };
 
   const handleDocumentClick = (doc: Document) => {
@@ -241,6 +227,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
         {/* View Mode Tabs */}
         <div style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: '12px',
           marginBottom: '20px',
           borderBottom: '1px solid var(--border-subtle)',
@@ -342,7 +329,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             {categories.map(cat => (
               <button
                 key={cat}
-                onClick={() => { setSelectedCategory(cat); loadDocumentsForView(); }}
+                onClick={() => setSelectedCategory(cat)}
                 style={{
                   padding: '6px 10px',
                   background: selectedCategory === cat ? 'var(--roof-red)' : 'var(--bg-hover)',
@@ -362,7 +349,7 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             {(['All','VA','MD','PA'] as const).map(s => (
               <button
                 key={s}
-                onClick={() => { setStateFilter(s); loadDocumentsForView(); }}
+                onClick={() => setStateFilter(s)}
                 style={{
                   padding: '6px 10px',
                   background: stateFilter === s ? 'var(--roof-red)' : 'var(--bg-hover)',
@@ -394,8 +381,12 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
             />
             <input
               type="text"
+              aria-label="Search knowledge documents"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (!e.target.value.trim()) setSubmittedQuery('');
+              }}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               placeholder={`Search ${searchMode === 'content' ? 'inside documents' : 'titles only'}...`}
               className="roof-er-search-input"
@@ -448,9 +439,10 @@ const KnowledgePanel: React.FC<KnowledgePanelProps> = ({ selectedDocument: exter
         </div>
 
         {/* Document Grid */}
+        {loadError && <div role="alert"><p>{loadError}</p><button onClick={loadDocumentsForView}>Try again</button></div>}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
           gap: '16px',
           marginBottom: '24px'
         }}>
