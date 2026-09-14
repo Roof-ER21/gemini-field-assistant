@@ -100,6 +100,7 @@ import { createDocumentRoutes } from './routes/documentRoutes.js';
 import { registerLeadGenPages } from './routes/leadGenPages.js';
 import { registerLeadContent } from './routes/leadContent.js';
 import { createLeadGenRoutes } from './routes/leadGenRoutes.js';
+import { createVeteransRoutes } from './routes/veteransRoutes.js';
 import { createLiveKitRoutes } from './routes/livekitRoutes.js';
 import { createLeadMachineRoutes } from './routes/leadMachineRoutes.js';
 import deafModeRoutes from './routes/deafModeRoutes.js';
@@ -9863,6 +9864,42 @@ app.use('/api/lead-analytics', createLeadAnalyticsRoutes(pool));
 // Register lead generation routes (storm zones, referrals, lead scoring)
 app.use('/api/leads', createLeadGenRoutes(pool));
 
+// Veterans Day roof giveaway — nomination log + marketing dashboard (admin/marketing gated).
+app.use('/api/veterans', createVeteransRoutes(pool));
+
+/**
+ * /vets — the printable short link for the Veterans Day giveaway.
+ *
+ * The giveaway lives on a raw *.up.railway.app URL with no custom domain yet
+ * (Route 53 is in Ford's account). A QR code is permanent once it's on a card,
+ * so the codes encode THIS path on a domain we already own and serve, and we
+ * 302 to wherever the campaign actually lives. If the giveaway gets its own
+ * domain later, change VETERANS_GIVEAWAY_URL — nothing gets reprinted.
+ *
+ * Registered before express.static and the SPA catch-all so it wins on both
+ * get.theroofdocs.com and sa21.theroofdocs.com. `?rep=<slug>` passes rep
+ * attribution straight through to the nomination form.
+ */
+app.get('/vets', (req, res) => {
+  const base = (process.env.VETERANS_GIVEAWAY_URL || '').trim();
+  if (!base) {
+    // Campaign is over (or not configured) — send people somewhere useful
+    // rather than showing them a dead end.
+    return res.redirect(302, '/roofcheck');
+  }
+  try {
+    const target = new URL(base);
+    target.searchParams.set('src', 'qr');
+    const rep = typeof req.query.rep === 'string' ? req.query.rep.trim().slice(0, 80) : '';
+    if (rep) target.searchParams.set('rep', rep);
+    res.set('Cache-Control', 'no-store');
+    return res.redirect(302, target.toString());
+  } catch {
+    console.error('[vets] VETERANS_GIVEAWAY_URL is not a valid URL:', base);
+    return res.redirect(302, '/roofcheck');
+  }
+});
+
 // Veterans Day roof giveaway (separate Railway app) → email the nomination card to the team.
 // Server-to-server with a shared secret; lives under /api/webhooks/ so it stays open in Stage 2.
 app.post('/api/webhooks/veterans-nomination', async (req, res) => {
@@ -9879,8 +9916,7 @@ app.post('/api/webhooks/veterans-nomination', async (req, res) => {
   const missing = required.filter((k) => !str(b[k], 5000));
   if (missing.length) return res.status(400).json({ error: `veterans-notify: missing ${missing.join(',')}` });
   try {
-    const { sendVeteranNominationEmail } = await import('./routes/profileRoutes.js');
-    const result = await sendVeteranNominationEmail(pool, {
+    const nomination = {
       reference: str(b.reference, 40),
       veteranName: str(b.veteranName, 120),
       branch: str(b.branch, 40),
@@ -9893,7 +9929,21 @@ app.post('/api/webhooks/veterans-nomination', async (req, res) => {
       nominatorEmail: str(b.nominatorEmail, 200) || null,
       repSlug: str(b.repSlug, 80) || null,
       source: str(b.source, 40) || null,
-    });
+    };
+
+    // Store BEFORE emailing: a send failure must still leave marketing a row to
+    // chase. A retried POST hits the reference conflict and is not re-emailed,
+    // matching how the giveaway app dedupes its own insert.
+    const { recordVeteranNomination, recordVeteranNotifyResult } = await import('./routes/veteransRoutes.js');
+    const { duplicate } = await recordVeteranNomination(pool, nomination);
+    if (duplicate) {
+      console.log(`[Veterans nomination] ${nomination.reference} already recorded — not re-emailing`);
+      return res.status(200).json({ success: true, duplicate: true });
+    }
+
+    const { sendVeteranNominationEmail } = await import('./routes/profileRoutes.js');
+    const result = await sendVeteranNominationEmail(pool, nomination);
+    await recordVeteranNotifyResult(pool, nomination.reference, result);
     console.log(`[Veterans nomination email] ${str(b.reference, 40)} ${result.success
       ? 'sent to ' + result.to.join(',') + ' msgId=' + result.messageId
       : 'failed: ' + result.error}`);

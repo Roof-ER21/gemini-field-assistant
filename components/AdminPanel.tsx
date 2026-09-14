@@ -33,7 +33,8 @@ import {
   Edit2,
   Send,
   Power,
-  TrendingUp
+  TrendingUp,
+  Award
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { databaseService } from '../services/databaseService';
@@ -45,6 +46,7 @@ import LeaderboardGoalsSection from './LeaderboardGoalsSection';
 import AdminQRProfilesPanel from './AdminQRProfilesPanel';
 import AdminScanAnalyticsPanel from './AdminScanAnalyticsPanel';
 import AdminRepReadinessPanel from './AdminRepReadinessPanel';
+import AdminVeteransPanel from './AdminVeteransPanel';
 import AdminKnowledgePanel from './AdminKnowledgePanel';
 import AdminLearningsPanel from './AdminLearningsPanel';
 import AdminCompanionPanel from './AdminCompanionPanel';
@@ -298,7 +300,7 @@ const IntelReviewPanel: React.FC = () => {
 
 const AdminPanel: React.FC = () => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'qr-analytics' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones' | 'companion'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'emails' | 'messages' | 'analytics' | 'lead-analytics' | 'budget' | 'mappings' | 'settings' | 'tiers' | 'agnes' | 'qr-profiles' | 'qr-analytics' | 'directives' | 'intel-review' | 'leads' | 'knowledge' | 'learnings' | 'rep-phones' | 'companion' | 'veterans'>('users');
   const [activeGroup, setActiveGroup] = useState<'people' | 'comms' | 'perf' | 'training' | 'system'>('people');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -1671,14 +1673,14 @@ const AdminPanel: React.FC = () => {
         // with only the QR Profiles tab.
         const tabGroups = isMarketing && !isAdmin
           ? [
-              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles', 'qr-analytics', 'rep-readiness'] }
+              { id: 'system' as const, label: 'Marketing Hub', tabs: ['qr-profiles', 'qr-analytics', 'rep-readiness', 'veterans'] }
             ]
           : [
               { id: 'people' as const, label: 'People', tabs: ['users', 'mappings'] },
               { id: 'comms' as const, label: 'Communications', tabs: ['leads', 'emails', 'messages'] },
               { id: 'perf' as const, label: 'Performance', tabs: ['lead-analytics', 'analytics', 'budget', 'tiers'] },
               { id: 'training' as const, label: 'Training', tabs: ['agnes', 'directives', 'intel-review', 'knowledge', 'learnings'] },
-              { id: 'system' as const, label: 'System', tabs: ['settings', 'companion', 'qr-profiles', 'qr-analytics', 'rep-readiness', 'rep-phones'] }
+              { id: 'system' as const, label: 'System', tabs: ['settings', 'companion', 'qr-profiles', 'qr-analytics', 'rep-readiness', 'veterans', 'rep-phones'] }
             ];
 
         const tabMetadata: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -1700,6 +1702,7 @@ const AdminPanel: React.FC = () => {
           'rep-readiness': { label: 'Rep Readiness', icon: <CheckCircle style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'knowledge': { label: 'Knowledge Base', icon: <Database style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'learnings': { label: 'Susan Learnings', icon: <Bot style={{ width: '0.875rem', height: '0.875rem' }} /> },
+          'veterans': { label: 'Veterans Giveaway', icon: <Award style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'rep-phones': { label: 'Rep Phones', icon: <Users style={{ width: '0.875rem', height: '0.875rem' }} /> },
           'companion': { label: 'Rep Reports', icon: <MessageSquare style={{ width: '0.875rem', height: '0.875rem' }} /> }
         };
@@ -5041,6 +5044,16 @@ const AdminPanel: React.FC = () => {
         {/* Rep Readiness Tab */}
         {activeTab === 'rep-readiness' && (
           <AdminRepReadinessPanel userEmail={(() => {
+            try {
+              const authUser = localStorage.getItem('s21_auth_user');
+              return authUser ? JSON.parse(authUser).email : (currentUser?.email || '');
+            } catch { return currentUser?.email || ''; }
+          })()} />
+        )}
+
+        {/* Veterans Giveaway Tab */}
+        {activeTab === 'veterans' && (
+          <AdminVeteransPanel userEmail={(() => {
             try {
               const authUser = localStorage.getItem('s21_auth_user');
               return authUser ? JSON.parse(authUser).email : (currentUser?.email || '');
