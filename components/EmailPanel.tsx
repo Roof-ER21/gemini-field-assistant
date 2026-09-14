@@ -21,6 +21,7 @@ import {
 } from '../services/emailComplianceService';
 import Spinner from './Spinner';
 import '../src/rep-workflows.css';
+import { isSessionRequiredError } from '../src/auth/sessionToken';
 
 type EmailTemplate = {
   name: string;
@@ -564,7 +565,11 @@ Keep it practical and actionable. Use confident language.
 
     } catch (error) {
       console.error('Failed to generate email:', error);
-      setGenerationError('Could not generate a new email. Your inputs and any previous draft are unchanged. Try again.');
+      setGenerationError(
+        isSessionRequiredError(error)
+          ? 'Your sign-in predates a security update, so AI is paused for this browser. Sign out and sign back in, then generate again. Your inputs and any previous draft are unchanged.'
+          : 'Could not generate a new email. Your inputs and any previous draft are unchanged. Try again.',
+      );
     } finally {
       setIsGenerating(false);
     }

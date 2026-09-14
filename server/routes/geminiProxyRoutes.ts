@@ -9,7 +9,12 @@ export function createGeminiProxyRouter(upstreamFetch: typeof fetch = fetch) {
   const router = express.Router();
   router.post('/v1beta/models/:operation', async (req: SessionRequest, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (!req.session) return res.status(401).json({ error: { message: 'Sign in to use AI.' } });
+    if (!req.session) {
+      // The only route that refuses the legacy header during Stage 1 (it spends
+      // Gemini budget). `code` lets the client clear a stale token and ask for
+      // a fresh sign-in instead of showing a retry that can never succeed.
+      return res.status(401).json({ error: { message: 'Sign in to use AI.' }, code: 'SESSION_REQUIRED' });
+    }
     const match = operations.exec(req.params.operation);
     if (!match || !Array.isArray(req.body?.contents) || !req.body.contents.length) {
       return res.status(400).json({ error: { message: 'Unsupported generation request.' } });
