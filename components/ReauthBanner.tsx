@@ -11,7 +11,7 @@
  * way until Stage 2. Reps who already hold a session never see it.
  */
 import React, { useEffect, useState } from 'react';
-import { hasSessionToken } from '../src/auth/sessionToken';
+import { hasSessionToken, SESSION_REQUIRED_EVENT } from '../src/auth/sessionToken';
 import { authService } from '../services/authService';
 
 const DISMISS_KEY = 's21_reauth_dismissed_at';
@@ -29,6 +29,15 @@ function snoozed(): boolean {
 
 export default function ReauthBanner(): React.ReactElement | null {
   const [show, setShow] = useState(false);
+  // True once the server has actually refused a request for lack of a session
+  // (the Gemini proxy does this during Stage 1). Not snoozable: something broke.
+  const [required, setRequired] = useState(false);
+
+  useEffect(() => {
+    const onRequired = () => { setRequired(true); setShow(true); };
+    window.addEventListener(SESSION_REQUIRED_EVENT, onRequired);
+    return () => window.removeEventListener(SESSION_REQUIRED_EVENT, onRequired);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +75,9 @@ export default function ReauthBanner(): React.ReactElement | null {
       }}
     >
       <span style={{ flex: '1 1 260px' }}>
-        Please sign in again to secure your account. Everything keeps working in the meantime.
+        {required
+          ? 'Your sign-in predates a security update. Sign in again to use AI features; everything else keeps working.'
+          : 'Please sign in again to secure your account. Everything keeps working in the meantime.'}
       </span>
       <a
         href="/api/auth/google/start"
@@ -77,7 +88,7 @@ export default function ReauthBanner(): React.ReactElement | null {
       >
         Sign in with Google
       </a>
-      <button
+      {!required && <button
         type="button"
         onClick={dismiss}
         style={{
@@ -86,7 +97,7 @@ export default function ReauthBanner(): React.ReactElement | null {
         }}
       >
         Not now
-      </button>
+      </button>}
     </div>
   );
 }

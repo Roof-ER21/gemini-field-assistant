@@ -74,6 +74,27 @@ function isOwnApi(url: string): boolean {
   }
 }
 
+/** Fired on `window` when our API answers 401 SESSION_REQUIRED; the reauth banner listens. */
+export const SESSION_REQUIRED_EVENT = 's21:session-required';
+
+/** Does this error mean the server wants a fresh sign-in (Gemini proxy or Stage 2)? */
+export function isSessionRequiredError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { status?: unknown; code?: unknown; message?: unknown };
+  if (e.code === 'SESSION_REQUIRED') return true;
+  const message = typeof e.message === 'string' ? e.message : '';
+  if (message.includes('SESSION_REQUIRED') || message.includes('Sign in to use AI')) return true;
+  return e.status === 401;
+}
+
+function announceSessionRequired(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(SESSION_REQUIRED_EVENT));
+  } catch {
+    /* no DOM events here (tests) */
+  }
+}
+
 let installed = false;
 
 /** Call once, as early as possible, before anything fetches. */
@@ -83,25 +104,33 @@ export function installSessionFetch(): void {
   const original = window.fetch.bind(window);
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const token = getSessionToken();
-    if (!token) return original(input as any, init);
-
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
     if (!isOwnApi(url)) return original(input as any, init);
 
-    // Never overwrite an Authorization header a caller set deliberately.
-    const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-    if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+    const token = getSessionToken();
+    let response: Response;
+    if (token) {
+      // Never overwrite an Authorization header a caller set deliberately.
+      const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+      if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+      response = await original(input as any, { ...init, headers });
+    } else {
+      response = await original(input as any, init);
+    }
 
-    const response = await original(input as any, { ...init, headers });
-    // A session the server no longer honours is dead weight; drop it so the app
-    // falls back cleanly and the next sign-in mints a fresh one.
+    // SESSION_REQUIRED means "this browser needs a fresh sign-in": a stale token
+    // is dead weight (drop it), and a browser with no token at all has been on
+    // the legacy header since before sessions existed. Either way, tell the
+    // reauth banner so the person sees why instead of a retry that never works.
     if (response.status === 401) {
       try {
         const clone = response.clone();
         const body: any = await clone.json().catch(() => null);
-        if (body?.code === 'SESSION_REQUIRED') clearSessionToken();
+        if (body?.code === 'SESSION_REQUIRED') {
+          if (token) clearSessionToken();
+          announceSessionRequired();
+        }
       } catch {
         /* body was not JSON; leave the token in place */
       }

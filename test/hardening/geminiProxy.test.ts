@@ -32,6 +32,7 @@ describe('Gemini server boundary', () => {
   it('rejects a legacy header without a verified session before billing', async () => {
     const { res, upstream } = await request({ session: false });
     expect(res.statusCode).toBe(401);
+    expect((res.body as any).code).toBe('SESSION_REQUIRED');
     expect(upstream).not.toHaveBeenCalled();
   });
   it('rejects arbitrary models and malformed payloads', async () => {
