@@ -75,17 +75,16 @@ function getMessagePreview(content: MessageContent, maxLength = 100): string {
   return 'New message';
 }
 
-// Create routes with pool injection
-export function createMessagingRoutes(pool: pg.Pool) {
-  // ============================================================================
-  // TEAM LIST
-  // ============================================================================
-
-  /**
-   * GET /api/team
-   * Get list of all team members with presence status
-   */
-  router.get('/team', async (req: AuthRequest, res: Response) => {
+/**
+ * GET /api/team
+ * Get list of all team members with presence status.
+ *
+ * A factory so the MCP `rep_directory` tool (server/mcp/executors.ts) can run
+ * this exact handler in-process; it narrows the roster itself and never hands
+ * the whole list out.
+ */
+export function createTeamListHandler(pool: pg.Pool) {
+  return async (req: AuthRequest, res: Response) => {
     try {
       const presenceService = getPresenceService();
       if (presenceService) {
@@ -118,7 +117,16 @@ export function createMessagingRoutes(pool: pg.Pool) {
       console.error('Error fetching team:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch team' });
     }
-  });
+  };
+}
+
+// Create routes with pool injection
+export function createMessagingRoutes(pool: pg.Pool) {
+  // ============================================================================
+  // TEAM LIST
+  // ============================================================================
+
+  router.get('/team', createTeamListHandler(pool));
 
   // ============================================================================
   // CONVERSATIONS

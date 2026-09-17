@@ -49,7 +49,8 @@
     "ios:open": "npx cap open ios",
     "ios:sync": "npx cap sync ios",
     "ios:run": "npx cap run ios",
-    "test:auth": "vitest run --config vitest.config.auth.ts"
+    "test:auth": "vitest run --config vitest.config.auth.ts",
+    "test:mcp": "vitest run --config vitest.config.mcp.ts"
   },
   "engines": {
     "node": ">=20"
