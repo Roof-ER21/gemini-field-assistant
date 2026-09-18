@@ -55,8 +55,11 @@ interface ChatRequest extends Request {
 /**
  * POST /api/susan/chat
  * Chat with Susan AI - uses susanPresenterService if session exists, falls back to direct Gemini
+ *
+ * Exported as a named handler so the MCP `ask` tool (server/mcp/executors.ts)
+ * runs this exact function in-process — it is a Gemini call either way.
  */
-router.post('/chat', async (req: ChatRequest, res: Response) => {
+export const susanChatHandler = async (req: ChatRequest, res: Response) => {
   try {
     const { message, sessionId, slideIndex } = req.body;
 
@@ -144,7 +147,8 @@ Provide a helpful, conversational response as Susan would.`,
       error: error instanceof Error ? error.message : 'Internal server error'
     });
   }
-});
+};
+router.post('/chat', susanChatHandler);
 
 /**
  * GET /api/susan/session/:sessionId
