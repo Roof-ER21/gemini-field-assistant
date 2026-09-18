@@ -13,6 +13,8 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { captureToGlitchTip } from './lib/glitchtip.js';
 import { requireSessionEnabled, createSessionMiddleware, ensureSessionTable, mintSession, revokeSession, promptReauthEnabled, sessionAdoption, } from './auth/session.js';
+import { ensureAgentTokenTables, recordAgentToolUse, resolveAgentToken, touchAgentToken, } from './auth/agentTokens.js';
+import { createAgentTokenRouter } from './routes/agentTokenRoutes.js';
 // Admin PIN hashing helpers (scrypt — no external dependencies)
 function hashPin(pin) {
     return new Promise((resolve, reject) => {
@@ -359,6 +361,16 @@ app.use('/mcp', mcpLimiter, createMcpRouter({
     sessionMiddleware: createSessionMiddleware(pool),
     isHomeownerHost: hitGetDomain,
     originAllowed: (origin) => allowedOrigins.includes(origin),
+    // Read-only personal agent tokens (s21a_…), Settings → Connected agents.
+    agentAuth: {
+        resolve: async (token) => {
+            const principal = await resolveAgentToken(pool, token);
+            if (principal)
+                touchAgentToken(pool, principal.tokenId);
+            return principal;
+        },
+        onToolUse: (use) => { void recordAgentToolUse(pool, use); },
+    },
 }));
 // Body parsers - increased limit for photo uploads (base64 encoded)
 app.use(express.json({ limit: '10mb' }));
@@ -8562,6 +8574,8 @@ app.use('/api/susan', susanRoutes);
 app.use('/api/susan/agent', createSusanAgentRoutes(pool));
 // "Connect Roof HR" — per-rep Roof HR tokens (server/routes/connectRoutes.ts)
 app.use('/api/connect', createConnectRoutes(pool));
+// Settings → Connected agents: the rep's own read-only /mcp tokens. Session only.
+app.use('/api/agent-tokens', createAgentTokenRouter(pool));
 app.use('/api/susan/groupme', createSusanGroupMeBotRoutes(pool));
 // Alias for the hyphen-form URL registered with GroupMe (bot callback_url)
 // POST / inside the router catches the bare /api/susan/groupme-webhook URL
@@ -10982,6 +10996,8 @@ async function runStartupMigrations() {
     try {
         // Real sessions (2026-09-09). Replaces identity-by-request-header.
         await ensureSessionTable(pool);
+        // Read-only personal agent tokens for /mcp + their audit (2026-09-18).
+        await ensureAgentTokenTables(pool);
         // Per-rep Roof HR tokens, encrypted at rest (2026-09-10).
         await ensureAgentConnectionsTable(pool);
         // Create leaderboard_goals table if it doesn't exist

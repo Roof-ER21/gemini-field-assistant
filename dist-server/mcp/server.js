@@ -11,12 +11,17 @@
  *     bearer and is authorized from scratch;
  *   • initialize / notifications/initialized / ping / tools/list / tools/call.
  *
- * Auth: sa21 has no API keys. The bearer on an MCP request is a PERSON's sa21
- * session token, resolved by the same `createSessionMiddleware` that fronts
- * every /api route (server/auth/session.ts). This handler then requires that
- * `req.session` is set — a legacy `x-user-email` header is never an identity
- * here, in either rollout stage. No session is a 401 with WWW-Authenticate,
- * never an empty tool list. Every read runs AS that person.
+ * Auth: the bearer on an MCP request is either
+ *   • a PERSON's sa21 session token (`s21_…`), resolved by the same
+ *     `createSessionMiddleware` that fronts every /api route
+ *     (server/auth/session.ts) — unchanged; or
+ *   • a personal AGENT token (`s21a_…`, server/auth/agentTokens.ts) the rep
+ *     minted in Settings → Connected agents. It is read-only: tools/list shows
+ *     only the tools `agentMayCallTool` allows, and any other tools/call is a
+ *     403. Each agent tools/call is audited (argument keys, never values).
+ * A legacy `x-user-email` header is never an identity here, in either rollout
+ * stage. No credential is a 401 with WWW-Authenticate, never an empty tool
+ * list. Every read runs AS the person who owns the credential.
  *
  * Host: the endpoint lives on the rep host only. A request that arrived on
  * the homeowner domain (get.theroofdocs.com) is a 404, decided by the same
@@ -35,6 +40,7 @@
  * with fake executors (test/mcp/mcp-server.test.ts).
  */
 import express from 'express';
+import { agentBearerFrom, agentMayCallTool, } from '../auth/agentTokens.js';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 export const MCP_SERVER_NAME = 'sa21';
 export const MCP_SERVER_VERSION = '1.0.0';
@@ -146,7 +152,7 @@ export function originRefusal(req, originAllowed) {
     return 'The request origin is not allowed.';
 }
 function unauthorized(res) {
-    send(res, rpcError(null, JSON_RPC.CONNECTION_REFUSED, 'A signed-in sa21 session is required.'), 401, {
+    send(res, rpcError(null, JSON_RPC.CONNECTION_REFUSED, 'A signed-in sa21 session or an sa21 agent token is required.'), 401, {
         'WWW-Authenticate': 'Bearer realm="sa21-mcp", error="invalid_token"',
     });
 }
@@ -250,14 +256,22 @@ export function createMcpHandler(options) {
             send(res, rpcError(null, JSON_RPC.CONNECTION_REFUSED, `Unsupported protocol version: ${String(stated).slice(0, 40)}. This server speaks ${MCP_PROTOCOL_VERSION}.`), 400);
             return;
         }
-        // Identity: only a session resolved by the front-door middleware counts.
-        // The legacy header is not an identity for MCP, in either rollout stage.
-        const session = req.session;
-        if (!session || req.authMechanism !== 'session') {
+        // Identity: a session resolved by the front-door middleware, or an agent
+        // token resolved by the router. The legacy header is not an identity for
+        // MCP, in either rollout stage.
+        const identified = req;
+        const agent = identified.authMechanism === 'agent-token' ? identified.agent : undefined;
+        let caller;
+        if (identified.session && identified.authMechanism === 'session') {
+            caller = { userId: identified.session.userId, email: identified.session.email };
+        }
+        else if (agent) {
+            caller = { userId: agent.userId, email: agent.email };
+        }
+        else {
             unauthorized(res);
             return;
         }
-        const caller = { userId: session.userId, email: session.email };
         const message = req.body;
         if (Array.isArray(message)) {
             send(res, rpcError(null, JSON_RPC.INVALID_REQUEST, 'Batches are not part of protocol 2025-06-18.'), 400);
@@ -287,7 +301,7 @@ export function createMcpHandler(options) {
                 capabilities: { tools: { listChanged: false } },
                 serverInfo: { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
                 instructions: 'Susan (sa21) read tools for Roof-ER reps: the carrier directory, the team\'s carrier and adjuster learnings, a rep lookup, and Susan\'s own answer to a question. ' +
-                    'Every read is made as the signed-in rep whose session token is on this connection. `ask` runs a model and spends quota; prefer the directory and learnings tools for facts.',
+                    'Every read is made as the rep who owns the credential on this connection (their session, or a read-only agent token they minted). `ask` runs a model and spends quota; prefer the directory and learnings tools for facts.',
             }));
             return;
         }
@@ -296,7 +310,9 @@ export function createMcpHandler(options) {
             return;
         }
         if (method === 'tools/list') {
-            send(res, rpcResult(id, { tools: MCP_TOOLS }));
+            // An agent token sees only what it may call.
+            const tools = agent ? MCP_TOOLS.filter((tool) => agentMayCallTool(agent, tool)) : MCP_TOOLS;
+            send(res, rpcResult(id, { tools }));
             return;
         }
         if (method === 'tools/call') {
@@ -310,8 +326,29 @@ export function createMcpHandler(options) {
                 send(res, rpcError(id, JSON_RPC.INVALID_PARAMS, `Unknown tool: ${name.slice(0, 80)}`));
                 return;
             }
+            const argumentKeys = call.arguments && typeof call.arguments === 'object' && !Array.isArray(call.arguments)
+                ? Object.keys(call.arguments)
+                : [];
+            const started = Date.now();
+            const audit = (outcome, error) => {
+                if (!agent)
+                    return;
+                try {
+                    options.agentAuth?.onToolUse?.({
+                        tokenId: agent.tokenId, userId: agent.userId, tool: name, argumentKeys, outcome, error, durationMs: Date.now() - started,
+                    });
+                }
+                catch { /* auditing never fails the call */ }
+            };
+            // The read-only scope guard: before arguments are even looked at.
+            if (agent && !agentMayCallTool(agent, MCP_TOOLS.find((tool) => tool.name === name))) {
+                audit('refused', 'outside the agent token scope');
+                send(res, rpcError(id, JSON_RPC.CONNECTION_REFUSED, `This agent token is read-only; ${name.slice(0, 80)} is not available to it.`), 403);
+                return;
+            }
             const validated = validateArgs(name, call.arguments);
             if (validated.ok === false) {
+                audit('error', 'invalid arguments');
                 send(res, rpcError(id, JSON_RPC.INVALID_PARAMS, validated.reason));
                 return;
             }
@@ -324,6 +361,7 @@ export function createMcpHandler(options) {
                 console.warn(`[mcp] ${name} threw:`, err instanceof Error ? err.message : err);
                 result = { ok: false, data: null, error: `${name} could not answer right now.` };
             }
+            audit(result.ok ? 'ok' : 'error', result.ok ? undefined : result.error);
             send(res, rpcResult(id, toolResult(result)));
             return;
         }
@@ -358,7 +396,25 @@ export function createMcpRouter(options) {
     });
     router.use(express.json({ limit: MCP_BODY_LIMIT, type: () => true }));
     router.use(mcpParseErrorHandler);
-    router.use((req, res, next) => { Promise.resolve(options.sessionMiddleware(req, res, next)).catch(next); });
+    // An agent token takes its own path and never touches the session store; a
+    // session bearer (or no bearer) goes through the session middleware exactly
+    // as before agent tokens existed.
+    router.use((req, res, next) => {
+        const agentToken = options.agentAuth ? agentBearerFrom(req) : null;
+        if (!agentToken || !options.agentAuth) {
+            Promise.resolve(options.sessionMiddleware(req, res, next)).catch(next);
+            return;
+        }
+        options.agentAuth.resolve(agentToken).then((principal) => {
+            if (!principal) {
+                unauthorized(res);
+                return;
+            }
+            req.agent = principal;
+            req.authMechanism = 'agent-token';
+            next();
+        }).catch(next);
+    });
     router.post('/', (req, res, next) => { post(req, res).catch(next); });
     return router;
 }
