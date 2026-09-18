@@ -42,8 +42,11 @@ router.post('/live-token', async (_req, res) => {
 /**
  * POST /api/susan/chat
  * Chat with Susan AI - uses susanPresenterService if session exists, falls back to direct Gemini
+ *
+ * Exported as a named handler so the MCP `ask` tool (server/mcp/executors.ts)
+ * runs this exact function in-process — it is a Gemini call either way.
  */
-router.post('/chat', async (req, res) => {
+export const susanChatHandler = async (req, res) => {
     try {
         const { message, sessionId, slideIndex } = req.body;
         // Validate required fields
@@ -121,7 +124,8 @@ Provide a helpful, conversational response as Susan would.`,
             error: error instanceof Error ? error.message : 'Internal server error'
         });
     }
-});
+};
+router.post('/chat', susanChatHandler);
 /**
  * GET /api/susan/session/:sessionId
  * Get session information (optional - for debugging/status)

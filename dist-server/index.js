@@ -44,7 +44,9 @@ import { twilioService } from './services/twilioService.js';
 import { createPushNotificationService } from './services/pushNotificationService.js';
 import { cronService } from './services/cronService.js';
 import { initializePresenceService, getPresenceService } from './services/presenceService.js';
-import { createMessagingRoutes } from './routes/messagingRoutes.js';
+import { createMessagingRoutes, createTeamListHandler } from './routes/messagingRoutes.js';
+import { createMcpRouter } from './mcp/server.js';
+import { createExecutors as createMcpExecutors } from './mcp/executors.js';
 import { createRoofRoutes } from './routes/roofRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import inspectionPresentationRoutes from './routes/inspectionPresentationRoutes.js';
@@ -65,7 +67,7 @@ import { createQRAnalyticsRoutes } from './routes/qrAnalyticsRoutes.js';
 import { createProfileLeadsRoutes } from './routes/profileLeadsRoutes.js';
 import { createRoofCheckRoutes } from './roofcheck/roofcheckRoutes.js';
 import { createLeadAnalyticsRoutes } from './routes/leadAnalyticsRoutes.js';
-import susanRoutes from './routes/susanRoutes.js';
+import susanRoutes, { susanChatHandler } from './routes/susanRoutes.js';
 import { createSusanAgentRoutes } from './routes/susanAgentRoutes.js';
 import { createConnectRoutes } from './routes/connectRoutes.js';
 import { ensureAgentConnectionsTable } from './services/roofhrConnection.js';
@@ -333,6 +335,31 @@ app.use((req, res, next) => {
     }
     next();
 });
+// MCP endpoint for Genie 21 / Claude Code — docs/MCP.md. Mounted BEFORE the
+// app-wide body parser and session middleware: the router carries its own
+// (small) JSON parser so a malformed body is a JSON-RPC parse error, and its
+// own instance of the SAME session middleware, so every tool call runs as the
+// rep whose session token is on the connection. Rep host only: the homeowner
+// domain answers 404 through the same hitGetDomain check the rep login uses.
+// Not under /api, so it takes its own limiter (`ask` is a Gemini call).
+const mcpLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    message: { jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Rate limit exceeded. Please try again shortly.' } },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/mcp', mcpLimiter, createMcpRouter({
+    executors: createMcpExecutors({
+        susanChat: susanChatHandler,
+        insuranceCompanies: insuranceCompaniesHandler,
+        learningGlobal: learningGlobalHandler,
+        team: createTeamListHandler(pool),
+    }),
+    sessionMiddleware: createSessionMiddleware(pool),
+    isHomeownerHost: hitGetDomain,
+    originAllowed: (origin) => allowedOrigins.includes(origin),
+}));
 // Body parsers - increased limit for photo uploads (base64 encoded)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -1776,7 +1803,9 @@ app.post('/api/chat/feedback/:id/outcome', async (req, res) => {
     }
 });
 // Get approved global learnings (context-aware)
-app.get('/api/learning/global', async (req, res) => {
+// Named so the MCP carrier_learnings / adjuster_learnings tools run this exact
+// handler in-process (server/mcp/executors.ts).
+async function learningGlobalHandler(req, res) {
     try {
         const state = req.query.state || null;
         const insurer = req.query.insurer || null;
@@ -1817,7 +1846,8 @@ app.get('/api/learning/global', async (req, res) => {
         console.error('Error fetching global learnings:', error);
         res.status(500).json({ error: error.message });
     }
-});
+}
+app.get('/api/learning/global', learningGlobalHandler);
 // Admin: list global learning candidates
 app.get('/api/admin/learning', async (req, res) => {
     try {
@@ -8338,7 +8368,9 @@ app.post('/api/jobs/:jobId/conversations', async (req, res) => {
 // INSURANCE COMPANIES ENDPOINTS
 // ============================================================================
 // List insurance companies with optional filters
-app.get('/api/insurance/companies', async (req, res) => {
+// Named so the MCP carrier_directory tool runs this exact handler in-process
+// (server/mcp/executors.ts).
+async function insuranceCompaniesHandler(req, res) {
     try {
         const { q, state, limit = 100 } = req.query;
         const clauses = [];
@@ -8364,7 +8396,8 @@ app.get('/api/insurance/companies', async (req, res) => {
         console.error('Error fetching insurance companies:', error);
         res.status(500).json({ error: 'insurance_companies: failed to fetch', message: error.message });
     }
-});
+}
+app.get('/api/insurance/companies', insuranceCompaniesHandler);
 // ============================================================================
 // ERROR HANDLER
 // ============================================================================
