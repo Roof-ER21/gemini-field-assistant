@@ -11,22 +11,24 @@ import LegalPage from './LegalPage';
 import PersonalitySettings from './PersonalitySettings';
 import NotificationsPage from './NotificationsPage';
 import { NotificationSettings } from './NotificationSettings';
+import ConnectedAgents from './ConnectedAgents';
 
 interface UserProfileProps {
   onClose: () => void;
   onLogout: () => void;
-  defaultTab?: 'profile' | 'notifications' | 'preferences';
+  defaultTab?: 'profile' | 'notifications' | 'preferences' | 'agents';
   /** When true, renders as inline page content without the modal overlay/wrapper */
   inline?: boolean;
 }
 
 const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab, inline }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'preferences'>(defaultTab || 'profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'preferences' | 'agents'>(defaultTab || 'profile');
 
-  const tabs: { id: 'profile' | 'notifications' | 'preferences'; label: string }[] = [
+  const tabs: { id: 'profile' | 'notifications' | 'preferences' | 'agents'; label: string }[] = [
     { id: 'profile', label: 'Profile' },
     { id: 'notifications', label: 'Notifications' },
-    { id: 'preferences', label: 'Preferences' }
+    { id: 'preferences', label: 'Preferences' },
+    { id: 'agents', label: 'Connected agents' }
   ];
   const [user, setUser] = useState<AuthUser | null>(null);
   const [editing, setEditing] = useState(false);
@@ -264,6 +266,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose, onLogout, defaultTab
         {activeTab === 'preferences' && (
           <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(80vh - 120px)' }}>
             <NotificationSettings userEmail={user?.email || ''} />
+          </div>
+        )}
+
+        {/* Connected agents: read-only tokens for assistants such as Genie 21 */}
+        {activeTab === 'agents' && (
+          <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(80vh - 120px)' }}>
+            <ConnectedAgents />
           </div>
         )}
 

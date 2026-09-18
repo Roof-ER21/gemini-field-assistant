@@ -48,7 +48,8 @@ export type AppSession = {
 export type SessionRequest = express.Request & {
   session?: AppSession;
   /** How this request was identified. Read by the adoption counters and by Susan's write tools. */
-  authMechanism?: 'session' | 'legacy-header' | 'none';
+  /** 'agent-token' is set only by the /mcp router (server/mcp/server.ts), never by this module. */
+  authMechanism?: 'session' | 'legacy-header' | 'none' | 'agent-token';
 };
 
 const cache = new Map<string, { session: AppSession | null; at: number }>();

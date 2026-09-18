@@ -16,6 +16,18 @@ import { clearSessionCache, createSessionMiddleware } from '../../server/auth/se
 import { JSON_RPC, MCP_PROTOCOL_VERSION, MCP_RESULT_MAX_CHARS, MCP_TOOL_NAMES, createMcpRouter, validateArgs } from '../../server/mcp/server';
 import { createExecutors, type McpHandlers } from '../../server/mcp/executors';
 import { runHandler } from '../../server/mcp/shim';
+import { AGENT_READ_SCOPE, AGENT_READ_TOOLS, type AgentPrincipal, type AgentToolUse } from '../../server/auth/agentTokens';
+
+/** Agent tokens (s21a_…) the fake resolver knows. SCOPELESS proves the 403 path over HTTP. */
+const AGENT = `s21a_${'a'.repeat(43)}`;
+const AGENT_SCOPELESS = `s21a_${'b'.repeat(43)}`;
+const AGENT_PRINCIPALS: Record<string, AgentPrincipal> = {
+  [AGENT]: { tokenId: 'tok-1', userId: REP_B_ID(), email: 'other.rep@theroofdocs.com', scopes: [AGENT_READ_SCOPE] },
+  [AGENT_SCOPELESS]: { tokenId: 'tok-2', userId: REP_B_ID(), email: 'other.rep@theroofdocs.com', scopes: [] },
+};
+function REP_B_ID() { return '22222222-2222-2222-2222-222222222222'; }
+const agentResolves: string[] = [];
+const agentUses: AgentToolUse[] = [];
 
 const REP = { id: '11111111-1111-1111-1111-111111111111', email: 'real.rep@theroofdocs.com' };
 const TOKEN = 's21_test-token-for-the-mcp-suite';
@@ -92,6 +104,13 @@ beforeAll(async () => {
     isHomeownerHost: (req) => [req.headers.host, req.headers['x-forwarded-host'], req.hostname]
       .some((h) => String(h || '').toLowerCase().split(',')[0].split(':')[0].trim() === HOMEOWNER_HOST),
     originAllowed: (origin) => origin === APP_ORIGIN,
+    // Configured for the WHOLE suite: every session-token test above and below
+    // runs with agent tokens switched on, which is how "the session path is
+    // unchanged" is proven rather than asserted.
+    agentAuth: {
+      resolve: async (token) => { agentResolves.push(token); return AGENT_PRINCIPALS[token] ?? null; },
+      onToolUse: (use) => { agentUses.push(use); },
+    },
   }));
   // The app-wide parser sits AFTER the mount in server/index.ts; mirror that.
   app.use(express.json());
@@ -100,7 +119,12 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(() => { server.close(); });
-beforeEach(() => { clearSessionCache(); for (const k of Object.keys(seen)) seen[k].length = 0; });
+beforeEach(() => {
+  clearSessionCache();
+  for (const k of Object.keys(seen)) seen[k].length = 0;
+  agentResolves.length = 0;
+  agentUses.length = 0;
+});
 afterEach(() => { delete process.env.SA21_REQUIRE_SESSION; });
 
 type Call = { method?: string; headers?: Record<string, string>; body?: unknown; raw?: string; bearer?: string | null };
@@ -393,10 +417,16 @@ describe('the bearer is the only credential', () => {
       // The only identity source is the session middleware's result.
       expect(src).not.toMatch(/mintSession|resolveSession\(/);
     }
-    // And server.ts takes identity from req.session set by the injected middleware, nowhere else.
+    // And server.ts takes identity from exactly two injected sources, nowhere
+    // else: req.session set by the session middleware (mechanism 'session'),
+    // or req.agent set by the injected agentAuth resolver (mechanism
+    // 'agent-token'). It never reads the legacy header.
     const serverSrc = readFileSync(path.join(dir, 'server.ts'), 'utf8');
-    expect(serverSrc).toMatch(/\(req as SessionRequest\)\.session/);
-    expect(serverSrc).toMatch(/authMechanism !== 'session'/);
+    expect(serverSrc).toMatch(/identified\.session && identified\.authMechanism === 'session'/);
+    expect(serverSrc).toMatch(/identified\.authMechanism === 'agent-token' \? identified\.agent/);
+    expect(serverSrc.match(/\)\.agent = /g)).toHaveLength(1);
+    expect(serverSrc).toMatch(/options\.agentAuth\.resolve\(agentToken\)/);
+    expect(serverSrc).not.toMatch(/header\(['"]x-user-email['"]\)/);
   });
 });
 
@@ -442,5 +472,52 @@ describe('units', () => {
       expect(text.length).toBeLessThan(MCP_RESULT_MAX_CHARS + 200);
       expect(text).toMatch(/\[TRUNCATED: result exceeded 400000 characters/);
     } finally { s.close(); }
+  });
+});
+
+
+describe('agent tokens (s21a_…): read-only, audited, never a session', () => {
+  it('lists exactly the allowed read tools and runs one AS the token owner', async () => {
+    const list = await mcp({ bearer: AGENT, body: rpc('tools/list') });
+    expect(list.status).toBe(200);
+    expect(list.json.result.tools.map((t: any) => t.name)).toEqual([...AGENT_READ_TOOLS]);
+    const r = await mcp({ bearer: AGENT, body: rpc('tools/call', { name: 'carrier_directory', arguments: { q: 'State' } }) });
+    expect(r.status).toBe(200);
+    expect(r.json.result.isError).toBe(false);
+    expect(seen.insuranceCompanies.at(-1).email).toBe('other.rep@theroofdocs.com');
+    expect(agentUses).toEqual([expect.objectContaining({ tokenId: 'tok-1', tool: 'carrier_directory', argumentKeys: ['q'], outcome: 'ok' })]);
+    expect(JSON.stringify(agentUses)).not.toContain('State');
+  });
+
+  it('a token without the read scope sees no tools and every call is 403, audited as refused, nothing runs', async () => {
+    const list = await mcp({ bearer: AGENT_SCOPELESS, body: rpc('tools/list') });
+    expect(list.json.result.tools).toEqual([]);
+    const r = await mcp({ bearer: AGENT_SCOPELESS, body: rpc('tools/call', { name: 'rep_directory', arguments: { q: 'ford' } }) });
+    expect(r.status).toBe(403);
+    expect(r.json.error.message).toMatch(/read-only/);
+    expect(seen.team).toHaveLength(0);
+    expect(agentUses).toEqual([expect.objectContaining({ tokenId: 'tok-2', tool: 'rep_directory', outcome: 'refused' })]);
+  });
+
+  it('an unknown or revoked agent token is 401, and never falls through to the session store', async () => {
+    const before = pool.query.mock.calls.length;
+    const r = await mcp({ bearer: `s21a_${'z'.repeat(43)}`, body: rpc('tools/list') });
+    expect(r.status).toBe(401);
+    expect(r.headers.get('www-authenticate')).toMatch(/^Bearer /);
+    expect(pool.query.mock.calls.slice(before).filter((c: any[]) => /app_sessions/.test(c[0]))).toHaveLength(0);
+  });
+
+  it('a session token never reaches the agent resolver and still gets every tool', async () => {
+    const r = await mcp({ body: rpc('tools/list') });
+    expect(r.status).toBe(200);
+    expect(r.json.result.tools.map((t: any) => t.name)).toEqual([...MCP_TOOL_NAMES]);
+    await callTool('rep_directory', { q: 'ford' });
+    expect(agentResolves).toEqual([]);
+    expect(agentUses).toEqual([]);
+  });
+
+  it('a legacy header next to an agent token changes nothing: the call runs as the token owner', async () => {
+    await mcp({ bearer: AGENT, headers: { 'x-user-email': REP.email }, body: rpc('tools/call', { name: 'carrier_directory', arguments: { q: 'State' } }) });
+    expect(seen.insuranceCompanies.at(-1).email).toBe('other.rep@theroofdocs.com');
   });
 });
