@@ -1,12 +1,13 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { User, QrCode, Bell } from 'lucide-react';
+import { User, QrCode, Bell, Bot } from 'lucide-react';
 import UserProfile from './UserProfile';
 import { authService } from '../services/authService';
 
 const MyProfilePanel = lazy(() => import('./MyProfilePanel'));
 const NotificationsPage = lazy(() => import('./NotificationsPage'));
+const ConnectedAgents = lazy(() => import('./ConnectedAgents'));
 
-type Tab = 'profile' | 'qr' | 'notifications';
+type Tab = 'profile' | 'qr' | 'notifications' | 'agents';
 
 interface ProfilePageProps {
   onLogout: () => void;
@@ -21,6 +22,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onLogout, defaultTab = 'profi
     { id: 'profile' as Tab, label: 'Profile', icon: User },
     { id: 'qr' as Tab, label: 'QR Code', icon: QrCode },
     { id: 'notifications' as Tab, label: 'Notifications', icon: Bell },
+    // Read-only tokens for assistants such as Genie 21 (server/auth/agentTokens.ts).
+    { id: 'agents' as Tab, label: 'Connected agents', icon: Bot },
   ];
 
   const skeleton = (
@@ -40,9 +43,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onLogout, defaultTab = 'profi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Tab Bar */}
+      {/* Tab Bar: one row on desktop, 2x2 on a phone. With four tabs a
+          single flex row left ~50px per label at 390px and clipped
+          "Notifications"; a grid keeps every label whole and on screen. */}
       <div style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: '8px',
         padding: '12px 16px',
         borderBottom: '1px solid var(--border-subtle)',
@@ -57,12 +63,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onLogout, defaultTab = 'profi
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                flex: 1,
+                minWidth: 0,
+                whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
-                padding: '10px 16px',
+                gap: '6px',
+                padding: '10px 8px',
                 borderRadius: '10px',
                 border: isActive ? '2px solid var(--roof-red)' : '2px solid var(--border-subtle)',
                 background: isActive ? 'var(--roof-red)' : 'var(--bg-secondary)',
@@ -100,6 +107,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onLogout, defaultTab = 'profi
         {activeTab === 'notifications' && (
           <Suspense fallback={skeleton}>
             <NotificationsPage />
+          </Suspense>
+        )}
+
+        {activeTab === 'agents' && (
+          <Suspense fallback={skeleton}>
+            <ConnectedAgents />
           </Suspense>
         )}
       </div>
