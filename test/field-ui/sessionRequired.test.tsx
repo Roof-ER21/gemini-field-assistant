@@ -12,14 +12,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../services/authService', () => ({ authService: { isAuthenticated: () => true } }));
 
 import {
-  installSessionFetch, isSessionRequiredError, storeSessionToken, getSessionToken, SESSION_REQUIRED_EVENT,
+  installSessionFetch,
+  isSessionRequiredError,
+  storeSessionToken,
+  getSessionToken,
+  SESSION_REQUIRED_EVENT,
 } from '../../src/auth/sessionToken';
 import ReauthBanner from '../../components/ReauthBanner';
 
 const sessionRequired = () =>
-  new Response(JSON.stringify({ error: { message: 'Sign in to use AI.' }, code: 'SESSION_REQUIRED' }), {
-    status: 401, headers: { 'Content-Type': 'application/json' },
-  });
+  new Response(
+    JSON.stringify({ error: { message: 'Sign in to use AI.' }, code: 'SESSION_REQUIRED' }),
+    {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 
 describe('SESSION_REQUIRED from the API', () => {
   let original: typeof fetch;
@@ -27,13 +35,22 @@ describe('SESSION_REQUIRED from the API', () => {
     const data = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => data.get(key) ?? null,
-      setItem: (key: string, value: string) => { data.set(key, value); },
-      removeItem: (key: string) => { data.delete(key); },
+      setItem: (key: string, value: string) => {
+        data.set(key, value);
+      },
+      removeItem: (key: string) => {
+        data.delete(key);
+      },
       clear: () => data.clear(),
     });
     original = window.fetch;
   });
-  afterEach(() => { cleanup(); window.fetch = original; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    cleanup();
+    window.fetch = original;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('is announced even when the browser holds no token', async () => {
     const underlying = vi.fn().mockResolvedValue(sessionRequired());
@@ -44,7 +61,10 @@ describe('SESSION_REQUIRED from the API', () => {
     mod.installSessionFetch();
     const seen = vi.fn();
     window.addEventListener(mod.SESSION_REQUIRED_EVENT, seen);
-    const res = await window.fetch('/api/susan/gemini/v1beta/models/gemini-2.5-flash:generateContent', { method: 'POST' });
+    const res = await window.fetch(
+      '/api/susan/gemini/v1beta/models/gemini-2.5-flash:generateContent',
+      { method: 'POST' },
+    );
     expect(res.status).toBe(401);
     expect(underlying.mock.calls[0][1]?.headers).toBeUndefined(); // no bearer invented
     expect(seen).toHaveBeenCalledTimes(1);
@@ -78,20 +98,30 @@ describe('SESSION_REQUIRED from the API', () => {
 
   it('shows the banner, un-snoozed and not dismissible, when announced', async () => {
     localStorage.setItem('s21_reauth_dismissed_at', String(Date.now())); // snoozed
-    window.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ promptReauth: true }), { status: 200 }));
+    window.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ promptReauth: true }), { status: 200 }));
     render(<ReauthBanner />);
     expect(screen.queryByRole('status')).toBeNull();
-    await act(async () => { window.dispatchEvent(new CustomEvent(SESSION_REQUIRED_EVENT)); });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(SESSION_REQUIRED_EVENT));
+    });
     expect(screen.getByRole('status').textContent).toContain('Sign in again to use AI');
     expect(screen.queryByText('Not now')).toBeNull();
-    expect(screen.getByText('Sign in with Google').getAttribute('href')).toBe('/api/auth/google/start');
+    expect(screen.getByText('Sign in with Google').getAttribute('href')).toBe(
+      '/api/auth/google/start',
+    );
   });
 
   it('recognises the SDK error shape the email panel receives', () => {
-    const apiError = Object.assign(new Error('{"error":{"message":"Sign in to use AI."}}'), { status: 401 });
+    const apiError = Object.assign(new Error('{"error":{"message":"Sign in to use AI."}}'), {
+      status: 401,
+    });
     expect(isSessionRequiredError(apiError)).toBe(true);
     expect(isSessionRequiredError(new Error('Empty email response'))).toBe(false);
-    expect(isSessionRequiredError(Object.assign(new Error('rate limited'), { status: 429 }))).toBe(false);
+    expect(isSessionRequiredError(Object.assign(new Error('rate limited'), { status: 429 }))).toBe(
+      false,
+    );
     expect(isSessionRequiredError(null)).toBe(false);
   });
 });
