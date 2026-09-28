@@ -1261,8 +1261,8 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
 
             {/* Preview Section */}
             {generatedEmail && (
-              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '12px', position: 'sticky', top: '12px' }}>
-                <div style={{
+              <div className="rep-email-draft-workspace" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '12px', position: 'sticky', top: '12px' }}>
+                <div className="rep-email-draft-card" style={{
                   background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
                   border: '1px solid var(--border-default)',
                   borderRadius: 'var(--radius-lg)',
@@ -1621,7 +1621,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   )}
 
                   {/* Email Preview or Editor */}
-                  <div style={{
+                  <div className="rep-email-document" style={{
                     background: 'var(--bg-secondary)',
                     padding: '16px',
                     borderRadius: 'var(--radius-md)',
@@ -1670,13 +1670,14 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                   </div>
 
                   {/* AI Enhancement Tools */}
-                  <div style={{
+                  <div className="rep-email-enhancement-tools" style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
                     gap: '8px',
                     marginBottom: '12px'
                   }}>
                     <button
+                      className="rep-email-enhance-primary"
                       onClick={() => handleEnhanceEmail('improve')}
                       disabled={isEnhancing}
                       style={{
@@ -1703,6 +1704,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       Improve Email
                     </button>
                     <button
+                      className="rep-email-enhance-primary"
                       onClick={handleTalkAboutIt}
                       disabled={isEnhancing || isGeneratingQuestions}
                       style={{
@@ -1729,6 +1731,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       Talk About It
                     </button>
                     <button
+                      className="rep-email-enhance-secondary"
                       onClick={() => handleEnhanceEmail('shorten')}
                       disabled={isEnhancing}
                       style={{
@@ -1755,6 +1758,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                       Make Shorter
                     </button>
                     <button
+                      className="rep-email-enhance-secondary"
                       onClick={() => handleEnhanceEmail('lengthen')}
                       disabled={isEnhancing}
                       style={{
@@ -1823,7 +1827,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
 
                 {/* Why It Works Box */}
                 {whyItWorks && (
-                  <div style={{
+                  <div className="rep-email-explanation" style={{
                     background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
                     border: '2px solid #fbbf24',
                     borderRadius: 'var(--radius-lg)',
@@ -2017,6 +2021,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
             {/* Email Detail Modal */}
             {selectedHistoryEmail && (
               <div
+                className="rep-email-modal-backdrop"
                 style={{
                   position: 'fixed',
                   top: 0,
@@ -2033,6 +2038,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
                 onClick={() => setSelectedHistoryEmail(null)}
               >
                 <div
+                  className="rep-email-history-dialog"
                   style={{
                     background: 'var(--bg-elevated)',
                     borderRadius: 'var(--radius-lg)',
@@ -2140,6 +2146,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
         {/* Talk About It - Conversation Modal */}
         {showConversationModal && (
           <div
+            className="rep-email-modal-backdrop rep-email-conversation-backdrop"
             style={{
               position: 'fixed',
               top: 0,
@@ -2156,6 +2163,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
             onClick={() => !isRefiningEmail && setShowConversationModal(false)}
           >
             <div
+              className="rep-email-conversation-dialog"
               style={{
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
@@ -2168,7 +2176,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div style={{
+              <div className="rep-email-conversation-header" style={{
                 padding: '24px',
                 borderBottom: '2px solid var(--border-default)',
                 background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
@@ -2240,7 +2248,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
               {/* Questions & Answers */}
               {!isGeneratingQuestions && conversationQuestions.length > 0 && (
                 <div style={{ padding: '24px' }}>
-                  <div style={{
+                  <div className="rep-email-conversation-intro" style={{
                     background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
                     border: '2px solid rgba(220,38,38,0.3)',
                     borderRadius: 'var(--radius-lg)',
@@ -2265,6 +2273,7 @@ Return ONLY the refined email from the rep's perspective. No explanations, no me
 
                   {conversationQuestions.map((question, index) => (
                     <div
+                      className="rep-email-conversation-question"
                       key={index}
                       style={{
                         marginBottom: '24px',

@@ -42,6 +42,112 @@
   flex-shrink: 0;
 }
 
+/* The email workspace uses named surfaces so light mode does not have to infer
+   component intent from fragile inline-style string matching. */
+.rep-email-draft-workspace {
+  box-shadow: var(--shadow-md);
+}
+
+.rep-email-document {
+  border: 1px solid var(--border-default);
+}
+
+.rep-email-enhancement-tools button {
+  min-height: 44px;
+}
+
+.rep-email-enhance-primary,
+.rep-email-enhance-secondary {
+  color: #fff !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 2px 5px rgb(16 17 20 / 18%);
+}
+
+.rep-email-enhance-primary:focus-visible,
+.rep-email-enhance-secondary:focus-visible {
+  outline: 3px solid rgb(196 30 58 / 24%);
+  outline-offset: 2px;
+}
+
+.rep-email-modal-backdrop {
+  backdrop-filter: blur(2px);
+}
+
+.rep-email-history-dialog,
+.rep-email-conversation-dialog {
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-xl);
+}
+
+[data-theme='light'] .rep-email-draft-workspace {
+  background: #e8e4de !important;
+  border-color: #d2cbc1 !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-draft-card {
+  background: #fffdf9 !important;
+  border-color: #d7d0c7 !important;
+}
+
+[data-theme='light'] .rep-email-document {
+  background: #fff !important;
+  border-color: #ddd6cc !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%);
+}
+
+[data-theme='light'] .roof-er-content-area button.rep-email-enhance-primary {
+  background: var(--roof-red) !important;
+  color: #fff !important;
+}
+
+[data-theme='light'] .roof-er-content-area button.rep-email-enhance-primary:hover {
+  background: var(--roof-red-dark) !important;
+}
+
+[data-theme='light'] .roof-er-content-area button.rep-email-enhance-secondary {
+  background: #34383f !important;
+  color: #fff !important;
+}
+
+[data-theme='light'] .roof-er-content-area button.rep-email-enhance-secondary:hover {
+  background: #202329 !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-panel button[style*='var(--roof-red)'] {
+  color: #fff !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-explanation {
+  background: #fff7df !important;
+  border-color: #e1aa28 !important;
+  color: #4f3610 !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-modal-backdrop {
+  background: rgb(18 20 24 / 62%) !important;
+}
+
+[data-theme='light'] .rep-email-history-dialog,
+[data-theme='light'] .rep-email-conversation-dialog {
+  background: #fffdf9 !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-conversation-header,
+[data-theme='light'] .roof-er-content-area .rep-email-conversation-intro {
+  background: #f8e9e8 !important;
+  border-color: #dfb7b4 !important;
+}
+
+[data-theme='light'] .roof-er-content-area .rep-email-conversation-question {
+  background: #f2f0ec !important;
+  border-color: #d7d0c7 !important;
+}
+
+[data-theme='light'] .rep-email-panel button {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 @media (width >= 960px) {
   .rep-email-layout-with-draft {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -56,5 +162,9 @@
 
   .rep-email-panel button {
     min-height: 44px;
+  }
+
+  .rep-email-enhancement-tools {
+    grid-template-columns: 1fr !important;
   }
 }
