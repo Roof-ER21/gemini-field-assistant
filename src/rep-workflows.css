@@ -95,21 +95,24 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%);
 }
 
-[data-theme='light'] .roof-er-content-area button.rep-email-enhance-primary {
+[data-theme='light'] .roof-er-content-area .rep-email-panel button.rep-email-enhance-primary {
   background: var(--roof-red) !important;
   color: #fff !important;
 }
 
-[data-theme='light'] .roof-er-content-area button.rep-email-enhance-primary:hover {
+[data-theme='light'] .roof-er-content-area .rep-email-panel button.rep-email-enhance-primary:hover {
   background: var(--roof-red-dark) !important;
 }
 
-[data-theme='light'] .roof-er-content-area button.rep-email-enhance-secondary {
+[data-theme='light'] .roof-er-content-area .rep-email-panel button.rep-email-enhance-secondary {
   background: #34383f !important;
   color: #fff !important;
 }
 
-[data-theme='light'] .roof-er-content-area button.rep-email-enhance-secondary:hover {
+[data-theme='light']
+  .roof-er-content-area
+  .rep-email-panel
+  button.rep-email-enhance-secondary:hover {
   background: #202329 !important;
 }
 
