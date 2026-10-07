@@ -6,6 +6,7 @@
 import { Router, Request, Response, type RequestHandler } from 'express';
 import type { Pool } from 'pg';
 import crypto from 'crypto';
+import { addressStateZip } from '../lib/addressZip.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -58,8 +59,7 @@ export function forwardLeadToCC24(lead: {
     if (at.length) ccMessage += (ccMessage ? '\n' : '') + 'Attribution: ' + at.join(', ');
   }
   const addrStr = (lead.address || '').trim();
-  const zip = addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
-  const state = addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1]?.toUpperCase();
+  const { state, zip } = addressStateZip(addrStr);
   const srcTag = /roofcheck/i.test(lead.sourceLabel || '') ? 'roofcheck'
     : (/jotform/i.test(lead.sourceLabel || '') ? 'jotform' : 'qr');
   const body = {

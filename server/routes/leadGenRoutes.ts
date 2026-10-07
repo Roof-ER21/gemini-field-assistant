@@ -12,6 +12,7 @@ import type { Pool } from 'pg';
 import { emailService, type EmailTemplate } from '../services/emailService.js';
 import { LeadSmsService } from '../services/leadSmsService.js';
 import { sendInternalLeadEmail } from './profileRoutes.js';
+import { addressStateZip, leadAddressZip } from '../lib/addressZip.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -211,7 +212,7 @@ export function createLeadGenRoutes(pool: Pool) {
         homeownerEmail,
         homeownerPhone,
         address,
-        zipCode,
+        zipCode: postedZipCode,
         serviceType,
         preferredDate,
         preferredTime,
@@ -240,6 +241,7 @@ export function createLeadGenRoutes(pool: Pool) {
         utmCampaign?: string;
       };
 
+      const zipCode = leadAddressZip(address, postedZipCode);
       // --- Validation -------------------------------------------------------
       if (!homeownerName || !homeownerName.trim()) {
         return res.status(400).json({
@@ -454,8 +456,8 @@ export function createLeadGenRoutes(pool: Pool) {
         // state + zip in the address string ("...Vienna, VA 22182") — parse
         // both out for better region attribution.
         const addrStr = (address || '').trim();
-        const fwdZip = (zipCode || addrStr.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] || '').trim();
-        const fwdState = (addrStr.match(/\b([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b/)?.[1] || '').toUpperCase();
+        const fwdZip = leadAddressZip(addrStr, zipCode);
+        const fwdState = addressStateZip(addrStr).state;
 
         // repEmail / repName resolved once above (shared with the internal lead
         // email) so CC24 can ASSIGN the lead to that specific rep, not the org owner.
@@ -1183,6 +1185,7 @@ export function createLeadGenRoutes(pool: Pool) {
         zipCode = zipCode || parsed.zipCode;
       }
 
+      zipCode = leadAddressZip(callerAddress, zipCode);
       // --- Calculate call duration ---
       const callDurationSecs = metadata.call_duration_secs
         || (transcript.length > 0
@@ -1414,8 +1417,7 @@ function parseTranscriptForLeadData(transcript: string): {
   if (addressMatch) result.address = addressMatch[1].trim();
 
   // ZIP code
-  const zipMatch = transcript.match(/\b(\d{5})(?:-\d{4})?\b/);
-  if (zipMatch) result.zipCode = zipMatch[1];
+  result.zipCode = addressStateZip(result.address).zip;
 
   // Date — look for "Monday", "Tuesday", specific dates, "tomorrow", etc.
   const dateMatch = transcript.match(
