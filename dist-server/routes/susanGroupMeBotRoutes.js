@@ -660,16 +660,16 @@ function extractAddress(text) {
         'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
     };
     const stateRe = /\b(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
-    const zipRe = /\b(\d{5})(?:-\d{4})?\b/;
+    const zipRe = /^[.\s,]*(\d{5})(?:-\d{4})?\b/;
     const sm = tail.match(stateRe);
-    const zm = tail.match(zipRe);
+    const zm = sm ? tail.slice((sm.index ?? 0) + sm[0].length).match(zipRe) : null;
     if (!sm && !zm)
         return null; // no state and no zip → not actionable address
     const state = sm ? stateMap[sm[1].toLowerCase()] || sm[1].toUpperCase() : undefined;
     const zip = zm ? zm[1] : undefined;
     // City = everything between street-suffix and state/zip, greedy trim
     let city = undefined;
-    const cutoff = Math.min(sm ? (sm.index ?? 1000) : 1000, zm ? (zm.index ?? 1000) : 1000);
+    const cutoff = Math.min(sm ? (sm.index ?? 1000) : 1000, 1000);
     if (cutoff > 0 && cutoff < 80) {
         const rawCity = tail.slice(0, cutoff).replace(/^[.,\s]+|[.,\s]+$/g, '');
         // Reject obvious non-city tails ("in the", "last year", etc)

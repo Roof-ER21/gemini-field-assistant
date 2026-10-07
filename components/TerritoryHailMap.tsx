@@ -1,4 +1,5 @@
 import { formatNumber } from '../utils/formatNumber';
+import { addressStateZip } from '../server/lib/addressZip';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -1908,7 +1909,8 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                     address: parts[0] || label,
                     city: parts[1] || '',
                     state: searchSummary.resultType === 'postal_code' ? '' : (parts[2]?.split(' ')[0] || ''),
-                    zipCode: parts[parts.length - 1]?.match(/\d{5}/)?.[0] || '',
+                    zipCode: searchSummary.resultType === 'postal_code' && /^\d{5}$/.test(label.trim())
+                      ? label.trim() : addressStateZip(label).zip,
                     latitude: searchLat!,
                     longitude: searchLng!,
                     notifyOnHail: true,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import { addressStateZip } from '../server/lib/addressZip';
 import FieldSusanWelcome from './FieldSusanWelcome';
 import { motion, AnimatePresence } from 'framer-motion';
 import { connectTranscriptionStream, generateEmail } from '../services/geminiService';
@@ -614,7 +615,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           street: match[1].trim(),
           city: match[2].trim(),
           state: match[3].trim().toUpperCase(),
-          zip: match[4]?.trim() || '00000' // Default zip if not provided
+          zip: addressStateZip(rawAddress).zip
         };
       }
     }
@@ -630,7 +631,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           street: match[1].trim(),
           city: match[2].trim(),
           state: match[3].trim().toUpperCase(),
-          zip: match[4]?.trim() || '00000'
+          zip: addressStateZip(rawAddress).zip
         };
       }
     }
@@ -651,7 +652,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           street: match[1].trim(),
           city: match[2].trim(),
           state: match[3].trim().toUpperCase(),
-          zip: match[4]?.trim() || '00000'
+          zip: addressStateZip(rawAddress).zip
         };
       }
     }

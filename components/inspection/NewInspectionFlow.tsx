@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import { addressStateZip } from '../../server/lib/addressZip';
 import {
   User, Phone, MapPin, Camera, CloudUpload, Sparkles, CheckCircle2,
   X, Loader2, AlertCircle, Play, ChevronDown, ChevronUp, Home,
@@ -533,6 +534,7 @@ Homeowners trust this assessment. Be thorough and professional.`;
       result.address = fullAddress;
     }
 
+    result.zip = addressStateZip(fullAddress).zip;
     return result;
   };
 
