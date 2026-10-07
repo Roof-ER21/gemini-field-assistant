@@ -1287,8 +1287,10 @@ Homeowners trust this assessment. Be thorough and professional.`;
                     height: '100%',
                     background: 'linear-gradient(90deg, #c41e3a 0%, #4b5563 100%)',
                     borderRadius: '8px',
-                    width: `${progress}%`,
-                    transition: 'width 0.5s ease-out'
+                    width: '100%',
+                    transform: `scaleX(${progress / 100})`,
+                    transformOrigin: 'left',
+                    transition: 'transform 0.5s ease-out'
                   }} />
                 </div>
               </div>
