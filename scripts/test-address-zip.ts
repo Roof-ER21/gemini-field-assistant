@@ -23,4 +23,7 @@ assert.equal(leadAddressZip(cases[4][0], '14425'), '20878');
 assert.equal(leadAddressZip('12345 Elm Rd, Reston, VA', '12345'), '');
 assert.equal(leadAddressZip('123 Main St', '22182-1234'), '22182');
 assert.equal(leadAddressZip('123 Main St', 'invalid'), '');
-console.log(`PASS: ${cases.length} one-line addresses and 4 separate-field cases`);
+assert.equal(leadAddressZip('123 Main St', 22182 as unknown), '22182');
+assert.equal(leadAddressZip(undefined, undefined), '');
+assert.equal(leadAddressZip(null, 20190 as unknown), '20190');
+console.log(`PASS: ${cases.length} one-line addresses and 7 separate-field cases`);
