@@ -44,6 +44,7 @@ import { compositeContourOverlay, compositeVectorSwathOverlay } from '../service
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
 import type { Pool } from 'pg';
+import { nominatimParts, type GeocodeParts } from '../lib/geocodeParts.js';
 
 const router = Router();
 
@@ -104,7 +105,7 @@ const geocodeForHailSearch = async (params: { address?: string; city?: string; s
 };
 
 // Simple geocode cache to avoid rate-limiting from Nominatim
-const geocodeCache = new Map<string, { address: string; lat: number; lng: number; ts: number }>();
+const geocodeCache = new Map<string, { address: string; lat: number; lng: number; parts?: GeocodeParts; ts: number }>();
 const GEOCODE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
 // GET /api/hail/geocode?q=<address|city|zip>
@@ -117,7 +118,7 @@ router.get('/geocode', async (req: Request, res: Response) => {
   const cacheKey = q.toLowerCase();
   const cached = geocodeCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < GEOCODE_CACHE_TTL) {
-    return res.json({ address: cached.address, lat: cached.lat, lng: cached.lng });
+    return res.json({ address: cached.address, lat: cached.lat, lng: cached.lng, ...(cached.parts ? { parts: cached.parts } : {}) });
   }
 
   try {
@@ -137,13 +138,14 @@ router.get('/geocode', async (req: Request, res: Response) => {
 
     // Fallback to Nominatim (handle rate-limiting gracefully)
     try {
-      const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
+      const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us&addressdetails=1`, {
         headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
       });
       if (nomRes.ok) {
         const nomData = await nomRes.json();
         if (Array.isArray(nomData) && nomData.length > 0) {
-          const result = { address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) };
+          // The parts too (2026-10-07): the label's comma parts are not street, city, state.
+          const result = { address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon), parts: nominatimParts(nomData[0].address) };
           geocodeCache.set(cacheKey, { ...result, ts: Date.now() });
           return res.json(result);
         }

@@ -1,5 +1,5 @@
 import { formatNumber } from '../utils/formatNumber';
-import { labelZip } from '../utils/labelZip';
+import { trackedPropertyAddress } from '../utils/trackedPropertyAddress';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -1089,6 +1089,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
       setMapZoom(getFallbackZoom(result.resultType));
       setSearchSummary({
         locationLabel: result.address,
+        parts: result.parts ?? null,
         resultType: result.resultType,
         radiusMiles,
         historyPreset: historyRange,
@@ -1903,13 +1904,9 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                 setTrackingProperty(true);
                 try {
                   const label = searchSummary.locationLabel || activeSearchLabel || '';
-                  const parts = label.split(',').map(s => s.trim());
                   const result = await impactedAssetApi.addProperty({
                     customerName: customerNameInput || 'Property Owner',
-                    address: parts[0] || label,
-                    city: parts[1] || '',
-                    state: searchSummary.resultType === 'postal_code' ? '' : (parts[2]?.split(' ')[0] || ''),
-                    zipCode: labelZip(label, searchSummary.resultType === 'postal_code'),
+                    ...trackedPropertyAddress(label, searchSummary.resultType === 'postal_code', searchSummary.parts),
                     latitude: searchLat!,
                     longitude: searchLng!,
                     notifyOnHail: true,

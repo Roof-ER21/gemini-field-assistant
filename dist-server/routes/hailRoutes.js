@@ -41,6 +41,7 @@ import { fetchNWSAlerts } from '../services/nwsAlertService.js';
 import { compositeContourOverlay, compositeVectorSwathOverlay } from '../services/contourOverlayService.js';
 import { assessPropertyRisk } from '../services/propertyRiskService.js';
 import { searchEvidenceCandidates } from '../services/evidenceSearchService.js';
+import { nominatimParts } from '../lib/geocodeParts.js';
 const router = Router();
 /**
  * Multi-provider geocoding - Census Bureau + Nominatim fallback
@@ -104,7 +105,7 @@ router.get('/geocode', async (req, res) => {
     const cacheKey = q.toLowerCase();
     const cached = geocodeCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < GEOCODE_CACHE_TTL) {
-        return res.json({ address: cached.address, lat: cached.lat, lng: cached.lng });
+        return res.json({ address: cached.address, lat: cached.lat, lng: cached.lng, ...(cached.parts ? { parts: cached.parts } : {}) });
     }
     try {
         // Try Census Bureau first (best for street addresses)
@@ -122,13 +123,14 @@ router.get('/geocode', async (req, res) => {
         }
         // Fallback to Nominatim (handle rate-limiting gracefully)
         try {
-            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`, {
+            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us&addressdetails=1`, {
                 headers: { 'User-Agent': 'RoofER-GeminiFieldAssistant/1.0' }
             });
             if (nomRes.ok) {
                 const nomData = await nomRes.json();
                 if (Array.isArray(nomData) && nomData.length > 0) {
-                    const result = { address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) };
+                    // The parts too (2026-10-07): the label's comma parts are not street, city, state.
+                    const result = { address: nomData[0].display_name, lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon), parts: nominatimParts(nomData[0].address) };
                     geocodeCache.set(cacheKey, { ...result, ts: Date.now() });
                     return res.json(result);
                 }

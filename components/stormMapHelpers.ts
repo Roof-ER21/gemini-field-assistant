@@ -6,6 +6,7 @@
 
 import { getApiBaseUrl } from '../services/config';
 import { authService } from '../services/authService';
+import type { AddressParts } from '../utils/trackedPropertyAddress';
 
 // ============================================================
 // Types
@@ -90,6 +91,8 @@ export interface EventFilterState {
 
 export interface PropertySearchSummary {
   locationLabel: string;
+  /** The geocoder's parts of the place, when it gave them (a Nominatim match). */
+  parts?: AddressParts | null;
   resultType: SearchResultType;
   radiusMiles: number;
   historyPreset: HistoryRangePreset;
@@ -98,6 +101,7 @@ export interface PropertySearchSummary {
 
 export interface SearchResult {
   address: string;
+  parts?: AddressParts | null;
   lat: number;
   lng: number;
   placeId: string;
@@ -276,7 +280,7 @@ export async function geocodeAddress(query: string): Promise<SearchResult | null
     if (!data.lat || !data.lng) return null;
     const { lat, lng, address } = data;
     const pad = isZipCode(cleaned) ? 0.08 : 0.01;
-    return { address: address || cleaned, lat, lng, placeId: `geocode-${lat}-${lng}`, viewport: { north: lat + pad, south: lat - pad, east: lng + pad, west: lng - pad }, resultType: isZipCode(cleaned) ? 'postal_code' : 'address' };
+    return { address: address || cleaned, parts: data.parts ?? null, lat, lng, placeId: `geocode-${lat}-${lng}`, viewport: { north: lat + pad, south: lat - pad, east: lng + pad, west: lng - pad }, resultType: isZipCode(cleaned) ? 'postal_code' : 'address' };
   } catch { return null; }
 }
 

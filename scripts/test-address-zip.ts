@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { addressStateZip, leadAddressZip, streetTailStateZip } from '../server/lib/addressZip.js';
 import { labelZip } from '../utils/labelZip.js';
+import { nominatimParts } from '../server/lib/geocodeParts.js';
+import { trackedPropertyAddress } from '../utils/trackedPropertyAddress.js';
 
 const cases = [
   ['123 Main St Vienna VA 22182', 'VA', '22182'],
@@ -63,4 +65,21 @@ const tails: Array<[string, { state?: string; zip?: string; cutoff: number } | n
   [' got hit yesterday', null],
 ];
 for (const [tail, want] of tails) assert.deepEqual(streetTailStateZip(tail), want, tail);
-console.log(`PASS: ${cases.length} one-line addresses, 7 separate-field cases, ${labels.length + 4} map labels, ${tails.length} bot tails`);
+
+// The geocode route's Nominatim parts, and what Track property saves (the Nominatim answers as read from nominatim.openstreetmap.org on 10/7).
+const business = { amenity: 'NewEra Medical Aesthetics & Lasers', house_number: '8100', road: 'Boone Boulevard', town: 'Vienna', county: 'Fairfax County', state: 'Virginia', 'ISO3166-2-lvl4': 'US-VA', postcode: '22182', country: 'United States', country_code: 'us' };
+const zipOnly = { postcode: '22030', county: 'Fairfax County', state: 'Virginia', 'ISO3166-2-lvl4': 'US-VA', country: 'United States', country_code: 'us' };
+const town = { town: 'Herndon', county: 'Fairfax County', state: 'Virginia', 'ISO3166-2-lvl4': 'US-VA', country: 'United States', country_code: 'us' };
+assert.deepEqual(nominatimParts(business), { street: '8100 Boone Boulevard', city: 'Vienna', state: 'VA', zip: '22182' });
+assert.deepEqual(nominatimParts(zipOnly), { street: '', city: '', state: 'VA', zip: '22030' });
+assert.deepEqual(nominatimParts(town), { street: '', city: 'Herndon', state: 'VA', zip: '' });
+assert.deepEqual(nominatimParts({ city: 'Baltimore', 'ISO3166-2-lvl4': 'US-MD', postcode: '21201-1234' }), { street: '', city: 'Baltimore', state: 'MD', zip: '21201' });
+assert.deepEqual(nominatimParts(undefined), { street: '', city: '', state: '', zip: '' });
+const businessLabel = 'NewEra Medical Aesthetics & Lasers, 8100, Boone Boulevard, Vienna, Fairfax County, Virginia, 22182, United States';
+assert.deepEqual(trackedPropertyAddress(businessLabel, false, nominatimParts(business)), { address: '8100 Boone Boulevard', city: 'Vienna', state: 'VA', zipCode: '22182' });
+assert.deepEqual(trackedPropertyAddress('22030, Fairfax County, Virginia, United States', true, nominatimParts(zipOnly)), { address: '22030', city: '', state: 'VA', zipCode: '22030' });
+assert.deepEqual(trackedPropertyAddress('Herndon, Fairfax County, Virginia, United States', false, nominatimParts(town)), { address: 'Herndon', city: 'Herndon', state: 'VA', zipCode: '' });
+// A Census label has no parts: split as before.
+assert.deepEqual(trackedPropertyAddress('12001 FAIRFAX LN, FAIRFAX, VA, 22030', false, null), { address: '12001 FAIRFAX LN', city: 'FAIRFAX', state: 'VA', zipCode: '22030' });
+assert.deepEqual(trackedPropertyAddress('22030', true), { address: '22030', city: '', state: '', zipCode: '22030' });
+console.log(`PASS: ${cases.length} one-line addresses, 7 separate-field cases, ${labels.length + 4} map labels, ${tails.length} bot tails, 5 Nominatim answers, 5 tracked properties`);
