@@ -6,10 +6,14 @@
  * ("12001, Fairfax Lane, Fairfax County, Virginia, 22030, United States").
  * The ZIP was read from the last part only, so every Nominatim label (a ZIP
  * or city search among them) saved the property with no ZIP. The first part
- * is the street or a bare house number, never the ZIP; a label that is only
- * a ZIP is its own.
+ * is the street, a place name or a bare house number, never the ZIP; a label
+ * that is only a ZIP is its own. A ZIP search (`postalCode`) is the exception:
+ * Nominatim answers it with the ZIP first ("22030, Fairfax County, Virginia,
+ * United States").
  */
-export function labelZip(label: unknown): string {
+export function labelZip(label: unknown, postalCode = false): string {
+  const searched = postalCode ? String(label ?? '').trim().match(/^(\d{5})(?:-\d{4})?\b/)?.[1] : undefined;
+  if (searched) return searched;
   const parts = String(label ?? '').split(',').map((part) => part.trim());
   for (let i = parts.length - 1; i >= 1; i--) {
     const zip = parts[i].match(/(?:^|\s)(\d{5})(?:-\d{4})?$/)?.[1];

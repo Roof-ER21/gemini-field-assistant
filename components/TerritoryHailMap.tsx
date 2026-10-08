@@ -1909,7 +1909,7 @@ export default function TerritoryHailMap({ setActivePanel }: TerritoryHailMapPro
                     address: parts[0] || label,
                     city: parts[1] || '',
                     state: searchSummary.resultType === 'postal_code' ? '' : (parts[2]?.split(' ')[0] || ''),
-                    zipCode: labelZip(label),
+                    zipCode: labelZip(label, searchSummary.resultType === 'postal_code'),
                     latitude: searchLat!,
                     longitude: searchLng!,
                     notifyOnHail: true,

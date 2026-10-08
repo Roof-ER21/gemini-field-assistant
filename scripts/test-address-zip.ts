@@ -39,10 +39,16 @@ const labels: Array<[string, string]> = [
   ['12345 Elm Rd', ''],
   ['12345, Elm Road, Reston, Fairfax County, Virginia, United States', ''],
   ['Herndon, Fairfax County, Virginia, United States', ''],
+  ['NewEra Medical Aesthetics & Lasers, 8100, Boone Boulevard, Vienna, Fairfax County, Virginia, 22182, United States', '22182'],
+  ['22030, Fairfax County, Virginia, United States', ''],
   ['', ''],
 ];
 for (const [label, zip] of labels) assert.equal(labelZip(label), zip, label);
 assert.equal(labelZip(undefined), '');
+// A ZIP search: Nominatim's label starts with the ZIP searched (read 10/7 10:19 PM ET from nominatim.openstreetmap.org).
+assert.equal(labelZip('22030, Fairfax County, Virginia, United States', true), '22030');
+assert.equal(labelZip('Fairfax, Fairfax County, Virginia, 22030, United States', true), '22030');
+assert.equal(labelZip('12001, Fairfax Lane, Fairfax County, Virginia, 22030, United States', false), '22030');
 
 // The GroupMe bot: the words after a street. The ZIP right after a named state (spelled out too, words after it
 // allowed); with no state, the first five digits; never another address's number after the state.
@@ -57,4 +63,4 @@ const tails: Array<[string, { state?: string; zip?: string; cutoff: number } | n
   [' got hit yesterday', null],
 ];
 for (const [tail, want] of tails) assert.deepEqual(streetTailStateZip(tail), want, tail);
-console.log(`PASS: ${cases.length} one-line addresses, 7 separate-field cases, ${labels.length + 1} map labels, ${tails.length} bot tails`);
+console.log(`PASS: ${cases.length} one-line addresses, 7 separate-field cases, ${labels.length + 4} map labels, ${tails.length} bot tails`);
