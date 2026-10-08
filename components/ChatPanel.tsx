@@ -1103,7 +1103,9 @@ Generate ONLY the email body text, no subject line or metadata.`;
           address: hailRequest.address,
           city: parsedAddress.city,
           state: parsedAddress.state,
-          zipCode: parsedAddress.zip,
+          // '00000' only stands in for a ZIP the rep did not type (the hail search
+          // needs one); it is not saved as the address's ZIP (2026-10-07).
+          zipCode: parsedAddress.zip === '00000' ? undefined : parsedAddress.zip,
           latitude: hailResults.searchArea.center.lat,
           longitude: hailResults.searchArea.center.lng,
           results: hailResults,

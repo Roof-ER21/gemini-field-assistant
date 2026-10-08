@@ -16,3 +16,31 @@ export function leadAddressZip(address: unknown, given?: unknown): string {
   if (posted === house) return parsed;
   return /^\d{5}(?:-\d{4})?$/.test(posted) ? posted.slice(0, 5) : parsed;
 }
+
+const TAIL_STATE = /\b(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
+const TAIL_STATE_CODES: Record<string, string> = {
+  va: 'VA', md: 'MD', pa: 'PA', dc: 'DC', wv: 'WV', de: 'DE',
+  virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
+  'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
+};
+
+/**
+ * The state and ZIP in the words after a street (the GroupMe bot's
+ * addresses, 2026-10-07). With a state named, the ZIP is the five digits
+ * right after it, words after the ZIP allowed; with none, the first five
+ * digits there. It was the first five digits anywhere in those words, so
+ * "4521 Oak Ln Fairfax VA got hit, 12345 Elm too" read 12345. `cutoff` is
+ * where the city ends: at the state, else at the ZIP. Null when neither is
+ * there (not an address the bot can look up).
+ */
+export function streetTailStateZip(tail: string): { state?: string; zip?: string; cutoff: number } | null {
+  const sm = tail.match(TAIL_STATE);
+  if (sm) {
+    const after = tail.slice((sm.index ?? 0) + sm[0].length);
+    const zip = after.match(/^[.\s,]*(\d{5})(?:-\d{4})?\b/)?.[1];
+    const name = sm[1].toLowerCase().replace(/\s+/g, ' ');
+    return { state: TAIL_STATE_CODES[name] || sm[1].toUpperCase(), zip, cutoff: sm.index ?? 1000 };
+  }
+  const zm = tail.match(/\b(\d{5})(?:-\d{4})?\b/);
+  return zm ? { zip: zm[1], cutoff: zm.index ?? 1000 } : null;
+}

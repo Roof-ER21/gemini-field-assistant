@@ -20,6 +20,7 @@
 import { Router } from 'express';
 import { getMrmsHailAtPoint, getRecentMrmsHailAtPoint } from '../services/historicalMrmsService.js';
 import { emailService } from '../services/emailService.js';
+import { streetTailStateZip } from '../lib/addressZip.js';
 import { resolvePerson, fetchKbRowsForPerson, buildDisambiguationReply, buildUnknownPersonReply, logDisambiguationEvent, } from '../services/susanPersonResolver.js';
 import { matchTemplate } from '../services/susanResponseTemplates.js';
 import { todayContextBlock } from '../services/todayContext.js';
@@ -653,23 +654,14 @@ function extractAddress(text) {
     const [fullStreet, num, nameRaw, suffix] = m;
     const streetEndIdx = (m.index || 0) + fullStreet.length;
     const tail = text.slice(streetEndIdx, streetEndIdx + 80);
-    // Try to find state AND/OR zip in the tail
-    const stateMap = {
-        va: 'VA', md: 'MD', pa: 'PA', dc: 'DC', wv: 'WV', de: 'DE',
-        virginia: 'VA', maryland: 'MD', pennsylvania: 'PA',
-        'district of columbia': 'DC', 'west virginia': 'WV', delaware: 'DE',
-    };
-    const stateRe = /\b(VA|MD|PA|DC|WV|DE|Virginia|Maryland|Pennsylvania|District\s+of\s+Columbia|West\s+Virginia|Delaware)\b/i;
-    const zipRe = /\b(\d{5})(?:-\d{4})?\b/;
-    const sm = tail.match(stateRe);
-    const zm = tail.match(zipRe);
-    if (!sm && !zm)
+    // The state and ZIP in the tail: the ZIP right after a named state, else
+    // the first five digits (lib/addressZip.ts, 2026-10-07).
+    const found = streetTailStateZip(tail);
+    if (!found)
         return null; // no state and no zip → not actionable address
-    const state = sm ? stateMap[sm[1].toLowerCase()] || sm[1].toUpperCase() : undefined;
-    const zip = zm ? zm[1] : undefined;
+    const { state, zip, cutoff } = found;
     // City = everything between street-suffix and state/zip, greedy trim
     let city = undefined;
-    const cutoff = Math.min(sm ? (sm.index ?? 1000) : 1000, zm ? (zm.index ?? 1000) : 1000);
     if (cutoff > 0 && cutoff < 80) {
         const rawCity = tail.slice(0, cutoff).replace(/^[.,\s]+|[.,\s]+$/g, '');
         // Reject obvious non-city tails ("in the", "last year", etc)
